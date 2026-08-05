@@ -9,6 +9,7 @@ import {
   CalendarDays,
   Heart,
   LayoutDashboard,
+  ListPlus,
   LogOut,
   Menu,
   MessageCircle,
@@ -109,20 +110,29 @@ export default function AppSidebar() {
   }, [hideSidebar, pathname]);
 
   const menu = useMemo<MenuItem[]>(() => {
-    const roleItem: MenuItem =
+    const roleItems: MenuItem[] =
       accountType === "provider"
-        ? {
-            title: "Espace prestataire",
-            href: "/provider",
-            icon: BriefcaseBusiness,
-          }
-        : {
-            title: "Devenir prestataire",
-            href: "/accounts",
-            icon: UserPlus,
-          };
+        ? [
+            {
+              title: "Espace prestataire",
+              href: "/provider",
+              icon: BriefcaseBusiness,
+            },
+            {
+              title: "Proposer un métier",
+              href: "/provider/services/new",
+              icon: ListPlus,
+            },
+          ]
+        : [
+            {
+              title: "Devenir prestataire",
+              href: "/accounts",
+              icon: UserPlus,
+            },
+          ];
 
-    return [...commonMenu, roleItem, ...accountMenu];
+    return [...commonMenu, ...roleItems, ...accountMenu];
   }, [accountType]);
 
   if (hideSidebar) return null;
