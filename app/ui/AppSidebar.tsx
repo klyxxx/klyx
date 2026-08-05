@@ -13,65 +13,25 @@ import {
   MessageCircle,
   Search,
   Settings,
-  Store,
+  Sparkles,
   UserRound,
   X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import KlyxLogo from "@/app/ui/KlyxLogo";
 
-const routesWithoutSidebar = [
-  "/",
-  "/login",
-  "/signup",
-  "/reset-password",
-];
+const routesWithoutSidebar = ["/", "/login", "/signup", "/reset-password"];
 
 const menu = [
-  {
-    title: "Tableau de bord",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "Rechercher",
-    href: "/babysitters",
-    icon: Search,
-  },
-  {
-    title: "Mes favoris",
-    href: "/favorites",
-    icon: Heart,
-  },
-  {
-    title: "Réservations",
-    href: "/bookings",
-    icon: CalendarDays,
-  },
-  {
-    title: "Messages",
-    href: "/messages",
-    icon: MessageCircle,
-  },
-  {
-    title: "Notifications",
-    href: "/notifications",
-    icon: Bell,
-  },
-  {
-    title: "Mon profil",
-    href: "/profile",
-    icon: UserRound,
-  },
-  {
-    title: "Ma boutique",
-    href: "/create-store",
-    icon: Store,
-  },
-  {
-    title: "Paramètres",
-    href: "/settings",
-    icon: Settings,
-  },
+  { title: "Vue d’ensemble", href: "/dashboard", icon: LayoutDashboard },
+  { title: "Trouver un service", href: "/search", icon: Search },
+  { title: "Assistant KLYX", href: "/brain", icon: Sparkles },
+  { title: "Réservations", href: "/bookings", icon: CalendarDays },
+  { title: "Messages", href: "/messages", icon: MessageCircle },
+  { title: "Favoris", href: "/favorites", icon: Heart },
+  { title: "Notifications", href: "/notifications", icon: Bell },
+  { title: "Mon profil", href: "/profile", icon: UserRound },
+  { title: "Paramètres", href: "/settings", icon: Settings },
 ];
 
 function matchesRoute(pathname: string, route: string) {
@@ -81,36 +41,19 @@ function matchesRoute(pathname: string, route: string) {
 export default function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-
   const [mobileOpen, setMobileOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
-  const hideSidebar = routesWithoutSidebar.some((route) =>
-    matchesRoute(pathname, route)
-  );
-
-  if (hideSidebar) {
-    return null;
-  }
+  const hideSidebar = routesWithoutSidebar.some((route) => matchesRoute(pathname, route));
+  if (hideSidebar) return null;
 
   async function logout() {
-    if (loggingOut) {
-      return;
-    }
-
+    if (loggingOut) return;
     setLoggingOut(true);
-
     try {
       const supabase = createClient();
-
-      const { error } = await supabase.auth.signOut({
-        scope: "local",
-      });
-
-      if (error) {
-        throw error;
-      }
-
+      const { error } = await supabase.auth.signOut({ scope: "local" });
+      if (error) throw error;
       setMobileOpen(false);
       router.replace("/login");
       router.refresh();
@@ -119,116 +62,81 @@ export default function AppSidebar() {
     }
   }
 
-  function isActive(href: string) {
-    if (href === "/dashboard") {
-      return pathname === "/dashboard";
-    }
-
-    return matchesRoute(pathname, href);
-  }
-
   const navigation = (
     <>
-      <div className="border-b border-sidebar-border p-6">
-        <Link
-          href="/dashboard"
-          onClick={() => setMobileOpen(false)}
-        >
-          <h1 className="text-3xl font-bold tracking-tight text-sidebar-foreground">
-            KLYX
-          </h1>
-
-          <p className="mt-1 text-sm text-muted-foreground">
-            Services du quotidien
-          </p>
-        </Link>
+      <div className="px-5 pb-5 pt-6">
+        <KlyxLogo href="/dashboard" />
+        <p className="mt-4 max-w-[13rem] text-xs leading-5 text-white/45">
+          Tous vos services du quotidien, réunis au même endroit.
+        </p>
       </div>
 
-      <nav className="flex-1 space-y-2 overflow-y-auto p-4">
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
         {menu.map((item) => {
           const Icon = item.icon;
-          const active = isActive(item.href);
-
+          const active = item.href === "/dashboard" ? pathname === item.href : matchesRoute(pathname, item.href);
           return (
             <Link
               key={item.href}
               href={item.href}
               onClick={() => setMobileOpen(false)}
               aria-current={active ? "page" : undefined}
-              className={`flex items-center gap-3 rounded-xl px-4 py-3 transition ${
+              className={`group flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-semibold transition ${
                 active
-                  ? "bg-violet-600 text-white"
-                  : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  ? "bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-[0_10px_24px_rgba(109,40,217,0.28)]"
+                  : "text-white/62 hover:bg-white/7 hover:text-white"
               }`}
             >
-              <Icon size={20} />
+              <span className={`grid h-8 w-8 place-items-center rounded-xl ${active ? "bg-white/14" : "bg-white/[0.045] group-hover:bg-white/8"}`}>
+                <Icon size={17} />
+              </span>
               <span>{item.title}</span>
             </Link>
           );
         })}
       </nav>
 
-      <div className="border-t border-sidebar-border p-4">
-        <button
-          type="button"
-          onClick={logout}
-          disabled={loggingOut}
-          className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-red-500 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <LogOut size={20} />
-
-          <span>
-            {loggingOut ? "Déconnexion..." : "Déconnexion"}
-          </span>
-        </button>
+      <div className="p-3">
+        <div className="rounded-2xl border border-white/8 bg-white/[0.035] p-2">
+          <button
+            type="button"
+            onClick={logout}
+            disabled={loggingOut}
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/10 disabled:opacity-60"
+          >
+            <LogOut size={18} />
+            {loggingOut ? "Déconnexion..." : "Se déconnecter"}
+          </button>
+        </div>
       </div>
     </>
   );
 
   return (
     <>
-      <div className="sticky top-0 z-40 flex items-center justify-between border-b border-sidebar-border bg-sidebar/95 px-4 py-3 backdrop-blur lg:hidden">
-        <Link
-          href="/dashboard"
-          className="text-2xl font-bold text-sidebar-foreground"
-        >
-          KLYX
-        </Link>
-
+      <header className="sticky top-0 z-40 flex items-center justify-between border-b border-black/5 bg-zinc-950/95 px-4 py-3 backdrop-blur-xl lg:hidden">
+        <KlyxLogo href="/dashboard" />
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
-          className="rounded-xl border border-sidebar-border p-2 text-sidebar-foreground transition hover:bg-sidebar-accent"
+          className="grid h-11 w-11 place-items-center rounded-2xl border border-white/10 bg-white/5 text-white"
           aria-label="Ouvrir le menu"
-          aria-expanded={mobileOpen}
         >
           <Menu size={22} />
         </button>
-      </div>
+      </header>
 
-      <aside className="hidden h-screen min-h-screen w-72 shrink-0 flex-col border-r border-sidebar-border bg-sidebar lg:sticky lg:top-0 lg:flex">
+      <aside className="hidden h-screen w-[18rem] shrink-0 flex-col border-r border-white/8 bg-[linear-gradient(180deg,#15131d_0%,#0b0a0f_100%)] lg:sticky lg:top-0 lg:flex">
         {navigation}
       </aside>
 
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
-          <button
-            type="button"
-            aria-label="Fermer le menu"
-            onClick={() => setMobileOpen(false)}
-            className="absolute inset-0 bg-black/70"
-          />
-
-          <aside className="relative flex h-full w-[min(86vw,320px)] flex-col border-r border-sidebar-border bg-sidebar shadow-2xl">
-            <button
-              type="button"
-              onClick={() => setMobileOpen(false)}
-              className="absolute right-4 top-4 z-10 rounded-lg p-2 text-muted-foreground transition hover:bg-sidebar-accent hover:text-sidebar-foreground"
-              aria-label="Fermer"
-            >
+          <button type="button" aria-label="Fermer le menu" onClick={() => setMobileOpen(false)} className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+          <aside className="relative flex h-full w-[min(88vw,330px)] flex-col bg-[linear-gradient(180deg,#15131d_0%,#0b0a0f_100%)] shadow-2xl">
+            <button type="button" onClick={() => setMobileOpen(false)} className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-xl bg-white/7 text-white" aria-label="Fermer">
               <X size={20} />
             </button>
-
             {navigation}
           </aside>
         </div>
