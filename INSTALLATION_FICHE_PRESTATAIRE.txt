@@ -1,0 +1,104 @@
+KLYX — MVP COMMERCIAL : FICHE PRESTATAIRE
+==========================================
+
+Cette évolution ajoute :
+- le studio prestataire /provider ;
+- les 4 services de lancement ;
+- les tarifs horaires ou fixes ;
+- les zones et rayons d'intervention ;
+- les disponibilités par service ;
+- une galerie de 8 photos maximum ;
+- les documents privés du prestataire ;
+- le brouillon et la publication ;
+- la fiche publique enrichie ;
+- la recherche par zone ;
+- le calcul Stripe compatible avec les prix fixes.
+
+IMPORTANT
+---------
+- Ne supprime pas ton fichier .env.local.
+- Ne relance pas les SQL des phases précédentes.
+- Ne lance pas npm audit fix --force.
+- Copie le CONTENU du dossier extrait, pas le dossier lui-même.
+
+1. INSTALLER LES FICHIERS
+-------------------------
+
+Extrais KLYX-MVP-fiche-prestataire.zip dans Téléchargements.
+
+Dans le dossier extrait, tu dois voir directement :
+- app
+- lib
+- public
+- supabase
+- package.json
+
+Fais Ctrl + A puis Ctrl + C dans ce dossier.
+
+Ouvre ensuite :
+C:\Users\fenjo\Documents\klyx
+
+Fais Ctrl + V puis choisis « Remplacer les fichiers dans la destination ».
+
+Vérifie qu'aucun dossier nommé KLYX-MVP-fiche-prestataire ne se trouve à
+l'intérieur de C:\Users\fenjo\Documents\klyx.
+
+2. EXÉCUTER LE SEUL NOUVEAU SQL
+-------------------------------
+
+Dans Supabase :
+SQL Editor > New query
+
+Ouvre ce fichier :
+supabase\migrations\20260805_provider_commercial_profile.sql
+
+Copie tout le fichier dans Supabase puis clique sur Run.
+
+Résultat attendu : Success. No rows returned.
+
+Ce script ne modifie pas directement la table système storage.objects et ne
+reproduit donc pas l'erreur « must be owner of table objects ».
+
+3. VÉRIFIER LE PROJET
+---------------------
+
+Dans PowerShell, exécute les commandes une par une :
+
+Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force
+
+cd C:\Users\fenjo\Documents\klyx
+
+Remove-Item .next -Recurse -Force -ErrorAction SilentlyContinue
+
+npm install
+
+npm run build
+
+Résultat attendu :
+- Compiled successfully
+- Finished TypeScript
+- 46 routes
+- /provider
+- /api/provider/studio
+
+4. TESTER LA FICHE PRESTATAIRE
+------------------------------
+
+Lance :
+npm run dev
+
+Puis :
+1. Connecte-toi.
+2. Ouvre /accounts.
+3. Active Youssouf, le profil prestataire.
+4. Ouvre le dashboard.
+5. Clique sur « Mes services ».
+6. Complète le titre, la présentation et au moins un service.
+7. Ajoute un tarif, une zone et une disponibilité.
+8. Ajoute une photo de profil dans « Informations personnelles ».
+9. Transmets une pièce d'identité de test.
+10. Clique sur « Publier ma fiche ».
+11. Ouvre /search depuis le profil Mohamed pour vérifier la fiche publique.
+
+Le document transmis reste privé. Seul son statut de vérification est destiné
+à être affiché publiquement après validation KLYX.

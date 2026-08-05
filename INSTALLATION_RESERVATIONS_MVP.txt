@@ -1,0 +1,66 @@
+KLYX — ÉVOLUTION RÉSERVATIONS MVP
+=================================
+
+Cette version doit être installée sur la version « recherche commerciale »
+déjà validée avec npm run build.
+
+NOUVEAUTÉS
+----------
+- Vérification de la fiche publiée et des disponibilités réelles.
+- Prix et montant estimé figés au moment de la demande.
+- Blocage des chevauchements côté client.
+- Blocage transactionnel des doubles acceptations côté prestataire.
+- Acceptation, refus et annulation avec message ou motif.
+- Page de confirmation et détail /bookings/[id].
+- Vues À traiter, À venir et Historique.
+- Journal sécurisé des changements de statut.
+- Notifications reliées directement à la réservation.
+
+INSTALLATION
+------------
+1. Extraire le ZIP dans Téléchargements.
+
+2. Ouvrir le dossier extrait. Copier uniquement son contenu (app, lib,
+   supabase, etc.) dans :
+
+   C:\Users\fenjo\Documents\klyx
+
+   Ne pas copier le dossier KLYX-MVP-reservations lui-même dans klyx.
+
+3. Choisir « Remplacer les fichiers dans la destination ».
+
+4. Conserver le fichier .env.local déjà présent sur l’ordinateur.
+
+5. Dans Supabase > SQL Editor > New query, exécuter uniquement le contenu de :
+
+   supabase\migrations\20260805_booking_workflow_mvp.sql
+
+   Ne pas relancer les migrations précédentes.
+
+6. Dans PowerShell, exécuter :
+
+   Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force
+   cd C:\Users\fenjo\Documents\klyx
+   Remove-Item .next -Recurse -Force -ErrorAction SilentlyContinue
+   npm install
+   npm run build
+
+7. Après un build réussi :
+
+   npm run dev
+
+TEST RAPIDE
+-----------
+1. Activer Mohamed dans /accounts.
+2. Rechercher Youssouf dans /search.
+3. Choisir un créneau qui correspond aux horaires publiés.
+4. Envoyer la demande et vérifier la confirmation détaillée.
+5. Activer Youssouf, ouvrir /bookings puis « À traiter ».
+6. Accepter la demande avec un message.
+7. Revenir sur Mohamed et vérifier le nouvel état dans /bookings.
+
+IMPORTANT
+---------
+- Ne pas exécuter npm audit fix --force.
+- Une réservation déjà payée ne peut pas encore être annulée : le
+  remboursement sécurisé sera ajouté avec l’évolution Stripe suivante.

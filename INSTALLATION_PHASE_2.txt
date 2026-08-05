@@ -1,0 +1,77 @@
+KLYX — INSTALLATION DE LA PHASE 2
+
+IMPORTANT
+- Ne supprime pas ton fichier .env.local.
+- Ne m'envoie jamais ton fichier .env.local.
+- N'exécute pas npm audit fix --force.
+- Le dossier KLYX-phase-2 ne doit jamais rester à l'intérieur de Documents\klyx.
+
+1. ARRÊTER KLYX
+
+Ouvre PowerShell et exécute :
+
+Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force
+
+2. EXTRAIRE LE ZIP
+
+- Télécharge KLYX-phase-2.zip.
+- Va dans Téléchargements.
+- Clic droit sur le ZIP.
+- Clique sur Extraire tout, puis Extraire.
+- N'extrais pas le ZIP directement dans Documents\klyx.
+
+3. COPIER LES FICHIERS
+
+- Ouvre le dossier KLYX-phase-2 qui vient d'être extrait.
+- Tu dois voir directement : app, lib, public, supabase, package.json, etc.
+- Fais Ctrl + A, puis Ctrl + C.
+- Ouvre C:\Users\fenjo\Documents\klyx.
+- Fais Ctrl + V.
+- Choisis Remplacer les fichiers dans la destination.
+
+Dans Documents\klyx, tu dois voir directement app, lib, public, supabase et
+package.json. Tu ne dois pas voir un dossier KLYX-phase-2 à l'intérieur.
+
+4. EXÉCUTER LE SQL DE LA PHASE 2
+
+- Dans Documents\klyx, ouvre :
+  supabase\migrations\20260805_active_profile_phase_2.sql
+- Fais Ctrl + A, puis Ctrl + C.
+- Ouvre Supabase et sélectionne le projet KLYX.
+- Clique sur SQL Editor.
+- Clique sur New query.
+- Colle le code avec Ctrl + V.
+- Clique sur Run une seule fois.
+- Attends le message Success.
+
+Si Supabase affiche une erreur rouge, arrête-toi et envoie une capture complète.
+
+5. VÉRIFIER LE PROJET
+
+Dans PowerShell, exécute une commande à la fois :
+
+cd C:\Users\fenjo\Documents\klyx
+
+Remove-Item .next -Recurse -Force -ErrorAction SilentlyContinue
+
+npm install
+
+npm run build
+
+6. TESTER
+
+Seulement si npm run build réussit :
+
+npm run dev
+
+Ouvre uniquement l'adresse affichée par PowerShell.
+
+- Connecte-toi une seule fois avec Mohamed.
+- Va sur /accounts.
+- Active Mohamed : réservations, favoris, notifications et mémoire doivent être
+  celles de Mohamed.
+- Active Youssouf : services, demandes reçues, messages, paiements Stripe et
+  suivi doivent être ceux de Youssouf.
+- Aucun mot de passe ne doit être demandé pendant le changement de profil.
+
+Le SQL de la Phase 1 ne doit pas être relancé.

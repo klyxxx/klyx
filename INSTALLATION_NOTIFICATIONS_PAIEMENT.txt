@@ -1,0 +1,84 @@
+KLYX — PAIEMENT CLAIR ET NOTIFICATIONS
+======================================
+
+Cette version conserve le verrou anti-double paiement et ajoute :
+
+- un seul bouton « Payer la réservation » avant confirmation ;
+- aucun bouton de paiement après confirmation ;
+- « Paiement effectué avec succès » pour le client ;
+- « Paiement reçu avec succès » pour le prestataire ;
+- un motif clair pour le client si la banque refuse le paiement ;
+- aucune fausse notification de paiement reçu pour le prestataire ;
+- la vraie cloche de notifications reliée au profil KLYX actif.
+
+1. COPIER LES FICHIERS
+----------------------
+
+Extrais le ZIP, puis copie uniquement son contenu dans :
+
+C:\Users\fenjo\Documents\klyx
+
+Choisis « Remplacer les fichiers dans la destination ».
+Conserve ton fichier .env.local.
+
+2. SUPABASE
+-----------
+
+Dans Supabase > SQL Editor > New query, ouvre et exécute uniquement :
+
+supabase\migrations\20260805_payment_notifications_ux.sql
+
+Le résultat attendu est : Success.
+
+Ne relance aucun ancien fichier SQL.
+
+3. STRIPE WEBHOOK
+-----------------
+
+Dans le webhook Stripe déjà utilisé par KLYX, vérifie que cet événement est
+activé :
+
+payment_intent.payment_failed
+
+Les événements de succès déjà utilisés restent :
+
+checkout.session.completed
+checkout.session.async_payment_succeeded
+checkout.session.async_payment_failed
+
+4. VÉRIFIER LE BUILD
+--------------------
+
+Dans PowerShell :
+
+Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force
+cd C:\Users\fenjo\Documents\klyx
+Remove-Item .next -Recurse -Force -ErrorAction SilentlyContinue
+npm install
+npm run build
+
+Résultat attendu : 47/47 pages générées.
+
+Ne lance pas npm audit fix --force.
+
+5. TESTER
+---------
+
+npm run dev
+
+Avec Mohamed :
+
+1. Ouvre une réservation acceptée.
+2. Vérifie que le seul bouton affiché est « Payer la réservation ».
+3. Teste un refus Stripe : Mohamed reçoit le motif du refus.
+4. Teste ensuite un paiement réussi.
+5. Vérifie que le bouton disparaît définitivement.
+6. Vérifie « Paiement effectué avec succès » dans les notifications.
+
+Avec Youssouf :
+
+1. Active son profil dans /accounts.
+2. Ouvre les notifications.
+3. Vérifie « Paiement reçu avec succès ».
+
+Youssouf ne reçoit aucune notification lorsqu'un paiement est refusé.

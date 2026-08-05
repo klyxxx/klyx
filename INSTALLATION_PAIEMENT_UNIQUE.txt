@@ -1,0 +1,54 @@
+KLYX — PAIEMENT UNIQUE ET SÉCURISÉ
+=================================
+
+Cette évolution doit être installée après KLYX-MVP-reservations.
+
+CE QUI CHANGE
+-------------
+- Une réservation payée ne peut plus repasser à un état payable.
+- Deux clics simultanés ne créent plus deux paiements.
+- Une session Stripe ouverte est réutilisée après une actualisation.
+- Une session définitivement expirée autorise une nouvelle tentative.
+- Stripe utilise une clé d'idempotence liée à la réservation et à la tentative.
+- Le webhook vérifie le montant, la devise, la session et le PaymentIntent.
+- Le bouton Payer disparaît après confirmation.
+
+INSTALLATION
+------------
+1. Extraire le ZIP hors du dossier du projet.
+
+2. Copier UNIQUEMENT le contenu extrait dans :
+   C:\Users\fenjo\Documents\klyx
+
+3. Choisir "Remplacer les fichiers dans la destination".
+   Ne pas remplacer ni supprimer le fichier .env.local.
+
+4. Dans Supabase > SQL Editor, exécuter UNIQUEMENT :
+   supabase\migrations\20260805_unique_booking_payment.sql
+
+5. Attendre le message Success. Ne pas réexécuter les anciens SQL.
+
+6. Dans PowerShell :
+
+   Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force
+   cd C:\Users\fenjo\Documents\klyx
+   Remove-Item .next -Recurse -Force -ErrorAction SilentlyContinue
+   npm install
+   npm run build
+
+TEST RAPIDE
+-----------
+1. Lancer npm run dev.
+2. Activer Mohamed et ouvrir une réservation acceptée non payée.
+3. Cliquer sur Payer puis revenir en arrière.
+4. Cliquer sur Reprendre le paiement : KLYX doit rouvrir la même session.
+5. Terminer le paiement Stripe.
+6. Revenir sur la réservation : le statut doit être Paiement confirmé et le
+   bouton de paiement doit avoir disparu.
+
+IMPORTANT
+---------
+- Ne pas lancer npm audit fix --force.
+- Ne pas relancer les anciennes migrations.
+- Conserver toutes les migrations dans supabase\migrations.
+- Ne jamais placer SUPABASE_SERVICE_ROLE_KEY dans une variable NEXT_PUBLIC_*.

@@ -1,0 +1,121 @@
+export type ProviderPricingType = "hourly" | "fixed";
+
+export type ProviderSearchSort =
+  | "recommended"
+  | "price_asc"
+  | "score_desc"
+  | "experience_desc";
+
+export type ProviderSearchItem = {
+  profileId: string;
+  userServiceId: string;
+  serviceSlug: string;
+  serviceLabel: string;
+  firstName: string;
+  lastName: string;
+  businessName: string;
+  avatarUrl: string | null;
+  headline: string;
+  title: string;
+  pricingType: ProviderPricingType;
+  price: number | null;
+  city: string;
+  serviceArea: string[];
+  travelRadiusKm: number;
+  klyxScore: number;
+  completedJobs: number;
+  cancellationRate: number;
+  yearsExperience: number;
+  isVerified: boolean;
+  availabilitySummary: string;
+  isExactMatch: boolean;
+};
+
+export type ProviderSearchResponse = {
+  providers: ProviderSearchItem[];
+  exactCount: number;
+  totalCandidates: number;
+  showingAlternatives: boolean;
+};
+
+export const SERVICE_OPTIONS = [
+  { value: "all", label: "Tous les services" },
+  { value: "babysitting", label: "Baby-sitting" },
+  { value: "cleaning", label: "Ménage" },
+  { value: "moving", label: "Déménagement" },
+  { value: "handyman", label: "Bricolage" },
+] as const;
+
+export const PRICING_OPTIONS = [
+  { value: "all", label: "Tous les tarifs" },
+  { value: "hourly", label: "Tarif horaire" },
+  { value: "fixed", label: "Prix fixe" },
+] as const;
+
+export const SORT_OPTIONS: Array<{
+  value: ProviderSearchSort;
+  label: string;
+}> = [
+  { value: "recommended", label: "Recommandés" },
+  { value: "price_asc", label: "Prix croissant" },
+  { value: "score_desc", label: "Meilleur score" },
+  { value: "experience_desc", label: "Plus expérimentés" },
+];
+
+export const DAY_LABELS = [
+  "dimanche",
+  "lundi",
+  "mardi",
+  "mercredi",
+  "jeudi",
+  "vendredi",
+  "samedi",
+] as const;
+
+export function serviceLabel(slug: string, fallback = "Service KLYX"): string {
+  return (
+    SERVICE_OPTIONS.find((service) => service.value === slug)?.label ?? fallback
+  );
+}
+
+export function normalizeLocation(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+export function timeToMinutes(value: string): number | null {
+  const match = /^(\d{2}):(\d{2})$/.exec(value.slice(0, 5));
+
+  if (!match) return null;
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+
+  if (hours > 23 || minutes > 59) return null;
+
+  return hours * 60 + minutes;
+}
+
+export function formatProviderPrice(
+  price: number | null,
+  pricingType: ProviderPricingType
+): string {
+  if (price === null) return "Prix à confirmer";
+
+  return pricingType === "fixed"
+    ? `${price.toFixed(2)} € forfait`
+    : `${price.toFixed(2)} €/h`;
+}
+
+export function scoreLabel(score: number): string {
+  if (score >= 90) return "Excellent";
+  if (score >= 80) return "Très fiable";
+  if (score >= 70) return "Fiable";
+  if (score >= 60) return "Correct";
+
+  return "Nouveau profil";
+}

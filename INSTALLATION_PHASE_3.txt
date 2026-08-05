@@ -1,0 +1,103 @@
+KLYX - INSTALLATION DE LA PHASE 3
+=================================
+
+Cette phase ajoute la gestion des profils comme Instagram :
+- créer un profil Client ou Prestataire ;
+- ajouter une photo ;
+- changer de profil sans mot de passe ;
+- modifier le prénom, le nom, la ville et la photo ;
+- supprimer un profil sans supprimer la connexion principale ;
+- créer automatiquement le premier service d'un prestataire ;
+- conserver un maximum de cinq profils par connexion.
+
+
+ETAPE 1 - ARRETER KLYX
+----------------------
+
+Dans PowerShell :
+
+Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force
+
+
+ETAPE 2 - EXTRAIRE LE ZIP
+-------------------------
+
+1. Place KLYX-phase-3.zip dans le dossier Téléchargements.
+2. Clic droit sur le ZIP.
+3. Clique sur "Extraire tout".
+4. Clique sur "Extraire".
+5. N'extrais pas le ZIP directement dans Documents\klyx.
+
+
+ETAPE 3 - COPIER LES FICHIERS
+-----------------------------
+
+1. Ouvre le dossier KLYX-phase-3 extrait.
+2. Fais Ctrl + A.
+3. Fais Ctrl + C.
+4. Ouvre C:\Users\fenjo\Documents\klyx.
+5. Fais Ctrl + V.
+6. Choisis "Remplacer les fichiers dans la destination".
+
+Le dossier KLYX-phase-3 ne doit pas se retrouver à l'intérieur de klyx.
+Ton fichier .env.local doit rester dans C:\Users\fenjo\Documents\klyx.
+
+
+ETAPE 4 - EXECUTER UNIQUEMENT LE SQL PHASE 3
+--------------------------------------------
+
+1. Dans le projet, ouvre :
+   supabase\migrations\20260805_profile_management_phase_3.sql
+2. Fais Ctrl + A, puis Ctrl + C.
+3. Ouvre Supabase.
+4. Va dans SQL Editor.
+5. Clique sur New query.
+6. Colle le code avec Ctrl + V.
+7. Clique sur Run.
+
+Résultat attendu : Success. No rows returned.
+
+Ne relance pas les scripts SQL Phase 1 ou Phase 2.
+
+
+ETAPE 5 - VERIFIER LE PROJET
+----------------------------
+
+Dans PowerShell, exécute une commande à la fois :
+
+cd C:\Users\fenjo\Documents\klyx
+
+Remove-Item .next -Recurse -Force -ErrorAction SilentlyContinue
+
+npm install
+
+npm run build
+
+Ne lance pas npm audit fix --force.
+
+
+ETAPE 6 - TESTER
+----------------
+
+Après un build réussi :
+
+npm run dev
+
+Ouvre l'adresse affichée par PowerShell, puis :
+
+1. Connecte-toi une seule fois avec Mohamed.
+2. Ouvre /accounts.
+3. Clique sur "Ajouter un profil".
+4. Choisis Client ou Prestataire.
+5. Remplis le prénom, le nom et la ville.
+6. Pour un prestataire, choisis son premier service.
+7. Ajoute une photo si tu le souhaites.
+8. Clique sur "Créer et utiliser".
+
+Le nouveau profil doit devenir actif immédiatement, sans e-mail ni mot de passe.
+
+Vérifie aussi :
+- le bouton Modifier ;
+- le bouton Supprimer ;
+- le changement de profil depuis le tableau de bord ;
+- le dernier profil ne peut pas être supprimé.

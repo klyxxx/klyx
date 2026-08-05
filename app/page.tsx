@@ -1,9 +1,9 @@
-import Navbar from "./components/Navbar";
-import Hero from "./components/Hero";
-import Features from "./components/Features";
-import HowItWorks from "./components/HowItWorks";
-import Pricing from "./components/Pricing";
-import Footer from "./components/Footer";
+import Navbar from "./ui/Navbar";
+import Hero from "./ui/Hero";
+import Features from "./ui/Features";
+import HowItWorks from "./ui/HowItWorks";
+import Pricing from "./ui/Pricing";
+import Footer from "./ui/Footer";
 
 export default function Home() {
   return (

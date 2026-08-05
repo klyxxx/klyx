@@ -1,0 +1,62 @@
+KLYX — ÉVOLUTION MVP : RECHERCHE COMMERCIALE
+================================================
+
+Cette évolution ajoute :
+- recherche unifiée pour les 4 services de lancement ;
+- affichage exclusif des profils prestataires publiés ;
+- filtres service, ville/zone, date, heure, durée, prix et type de tarif ;
+- tris par recommandation, prix, score et expérience ;
+- alternatives lorsque tous les critères ne peuvent pas être satisfaits ;
+- transmission automatique de la date et de l’heure vers la réservation ;
+- route sécurisée /api/search/providers.
+
+IMPORTANT
+---------
+- Aucun nouveau SQL Supabase n’est nécessaire.
+- Ne relance pas les migrations précédentes.
+- Ne lance pas npm audit fix --force.
+- Conserve toujours ton fichier .env.local.
+
+INSTALLATION
+------------
+1. Extrais KLYX-MVP-recherche-commerciale.zip dans Téléchargements.
+
+2. Ouvre le dossier extrait.
+
+3. Copie uniquement tout ce qu’il contient :
+   Ctrl + A, puis Ctrl + C.
+
+4. Colle le contenu directement dans :
+   C:\Users\fenjo\Documents\klyx
+
+5. Choisis « Remplacer les fichiers dans la destination ».
+
+6. Vérifie qu’aucun dossier nommé KLYX-MVP-recherche-commerciale ne se trouve
+   à l’intérieur de C:\Users\fenjo\Documents\klyx.
+
+7. Dans PowerShell, exécute :
+
+   Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force
+   cd C:\Users\fenjo\Documents\klyx
+   Remove-Item .next -Recurse -Force -ErrorAction SilentlyContinue
+   npm install
+   npm run build
+
+RÉSULTAT ATTENDU
+----------------
+- Compiled successfully
+- Finished TypeScript
+- 47 routes générées
+- nouvelle route : /api/search/providers
+
+TEST FONCTIONNEL
+----------------
+1. Lance : npm run dev
+2. Active Youssouf et vérifie que sa fiche /provider est publiée.
+3. Active Mohamed.
+4. Ouvre /search.
+5. Teste un service, une ville, une date, une heure, une durée et un prix.
+6. Change le tri.
+7. Clique sur « Réserver ».
+8. Vérifie que la date, l’heure de début et l’heure de fin sont préremplies.
+
