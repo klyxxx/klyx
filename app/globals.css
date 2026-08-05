@@ -125,5 +125,7 @@
     @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-700 to-indigo-600 px-5 text-sm font-bold text-white shadow-[0_12px_28px_rgba(109,40,217,0.28)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_35px_rgba(109,40,217,0.38)] disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:translate-y-0;
   }
   .klyx-button-secondary { @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-card px-5 text-sm font-bold text-foreground transition hover:bg-accent; }
-  .filter-control { @apply klyx-input; }
+  .filter-control {
+  @apply h-12 w-full rounded-2xl border border-border bg-background/70 px-4 text-sm text-foreground shadow-sm outline-none transition placeholder:text-muted-foreground focus:border-violet-500 focus:ring-4 focus:ring-violet-500/10;
+}
 }
