@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { getActiveProfile } from "@/lib/active-profile";
+import {
+  createServiceSlug,
+  moderateServiceProposal,
+} from "@/lib/service-moderator";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/supabase/server";
 
 type ProposalBody = {
@@ -11,6 +16,60 @@ type ProposalBody = {
 
 function cleanText(value: unknown, maximum: number): string {
   return typeof value === "string" ? value.trim().slice(0, maximum) : "";
+}
+
+async function createUniqueService(name: string) {
+  const baseSlug = createServiceSlug(name);
+
+  if (!baseSlug) {
+    throw new Error("Impossible de créer le lien de ce métier.");
+  }
+
+  const { data: existingByName, error: nameError } = await supabaseAdmin
+    .from("services")
+    .select("id, name, slug")
+    .ilike("name", name)
+    .maybeSingle();
+
+  if (nameError) {
+    throw new Error(nameError.message);
+  }
+
+  if (existingByName) {
+    return existingByName;
+  }
+
+  let slug = baseSlug;
+  let suffix = 2;
+
+  while (true) {
+    const { data: existingSlug, error: slugError } = await supabaseAdmin
+      .from("services")
+      .select("id")
+      .eq("slug", slug)
+      .maybeSingle();
+
+    if (slugError) {
+      throw new Error(slugError.message);
+    }
+
+    if (!existingSlug) break;
+
+    slug = `${baseSlug}-${suffix}`;
+    suffix += 1;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("services")
+    .insert({ name, slug })
+    .select("id, name, slug")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data;
 }
 
 export async function GET() {
@@ -132,6 +191,29 @@ export async function POST(request: Request) {
     );
   }
 
+  const moderation = moderateServiceProposal({
+    proposedName,
+    category,
+    description,
+    experienceDetails,
+  });
+
+  let service: { id: string; name: string; slug: string } | null = null;
+
+  if (moderation.decision === "approved") {
+    try {
+      service = await createUniqueService(proposedName);
+    } catch {
+      return NextResponse.json(
+        { error: "Le métier est valide, mais son ajout au catalogue a échoué." },
+        { status: 500 }
+      );
+    }
+  }
+
+  const reviewedAt =
+    moderation.decision === "pending" ? null : new Date().toISOString();
+
   const { data, error } = await supabase
     .from("service_proposals")
     .insert({
@@ -140,6 +222,9 @@ export async function POST(request: Request) {
       category,
       description,
       experience_details: experienceDetails || null,
+      status: moderation.decision,
+      admin_note: `Modérateur automatique KLYX : ${moderation.reason}`,
+      reviewed_at: reviewedAt,
     })
     .select(
       "id, proposed_name, category, description, experience_details, status, admin_note, created_at, reviewed_at"
@@ -148,10 +233,17 @@ export async function POST(request: Request) {
 
   if (error) {
     return NextResponse.json(
-      { error: "Impossible d’envoyer cette proposition." },
+      { error: "Impossible d’enregistrer cette proposition." },
       { status: 500 }
     );
   }
+
+  const publicMessage =
+    moderation.decision === "approved"
+      ? "Métier approuvé automatiquement et ajouté au catalogue KLYX."
+      : moderation.decision === "rejected"
+        ? "Ce métier ne peut pas être proposé sur KLYX."
+        : "Le métier reste masqué car le modérateur automatique n’est pas assez certain.";
 
   return NextResponse.json(
     {
@@ -166,6 +258,12 @@ export async function POST(request: Request) {
         createdAt: data.created_at,
         reviewedAt: data.reviewed_at,
       },
+      moderation: {
+        decision: moderation.decision,
+        confidence: moderation.confidence,
+        message: publicMessage,
+      },
+      service,
     },
     { status: 201 }
   );
