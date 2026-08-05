@@ -3,6 +3,7 @@
 import {
   FormEvent,
   KeyboardEvent,
+  ReactNode,
   useEffect,
   useRef,
   useState,
@@ -10,10 +11,15 @@ import {
 import Link from "next/link";
 import {
   ArrowRight,
+  Baby,
   Brain,
   CheckCircle2,
+  Clock3,
+  Hammer,
+  Home,
   LoaderCircle,
   MapPin,
+  PackageOpen,
   Search,
   Send,
   Sparkles,
@@ -52,27 +58,114 @@ type AiResponse = {
   error?: string;
 };
 
-const suggestions = [
-  "J’ai besoin d’une baby-sitter demain à Bruxelles.",
-  "Je cherche quelqu’un pour nettoyer mon appartement vendredi.",
-  "J’ai besoin d’aide pour un déménagement ce week-end.",
+type Suggestion = {
+  label: string;
+  message: string;
+  icon: typeof Baby;
+};
+
+const suggestions: Suggestion[] = [
+  {
+    label: "Trouver une baby-sitter",
+    message:
+      "J’ai besoin d’une baby-sitter demain à Bruxelles à 18h.",
+    icon: Baby,
+  },
+  {
+    label: "Faire nettoyer mon logement",
+    message:
+      "Je cherche une personne pour nettoyer mon appartement vendredi à Bruxelles.",
+    icon: Home,
+  },
+  {
+    label: "Organiser un déménagement",
+    message:
+      "J’ai besoin d’aide pour un déménagement ce week-end à Bruxelles.",
+    icon: PackageOpen,
+  },
+  {
+    label: "Trouver un bricoleur",
+    message:
+      "Je cherche un bricoleur pour monter des meubles demain à Bruxelles.",
+    icon: Hammer,
+  },
 ];
 
 function createMessageId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+function detectTimeLocally(message: string): string | null {
+  const match = message.match(
+    /\b(?:vers\s+|à\s+|a\s+)?([01]?\d|2[0-3])\s*(?:h|heure|heures|:)\s*([0-5]?\d)?\b/i
+  );
+
+  if (!match) return null;
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2] ?? "0");
+
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(
+    2,
+    "0"
+  )}`;
+}
+
+function mergeLocalUnderstanding(
+  payload: BrainPayload | undefined,
+  message: string
+): BrainPayload | null {
+  if (!payload) return null;
+
+  const detectedTime = payload.time ?? detectTimeLocally(message);
+
+  return {
+    ...payload,
+    time: detectedTime,
+    ready: Boolean(
+      payload.serviceSlug &&
+        payload.city &&
+        payload.date &&
+        detectedTime
+    ),
+  };
+}
+
+function serviceLabel(slug: string | null) {
+  const labels: Record<string, string> = {
+    babysitting: "baby-sitting",
+    cleaning: "ménage",
+    moving: "déménagement",
+    handyman: "bricolage",
+  };
+
+  return slug ? labels[slug] ?? slug : "service";
+}
+
+function buildNaturalConfirmation(payload: BrainPayload): string {
+  const budget =
+    payload.budget != null
+      ? ` avec un budget maximum de ${payload.budget} €`
+      : "";
+
+  return `Parfait. J’ai compris que tu recherches un service de ${serviceLabel(
+    payload.serviceSlug
+  )} à ${payload.city}, le ${payload.date} à ${payload.time}${budget}. Je peux maintenant chercher les meilleurs prestataires disponibles.`;
+}
+
 export default function BrainPage() {
   const router = useRouter();
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
-  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(
+    null
+  );
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome",
       role: "assistant",
       content:
-        "Bonjour. Décris simplement ce que tu veux organiser, je vais t’aider étape par étape.",
+        "Bonjour. Décris simplement ce que tu veux organiser, je m’occupe du reste étape par étape.",
       mode: "structured",
     },
   ]);
@@ -159,14 +252,24 @@ export default function BrainPage() {
 
       if (!structuredResponse.ok || !structuredResult.reply) {
         throw new Error(
-          structuredResult.error || "KLYX ne peut pas répondre maintenant."
+          structuredResult.error ||
+            "KLYX ne peut pas répondre maintenant."
         );
       }
 
-      setConversationId(structuredResult.conversationId ?? null);
-      setPayload(structuredResult.payload ?? null);
+      const understoodPayload = mergeLocalUnderstanding(
+        structuredResult.payload,
+        message
+      );
 
-      let finalReply = structuredResult.reply;
+      setConversationId(structuredResult.conversationId ?? null);
+      setPayload(understoodPayload);
+
+      let finalReply =
+        understoodPayload?.ready
+          ? buildNaturalConfirmation(understoodPayload)
+          : structuredResult.reply;
+
       let finalMode: Message["mode"] = "structured";
 
       if (aiEnabled) {
@@ -178,12 +281,12 @@ export default function BrainPage() {
               message: [
                 message,
                 "",
-                "Contexte déjà compris par KLYX :",
-                JSON.stringify(structuredResult.payload ?? {}),
+                "Contexte compris par KLYX :",
+                JSON.stringify(understoodPayload ?? {}),
                 "",
-                `Réponse technique actuelle : ${structuredResult.reply}`,
+                `Réponse préparée : ${finalReply}`,
                 "",
-                "Réponds naturellement et brièvement. Ne change pas les faits.",
+                "Réponds naturellement et brièvement. Ne change aucun fait.",
               ].join("\n"),
             }),
           });
@@ -195,7 +298,6 @@ export default function BrainPage() {
             finalMode = aiResult.mode ?? "openai";
           }
         } catch {
-          finalReply = structuredResult.reply;
           finalMode = "structured";
         }
       }
@@ -220,7 +322,9 @@ export default function BrainPage() {
     }
   }
 
-  function handleKeyboard(event: KeyboardEvent<HTMLTextAreaElement>) {
+  function handleKeyboard(
+    event: KeyboardEvent<HTMLTextAreaElement>
+  ) {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       event.currentTarget.form?.requestSubmit();
@@ -232,7 +336,9 @@ export default function BrainPage() {
 
     const params = new URLSearchParams();
 
-    if (payload.serviceSlug) params.set("service", payload.serviceSlug);
+    if (payload.serviceSlug) {
+      params.set("service", payload.serviceSlug);
+    }
     if (payload.city) params.set("city", payload.city);
     if (payload.date) params.set("date", payload.date);
     if (payload.time) params.set("time", payload.time);
@@ -262,7 +368,9 @@ export default function BrainPage() {
                   : "border-violet-500/20 bg-violet-500/10 text-violet-700 dark:text-violet-300"
               }`}
             >
-              {aiEnabled ? "IA intelligente active" : "Mode gratuit actif"}
+              {aiEnabled
+                ? "IA intelligente active"
+                : "Mode gratuit actif"}
             </span>
 
             <Link
@@ -297,7 +405,7 @@ export default function BrainPage() {
 
           <div className="grid lg:grid-cols-[1fr_300px]">
             <div className="flex min-h-[600px] flex-col">
-              <div className="flex-1 space-y-5 overflow-y-auto p-5 sm:p-7">
+              <div className="flex-1 space-y-6 overflow-y-auto p-5 sm:p-7">
                 {messages.map((message) => (
                   <div
                     key={message.id}
@@ -308,10 +416,10 @@ export default function BrainPage() {
                     }`}
                   >
                     <div
-                      className={`max-w-[88%] rounded-3xl px-5 py-4 text-sm leading-7 sm:max-w-[78%] ${
+                      className={`max-w-[88%] rounded-[1.6rem] px-5 py-4 text-sm leading-7 sm:max-w-[78%] ${
                         message.role === "user"
-                          ? "rounded-br-lg bg-violet-600 text-white shadow-lg"
-                          : "rounded-bl-lg border border-border bg-background text-foreground"
+                          ? "rounded-br-md bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-[0_12px_30px_rgba(124,58,237,0.25)]"
+                          : "rounded-bl-md border border-border bg-background text-foreground shadow-sm"
                       }`}
                     >
                       {message.content}
@@ -320,17 +428,31 @@ export default function BrainPage() {
                 ))}
 
                 {messages.length === 1 && (
-                  <div className="grid gap-3 pt-2 sm:grid-cols-3">
-                    {suggestions.map((suggestion) => (
-                      <button
-                        key={suggestion}
-                        type="button"
-                        onClick={() => void sendMessage(undefined, suggestion)}
-                        className="rounded-2xl border border-border bg-background p-4 text-left text-sm font-semibold leading-6 transition hover:-translate-y-0.5 hover:border-violet-400"
-                      >
-                        {suggestion}
-                      </button>
-                    ))}
+                  <div className="grid gap-3 pt-2 sm:grid-cols-2">
+                    {suggestions.map((suggestion) => {
+                      const Icon = suggestion.icon;
+
+                      return (
+                        <button
+                          key={suggestion.label}
+                          type="button"
+                          onClick={() =>
+                            void sendMessage(
+                              undefined,
+                              suggestion.message
+                            )
+                          }
+                          className="group flex items-center gap-4 rounded-2xl border border-border bg-background p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-violet-400 hover:shadow-lg"
+                        >
+                          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-violet-500/10 text-violet-600 transition group-hover:bg-violet-600 group-hover:text-white dark:text-violet-400">
+                            <Icon size={20} />
+                          </span>
+                          <span className="text-sm font-bold">
+                            {suggestion.label}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
 
@@ -358,7 +480,7 @@ export default function BrainPage() {
                   <button
                     type="button"
                     onClick={openResults}
-                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-violet-600 px-6 py-4 text-sm font-bold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-violet-500"
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-600 to-purple-600 px-6 py-4 text-sm font-bold text-white shadow-[0_12px_30px_rgba(124,58,237,0.28)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_38px_rgba(124,58,237,0.36)]"
                   >
                     Voir les meilleurs prestataires
                     <ArrowRight size={18} />
@@ -370,24 +492,27 @@ export default function BrainPage() {
                 onSubmit={(event) => void sendMessage(event)}
                 className="border-t border-border p-4 sm:p-5"
               >
-                <div className="flex items-end gap-3 rounded-3xl border border-border bg-background p-2 shadow-sm focus-within:border-violet-500 focus-within:ring-4 focus-within:ring-violet-500/10">
+                <div className="flex items-end gap-3 rounded-[1.75rem] border border-border bg-background p-2 shadow-[0_8px_30px_rgba(20,10,40,0.08)] transition focus-within:border-violet-500 focus-within:ring-4 focus-within:ring-violet-500/10">
                   <textarea
                     value={input}
-                    onChange={(event) => setInput(event.target.value)}
+                    onChange={(event) =>
+                      setInput(event.target.value)
+                    }
                     onKeyDown={handleKeyboard}
                     placeholder="Décris ton besoin en une phrase..."
                     rows={1}
                     maxLength={4000}
-                    className="max-h-36 min-h-12 flex-1 resize-none bg-transparent px-3 py-3 text-sm outline-none placeholder:text-muted-foreground"
+                    className="max-h-36 min-h-12 flex-1 resize-none bg-transparent px-4 py-3 text-sm leading-6 outline-none placeholder:text-muted-foreground"
                   />
 
                   <button
                     type="submit"
                     disabled={loading || !input.trim()}
-                    className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-violet-600 text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="group relative grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-violet-600 to-purple-700 text-white shadow-lg transition duration-200 hover:scale-105 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
                     aria-label="Envoyer"
                   >
-                    <Send size={19} />
+                    <span className="absolute inset-0 bg-white/0 transition group-hover:bg-white/10" />
+                    <Send size={18} className="relative" />
                   </button>
                 </div>
 
@@ -406,22 +531,30 @@ export default function BrainPage() {
                 <ContextItem
                   icon={<Search size={17} />}
                   label="Service"
-                  value={payload?.serviceSlug}
+                  value={
+                    payload?.serviceSlug
+                      ? serviceLabel(payload.serviceSlug)
+                      : null
+                  }
+                  complete={Boolean(payload?.serviceSlug)}
                 />
                 <ContextItem
                   icon={<MapPin size={17} />}
                   label="Ville"
                   value={payload?.city}
+                  complete={Boolean(payload?.city)}
                 />
                 <ContextItem
-                  icon={<CheckCircle2 size={17} />}
-                  label="Date et heure"
-                  value={[
-                    payload?.date,
-                    payload?.time,
-                  ]
-                    .filter(Boolean)
-                    .join(" à ")}
+                  icon={<Clock3 size={17} />}
+                  label="Date"
+                  value={payload?.date}
+                  complete={Boolean(payload?.date)}
+                />
+                <ContextItem
+                  icon={<Clock3 size={17} />}
+                  label="Heure"
+                  value={payload?.time}
+                  complete={Boolean(payload?.time)}
                 />
                 <ContextItem
                   icon={<WalletCards size={17} />}
@@ -431,12 +564,12 @@ export default function BrainPage() {
                       ? `${payload.budget} €`
                       : null
                   }
+                  complete={payload?.budget != null}
                 />
               </div>
 
               <div className="mt-6 rounded-2xl border border-border bg-background p-4 text-xs leading-6 text-muted-foreground">
-                KLYX ne confirme jamais une réservation ou un paiement sans
-                validation réelle du système.
+                KLYX ne confirme jamais une réservation ou un paiement sans validation réelle du système.
               </div>
             </aside>
           </div>
@@ -450,18 +583,35 @@ function ContextItem({
   icon,
   label,
   value,
+  complete,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   value?: string | null;
+  complete: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-border bg-background p-4">
-      <div className="flex items-center gap-2 text-muted-foreground">
-        {icon}
-        <span className="text-xs font-bold uppercase tracking-[0.12em]">
-          {label}
-        </span>
+    <div
+      className={`rounded-2xl border p-4 transition duration-300 ${
+        complete
+          ? "border-emerald-500/20 bg-emerald-500/[0.06]"
+          : "border-border bg-background"
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          {icon}
+          <span className="text-xs font-bold uppercase tracking-[0.12em]">
+            {label}
+          </span>
+        </div>
+
+        {complete && (
+          <CheckCircle2
+            size={16}
+            className="text-emerald-500"
+          />
+        )}
       </div>
 
       <p className="mt-2 text-sm font-black">
