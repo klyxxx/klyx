@@ -67,7 +67,7 @@ function ConfirmRequestContent() {
       params.set("budget", request.budget);
     }
 
-    router.push(`/search?${params.toString()}`);
+    router.push(`/recommendations?${params.toString()}`);
   }
 
   const serviceLabel =
@@ -208,7 +208,7 @@ function ConfirmRequestContent() {
             type="submit"
             className="mt-7 inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-violet-600 px-6 text-sm font-bold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-violet-500"
           >
-            Rechercher les meilleurs prestataires
+            Afficher la sélection KLYX
             <ArrowRight size={18} />
           </button>
         </form>
