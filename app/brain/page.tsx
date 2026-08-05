@@ -230,31 +230,17 @@ export default function BrainPage() {
   function openResults() {
     if (!payload?.ready) return;
 
-    if (payload.serviceSlug === "babysitting") {
-      const params = new URLSearchParams();
-
-      if (payload.city) params.set("city", payload.city);
-      if (payload.date) params.set("date", payload.date);
-      if (payload.time) params.set("time", payload.time);
-      if (payload.budget != null) {
-        params.set("budget", String(payload.budget));
-      }
-
-      router.push(`/babysitters?${params.toString()}`);
-      return;
-    }
-
     const params = new URLSearchParams();
 
-    if (payload.serviceSlug) {
-      params.set("service", payload.serviceSlug);
+    if (payload.serviceSlug) params.set("service", payload.serviceSlug);
+    if (payload.city) params.set("city", payload.city);
+    if (payload.date) params.set("date", payload.date);
+    if (payload.time) params.set("time", payload.time);
+    if (payload.budget != null) {
+      params.set("budget", String(payload.budget));
     }
 
-    if (payload.city) {
-      params.set("city", payload.city);
-    }
-
-    router.push(`/search?${params.toString()}`);
+    router.push(`/request/confirm?${params.toString()}`);
   }
 
   return (
