@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
+  BriefcaseBusiness,
   CalendarDays,
   Heart,
   LayoutDashboard,
@@ -14,15 +15,34 @@ import {
   Search,
   Settings,
   Sparkles,
+  UserPlus,
   UserRound,
   X,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import KlyxLogo from "@/app/ui/KlyxLogo";
 
+type AccountType = "client" | "provider";
+
+type ActiveProfile = {
+  id: string;
+  accountType: AccountType;
+};
+
+type ProfilesResponse = {
+  profiles?: ActiveProfile[];
+  activeProfileId?: string | null;
+};
+
+type MenuItem = {
+  title: string;
+  href: string;
+  icon: typeof LayoutDashboard;
+};
+
 const routesWithoutSidebar = ["/", "/login", "/signup", "/reset-password"];
 
-const menu = [
+const commonMenu: MenuItem[] = [
   { title: "Vue d’ensemble", href: "/dashboard", icon: LayoutDashboard },
   { title: "Trouver un service", href: "/search", icon: Search },
   { title: "Assistant KLYX", href: "/brain", icon: Sparkles },
@@ -30,6 +50,9 @@ const menu = [
   { title: "Messages", href: "/messages", icon: MessageCircle },
   { title: "Favoris", href: "/favorites", icon: Heart },
   { title: "Notifications", href: "/notifications", icon: Bell },
+];
+
+const accountMenu: MenuItem[] = [
   { title: "Mon profil", href: "/profile", icon: UserRound },
   { title: "Paramètres", href: "/settings", icon: Settings },
 ];
@@ -41,19 +64,80 @@ function matchesRoute(pathname: string, route: string) {
 export default function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
+
   const [mobileOpen, setMobileOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [accountType, setAccountType] = useState<AccountType | null>(null);
 
-  const hideSidebar = routesWithoutSidebar.some((route) => matchesRoute(pathname, route));
+  const hideSidebar = routesWithoutSidebar.some((route) =>
+    matchesRoute(pathname, route)
+  );
+
+  useEffect(() => {
+    if (hideSidebar) return;
+
+    let cancelled = false;
+
+    async function loadActiveProfile() {
+      try {
+        const response = await fetch("/api/profiles/active", {
+          method: "GET",
+          cache: "no-store",
+        });
+
+        if (!response.ok) return;
+
+        const data = (await response.json()) as ProfilesResponse;
+        const activeProfile =
+          data.profiles?.find(
+            (profile) => profile.id === data.activeProfileId
+          ) ?? data.profiles?.[0];
+
+        if (!cancelled && activeProfile) {
+          setAccountType(activeProfile.accountType);
+        }
+      } catch {
+        // La navigation générale reste disponible si le profil ne charge pas.
+      }
+    }
+
+    void loadActiveProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hideSidebar, pathname]);
+
+  const menu = useMemo<MenuItem[]>(() => {
+    const roleItem: MenuItem =
+      accountType === "provider"
+        ? {
+            title: "Espace prestataire",
+            href: "/provider",
+            icon: BriefcaseBusiness,
+          }
+        : {
+            title: "Devenir prestataire",
+            href: "/accounts",
+            icon: UserPlus,
+          };
+
+    return [...commonMenu, roleItem, ...accountMenu];
+  }, [accountType]);
+
   if (hideSidebar) return null;
 
   async function logout() {
     if (loggingOut) return;
+
     setLoggingOut(true);
+
     try {
       const supabase = createClient();
       const { error } = await supabase.auth.signOut({ scope: "local" });
+
       if (error) throw error;
+
       setMobileOpen(false);
       router.replace("/login");
       router.refresh();
@@ -66,18 +150,31 @@ export default function AppSidebar() {
     <>
       <div className="px-5 pb-5 pt-6">
         <KlyxLogo href="/dashboard" />
+
         <p className="mt-4 max-w-[13rem] text-xs leading-5 text-white/45">
           Tous vos services du quotidien, réunis au même endroit.
         </p>
+
+        <div className="mt-4 inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-white/60">
+          {accountType === "provider"
+            ? "Compte prestataire"
+            : accountType === "client"
+              ? "Compte client"
+              : "KLYX"}
+        </div>
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
         {menu.map((item) => {
           const Icon = item.icon;
-          const active = item.href === "/dashboard" ? pathname === item.href : matchesRoute(pathname, item.href);
+          const active =
+            item.href === "/dashboard"
+              ? pathname === item.href
+              : matchesRoute(pathname, item.href);
+
           return (
             <Link
-              key={item.href}
+              key={`${item.title}-${item.href}`}
               href={item.href}
               onClick={() => setMobileOpen(false)}
               aria-current={active ? "page" : undefined}
@@ -87,9 +184,16 @@ export default function AppSidebar() {
                   : "text-white/62 hover:bg-white/7 hover:text-white"
               }`}
             >
-              <span className={`grid h-8 w-8 place-items-center rounded-xl ${active ? "bg-white/14" : "bg-white/[0.045] group-hover:bg-white/8"}`}>
+              <span
+                className={`grid h-8 w-8 place-items-center rounded-xl ${
+                  active
+                    ? "bg-white/14"
+                    : "bg-white/[0.045] group-hover:bg-white/8"
+                }`}
+              >
                 <Icon size={17} />
               </span>
+
               <span>{item.title}</span>
             </Link>
           );
@@ -116,6 +220,7 @@ export default function AppSidebar() {
     <>
       <header className="sticky top-0 z-40 flex items-center justify-between border-b border-black/5 bg-zinc-950/95 px-4 py-3 backdrop-blur-xl lg:hidden">
         <KlyxLogo href="/dashboard" />
+
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
@@ -132,11 +237,23 @@ export default function AppSidebar() {
 
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
-          <button type="button" aria-label="Fermer le menu" onClick={() => setMobileOpen(false)} className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+          <button
+            type="button"
+            aria-label="Fermer le menu"
+            onClick={() => setMobileOpen(false)}
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+          />
+
           <aside className="relative flex h-full w-[min(88vw,330px)] flex-col bg-[linear-gradient(180deg,#15131d_0%,#0b0a0f_100%)] shadow-2xl">
-            <button type="button" onClick={() => setMobileOpen(false)} className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-xl bg-white/7 text-white" aria-label="Fermer">
+            <button
+              type="button"
+              onClick={() => setMobileOpen(false)}
+              className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-xl bg-white/7 text-white"
+              aria-label="Fermer"
+            >
               <X size={20} />
             </button>
+
             {navigation}
           </aside>
         </div>
