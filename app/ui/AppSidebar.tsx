@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Banknote,
   Bell,
   BriefcaseBusiness,
+  CalendarClock,
   CalendarDays,
   Heart,
   LayoutDashboard,
@@ -16,7 +18,7 @@ import {
   Search,
   Settings,
   Sparkles,
-  UserPlus,
+  Star,
   UserRound,
   X,
 } from "lucide-react";
@@ -41,25 +43,124 @@ type MenuItem = {
   icon: typeof LayoutDashboard;
 };
 
-const routesWithoutSidebar = ["/", "/login", "/signup", "/reset-password"];
-
-const commonMenu: MenuItem[] = [
-  { title: "Vue d’ensemble", href: "/dashboard", icon: LayoutDashboard },
-  { title: "Trouver un service", href: "/search", icon: Search },
-  { title: "Assistant KLYX", href: "/brain", icon: Sparkles },
-  { title: "Réservations", href: "/bookings", icon: CalendarDays },
-  { title: "Messages", href: "/messages", icon: MessageCircle },
-  { title: "Favoris", href: "/favorites", icon: Heart },
-  { title: "Notifications", href: "/notifications", icon: Bell },
+const routesWithoutSidebar = [
+  "/",
+  "/login",
+  "/signup",
+  "/reset-password",
 ];
 
-const accountMenu: MenuItem[] = [
-  { title: "Mon profil", href: "/profile", icon: UserRound },
-  { title: "Paramètres", href: "/settings", icon: Settings },
+const clientMenu: MenuItem[] = [
+  {
+    title: "Vue d’ensemble",
+    href: "/dashboard",
+    icon: LayoutDashboard,
+  },
+  {
+    title: "Assistant KLYX",
+    href: "/brain",
+    icon: Sparkles,
+  },
+  {
+    title: "Trouver un service",
+    href: "/search",
+    icon: Search,
+  },
+  {
+    title: "Mes réservations",
+    href: "/bookings",
+    icon: CalendarDays,
+  },
+  {
+    title: "Messages",
+    href: "/messages",
+    icon: MessageCircle,
+  },
+  {
+    title: "Favoris",
+    href: "/favorites",
+    icon: Heart,
+  },
+  {
+    title: "Notifications",
+    href: "/notifications",
+    icon: Bell,
+  },
+  {
+    title: "Mon profil",
+    href: "/profile",
+    icon: UserRound,
+  },
+  {
+    title: "Paramètres",
+    href: "/settings",
+    icon: Settings,
+  },
+];
+
+const providerMenu: MenuItem[] = [
+  {
+    title: "Tableau professionnel",
+    href: "/dashboard",
+    icon: LayoutDashboard,
+  },
+  {
+    title: "Mon activité",
+    href: "/provider",
+    icon: BriefcaseBusiness,
+  },
+  {
+    title: "Demandes reçues",
+    href: "/bookings",
+    icon: CalendarDays,
+  },
+  {
+    title: "Missions",
+    href: "/bookings",
+    icon: CalendarClock,
+  },
+  {
+    title: "Messagerie clients",
+    href: "/messages",
+    icon: MessageCircle,
+  },
+  {
+    title: "Ajouter un métier",
+    href: "/provider/services/new",
+    icon: ListPlus,
+  },
+  {
+    title: "Paiements",
+    href: "/provider/payments",
+    icon: Banknote,
+  },
+  {
+    title: "Score et avis",
+    href: "/scores",
+    icon: Star,
+  },
+  {
+    title: "Notifications",
+    href: "/notifications",
+    icon: Bell,
+  },
+  {
+    title: "Profil public",
+    href: "/profile",
+    icon: UserRound,
+  },
+  {
+    title: "Paramètres",
+    href: "/settings",
+    icon: Settings,
+  },
 ];
 
 function matchesRoute(pathname: string, route: string) {
-  return pathname === route || pathname.startsWith(`${route}/`);
+  return (
+    pathname === route ||
+    pathname.startsWith(`${route}/`)
+  );
 }
 
 export default function AppSidebar() {
@@ -68,7 +169,8 @@ export default function AppSidebar() {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const [accountType, setAccountType] = useState<AccountType | null>(null);
+  const [accountType, setAccountType] =
+    useState<AccountType | null>(null);
 
   const hideSidebar = routesWithoutSidebar.some((route) =>
     matchesRoute(pathname, route)
@@ -81,24 +183,31 @@ export default function AppSidebar() {
 
     async function loadActiveProfile() {
       try {
-        const response = await fetch("/api/profiles/active", {
-          method: "GET",
-          cache: "no-store",
-        });
+        const response = await fetch(
+          "/api/profiles/active",
+          {
+            method: "GET",
+            cache: "no-store",
+          }
+        );
 
         if (!response.ok) return;
 
-        const data = (await response.json()) as ProfilesResponse;
+        const data =
+          (await response.json()) as ProfilesResponse;
+
         const activeProfile =
           data.profiles?.find(
-            (profile) => profile.id === data.activeProfileId
+            (profile) =>
+              profile.id === data.activeProfileId
           ) ?? data.profiles?.[0];
 
         if (!cancelled && activeProfile) {
           setAccountType(activeProfile.accountType);
         }
       } catch {
-        // La navigation générale reste disponible si le profil ne charge pas.
+        // Le menu reste vide tant que le profil actif
+        // n’a pas pu être identifié.
       }
     }
 
@@ -110,29 +219,15 @@ export default function AppSidebar() {
   }, [hideSidebar, pathname]);
 
   const menu = useMemo<MenuItem[]>(() => {
-    const roleItems: MenuItem[] =
-      accountType === "provider"
-        ? [
-            {
-              title: "Espace prestataire",
-              href: "/provider",
-              icon: BriefcaseBusiness,
-            },
-            {
-              title: "Proposer un métier",
-              href: "/provider/services/new",
-              icon: ListPlus,
-            },
-          ]
-        : [
-            {
-              title: "Devenir prestataire",
-              href: "/accounts",
-              icon: UserPlus,
-            },
-          ];
+    if (accountType === "provider") {
+      return providerMenu;
+    }
 
-    return [...commonMenu, ...roleItems, ...accountMenu];
+    if (accountType === "client") {
+      return clientMenu;
+    }
+
+    return [];
   }, [accountType]);
 
   if (hideSidebar) return null;
@@ -144,7 +239,9 @@ export default function AppSidebar() {
 
     try {
       const supabase = createClient();
-      const { error } = await supabase.auth.signOut({ scope: "local" });
+      const { error } = await supabase.auth.signOut({
+        scope: "local",
+      });
 
       if (error) throw error;
 
@@ -162,10 +259,14 @@ export default function AppSidebar() {
         <KlyxLogo href="/dashboard" />
 
         <p className="mt-4 max-w-[13rem] text-xs leading-5 text-white/45">
-          Tous vos services du quotidien, réunis au même endroit.
+          {accountType === "provider"
+            ? "Ton activité professionnelle KLYX."
+            : accountType === "client"
+              ? "Tous tes services du quotidien."
+              : "Chargement du profil..."}
         </p>
 
-        <div className="mt-4 inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em] text-white/60">
+        <div className="mt-4 inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-white/60">
           {accountType === "provider"
             ? "Compte prestataire"
             : accountType === "client"
@@ -177,6 +278,7 @@ export default function AppSidebar() {
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
         {menu.map((item) => {
           const Icon = item.icon;
+
           const active =
             item.href === "/dashboard"
               ? pathname === item.href
@@ -190,7 +292,9 @@ export default function AppSidebar() {
               aria-current={active ? "page" : undefined}
               className={`group flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-semibold transition ${
                 active
-                  ? "bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-[0_10px_24px_rgba(109,40,217,0.28)]"
+                  ? accountType === "provider"
+                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_10px_24px_rgba(37,99,235,0.25)]"
+                    : "bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-[0_10px_24px_rgba(109,40,217,0.28)]"
                   : "text-white/62 hover:bg-white/7 hover:text-white"
               }`}
             >
@@ -219,7 +323,9 @@ export default function AppSidebar() {
             className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/10 disabled:opacity-60"
           >
             <LogOut size={18} />
-            {loggingOut ? "Déconnexion..." : "Se déconnecter"}
+            {loggingOut
+              ? "Déconnexion..."
+              : "Se déconnecter"}
           </button>
         </div>
       </div>
