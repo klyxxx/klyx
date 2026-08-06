@@ -12,6 +12,7 @@ import {
   BriefcaseBusiness,
   CalendarClock,
   CalendarDays,
+  Camera,
   Heart,
   LayoutDashboard,
   ListPlus,
@@ -59,6 +60,7 @@ const clientMenu: MenuItem[] = [
   { title: "Assistant KLYX", href: "/brain", icon: Sparkles },
   { title: "Ma mémoire KLYX", href: "/memory", icon: Brain },
   { title: "Trouver un service", href: "/search", icon: Search },
+  { title: "Recherche par photo", href: "/request/photo", icon: Camera },
   { title: "Mes réservations", href: "/bookings", icon: CalendarDays },
   { title: "Messages", href: "/messages", icon: MessageCircle },
   { title: "Favoris", href: "/favorites", icon: Heart },
@@ -293,6 +295,7 @@ export default function AppSidebar() {
     </>
   );
 }
+
 
 
 
