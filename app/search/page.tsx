@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   type FormEvent,
@@ -34,6 +34,7 @@ import {
   type ProviderSearchResponse,
   type ProviderSearchSort,
 } from "@/lib/provider-search";
+import MatchExplanation from "./MatchExplanation";
 
 type DraftFilters = {
   service: string;
@@ -482,6 +483,14 @@ function SearchContent() {
                   key={provider.userServiceId}
                   provider={provider}
                   bookingUrl={bookingHref(provider, appliedFilters)}
+                  matchingFilters={{
+                    city: appliedFilters.city,
+                    date: appliedFilters.date,
+                    time: appliedFilters.time,
+                    duration: appliedFilters.duration,
+                    budget: appliedFilters.budget,
+                    pricing: appliedFilters.pricing,
+                  }}
                   recommended={
                     !result.showingAlternatives &&
                     appliedFilters.sort === "recommended" &&
@@ -500,10 +509,19 @@ function SearchContent() {
 function ProviderCardView({
   provider,
   bookingUrl,
+  matchingFilters,
   recommended,
 }: {
   provider: ProviderSearchItem;
   bookingUrl: string;
+  matchingFilters: {
+    city: string;
+    date: string;
+    time: string;
+    duration: string;
+    budget: string;
+    pricing: string;
+  };
   recommended: boolean;
 }) {
   const fullName =
@@ -594,6 +612,11 @@ function ProviderCardView({
           {formatProviderPrice(provider.price, provider.pricingType)}
         </p>
 
+        <MatchExplanation
+          provider={provider}
+          filters={matchingFilters}
+        />
+
         <div className="mt-5 grid grid-cols-2 gap-3">
           <Link
             href={`/providers/${provider.profileId}`}
@@ -666,3 +689,4 @@ export default function SearchPage() {
     </Suspense>
   );
 }
+
