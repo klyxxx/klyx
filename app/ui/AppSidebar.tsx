@@ -61,7 +61,7 @@ const clientMenu: MenuItem[] = [
   { title: "Assistant KLYX", href: "/brain", icon: Sparkles },
   { title: "KLYX Agent", href: "/agent", icon: Bot },
   { title: "Ma mémoire KLYX", href: "/memory", icon: Brain },
-  { title: "Trouver un service", href: "/search", icon: Search },
+  { title: "Trouver un service", href: "/search", icon: Search },  { title: "Couverture locale", href: "/coverage", icon: Navigation },
   { title: "Recherche par photo", href: "/request/photo", icon: Camera },
   { title: "Mes réservations", href: "/bookings", icon: CalendarDays },
   { title: "Messages", href: "/messages", icon: MessageCircle },
@@ -297,6 +297,7 @@ export default function AppSidebar() {
     </>
   );
 }
+
 
 
 
