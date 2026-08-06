@@ -1,4 +1,4 @@
-import type Stripe from "stripe";
+﻿import type Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 type BookingPaymentRow = {
@@ -249,7 +249,7 @@ async function notifyPaymentSucceeded(booking: BookingPaymentRow) {
     createPaymentNotification({
       userId: booking.parent_id,
       bookingId: booking.id,
-      type: "payment_client_success",
+      type: "payment_received",
       title: "Paiement effectué avec succès",
       message: amountLabel
         ? `Ton paiement de ${amountLabel} a été confirmé.`
@@ -263,7 +263,7 @@ async function notifyPaymentSucceeded(booking: BookingPaymentRow) {
       createPaymentNotification({
         userId: providerId,
         bookingId: booking.id,
-        type: "payment_provider_success",
+        type: "payment_received",
         title: "Paiement reçu avec succès",
         message: amountLabel
           ? `Le paiement de ${amountLabel} pour cette réservation est confirmé.`
@@ -397,7 +397,7 @@ export async function recordBookingPaymentFailure(
   await createPaymentNotification({
     userId: booking.parent_id,
     bookingId: booking.id,
-    type: "payment_failed",
+    type: "system",
     title: "Paiement refusé",
     message: failure.message,
     deduplicationKey: `booking:${booking.id}:payment-failed:${intent.id}`,
@@ -441,7 +441,7 @@ export async function markBookingFailedFromSession(
   await createPaymentNotification({
     userId: booking.parent_id,
     bookingId: booking.id,
-    type: "payment_failed",
+    type: "system",
     title: "Paiement refusé",
     message: failure.message,
     deduplicationKey: `booking:${booking.id}:payment-failed:${
@@ -450,3 +450,4 @@ export async function markBookingFailedFromSession(
     replaceExisting: true,
   });
 }
+

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -387,7 +387,6 @@ export default function BookingDetailsPage() {
   const canProviderAnswer = role === "provider" && booking.status === "pending";
   const canCancel =
     ["pending", "accepted"].includes(booking.status) &&
-    booking.payment_status !== "paid" &&
     !(role === "provider" && booking.status === "pending");
   const canPay =
     role === "client" &&
@@ -697,3 +696,4 @@ function InfoItem({
     </div>
   );
 }
+
