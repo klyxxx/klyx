@@ -1,20 +1,25 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Bell,
+  CreditCard,
   Languages,
+  LoaderCircle,
   LockKeyhole,
   LogOut,
   Monitor,
   Moon,
   Save,
+  ShieldAlert,
   Sun,
+  Trash2,
   UserRound,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { useTheme, type Theme } from "@/app/components/ThemeProvider";
+import { useTheme } from "@/app/components/ThemeProvider";
 import {
   getProfilesState,
   switchAccount,
@@ -39,17 +44,23 @@ export default function SettingsPage() {
   const [savingEmail, setSavingEmail] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const [switchingAccountId, setSwitchingAccountId] = useState("");
 
-  const [currentUserId, setCurrentUserId] = useState("");
+  const [currentProfileId, setCurrentProfileId] = useState("");
+  const [accountType, setAccountType] =
+    useState<"client" | "provider">("client");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [language, setLanguage] = useState("fr");
-
+  const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>([]);
+  const [message, setMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
   const [notifications, setNotifications] =
     useState<NotificationSettings>({
       bookings: true,
@@ -57,132 +68,91 @@ export default function SettingsPage() {
       promotions: false,
     });
 
-  const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>([]);
-  const [message, setMessage] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
-
   useEffect(() => {
     let active = true;
 
-    async function loadSettings() {
+    async function load() {
       const supabase = createClient();
 
       try {
         const {
           data: { user },
-          error: userError,
         } = await supabase.auth.getUser();
 
-        if (userError || !user) {
+        if (!user) {
           router.replace("/login");
           return;
         }
 
-        const profileState = await getProfilesState();
-        const profile = profileState.profiles.find(
-          (item) => item.id === profileState.activeProfileId
-        );
+        const state = await getProfilesState();
+        const profile =
+          state.profiles.find((item) => item.id === state.activeProfileId) ??
+          state.profiles[0];
 
+        if (!profile) throw new Error("Profil introuvable.");
         if (!active) return;
 
-        if (!profile) {
-          throw new Error("Impossible de charger ton profil.");
-        }
-
-        setCurrentUserId(profile.id);
+        setCurrentProfileId(profile.id);
+        setAccountType(profile.accountType);
         setFirstName(profile.firstName);
         setLastName(profile.lastName);
         setEmail(user.email ?? "");
         setNewEmail(user.email ?? "");
+        setSavedAccounts(state.profiles);
 
         const savedLanguage = localStorage.getItem(LANGUAGE_KEY);
-        if (savedLanguage) {
-          setLanguage(savedLanguage);
-        }
+        if (savedLanguage) setLanguage(savedLanguage);
 
         const savedNotifications = localStorage.getItem(NOTIFICATIONS_KEY);
-
         if (savedNotifications) {
-          try {
-            setNotifications(JSON.parse(savedNotifications));
-          } catch {
-            localStorage.removeItem(NOTIFICATIONS_KEY);
-          }
+          setNotifications(JSON.parse(savedNotifications));
         }
-
-        setSavedAccounts(profileState.profiles);
       } catch (error) {
-        if (active) {
-          setErrorMessage(
-            error instanceof Error
-              ? error.message
-              : "Impossible de charger les paramètres."
-          );
-        }
+        setErrorMessage(
+          error instanceof Error
+            ? error.message
+            : "Impossible de charger les paramètres."
+        );
       } finally {
-        if (active) {
-          setLoading(false);
-        }
+        if (active) setLoading(false);
       }
     }
 
-    void loadSettings();
+    void load();
 
     return () => {
       active = false;
     };
   }, [router]);
 
-  function showSuccess(text: string) {
+  function success(text: string) {
     setErrorMessage("");
     setMessage(text);
-
-    window.setTimeout(() => {
-      setMessage("");
-    }, 4000);
   }
 
-  function showError(text: string) {
+  function failure(text: string) {
     setMessage("");
     setErrorMessage(text);
   }
 
   async function updateProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    if (!firstName.trim() || !lastName.trim()) {
-      showError("Le prénom et le nom sont obligatoires.");
-      return;
-    }
-
     setSavingProfile(true);
 
     try {
       const supabase = createClient();
-
       const { error } = await supabase
         .from("profiles")
         .update({
           first_name: firstName.trim(),
           last_name: lastName.trim(),
         })
-        .eq("id", currentUserId);
+        .eq("id", currentProfileId);
 
-      if (error) {
-        throw new Error(error.message);
-      }
-
-      const profileState = await getProfilesState();
-      setSavedAccounts(profileState.profiles);
-
-      showSuccess("Profil enregistré.");
-      router.refresh();
+      if (error) throw new Error(error.message);
+      success("Profil enregistré.");
     } catch (error) {
-      showError(
-        error instanceof Error
-          ? error.message
-          : "Impossible d’enregistrer le profil."
-      );
+      failure(error instanceof Error ? error.message : "Erreur.");
     } finally {
       setSavingProfile(false);
     }
@@ -190,40 +160,22 @@ export default function SettingsPage() {
 
   async function updateEmail(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    const normalizedEmail = newEmail.trim().toLowerCase();
-
-    if (!normalizedEmail) {
-      showError("Entre une adresse e-mail valide.");
-      return;
-    }
-
-    if (normalizedEmail === email.toLowerCase()) {
-      showError("Cette adresse e-mail est déjà utilisée par ton compte.");
-      return;
-    }
-
     setSavingEmail(true);
 
     try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.updateUser({
-        email: normalizedEmail,
-      });
-
-      if (error) {
-        throw new Error(error.message);
+      if (!newEmail.trim() || newEmail.trim() === email) {
+        throw new Error("Entre une nouvelle adresse e-mail.");
       }
 
-      showSuccess(
-        "Un message de confirmation a été envoyé à ta nouvelle adresse e-mail."
-      );
+      const supabase = createClient();
+      const { error } = await supabase.auth.updateUser({
+        email: newEmail.trim().toLowerCase(),
+      });
+
+      if (error) throw new Error(error.message);
+      success("E-mail de confirmation envoyé.");
     } catch (error) {
-      showError(
-        error instanceof Error
-          ? error.message
-          : "Impossible de modifier l’adresse e-mail."
-      );
+      failure(error instanceof Error ? error.message : "Erreur.");
     } finally {
       setSavingEmail(false);
     }
@@ -231,38 +183,27 @@ export default function SettingsPage() {
 
   async function updatePassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    if (newPassword.length < 8) {
-      showError("Le mot de passe doit contenir au moins 8 caractères.");
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      showError("Les deux mots de passe ne correspondent pas.");
-      return;
-    }
-
     setSavingPassword(true);
 
     try {
+      if (newPassword.length < 8) {
+        throw new Error("8 caractères minimum.");
+      }
+      if (newPassword !== confirmPassword) {
+        throw new Error("Les mots de passe ne correspondent pas.");
+      }
+
       const supabase = createClient();
       const { error } = await supabase.auth.updateUser({
         password: newPassword,
       });
 
-      if (error) {
-        throw new Error(error.message);
-      }
-
+      if (error) throw new Error(error.message);
       setNewPassword("");
       setConfirmPassword("");
-      showSuccess("Mot de passe modifié.");
+      success("Mot de passe modifié.");
     } catch (error) {
-      showError(
-        error instanceof Error
-          ? error.message
-          : "Impossible de modifier le mot de passe."
-      );
+      failure(error instanceof Error ? error.message : "Erreur.");
     } finally {
       setSavingPassword(false);
     }
@@ -272,360 +213,269 @@ export default function SettingsPage() {
     key: keyof NotificationSettings,
     value: boolean
   ) {
-    const updatedSettings = {
-      ...notifications,
-      [key]: value,
-    };
-
-    setNotifications(updatedSettings);
-    localStorage.setItem(
-      NOTIFICATIONS_KEY,
-      JSON.stringify(updatedSettings)
-    );
-
-    showSuccess("Préférences de notifications enregistrées.");
-  }
-
-  function updateLanguage(value: string) {
-    setLanguage(value);
-    localStorage.setItem(LANGUAGE_KEY, value);
-    document.documentElement.lang = value;
-    showSuccess("Langue enregistrée.");
-  }
-
-  async function handleSwitchAccount(accountId: string) {
-    if (accountId === currentUserId) return;
-
-    setSwitchingAccountId(accountId);
-    setErrorMessage("");
-
-    try {
-      await switchAccount(accountId);
-      setCurrentUserId(accountId);
-      setSwitchingAccountId("");
-      router.refresh();
-    } catch (error) {
-      showError(
-        error instanceof Error
-          ? error.message
-          : "Impossible de changer de compte."
-      );
-      setSwitchingAccountId("");
-    }
+    const updated = { ...notifications, [key]: value };
+    setNotifications(updated);
+    localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(updated));
   }
 
   async function logout() {
     setLoggingOut(true);
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.replace("/login");
+    router.refresh();
+  }
+
+  async function deleteAccount() {
+    if (deleteConfirmation !== "SUPPRIMER") return;
+    if (!window.confirm("Supprimer définitivement le compte KLYX ?")) return;
+
+    setDeletingAccount(true);
+    setErrorMessage("");
 
     try {
-      const supabase = createClient();
-      await supabase.auth.signOut();
+      const response = await fetch("/api/account/delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmation: deleteConfirmation }),
+      });
+      const result = (await response.json()) as { error?: string };
 
-      router.replace("/login");
+      if (!response.ok) {
+        throw new Error(result.error || "Suppression impossible.");
+      }
+
+      localStorage.clear();
+      router.replace("/signup?deleted=1");
       router.refresh();
-    } finally {
-      setLoggingOut(false);
+    } catch (error) {
+      failure(error instanceof Error ? error.message : "Erreur.");
+      setDeletingAccount(false);
     }
   }
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background px-6 text-foreground">
-        <div className="text-center">
-          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-muted border-t-violet-600" />
-          <p className="text-muted-foreground">
-            Chargement des paramètres...
-          </p>
-        </div>
+      <main className="klyx-page grid min-h-screen place-items-center">
+        <LoaderCircle className="animate-spin text-violet-600" size={38} />
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-background px-4 py-10 text-foreground sm:px-6">
-      <div className="mx-auto max-w-4xl">
-        <div>
-          <p className="text-sm font-semibold text-violet-600">
-            Ton compte KLYX
-          </p>
-
-          <h1 className="mt-2 text-3xl font-bold sm:text-4xl">
-            Paramètres
-          </h1>
-
-          <p className="mt-2 text-muted-foreground">
-            Personnalise ton compte, ta sécurité et tes préférences.
-          </p>
-        </div>
+    <main className="klyx-page">
+      <div className="mx-auto max-w-5xl">
+        <p className="klyx-eyebrow">Ton compte KLYX</p>
+        <h1 className="mt-2 text-3xl font-black sm:text-5xl">Paramètres</h1>
 
         {message && (
-          <div className="mt-6 rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-700 dark:text-green-300">
+          <div className="mt-6 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-sm">
             {message}
           </div>
         )}
-
         {errorMessage && (
-          <div className="mt-6 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700 dark:text-red-300">
+          <div className="mt-6 rounded-2xl border border-rose-500/25 bg-rose-500/10 p-4 text-sm">
             {errorMessage}
           </div>
         )}
 
         <div className="mt-8 space-y-6">
-          <SettingsSection
-            icon={<Sun size={22} />}
-            title="Apparence"
-            description="Choisis l’apparence de KLYX sur cet appareil."
-          >
+          <Section icon={<Sun />} title="Apparence">
             <div className="grid gap-3 sm:grid-cols-3">
-              <ThemeButton
-                label="Clair"
-                icon={<Sun size={20} />}
-                selected={theme === "light"}
-                onClick={() => setTheme("light")}
-              />
-
-              <ThemeButton
-                label="Sombre"
-                icon={<Moon size={20} />}
-                selected={theme === "dark"}
-                onClick={() => setTheme("dark")}
-              />
-
-              <ThemeButton
-                label="Système"
-                icon={<Monitor size={20} />}
-                selected={theme === "system"}
-                onClick={() => setTheme("system")}
-              />
+              {(["light", "dark", "system"] as const).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setTheme(value)}
+                  className={`rounded-xl border px-4 py-3 font-bold ${
+                    theme === value
+                      ? "bg-violet-600 text-white"
+                      : "border-border"
+                  }`}
+                >
+                  {value === "light"
+                    ? "Clair"
+                    : value === "dark"
+                      ? "Sombre"
+                      : "Système"}
+                </button>
+              ))}
             </div>
-          </SettingsSection>
+          </Section>
 
-          <SettingsSection
-            icon={<UserRound size={22} />}
-            title="Profil"
-            description="Modifie les informations visibles sur ton compte."
-          >
+          {accountType === "provider" && (
+            <Section icon={<CreditCard />} title="Paiements prestataire">
+              <Link
+                href="/provider/payments"
+                className="inline-flex h-12 items-center rounded-2xl bg-violet-600 px-5 text-sm font-bold text-white"
+              >
+                Ouvrir la configuration des paiements
+              </Link>
+            </Section>
+          )}
+
+          <Section icon={<UserRound />} title="Profil">
             <form onSubmit={updateProfile} className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
-                <InputField
-                  id="firstName"
-                  label="Prénom"
-                  value={firstName}
-                  onChange={setFirstName}
-                  autoComplete="given-name"
-                />
-
-                <InputField
-                  id="lastName"
-                  label="Nom"
-                  value={lastName}
-                  onChange={setLastName}
-                  autoComplete="family-name"
-                />
+                <Input label="Prénom" value={firstName} onChange={setFirstName} />
+                <Input label="Nom" value={lastName} onChange={setLastName} />
               </div>
-
-              <ActionButton loading={savingProfile}>
+              <Button loading={savingProfile}>
                 <Save size={18} />
-                {savingProfile ? "Enregistrement..." : "Enregistrer le profil"}
-              </ActionButton>
+                Enregistrer
+              </Button>
             </form>
-          </SettingsSection>
+          </Section>
 
-          <SettingsSection
-            icon={<LockKeyhole size={22} />}
-            title="E-mail et mot de passe"
-            description="Sécurise l’accès à ton compte."
-          >
+          <Section icon={<LockKeyhole />} title="E-mail et mot de passe">
             <div className="space-y-8">
               <form onSubmit={updateEmail} className="space-y-4">
-                <InputField
-                  id="email"
-                  label="Nouvelle adresse e-mail"
+                <Input
+                  label="Nouvel e-mail"
                   type="email"
                   value={newEmail}
                   onChange={setNewEmail}
-                  autoComplete="email"
                 />
-
-                <ActionButton loading={savingEmail}>
-                  {savingEmail
-                    ? "Envoi..."
-                    : "Modifier l’adresse e-mail"}
-                </ActionButton>
+                <Button loading={savingEmail}>Modifier l’e-mail</Button>
               </form>
 
-              <div className="border-t border-border" />
-
-              <form onSubmit={updatePassword} className="space-y-4">
-                <InputField
-                  id="newPassword"
+              <form onSubmit={updatePassword} className="space-y-4 border-t border-border pt-6">
+                <Input
                   label="Nouveau mot de passe"
                   type="password"
                   value={newPassword}
                   onChange={setNewPassword}
-                  autoComplete="new-password"
-                  placeholder="8 caractères minimum"
                 />
-
-                <InputField
-                  id="confirmPassword"
-                  label="Confirmer le mot de passe"
+                <Input
+                  label="Confirmer"
                   type="password"
                   value={confirmPassword}
                   onChange={setConfirmPassword}
-                  autoComplete="new-password"
                 />
-
-                <ActionButton loading={savingPassword}>
-                  {savingPassword
-                    ? "Modification..."
-                    : "Modifier le mot de passe"}
-                </ActionButton>
+                <Button loading={savingPassword}>Modifier le mot de passe</Button>
               </form>
             </div>
-          </SettingsSection>
+          </Section>
 
-          <SettingsSection
-            icon={<Bell size={22} />}
-            title="Notifications"
-            description="Choisis les informations que KLYX peut t’envoyer."
-          >
-            <div className="space-y-3">
-              <NotificationToggle
-                label="Réservations"
-                description="Demandes, confirmations et changements."
-                checked={notifications.bookings}
-                onChange={(value) =>
-                  updateNotifications("bookings", value)
-                }
-              />
+          <Section icon={<Bell />} title="Notifications">
+            {(
+              [
+                ["bookings", "Réservations"],
+                ["messages", "Messages"],
+                ["promotions", "Nouveautés"],
+              ] as const
+            ).map(([key, label]) => (
+              <label
+                key={key}
+                className="mb-3 flex items-center justify-between rounded-2xl border border-border p-4"
+              >
+                <span className="font-bold">{label}</span>
+                <input
+                  type="checkbox"
+                  checked={notifications[key]}
+                  onChange={(event) =>
+                    updateNotifications(key, event.target.checked)
+                  }
+                />
+              </label>
+            ))}
+          </Section>
 
-              <NotificationToggle
-                label="Messages"
-                description="Nouveaux messages reçus."
-                checked={notifications.messages}
-                onChange={(value) =>
-                  updateNotifications("messages", value)
-                }
-              />
-
-              <NotificationToggle
-                label="Offres et nouveautés"
-                description="Actualités et nouveautés de KLYX."
-                checked={notifications.promotions}
-                onChange={(value) =>
-                  updateNotifications("promotions", value)
-                }
-              />
-            </div>
-          </SettingsSection>
-
-          <SettingsSection
-            icon={<Languages size={22} />}
-            title="Langue"
-            description="Choisis la langue préférée de ton compte."
-          >
-            <label
-              htmlFor="language"
-              className="mb-2 block text-sm font-medium"
-            >
-              Langue de l’interface
-            </label>
-
+          <Section icon={<Languages />} title="Langue">
             <select
-              id="language"
               value={language}
-              onChange={(event) => updateLanguage(event.target.value)}
-              className="w-full rounded-xl border border-input bg-background px-4 py-3 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
+              onChange={(event) => {
+                setLanguage(event.target.value);
+                localStorage.setItem(LANGUAGE_KEY, event.target.value);
+              }}
+              className="klyx-input"
             >
               <option value="fr">Français</option>
               <option value="en">English</option>
               <option value="nl">Nederlands</option>
             </select>
+          </Section>
 
-            <p className="mt-3 text-sm text-muted-foreground">
-              Le choix est enregistré. La traduction complète des textes sera
-              ajoutée lorsque les versions anglaise et néerlandaise seront
-              disponibles.
-            </p>
-          </SettingsSection>
-
-          <SettingsSection
-            icon={<UserRound size={22} />}
-            title="Profils KLYX"
-            description="Change de profil sans ressaisir tes identifiants."
-          >
-            {savedAccounts.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Aucun profil associé à cette connexion.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {savedAccounts.map((account) => {
-                  const isCurrent = account.id === currentUserId;
-                  const fullName =
-                    `${account.firstName} ${account.lastName}`.trim() ||
-                    "Profil KLYX";
-
-                  return (
-                    <div
-                      key={account.id}
-                      className="flex flex-col gap-4 rounded-2xl border border-border bg-muted/40 p-4 sm:flex-row sm:items-center sm:justify-between"
+          <Section icon={<UserRound />} title="Profils KLYX">
+            <div className="space-y-3">
+              {savedAccounts.map((account) => (
+                <div
+                  key={account.id}
+                  className="flex items-center justify-between rounded-2xl border border-border p-4"
+                >
+                  <div>
+                    <p className="font-black">
+                      {account.firstName} {account.lastName}
+                    </p>
+                    <p className="text-xs text-violet-600">
+                      {account.accountType}
+                    </p>
+                  </div>
+                  {account.id !== currentProfileId && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setSwitchingAccountId(account.id);
+                        await switchAccount(account.id);
+                        window.location.reload();
+                      }}
+                      disabled={switchingAccountId === account.id}
+                      className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-bold text-white"
                     >
-                      <div>
-                        <p className="font-semibold">{fullName}</p>
-                        <p className="mt-1 text-xs font-medium uppercase tracking-wide text-violet-600">
-                          {account.accountType === "provider"
-                            ? "Prestataire"
-                            : "Client"}
-                          {isCurrent ? " · Profil actuel" : ""}
-                        </p>
-                      </div>
+                      Utiliser
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </Section>
 
-                      <div className="flex gap-2">
-                        {!isCurrent && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleSwitchAccount(account.id)
-                            }
-                            disabled={
-                              switchingAccountId === account.id
-                            }
-                            className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-violet-700 disabled:opacity-60"
-                          >
-                            {switchingAccountId === account.id
-                              ? "Connexion..."
-                              : "Utiliser"}
-                          </button>
-                        )}
+          <section className="rounded-3xl border border-border bg-card p-6">
+            <button
+              type="button"
+              onClick={() => void logout()}
+              disabled={loggingOut}
+              className="inline-flex h-12 items-center gap-2 rounded-2xl border border-border px-5 font-bold"
+            >
+              <LogOut size={18} />
+              Se déconnecter
+            </button>
+          </section>
 
-                      </div>
-                    </div>
-                  );
-                })}
+          <section className="rounded-3xl border border-rose-500/30 bg-rose-500/[0.06] p-6">
+            <div className="flex gap-4">
+              <ShieldAlert className="text-rose-600" />
+              <div>
+                <h2 className="text-xl font-black text-rose-600">
+                  Supprimer mon compte
+                </h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Bloqué s’il existe une réservation active ou un paiement.
+                </p>
               </div>
-            )}
-          </SettingsSection>
+            </div>
 
-          <section className="rounded-3xl border border-red-500/30 bg-card p-6 shadow-sm sm:p-8">
-            <h2 className="text-xl font-bold text-red-600">
-              Déconnexion
-            </h2>
-
-            <p className="mt-2 text-sm text-muted-foreground">
-              Ta session restera active tant que tu ne te déconnectes pas ou
-              que Supabase ne révoque pas la session.
-            </p>
+            <input
+              value={deleteConfirmation}
+              onChange={(event) => setDeleteConfirmation(event.target.value)}
+              className="klyx-input mt-5"
+              placeholder="Écris SUPPRIMER"
+            />
 
             <button
               type="button"
-              onClick={logout}
-              disabled={loggingOut}
-              className="mt-5 inline-flex items-center gap-2 rounded-xl bg-red-600 px-5 py-3 font-semibold text-white transition hover:bg-red-700 disabled:opacity-60"
+              onClick={() => void deleteAccount()}
+              disabled={
+                deletingAccount || deleteConfirmation !== "SUPPRIMER"
+              }
+              className="mt-4 inline-flex h-12 items-center gap-2 rounded-2xl bg-rose-600 px-5 font-bold text-white disabled:opacity-40"
             >
-              <LogOut size={18} />
-              {loggingOut ? "Déconnexion..." : "Se déconnecter"}
+              {deletingAccount ? (
+                <LoaderCircle className="animate-spin" size={18} />
+              ) : (
+                <Trash2 size={18} />
+              )}
+              Supprimer définitivement
             </button>
           </section>
         </div>
@@ -634,141 +484,51 @@ export default function SettingsPage() {
   );
 }
 
-type SettingsSectionProps = {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  children: React.ReactNode;
-};
-
-function SettingsSection({
+function Section({
   icon,
   title,
-  description,
   children,
-}: SettingsSectionProps) {
+}: {
+  icon: React.ReactNode;
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
-    <section className="rounded-3xl border border-border bg-card p-6 text-card-foreground shadow-sm sm:p-8">
-      <div className="flex gap-3">
-        <div className="mt-0.5 text-violet-600">{icon}</div>
-
-        <div>
-          <h2 className="text-xl font-bold">{title}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {description}
-          </p>
-        </div>
+    <section className="rounded-3xl border border-border bg-card p-6">
+      <div className="flex items-center gap-3 text-violet-600">
+        {icon}
+        <h2 className="text-xl font-black text-foreground">{title}</h2>
       </div>
-
       <div className="mt-6">{children}</div>
     </section>
   );
 }
 
-type ThemeButtonProps = {
-  label: string;
-  icon: React.ReactNode;
-  selected: boolean;
-  onClick: () => void;
-};
-
-function ThemeButton({
-  label,
-  icon,
-  selected,
-  onClick,
-}: ThemeButtonProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex items-center justify-center gap-2 rounded-xl border px-4 py-3 font-semibold transition ${
-        selected
-          ? "border-violet-600 bg-violet-600 text-white"
-          : "border-border bg-background hover:bg-muted"
-      }`}
-    >
-      {icon}
-      {label}
-    </button>
-  );
-}
-
-type InputFieldProps = {
-  id: string;
-  label: string;
-  type?: string;
-  value: string;
-  onChange: (value: string) => void;
-  autoComplete?: string;
-  placeholder?: string;
-};
-
-function InputField({
-  id,
+function Input({
   label,
   type = "text",
   value,
   onChange,
-  autoComplete,
-  placeholder,
-}: InputFieldProps) {
+}: {
+  label: string;
+  type?: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
   return (
-    <div>
-      <label
-        htmlFor={id}
-        className="mb-2 block text-sm font-medium"
-      >
-        {label}
-      </label>
-
+    <label className="block">
+      <span className="mb-2 block text-sm font-bold">{label}</span>
       <input
-        id={id}
         type={type}
-        required
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        autoComplete={autoComplete}
-        placeholder={placeholder}
-        className="w-full rounded-xl border border-input bg-background px-4 py-3 outline-none transition placeholder:text-muted-foreground focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
-      />
-    </div>
-  );
-}
-
-type NotificationToggleProps = {
-  label: string;
-  description: string;
-  checked: boolean;
-  onChange: (value: boolean) => void;
-};
-
-function NotificationToggle({
-  label,
-  description,
-  checked,
-  onChange,
-}: NotificationToggleProps) {
-  return (
-    <label className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-border bg-background p-4">
-      <span>
-        <span className="block font-semibold">{label}</span>
-        <span className="mt-1 block text-sm text-muted-foreground">
-          {description}
-        </span>
-      </span>
-
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        className="h-5 w-5 accent-violet-600"
+        className="klyx-input"
       />
     </label>
   );
 }
 
-function ActionButton({
+function Button({
   loading,
   children,
 }: {
@@ -779,8 +539,9 @@ function ActionButton({
     <button
       type="submit"
       disabled={loading}
-      className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-3 font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
+      className="inline-flex h-12 items-center gap-2 rounded-2xl bg-violet-600 px-5 font-bold text-white disabled:opacity-60"
     >
+      {loading && <LoaderCircle className="animate-spin" size={17} />}
       {children}
     </button>
   );
