@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -52,128 +52,39 @@ const routesWithoutSidebar = [
 ];
 
 const clientMenu: MenuItem[] = [
-  {
-    title: "Vue d’ensemble",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "Assistant KLYX",
-    href: "/brain",
-    icon: Sparkles,
-  },
-  {
-    title: "Trouver un service",
-    href: "/search",
-    icon: Search,
-  },
-  {
-    title: "Mes réservations",
-    href: "/bookings",
-    icon: CalendarDays,
-  },
-  {
-    title: "Messages",
-    href: "/messages",
-    icon: MessageCircle,
-  },
-  {
-    title: "Favoris",
-    href: "/favorites",
-    icon: Heart,
-  },
-  {
-    title: "Notifications",
-    href: "/notifications",
-    icon: Bell,
-  },  {
-    title: "Centre de confiance",
-    href: "/trust",
-    icon: ShieldCheck,
-  },
-  {
-    title: "Mon profil",
-    href: "/profile",
-    icon: UserRound,
-  },
-  {
-    title: "Paramètres",
-    href: "/settings",
-    icon: Settings,
-  },
+  { title: "Vue d’ensemble", href: "/dashboard", icon: LayoutDashboard },
+  { title: "Assistant KLYX", href: "/brain", icon: Sparkles },
+  { title: "Trouver un service", href: "/search", icon: Search },
+  { title: "Mes réservations", href: "/bookings", icon: CalendarDays },
+  { title: "Messages", href: "/messages", icon: MessageCircle },
+  { title: "Favoris", href: "/favorites", icon: Heart },
+  { title: "Notifications", href: "/notifications", icon: Bell },
+  { title: "Centre de confiance", href: "/trust", icon: ShieldCheck },
+  { title: "Mon profil", href: "/profile", icon: UserRound },
+  { title: "Paramètres", href: "/settings", icon: Settings },
 ];
 
 const providerMenu: MenuItem[] = [
+  { title: "Tableau professionnel", href: "/dashboard", icon: LayoutDashboard },
+  { title: "Mon activité", href: "/provider", icon: BriefcaseBusiness },
+  { title: "Demandes reçues", href: "/bookings", icon: CalendarDays },
+  { title: "Missions", href: "/bookings", icon: CalendarClock },
+  { title: "Messagerie clients", href: "/messages", icon: MessageCircle },
+  { title: "Ajouter un métier", href: "/provider/services/new", icon: ListPlus },
+  { title: "Paiements", href: "/provider/payments", icon: Banknote },
+  { title: "Score et avis", href: "/scores", icon: Star },
+  { title: "Notifications", href: "/notifications", icon: Bell },
   {
-    title: "Tableau professionnel",
-    href: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "Mon activité",
-    href: "/provider",
-    icon: BriefcaseBusiness,
-  },
-  {
-    title: "Demandes reçues",
-    href: "/bookings",
-    icon: CalendarDays,
-  },
-  {
-    title: "Missions",
-    href: "/bookings",
-    icon: CalendarClock,
-  },
-  {
-    title: "Messagerie clients",
-    href: "/messages",
-    icon: MessageCircle,
-  },
-  {
-    title: "Ajouter un métier",
-    href: "/provider/services/new",
-    icon: ListPlus,
-  },
-  {
-    title: "Paiements",
-    href: "/provider/payments",
-    icon: Banknote,
-  },
-  {
-    title: "Score et avis",
-    href: "/scores",
-    icon: Star,
-  },
-  {
-    title: "Notifications",
-    href: "/notifications",
-    icon: Bell,
-  },  {
-    title: "Centre de confiance",
-    href: "/trust",
-    icon: ShieldCheck,
-  },  {
-    title: "Centre de confiance",
-    href: "/trust",
+    title: "Confiance professionnelle",
+    href: "/provider/trust",
     icon: ShieldCheck,
   },
-  {
-    title: "Profil public",
-    href: "/profile",
-    icon: UserRound,
-  },
-  {
-    title: "Paramètres",
-    href: "/settings",
-    icon: Settings,
-  },
+  { title: "Profil public", href: "/profile", icon: UserRound },
+  { title: "Paramètres", href: "/settings", icon: Settings },
 ];
 
 function matchesRoute(pathname: string, route: string) {
-  return (
-    pathname === route ||
-    pathname.startsWith(`${route}/`)
-  );
+  return pathname === route || pathname.startsWith(`${route}/`);
 }
 
 export default function AppSidebar() {
@@ -196,31 +107,25 @@ export default function AppSidebar() {
 
     async function loadActiveProfile() {
       try {
-        const response = await fetch(
-          "/api/profiles/active",
-          {
-            method: "GET",
-            cache: "no-store",
-          }
-        );
+        const response = await fetch("/api/profiles/active", {
+          method: "GET",
+          cache: "no-store",
+        });
 
         if (!response.ok) return;
 
-        const data =
-          (await response.json()) as ProfilesResponse;
+        const data = (await response.json()) as ProfilesResponse;
 
         const activeProfile =
           data.profiles?.find(
-            (profile) =>
-              profile.id === data.activeProfileId
+            (profile) => profile.id === data.activeProfileId
           ) ?? data.profiles?.[0];
 
         if (!cancelled && activeProfile) {
           setAccountType(activeProfile.accountType);
         }
       } catch {
-        // Le menu reste vide tant que le profil actif
-        // n’a pas pu être identifié.
+        // Aucun menu de rôle n’est affiché sans profil actif fiable.
       }
     }
 
@@ -232,14 +137,8 @@ export default function AppSidebar() {
   }, [hideSidebar, pathname]);
 
   const menu = useMemo<MenuItem[]>(() => {
-    if (accountType === "provider") {
-      return providerMenu;
-    }
-
-    if (accountType === "client") {
-      return clientMenu;
-    }
-
+    if (accountType === "provider") return providerMenu;
+    if (accountType === "client") return clientMenu;
     return [];
   }, [accountType]);
 
@@ -291,7 +190,6 @@ export default function AppSidebar() {
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
         {menu.map((item) => {
           const Icon = item.icon;
-
           const active =
             item.href === "/dashboard"
               ? pathname === item.href
@@ -336,9 +234,7 @@ export default function AppSidebar() {
             className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/10 disabled:opacity-60"
           >
             <LogOut size={18} />
-            {loggingOut
-              ? "Déconnexion..."
-              : "Se déconnecter"}
+            {loggingOut ? "Déconnexion..." : "Se déconnecter"}
           </button>
         </div>
       </div>
@@ -390,4 +286,3 @@ export default function AppSidebar() {
     </>
   );
 }
-

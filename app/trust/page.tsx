@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   ArrowRight,
   Clock3,
+  FileWarning,
   LoaderCircle,
   ShieldCheck,
 } from "lucide-react";
@@ -14,6 +15,8 @@ import { supabase } from "@/lib/supabase";
 type Dispute = {
   id: string;
   booking_id: string;
+  opened_by: string;
+  against_profile_id: string | null;
   reason: string;
   description: string;
   status: string;
@@ -41,7 +44,7 @@ const STATUS_LABELS: Record<string, string> = {
   closed: "Fermé",
 };
 
-export default function TrustPage() {
+export default function ClientTrustPage() {
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -96,25 +99,43 @@ export default function TrustPage() {
         <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#17131f,#3b162f_52%,#111827)] p-7 text-white sm:p-10">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white/70">
             <ShieldCheck size={15} />
-            Trust Center
+            Protection client
           </div>
 
           <h1 className="mt-5 text-3xl font-black sm:text-5xl">
-            Centre de confiance
+            Centre de confiance client
           </h1>
 
           <p className="mt-4 max-w-2xl text-sm leading-7 text-white/70">
-            Signale un problème lié à une réservation et conserve
-            un historique clair du dossier.
+            Signale un problème lié à une prestation, conserve les faits
+            et suis la décision de KLYX.
           </p>
 
           <Link
             href="/trust/new"
             className="mt-7 inline-flex h-12 items-center gap-2 rounded-2xl bg-white px-5 text-sm font-black text-zinc-950"
           >
-            Signaler un problème
+            Ouvrir un signalement
             <ArrowRight size={17} />
           </Link>
+        </section>
+
+        <section className="mt-8 grid gap-5 md:grid-cols-3">
+          <TrustInfo
+            icon={<FileWarning size={21} />}
+            title="Décrire les faits"
+            text="Indique précisément ce qui s’est passé."
+          />
+          <TrustInfo
+            icon={<ShieldCheck size={21} />}
+            title="Dossier protégé"
+            text="Le dossier reste lié à la réservation."
+          />
+          <TrustInfo
+            icon={<Clock3 size={21} />}
+            title="Suivre la décision"
+            text="Le statut évoluera dans cet espace."
+          />
         </section>
 
         {loading && (
@@ -136,7 +157,7 @@ export default function TrustPage() {
           <section className="mt-8">
             <p className="klyx-eyebrow">Mes dossiers</p>
             <h2 className="mt-2 text-2xl font-black">
-              Litiges et signalements
+              Mes litiges et signalements
             </h2>
 
             {disputes.length === 0 ? (
@@ -146,10 +167,10 @@ export default function TrustPage() {
                   size={42}
                 />
                 <h3 className="mt-4 text-xl font-black">
-                  Aucun litige actif
+                  Aucun dossier actif
                 </h3>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Tes dossiers de confiance apparaîtront ici.
+                  Tes signalements apparaîtront ici.
                 </p>
               </div>
             ) : (
@@ -164,14 +185,17 @@ export default function TrustPage() {
                         <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-amber-500/10 text-amber-600">
                           <AlertTriangle size={21} />
                         </div>
+
                         <div>
                           <h3 className="font-black">
                             {REASON_LABELS[dispute.reason] ??
                               dispute.reason}
                           </h3>
+
                           <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">
                             {dispute.description}
                           </p>
+
                           <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
                             <Clock3 size={14} />
                             {new Date(
@@ -202,5 +226,27 @@ export default function TrustPage() {
         )}
       </div>
     </main>
+  );
+}
+
+function TrustInfo({
+  icon,
+  title,
+  text,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  text: string;
+}) {
+  return (
+    <article className="klyx-card p-5">
+      <div className="grid h-11 w-11 place-items-center rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
+        {icon}
+      </div>
+      <h3 className="mt-4 font-black">{title}</h3>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">
+        {text}
+      </p>
+    </article>
   );
 }
