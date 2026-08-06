@@ -28,6 +28,7 @@ import {
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import SmartRecommendation from "./SmartRecommendation";
+import MemoryQuickStart from "./MemoryQuickStart";
 
 type Message = {
   id: string;
@@ -429,7 +430,15 @@ export default function BrainPage() {
                 ))}
 
                 {messages.length === 1 && (
-                  <div className="grid gap-3 pt-2 sm:grid-cols-2">
+                  <>
+                    <MemoryQuickStart
+                      disabled={loading}
+                      onUseRequest={(message) =>
+                        void sendMessage(undefined, message)
+                      }
+                    />
+
+                    <div className="grid gap-3 pt-2 sm:grid-cols-2">
                     {suggestions.map((suggestion) => {
                       const Icon = suggestion.icon;
 
@@ -454,7 +463,8 @@ export default function BrainPage() {
                         </button>
                       );
                     })}
-                  </div>
+                    </div>
+                  </>
                 )}
 
                 {loading && (
@@ -625,4 +635,5 @@ function ContextItem({
     </div>
   );
 }
+
 
