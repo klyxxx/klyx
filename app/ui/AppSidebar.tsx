@@ -4,12 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  BadgeCheck,
   Banknote,
   Bell,
   BriefcaseBusiness,
   CalendarClock,
   CalendarDays,
-  Gauge,
   Heart,
   LayoutDashboard,
   ListPlus,
@@ -61,7 +61,6 @@ const clientMenu: MenuItem[] = [
   { title: "Favoris", href: "/favorites", icon: Heart },
   { title: "Notifications", href: "/notifications", icon: Bell },
   { title: "Centre de confiance", href: "/trust", icon: ShieldCheck },
-  { title: "Sécurité du profil", href: "/security", icon: Gauge },
   { title: "Mon profil", href: "/profile", icon: UserRound },
   { title: "Paramètres", href: "/settings", icon: Settings },
 ];
@@ -74,13 +73,14 @@ const providerMenu: MenuItem[] = [
   { title: "Messagerie clients", href: "/messages", icon: MessageCircle },
   { title: "Ajouter un métier", href: "/provider/services/new", icon: ListPlus },
   { title: "Paiements", href: "/provider/payments", icon: Banknote },
+  { title: "Vérification", href: "/provider/verification", icon: BadgeCheck },
   { title: "Score et avis", href: "/scores", icon: Star },
   { title: "Notifications", href: "/notifications", icon: Bell },
   {
     title: "Confiance professionnelle",
     href: "/provider/trust",
     icon: ShieldCheck,
-  },  { title: "Sécurité du profil", href: "/security", icon: Gauge },
+  },
   { title: "Profil public", href: "/profile", icon: UserRound },
   { title: "Paramètres", href: "/settings", icon: Settings },
 ];
