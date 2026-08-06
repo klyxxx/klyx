@@ -1,0 +1,431 @@
+/*
+  KLYX — IDENTITÉ VISUELLE GLOBALE
+  Ce fichier agit uniquement sur l’apparence.
+  Il ne change aucun rôle, aucune route et aucune donnée.
+*/
+
+:root {
+  --klyx-visual-violet: 124 58 237;
+  --klyx-visual-indigo: 79 70 229;
+  --klyx-visual-blue: 37 99 235;
+  --klyx-visual-cyan: 6 182 212;
+  --klyx-visual-rose: 225 29 72;
+  --klyx-visual-surface: 255 255 255;
+  --klyx-visual-ink: 24 24 27;
+}
+
+.dark {
+  --klyx-visual-surface: 20 18 28;
+  --klyx-visual-ink: 250 250 250;
+}
+
+html {
+  background: rgb(var(--klyx-visual-surface));
+}
+
+body {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.96),
+      rgba(247, 245, 255, 0.91) 38%,
+      rgba(239, 246, 255, 0.94)
+    );
+}
+
+.dark body {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(9, 9, 11, 0.98),
+      rgba(18, 14, 29, 0.97) 42%,
+      rgba(9, 16, 31, 0.98)
+    );
+}
+
+.klyx-app-shell {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+}
+
+.klyx-app-content {
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+  flex: 1 1 0%;
+}
+
+.klyx-visual-background {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  contain: strict;
+}
+
+.klyx-visual-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(10px);
+  opacity: 0.72;
+  transform: translateZ(0);
+  animation: klyx-orb-float 18s ease-in-out infinite;
+}
+
+.klyx-visual-orb-one {
+  left: -12rem;
+  top: -14rem;
+  width: 36rem;
+  height: 36rem;
+  background:
+    radial-gradient(
+      circle,
+      rgba(var(--klyx-visual-violet), 0.28),
+      rgba(var(--klyx-visual-violet), 0.08) 45%,
+      transparent 72%
+    );
+}
+
+.klyx-visual-orb-two {
+  right: -15rem;
+  top: 18%;
+  width: 42rem;
+  height: 42rem;
+  animation-delay: -6s;
+  background:
+    radial-gradient(
+      circle,
+      rgba(var(--klyx-visual-blue), 0.22),
+      rgba(var(--klyx-visual-cyan), 0.07) 48%,
+      transparent 72%
+    );
+}
+
+.klyx-visual-orb-three {
+  bottom: -22rem;
+  left: 25%;
+  width: 46rem;
+  height: 46rem;
+  animation-delay: -11s;
+  background:
+    radial-gradient(
+      circle,
+      rgba(var(--klyx-visual-rose), 0.14),
+      rgba(var(--klyx-visual-indigo), 0.06) 48%,
+      transparent 72%
+    );
+}
+
+.dark .klyx-visual-orb {
+  opacity: 0.92;
+}
+
+.klyx-visual-grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.32;
+  background-image:
+    linear-gradient(
+      rgba(var(--klyx-visual-violet), 0.055) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(var(--klyx-visual-violet), 0.055) 1px,
+      transparent 1px
+    );
+  background-size: 48px 48px;
+  mask-image:
+    linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.75),
+      rgba(0, 0, 0, 0.18) 72%,
+      transparent
+    );
+}
+
+.dark .klyx-visual-grid {
+  opacity: 0.24;
+  background-image:
+    linear-gradient(
+      rgba(255, 255, 255, 0.045) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.045) 1px,
+      transparent 1px
+    );
+}
+
+.klyx-visual-noise {
+  position: absolute;
+  inset: 0;
+  opacity: 0.035;
+  mix-blend-mode: multiply;
+  background-image:
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.82'/%3E%3C/svg%3E");
+}
+
+.dark .klyx-visual-noise {
+  opacity: 0.045;
+  mix-blend-mode: screen;
+}
+
+.klyx-visual-vignette {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      circle at 50% 34%,
+      transparent 30%,
+      rgba(18, 18, 24, 0.04) 100%
+    );
+}
+
+.dark .klyx-visual-vignette {
+  background:
+    radial-gradient(
+      circle at 50% 32%,
+      transparent 22%,
+      rgba(0, 0, 0, 0.34) 100%
+    );
+}
+
+/* Toutes les pages KLYX gagnent la profondeur du tableau de bord. */
+.klyx-page {
+  position: relative;
+  isolation: isolate;
+}
+
+.klyx-page::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  z-index: -1;
+  top: 1rem;
+  left: 3%;
+  width: 44%;
+  height: 18rem;
+  border-radius: 9999px;
+  opacity: 0.55;
+  filter: blur(64px);
+  background:
+    linear-gradient(
+      120deg,
+      rgba(var(--klyx-visual-violet), 0.13),
+      rgba(var(--klyx-visual-blue), 0.06)
+    );
+}
+
+.dark .klyx-page::before {
+  opacity: 0.76;
+}
+
+/* Harmonisation des anciennes pages qui n’utilisent pas encore klyx-page. */
+.klyx-app-content > main {
+  position: relative;
+  isolation: isolate;
+}
+
+.klyx-app-content > main.min-h-screen,
+.klyx-app-content > main[class*="bg-zinc-950"],
+.klyx-app-content > main[class*="bg-background"] {
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+/* Cartes existantes : effet verre premium cohérent. */
+.klyx-card {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.88),
+      rgba(255, 255, 255, 0.68)
+    );
+  box-shadow:
+    0 22px 70px rgba(35, 27, 66, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.klyx-card::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    linear-gradient(
+      125deg,
+      rgba(255, 255, 255, 0.22),
+      transparent 34%,
+      transparent 72%,
+      rgba(var(--klyx-visual-violet), 0.035)
+    );
+}
+
+.dark .klyx-card {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(31, 28, 42, 0.88),
+      rgba(17, 19, 31, 0.72)
+    );
+  box-shadow:
+    0 28px 90px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.055);
+}
+
+/* Anciennes cartes sombres de /search, /bookings, etc. */
+.klyx-app-content article[class*="bg-zinc-900"],
+.klyx-app-content section[class*="bg-zinc-900"],
+.klyx-app-content div[class*="bg-zinc-900"] {
+  border-color: rgba(255, 255, 255, 0.09) !important;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(24, 24, 31, 0.88),
+      rgba(16, 19, 31, 0.76)
+    ) !important;
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  backdrop-filter: blur(20px);
+}
+
+/* Les grands blocs colorés deviennent de véritables images abstraites. */
+.klyx-app-content section[class*="bg-[linear-gradient"],
+.klyx-app-content div[class*="bg-[linear-gradient"] {
+  isolation: isolate;
+  box-shadow:
+    0 28px 80px rgba(37, 20, 76, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
+
+.klyx-app-content section[class*="bg-[linear-gradient"]::before,
+.klyx-app-content div[class*="bg-[linear-gradient"]::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  opacity: 0.75;
+  background:
+    radial-gradient(
+      circle at 78% 12%,
+      rgba(255, 255, 255, 0.16),
+      transparent 26%
+    ),
+    radial-gradient(
+      circle at 7% 90%,
+      rgba(var(--klyx-visual-cyan), 0.18),
+      transparent 34%
+    );
+}
+
+/* Formulaires plus cohérents avec le tableau de bord. */
+.klyx-input,
+.filter-control,
+.klyx-app-content input:not([type="checkbox"]):not([type="radio"]),
+.klyx-app-content select,
+.klyx-app-content textarea {
+  backdrop-filter: blur(16px);
+}
+
+.klyx-app-content input:not([type="checkbox"]):not([type="radio"]),
+.klyx-app-content select,
+.klyx-app-content textarea {
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background-color 180ms ease,
+    transform 180ms ease;
+}
+
+.klyx-app-content input:not([type="checkbox"]):not([type="radio"]):focus,
+.klyx-app-content select:focus,
+.klyx-app-content textarea:focus {
+  box-shadow:
+    0 0 0 4px rgba(var(--klyx-visual-violet), 0.11),
+    0 12px 34px rgba(var(--klyx-visual-violet), 0.08);
+}
+
+/* Boutons et liens principaux : même profondeur visuelle. */
+.klyx-button,
+.klyx-app-content a[class*="bg-violet-"],
+.klyx-app-content button[class*="bg-violet-"],
+.klyx-app-content a[class*="bg-blue-"],
+.klyx-app-content button[class*="bg-blue-"],
+.klyx-app-content a[class*="bg-emerald-"],
+.klyx-app-content button[class*="bg-emerald-"] {
+  box-shadow:
+    0 14px 34px rgba(var(--klyx-visual-violet), 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+/* Images et avatars légèrement plus premium. */
+.klyx-app-content img {
+  image-rendering: auto;
+}
+
+.klyx-app-content article img,
+.klyx-app-content section img {
+  filter:
+    saturate(1.04)
+    contrast(1.015);
+}
+
+/* Animation discrète et accessible. */
+@keyframes klyx-orb-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate3d(1.5rem, -1.2rem, 0) scale(1.035);
+  }
+}
+
+@media (max-width: 768px) {
+  .klyx-visual-orb-one {
+    left: -18rem;
+    top: -18rem;
+  }
+
+  .klyx-visual-orb-two {
+    right: -24rem;
+  }
+
+  .klyx-visual-grid {
+    background-size: 36px 36px;
+  }
+
+  .klyx-page::before {
+    left: -15%;
+    width: 85%;
+    height: 14rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .klyx-visual-orb {
+    animation: none;
+  }
+
+  .klyx-card-hover,
+  .klyx-app-content input,
+  .klyx-app-content select,
+  .klyx-app-content textarea {
+    transition: none;
+  }
+}

@@ -1,11 +1,13 @@
-import type { Metadata, Viewport } from "next";
+﻿import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Inter } from "next/font/google";
 import { TooltipProvider } from "@/app/ui/tooltip";
 import AppSidebar from "@/app/ui/AppSidebar";
 import ThemeProvider from "@/app/components/ThemeProvider";
 import PwaRegistrar from "@/app/components/PwaRegistrar";
+import AppVisualBackground from "@/app/ui/AppVisualBackground";
 import { cn } from "@/lib/utils";
 import "./globals.css";
+import "./klyx-visual-system.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 const geistSans = Geist({
@@ -125,12 +127,13 @@ export default function RootLayout({
 
       <body className="min-h-full bg-background text-foreground">
         <PwaRegistrar />
+        <AppVisualBackground />
 
         <ThemeProvider>
           <TooltipProvider>
-            <div className="min-h-screen lg:flex">
+            <div className="klyx-app-shell min-h-screen lg:flex">
               <AppSidebar />
-              <div className="min-w-0 flex-1">{children}</div>
+              <div className="klyx-app-content min-w-0 flex-1">{children}</div>
             </div>
           </TooltipProvider>
         </ThemeProvider>
@@ -138,3 +141,4 @@ export default function RootLayout({
     </html>
   );
 }
+
