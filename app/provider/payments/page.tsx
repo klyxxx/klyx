@@ -16,6 +16,7 @@ import {
   WalletCards,
   XCircle,
 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 type StripeStatus = {
   connected: boolean;
@@ -39,24 +40,49 @@ export default function ProviderPaymentsPage() {
   const [openingStripe, setOpeningStripe] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  async function getAccessToken(): Promise<string> {
+    const supabase = createClient();
+    const {
+      data: { session },
+      error,
+    } = await supabase.auth.getSession();
+
+    if (error) throw new Error(error.message);
+    if (!session?.access_token) {
+      throw new Error("Session manquante. Reconnecte-toi puis réessaie.");
+    }
+
+    return session.access_token;
+  }
+
   async function loadStatus() {
     setLoading(true);
     setErrorMessage("");
 
     try {
+      const accessToken = await getAccessToken();
       const response = await fetch("/api/stripe/connect/status", {
+        method: "GET",
         cache: "no-store",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
       });
+
       const result = (await response.json()) as StripeStatus;
 
       if (!response.ok) {
-        throw new Error(result.error || "Impossible de vérifier Stripe.");
+        throw new Error(
+          result.error || "Impossible de vérifier le compte Stripe."
+        );
       }
 
       setStatus(result);
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Impossible de vérifier Stripe."
+        error instanceof Error
+          ? error.message
+          : "Impossible de vérifier Stripe."
       );
     } finally {
       setLoading(false);
@@ -72,9 +98,17 @@ export default function ProviderPaymentsPage() {
     setErrorMessage("");
 
     try {
-      const response = await fetch("/api/stripe/connect/create-account", {
-        method: "POST",
-      });
+      const accessToken = await getAccessToken();
+      const response = await fetch(
+        "/api/stripe/connect/create-account",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+
       const result = (await response.json()) as {
         url?: string;
         error?: string;
@@ -82,14 +116,17 @@ export default function ProviderPaymentsPage() {
 
       if (!response.ok || !result.url) {
         throw new Error(
-          result.error || "Impossible d’ouvrir la vérification Stripe."
+          result.error ||
+            "Impossible d’ouvrir la vérification Stripe."
         );
       }
 
       window.location.assign(result.url);
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Impossible d’ouvrir Stripe."
+        error instanceof Error
+          ? error.message
+          : "Impossible d’ouvrir Stripe."
       );
       setOpeningStripe(false);
     }
@@ -106,7 +143,7 @@ export default function ProviderPaymentsPage() {
       <div className="mx-auto max-w-5xl">
         <Link
           href="/provider"
-          className="inline-flex items-center gap-2 text-sm font-bold text-muted-foreground"
+          className="inline-flex items-center gap-2 text-sm font-bold text-muted-foreground transition hover:text-foreground"
         >
           <ArrowLeft size={17} />
           Espace prestataire
@@ -117,25 +154,30 @@ export default function ProviderPaymentsPage() {
             <WalletCards size={15} />
             Paiements prestataire
           </div>
+
           <h1 className="mt-5 text-3xl font-black sm:text-5xl">
             Configuration Stripe
           </h1>
+
           <p className="mt-4 max-w-2xl text-sm leading-7 text-white/70">
-            Stripe vérifie ton identité et sécurise les paiements. KLYX affiche
-            uniquement le statut nécessaire.
+            Stripe vérifie ton identité et sécurise les paiements. KLYX
+            transmet maintenant correctement ta session prestataire.
           </p>
         </section>
 
         {errorMessage && (
-          <div className="mt-6 flex gap-3 rounded-2xl border border-rose-500/25 bg-rose-500/10 p-4 text-sm text-rose-700 dark:text-rose-300">
-            <AlertCircle size={19} />
+          <div className="mt-6 flex items-start gap-3 rounded-2xl border border-rose-500/25 bg-rose-500/10 p-4 text-sm text-rose-700 dark:text-rose-300">
+            <AlertCircle className="mt-0.5 shrink-0" size={19} />
             {errorMessage}
           </div>
         )}
 
         {loading ? (
           <section className="klyx-card mt-8 grid min-h-56 place-items-center">
-            <LoaderCircle className="animate-spin text-violet-600" size={38} />
+            <LoaderCircle
+              className="animate-spin text-violet-600"
+              size={38}
+            />
           </section>
         ) : (
           <>
@@ -149,12 +191,13 @@ export default function ProviderPaymentsPage() {
               <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex gap-4">
                   <div
-                    className={`grid h-12 w-12 place-items-center rounded-2xl text-white ${
+                    className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-white ${
                       fullyReady ? "bg-emerald-600" : "bg-amber-500"
                     }`}
                   >
                     {fullyReady ? <BadgeCheck /> : <Clock3 />}
                   </div>
+
                   <div>
                     <h2 className="text-xl font-black">
                       {fullyReady
@@ -163,10 +206,11 @@ export default function ProviderPaymentsPage() {
                           ? "Vérification Stripe à terminer"
                           : "Compte Stripe à configurer"}
                     </h2>
+
                     <p className="mt-2 text-sm text-muted-foreground">
                       {fullyReady
                         ? "Paiements et virements activés."
-                        : "Ouvre Stripe pour corriger ou compléter les informations."}
+                        : "Ouvre Stripe pour corriger ou compléter les informations demandées."}
                     </p>
                   </div>
                 </div>
@@ -175,13 +219,14 @@ export default function ProviderPaymentsPage() {
                   type="button"
                   onClick={() => void continueVerification()}
                   disabled={openingStripe}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-violet-600 px-5 text-sm font-bold text-white disabled:opacity-60"
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-violet-600 px-5 text-sm font-bold text-white transition hover:bg-violet-500 disabled:opacity-60"
                 >
                   {openingStripe ? (
                     <LoaderCircle size={18} className="animate-spin" />
                   ) : (
                     <ExternalLink size={18} />
                   )}
+
                   {status.connected
                     ? "Continuer la vérification"
                     : "Configurer les paiements"}
@@ -197,6 +242,7 @@ export default function ProviderPaymentsPage() {
                 readyText="Connecté"
                 waitingText="Non configuré"
               />
+
               <StatusCard
                 icon={<BadgeCheck size={20} />}
                 title="Identité et informations"
@@ -204,6 +250,7 @@ export default function ProviderPaymentsPage() {
                 readyText="Informations envoyées"
                 waitingText="À compléter ou en examen"
               />
+
               <StatusCard
                 icon={<Banknote size={20} />}
                 title="Paiements"
@@ -211,6 +258,7 @@ export default function ProviderPaymentsPage() {
                 readyText="Activés"
                 waitingText="Non activés"
               />
+
               <StatusCard
                 icon={<WalletCards size={20} />}
                 title="Virements"
@@ -222,14 +270,16 @@ export default function ProviderPaymentsPage() {
 
             <section className="klyx-card mt-6 p-6">
               <h2 className="text-xl font-black">Qui vérifie ?</h2>
+
               <p className="mt-3 text-sm leading-7 text-muted-foreground">
-                Stripe effectue la vérification. Une image incorrecte doit être
-                remplacée dans le parcours Stripe avec le bouton ci-dessus.
+                Stripe effectue la vérification. Une image incorrecte doit
+                être remplacée dans le parcours Stripe.
               </p>
+
               <button
                 type="button"
                 onClick={() => void loadStatus()}
-                className="mt-5 inline-flex h-11 items-center gap-2 rounded-xl border border-border px-4 text-sm font-bold"
+                className="mt-5 inline-flex h-11 items-center gap-2 rounded-xl border border-border px-4 text-sm font-bold transition hover:bg-muted"
               >
                 <RefreshCw size={17} />
                 Actualiser le statut
@@ -259,9 +309,10 @@ function StatusCard({
     <article className="klyx-card p-5">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-2xl bg-violet-500/10 text-violet-600">
+          <span className="grid h-10 w-10 place-items-center rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
             {icon}
           </span>
+
           <div>
             <p className="font-black">{title}</p>
             <p className="mt-1 text-xs text-muted-foreground">
@@ -269,10 +320,11 @@ function StatusCard({
             </p>
           </div>
         </div>
+
         {ready ? (
-          <CheckCircle2 className="text-emerald-500" />
+          <CheckCircle2 className="text-emerald-500" size={21} />
         ) : (
-          <XCircle className="text-amber-500" />
+          <XCircle className="text-amber-500" size={21} />
         )}
       </div>
     </article>
