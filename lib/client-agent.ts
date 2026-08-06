@@ -1,0 +1,249 @@
+import {
+  detectBudget,
+  detectCity,
+  detectDurationHours,
+  detectRequestedDay,
+  detectRequestedTime,
+  detectServiceCandidates,
+  missingFieldsForRequest,
+  wantsMemory,
+} from "@/lib/universal-service-request";
+
+export type AgentStepStatus =
+  | "pending"
+  | "ready"
+  | "completed";
+
+export type AgentStep = {
+  id:
+    | "understand"
+    | "complete"
+    | "search"
+    | "choose"
+    | "book"
+    | "pay";
+  title: string;
+  description: string;
+  status: AgentStepStatus;
+  actionHref: string | null;
+  requiresConfirmation: boolean;
+};
+
+export type AgentPlanInput = {
+  request: string;
+  memory?: {
+    enabled: boolean;
+    defaultCity: string | null;
+    defaultBudget: number | null;
+    preferredServiceSlugs: string[];
+    preferredTimeText: string | null;
+  };
+};
+
+export type AgentPlanResult = {
+  title: string;
+  serviceSlug: string | null;
+  serviceLabel: string | null;
+  city: string | null;
+  requestedDay: string | null;
+  requestedTime: string | null;
+  durationHours: number | null;
+  budgetMax: number | null;
+  memoryUsed: boolean;
+  missingFields: string[];
+  readyForSearch: boolean;
+  searchHref: string | null;
+  steps: AgentStep[];
+};
+
+const SERVICE_LABELS: Record<string, string> = {
+  babysitting: "Baby-sitting",
+  cleaning: "Ménage",
+  moving: "Déménagement",
+  handyman: "Bricolage",
+};
+
+function buildSearchHref(
+  serviceSlug: string,
+  city: string,
+  date: string,
+  time: string,
+  durationHours: number | null,
+  budgetMax: number | null,
+  request: string
+): string {
+  const params = new URLSearchParams({
+    service: serviceSlug,
+    city,
+    date,
+    time: time.slice(0, 5),
+    duration: String(durationHours ?? 1),
+    q: request.slice(0, 240),
+  });
+
+  if (budgetMax != null) {
+    params.set("budget", String(budgetMax));
+  }
+
+  return `/search?${params.toString()}`;
+}
+
+export function buildClientAgentPlan(
+  input: AgentPlanInput
+): AgentPlanResult {
+  const request = input.request.trim();
+  const candidates = detectServiceCandidates(request);
+
+  let serviceSlug =
+    candidates[0]?.confidence >= 60
+      ? candidates[0].slug
+      : null;
+  let city = detectCity(request);
+  let requestedDay = detectRequestedDay(request);
+  let requestedTime = detectRequestedTime(request);
+  const durationHours = detectDurationHours(request);
+  let budgetMax = detectBudget(request);
+  let memoryUsed = false;
+
+  if (
+    wantsMemory(request) &&
+    input.memory?.enabled
+  ) {
+    memoryUsed = true;
+
+    serviceSlug =
+      serviceSlug ??
+      input.memory.preferredServiceSlugs[0] ??
+      null;
+    city = city ?? input.memory.defaultCity;
+    budgetMax =
+      budgetMax ?? input.memory.defaultBudget;
+    requestedTime =
+      requestedTime ??
+      detectRequestedTime(
+        input.memory.preferredTimeText ?? ""
+      );
+  }
+
+  if (
+    serviceSlug &&
+    !SERVICE_LABELS[serviceSlug]
+  ) {
+    serviceSlug = null;
+  }
+
+  const missingFields = missingFieldsForRequest({
+    serviceSlug,
+    city,
+    requestedDay,
+    requestedTime,
+  });
+
+  const readyForSearch = missingFields.length === 0;
+
+  const searchHref =
+    readyForSearch &&
+    serviceSlug &&
+    city &&
+    requestedDay &&
+    requestedTime
+      ? buildSearchHref(
+          serviceSlug,
+          city,
+          requestedDay,
+          requestedTime,
+          durationHours,
+          budgetMax,
+          request
+        )
+      : null;
+
+  const serviceLabel = serviceSlug
+    ? SERVICE_LABELS[serviceSlug]
+    : null;
+
+  const steps: AgentStep[] = [
+    {
+      id: "understand",
+      title: "Comprendre le besoin",
+      description:
+        "KLYX transforme ta phrase en informations structurées.",
+      status: "completed",
+      actionHref: null,
+      requiresConfirmation: false,
+    },
+    {
+      id: "complete",
+      title: "Compléter les informations",
+      description:
+        missingFields.length > 0
+          ? `Il manque : ${missingFields.join(", ")}.`
+          : "Toutes les informations nécessaires sont présentes.",
+      status:
+        missingFields.length > 0
+          ? "ready"
+          : "completed",
+      actionHref:
+        missingFields.length > 0
+          ? "/request"
+          : null,
+      requiresConfirmation: true,
+    },
+    {
+      id: "search",
+      title: "Comparer les prestataires",
+      description:
+        readyForSearch
+          ? "KLYX peut ouvrir une recherche déjà filtrée."
+          : "Cette étape sera disponible après avoir complété la demande.",
+      status: readyForSearch ? "ready" : "pending",
+      actionHref: searchHref,
+      requiresConfirmation: true,
+    },
+    {
+      id: "choose",
+      title: "Choisir le prestataire",
+      description:
+        "Tu compares les profils, prix, avis et explications du matching.",
+      status: "pending",
+      actionHref: null,
+      requiresConfirmation: true,
+    },
+    {
+      id: "book",
+      title: "Confirmer la réservation",
+      description:
+        "La date, l’heure et la prestation doivent être confirmées manuellement.",
+      status: "pending",
+      actionHref: null,
+      requiresConfirmation: true,
+    },
+    {
+      id: "pay",
+      title: "Confirmer le paiement",
+      description:
+        "KLYX ne déclenche jamais le paiement sans ton clic final.",
+      status: "pending",
+      actionHref: null,
+      requiresConfirmation: true,
+    },
+  ];
+
+  return {
+    title: serviceLabel
+      ? `Organiser un service de ${serviceLabel.toLowerCase()}`
+      : "Organiser un service quotidien",
+    serviceSlug,
+    serviceLabel,
+    city,
+    requestedDay,
+    requestedTime,
+    durationHours,
+    budgetMax,
+    memoryUsed,
+    missingFields,
+    readyForSearch,
+    searchHref,
+    steps,
+  };
+}

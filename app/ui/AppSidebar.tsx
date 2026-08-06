@@ -58,6 +58,7 @@ const routesWithoutSidebar = [
 const clientMenu: MenuItem[] = [
   { title: "Vue d’ensemble", href: "/dashboard", icon: LayoutDashboard },
   { title: "Assistant KLYX", href: "/brain", icon: Sparkles },
+  { title: "KLYX Agent", href: "/agent", icon: Bot },
   { title: "Ma mémoire KLYX", href: "/memory", icon: Brain },
   { title: "Trouver un service", href: "/search", icon: Search },
   { title: "Recherche par photo", href: "/request/photo", icon: Camera },
@@ -295,6 +296,7 @@ export default function AppSidebar() {
     </>
   );
 }
+
 
 
 
