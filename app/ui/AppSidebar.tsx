@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -17,6 +17,7 @@ import {
   MessageCircle,
   Search,
   Settings,
+  ShieldCheck,
   Sparkles,
   Star,
   UserRound,
@@ -85,6 +86,10 @@ const clientMenu: MenuItem[] = [
     title: "Notifications",
     href: "/notifications",
     icon: Bell,
+  },  {
+    title: "Centre de confiance",
+    href: "/trust",
+    icon: ShieldCheck,
   },
   {
     title: "Mon profil",
@@ -143,6 +148,14 @@ const providerMenu: MenuItem[] = [
     title: "Notifications",
     href: "/notifications",
     icon: Bell,
+  },  {
+    title: "Centre de confiance",
+    href: "/trust",
+    icon: ShieldCheck,
+  },  {
+    title: "Centre de confiance",
+    href: "/trust",
+    icon: ShieldCheck,
   },
   {
     title: "Profil public",
@@ -377,3 +390,4 @@ export default function AppSidebar() {
     </>
   );
 }
+
