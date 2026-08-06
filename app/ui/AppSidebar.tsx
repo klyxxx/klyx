@@ -74,6 +74,7 @@ const providerMenu: MenuItem[] = [
   { title: "Assistant professionnel", href: "/provider/assistant", icon: Bot },
   { title: "Demandes reçues", href: "/bookings", icon: CalendarDays },
   { title: "Missions", href: "/bookings", icon: CalendarClock },
+  { title: "Planning intelligent", href: "/provider/planning", icon: CalendarClock },
   { title: "Messagerie clients", href: "/messages", icon: MessageCircle },
   { title: "Ajouter un métier", href: "/provider/services/new", icon: ListPlus },
   { title: "Paiements", href: "/provider/payments", icon: Banknote },
@@ -292,6 +293,7 @@ export default function AppSidebar() {
     </>
   );
 }
+
 
 
 
