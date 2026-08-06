@@ -8,6 +8,7 @@ import {
   Banknote,
   Bell,
   Brain,
+  Bot,
   BriefcaseBusiness,
   CalendarClock,
   CalendarDays,
@@ -70,6 +71,7 @@ const clientMenu: MenuItem[] = [
 const providerMenu: MenuItem[] = [
   { title: "Tableau professionnel", href: "/dashboard", icon: LayoutDashboard },
   { title: "Mon activité", href: "/provider", icon: BriefcaseBusiness },
+  { title: "Assistant professionnel", href: "/provider/assistant", icon: Bot },
   { title: "Demandes reçues", href: "/bookings", icon: CalendarDays },
   { title: "Missions", href: "/bookings", icon: CalendarClock },
   { title: "Messagerie clients", href: "/messages", icon: MessageCircle },
@@ -290,5 +292,6 @@ export default function AppSidebar() {
     </>
   );
 }
+
 
 
