@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -9,6 +9,7 @@ import {
   BriefcaseBusiness,
   CalendarClock,
   CalendarDays,
+  Gauge,
   Heart,
   LayoutDashboard,
   ListPlus,
@@ -60,6 +61,7 @@ const clientMenu: MenuItem[] = [
   { title: "Favoris", href: "/favorites", icon: Heart },
   { title: "Notifications", href: "/notifications", icon: Bell },
   { title: "Centre de confiance", href: "/trust", icon: ShieldCheck },
+  { title: "Sécurité du profil", href: "/security", icon: Gauge },
   { title: "Mon profil", href: "/profile", icon: UserRound },
   { title: "Paramètres", href: "/settings", icon: Settings },
 ];
@@ -78,7 +80,7 @@ const providerMenu: MenuItem[] = [
     title: "Confiance professionnelle",
     href: "/provider/trust",
     icon: ShieldCheck,
-  },
+  },  { title: "Sécurité du profil", href: "/security", icon: Gauge },
   { title: "Profil public", href: "/profile", icon: UserRound },
   { title: "Paramètres", href: "/settings", icon: Settings },
 ];
@@ -286,3 +288,4 @@ export default function AppSidebar() {
     </>
   );
 }
+
