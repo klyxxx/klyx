@@ -7,6 +7,7 @@ import {
   BadgeCheck,
   Banknote,
   Bell,
+  Brain,
   BriefcaseBusiness,
   CalendarClock,
   CalendarDays,
@@ -55,6 +56,7 @@ const routesWithoutSidebar = [
 const clientMenu: MenuItem[] = [
   { title: "Vue d’ensemble", href: "/dashboard", icon: LayoutDashboard },
   { title: "Assistant KLYX", href: "/brain", icon: Sparkles },
+  { title: "Ma mémoire KLYX", href: "/memory", icon: Brain },
   { title: "Trouver un service", href: "/search", icon: Search },
   { title: "Mes réservations", href: "/bookings", icon: CalendarDays },
   { title: "Messages", href: "/messages", icon: MessageCircle },
@@ -288,4 +290,5 @@ export default function AppSidebar() {
     </>
   );
 }
+
 
