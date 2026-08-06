@@ -1,9 +1,16 @@
 "use client";
 
-import { FormEvent, Suspense, useMemo, useState } from "react";
+import {
+  FormEvent,
+  Suspense,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  AlertCircle,
   ArrowLeft,
   ArrowRight,
   CalendarDays,
@@ -14,6 +21,11 @@ import {
   Search,
   Sparkles,
 } from "lucide-react";
+import {
+  isPastBookingStart,
+  minimumFutureTimeForDate,
+  todayInBrussels,
+} from "@/lib/brussels-time";
 
 type ConfirmedRequest = {
   service: string;
@@ -33,6 +45,7 @@ const serviceLabels: Record<string, string> = {
 function ConfirmRequestContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const minimumDate = todayInBrussels();
 
   const initialRequest = useMemo<ConfirmedRequest>(
     () => ({
@@ -46,23 +59,68 @@ function ConfirmRequestContent() {
   );
 
   const [request, setRequest] = useState(initialRequest);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    if (request.date && request.date < minimumDate) {
+      setRequest((current) => ({
+        ...current,
+        date: "",
+        time: "",
+      }));
+      setErrorMessage(
+        "La date comprise par KLYX était déjà passée. Choisis une nouvelle date."
+      );
+    }
+  }, [minimumDate, request.date]);
 
   function update<Key extends keyof ConfirmedRequest>(
     key: Key,
     value: ConfirmedRequest[Key]
   ) {
-    setRequest((current) => ({ ...current, [key]: value }));
+    setErrorMessage("");
+
+    setRequest((current) => {
+      if (key === "date") {
+        return {
+          ...current,
+          date: value,
+          time:
+            value === minimumDate &&
+            current.time &&
+            isPastBookingStart(value, current.time)
+              ? ""
+              : current.time,
+        };
+      }
+
+      return { ...current, [key]: value };
+    });
   }
 
   function continueToSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setErrorMessage("");
+
+    if (request.date < minimumDate) {
+      setErrorMessage("Il est impossible de réserver une date passée.");
+      return;
+    }
+
+    if (isPastBookingStart(request.date, request.time)) {
+      setErrorMessage(
+        "Pour aujourd’hui, choisis une heure qui n’est pas déjà passée."
+      );
+      return;
+    }
 
     const params = new URLSearchParams();
 
-    if (request.service) params.set("service", request.service);
-    if (request.city.trim()) params.set("city", request.city.trim());
-    if (request.date) params.set("date", request.date);
-    if (request.time) params.set("time", request.time);
+    params.set("service", request.service);
+    params.set("city", request.city.trim());
+    params.set("date", request.date);
+    params.set("time", request.time);
+
     if (request.budget && Number(request.budget) >= 0) {
       params.set("budget", request.budget);
     }
@@ -74,6 +132,8 @@ function ConfirmRequestContent() {
     serviceLabels[request.service] ||
     request.service ||
     "Service à préciser";
+
+  const minimumTime = minimumFutureTimeForDate(request.date);
 
   return (
     <main className="klyx-page">
@@ -100,8 +160,8 @@ function ConfirmRequestContent() {
             </h1>
 
             <p className="mt-4 max-w-2xl text-sm leading-7 text-white/70 sm:text-base">
-              KLYX a préparé les critères principaux. Corrige seulement ce qui
-              est nécessaire, puis lance la recherche.
+              Corrige seulement ce qui est nécessaire. KLYX bloque
+              automatiquement les dates et heures déjà passées.
             </p>
           </div>
         </section>
@@ -110,12 +170,15 @@ function ConfirmRequestContent() {
           onSubmit={continueToSearch}
           className="klyx-card mt-8 p-6 sm:p-8"
         >
+          {errorMessage && (
+            <div className="mb-6 flex items-start gap-3 rounded-2xl border border-rose-500/25 bg-rose-500/10 p-4 text-sm text-rose-700 dark:text-rose-300">
+              <AlertCircle className="mt-0.5 shrink-0" size={19} />
+              {errorMessage}
+            </div>
+          )}
+
           <div className="grid gap-5 md:grid-cols-2">
-            <Field
-              icon={<Search size={18} />}
-              label="Service"
-              summary={serviceLabel}
-            >
+            <Field icon={<Search size={18} />} label="Service" summary={serviceLabel}>
               <input
                 value={request.service}
                 onChange={(event) => update("service", event.target.value)}
@@ -146,6 +209,7 @@ function ConfirmRequestContent() {
             >
               <input
                 type="date"
+                min={minimumDate}
                 value={request.date}
                 onChange={(event) => update("date", event.target.value)}
                 className="klyx-input"
@@ -160,6 +224,7 @@ function ConfirmRequestContent() {
             >
               <input
                 type="time"
+                min={minimumTime}
                 value={request.time}
                 onChange={(event) => update("time", event.target.value)}
                 className="klyx-input"
@@ -170,9 +235,7 @@ function ConfirmRequestContent() {
             <Field
               icon={<Euro size={18} />}
               label="Budget maximum"
-              summary={
-                request.budget ? `${request.budget} €` : "Aucun maximum"
-              }
+              summary={request.budget ? `${request.budget} €` : "Aucun maximum"}
             >
               <input
                 type="number"
@@ -196,8 +259,8 @@ function ConfirmRequestContent() {
                     Aucun paiement maintenant
                   </p>
                   <p className="mt-2 text-sm leading-6 text-emerald-700 dark:text-emerald-300">
-                    Cette étape lance uniquement la recherche. Une réservation
-                    devra encore être vérifiée et confirmée.
+                    Le paiement ne sera proposé qu’après l’acceptation réelle
+                    de la demande par le prestataire.
                   </p>
                 </div>
               </div>

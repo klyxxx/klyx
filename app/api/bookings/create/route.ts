@@ -5,6 +5,12 @@ import {
   getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
+import {
+  isPastBookingStart,
+  isValidCalendarDate,
+  timeToMinutes,
+  todayInBrussels,
+} from "@/lib/brussels-time";
 
 type PricingType = "hourly" | "fixed";
 
@@ -20,42 +26,6 @@ type ExistingBookingRow = {
   start_time: string;
   end_time: string;
 };
-
-function timeToMinutes(value: string): number | null {
-  const match = /^(\d{2}):(\d{2})/.exec(value);
-
-  if (!match) return null;
-
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-
-  if (hours > 23 || minutes > 59) return null;
-
-  return hours * 60 + minutes;
-}
-
-function validDate(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-
-  const date = new Date(`${value}T12:00:00Z`);
-
-  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
-}
-
-function todayInBrussels(): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/Brussels",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-
-  const year = parts.find((part) => part.type === "year")?.value ?? "";
-  const month = parts.find((part) => part.type === "month")?.value ?? "";
-  const day = parts.find((part) => part.type === "day")?.value ?? "";
-
-  return `${year}-${month}-${day}`;
-}
 
 function serviceLabel(slug: string): string {
   const labels: Record<string, string> = {
@@ -88,7 +58,10 @@ function overlaps(
     return false;
   }
 
-  return firstStartMinutes < secondEndMinutes && firstEndMinutes > secondStartMinutes;
+  return (
+    firstStartMinutes < secondEndMinutes &&
+    firstEndMinutes > secondStartMinutes
+  );
 }
 
 async function createNotification(params: {
@@ -132,7 +105,13 @@ export async function POST(request: Request) {
     const endTime = body.endTime?.trim().slice(0, 5);
     const message = body.message?.trim().slice(0, 2000) || null;
 
-    if (!providerId || !serviceSlug || !bookingDate || !startTime || !endTime) {
+    if (
+      !providerId ||
+      !serviceSlug ||
+      !bookingDate ||
+      !startTime ||
+      !endTime
+    ) {
       return NextResponse.json(
         { error: "Informations de réservation incomplètes." },
         { status: 400 }
@@ -146,9 +125,12 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!validDate(bookingDate) || bookingDate < todayInBrussels()) {
+    if (
+      !isValidCalendarDate(bookingDate) ||
+      bookingDate < todayInBrussels()
+    ) {
       return NextResponse.json(
-        { error: "Choisis une date à partir d’aujourd’hui." },
+        { error: "Il est impossible de réserver une date passée." },
         { status: 400 }
       );
     }
@@ -156,9 +138,23 @@ export async function POST(request: Request) {
     const startMinutes = timeToMinutes(startTime);
     const endMinutes = timeToMinutes(endTime);
 
-    if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+    if (
+      startMinutes === null ||
+      endMinutes === null ||
+      endMinutes <= startMinutes
+    ) {
       return NextResponse.json(
         { error: "L’heure de fin doit être après l’heure de début." },
+        { status: 400 }
+      );
+    }
+
+    if (isPastBookingStart(bookingDate, startTime)) {
+      return NextResponse.json(
+        {
+          error:
+            "Le début de la réservation doit être dans le futur selon l’heure de Bruxelles.",
+        },
         { status: 400 }
       );
     }
@@ -171,7 +167,9 @@ export async function POST(request: Request) {
         .eq("is_published", true)
         .maybeSingle();
 
-    if (providerProfileError) throw new Error(providerProfileError.message);
+    if (providerProfileError) {
+      throw new Error(providerProfileError.message);
+    }
 
     if (!providerProfile) {
       return NextResponse.json(
@@ -189,17 +187,21 @@ export async function POST(request: Request) {
     if (serviceError) throw new Error(serviceError.message);
 
     if (!service) {
-      return NextResponse.json({ error: "Service introuvable." }, { status: 404 });
+      return NextResponse.json(
+        { error: "Service introuvable." },
+        { status: 404 }
+      );
     }
 
-    const { data: userService, error: userServiceError } = await supabaseAdmin
-      .from("user_services")
-      .select("id")
-      .eq("user_id", providerId)
-      .eq("service_id", service.id)
-      .eq("active", true)
-      .eq("provider_enabled", true)
-      .maybeSingle();
+    const { data: userService, error: userServiceError } =
+      await supabaseAdmin
+        .from("user_services")
+        .select("id")
+        .eq("user_id", providerId)
+        .eq("service_id", service.id)
+        .eq("active", true)
+        .eq("provider_enabled", true)
+        .maybeSingle();
 
     if (userServiceError) throw new Error(userServiceError.message);
 
@@ -210,22 +212,29 @@ export async function POST(request: Request) {
       );
     }
 
-    const [{ data: serviceProfile, error: serviceProfileError }, availabilityResult] =
-      await Promise.all([
-        supabaseAdmin
-          .from("service_profiles")
-          .select("available, price, pricing_type")
-          .eq("user_service_id", userService.id)
-          .maybeSingle(),
-        supabaseAdmin
-          .from("availability_slots")
-          .select("day_of_week, start_time, end_time, is_active")
-          .eq("user_service_id", userService.id)
-          .eq("is_active", true),
-      ]);
+    const [
+      { data: serviceProfile, error: serviceProfileError },
+      availabilityResult,
+    ] = await Promise.all([
+      supabaseAdmin
+        .from("service_profiles")
+        .select("available, price, pricing_type")
+        .eq("user_service_id", userService.id)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("availability_slots")
+        .select("day_of_week, start_time, end_time, is_active")
+        .eq("user_service_id", userService.id)
+        .eq("is_active", true),
+    ]);
 
-    if (serviceProfileError) throw new Error(serviceProfileError.message);
-    if (availabilityResult.error) throw new Error(availabilityResult.error.message);
+    if (serviceProfileError) {
+      throw new Error(serviceProfileError.message);
+    }
+
+    if (availabilityResult.error) {
+      throw new Error(availabilityResult.error.message);
+    }
 
     if (!serviceProfile?.available || serviceProfile.price == null) {
       return NextResponse.json(
@@ -234,8 +243,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const dayOfWeek = new Date(`${bookingDate}T12:00:00Z`).getUTCDay();
+    const dayOfWeek = new Date(
+      `${bookingDate}T12:00:00Z`
+    ).getUTCDay();
     const slots = (availabilityResult.data ?? []) as AvailabilityRow[];
+
     const insideAvailability = slots.some((slot) => {
       const slotStart = timeToMinutes(slot.start_time);
       const slotEnd = timeToMinutes(slot.end_time);
@@ -252,34 +264,50 @@ export async function POST(request: Request) {
 
     if (!insideAvailability) {
       return NextResponse.json(
-        { error: "Ce créneau ne correspond pas aux disponibilités du prestataire." },
+        {
+          error:
+            "Ce créneau ne correspond pas aux disponibilités du prestataire.",
+        },
         { status: 400 }
       );
     }
 
-    const { data: existingBookings, error: existingError } = await supabaseAdmin
-      .from("bookings")
-      .select("id, start_time, end_time")
-      .eq("parent_id", profile.id)
-      .eq("booking_date", bookingDate)
-      .in("status", ["pending", "accepted"]);
+    const { data: existingBookings, error: existingError } =
+      await supabaseAdmin
+        .from("bookings")
+        .select("id, start_time, end_time")
+        .eq("parent_id", profile.id)
+        .eq("booking_date", bookingDate)
+        .in("status", ["pending", "accepted"]);
 
     if (existingError) throw new Error(existingError.message);
 
-    const clientHasConflict = ((existingBookings ?? []) as ExistingBookingRow[]).some(
-      (booking) => overlaps(startTime, endTime, booking.start_time, booking.end_time)
+    const clientHasConflict = (
+      (existingBookings ?? []) as ExistingBookingRow[]
+    ).some((booking) =>
+      overlaps(
+        startTime,
+        endTime,
+        booking.start_time,
+        booking.end_time
+      )
     );
 
     if (clientHasConflict) {
       return NextResponse.json(
-        { error: "Tu as déjà une demande ou une réservation sur ce créneau." },
+        {
+          error:
+            "Tu as déjà une demande ou une réservation sur ce créneau.",
+        },
         { status: 409 }
       );
     }
 
     const pricingType: PricingType =
       serviceProfile.pricing_type === "fixed" ? "fixed" : "hourly";
-    const unitPriceCents = Math.round(Number(serviceProfile.price) * 100);
+    const unitPriceCents = Math.round(
+      Number(serviceProfile.price) * 100
+    );
     const durationMinutes = endMinutes - startMinutes;
     const estimatedAmountCents =
       pricingType === "fixed"
@@ -288,7 +316,10 @@ export async function POST(request: Request) {
 
     if (unitPriceCents <= 0 || estimatedAmountCents <= 0) {
       return NextResponse.json(
-        { error: "Le tarif du service doit être corrigé par le prestataire." },
+        {
+          error:
+            "Le tarif du service doit être corrigé par le prestataire.",
+        },
         { status: 400 }
       );
     }
@@ -338,7 +369,9 @@ export async function POST(request: Request) {
       userId: providerId,
       bookingId: booking.id,
       title: "Nouvelle demande reçue",
-      message: `${serviceLabel(service.slug)} demandé pour le ${bookingDate} de ${startTime} à ${endTime}.`,
+      message: `${serviceLabel(
+        service.slug
+      )} demandé pour le ${bookingDate} de ${startTime} à ${endTime}.`,
     });
 
     return NextResponse.json({
@@ -348,7 +381,9 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Impossible de créer la réservation.";
+      error instanceof Error
+        ? error.message
+        : "Impossible de créer la réservation.";
     const status = apiErrorStatus(message);
 
     return NextResponse.json({ error: message }, { status });
