@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveProfile } from "@/lib/active-profile";
 
-export default async function ClientOnlyLayout({
+export default async function ClientRequestLayout({
   children,
 }: {
   children: React.ReactNode;
