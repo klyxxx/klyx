@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   ArrowRight,
@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { getActiveProfile } from "@/lib/active-profile";
 import { createClient } from "@/lib/supabase/server";
+import FirstProfileSetup from "./FirstProfileSetup";
 
 type Step = {
   title: string;
@@ -107,7 +108,25 @@ export default async function OnboardingPage() {
   const profile = await getActiveProfile();
 
   if (!profile) {
-    redirect("/accounts");
+    const metadata =
+      (user.user_metadata ?? {}) as Record<string, unknown>;
+
+    const fullName =
+      typeof metadata.full_name === "string"
+        ? metadata.full_name
+        : "";
+
+    const accountType =
+      metadata.account_type === "provider"
+        ? "provider"
+        : "client";
+
+    return (
+      <FirstProfileSetup
+        initialFullName={fullName}
+        initialAccountType={accountType}
+      />
+    );
   }
 
   const provider = profile.accountType === "provider";
@@ -286,3 +305,4 @@ export default async function OnboardingPage() {
     </main>
   );
 }
+
