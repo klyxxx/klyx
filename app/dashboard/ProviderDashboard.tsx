@@ -1,4 +1,5 @@
-import Link from "next/link";
+﻿import Link from "next/link";
+import DashboardActionCenter from "@/app/components/DashboardActionCenter";
 import {
   ArrowRight,
   Banknote,
@@ -122,6 +123,9 @@ export default function ProviderDashboard({
         </div>
       </section>
 
+      
+      <DashboardActionCenter accountType="provider" />
+
       <section className="mt-8">
         <p className="klyx-eyebrow">
           Ton activité professionnelle
@@ -213,3 +217,4 @@ export default function ProviderDashboard({
     </>
   );
 }
+

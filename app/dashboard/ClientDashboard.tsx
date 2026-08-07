@@ -1,4 +1,5 @@
-import Link from "next/link";
+﻿import Link from "next/link";
+import DashboardActionCenter from "@/app/components/DashboardActionCenter";
 import {
   ArrowRight,
   CalendarDays,
@@ -101,6 +102,9 @@ export default function ClientDashboard({ firstName }: Props) {
         </div>
       </section>
 
+      
+      <DashboardActionCenter accountType="client" />
+
       <section className="mt-8">
         <p className="klyx-eyebrow">Ton espace personnel</p>
         <h2 className="mt-2 text-2xl font-black tracking-[-0.035em] sm:text-3xl">
@@ -172,3 +176,4 @@ export default function ClientDashboard({ firstName }: Props) {
     </>
   );
 }
+
