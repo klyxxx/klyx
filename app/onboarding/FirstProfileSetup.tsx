@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   FormEvent,
@@ -459,3 +459,4 @@ export default function FirstProfileSetup({
     </main>
   );
 }
+
