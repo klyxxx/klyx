@@ -402,7 +402,6 @@ export default function FirstProfileSetup({
                 value={serviceId}
                 onChange={setServiceId}
                 disabled={loadingServices}
-                required
                 placeholder={
                   loadingServices
                     ? "Chargement..."
@@ -459,5 +458,6 @@ export default function FirstProfileSetup({
     </main>
   );
 }
+
 
 
