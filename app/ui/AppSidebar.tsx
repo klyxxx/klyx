@@ -14,6 +14,7 @@ import {
   CalendarDays,
   Camera,
   Heart,
+  FileText,
   LayoutDashboard,
   ListPlus,
   LogOut,
@@ -66,6 +67,7 @@ const clientMenu: MenuItem[] = [
   { title: "Mes réservations", href: "/bookings", icon: CalendarDays },
   { title: "Messages", href: "/messages", icon: MessageCircle },
   { title: "Favoris", href: "/favorites", icon: Heart },
+  { title: "Mes devis", href: "/quotes", icon: FileText },
   { title: "Notifications", href: "/notifications", icon: Bell },
   { title: "Centre de confiance", href: "/trust", icon: ShieldCheck },
   { title: "Mon profil", href: "/profile", icon: UserRound },
@@ -78,6 +80,7 @@ const providerMenu: MenuItem[] = [
   { title: "Assistant professionnel", href: "/provider/assistant", icon: Bot },
   { title: "Demandes reçues", href: "/bookings", icon: CalendarDays },
   { title: "Missions", href: "/bookings", icon: CalendarClock },
+  { title: "Demandes de devis", href: "/provider/quotes", icon: FileText },
   { title: "Planning intelligent", href: "/provider/planning", icon: CalendarClock },  { title: "Zones d'intervention", href: "/provider/zones", icon: Navigation },
   { title: "Messagerie clients", href: "/messages", icon: MessageCircle },
   { title: "Ajouter un métier", href: "/provider/services/new", icon: ListPlus },
@@ -297,6 +300,7 @@ export default function AppSidebar() {
     </>
   );
 }
+
 
 
 
