@@ -36,6 +36,7 @@ import {
 } from "@/lib/provider-search";
 import MatchExplanation from "./MatchExplanation";
 import SearchRecovery from "./SearchRecovery";
+import KlyxSelect from "@/app/components/KlyxSelect";
 
 type DraftFilters = {
   service: string;
@@ -262,17 +263,15 @@ function SearchContent() {
 
           <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <FilterField label="Service" icon={<Search size={17} />}>
-              <select
+              <KlyxSelect
                 value={draft.service}
-                onChange={(event) => updateDraft("service", event.target.value)}
-                className="filter-control"
-              >
-                {SERVICE_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+                onChange={(value) => updateDraft("service", value)}
+                options={SERVICE_OPTIONS.map((option) => ({
+                  value: option.value,
+                  label: option.label,
+                }))}
+                ariaLabel="Service"
+              />
             </FilterField>
 
             <FilterField label="Ville ou zone" icon={<MapPin size={17} />}>
@@ -304,18 +303,16 @@ function SearchContent() {
             </FilterField>
 
             <FilterField label="Durée" icon={<Clock3 size={17} />}>
-              <select
+              <KlyxSelect
                 value={draft.duration}
                 disabled={!draft.time}
-                onChange={(event) => updateDraft("duration", event.target.value)}
-                className="filter-control disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {[1, 2, 3, 4, 6, 8].map((hours) => (
-                  <option key={hours} value={hours}>
-                    {hours} heure{hours > 1 ? "s" : ""}
-                  </option>
-                ))}
-              </select>
+                onChange={(value) => updateDraft("duration", value)}
+                options={[1, 2, 3, 4, 6, 8].map((hours) => ({
+                  value: String(hours),
+                  label: `${hours} heure${hours > 1 ? "s" : ""}`,
+                }))}
+                ariaLabel="Durée"
+              />
             </FilterField>
 
             <FilterField label="Prix maximum" icon={<Euro size={17} />}>
@@ -332,33 +329,29 @@ function SearchContent() {
             </FilterField>
 
             <FilterField label="Type de tarif" icon={<Euro size={17} />}>
-              <select
+              <KlyxSelect
                 value={draft.pricing}
-                onChange={(event) => updateDraft("pricing", event.target.value)}
-                className="filter-control"
-              >
-                {PRICING_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+                onChange={(value) => updateDraft("pricing", value)}
+                options={PRICING_OPTIONS.map((option) => ({
+                  value: option.value,
+                  label: option.label,
+                }))}
+                ariaLabel="Type de tarif"
+              />
             </FilterField>
 
             <FilterField label="Trier par" icon={<ShieldCheck size={17} />}>
-              <select
+              <KlyxSelect
                 value={draft.sort}
-                onChange={(event) =>
-                  updateDraft("sort", event.target.value as ProviderSearchSort)
+                onChange={(value) =>
+                  updateDraft("sort", value as ProviderSearchSort)
                 }
-                className="filter-control"
-              >
-                {SORT_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+                options={SORT_OPTIONS.map((option) => ({
+                  value: option.value,
+                  label: option.label,
+                }))}
+                ariaLabel="Trier par"
+              />
             </FilterField>
           </div>
 
@@ -722,5 +715,6 @@ export default function SearchPage() {
     </Suspense>
   );
 }
+
 
 

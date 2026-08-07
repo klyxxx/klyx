@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   FormEvent,
@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { BELGIAN_LOCALITIES } from "@/lib/belgian-localities";
+import KlyxSelect from "@/app/components/KlyxSelect";
 
 type Service = {
   id: string;
@@ -214,49 +215,32 @@ export default function CoveragePage() {
               <span className="mb-2 block text-sm font-black">
                 Service recherché
               </span>
-              <select
+              <KlyxSelect
                 value={serviceSlug}
-                onChange={(event) =>
-                  setServiceSlug(event.target.value)
-                }
+                onChange={setServiceSlug}
                 disabled={loading}
-                className="klyx-input"
-              >
-                {services.map((service) => (
-                  <option
-                    key={service.id}
-                    value={service.slug}
-                  >
-                    {service.name ?? service.slug}
-                  </option>
-                ))}
-              </select>
+                options={services.map((service) => ({
+                  value: service.slug,
+                  label: service.name ?? service.slug,
+                }))}
+                ariaLabel="Service recherché"
+              />
             </label>
 
             <label>
               <span className="mb-2 block text-sm font-black">
                 Ma commune
               </span>
-              <select
+              <KlyxSelect
                 value={locality}
-                onChange={(event) =>
-                  setLocality(event.target.value)
-                }
-                className="klyx-input"
-              >
-                <option value="">
-                  Choisir une commune
-                </option>
-                {BELGIAN_LOCALITIES.map((item) => (
-                  <option
-                    key={item.name}
-                    value={item.name}
-                  >
-                    {item.name} ·{" "}
-                    {item.postalCodes.join(", ")}
-                  </option>
-                ))}
-              </select>
+                onChange={setLocality}
+                placeholder="Choisir une commune"
+                options={BELGIAN_LOCALITIES.map((item) => ({
+                  value: item.name,
+                  label: `${item.name} · ${item.postalCodes.join(", ")}`,
+                }))}
+                ariaLabel="Ma commune"
+              />
             </label>
           </div>
 
@@ -434,3 +418,4 @@ function Metric({
     </div>
   );
 }
+
