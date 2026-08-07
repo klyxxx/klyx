@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
@@ -12,6 +12,7 @@ import {
   ShieldAlert,
   XCircle,
 } from "lucide-react";
+import KlyxSelect from "@/app/components/KlyxSelect";
 
 type ProposalStatus = "pending" | "approved" | "rejected";
 
@@ -233,16 +234,15 @@ export default function NewProviderServicePage() {
             </Field>
 
             <Field label="Catégorie" htmlFor="category">
-              <select
-                id="category"
+              <KlyxSelect
                 value={category}
-                onChange={(event) => setCategory(event.target.value)}
-                className="klyx-input"
-              >
-                {categories.map((item) => (
-                  <option key={item}>{item}</option>
-                ))}
-              </select>
+                onChange={setCategory}
+                options={categories.map((item) => ({
+                  value: item,
+                  label: item,
+                }))}
+                ariaLabel="Catégorie"
+              />
             </Field>
 
             <Field
@@ -383,3 +383,4 @@ function Field({
     </div>
   );
 }
+

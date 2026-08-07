@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   FormEvent,
@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { BELGIAN_LOCALITIES } from "@/lib/belgian-localities";
+import KlyxSelect from "@/app/components/KlyxSelect";
 
 type ProviderService = {
   id: string;
@@ -378,49 +379,31 @@ export default function ProviderZonesPage() {
                   <span className="mb-2 block text-sm font-black">
                     Métier
                   </span>
-                  <select
+                  <KlyxSelect
                     value={userServiceId}
-                    onChange={(event) =>
-                      setUserServiceId(event.target.value)
-                    }
-                    className="klyx-input"
-                  >
-                    {services.map((service) => (
-                      <option
-                        key={service.id}
-                        value={service.id}
-                      >
-                        {serviceLabel(service)}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setUserServiceId}
+                    options={services.map((service) => ({
+                      value: service.id,
+                      label: serviceLabel(service),
+                    }))}
+                    ariaLabel="Métier"
+                  />
                 </label>
 
                 <label>
                   <span className="mb-2 block text-sm font-black">
                     Commune principale
                   </span>
-                  <select
+                  <KlyxSelect
                     value={locality}
-                    onChange={(event) =>
-                      setLocality(event.target.value)
-                    }
-                    className="klyx-input"
-                  >
-                    <option value="">
-                      Choisir une commune
-                    </option>
-                    {BELGIAN_LOCALITIES.map((item) => (
-                      <option
-                        key={item.name}
-                        value={item.name}
-                      >
-                        {item.name} ·{" "}
-                        {item.postalCodes.join(", ")} ·{" "}
-                        {item.region}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setLocality}
+                    placeholder="Choisir une commune"
+                    options={BELGIAN_LOCALITIES.map((item) => ({
+                      value: item.name,
+                      label: `${item.name} · ${item.postalCodes.join(", ")} · ${item.region}`,
+                    }))}
+                    ariaLabel="Commune principale"
+                  />
                 </label>
 
                 <label>
@@ -586,3 +569,4 @@ export default function ProviderZonesPage() {
     </main>
   );
 }
+

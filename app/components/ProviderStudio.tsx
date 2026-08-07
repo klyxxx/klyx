@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -32,6 +32,7 @@ import {
   type ProviderServiceDraft,
   type ProviderStudioData,
 } from "@/lib/provider-studio";
+import KlyxSelect from "@/app/components/KlyxSelect";
 
 type ProviderStudioProps = {
   profileId: string;
@@ -671,17 +672,15 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
               description="Les documents restent privés. Ils servent uniquement à la vérification KLYX."
             >
               <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
-                <select
+                <KlyxSelect
                   value={documentType}
-                  onChange={(event) => setDocumentType(event.target.value)}
-                  className={inputClassName()}
-                >
-                  {DOCUMENT_TYPES.map((type) => (
-                    <option key={type.value} value={type.value}>
-                      {type.label}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setDocumentType}
+                  options={DOCUMENT_TYPES.map((type) => ({
+                    value: type.value,
+                    label: type.label,
+                  }))}
+                  ariaLabel="Type de document"
+                />
 
                 <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 font-semibold transition hover:bg-violet-700">
                   {uploadingDocument ? (
@@ -1135,3 +1134,4 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
