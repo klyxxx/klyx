@@ -13,7 +13,7 @@ import {
   LockKeyhole,
   MapPin,
   Navigation,
-  Search,
+  Route,
   Star,
   Users,
 } from "lucide-react";
@@ -32,20 +32,18 @@ type ProviderCoverage = {
   avatarUrl: string | null;
   serviceName: string;
   serviceSlug: string;
-  locality: string;
-  postalCode: string | null;
+  requestedLocality: string;
+  zoneLocality: string;
+  zonePostalCode: string | null;
   radiusKm: number;
+  distanceKm: number;
+  remainingKm: number;
   isPrimary: boolean;
   coverageMessage: string;
 };
 
 type CoverageResponse = {
   services?: Service[];
-  locality?: {
-    name: string;
-    postalCodes: string[];
-    region: string;
-  } | null;
   providers?: ProviderCoverage[];
   searched?: boolean;
   privacyNotice?: string;
@@ -194,16 +192,16 @@ export default function CoveragePage() {
         <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#17131f,#164e63_52%,#101827)] p-7 text-white sm:p-10">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white/70">
             <Navigation size={15} />
-            Recherche locale client
+            Distance entre communes
           </div>
 
           <h1 className="mt-5 text-3xl font-black sm:text-5xl">
-            Qui intervient dans ma commune ?
+            Trouve les prestataires réellement dans leur rayon
           </h1>
 
           <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">
-            Vérifie si des prestataires déclarent couvrir ta
-            commune avant de lancer la recherche complète.
+            KLYX compare ta commune avec les zones professionnelles
+            déclarées et vérifie automatiquement le rayon maximal.
           </p>
         </section>
 
@@ -237,7 +235,7 @@ export default function CoveragePage() {
 
             <label>
               <span className="mb-2 block text-sm font-black">
-                Commune
+                Ma commune
               </span>
               <select
                 value={locality}
@@ -284,26 +282,21 @@ export default function CoveragePage() {
                 size={19}
               />
             ) : (
-              <Search size={19} />
+              <Route size={19} />
             )}
-            Vérifier la couverture
+            Calculer la couverture
           </button>
         </form>
 
         {searched && (
           <section className="mt-8">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <p className="klyx-eyebrow">
-                  Résultats locaux
-                </p>
-                <h2 className="mt-2 text-2xl font-black">
-                  {providers.length} prestataire
-                  {providers.length > 1 ? "s" : ""} trouvé
-                  {providers.length > 1 ? "s" : ""}
-                </h2>
-              </div>
-            </div>
+            <p className="klyx-eyebrow">
+              Couverture calculée
+            </p>
+            <h2 className="mt-2 text-2xl font-black">
+              {providers.length} prestataire
+              {providers.length > 1 ? "s" : ""} dans le rayon
+            </h2>
 
             {providers.length === 0 ? (
               <div className="klyx-card mt-5 p-8 text-center">
@@ -312,11 +305,11 @@ export default function CoveragePage() {
                   size={42}
                 />
                 <h3 className="mt-4 text-xl font-black">
-                  Aucune couverture déclarée
+                  Aucun rayon compatible
                 </h3>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Essaie une commune voisine ou consulte la
-                  recherche générale.
+                  Les zones déclarées pour ce service ne couvrent
+                  pas cette commune actuellement.
                 </p>
 
                 <Link
@@ -367,16 +360,31 @@ export default function CoveragePage() {
                         <p className="mt-2 text-sm font-black text-cyan-700 dark:text-cyan-300">
                           {provider.serviceName}
                         </p>
-
-                        <p className="mt-3 flex items-start gap-2 text-sm leading-6 text-muted-foreground">
-                          <CheckCircle2
-                            className="mt-0.5 shrink-0 text-emerald-500"
-                            size={17}
-                          />
-                          {provider.coverageMessage}
-                        </p>
                       </div>
                     </div>
+
+                    <div className="mt-5 grid grid-cols-3 gap-3">
+                      <Metric
+                        label="Distance"
+                        value={`${provider.distanceKm} km`}
+                      />
+                      <Metric
+                        label="Rayon"
+                        value={`${provider.radiusKm} km`}
+                      />
+                      <Metric
+                        label="Marge"
+                        value={`${provider.remainingKm} km`}
+                      />
+                    </div>
+
+                    <p className="mt-4 flex items-start gap-2 text-sm leading-6 text-muted-foreground">
+                      <CheckCircle2
+                        className="mt-0.5 shrink-0 text-emerald-500"
+                        size={17}
+                      />
+                      {provider.coverageMessage}
+                    </p>
 
                     <Link
                       href={searchHref(provider)}
@@ -405,5 +413,24 @@ export default function CoveragePage() {
         )}
       </div>
     </main>
+  );
+}
+
+function Metric({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-background/60 p-3 text-center">
+      <p className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-1 text-sm font-black">
+        {value}
+      </p>
+    </div>
   );
 }

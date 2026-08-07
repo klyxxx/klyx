@@ -5,41 +5,26 @@ import {
   getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
+import { findBelgianLocality } from "@/lib/belgian-localities";
 import {
-  findBelgianLocality,
-  normalizeLocality,
-} from "@/lib/belgian-localities";
+  coverageStatus,
+  distanceBetweenLocalitiesKm,
+} from "@/lib/service-zone-distance";
 
 type ServiceRelation =
-  | {
-      id: string;
-      name: string | null;
-      slug: string | null;
-    }
-  | {
-      id: string;
-      name: string | null;
-      slug: string | null;
-    }[]
+  | { id: string; name: string | null; slug: string | null }
+  | { id: string; name: string | null; slug: string | null }[]
   | null;
 
 function firstService(
   relation: ServiceRelation
-): {
-  id: string;
-  name: string | null;
-  slug: string | null;
-} | null {
-  return Array.isArray(relation)
-    ? relation[0] ?? null
-    : relation;
+): { id: string; name: string | null; slug: string | null } | null {
+  return Array.isArray(relation) ? relation[0] ?? null : relation;
 }
 
 export async function GET(request: Request) {
   try {
-    const { profile } =
-      await getAuthenticatedProfile(request);
-
+    const { profile } = await getAuthenticatedProfile(request);
     requireAccountType(profile, "client");
 
     const url = new URL(request.url);
@@ -54,9 +39,7 @@ export async function GET(request: Request) {
         .select("id, name, slug")
         .order("name", { ascending: true });
 
-    if (servicesError) {
-      throw new Error(servicesError.message);
-    }
+    if (servicesError) throw new Error(servicesError.message);
 
     if (!localityInput || !serviceSlug) {
       return NextResponse.json({
@@ -67,9 +50,10 @@ export async function GET(request: Request) {
       });
     }
 
-    const locality = findBelgianLocality(localityInput);
+    const requestedLocality =
+      findBelgianLocality(localityInput);
 
-    if (!locality) {
+    if (!requestedLocality) {
       return NextResponse.json(
         {
           error:
@@ -86,9 +70,7 @@ export async function GET(request: Request) {
         .eq("slug", serviceSlug)
         .maybeSingle();
 
-    if (serviceError) {
-      throw new Error(serviceError.message);
-    }
+    if (serviceError) throw new Error(serviceError.message);
 
     if (!selectedService) {
       return NextResponse.json(
@@ -117,9 +99,10 @@ export async function GET(request: Request) {
     if (userServiceIds.length === 0) {
       return NextResponse.json({
         services: services ?? [],
-        locality,
+        locality: requestedLocality,
         providers: [],
         searched: true,
+        calculationMode: "municipality_centers",
       });
     }
 
@@ -132,32 +115,73 @@ export async function GET(request: Request) {
         .in("user_service_id", userServiceIds)
         .eq("is_active", true);
 
-    if (zonesError) {
-      throw new Error(zonesError.message);
+    if (zonesError) throw new Error(zonesError.message);
+
+    const evaluatedZones = (zones ?? [])
+      .map((zone) => {
+        const zoneLocality =
+          findBelgianLocality(zone.locality) ??
+          findBelgianLocality(zone.postal_code ?? "");
+
+        if (!zoneLocality) return null;
+
+        const distanceKm =
+          distanceBetweenLocalitiesKm(
+            requestedLocality,
+            zoneLocality
+          );
+
+        const status = coverageStatus(
+          distanceKm,
+          Number(zone.radius_km)
+        );
+
+        return {
+          ...zone,
+          zoneLocality,
+          distanceKm,
+          covered: status.covered,
+          remainingKm: status.remainingKm,
+        };
+      })
+      .filter(
+        (
+          zone
+        ): zone is NonNullable<typeof zone> =>
+          Boolean(zone?.covered)
+      );
+
+    const bestZoneByProvider = new Map<
+      string,
+      (typeof evaluatedZones)[number]
+    >();
+
+    for (const zone of evaluatedZones) {
+      const existing = bestZoneByProvider.get(
+        zone.profile_id
+      );
+
+      if (
+        !existing ||
+        zone.distanceKm < existing.distanceKm ||
+        (zone.distanceKm === existing.distanceKm &&
+          zone.is_primary &&
+          !existing.is_primary)
+      ) {
+        bestZoneByProvider.set(
+          zone.profile_id,
+          zone
+        );
+      }
     }
 
-    const normalizedRequested = normalizeLocality(
-      locality.name
-    );
-
-    const matchingZones = (zones ?? []).filter((zone) => {
-      const normalizedZone = normalizeLocality(
-        zone.locality
-      );
-
-      return (
-        normalizedZone === normalizedRequested ||
-        locality.postalCodes.includes(
-          zone.postal_code ?? ""
-        )
-      );
-    });
-
-    const profileIds = [
-      ...new Set(
-        matchingZones.map((zone) => zone.profile_id)
-      ),
+    const selectedZones = [
+      ...bestZoneByProvider.values(),
     ];
+
+    const profileIds = selectedZones.map(
+      (zone) => zone.profile_id
+    );
 
     const { data: profiles, error: profilesError } =
       profileIds.length > 0
@@ -174,26 +198,26 @@ export async function GET(request: Request) {
       throw new Error(profilesError.message);
     }
 
-    const profilesMap = new Map(
+    const profileMap = new Map(
       (profiles ?? []).map((provider) => [
         provider.id,
         provider,
       ])
     );
 
-    const userServicesMap = new Map(
+    const userServiceMap = new Map(
       (userServices ?? []).map((item) => [
         item.id,
         item,
       ])
     );
 
-    const providers = matchingZones
+    const providers = selectedZones
       .map((zone) => {
-        const provider = profilesMap.get(
+        const provider = profileMap.get(
           zone.profile_id
         );
-        const userService = userServicesMap.get(
+        const userService = userServiceMap.get(
           zone.user_service_id
         );
 
@@ -217,32 +241,44 @@ export async function GET(request: Request) {
             "Service KLYX",
           serviceSlug:
             service?.slug ?? selectedService.slug,
-          locality: zone.locality,
-          postalCode: zone.postal_code,
+          requestedLocality: requestedLocality.name,
+          zoneLocality: zone.zoneLocality.name,
+          zonePostalCode: zone.postal_code,
           radiusKm: Number(zone.radius_km),
+          distanceKm: zone.distanceKm,
+          remainingKm: zone.remainingKm,
           isPrimary: zone.is_primary,
           coverageMessage:
-            `Intervient à ${zone.locality} dans un rayon déclaré de ${zone.radius_km} km.`,
+            zone.distanceKm === 0
+              ? `Intervient directement à ${requestedLocality.name}.`
+              : `${requestedLocality.name} se trouve à environ ${zone.distanceKm} km du centre de sa zone ${zone.zoneLocality.name}, dans son rayon déclaré de ${zone.radius_km} km.`,
         };
       })
       .filter(Boolean)
       .sort((first, second) => {
         if (!first || !second) return 0;
 
+        if (first.distanceKm !== second.distanceKm) {
+          return first.distanceKm - second.distanceKm;
+        }
+
         if (first.isPrimary !== second.isPrimary) {
           return first.isPrimary ? -1 : 1;
         }
 
-        return first.radiusKm - second.radiusKm;
+        return first.displayName.localeCompare(
+          second.displayName
+        );
       });
 
     return NextResponse.json({
       services: services ?? [],
-      locality,
+      locality: requestedLocality,
       providers,
       searched: true,
+      calculationMode: "municipality_centers",
       privacyNotice:
-        "KLYX affiche uniquement la commune et le rayon professionnel déclaré, jamais l’adresse privée du prestataire.",
+        "La distance est une estimation entre centres de communes. KLYX n’utilise ni l’adresse privée ni la position GPS du prestataire.",
     });
   } catch (error) {
     const message =
