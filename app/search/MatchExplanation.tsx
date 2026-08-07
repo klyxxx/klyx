@@ -22,6 +22,7 @@ import {
   matchingLevelLabel,
   type MatchingFilters,
 } from "@/lib/intelligent-matching";
+import QuoteRequestButton from "./QuoteRequestButton";
 
 type CoverageResult = {
   available?: boolean;
@@ -44,12 +45,9 @@ export default function MatchExplanation({
   filters: MatchingFilters;
 }) {
   const searchParams = useSearchParams();
-
   const [expanded, setExpanded] = useState(false);
-
   const [coverage, setCoverage] =
     useState<CoverageResult | null>(null);
-
   const [loadingCoverage, setLoadingCoverage] =
     useState(false);
 
@@ -109,9 +107,7 @@ export default function MatchExplanation({
         const body =
           (await response.json()) as CoverageResult;
 
-        if (cancelled) {
-          return;
-        }
+        if (cancelled) return;
 
         if (!response.ok) {
           setCoverage(null);
@@ -161,10 +157,7 @@ export default function MatchExplanation({
     }
 
     return explanation.score;
-  }, [
-    coverage,
-    explanation.score,
-  ]);
+  }, [coverage, explanation.score]);
 
   const adjustedLevel =
     adjustedScore >= 90
@@ -266,12 +259,9 @@ export default function MatchExplanation({
                           Distance ≈{" "}
                           {coverage.distanceKm} km
                         </span>
-
                         <span>·</span>
-
                         <span>
-                          Rayon{" "}
-                          {coverage.radiusKm} km
+                          Rayon {coverage.radiusKm} km
                         </span>
 
                         {coverage.covered &&
@@ -294,39 +284,35 @@ export default function MatchExplanation({
 
           {explanation.reasons.length > 0 && (
             <div className="space-y-2">
-              {explanation.reasons.map(
-                (reason) => (
-                  <p
-                    key={reason}
-                    className="flex items-start gap-2 text-xs leading-5 text-muted-foreground"
-                  >
-                    <CheckCircle2
-                      className="mt-0.5 shrink-0 text-emerald-500"
-                      size={14}
-                    />
-                    {reason}
-                  </p>
-                )
-              )}
+              {explanation.reasons.map((reason) => (
+                <p
+                  key={reason}
+                  className="flex items-start gap-2 text-xs leading-5 text-muted-foreground"
+                >
+                  <CheckCircle2
+                    className="mt-0.5 shrink-0 text-emerald-500"
+                    size={14}
+                  />
+                  {reason}
+                </p>
+              ))}
             </div>
           )}
 
           {explanation.warnings.length > 0 && (
             <div className="mt-3 space-y-2 border-t border-border pt-3">
-              {explanation.warnings.map(
-                (warning) => (
-                  <p
-                    key={warning}
-                    className="flex items-start gap-2 text-xs leading-5 text-amber-700 dark:text-amber-300"
-                  >
-                    <AlertTriangle
-                      className="mt-0.5 shrink-0"
-                      size={14}
-                    />
-                    {warning}
-                  </p>
-                )
-              )}
+              {explanation.warnings.map((warning) => (
+                <p
+                  key={warning}
+                  className="flex items-start gap-2 text-xs leading-5 text-amber-700 dark:text-amber-300"
+                >
+                  <AlertTriangle
+                    className="mt-0.5 shrink-0"
+                    size={14}
+                  />
+                  {warning}
+                </p>
+              ))}
             </div>
           )}
 
@@ -337,6 +323,13 @@ export default function MatchExplanation({
           </p>
         </div>
       )}
+
+      <div className="border-t border-violet-500/15 p-4">
+        <QuoteRequestButton
+          provider={provider}
+          filters={filters}
+        />
+      </div>
     </section>
   );
 }
