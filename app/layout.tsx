@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/app/ui/tooltip";
 import AppSidebar from "@/app/ui/AppSidebar";
 import ThemeProvider from "@/app/components/ThemeProvider";
 import PwaRegistrar from "@/app/components/PwaRegistrar";
+import ActiveProfileSync from "@/app/components/ActiveProfileSync";
 import AppVisualBackground from "@/app/ui/AppVisualBackground";
 import { cn } from "@/lib/utils";
 import "./globals.css";
@@ -127,6 +128,7 @@ export default function RootLayout({
 
       <body className="min-h-full bg-background text-foreground">
         <PwaRegistrar />
+        <ActiveProfileSync />
         <AppVisualBackground />
 
         <ThemeProvider>
@@ -141,4 +143,5 @@ export default function RootLayout({
     </html>
   );
 }
+
 
