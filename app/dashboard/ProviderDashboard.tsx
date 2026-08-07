@@ -3,8 +3,8 @@ import {
   ArrowRight,
   Banknote,
   BriefcaseBusiness,
-  CalendarClock,
   CalendarDays,
+  FileText,
   ListPlus,
   MessageCircle,
   ShieldCheck,
@@ -26,18 +26,18 @@ const actions = [
     featured: true,
   },
   {
-    title: "Demandes reçues",
+    title: "Réservations & missions",
     description:
-      "Consulte les nouvelles réservations et réponds aux clients.",
+      "Reçois les nouvelles demandes puis suis les prestations acceptées, planifiées, en cours et terminées.",
     href: "/bookings",
     icon: CalendarDays,
   },
   {
-    title: "Missions",
+    title: "Demandes de devis",
     description:
-      "Suis les prestations planifiées, en cours et terminées.",
-    href: "/bookings",
-    icon: CalendarClock,
+      "Consulte les demandes de prix des clients, ajuste ton montant et envoie tes devis.",
+    href: "/provider/quotes",
+    icon: FileText,
   },
   {
     title: "Messagerie clients",
@@ -76,7 +76,9 @@ const actions = [
   },
 ];
 
-export default function ProviderDashboard({ firstName }: Props) {
+export default function ProviderDashboard({
+  firstName,
+}: Props) {
   return (
     <>
       <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#111827_0%,#18233f_48%,#0f172a_100%)] p-7 text-white shadow-[0_28px_90px_rgba(15,23,42,0.28)] sm:p-10">
@@ -101,6 +103,7 @@ export default function ProviderDashboard({ firstName }: Props) {
           <div className="mt-7 flex flex-wrap gap-3">
             <Link
               href="/provider"
+              prefetch
               className="inline-flex h-12 items-center gap-2 rounded-2xl bg-white px-5 text-sm font-black text-zinc-950 shadow-lg transition hover:-translate-y-0.5"
             >
               Ouvrir mon activité
@@ -109,9 +112,10 @@ export default function ProviderDashboard({ firstName }: Props) {
 
             <Link
               href="/bookings"
+              prefetch
               className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/14 bg-white/7 px-5 text-sm font-black text-white transition hover:bg-white/12"
             >
-              Voir les demandes
+              Réservations & missions
               <CalendarDays size={17} />
             </Link>
           </div>
@@ -119,10 +123,19 @@ export default function ProviderDashboard({ firstName }: Props) {
       </section>
 
       <section className="mt-8">
-        <p className="klyx-eyebrow">Ton activité professionnelle</p>
+        <p className="klyx-eyebrow">
+          Ton activité professionnelle
+        </p>
+
         <h2 className="mt-2 text-2xl font-black tracking-[-0.035em] sm:text-3xl">
           Gère ton travail au même endroit
         </h2>
+
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
+          Une action principale par besoin : réservations et missions sont
+          regroupées, tandis que devis, messages, paiements et réputation
+          restent séparés.
+        </p>
 
         <div className="mt-5 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           {actions.map((action) => {
@@ -130,27 +143,30 @@ export default function ProviderDashboard({ firstName }: Props) {
 
             return (
               <Link
-                key={`${action.title}-${action.href}`}
+                key={action.href}
                 href={action.href}
-                className={`klyx-card klyx-card-hover group flex min-h-56 flex-col p-6 ${
+                prefetch
+                className={`klyx-card klyx-card-hover group relative flex min-h-56 flex-col overflow-hidden p-6 ${
                   action.featured
                     ? "border-blue-500/30 bg-blue-500/[0.05]"
                     : ""
                 }`}
               >
-                <div className="grid h-12 w-12 place-items-center rounded-2xl bg-blue-500/10 text-blue-600 transition group-hover:bg-blue-600 group-hover:text-white dark:text-blue-400">
+                <div className="absolute -right-12 -top-12 h-28 w-28 rounded-full bg-blue-500/[0.05] blur-2xl transition group-hover:bg-blue-500/10" />
+
+                <div className="relative grid h-12 w-12 place-items-center rounded-2xl border border-blue-500/10 bg-blue-500/10 text-blue-600 shadow-sm transition group-hover:-translate-y-0.5 group-hover:bg-blue-600 group-hover:text-white dark:text-blue-400">
                   <Icon size={22} />
                 </div>
 
-                <h3 className="mt-6 text-lg font-black tracking-[-0.025em]">
+                <h3 className="relative mt-6 text-lg font-black tracking-[-0.025em]">
                   {action.title}
                 </h3>
 
-                <p className="mt-2 flex-1 text-sm leading-6 text-muted-foreground">
+                <p className="relative mt-2 flex-1 text-sm leading-6 text-muted-foreground">
                   {action.description}
                 </p>
 
-                <span className="mt-5 inline-flex items-center gap-2 text-sm font-black text-blue-600 dark:text-blue-400">
+                <span className="relative mt-5 inline-flex items-center gap-2 text-sm font-black text-blue-600 dark:text-blue-400">
                   Ouvrir
                   <ArrowRight
                     size={16}
@@ -165,21 +181,29 @@ export default function ProviderDashboard({ firstName }: Props) {
 
       <section className="mt-8 grid gap-5 lg:grid-cols-2">
         <div className="klyx-card p-6 sm:p-8">
-          <p className="klyx-eyebrow">Priorité</p>
+          <p className="klyx-eyebrow">
+            Priorité
+          </p>
+
           <h2 className="mt-2 text-2xl font-black">
             Réponds rapidement aux demandes
           </h2>
+
           <p className="mt-3 text-sm leading-7 text-muted-foreground">
-            Les demandes, messages, missions et paiements sont regroupés dans
-            ton espace professionnel.
+            Les nouvelles demandes et les missions déjà acceptées sont
+            désormais accessibles depuis un seul point d’entrée.
           </p>
         </div>
 
         <div className="klyx-card p-6 sm:p-8">
-          <p className="klyx-eyebrow">Confiance</p>
+          <p className="klyx-eyebrow">
+            Confiance
+          </p>
+
           <h2 className="mt-2 text-2xl font-black">
             Développe ta réputation
           </h2>
+
           <p className="mt-3 text-sm leading-7 text-muted-foreground">
             Ton score, tes avis, ta disponibilité et tes missions réalisées
             améliorent progressivement ta visibilité.
