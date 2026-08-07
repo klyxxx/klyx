@@ -7,11 +7,9 @@ import {
   useState,
 } from "react";
 import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
 import {
-  useParams,
-  useRouter,
-} from "next/navigation";
-import {
+  AlertTriangle,
   ArrowLeft,
   CalendarDays,
   CheckCircle2,
@@ -54,39 +52,46 @@ type AvailabilityRow = {
   end_time: string;
 };
 
-function timeToMinutes(value: string): number | null {
+function toMinutes(value: string): number | null {
   if (!/^\d{2}:\d{2}$/.test(value)) return null;
 
-  const [hours, minutes] =
-    value.split(":").map(Number);
+  const [hours, minutes] = value.split(":").map(Number);
 
-  if (hours > 23 || minutes > 59) return null;
+  if (
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
+    return null;
+  }
 
   return hours * 60 + minutes;
 }
 
-function endTimeFromDuration(
+function fromMinutes(total: number): string {
+  return `${String(Math.floor(total / 60)).padStart(
+    2,
+    "0"
+  )}:${String(total % 60).padStart(2, "0")}`;
+}
+
+function calculateEndTime(
   startTime: string,
-  durationHours: number | null
+  durationHours: number
 ): string {
-  const start = timeToMinutes(startTime);
+  const start = toMinutes(startTime);
+  const durationMinutes = Math.round(durationHours * 60);
 
-  if (start === null) return "";
+  if (
+    start === null ||
+    durationMinutes <= 0 ||
+    start + durationMinutes >= 24 * 60
+  ) {
+    return "";
+  }
 
-  const duration =
-    durationHours && durationHours > 0
-      ? durationHours
-      : 1;
-
-  const end = start + duration * 60;
-
-  if (end >= 24 * 60) return "";
-
-  return `${String(
-    Math.floor(end / 60)
-  ).padStart(2, "0")}:${String(
-    Math.round(end % 60)
-  ).padStart(2, "0")}`;
+  return fromMinutes(start + durationMinutes);
 }
 
 export default function QuoteBookingPage() {
@@ -94,24 +99,17 @@ export default function QuoteBookingPage() {
   const router = useRouter();
   const quoteId = params.id;
 
-  const [quote, setQuote] =
-    useState<QuoteData | null>(null);
-  const [availability, setAvailability] =
-    useState<AvailabilityRow[]>([]);
-  const [bookingDate, setBookingDate] =
-    useState("");
-  const [startTime, setStartTime] =
-    useState("");
-  const [endTime, setEndTime] =
-    useState("");
-  const [message, setMessage] =
-    useState("");
-  const [loading, setLoading] =
-    useState(true);
-  const [submitting, setSubmitting] =
-    useState(false);
-  const [errorMessage, setErrorMessage] =
-    useState("");
+  const [quote, setQuote] = useState<QuoteData | null>(null);
+  const [availability, setAvailability] = useState<
+    AvailabilityRow[]
+  >([]);
+  const [bookingDate, setBookingDate] = useState("");
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   async function token(): Promise<string> {
     const {
@@ -132,16 +130,13 @@ export default function QuoteBookingPage() {
 
       try {
         const accessToken = await token();
-        const response = await fetch(
-          `/api/quotes/${quoteId}`,
-          {
-            cache: "no-store",
-            headers: {
-              Authorization:
-                `Bearer ${accessToken}`,
-            },
-          }
-        );
+
+        const response = await fetch(`/api/quotes/${quoteId}`, {
+          cache: "no-store",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
 
         const body = (await response.json()) as {
           quote?: QuoteData;
@@ -149,17 +144,13 @@ export default function QuoteBookingPage() {
         };
 
         if (!response.ok || !body.quote) {
-          throw new Error(
-            body.error || "Devis introuvable."
-          );
+          throw new Error(body.error || "Devis introuvable.");
         }
 
         const loadedQuote = body.quote;
 
         if (loadedQuote.bookingId) {
-          router.replace(
-            `/bookings/${loadedQuote.bookingId}`
-          );
+          router.replace(`/bookings/${loadedQuote.bookingId}`);
           return;
         }
 
@@ -170,51 +161,37 @@ export default function QuoteBookingPage() {
         }
 
         if (!loadedQuote.serviceSlug) {
-          throw new Error(
-            "Service du devis introuvable."
-          );
+          throw new Error("Service du devis introuvable.");
         }
 
-        const date =
-          loadedQuote.requested_date ?? "";
+        const date = loadedQuote.requested_date ?? "";
         const start =
-          loadedQuote.requested_time?.slice(
-            0,
-            5
-          ) ?? "";
-        const end = endTimeFromDuration(
-          start,
-          loadedQuote.duration_hours
+          loadedQuote.requested_time?.slice(0, 5) ?? "";
+        const duration = Math.max(
+          0.25,
+          Number(loadedQuote.duration_hours ?? 1) || 1
         );
 
         setQuote(loadedQuote);
         setBookingDate(date);
         setStartTime(start);
-        setEndTime(end);
+        setEndTime(
+          start ? calculateEndTime(start, duration) : ""
+        );
         setMessage(loadedQuote.description);
 
-        const { data: slots, error: slotError } =
-          await supabase
-            .from("availability_slots")
-            .select(
-              "day_of_week, start_time, end_time"
-            )
-            .eq(
-              "user_service_id",
-              loadedQuote.user_service_id
-            )
-            .eq("is_active", true)
-            .order("day_of_week", {
-              ascending: true,
-            });
+        const { data: slots, error: slotError } = await supabase
+          .from("availability_slots")
+          .select("day_of_week, start_time, end_time")
+          .eq("user_service_id", loadedQuote.user_service_id)
+          .eq("is_active", true)
+          .order("day_of_week", { ascending: true });
 
         if (slotError) {
           throw new Error(slotError.message);
         }
 
-        setAvailability(
-          (slots ?? []) as AvailabilityRow[]
-        );
+        setAvailability((slots ?? []) as AvailabilityRow[]);
       } catch (error) {
         setErrorMessage(
           error instanceof Error
@@ -229,7 +206,21 @@ export default function QuoteBookingPage() {
     void load();
   }, [quoteId, router]);
 
-  const selectedAvailability = useMemo(() => {
+  const durationHours = Math.max(
+    0.25,
+    Number(quote?.duration_hours ?? 1) || 1
+  );
+
+  useEffect(() => {
+    if (!startTime) {
+      setEndTime("");
+      return;
+    }
+
+    setEndTime(calculateEndTime(startTime, durationHours));
+  }, [startTime, durationHours]);
+
+  const daySlots = useMemo(() => {
     if (!bookingDate) return [];
 
     const day = new Date(
@@ -241,12 +232,65 @@ export default function QuoteBookingPage() {
     );
   }, [availability, bookingDate]);
 
+  const slotState = useMemo(() => {
+    const start = toMinutes(startTime);
+    const end = toMinutes(endTime);
+
+    if (
+      !bookingDate ||
+      start === null ||
+      end === null
+    ) {
+      return {
+        valid: false,
+        message: "Choisis un créneau complet.",
+      };
+    }
+
+    const compatible = daySlots.some((slot) => {
+      const slotStart = toMinutes(
+        slot.start_time.slice(0, 5)
+      );
+      const slotEnd = toMinutes(
+        slot.end_time.slice(0, 5)
+      );
+
+      return (
+        slotStart !== null &&
+        slotEnd !== null &&
+        start >= slotStart &&
+        end <= slotEnd
+      );
+    });
+
+    if (compatible) {
+      return {
+        valid: true,
+        message: "Ce créneau est compatible.",
+      };
+    }
+
+    if (daySlots.length === 0) {
+      return {
+        valid: false,
+        message:
+          "Le prestataire n’a pas déclaré de disponibilité pour ce jour.",
+      };
+    }
+
+    return {
+      valid: false,
+      message:
+        "Ce créneau est hors disponibilité. Choisis une heure comprise dans la plage affichée.",
+    };
+  }, [bookingDate, daySlots, startTime, endTime]);
+
   async function submit(
     event: FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
 
-    if (!quote?.serviceSlug) return;
+    if (!quote?.serviceSlug || !slotState.valid) return;
 
     setSubmitting(true);
     setErrorMessage("");
@@ -254,27 +298,22 @@ export default function QuoteBookingPage() {
     try {
       const accessToken = await token();
 
-      const response = await fetch(
-        "/api/bookings/create",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization:
-              `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({
-            providerId:
-              quote.provider_profile_id,
-            serviceSlug: quote.serviceSlug,
-            bookingDate,
-            startTime,
-            endTime,
-            message,
-            quoteId: quote.id,
-          }),
-        }
-      );
+      const response = await fetch("/api/bookings/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          providerId: quote.provider_profile_id,
+          serviceSlug: quote.serviceSlug,
+          bookingDate,
+          startTime,
+          endTime,
+          message,
+          quoteId: quote.id,
+        }),
+      });
 
       const body = (await response.json()) as {
         bookingId?: string;
@@ -283,8 +322,7 @@ export default function QuoteBookingPage() {
 
       if (!response.ok || !body.bookingId) {
         throw new Error(
-          body.error ||
-            "Impossible de créer la réservation."
+          body.error || "Impossible de créer la réservation."
         );
       }
 
@@ -350,8 +388,8 @@ export default function QuoteBookingPage() {
           </h1>
 
           <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">
-            Le prix du devis est verrouillé côté serveur.
-            Vérifie le créneau puis envoie toi-même la demande.
+            Le prix du devis reste protégé. Le créneau doit être
+            compatible avec les disponibilités actuelles.
           </p>
         </section>
 
@@ -416,14 +454,9 @@ export default function QuoteBookingPage() {
                 required
                 value={bookingDate}
                 onChange={(event) =>
-                  setBookingDate(
-                    event.target.value
-                  )
+                  setBookingDate(event.target.value)
                 }
-                disabled={Boolean(
-                  quote.requested_date
-                )}
-                className="klyx-input disabled:opacity-60"
+                className="klyx-input"
               />
             </label>
 
@@ -437,14 +470,9 @@ export default function QuoteBookingPage() {
                 required
                 value={startTime}
                 onChange={(event) =>
-                  setStartTime(
-                    event.target.value
-                  )
+                  setStartTime(event.target.value)
                 }
-                disabled={Boolean(
-                  quote.requested_time
-                )}
-                className="klyx-input disabled:opacity-60"
+                className="klyx-input"
               />
             </label>
 
@@ -456,36 +484,49 @@ export default function QuoteBookingPage() {
               <input
                 type="time"
                 required
+                readOnly
                 value={endTime}
-                onChange={(event) =>
-                  setEndTime(event.target.value)
-                }
-                disabled={Boolean(
-                  quote.duration_hours
-                )}
-                className="klyx-input disabled:opacity-60"
+                className="klyx-input cursor-not-allowed opacity-80"
               />
             </label>
           </div>
 
-          {bookingDate && (
-            <div className="mt-5 rounded-2xl border border-border bg-background/60 p-4 text-sm text-muted-foreground">
-              {selectedAvailability.length > 0
-                ? `Disponibilités déclarées : ${selectedAvailability
-                    .map(
-                      (slot) =>
-                        `${slot.start_time.slice(
-                          0,
-                          5
-                        )}–${slot.end_time.slice(
-                          0,
-                          5
-                        )}`
-                    )
-                    .join(", ")}`
-                : "Aucune disponibilité habituelle déclarée pour ce jour."}
-            </div>
-          )}
+          <div className="mt-5 rounded-2xl border border-border bg-background/60 p-4 text-sm text-muted-foreground">
+            {daySlots.length > 0
+              ? `Disponibilités déclarées : ${daySlots
+                  .map(
+                    (slot) =>
+                      `${slot.start_time.slice(
+                        0,
+                        5
+                      )}–${slot.end_time.slice(0, 5)}`
+                  )
+                  .join(", ")}`
+              : "Aucune disponibilité habituelle déclarée pour ce jour."}
+          </div>
+
+          <div
+            className={`mt-4 flex items-start gap-3 rounded-2xl border p-4 text-sm ${
+              slotState.valid
+                ? "border-emerald-500/25 bg-emerald-500/10"
+                : "border-amber-500/25 bg-amber-500/10"
+            }`}
+          >
+            {slotState.valid ? (
+              <CheckCircle2
+                className="mt-0.5 shrink-0 text-emerald-600"
+                size={18}
+              />
+            ) : (
+              <AlertTriangle
+                className="mt-0.5 shrink-0 text-amber-600"
+                size={18}
+              />
+            )}
+            <p className="text-muted-foreground">
+              {slotState.message}
+            </p>
+          </div>
 
           <label className="mt-5 block">
             <span className="mb-2 block text-sm font-black">
@@ -525,7 +566,7 @@ export default function QuoteBookingPage() {
               size={18}
             />
             Cette action crée uniquement une demande de réservation.
-            Le paiement reste séparé et ne démarre pas automatiquement.
+            Le paiement reste séparé.
           </div>
 
           <button
@@ -534,9 +575,10 @@ export default function QuoteBookingPage() {
               submitting ||
               !bookingDate ||
               !startTime ||
-              !endTime
+              !endTime ||
+              !slotState.valid
             }
-            className="klyx-button mt-6 w-full"
+            className="klyx-button mt-6 w-full disabled:cursor-not-allowed disabled:opacity-45"
           >
             {submitting ? (
               <LoaderCircle
