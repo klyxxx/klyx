@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useState } from "react";
 import Link from "next/link";
@@ -37,13 +37,13 @@ export default function SignupPage() {
         email: normalizedEmail,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/dashboard`,
+          emailRedirectTo: `${window.location.origin}/onboarding`,
           data: { full_name: normalizedName, account_type: accountType },
         },
       });
       if (error) throw error;
       if (data.session) {
-        router.replace(accountType === "provider" ? "/provider" : "/dashboard");
+        router.replace("/onboarding");
         router.refresh();
         return;
       }
@@ -93,3 +93,4 @@ export default function SignupPage() {
     </main>
   );
 }
+
