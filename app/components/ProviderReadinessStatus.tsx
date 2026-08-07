@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import {
@@ -12,6 +12,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 type StudioData = {
   providerProfile?: {
@@ -56,12 +57,26 @@ export default function ProviderReadinessStatus() {
     setErrorMessage("");
 
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.access_token) {
+        throw new Error("Session manquante.");
+      }
+
+      const headers = {
+        Authorization: `Bearer ${session.access_token}`,
+      };
+
       const [studioResponse, zonesResponse] = await Promise.all([
         fetch("/api/provider/studio", {
           cache: "no-store",
+          headers,
         }),
         fetch("/api/provider/zones", {
           cache: "no-store",
+          headers,
         }),
       ]);
 
@@ -305,3 +320,4 @@ export default function ProviderReadinessStatus() {
     </section>
   );
 }
+

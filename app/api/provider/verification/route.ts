@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   apiErrorStatus,
@@ -167,17 +167,19 @@ export async function POST(request: Request) {
       );
     }
 
+    const pathParts = storagePath.split("/");
+    const expectedName = pathParts.pop() ?? "";
+    const folderPath = pathParts.join("/");
+
     const { data: objects, error: listError } =
       await supabaseAdmin.storage
         .from("provider-verification")
-        .list(profile.id, {
-          search: storagePath.split("/").pop(),
+        .list(folderPath, {
+          search: expectedName,
           limit: 10,
         });
 
     if (listError) throw new Error(listError.message);
-
-    const expectedName = storagePath.split("/").pop();
 
     if (!objects?.some((object) => object.name === expectedName)) {
       return NextResponse.json(
@@ -337,3 +339,4 @@ export async function PATCH(request: Request) {
     );
   }
 }
+
