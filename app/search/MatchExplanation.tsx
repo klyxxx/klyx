@@ -44,9 +44,12 @@ export default function MatchExplanation({
   filters: MatchingFilters;
 }) {
   const searchParams = useSearchParams();
+
   const [expanded, setExpanded] = useState(false);
+
   const [coverage, setCoverage] =
     useState<CoverageResult | null>(null);
+
   const [loadingCoverage, setLoadingCoverage] =
     useState(false);
 
@@ -56,7 +59,9 @@ export default function MatchExplanation({
   );
 
   const serviceSlug =
-    searchParams.get("service")?.trim() ?? "";
+    searchParams.get("service")?.trim() ||
+    provider.serviceSlug;
+
   const locality = filters.city.trim();
 
   useEffect(() => {
@@ -64,7 +69,7 @@ export default function MatchExplanation({
 
     async function loadCoverage() {
       if (
-        !provider.id ||
+        !provider.profileId ||
         !serviceSlug ||
         !locality
       ) {
@@ -80,11 +85,12 @@ export default function MatchExplanation({
         } = await supabase.auth.getSession();
 
         if (!session?.access_token) {
+          setCoverage(null);
           return;
         }
 
         const params = new URLSearchParams({
-          providerId: provider.id,
+          providerId: provider.profileId,
           service: serviceSlug,
           locality,
         });
@@ -103,8 +109,19 @@ export default function MatchExplanation({
         const body =
           (await response.json()) as CoverageResult;
 
-        if (!cancelled && response.ok) {
-          setCoverage(body);
+        if (cancelled) {
+          return;
+        }
+
+        if (!response.ok) {
+          setCoverage(null);
+          return;
+        }
+
+        setCoverage(body);
+      } catch {
+        if (!cancelled) {
+          setCoverage(null);
         }
       } finally {
         if (!cancelled) {
@@ -118,7 +135,11 @@ export default function MatchExplanation({
     return () => {
       cancelled = true;
     };
-  }, [provider.id, serviceSlug, locality]);
+  }, [
+    provider.profileId,
+    serviceSlug,
+    locality,
+  ]);
 
   const adjustedScore = useMemo(() => {
     if (!coverage?.available) {
@@ -140,7 +161,19 @@ export default function MatchExplanation({
     }
 
     return explanation.score;
-  }, [coverage, explanation.score]);
+  }, [
+    coverage,
+    explanation.score,
+  ]);
+
+  const adjustedLevel =
+    adjustedScore >= 90
+      ? "excellent"
+      : adjustedScore >= 75
+        ? "strong"
+        : adjustedScore >= 55
+          ? "possible"
+          : "alternative";
 
   return (
     <section className="mt-4 overflow-hidden rounded-2xl border border-violet-500/20 bg-violet-500/[0.06]">
@@ -159,15 +192,7 @@ export default function MatchExplanation({
           <div>
             <p className="text-sm font-black">
               {adjustedScore}/100 ·{" "}
-              {matchingLevelLabel(
-                adjustedScore >= 90
-                  ? "excellent"
-                  : adjustedScore >= 75
-                    ? "strong"
-                    : adjustedScore >= 55
-                      ? "possible"
-                      : "alternative"
-              )}
+              {matchingLevelLabel(adjustedLevel)}
             </p>
 
             <p className="mt-1 text-xs text-muted-foreground">
@@ -226,9 +251,11 @@ export default function MatchExplanation({
                       : "Hors rayon déclaré"}
                   </p>
 
-                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                    {coverage.message}
-                  </p>
+                  {coverage.message && (
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      {coverage.message}
+                    </p>
+                  )}
 
                   {typeof coverage.distanceKm ===
                     "number" &&
@@ -239,10 +266,25 @@ export default function MatchExplanation({
                           Distance ≈{" "}
                           {coverage.distanceKm} km
                         </span>
+
                         <span>·</span>
+
                         <span>
-                          Rayon {coverage.radiusKm} km
+                          Rayon{" "}
+                          {coverage.radiusKm} km
                         </span>
+
+                        {coverage.covered &&
+                          typeof coverage.remainingKm ===
+                            "number" && (
+                            <>
+                              <span>·</span>
+                              <span>
+                                Marge{" "}
+                                {coverage.remainingKm} km
+                              </span>
+                            </>
+                          )}
                       </div>
                     )}
                 </div>
@@ -252,35 +294,39 @@ export default function MatchExplanation({
 
           {explanation.reasons.length > 0 && (
             <div className="space-y-2">
-              {explanation.reasons.map((reason) => (
-                <p
-                  key={reason}
-                  className="flex items-start gap-2 text-xs leading-5 text-muted-foreground"
-                >
-                  <CheckCircle2
-                    className="mt-0.5 shrink-0 text-emerald-500"
-                    size={14}
-                  />
-                  {reason}
-                </p>
-              ))}
+              {explanation.reasons.map(
+                (reason) => (
+                  <p
+                    key={reason}
+                    className="flex items-start gap-2 text-xs leading-5 text-muted-foreground"
+                  >
+                    <CheckCircle2
+                      className="mt-0.5 shrink-0 text-emerald-500"
+                      size={14}
+                    />
+                    {reason}
+                  </p>
+                )
+              )}
             </div>
           )}
 
           {explanation.warnings.length > 0 && (
             <div className="mt-3 space-y-2 border-t border-border pt-3">
-              {explanation.warnings.map((warning) => (
-                <p
-                  key={warning}
-                  className="flex items-start gap-2 text-xs leading-5 text-amber-700 dark:text-amber-300"
-                >
-                  <AlertTriangle
-                    className="mt-0.5 shrink-0"
-                    size={14}
-                  />
-                  {warning}
-                </p>
-              ))}
+              {explanation.warnings.map(
+                (warning) => (
+                  <p
+                    key={warning}
+                    className="flex items-start gap-2 text-xs leading-5 text-amber-700 dark:text-amber-300"
+                  >
+                    <AlertTriangle
+                      className="mt-0.5 shrink-0"
+                      size={14}
+                    />
+                    {warning}
+                  </p>
+                )
+              )}
             </div>
           )}
 
