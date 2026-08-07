@@ -35,6 +35,7 @@ import {
   type ProviderSearchSort,
 } from "@/lib/provider-search";
 import MatchExplanation from "./MatchExplanation";
+import SearchRecovery from "./SearchRecovery";
 
 type DraftFilters = {
   service: string;
@@ -425,22 +426,53 @@ function SearchContent() {
         )}
 
         {!loading && !errorMessage && result.showingAlternatives && (
-          <div className="mt-8 flex gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 text-amber-200">
-            <AlertCircle className="mt-0.5 shrink-0" size={20} />
-            <div>
-              <p className="font-semibold">
-                Aucun profil ne correspond exactement à tous les critères.
-              </p>
-              <p className="mt-1 text-sm text-amber-100/80">
-                KLYX affiche les alternatives les plus proches. Modifie un filtre
-                pour élargir davantage la recherche.
-              </p>
+          <>
+            <div className="mt-8 flex gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 text-amber-200">
+              <AlertCircle className="mt-0.5 shrink-0" size={20} />
+              <div>
+                <p className="font-semibold">
+                  Aucun profil ne correspond exactement à tous les critères.
+                </p>
+                <p className="mt-1 text-sm text-amber-100/80">
+                  KLYX affiche les alternatives les plus proches et peut adapter
+                  la recherche avec ton accord.
+                </p>
+              </div>
             </div>
-          </div>
+
+            <SearchRecovery
+              filters={{
+                service: appliedFilters.service,
+                city: appliedFilters.city,
+                date: appliedFilters.date,
+                time: appliedFilters.time,
+                duration: appliedFilters.duration,
+                budget: appliedFilters.budget,
+                pricing: appliedFilters.pricing,
+                sort: appliedFilters.sort,
+              }}
+              result={result}
+            />
+          </>
         )}
 
         {!loading && !errorMessage && result.providers.length === 0 && (
-          <div className="mt-8 rounded-3xl border border-zinc-800 bg-zinc-900 p-8 text-center">
+          <>
+            <SearchRecovery
+              filters={{
+                service: appliedFilters.service,
+                city: appliedFilters.city,
+                date: appliedFilters.date,
+                time: appliedFilters.time,
+                duration: appliedFilters.duration,
+                budget: appliedFilters.budget,
+                pricing: appliedFilters.pricing,
+                sort: appliedFilters.sort,
+              }}
+              result={result}
+            />
+
+            <div className="mt-8 rounded-3xl border border-zinc-800 bg-zinc-900 p-8 text-center">
             <h2 className="text-2xl font-bold">Aucun prestataire publié</h2>
             <p className="mx-auto mt-3 max-w-xl text-zinc-400">
               Aucun service actif ne correspond encore à cette recherche. Essaie
@@ -455,7 +487,8 @@ function SearchContent() {
                 Voir tous les prestataires
               </button>
             )}
-          </div>
+            </div>
+          </>
         )}
 
         {!loading && !errorMessage && result.providers.length > 0 && (
@@ -689,4 +722,5 @@ export default function SearchPage() {
     </Suspense>
   );
 }
+
 
