@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   FormEvent,
@@ -484,9 +484,11 @@ export default function QuoteBookingPage() {
               <input
                 type="time"
                 required
-                readOnly
                 value={endTime}
-                className="klyx-input cursor-not-allowed opacity-80"
+                onChange={(event) =>
+                  setEndTime(event.target.value)
+                }
+                className="klyx-input"
               />
             </label>
           </div>
@@ -595,3 +597,4 @@ export default function QuoteBookingPage() {
     </main>
   );
 }
+
