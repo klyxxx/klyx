@@ -1,5 +1,6 @@
-import { redirect } from "next/navigation";
+﻿import { redirect } from "next/navigation";
 import ProviderStudio from "@/app/components/ProviderStudio";
+import ProviderReadinessStatus from "@/app/components/ProviderReadinessStatus";
 import { getActiveProfile } from "@/lib/active-profile";
 import { createClient } from "@/lib/supabase/server";
 
@@ -23,5 +24,11 @@ export default async function ProviderPage() {
     redirect("/dashboard");
   }
 
-  return <ProviderStudio profileId={profile.id} />;
+  return (
+    <>
+      <ProviderReadinessStatus />
+      <ProviderStudio profileId={profile.id} />
+    </>
+  );
 }
+
