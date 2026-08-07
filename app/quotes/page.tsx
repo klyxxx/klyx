@@ -1,16 +1,16 @@
 "use client";
 
 import {
-  FormEvent,
   useEffect,
   useMemo,
   useState,
 } from "react";
+import Link from "next/link";
 import {
+  ArrowRight,
   Check,
   FileText,
   LoaderCircle,
-  Send,
   Trash2,
   X,
 } from "lucide-react";
@@ -68,8 +68,10 @@ function money(value: number | null): string {
 }
 
 export default function QuotesPage() {
-  const [quotes, setQuotes] = useState<Quote[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [quotes, setQuotes] =
+    useState<Quote[]>([]);
+  const [loading, setLoading] =
+    useState(true);
   const [busyId, setBusyId] = useState("");
   const [errorMessage, setErrorMessage] =
     useState("");
@@ -211,9 +213,7 @@ export default function QuotesPage() {
           </h1>
 
           <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">
-            Compare les estimations et les montants
-            confirmés par les prestataires avant de
-            réserver.
+            Compare les estimations et les montants confirmés par les prestataires avant de réserver.
           </p>
 
           <p className="mt-5 text-sm font-black text-violet-200">
@@ -314,17 +314,12 @@ export default function QuotesPage() {
                   )}
                   {quote.requested_time && (
                     <span>
-                      Heure :{" "}
-                      {quote.requested_time.slice(
-                        0,
-                        5
-                      )}
+                      Heure : {quote.requested_time.slice(0, 5)}
                     </span>
                   )}
                   {quote.duration_hours && (
                     <span>
-                      Durée :{" "}
-                      {quote.duration_hours} h
+                      Durée : {quote.duration_hours} h
                     </span>
                   )}
                 </div>
@@ -344,9 +339,7 @@ export default function QuotesPage() {
                   <div className="mt-5 flex flex-col gap-3 sm:flex-row">
                     <button
                       type="button"
-                      disabled={
-                        busyId === quote.id
-                      }
+                      disabled={busyId === quote.id}
                       onClick={() =>
                         void act(
                           quote.id,
@@ -361,9 +354,7 @@ export default function QuotesPage() {
 
                     <button
                       type="button"
-                      disabled={
-                        busyId === quote.id
-                      }
+                      disabled={busyId === quote.id}
                       onClick={() =>
                         void act(
                           quote.id,
@@ -378,13 +369,20 @@ export default function QuotesPage() {
                   </div>
                 )}
 
-                {quote.status ===
-                  "requested" && (
+                {quote.status === "accepted" && (
+                  <Link
+                    href={`/quotes/${quote.id}/book`}
+                    className="klyx-button mt-5 w-full"
+                  >
+                    Préparer la réservation
+                    <ArrowRight size={18} />
+                  </Link>
+                )}
+
+                {quote.status === "requested" && (
                   <button
                     type="button"
-                    disabled={
-                      busyId === quote.id
-                    }
+                    disabled={busyId === quote.id}
                     onClick={() =>
                       void act(
                         quote.id,
@@ -403,9 +401,7 @@ export default function QuotesPage() {
         )}
 
         <div className="mt-8 rounded-2xl border border-blue-500/20 bg-blue-500/10 p-5 text-sm leading-6 text-muted-foreground">
-          Accepter un devis ne réserve rien et ne déclenche
-          aucun paiement. La réservation reste une étape
-          séparée.
+          Accepter un devis ne réserve rien et ne déclenche aucun paiement. Clique ensuite sur Préparer la réservation pour vérifier le créneau et envoyer toi-même la demande.
         </div>
       </div>
     </main>
