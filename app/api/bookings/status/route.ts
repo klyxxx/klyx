@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
@@ -6,6 +6,7 @@ import {
   getAuthenticatedProfile,
 } from "@/lib/api-auth";
 import { isPastBookingStart } from "@/lib/brussels-time";
+import { upsertFinancialLedgerEntry } from "@/lib/payment-ledger";
 
 type BookingStatus = "accepted" | "rejected" | "cancelled";
 
@@ -21,6 +22,7 @@ type BookingRow = {
   payment_status: string | null;
   payment_mode: string | null;
   amount_total: number | null;
+  currency: string | null;
   stripe_payment_intent_id: string | null;
   refund_status: string | null;
   stripe_refund_id: string | null;
@@ -237,6 +239,22 @@ async function refundPaidBooking(params: {
 
     if (updateError) throw new Error(updateError.message);
 
+    await upsertFinancialLedgerEntry({
+      bookingId: booking.id,
+      entryKey: `booking:${booking.id}:refund:${refund.id}`,
+      entryType: "refund_succeeded",
+      status:
+        refund.status === "succeeded"
+          ? "succeeded"
+          : "processing",
+      currency: booking.currency,
+      grossAmountCents: booking.amount_total,
+      refundAmountCents: refund.amount,
+      paymentMode: booking.payment_mode,
+      stripePaymentIntentId: booking.stripe_payment_intent_id,
+      stripeRefundId: refund.id,
+    });
+
     return {
       refundId: refund.id,
       amount: refund.amount,
@@ -251,6 +269,25 @@ async function refundPaidBooking(params: {
       })
       .eq("id", booking.id)
       .eq("refund_status", "processing");
+
+    const failureMessage =
+      error instanceof Error
+        ? error.message
+        : "Remboursement Stripe impossible.";
+
+    await upsertFinancialLedgerEntry({
+      bookingId: booking.id,
+      entryKey: `booking:${booking.id}:refund-failed`,
+      entryType: "refund_failed",
+      status: "failed",
+      currency: booking.currency,
+      grossAmountCents: booking.amount_total,
+      refundAmountCents: booking.amount_total,
+      paymentMode: booking.payment_mode,
+      stripePaymentIntentId: booking.stripe_payment_intent_id,
+      failureCode: "refund_failed",
+      failureMessage,
+    });
 
     throw error;
   }
@@ -289,7 +326,7 @@ export async function POST(request: Request) {
     const { data, error } = await supabaseAdmin
       .from("bookings")
       .select(
-        "id, parent_id, provider_id, babysitter_id, booking_date, start_time, end_time, status, payment_status, payment_mode, amount_total, stripe_payment_intent_id, refund_status, stripe_refund_id"
+        "id, parent_id, provider_id, babysitter_id, booking_date, start_time, end_time, status, payment_status, payment_mode, amount_total, currency, stripe_payment_intent_id, refund_status, stripe_refund_id"
       )
       .eq("id", bookingId)
       .maybeSingle();
@@ -567,3 +604,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status });
   }
 }
+
