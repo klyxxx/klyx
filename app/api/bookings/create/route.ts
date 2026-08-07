@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   apiErrorStatus,
@@ -260,6 +260,32 @@ export async function POST(request: Request) {
             "Ce prestataire ne propose pas ce service.",
         },
         { status: 404 }
+      );
+    }
+
+    const {
+      data: activeZone,
+      error: activeZoneError,
+    } = await supabaseAdmin
+      .from("provider_service_zones")
+      .select("id")
+      .eq("profile_id", providerId)
+      .eq("user_service_id", userService.id)
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle();
+
+    if (activeZoneError) {
+      throw new Error(activeZoneError.message);
+    }
+
+    if (!activeZone) {
+      return NextResponse.json(
+        {
+          error:
+            "Ce prestataire n’accepte pas encore de réservation pour ce service dans une zone active.",
+        },
+        { status: 409 }
       );
     }
 
@@ -657,3 +683,4 @@ export async function POST(request: Request) {
     );
   }
 }
+
