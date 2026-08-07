@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   FormEvent,
@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getActiveClientProfile } from "@/lib/account-switcher";
+import KlyxSelect from "@/app/components/KlyxSelect";
 
 type Booking = {
   id: string;
@@ -178,49 +179,32 @@ export default function NewDisputePage() {
                 <span className="mb-2 block text-sm font-black">
                   Réservation concernée
                 </span>
-                <select
-                  required
+                <KlyxSelect
                   value={bookingId}
-                  onChange={(event) =>
-                    setBookingId(event.target.value)
-                  }
-                  className="klyx-input"
-                >
-                  <option value="">
-                    Choisir une réservation
-                  </option>
-                  {bookings.map((booking) => (
-                    <option
-                      key={booking.id}
-                      value={booking.id}
-                    >
-                      {booking.booking_date} à{" "}
-                      {booking.start_time.slice(0, 5)} ·{" "}
-                      {booking.status}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setBookingId}
+                  placeholder="Choisir une réservation"
+                  options={bookings.map((booking) => ({
+                    value: booking.id,
+                    label: `${booking.booking_date} à ${booking.start_time.slice(0, 5)} · ${booking.status}`,
+                  }))}
+                  ariaLabel="Réservation concernée"
+                />
               </label>
 
               <label className="block">
                 <span className="mb-2 block text-sm font-black">
                   Motif
                 </span>
-                <select
-                  required
+                <KlyxSelect
                   value={reason}
-                  onChange={(event) =>
-                    setReason(event.target.value)
-                  }
-                  className="klyx-input"
-                >
-                  <option value="">Choisir un motif</option>
-                  {REASONS.map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setReason}
+                  placeholder="Choisir un motif"
+                  options={REASONS.map(([value, label]) => ({
+                    value,
+                    label,
+                  }))}
+                  ariaLabel="Motif du signalement"
+                />
               </label>
 
               <label className="block">
@@ -269,3 +253,5 @@ export default function NewDisputePage() {
     </main>
   );
 }
+
+

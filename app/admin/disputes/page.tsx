@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -10,6 +10,7 @@ import {
   Search,
   ShieldCheck,
 } from "lucide-react";
+import KlyxSelect from "@/app/components/KlyxSelect";
 
 type ProfileSummary = {
   id: string;
@@ -290,23 +291,19 @@ export default function AdminDisputesPage() {
             />
           </label>
 
-          <select
+          <KlyxSelect
             value={statusFilter}
-            onChange={(event) =>
-              setStatusFilter(event.target.value)
-            }
-            className="klyx-input"
-          >
-            <option value="active">
-              Dossiers actifs
-            </option>
-            <option value="all">Tous les dossiers</option>
-            {STATUSES.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+            onChange={setStatusFilter}
+            options={[
+              { value: "active", label: "Dossiers actifs" },
+              { value: "all", label: "Tous les dossiers" },
+              ...STATUSES.map(([value, label]) => ({
+                value,
+                label,
+              })),
+            ]}
+            ariaLabel="Filtrer les dossiers"
+          />
         </section>
 
         {errorMessage && (
@@ -424,62 +421,46 @@ export default function AdminDisputesPage() {
                       <span className="mb-2 block text-sm font-black">
                         Statut du dossier
                       </span>
-                      <select
+                      <KlyxSelect
                         value={form.status}
-                        onChange={(event) =>
+                        onChange={(value) =>
                           setForms((current) => ({
                             ...current,
                             [row.id]: {
                               ...form,
-                              status:
-                                event.target.value,
+                              status: value,
                             },
                           }))
                         }
-                        className="klyx-input"
-                      >
-                        {STATUSES.map(
-                          ([value, label]) => (
-                            <option
-                              key={value}
-                              value={value}
-                            >
-                              {label}
-                            </option>
-                          )
-                        )}
-                      </select>
+                        options={STATUSES.map(([value, label]) => ({
+                          value,
+                          label,
+                        }))}
+                        ariaLabel="Statut du dossier"
+                      />
                     </label>
 
                     <label>
                       <span className="mb-2 block text-sm font-black">
                         Décision
                       </span>
-                      <select
+                      <KlyxSelect
                         value={form.decisionCode}
-                        onChange={(event) =>
+                        onChange={(value) =>
                           setForms((current) => ({
                             ...current,
                             [row.id]: {
                               ...form,
-                              decisionCode:
-                                event.target.value,
+                              decisionCode: value,
                             },
                           }))
                         }
-                        className="klyx-input"
-                      >
-                        {DECISIONS.map(
-                          ([value, label]) => (
-                            <option
-                              key={value}
-                              value={value}
-                            >
-                              {label}
-                            </option>
-                          )
-                        )}
-                      </select>
+                        options={DECISIONS.map(([value, label]) => ({
+                          value,
+                          label,
+                        }))}
+                        ariaLabel="Décision"
+                      />
                     </label>
                   </div>
 
@@ -524,3 +505,5 @@ export default function AdminDisputesPage() {
     </main>
   );
 }
+
+
