@@ -393,6 +393,7 @@ export async function POST(request: Request) {
     }
 
     let refundCompleted = false;
+    let refundConfirmed = false;
 
     if (nextStatus === "cancelled") {
       if (!["pending", "accepted"].includes(booking.status)) {
@@ -448,6 +449,20 @@ export async function POST(request: Request) {
           reason: note,
         });
         refundCompleted = true;
+
+        const { data: refundState, error: refundStateError } =
+          await supabaseAdmin
+            .from("bookings")
+            .select("refund_status")
+            .eq("id", booking.id)
+            .maybeSingle();
+
+        if (refundStateError) {
+          throw new Error(refundStateError.message);
+        }
+
+        refundConfirmed =
+          refundState?.refund_status === "succeeded";
       }
     }
 
@@ -567,11 +582,15 @@ export async function POST(request: Request) {
           userId: booking.parent_id,
           bookingId: booking.id,
           type: "system",
-          title: "Remboursement lancé",
-          message:
-            "Stripe a reçu la demande de remboursement. Le délai bancaire peut varier.",
-          deduplicationKey:
-            `booking:${booking.id}:refund`,
+          title: refundConfirmed
+            ? "Remboursement confirmé"
+            : "Remboursement lancé",
+          message: refundConfirmed
+            ? "Stripe a confirmé le remboursement de cette réservation."
+            : "Stripe a reçu la demande de remboursement. Le délai bancaire peut varier.",
+          deduplicationKey: refundConfirmed
+            ? `booking:${booking.id}:refund-confirmed`
+            : `booking:${booking.id}:refund`,
         });
       }
     }
@@ -604,4 +623,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status });
   }
 }
+
 
