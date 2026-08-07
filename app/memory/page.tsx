@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   FormEvent,
@@ -17,6 +17,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import KlyxSelect from "@/app/components/KlyxSelect";
 
 type MemoryResponse = {
   preferences?: {
@@ -444,22 +445,19 @@ export default function MemoryPage() {
               </Field>
 
               <Field label="Type de lieu">
-                <select
+                <KlyxSelect
                   value={householdType}
-                  onChange={(event) =>
-                    setHouseholdType(event.target.value)
-                  }
-                  className="klyx-input"
-                >
-                  <option value="">Non renseigné</option>
-                  <option value="apartment">
-                    Appartement
-                  </option>
-                  <option value="house">Maison</option>
-                  <option value="studio">Studio</option>
-                  <option value="office">Bureau</option>
-                  <option value="other">Autre</option>
-                </select>
+                  onChange={setHouseholdType}
+                  options={[
+                    { value: "", label: "Non renseigné" },
+                    { value: "apartment", label: "Appartement" },
+                    { value: "house", label: "Maison" },
+                    { value: "studio", label: "Studio" },
+                    { value: "office", label: "Bureau" },
+                    { value: "other", label: "Autre" },
+                  ]}
+                  ariaLabel="Type de lieu"
+                />
               </Field>
 
               <Field label="Nombre d’enfants">
@@ -735,3 +733,5 @@ function MemoryTextarea({
     </Field>
   );
 }
+
+

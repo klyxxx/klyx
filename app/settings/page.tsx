@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useTheme } from "@/app/components/ThemeProvider";
+import KlyxSelect from "@/app/components/KlyxSelect";
 import {
   getProfilesState,
   switchAccount,
@@ -382,18 +383,19 @@ export default function SettingsPage() {
           </Section>
 
           <Section icon={<Languages />} title="Langue">
-            <select
+            <KlyxSelect
               value={language}
-              onChange={(event) => {
-                setLanguage(event.target.value);
-                localStorage.setItem(LANGUAGE_KEY, event.target.value);
+              onChange={(value) => {
+                setLanguage(value);
+                localStorage.setItem(LANGUAGE_KEY, value);
               }}
-              className="klyx-input"
-            >
-              <option value="fr">Français</option>
-              <option value="en">English</option>
-              <option value="nl">Nederlands</option>
-            </select>
+              options={[
+                { value: "fr", label: "Français" },
+                { value: "en", label: "English" },
+                { value: "nl", label: "Nederlands" },
+              ]}
+              ariaLabel="Langue"
+            />
           </Section>
 
           <Section icon={<UserRound />} title="Profils KLYX">
@@ -546,3 +548,5 @@ function Button({
     </button>
   );
 }
+
+
