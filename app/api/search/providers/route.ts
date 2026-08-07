@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import {
   DAY_LABELS,
   normalizeLocation,
@@ -64,6 +64,12 @@ type AvailabilityRow = {
   day_of_week: number;
   start_time: string;
   end_time: string;
+};
+
+type ProviderZoneRow = {
+  profile_id: string;
+  user_service_id: string;
+  is_active: boolean;
 };
 
 type Candidate = Omit<ProviderSearchItem, "availabilitySummary" | "isExactMatch"> & {
@@ -312,8 +318,13 @@ async function loadCandidates(filters: Filters): Promise<Candidate[]> {
   const profileIds = [...new Set(userServices.map((item) => item.user_id))];
   const userServiceIds = userServices.map((item) => item.id);
 
-  const [profilesResult, providerProfilesResult, serviceProfilesResult, slotsResult] =
-    await Promise.all([
+  const [
+    profilesResult,
+    providerProfilesResult,
+    serviceProfilesResult,
+    slotsResult,
+    zonesResult,
+  ] = await Promise.all([
       supabaseAdmin
         .from("profiles")
         .select("id, first_name, last_name, avatar_url")
@@ -337,6 +348,12 @@ async function loadCandidates(filters: Filters): Promise<Candidate[]> {
         .select("user_service_id, day_of_week, start_time, end_time")
         .in("user_service_id", userServiceIds)
         .eq("is_active", true),
+      supabaseAdmin
+        .from("provider_service_zones")
+        .select("profile_id, user_service_id, is_active")
+        .in("profile_id", profileIds)
+        .in("user_service_id", userServiceIds)
+        .eq("is_active", true),
     ]);
 
   const firstError = [
@@ -344,6 +361,7 @@ async function loadCandidates(filters: Filters): Promise<Candidate[]> {
     providerProfilesResult.error,
     serviceProfilesResult.error,
     slotsResult.error,
+    zonesResult.error,
   ].find(Boolean);
 
   if (firstError) throw new Error(firstError.message);
@@ -352,6 +370,14 @@ async function loadCandidates(filters: Filters): Promise<Candidate[]> {
   const providerProfiles = (providerProfilesResult.data ?? []) as ProviderProfileRow[];
   const serviceProfiles = (serviceProfilesResult.data ?? []) as ServiceProfileRow[];
   const slots = (slotsResult.data ?? []) as AvailabilityRow[];
+  const zones = (zonesResult.data ?? []) as ProviderZoneRow[];
+
+  const readyUserServiceIds = new Set(
+    zones
+      .filter((zone) => zone.is_active !== false)
+      .map((zone) => zone.user_service_id)
+  );
+
   const serviceById = new Map(services.map((service) => [service.id, service]));
   const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
   const providerProfileById = new Map(
@@ -376,6 +402,8 @@ async function loadCandidates(filters: Filters): Promise<Candidate[]> {
       const serviceProfile = serviceProfileById.get(userService.id);
 
       if (!service || !profile || !providerProfile || !serviceProfile) return null;
+
+      if (!readyUserServiceIds.has(userService.id)) return null;
 
       return {
         profileId: profile.id,
@@ -465,3 +493,4 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
