@@ -74,8 +74,11 @@ export default function AccountSwitcher({
       setError("");
       setSwitchingId(profileId);
       await switchAccount(profileId);
-      setOpen(false);
-      router.refresh();
+setOpen(false);
+
+window.location.replace(
+  `/dashboard?profile=${encodeURIComponent(profileId)}`
+);
     } catch (switchError) {
       setError(
         switchError instanceof Error
