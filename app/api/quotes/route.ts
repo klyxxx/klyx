@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   apiErrorStatus,
@@ -233,6 +233,7 @@ export async function POST(request: Request) {
         )
         .eq("id", userServiceId)
         .eq("user_id", providerProfileId)
+        .eq("active", true)
         .eq("provider_enabled", true)
         .maybeSingle();
 
@@ -245,6 +246,63 @@ export async function POST(request: Request) {
             "Ce métier n’est pas actif pour ce prestataire.",
         },
         { status: 404 }
+      );
+    }
+
+    /*
+     * Readiness production :
+     * une URL directe ne doit pas permettre de demander un devis
+     * à un prestataire qui n'est pas encore publiquement prêt.
+     */
+    const [
+      providerProfileResult,
+      activeZoneResult,
+    ] = await Promise.all([
+      supabaseAdmin
+        .from("provider_profiles")
+        .select("profile_id")
+        .eq("profile_id", providerProfileId)
+        .eq("is_published", true)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("provider_service_zones")
+        .select("id")
+        .eq("profile_id", providerProfileId)
+        .eq("user_service_id", userServiceId)
+        .eq("is_active", true)
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+    if (providerProfileResult.error) {
+      throw new Error(
+        providerProfileResult.error.message
+      );
+    }
+
+    if (activeZoneResult.error) {
+      throw new Error(
+        activeZoneResult.error.message
+      );
+    }
+
+    if (!providerProfileResult.data) {
+      return NextResponse.json(
+        {
+          error:
+            "Cette fiche prestataire n’est pas publiée.",
+        },
+        { status: 409 }
+      );
+    }
+
+    if (!activeZoneResult.data) {
+      return NextResponse.json(
+        {
+          error:
+            "Ce prestataire n’accepte pas encore de demandes de devis pour ce métier dans une zone active.",
+        },
+        { status: 409 }
       );
     }
 
@@ -568,3 +626,4 @@ export async function PATCH(request: Request) {
     );
   }
 }
+
