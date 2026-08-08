@@ -1,0 +1,122 @@
+import { NextResponse } from "next/server";
+
+import { requireKlyxFounder } from "@/lib/founder-auth";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+
+function founderIds(): Set<string> {
+  return new Set(
+    (process.env.KLYX_FOUNDER_USER_IDS ?? "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean)
+  );
+}
+
+export async function GET() {
+  try {
+    const founder = await requireKlyxFounder();
+
+    const {
+      data: usersData,
+      error: usersError,
+    } = await supabaseAdmin.auth.admin.listUsers({
+      page: 1,
+      perPage: 1000,
+    });
+
+    if (usersError) {
+      throw new Error(usersError.message);
+    }
+
+    const { data: profiles, error: profilesError } =
+      await supabaseAdmin
+        .from("profiles")
+        .select(
+          "id, owner_user_id, account_type, first_name, last_name"
+        );
+
+    if (profilesError) {
+      throw new Error(profilesError.message);
+    }
+
+    const protectedFounderIds = founderIds();
+
+    const users = usersData.users.map((user) => {
+      const profileIdRefs = (profiles ?? []).filter(
+        (profile) => profile.id === user.id
+      );
+
+      const ownerRefs = (profiles ?? []).filter(
+        (profile) => profile.owner_user_id === user.id
+      );
+
+      const reasons: string[] = [];
+
+      if (user.id === founder.id) {
+        reasons.push("Session Founder actuellement connectée");
+      }
+
+      if (protectedFounderIds.has(user.id)) {
+        reasons.push("UID déclaré Founder");
+      }
+
+      if (profileIdRefs.length > 0) {
+        reasons.push(
+          `${profileIdRefs.length} profil(s) utilise(nt) cet UID comme id`
+        );
+      }
+
+      if (ownerRefs.length > 0) {
+        reasons.push(
+          `${ownerRefs.length} profil(s) appartient/appartiennent à cet UID`
+        );
+      }
+
+      const protectedAccount = reasons.length > 0;
+
+      return {
+        id: user.id,
+        email: user.email ?? null,
+        createdAt: user.created_at,
+        lastSignInAt: user.last_sign_in_at ?? null,
+        protected: protectedAccount,
+        protectionReasons: reasons,
+        profileIdReferences: profileIdRefs.map((profile) => ({
+          id: profile.id,
+          accountType: profile.account_type,
+          name: `${profile.first_name ?? ""} ${
+            profile.last_name ?? ""
+          }`.trim(),
+        })),
+        ownedProfiles: ownerRefs.map((profile) => ({
+          id: profile.id,
+          accountType: profile.account_type,
+          name: `${profile.first_name ?? ""} ${
+            profile.last_name ?? ""
+          }`.trim(),
+        })),
+      };
+    });
+
+    return NextResponse.json({
+      founderUserId: founder.id,
+      totalUsers: users.length,
+      protectedUsers: users.filter((user) => user.protected).length,
+      unreferencedUsers: users.filter((user) => !user.protected).length,
+      users,
+      deletionEnabled: false,
+      deletionMessage:
+        "11.3 est un audit de sécurité. Aucun compte Auth n’est supprimé automatiquement.",
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Audit impossible.",
+      },
+      { status: 500 }
+    );
+  }
+}

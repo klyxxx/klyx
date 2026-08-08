@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -6,16 +6,39 @@ import {
   BadgeCheck,
   Banknote,
   BriefcaseBusiness,
+  Crown,
   FileCheck2,
   Gavel,
   LoaderCircle,
   Search,
   Rocket,
   ShieldCheck,
+  UsersRound,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const AREAS = [
+  {
+    title: "Console Founder",
+    description:
+      "Basculer entre Client, Prestataire et Super Admin.",
+    href: "/founder",
+    icon: Crown,
+  },
+  {
+    title: "Tests Founder",
+    description:
+      "Valider le compte unique et ses accès critiques.",
+    href: "/founder/test",
+    icon: ShieldCheck,
+  },
+  {
+    title: "Audit des comptes",
+    description:
+      "Identifier les anciens comptes Auth sans suppression risquée.",
+    href: "/founder/cleanup",
+    icon: UsersRound,
+  },
   {
     title: "Centre de lancement",
     description:
@@ -146,9 +169,16 @@ export default function AdminHomePage() {
     <main className="klyx-page">
       <div className="mx-auto max-w-6xl">
         <section className="rounded-[2rem] bg-[linear-gradient(135deg,#17131f,#2b1452_52%,#111827)] p-8 text-white">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em]">
-            <ShieldCheck size={15} />
-            Accès administrateur
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em]">
+              <ShieldCheck size={15} />
+              Accès administrateur
+            </div>
+
+            <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-amber-200">
+              <Crown size={15} />
+              Founder
+            </div>
           </div>
 
           <h1 className="mt-5 text-3xl font-black sm:text-5xl">
@@ -156,10 +186,36 @@ export default function AdminHomePage() {
           </h1>
 
           <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">
-            Ton accès est un accès de supervision. Tu vois les
-            dossiers et les décisions, mais le moteur de
-            vérification externe reste l’autorité de décision.
+            Ton compte dispose de l’accès de supervision KLYX.
+            Les vérifications externes restent l’autorité pour les
+            validations réelles des utilisateurs publics.
           </p>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              href="/founder"
+              className="inline-flex h-11 items-center gap-2 rounded-xl bg-white px-4 text-sm font-black text-zinc-950"
+            >
+              <Crown size={16} />
+              Console Founder
+            </Link>
+
+            <Link
+              href="/founder/test"
+              className="inline-flex h-11 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 text-sm font-black text-white"
+            >
+              <ShieldCheck size={16} />
+              Tests Founder
+            </Link>
+
+            <Link
+              href="/founder/cleanup"
+              className="inline-flex h-11 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 text-sm font-black text-white"
+            >
+              <UsersRound size={16} />
+              Audit comptes
+            </Link>
+          </div>
         </section>
 
         <section className="mt-6 rounded-2xl border border-blue-500/20 bg-blue-500/10 p-5">
@@ -206,4 +262,3 @@ export default function AdminHomePage() {
     </main>
   );
 }
-
