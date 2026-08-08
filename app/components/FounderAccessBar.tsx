@@ -6,7 +6,11 @@ import {
   UsersRound,
 } from "lucide-react";
 
-import { getActiveProfile } from "@/lib/active-profile";
+import FounderModeSwitcher from "@/app/components/FounderModeSwitcher";
+import {
+  getActiveProfile,
+  getOwnedProfiles,
+} from "@/lib/active-profile";
 import { isKlyxFounder } from "@/lib/founder-auth";
 
 export default async function FounderAccessBar() {
@@ -16,7 +20,23 @@ export default async function FounderAccessBar() {
     return null;
   }
 
-  const profile = await getActiveProfile();
+  const [profile, profiles] =
+    await Promise.all([
+      getActiveProfile(),
+      getOwnedProfiles(),
+    ]);
+
+  const clientProfile =
+    profiles.find(
+      (item) =>
+        item.accountType === "client"
+    ) ?? null;
+
+  const providerProfile =
+    profiles.find(
+      (item) =>
+        item.accountType === "provider"
+    ) ?? null;
 
   const mode =
     profile?.accountType === "provider"
@@ -47,6 +67,18 @@ export default async function FounderAccessBar() {
             Mode actif : {mode}
           </span>
         </div>
+
+        <FounderModeSwitcher
+          currentProfileId={
+            profile?.id ?? null
+          }
+          clientProfileId={
+            clientProfile?.id ?? null
+          }
+          providerProfileId={
+            providerProfile?.id ?? null
+          }
+        />
 
         <nav className="flex flex-wrap items-center gap-2">
           <Link
