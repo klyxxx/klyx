@@ -1,17 +1,23 @@
-const CACHE_NAME = "klyx-static-v1";
-const STATIC_ASSETS = [
+const CACHE_NAME = "klyx-shell-v2";
+
+const APP_SHELL = [
   "/",
   "/install",
+  "/offline",
   "/icon.svg",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
   "/icons/icon-maskable-512.png",
+  "/icons/apple-touch-icon.png",
 ];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
+    caches
+      .open(CACHE_NAME)
+      .then((cache) => cache.addAll(APP_SHELL))
   );
+
   self.skipWaiting();
 });
 
@@ -27,36 +33,99 @@ self.addEventListener("activate", (event) => {
         )
       )
   );
+
   self.clients.claim();
 });
+
+function shouldBypass(request, url) {
+  if (request.method !== "GET") {
+    return true;
+  }
+
+  if (url.origin !== self.location.origin) {
+    return true;
+  }
+
+  return (
+    url.pathname.startsWith("/api/") ||
+    url.pathname.startsWith("/auth/") ||
+    url.pathname.startsWith("/payment/") ||
+    url.pathname.startsWith("/connect/")
+  );
+}
+
+function isStaticAsset(url) {
+  return (
+    url.pathname.startsWith("/_next/static/") ||
+    url.pathname.startsWith("/icons/") ||
+    url.pathname === "/icon.svg" ||
+    /\.(?:png|jpg|jpeg|gif|webp|svg|ico|woff2?)$/i.test(
+      url.pathname
+    )
+  );
+}
 
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   const url = new URL(request.url);
 
-  if (
-    request.method !== "GET" ||
-    url.origin !== self.location.origin ||
-    url.pathname.startsWith("/api/") ||
-    url.pathname.startsWith("/auth/")
-  ) {
+  if (shouldBypass(request, url)) {
     return;
   }
 
-  if (
-    url.pathname.startsWith("/_next/static/") ||
-    url.pathname.startsWith("/icons/") ||
-    url.pathname === "/icon.svg"
-  ) {
+  if (request.mode === "navigate") {
     event.respondWith(
-      caches.match(request).then((cached) => {
-        if (cached) return cached;
-
-        return fetch(request).then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+      fetch(request)
+        .then((response) => {
           return response;
-        });
+        })
+        .catch(async () => {
+          const offline =
+            await caches.match("/offline");
+
+          if (offline) {
+            return offline;
+          }
+
+          return new Response(
+            "KLYX est temporairement hors ligne.",
+            {
+              status: 503,
+              headers: {
+                "Content-Type":
+                  "text/plain; charset=utf-8",
+              },
+            }
+          );
+        })
+    );
+
+    return;
+  }
+
+  if (isStaticAsset(url)) {
+    event.respondWith(
+      caches.match(request).then(async (cached) => {
+        if (cached) {
+          return cached;
+        }
+
+        const response = await fetch(request);
+
+        if (
+          response.ok &&
+          response.type === "basic"
+        ) {
+          const copy = response.clone();
+
+          void caches
+            .open(CACHE_NAME)
+            .then((cache) =>
+              cache.put(request, copy)
+            );
+        }
+
+        return response;
       })
     );
   }
