@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -10,11 +10,19 @@ import {
   Gavel,
   LoaderCircle,
   Search,
+  Rocket,
   ShieldCheck,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const AREAS = [
+  {
+    title: "Centre de lancement",
+    description:
+      "Contrôler les briques essentielles avant ouverture de KLYX.",
+    href: "/admin/launch",
+    icon: Rocket,
+  },
   {
     title: "Compétences prestataires",
     description:
@@ -198,3 +206,4 @@ export default function AdminHomePage() {
     </main>
   );
 }
+
