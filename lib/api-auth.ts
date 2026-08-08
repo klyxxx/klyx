@@ -2,7 +2,11 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
-import { ACTIVE_PROFILE_COOKIE, type AccountType } from "@/lib/active-profile";
+
+import {
+  ACTIVE_PROFILE_COOKIE,
+  type AccountType,
+} from "@/lib/active-profile";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 type AuthenticatedUser = {
@@ -25,31 +29,36 @@ type ProfileRow = {
   account_type: string | null;
   first_name: string | null;
   last_name: string | null;
-  country_code: string | null;
 };
 
 function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();
 
   if (!value) {
-    throw new Error(`Variable manquante : ${name}`);
+    throw new Error(
+      `Variable manquante : ${name}`
+    );
   }
 
   return value;
 }
 
-function normalizeProfile(profile: ProfileRow): AuthenticatedProfile {
+function normalizeProfile(
+  profile: ProfileRow
+): AuthenticatedProfile {
   return {
     id: profile.id,
     ownerUserId: profile.owner_user_id,
-    accountType: profile.account_type === "provider" ? "provider" : "client",
+    accountType:
+      profile.account_type === "provider"
+        ? "provider"
+        : "client",
     firstName: profile.first_name ?? "",
     lastName: profile.last_name ?? "",
-    countryCode:
-      typeof profile.country_code === "string" &&
-      /^[A-Z]{2}$/i.test(profile.country_code)
-        ? profile.country_code.toUpperCase()
-        : "BE",
+
+    // KLYX fonctionne actuellement avec
+    // les règles de qualification Belgique.
+    countryCode: "BE",
   };
 }
 
@@ -68,12 +77,17 @@ export async function getAuthenticatedProfile(
   }
 
   const authClient = createClient(
-    requiredEnv("NEXT_PUBLIC_SUPABASE_URL"),
-    requiredEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+    requiredEnv(
+      "NEXT_PUBLIC_SUPABASE_URL"
+    ),
+    requiredEnv(
+      "NEXT_PUBLIC_SUPABASE_ANON_KEY"
+    ),
     {
       global: {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization:
+            `Bearer ${token}`,
         },
       },
       auth: {
@@ -86,34 +100,64 @@ export async function getAuthenticatedProfile(
   const {
     data: { user },
     error,
-  } = await authClient.auth.getUser(token);
+  } = await authClient.auth.getUser(
+    token
+  );
 
   if (error || !user) {
-    throw new Error("Session invalide.");
+    throw new Error(
+      "Session invalide."
+    );
   }
 
-  const { data, error: profilesError } = await supabaseAdmin
+  const {
+    data,
+    error: profilesError,
+  } = await supabaseAdmin
     .from("profiles")
-    .select("id, owner_user_id, account_type, first_name, last_name, country_code")
-    .eq("owner_user_id", user.id)
-    .order("created_at", { ascending: true });
+    .select(
+      "id, owner_user_id, account_type, first_name, last_name"
+    )
+    .eq(
+      "owner_user_id",
+      user.id
+    )
+    .order(
+      "created_at",
+      {
+        ascending: true,
+      }
+    );
 
   if (profilesError) {
-    throw new Error(profilesError.message);
+    throw new Error(
+      profilesError.message
+    );
   }
 
-  const profiles = ((data ?? []) as ProfileRow[]).map(normalizeProfile);
+  const profiles = (
+    (data ?? []) as ProfileRow[]
+  ).map(normalizeProfile);
 
   if (profiles.length === 0) {
-    throw new Error("Profil KLYX introuvable.");
+    throw new Error(
+      "Profil KLYX introuvable."
+    );
   }
 
-  const selectedProfileId = (await cookies()).get(
-    ACTIVE_PROFILE_COOKIE
-  )?.value;
+  const selectedProfileId =
+    (
+      await cookies()
+    ).get(
+      ACTIVE_PROFILE_COOKIE
+    )?.value;
 
   const profile =
-    profiles.find((item) => item.id === selectedProfileId) ?? profiles[0];
+    profiles.find(
+      (item) =>
+        item.id ===
+        selectedProfileId
+    ) ?? profiles[0];
 
   return {
     user: {
@@ -128,7 +172,9 @@ export function requireAccountType(
   profile: AuthenticatedProfile,
   expected: AccountType
 ): void {
-  if (profile.accountType !== expected) {
+  if (
+    profile.accountType !== expected
+  ) {
     throw new Error(
       expected === "provider"
         ? "Cette action nécessite un profil prestataire."
@@ -137,18 +183,27 @@ export function requireAccountType(
   }
 }
 
-export function apiErrorStatus(message: string): number {
-  if (message === "Session manquante." || message === "Session invalide.") {
+export function apiErrorStatus(
+  message: string
+): number {
+  if (
+    message ===
+      "Session manquante." ||
+    message ===
+      "Session invalide."
+  ) {
     return 401;
   }
 
   if (
-    message === "Profil KLYX introuvable." ||
-    message.startsWith("Cette action nécessite")
+    message ===
+      "Profil KLYX introuvable." ||
+    message.startsWith(
+      "Cette action nécessite"
+    )
   ) {
     return 403;
   }
 
   return 500;
 }
-
