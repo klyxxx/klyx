@@ -11,11 +11,31 @@ function configuredFounderIds(): Set<string> {
   );
 }
 
+export async function isKlyxFounder(): Promise<boolean> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return false;
+  }
+
+  return configuredFounderIds().has(user.id);
+}
+
 export async function requireKlyxFounder() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) throw new Error("KLYX_FOUNDER_UNAUTHENTICATED");
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("KLYX_FOUNDER_UNAUTHENTICATED");
+  }
+
   if (!configuredFounderIds().has(user.id)) {
     throw new Error("KLYX_FOUNDER_FORBIDDEN");
   }
@@ -24,8 +44,16 @@ export async function requireKlyxFounder() {
 }
 
 export function founderErrorStatus(error: unknown): number {
-  const message = error instanceof Error ? error.message : "";
-  if (message === "KLYX_FOUNDER_UNAUTHENTICATED") return 401;
-  if (message === "KLYX_FOUNDER_FORBIDDEN") return 403;
+  const message =
+    error instanceof Error ? error.message : "";
+
+  if (message === "KLYX_FOUNDER_UNAUTHENTICATED") {
+    return 401;
+  }
+
+  if (message === "KLYX_FOUNDER_FORBIDDEN") {
+    return 403;
+  }
+
   return 500;
 }

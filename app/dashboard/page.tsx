@@ -1,9 +1,12 @@
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { getActiveProfile } from "@/lib/active-profile";
+
 import AccountSwitcher from "@/app/components/AccountSwitcher";
-import Header from "./Header";
+import { getActiveProfile } from "@/lib/active-profile";
+import { isKlyxFounder } from "@/lib/founder-auth";
+import { createClient } from "@/lib/supabase/server";
+
 import ClientDashboard from "./ClientDashboard";
+import Header from "./Header";
 import ProviderDashboard from "./ProviderDashboard";
 
 export default async function DashboardPage() {
@@ -17,10 +20,13 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const profile = await getActiveProfile();
+  const [profile, founder] = await Promise.all([
+    getActiveProfile(),
+    isKlyxFounder(),
+  ]);
 
   if (!profile) {
-    redirect("/profile");
+    redirect("/accounts");
   }
 
   const fullName =
@@ -30,18 +36,27 @@ export default async function DashboardPage() {
 
   return (
     <main className="klyx-page">
-      <div className="mb-8 flex flex-col gap-5 border-b border-border pb-6 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-8 flex flex-col gap-5 border-b border-border pb-6 sm:flex-row sm:items-start sm:justify-between">
         <Header
           email={user.email ?? ""}
           displayName={fullName}
+          isFounder={founder}
+          accountType={profile.accountType}
         />
-        <AccountSwitcher currentProfileId={profile.id} />
+
+        <AccountSwitcher
+          currentProfileId={profile.id}
+        />
       </div>
 
       {profile.accountType === "provider" ? (
-        <ProviderDashboard firstName={profile.firstName} />
+        <ProviderDashboard
+          firstName={profile.firstName}
+        />
       ) : (
-        <ClientDashboard firstName={profile.firstName} />
+        <ClientDashboard
+          firstName={profile.firstName}
+        />
       )}
     </main>
   );
