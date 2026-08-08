@@ -1,10 +1,14 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import {
   apiErrorStatus,
   getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import {
+  evaluateSkillEvidence,
+  getSkillQualificationRule,
+} from "@/lib/skill-qualification";
 
 const PROOF_TYPES = new Set([
   "diploma",
@@ -410,32 +414,70 @@ export async function PATCH(request: Request) {
     }
 
     if (body.submit === true) {
-      const { count, error: countError } =
+      const { data: ownedService, error: ownedServiceError } =
+        await supabaseAdmin
+          .from("user_services")
+          .select("id, service_id")
+          .eq("id", userServiceId)
+          .eq("user_id", profile.id)
+          .single();
+
+      if (ownedServiceError) throw new Error(ownedServiceError.message);
+
+      const { data: service, error: serviceError } =
+        await supabaseAdmin
+          .from("services")
+          .select("id, name, slug")
+          .eq("id", ownedService.service_id)
+          .single();
+
+      if (serviceError) throw new Error(serviceError.message);
+
+      const { data: documents, error: documentsError } =
         await supabaseAdmin
           .from("provider_skill_documents")
-          .select("id", {
-            count: "exact",
-            head: true,
-          })
-          .eq(
-            "verification_id",
-            verification.id
-          );
+          .select("proof_type, status")
+          .eq("verification_id", verification.id);
 
-      if (countError) {
-        throw new Error(countError.message);
+      if (documentsError) throw new Error(documentsError.message);
+
+      const { data: generalVerification, error: generalError } =
+        await supabaseAdmin
+          .from("provider_verifications")
+          .select("identity_status")
+          .eq("profile_id", profile.id)
+          .maybeSingle();
+
+      if (generalError) throw new Error(generalError.message);
+
+      const rule = await getSkillQualificationRule({
+        countryCode: profile.countryCode,
+        serviceSlug: service.slug,
+      });
+
+      const evaluation = evaluateSkillEvidence({
+        rule,
+        proofTypes: (documents ?? [])
+          .filter((document) => document.status !== "rejected")
+          .map((document) => document.proof_type),
+        yearsExperience: years,
+        identityApproved: generalVerification?.identity_status === "approved",
+      });
+
+      if (!evaluation.identityOk) {
+        throw new Error("Ta vérification d'identité doit être validée avant l'envoi de cette compétence.");
       }
 
-      if (!count || count < 1) {
-        throw new Error(
-          "Ajoute au moins une preuve avant d’envoyer cette compétence."
-        );
+      if (!evaluation.experienceOk) {
+        throw new Error(`KLYX demande au moins ${rule.minimumYearsExperience} année(s) d'expérience pour ce métier.`);
+      }
+
+      if (evaluation.missingProofTypes.length > 0) {
+        throw new Error(`Preuves obligatoires manquantes : ${evaluation.missingProofTypes.join(", ")}.`);
       }
 
       if (statement.length < 30) {
-        throw new Error(
-          "Explique en au moins 30 caractères pourquoi tu peux réaliser cette prestation."
-        );
+        throw new Error("Explique en au moins 30 caractères pourquoi tu peux réaliser cette prestation.");
       }
     }
 
@@ -492,3 +534,5 @@ export async function PATCH(request: Request) {
     );
   }
 }
+
+

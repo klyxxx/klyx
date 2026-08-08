@@ -378,7 +378,7 @@ export default function AppSidebar() {
         )}
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
+      <nav className="klyx-scrollbar flex-1 space-y-1 overflow-y-auto px-3 py-2">
         {menu.map((item) => {
           const Icon = item.icon;
 
@@ -523,3 +523,4 @@ export default function AppSidebar() {
     </>
   );
 }
+

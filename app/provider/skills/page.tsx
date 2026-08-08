@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   ChangeEvent,
@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getActiveClientProfile } from "@/lib/account-switcher";
+import KlyxSelect from "@/app/components/KlyxSelect";
 
 type ProofType =
   | "diploma"
@@ -578,35 +579,27 @@ export default function ProviderSkillsPage() {
                       <span className="text-sm font-black">
                         Type de preuve
                       </span>
-                      <select
-                        disabled={locked}
-                        value={
-                          proofTypes[
-                            skill.userServiceId
-                          ] ??
-                          "training_certificate"
-                        }
-                        onChange={(event) =>
-                          setProofTypes(
-                            (current) => ({
-                              ...current,
-                              [skill.userServiceId]:
-                                event.target
-                                  .value as ProofType,
-                            })
-                          )
-                        }
-                        className="klyx-input mt-2"
-                      >
-                        {PROOFS.map((proof) => (
-                          <option
-                            key={proof.value}
-                            value={proof.value}
-                          >
-                            {proof.label}
-                          </option>
-                        ))}
-                      </select>
+                      <KlyxSelect
+  disabled={locked}
+  value={
+    proofTypes[
+      skill.userServiceId
+    ] ?? "training_certificate"
+  }
+  onChange={(value) =>
+    setProofTypes(
+      (current) => ({
+        ...current,
+        [skill.userServiceId]:
+          value as ProofType,
+      })
+    )
+  }
+  options={PROOFS}
+  placeholder="Choisir un type de preuve"
+  ariaLabel={`Type de preuve pour ${skill.serviceName}`}
+  className="mt-2"
+/>
                     </label>
                   </div>
 
@@ -759,3 +752,4 @@ export default function ProviderSkillsPage() {
     </main>
   );
 }
+

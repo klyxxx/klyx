@@ -1,4 +1,4 @@
-import "server-only";
+﻿import "server-only";
 
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
@@ -16,6 +16,7 @@ export type AuthenticatedProfile = {
   accountType: AccountType;
   firstName: string;
   lastName: string;
+  countryCode: string;
 };
 
 type ProfileRow = {
@@ -24,6 +25,7 @@ type ProfileRow = {
   account_type: string | null;
   first_name: string | null;
   last_name: string | null;
+  country_code: string | null;
 };
 
 function requiredEnv(name: string): string {
@@ -43,6 +45,11 @@ function normalizeProfile(profile: ProfileRow): AuthenticatedProfile {
     accountType: profile.account_type === "provider" ? "provider" : "client",
     firstName: profile.first_name ?? "",
     lastName: profile.last_name ?? "",
+    countryCode:
+      typeof profile.country_code === "string" &&
+      /^[A-Z]{2}$/i.test(profile.country_code)
+        ? profile.country_code.toUpperCase()
+        : "BE",
   };
 }
 
@@ -87,7 +94,7 @@ export async function getAuthenticatedProfile(
 
   const { data, error: profilesError } = await supabaseAdmin
     .from("profiles")
-    .select("id, owner_user_id, account_type, first_name, last_name")
+    .select("id, owner_user_id, account_type, first_name, last_name, country_code")
     .eq("owner_user_id", user.id)
     .order("created_at", { ascending: true });
 
@@ -144,3 +151,4 @@ export function apiErrorStatus(message: string): number {
 
   return 500;
 }
+

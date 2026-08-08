@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Check, ChevronDown } from "lucide-react";
 import {
@@ -21,6 +21,8 @@ type KlyxSelectProps = {
   onChange: (value: string) => void;
   placeholder?: string;
   disabled?: boolean;
+  required?: boolean;
+  name?: string;
   className?: string;
   ariaLabel?: string;
 };
@@ -31,6 +33,8 @@ export default function KlyxSelect({
   onChange,
   placeholder = "Choisir",
   disabled = false,
+  required = false,
+  name,
   className = "",
   ariaLabel,
 }: KlyxSelectProps) {
@@ -129,6 +133,25 @@ export default function KlyxSelect({
 
   return (
     <div ref={rootRef} className={`relative ${className}`}>
+      {name && (
+        <input
+          type="hidden"
+          name={name}
+          value={value}
+        />
+      )}
+
+      {required && (
+        <input
+          tabIndex={-1}
+          aria-hidden="true"
+          required
+          value={value}
+          onChange={() => undefined}
+          className="pointer-events-none absolute left-1/2 top-full h-px w-px -translate-x-1/2 opacity-0"
+        />
+      )}
+
       <button
         ref={buttonRef}
         id={id}
@@ -137,6 +160,7 @@ export default function KlyxSelect({
         aria-expanded={open}
         aria-controls={`${id}-listbox`}
         aria-label={ariaLabel}
+        aria-required={required || undefined}
         disabled={disabled}
         onKeyDown={handleKeyDown}
         onClick={() => !disabled && setOpen((current) => !current)}
@@ -170,7 +194,7 @@ export default function KlyxSelect({
         <div
           id={`${id}-listbox`}
           role="listbox"
-          className="absolute left-0 right-0 z-[140] mt-2 max-h-72 overflow-y-auto rounded-2xl border border-white/10 bg-zinc-950/95 p-2 shadow-2xl backdrop-blur-2xl"
+          className="klyx-scrollbar absolute left-0 right-0 z-[140] mt-2 max-h-72 overflow-y-auto rounded-2xl border border-white/10 bg-zinc-950/95 p-2 shadow-2xl backdrop-blur-2xl"
         >
           {options.map((option) => {
             const selected = option.value === value;
@@ -217,3 +241,4 @@ export default function KlyxSelect({
     </div>
   );
 }
+
