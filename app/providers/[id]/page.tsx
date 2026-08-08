@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -114,8 +114,13 @@ export default function ProviderProfilePage() {
       setErrorMessage("");
 
       try {
-        const [profileResult, providerProfileResult, userServicesResult, galleryResult] =
-          await Promise.all([
+        const [
+          profileResult,
+          providerProfileResult,
+          userServicesResult,
+          galleryResult,
+          verifiedServicesResponse,
+        ] = await Promise.all([
             supabase
               .from("profiles")
               .select("id, first_name, last_name, city, avatar_url")
@@ -139,6 +144,10 @@ export default function ProviderProfilePage() {
               .eq("profile_id", providerId)
               .order("position", { ascending: true })
               .limit(8),
+            fetch(
+              `/api/providers/${providerId}/verified-services`,
+              { cache: "no-store" }
+            ),
           ]);
 
         const firstError = [
@@ -157,7 +166,26 @@ export default function ProviderProfilePage() {
 
         const profileData = profileResult.data as ProfileRow;
         const commercialData = providerProfileResult.data as ProviderProfileRow;
-        const userServices = (userServicesResult.data ?? []) as UserServiceRow[];
+
+        if (!verifiedServicesResponse.ok) {
+          throw new Error(
+            "Impossible de vérifier les métiers publiables."
+          );
+        }
+
+        const verifiedServicesBody =
+          (await verifiedServicesResponse.json()) as {
+            userServiceIds?: string[];
+          };
+
+        const approvedUserServiceIds =
+          new Set(verifiedServicesBody.userServiceIds ?? []);
+
+        const userServices =
+          ((userServicesResult.data ?? []) as UserServiceRow[])
+            .filter((item) =>
+              approvedUserServiceIds.has(item.id)
+            );
 
         if (!commercialData.is_published && userServices.length === 0) {
           setProfile(null);
@@ -475,3 +503,4 @@ export default function ProviderProfilePage() {
     </main>
   );
 }
+

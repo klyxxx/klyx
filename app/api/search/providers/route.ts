@@ -10,6 +10,7 @@ import {
   type ProviderSearchSort,
 } from "@/lib/provider-search";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { getApprovedUserServiceIds } from "@/lib/provider-skill-publication";
 
 const SERVICE_SLUGS = ["babysitting", "cleaning", "moving", "handyman"];
 const SORT_VALUES: ProviderSearchSort[] = [
@@ -312,11 +313,28 @@ async function loadCandidates(filters: Filters): Promise<Candidate[]> {
 
   if (userServicesResult.error) throw new Error(userServicesResult.error.message);
 
-  const userServices = (userServicesResult.data ?? []) as UserServiceRow[];
+  const allUserServices =
+    (userServicesResult.data ?? []) as UserServiceRow[];
+
+  if (allUserServices.length === 0) return [];
+
+  const approvedUserServiceIds =
+    await getApprovedUserServiceIds(
+      allUserServices.map((item) => item.id)
+    );
+
+  const userServices =
+    allUserServices.filter((item) =>
+      approvedUserServiceIds.has(item.id)
+    );
+
   if (userServices.length === 0) return [];
 
-  const profileIds = [...new Set(userServices.map((item) => item.user_id))];
-  const userServiceIds = userServices.map((item) => item.id);
+  const profileIds = [
+    ...new Set(userServices.map((item) => item.user_id)),
+  ];
+  const userServiceIds =
+    userServices.map((item) => item.id);
 
   const [
     profilesResult,
@@ -493,4 +511,5 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
 

@@ -1,5 +1,6 @@
 ﻿import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { isUserServiceApproved } from "@/lib/provider-skill-publication";
 import {
   apiErrorStatus,
   getAuthenticatedProfile,
@@ -260,6 +261,22 @@ export async function POST(request: Request) {
             "Ce prestataire ne propose pas ce service.",
         },
         { status: 404 }
+      );
+    }
+
+    const skillApproved =
+      await isUserServiceApproved({
+        profileId: providerId,
+        userServiceId: userService.id,
+      });
+
+    if (!skillApproved) {
+      return NextResponse.json(
+        {
+          error:
+            "Ce métier n’est pas encore vérifié par KLYX et ne peut pas être réservé.",
+        },
+        { status: 409 }
       );
     }
 
@@ -683,4 +700,5 @@ export async function POST(request: Request) {
     );
   }
 }
+
 
