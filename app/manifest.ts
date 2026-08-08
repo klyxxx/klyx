@@ -5,15 +5,20 @@ export default function manifest(): MetadataRoute.Manifest {
     id: "/",
     name: "KLYX — Services du quotidien",
     short_name: "KLYX",
-    description: "Trouvez, réservez et payez des prestataires de confiance.",
-    start_url: "/dashboard",
+    description:
+      "Trouve, réserve et organise les services du quotidien avec KLYX.",
+    start_url: "/",
     scope: "/",
     display: "standalone",
     orientation: "portrait-primary",
     background_color: "#09090b",
-    theme_color: "#7c3aed",
+    theme_color: "#09090b",
     lang: "fr-BE",
-    categories: ["lifestyle", "productivity", "business"],
+    categories: [
+      "lifestyle",
+      "productivity",
+      "business",
+    ],
     icons: [
       {
         src: "/icons/icon-192.png",
@@ -36,18 +41,42 @@ export default function manifest(): MetadataRoute.Manifest {
     ],
     shortcuts: [
       {
+        name: "Accueil KLYX",
+        short_name: "Accueil",
+        description: "Ouvrir KLYX",
+        url: "/",
+        icons: [
+          {
+            src: "/icons/icon-192.png",
+            sizes: "192x192",
+          },
+        ],
+      },
+      {
         name: "Trouver un service",
         short_name: "Rechercher",
-        description: "Rechercher un prestataire sur KLYX",
+        description:
+          "Rechercher un prestataire sur KLYX",
         url: "/search",
-        icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }],
+        icons: [
+          {
+            src: "/icons/icon-192.png",
+            sizes: "192x192",
+          },
+        ],
       },
       {
         name: "Mes réservations",
         short_name: "Réservations",
-        description: "Consulter mes réservations KLYX",
+        description:
+          "Consulter mes réservations KLYX",
         url: "/bookings",
-        icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }],
+        icons: [
+          {
+            src: "/icons/icon-192.png",
+            sizes: "192x192",
+          },
+        ],
       },
     ],
   };
