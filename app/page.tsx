@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import {
   ArrowRight,
   BadgeCheck,
@@ -15,6 +15,7 @@ import {
 
 import InstallKlyxButton from "@/app/components/InstallKlyxButton";
 import KlyxLogo from "@/app/ui/KlyxLogo";
+import PublicSessionActions from "@/app/components/PublicSessionActions";
 
 const services = [
   "Baby-sitting",
@@ -66,19 +67,7 @@ export default function HomePage() {
               Installer
             </Link>
 
-            <Link
-              href="/login"
-              className="inline-flex h-11 items-center rounded-xl border border-white/10 px-4 text-sm font-bold text-white transition hover:bg-white/7"
-            >
-              Se connecter
-            </Link>
-
-            <Link
-              href="/signup"
-              className="inline-flex h-11 items-center rounded-xl bg-violet-600 px-4 text-sm font-black text-white transition hover:bg-violet-500"
-            >
-              Créer un compte
-            </Link>
+            <PublicSessionActions compact />
           </nav>
         </div>
       </header>
@@ -103,20 +92,7 @@ export default function HomePage() {
             </p>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link
-                href="/signup"
-                className="inline-flex min-h-14 items-center justify-center gap-2 rounded-2xl bg-violet-600 px-6 text-base font-black text-white shadow-[0_16px_50px_rgba(124,58,237,0.28)] transition hover:-translate-y-0.5 hover:bg-violet-500"
-              >
-                Commencer avec KLYX
-                <ArrowRight size={19} />
-              </Link>
-
-              <Link
-                href="/login"
-                className="inline-flex min-h-14 items-center justify-center rounded-2xl border border-white/12 bg-white/5 px-6 text-base font-black text-white transition hover:bg-white/10"
-              >
-                J’ai déjà un compte
-              </Link>
+              <PublicSessionActions />
 
               <Link
                 href="/install"
@@ -329,3 +305,4 @@ function ResultRow({
     </div>
   );
 }
+

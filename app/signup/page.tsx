@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BriefcaseBusiness, Check, Eye, EyeOff, LockKeyhole, Mail, UserRound } from "lucide-react";
@@ -19,6 +19,39 @@ export default function SignupPage() {
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const [checkingSession, setCheckingSession] =
+    useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    async function checkSession() {
+      const supabase = createClient();
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!active) {
+        return;
+      }
+
+      if (user) {
+        router.replace("/dashboard");
+        router.refresh();
+        return;
+      }
+
+      setCheckingSession(false);
+    }
+
+    void checkSession();
+
+    return () => {
+      active = false;
+    };
+  }, [router]);
 
   async function handleSignup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -55,6 +88,16 @@ export default function SignupPage() {
     }
   }
 
+  if (checkingSession) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-zinc-950 text-white">
+        <div
+          className="h-10 w-10 animate-spin rounded-full border-2 border-white/20 border-t-violet-500"
+          aria-label="Verification de la session"
+        />
+      </main>
+    );
+  }
   return (
     <main className="min-h-screen bg-zinc-950 px-5 py-8 text-white sm:px-8">
       <div className="mx-auto max-w-6xl">
@@ -93,4 +136,5 @@ export default function SignupPage() {
     </main>
   );
 }
+
 
