@@ -1,6 +1,6 @@
-﻿import { NextResponse } from "next/server";
-import { assertStripeRuntimeReady } from "@/lib/stripe-runtime";
+import { NextResponse } from "next/server";
 import Stripe from "stripe";
+
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   getPaymentFailureDetails,
@@ -15,16 +15,24 @@ import {
 } from "@/lib/stripe-webhook-events";
 import { reconcileStripeRefund } from "@/lib/stripe-refunds";
 
-function getStripeConfig() {
-  const stripeSecretKey =
-    process.env.STRIPE_SECRET_KEY?.trim();
-  const webhookSecret =
-    process.env.STRIPE_WEBHOOK_SECRET?.trim();
+function getStripeWebhookConfig() {
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim() ?? "";
 
-  if (!stripeSecretKey || !webhookSecret) {
-    throw new Error(
-      "STRIPE_SECRET_KEY ou STRIPE_WEBHOOK_SECRET manque dans .env.local."
-    );
+  if (!stripeSecretKey) {
+    throw new Error("STRIPE_SECRET_KEY manque dans les variables d'environnement.");
+  }
+
+  if (!webhookSecret) {
+    throw new Error("STRIPE_WEBHOOK_SECRET manque dans les variables d'environnement.");
+  }
+
+  if (!stripeSecretKey.startsWith("sk_test_") && !stripeSecretKey.startsWith("sk_live_")) {
+    throw new Error("STRIPE_SECRET_KEY n'est pas une clé secrète Stripe valide.");
+  }
+
+  if (!webhookSecret.startsWith("whsec_")) {
+    throw new Error("STRIPE_WEBHOOK_SECRET doit être le secret whsec_ de cet endpoint.");
   }
 
   return {
@@ -33,21 +41,13 @@ function getStripeConfig() {
   };
 }
 
-async function updateConnectedAccount(
-  account: Stripe.Account
-) {
+async function updateConnectedAccount(account: Stripe.Account) {
   const { error } = await supabaseAdmin
     .from("profiles")
     .update({
-      stripe_onboarding_complete: Boolean(
-        account.details_submitted
-      ),
-      stripe_charges_enabled: Boolean(
-        account.charges_enabled
-      ),
-      stripe_payouts_enabled: Boolean(
-        account.payouts_enabled
-      ),
+      stripe_onboarding_complete: Boolean(account.details_submitted),
+      stripe_charges_enabled: Boolean(account.charges_enabled),
+      stripe_payouts_enabled: Boolean(account.payouts_enabled),
     })
     .eq("stripe_account_id", account.id);
 
@@ -57,28 +57,25 @@ async function updateConnectedAccount(
 }
 
 export async function POST(request: Request) {
-  assertStripeRuntimeReady();
   let stripe: Stripe;
   let webhookSecret: string;
 
   try {
-    const config = getStripeConfig();
+    const config = getStripeWebhookConfig();
     stripe = config.stripe;
     webhookSecret = config.webhookSecret;
   } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Configuration Stripe incomplete.",
-      },
-      { status: 500 }
-    );
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Configuration Stripe webhook incomplète.";
+
+    console.error("Stripe webhook configuration error:", message);
+
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 
-  const signature =
-    request.headers.get("stripe-signature");
+  const signature = request.headers.get("stripe-signature");
 
   if (!signature) {
     return NextResponse.json(
@@ -98,29 +95,32 @@ export async function POST(request: Request) {
       webhookSecret
     );
   } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Signature Stripe invalide.",
-      },
-      { status: 400 }
-    );
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Signature Stripe invalide.";
+
+    console.error("Stripe webhook signature error:", message);
+
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 
   let claimed = false;
 
   try {
-    const claim =
-      await claimStripeWebhookEvent(event);
+    const claim = await claimStripeWebhookEvent(event);
 
     if (!claim.shouldProcess) {
-      return NextResponse.json({
-        received: true,
-        duplicate: true,
-        reason: claim.reason,
-      });
+      return NextResponse.json(
+        {
+          received: true,
+          duplicate: true,
+          reason: claim.reason,
+          eventId: event.id,
+          eventType: event.type,
+        },
+        { status: 200 }
+      );
     }
 
     claimed = true;
@@ -128,8 +128,7 @@ export async function POST(request: Request) {
     switch (event.type) {
       case "checkout.session.completed":
       case "checkout.session.async_payment_succeeded": {
-        const session =
-          event.data.object as Stripe.Checkout.Session;
+        const session = event.data.object as Stripe.Checkout.Session;
 
         if (session.payment_status === "paid") {
           await markBookingPaidFromSession(session);
@@ -139,8 +138,7 @@ export async function POST(request: Request) {
       }
 
       case "checkout.session.async_payment_failed": {
-        const session =
-          event.data.object as Stripe.Checkout.Session;
+        const session = event.data.object as Stripe.Checkout.Session;
 
         const paymentIntentId =
           typeof session.payment_intent === "string"
@@ -148,9 +146,7 @@ export async function POST(request: Request) {
             : session.payment_intent?.id;
 
         const paymentIntent = paymentIntentId
-          ? await stripe.paymentIntents.retrieve(
-              paymentIntentId
-            )
+          ? await stripe.paymentIntents.retrieve(paymentIntentId)
           : null;
 
         await markBookingFailedFromSession(
@@ -164,14 +160,12 @@ export async function POST(request: Request) {
       }
 
       case "payment_intent.payment_failed": {
-        const paymentIntent =
-          event.data.object as Stripe.PaymentIntent;
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
 
-        const sessions =
-          await stripe.checkout.sessions.list({
-            payment_intent: paymentIntent.id,
-            limit: 1,
-          });
+        const sessions = await stripe.checkout.sessions.list({
+          payment_intent: paymentIntent.id,
+          limit: 1,
+        });
 
         await recordBookingPaymentFailure(
           paymentIntent,
@@ -184,20 +178,15 @@ export async function POST(request: Request) {
       case "refund.created":
       case "refund.updated":
       case "refund.failed": {
-        const refund =
-          event.data.object as Stripe.Refund;
-
+        const refund = event.data.object as Stripe.Refund;
         await reconcileStripeRefund(refund);
         break;
       }
 
       case "charge.refunded": {
-        const charge =
-          event.data.object as Stripe.Charge;
+        const charge = event.data.object as Stripe.Charge;
 
-        const refunds = charge.refunds?.data ?? [];
-
-        for (const refund of refunds) {
+        for (const refund of charge.refunds?.data ?? []) {
           await reconcileStripeRefund(refund);
         }
 
@@ -205,9 +194,7 @@ export async function POST(request: Request) {
       }
 
       case "account.updated": {
-        const account =
-          event.data.object as Stripe.Account;
-
+        const account = event.data.object as Stripe.Account;
         await updateConnectedAccount(account);
         break;
       }
@@ -218,10 +205,15 @@ export async function POST(request: Request) {
 
     await markStripeWebhookProcessed(event.id);
 
-    return NextResponse.json({
-      received: true,
-      duplicate: false,
-    });
+    return NextResponse.json(
+      {
+        received: true,
+        duplicate: false,
+        eventId: event.id,
+        eventType: event.type,
+      },
+      { status: 200 }
+    );
   } catch (error) {
     const message =
       error instanceof Error
@@ -229,23 +221,23 @@ export async function POST(request: Request) {
         : "Traitement du webhook impossible.";
 
     console.error(
-      "Stripe webhook error:",
+      "Stripe webhook processing error:",
       event.id,
       event.type,
-      error
+      message
     );
 
     if (claimed) {
-      await markStripeWebhookFailed(
-        event.id,
-        message
-      );
+      await markStripeWebhookFailed(event.id, message);
     }
 
     return NextResponse.json(
-      { error: message },
+      {
+        error: message,
+        eventId: event.id,
+        eventType: event.type,
+      },
       { status: 500 }
     );
   }
 }
-
