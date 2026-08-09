@@ -9,8 +9,6 @@ import {
   LoaderCircle,
   RefreshCw,
   ShieldCheck,
-  UserRound,
-  BriefcaseBusiness,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -18,32 +16,39 @@ type Status = "ok" | "warning" | "error";
 
 type Check = {
   id: string;
+  group: string;
   title: string;
-  description: string;
   status: Status;
   detail: string;
   blocking: boolean;
 };
 
-type FounderStatus = {
-  isFounder?: boolean;
-  activeProfileId?: string | null;
-  clientProfiles?: Array<{
-    id: string;
-    firstName: string;
-    lastName: string;
-  }>;
-  providerProfiles?: Array<{
-    id: string;
-    firstName: string;
-    lastName: string;
-  }>;
-  error?: string;
+type Report = {
+  generatedAt: string;
+  ready: boolean;
+  summary: {
+    total: number;
+    ok: number;
+    warnings: number;
+    blockers: number;
+  };
+  checks: Check[];
 };
+
+const GROUP_ORDER = [
+  "Accès",
+  "Profils",
+  "Catalogue",
+  "Prestataire",
+  "Client",
+  "Transactions",
+  "Paiement",
+  "Vérification",
+];
 
 export default function FounderTestPage() {
   const [loading, setLoading] = useState(true);
-  const [checks, setChecks] = useState<Check[]>([]);
+  const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState("");
 
   const runChecks = useCallback(async () => {
@@ -51,181 +56,22 @@ export default function FounderTestPage() {
     setError("");
 
     try {
-      const results: Check[] = [];
-
-      const founderResponse = await fetch("/api/founder/status", {
+      const response = await fetch("/api/founder/test-center", {
         cache: "no-store",
       });
 
-      const founder =
-        (await founderResponse.json()) as FounderStatus;
+      const body = (await response.json()) as Report & { error?: string };
 
-      const founderOk =
-        founderResponse.ok && founder.isFounder === true;
-
-      results.push({
-        id: "founder",
-        title: "Accès Founder",
-        description:
-          "Le compte connecté est reconnu comme Founder KLYX.",
-        status: founderOk ? "ok" : "error",
-        detail: founderOk
-          ? "Founder actif"
-          : founder.error || `HTTP ${founderResponse.status}`,
-        blocking: true,
-      });
-
-      if (!founderOk) {
-        setChecks(results);
-        return;
+      if (!response.ok) {
+        throw new Error(body.error || `HTTP ${response.status}`);
       }
 
-      const adminResponse = await fetch("/api/admin/access", {
-        cache: "no-store",
-      });
-
-      const adminBody =
-        (await adminResponse.json()) as {
-          isAdmin?: boolean;
-          error?: string;
-        };
-
-      results.push({
-        id: "admin",
-        title: "Accès Super Admin",
-        description:
-          "Le même compte Founder possède l’accès au Centre Admin.",
-        status:
-          adminResponse.ok && adminBody.isAdmin
-            ? "ok"
-            : "error",
-        detail:
-          adminResponse.ok && adminBody.isAdmin
-            ? "Admin actif"
-            : adminBody.error || `HTTP ${adminResponse.status}`,
-        blocking: true,
-      });
-
-      const clients = founder.clientProfiles ?? [];
-      const providers = founder.providerProfiles ?? [];
-
-      results.push({
-        id: "client",
-        title: "Profil Client",
-        description:
-          "Un profil Client appartient à cette connexion Founder.",
-        status: clients.length > 0 ? "ok" : "error",
-        detail:
-          clients.length > 0
-            ? `${clients.length} profil(s) Client`
-            : "Aucun profil Client",
-        blocking: true,
-      });
-
-      results.push({
-        id: "provider",
-        title: "Profil Prestataire",
-        description:
-          "Un profil Prestataire appartient à cette connexion Founder.",
-        status: providers.length > 0 ? "ok" : "error",
-        detail:
-          providers.length > 0
-            ? `${providers.length} profil(s) Prestataire`
-            : "Aucun profil Prestataire",
-        blocking: true,
-      });
-
-      results.push({
-        id: "active-profile",
-        title: "Profil actif",
-        description:
-          "KLYX possède un profil actif exploitable par le compte.",
-        status: founder.activeProfileId ? "ok" : "error",
-        detail:
-          founder.activeProfileId
-            ? founder.activeProfileId
-            : "Aucun profil actif",
-        blocking: true,
-      });
-
-      const pages = [
-        ["/dashboard", "Dashboard"],
-        ["/accounts", "Profils"],
-        ["/profile", "Profil personnel"],
-        ["/admin", "Centre Admin"],
-        ["/admin/launch", "Centre de lancement"],
-        ["/provider", "Espace Prestataire"],
-      ] as const;
-
-      for (const [path, label] of pages) {
-        try {
-          const response = await fetch(path, {
-            cache: "no-store",
-          });
-
-          results.push({
-            id: `page-${path}`,
-            title: label,
-            description: `${path} répond correctement.`,
-            status:
-              response.status >= 200 && response.status < 400
-                ? "ok"
-                : "error",
-            detail: `HTTP ${response.status}`,
-            blocking: true,
-          });
-        } catch (pageError) {
-          results.push({
-            id: `page-${path}`,
-            title: label,
-            description: `${path} répond correctement.`,
-            status: "error",
-            detail:
-              pageError instanceof Error
-                ? pageError.message
-                : "Erreur réseau",
-            blocking: true,
-          });
-        }
-      }
-
-      try {
-        const sumsub = await fetch(
-          "/api/provider/sumsub/status",
-          {
-            cache: "no-store",
-          }
-        );
-
-        results.push({
-          id: "sumsub",
-          title: "Sumsub",
-          description:
-            "Sumsub reste non bloquant tant qu’il n’est pas activé.",
-          status: sumsub.ok ? "ok" : "warning",
-          detail: sumsub.ok
-            ? `HTTP ${sumsub.status}`
-            : `En attente - HTTP ${sumsub.status}`,
-          blocking: false,
-        });
-      } catch {
-        results.push({
-          id: "sumsub",
-          title: "Sumsub",
-          description:
-            "Sumsub reste non bloquant tant qu’il n’est pas activé.",
-          status: "warning",
-          detail: "En attente",
-          blocking: false,
-        });
-      }
-
-      setChecks(results);
-    } catch (checkError) {
+      setReport(body);
+    } catch (caught) {
       setError(
-        checkError instanceof Error
-          ? checkError.message
-          : "Impossible d’exécuter les contrôles."
+        caught instanceof Error
+          ? caught.message
+          : "Impossible d'exécuter les tests."
       );
     } finally {
       setLoading(false);
@@ -236,70 +82,67 @@ export default function FounderTestPage() {
     void runChecks();
   }, [runChecks]);
 
-  const summary = useMemo(() => {
-    const blockers = checks.filter(
-      (item) =>
-        item.blocking && item.status === "error"
-    ).length;
+  const groups = useMemo(() => {
+    const map = new Map<string, Check[]>();
 
-    const ok = checks.filter(
-      (item) => item.status === "ok"
-    ).length;
+    for (const check of report?.checks ?? []) {
+      const current = map.get(check.group) ?? [];
+      current.push(check);
+      map.set(check.group, current);
+    }
 
-    const warnings = checks.filter(
-      (item) => item.status === "warning"
-    ).length;
-
-    return {
-      ready: checks.length > 0 && blockers === 0,
-      blockers,
-      ok,
-      warnings,
-    };
-  }, [checks]);
+    return GROUP_ORDER
+      .filter((group) => map.has(group))
+      .map((group) => ({
+        name: group,
+        checks: map.get(group) ?? [],
+      }));
+  }, [report]);
 
   return (
-    <main className="min-h-screen bg-background px-5 py-8 text-foreground sm:px-8">
+    <main className="min-h-screen overflow-x-hidden bg-background px-3 py-5 text-foreground sm:px-6 sm:py-8">
       <div className="mx-auto max-w-6xl">
         <Link
           href="/founder"
-          className="inline-flex items-center gap-2 text-sm font-bold text-muted-foreground transition hover:text-foreground"
+          className="inline-flex items-center gap-2 text-sm font-bold text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft size={17} />
           Console Founder
         </Link>
 
-        <section className="mt-6 overflow-hidden rounded-[2rem] bg-[linear-gradient(135deg,#17131f,#35165e_52%,#111827)] p-8 text-white">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em]">
-            <Crown size={15} />
-            Founder Test
+        <section className="mt-5 rounded-3xl bg-[linear-gradient(135deg,#17131f,#35165e_52%,#111827)] p-6 text-white sm:p-8">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.16em]">
+              <Crown size={14} />
+              KLYX Test Center
+            </span>
+
+            <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black">
+              12.3
+            </span>
           </div>
 
-          <h1 className="mt-5 text-3xl font-black tracking-[-0.045em] sm:text-5xl">
-            Validation complète du compte unique
+          <h1 className="mt-5 text-3xl font-black tracking-[-0.05em] sm:text-5xl">
+            Diagnostic KLYX
           </h1>
 
-          <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">
-            Cette page vérifie que ton compte Founder peut réellement
-            utiliser KLYX comme Client, Prestataire et Super Admin.
-            Aucun compte n’est supprimé par ce test.
+          <p className="mt-3 max-w-3xl text-sm leading-7 text-white/65">
+            Contrôles non destructifs du compte Founder, des profils, du catalogue,
+            des tarifs, des favoris, des transactions et de l'infrastructure.
           </p>
 
           <button
             type="button"
             onClick={() => void runChecks()}
             disabled={loading}
-            className="mt-6 inline-flex h-12 items-center gap-2 rounded-xl bg-white px-5 text-sm font-black text-zinc-950 disabled:opacity-60"
+            className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-white px-4 text-sm font-black text-zinc-950 disabled:opacity-60"
           >
             {loading ? (
-              <LoaderCircle
-                size={18}
-                className="animate-spin"
-              />
+              <LoaderCircle size={17} className="animate-spin" />
             ) : (
-              <RefreshCw size={18} />
+              <RefreshCw size={17} />
             )}
-            Relancer les contrôles
+            Relancer les tests
           </button>
         </section>
 
@@ -309,144 +152,130 @@ export default function FounderTestPage() {
           </div>
         )}
 
-        <section
-          className={`mt-6 rounded-3xl border p-6 ${
-            summary.ready
-              ? "border-emerald-500/20 bg-emerald-500/10"
-              : "border-rose-500/20 bg-rose-500/10"
-          }`}
-        >
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">
-                État Founder
-              </p>
-              <h2 className="mt-2 text-2xl font-black">
-                {summary.ready
-                  ? "Compte unique prêt"
-                  : "Compte unique à corriger"}
-              </h2>
+        {report && (
+          <>
+            <section
+              className={`mt-5 rounded-3xl border p-5 ${
+                report.ready
+                  ? "border-emerald-500/20 bg-emerald-500/10"
+                  : "border-rose-500/20 bg-rose-500/10"
+              }`}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">
+                    État global
+                  </p>
+                  <h2 className="mt-1 text-2xl font-black">
+                    {report.ready ? "KLYX prêt pour les tests Beta" : "Corrections nécessaires"}
+                  </h2>
+                </div>
+
+                <span
+                  className={`rounded-full px-4 py-2 text-sm font-black ${
+                    report.ready
+                      ? "bg-emerald-500/15 text-emerald-600"
+                      : "bg-rose-500/15 text-rose-600"
+                  }`}
+                >
+                  {report.ready ? "READY" : "NOT READY"}
+                </span>
+              </div>
+
+              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <Metric label="Tests" value={report.summary.total} />
+                <Metric label="OK" value={report.summary.ok} />
+                <Metric label="Attention" value={report.summary.warnings} />
+                <Metric label="Blocages" value={report.summary.blockers} />
+              </div>
+            </section>
+
+            <div className="mt-6 space-y-6">
+              {groups.map((group) => (
+                <section key={group.name}>
+                  <h2 className="mb-3 text-lg font-black">{group.name}</h2>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {group.checks.map((check) => (
+                      <article
+                        key={check.id}
+                        className={`min-w-0 rounded-2xl border p-4 ${
+                          check.status === "ok"
+                            ? "border-emerald-500/20 bg-emerald-500/10"
+                            : check.status === "warning"
+                              ? "border-amber-500/20 bg-amber-500/10"
+                              : "border-rose-500/20 bg-rose-500/10"
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          {check.status === "ok" ? (
+                            <CheckCircle2
+                              size={19}
+                              className="mt-0.5 shrink-0 text-emerald-500"
+                            />
+                          ) : (
+                            <CircleAlert
+                              size={19}
+                              className={`mt-0.5 shrink-0 ${
+                                check.status === "warning"
+                                  ? "text-amber-500"
+                                  : "text-rose-500"
+                              }`}
+                            />
+                          )}
+
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="font-black">{check.title}</h3>
+
+                              {!check.blocking && (
+                                <span className="rounded-full bg-amber-500/10 px-2 py-1 text-[10px] font-black text-amber-600">
+                                  NON BLOQUANT
+                                </span>
+                              )}
+                            </div>
+
+                            <p className="mt-2 break-words text-xs leading-5 text-muted-foreground">
+                              {check.detail}
+                            </p>
+                          </div>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              ))}
             </div>
 
-            <span
-              className={`rounded-full px-4 py-2 text-sm font-black ${
-                summary.ready
-                  ? "bg-emerald-500/15 text-emerald-600"
-                  : "bg-rose-500/15 text-rose-600"
-              }`}
-            >
-              {summary.ready ? "READY" : "NOT READY"}
-            </span>
-          </div>
+            <section className="mt-8 grid gap-3 sm:grid-cols-3">
+              <Link
+                href="/dashboard"
+                className="rounded-2xl border border-border bg-card p-4 font-black hover:bg-muted"
+              >
+                Tester Client
+              </Link>
+              <Link
+                href="/provider"
+                className="rounded-2xl border border-border bg-card p-4 font-black hover:bg-muted"
+              >
+                Tester Prestataire
+              </Link>
+              <Link
+                href="/admin"
+                className="rounded-2xl border border-border bg-card p-4 font-black hover:bg-muted"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <ShieldCheck size={18} />
+                  Tester Admin
+                </span>
+              </Link>
+            </section>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <Metric label="OK" value={summary.ok} />
-            <Metric
-              label="Avertissements"
-              value={summary.warnings}
-            />
-            <Metric
-              label="Blocages"
-              value={summary.blockers}
-            />
-          </div>
-        </section>
-
-        <section className="mt-8 grid gap-4 md:grid-cols-2">
-          {checks.map((check) => (
-            <article
-              key={check.id}
-              className={`rounded-2xl border p-5 ${
-                check.status === "ok"
-                  ? "border-emerald-500/20 bg-emerald-500/10"
-                  : check.status === "warning"
-                    ? "border-amber-500/20 bg-amber-500/10"
-                    : "border-rose-500/20 bg-rose-500/10"
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                {check.status === "ok" ? (
-                  <CheckCircle2
-                    size={20}
-                    className="mt-0.5 shrink-0 text-emerald-500"
-                  />
-                ) : (
-                  <CircleAlert
-                    size={20}
-                    className={`mt-0.5 shrink-0 ${
-                      check.status === "warning"
-                        ? "text-amber-500"
-                        : "text-rose-500"
-                    }`}
-                  />
-                )}
-
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="font-black">
-                      {check.title}
-                    </h2>
-
-                    {!check.blocking && (
-                      <span className="rounded-full bg-amber-500/10 px-2 py-1 text-[10px] font-black text-amber-600">
-                        NON BLOQUANT
-                      </span>
-                    )}
-                  </div>
-
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    {check.description}
-                  </p>
-
-                  <p className="mt-3 text-xs font-bold text-muted-foreground">
-                    {check.detail}
-                  </p>
-                </div>
-              </div>
-            </article>
-          ))}
-        </section>
-
-        <section className="mt-8 grid gap-4 sm:grid-cols-3">
-          <Link
-            href="/dashboard"
-            className="rounded-2xl border border-border bg-card p-5 transition hover:bg-muted"
-          >
-            <UserRound
-              size={22}
-              className="text-violet-600"
-            />
-            <p className="mt-3 font-black">
-              Tester Client
+            <p className="mt-6 text-xs text-muted-foreground">
+              Dernier diagnostic : {new Date(report.generatedAt).toLocaleString("fr-BE")}
             </p>
-          </Link>
-
-          <Link
-            href="/provider"
-            className="rounded-2xl border border-border bg-card p-5 transition hover:bg-muted"
-          >
-            <BriefcaseBusiness
-              size={22}
-              className="text-violet-600"
-            />
-            <p className="mt-3 font-black">
-              Tester Prestataire
-            </p>
-          </Link>
-
-          <Link
-            href="/admin"
-            className="rounded-2xl border border-border bg-card p-5 transition hover:bg-muted"
-          >
-            <ShieldCheck
-              size={22}
-              className="text-violet-600"
-            />
-            <p className="mt-3 font-black">
-              Tester Admin
-            </p>
-          </Link>
-        </section>
+          </>
+        )}
       </div>
     </main>
   );
@@ -460,13 +289,9 @@ function Metric({
   value: number;
 }) {
   return (
-    <div className="rounded-xl border border-border/60 bg-background/50 p-4">
-      <p className="text-xs font-bold text-muted-foreground">
-        {label}
-      </p>
-      <p className="mt-1 text-2xl font-black">
-        {value}
-      </p>
+    <div className="rounded-xl border border-border/60 bg-background/50 p-3">
+      <p className="text-[11px] font-bold text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-black">{value}</p>
     </div>
   );
 }
