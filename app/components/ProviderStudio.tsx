@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -157,7 +157,9 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
         (service) =>
           service.title.trim().length >= 5 &&
           service.description.trim().length >= 30 &&
-          service.price !== null &&
+          (service.pricingType === "fixed"
+            ? service.fixedPrice !== null
+            : service.hourlyPrice !== null) &&
           service.city.trim().length > 0 &&
           service.serviceArea.length > 0 &&
           service.availability.some((day) => day.enabled)
@@ -377,7 +379,17 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
         body: JSON.stringify({ kind, id }),
       });
       const data = await readApiResponse(response);
-      applyStudioData(data);
+      setStudio((current) =>
+        current
+          ? {
+              ...current,
+              profile: data.profile,
+              providerProfile: data.providerProfile,
+              gallery: data.gallery,
+              documents: data.documents,
+            }
+          : data
+      );
       setMessage("Fichier supprimé.");
     } catch (error) {
       setErrorMessage(
@@ -551,7 +563,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
             <SectionCard
               icon={<BriefcaseBusiness size={22} />}
               title="Services proposés"
-              description="Active un ou plusieurs services parmi les quatre catégories de lancement."
+              description="Active les métiers et services que tu souhaites réellement proposer sur KLYX."
             >
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {services.map((service) => (
@@ -877,14 +889,16 @@ function ServiceEditor({
         <Counter current={service.description.length} maximum={1200} minimum={30} />
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2">
+      <div className="space-y-5">
         <div>
-          <label className="mb-2 block text-sm font-medium text-zinc-300">Type de tarif</label>
-          <div className="grid grid-cols-2 rounded-xl border border-zinc-700 bg-zinc-900 p-1">
+          <label className="mb-2 block text-sm font-medium text-zinc-300">
+            Tarif utilisé pour ce service
+          </label>
+          <div className="grid min-w-0 grid-cols-2 rounded-xl border border-zinc-700 bg-zinc-900 p-1">
             <button
               type="button"
-              onClick={() => onChange({ pricingType: "hourly" })}
-              className={`rounded-lg px-3 py-2 text-sm font-semibold ${
+              onClick={() => onChange({ pricingType: "hourly", price: service.hourlyPrice })}
+              className={`min-w-0 rounded-lg px-3 py-2 text-sm font-semibold ${
                 service.pricingType === "hourly" ? "bg-white text-black" : "text-zinc-400"
               }`}
             >
@@ -892,36 +906,66 @@ function ServiceEditor({
             </button>
             <button
               type="button"
-              onClick={() => onChange({ pricingType: "fixed" })}
-              className={`rounded-lg px-3 py-2 text-sm font-semibold ${
+              onClick={() => onChange({ pricingType: "fixed", price: service.fixedPrice })}
+              className={`min-w-0 rounded-lg px-3 py-2 text-sm font-semibold ${
                 service.pricingType === "fixed" ? "bg-white text-black" : "text-zinc-400"
               }`}
             >
               Prix fixe
             </button>
           </div>
+          <p className="mt-2 text-xs leading-5 text-zinc-500">
+            Les deux montants restent mémorisés. Le bouton choisit seulement le tarif actif.
+          </p>
         </div>
 
-        <div>
-          <label className="mb-2 block text-sm font-medium text-zinc-300">
-            {service.pricingType === "fixed" ? "Prix du forfait (€)" : "Prix par heure (€)"}
-          </label>
-          <div className="relative">
-            <Euro className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
-            <input
-              type="number"
-              min="1"
-              max="10000"
-              step="0.01"
-              value={service.price ?? ""}
-              onChange={(event) =>
-                onChange({
-                  price: event.target.value === "" ? null : Number(event.target.value),
-                })
-              }
-              className={`${inputClassName()} pl-11`}
-              placeholder="25"
-            />
+        <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+          <div className="min-w-0">
+            <label className="mb-2 block text-sm font-medium text-zinc-300">Tarif par heure (€)</label>
+            <div className="relative min-w-0">
+              <Euro className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+              <input
+                type="number"
+                min="1"
+                max="10000"
+                step="0.01"
+                inputMode="decimal"
+                value={service.hourlyPrice ?? ""}
+                onChange={(event) => {
+                  const hourlyPrice = event.target.value === "" ? null : Number(event.target.value);
+                  onChange({
+                    hourlyPrice,
+                    price: service.pricingType === "hourly" ? hourlyPrice : service.price,
+                  });
+                }}
+                className={`${inputClassName()} min-w-0 pl-11`}
+                placeholder="25"
+              />
+            </div>
+          </div>
+
+          <div className="min-w-0">
+            <label className="mb-2 block text-sm font-medium text-zinc-300">Prix fixe (€)</label>
+            <div className="relative min-w-0">
+              <Euro className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+              <input
+                type="number"
+                min="1"
+                max="10000"
+                step="0.01"
+                inputMode="decimal"
+                value={service.fixedPrice ?? ""}
+                onChange={(event) => {
+                  const fixedPrice = event.target.value === "" ? null : Number(event.target.value);
+                  onChange({
+                    fixedPrice,
+                    price: service.pricingType === "fixed" ? fixedPrice : service.price,
+                  });
+                }}
+                className={`${inputClassName()} min-w-0 pl-11`}
+                placeholder="100"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -935,7 +979,7 @@ function ServiceEditor({
           Ajoute les communes et quartiers dans lesquels tu acceptes des demandes.
         </p>
 
-        <div className="mt-4 flex gap-2">
+        <div className="mt-4 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2">
           <input
             value={zoneInput}
             onChange={(event) => onZoneInput(event.target.value)}

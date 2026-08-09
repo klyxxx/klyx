@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getActiveProfile } from "@/lib/active-profile";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -475,13 +475,29 @@ function validateServices(value: unknown, requireComplete: boolean): ValidatedSe
       : [];
     const availability = validateAvailability(item.availability);
 
-    if (
-      enabled &&
-      ((requireComplete && priceValue === null) ||
-        (priceValue !== null &&
-          (!Number.isFinite(priceValue) || priceValue < 1 || priceValue > 10000)))
-    ) {
-      throw new Error("Service invalide : indique un tarif entre 1 € et 10 000 €.");
+    const selectedPrice =
+      pricingType === "fixed" ? fixedPrice : hourlyPrice;
+
+    const invalidHourly =
+      hourlyPrice !== null &&
+      (!Number.isFinite(hourlyPrice) || hourlyPrice < 1 || hourlyPrice > 10000);
+
+    const invalidFixed =
+      fixedPrice !== null &&
+      (!Number.isFinite(fixedPrice) || fixedPrice < 1 || fixedPrice > 10000);
+
+    if (enabled && (invalidHourly || invalidFixed)) {
+      throw new Error(
+        "Service invalide : chaque tarif renseigné doit être compris entre 1 € et 10 000 €."
+      );
+    }
+
+    if (enabled && requireComplete && selectedPrice === null) {
+      throw new Error(
+        pricingType === "fixed"
+          ? "Service invalide : indique un prix fixe entre 1 € et 10 000 €."
+          : "Service invalide : indique un tarif horaire entre 1 € et 10 000 €."
+      );
     }
 
     if (!Number.isInteger(travelRadiusKm) || travelRadiusKm < 0 || travelRadiusKm > 100) {
@@ -494,7 +510,7 @@ function validateServices(value: unknown, requireComplete: boolean): ValidatedSe
       title,
       description,
       pricingType,
-      price: pricingType === "fixed" ? fixedPrice : hourlyPrice,
+      price: selectedPrice,
       hourlyPrice,
       fixedPrice,
       city,
