@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 
 import { getActiveProfile, getOwnedProfiles } from "@/lib/active-profile";
 import { requireKlyxAdmin } from "@/lib/admin-auth";
@@ -357,7 +357,7 @@ export async function GET() {
     );
 
     const { error: quotesError } = await supabaseAdmin
-      .from("quotes")
+      .from("service_quotes")
       .select("id")
       .limit(1);
 
@@ -373,7 +373,7 @@ export async function GET() {
             "quotes",
             "Transactions",
             "Devis",
-            "La table quotes est accessible."
+            "La table service_quotes est accessible."
           )
     );
 
@@ -494,3 +494,4 @@ export async function GET() {
     );
   }
 }
+
