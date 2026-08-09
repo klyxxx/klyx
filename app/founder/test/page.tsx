@@ -118,7 +118,7 @@ export default function FounderTestPage() {
             </span>
 
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black">
-              12.3
+              12.6
             </span>
           </div>
 

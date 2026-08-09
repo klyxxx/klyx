@@ -553,6 +553,98 @@ export async function GET() {
           )
     );
 
+    const hasOk = (id: string): boolean =>
+      checks.some(
+        (check) =>
+          check.id === id &&
+          check.status === "ok"
+      );
+
+    const clientJourneyReady =
+      hasOk("client-profile") &&
+      hasOk("favorites-table") &&
+      hasOk("bookings") &&
+      hasOk("quotes");
+
+    checks.push(
+      clientJourneyReady
+        ? ok(
+            "beta-client-provider",
+            "Beta 12.6",
+            "Parcours Client → Prestataire",
+            "Profil Client, favoris, devis et réservations sont disponibles."
+          )
+        : error(
+            "beta-client-provider",
+            "Beta 12.6",
+            "Parcours Client → Prestataire",
+            "Le socle Client → Prestataire n'est pas entièrement disponible."
+          )
+    );
+
+    const providerJourneyReady =
+      hasOk("provider-profile") &&
+      hasOk("provider-services") &&
+      hasOk("pricing-columns") &&
+      hasOk("pricing-values");
+
+    checks.push(
+      providerJourneyReady
+        ? ok(
+            "beta-provider-ready",
+            "Beta 12.6",
+            "Parcours Prestataire",
+            "Profil Prestataire, services et structure tarifaire sont disponibles."
+          )
+        : warning(
+            "beta-provider-ready",
+            "Beta 12.6",
+            "Parcours Prestataire",
+            "Le parcours Prestataire nécessite encore une configuration complète."
+          )
+    );
+
+    const securityReady =
+      hasOk("security-rls");
+
+    checks.push(
+      securityReady
+        ? ok(
+            "beta-security-gate",
+            "Beta 12.6",
+            "Barrière sécurité",
+            "L'audit RLS ne détecte aucun blocage sur les tables critiques existantes."
+          )
+        : error(
+            "beta-security-gate",
+            "Beta 12.6",
+            "Barrière sécurité",
+            "La Beta ne doit pas être ouverte tant que l'audit RLS n'est pas vert."
+          )
+    );
+
+    const paymentReady =
+      checks.some(
+        (check) =>
+          check.id === "stripe-runtime" &&
+          check.status === "ok"
+      );
+
+    checks.push(
+      paymentReady
+        ? ok(
+            "beta-payment-gate",
+            "Beta 12.6",
+            "Paiement test",
+            "La configuration Stripe du mode actuel est prête."
+          )
+        : warning(
+            "beta-payment-gate",
+            "Beta 12.6",
+            "Paiement test",
+            "Stripe n'est pas encore entièrement prêt. Aucun paiement réel n'est lancé par ce contrôle."
+          )
+    );
     const blockers = checks.filter(
       (check) => check.blocking && check.status === "error"
     ).length;
@@ -566,6 +658,8 @@ export async function GET() {
     ).length;
 
     return NextResponse.json({
+      version: "12.6",
+      stage: "beta-readiness",
       generatedAt: new Date().toISOString(),
       ready: blockers === 0,
       summary: {
