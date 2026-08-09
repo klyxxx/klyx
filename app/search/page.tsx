@@ -229,7 +229,7 @@ function SearchContent() {
   }
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-zinc-950 px-3 py-5 text-white sm:px-5 sm:py-8">
+    <main className="min-h-screen overflow-x-hidden bg-background px-3 py-5 text-foreground sm:px-5 sm:py-8">
       <div className="mx-auto max-w-7xl">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -239,7 +239,7 @@ function SearchContent() {
             <h1 className="mt-3 text-3xl font-bold sm:text-5xl">
               Trouver un prestataire
             </h1>
-            <p className="mt-3 max-w-2xl text-zinc-400">
+            <p className="mt-3 max-w-2xl text-muted-foreground">
               Compare les profils publiés selon la zone, le tarif, les horaires
               et le score de confiance.
             </p>
@@ -256,7 +256,7 @@ function SearchContent() {
 
         <form
           onSubmit={submitSearch}
-          className="mt-8 rounded-3xl border border-zinc-800 bg-zinc-900/70 p-5 sm:p-6"
+          className="mt-8 min-w-0 overflow-hidden rounded-3xl border border-border bg-card p-5 sm:p-6"
         >
           <div className="flex items-center justify-between gap-4">
             <h2 className="flex items-center gap-2 text-lg font-bold">
@@ -266,7 +266,7 @@ function SearchContent() {
             <button
               type="button"
               onClick={resetFilters}
-              className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-white"
+              className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
             >
               <RotateCcw size={16} />
               Réinitialiser
@@ -328,7 +328,7 @@ function SearchContent() {
               <button
                 type="button"
                 onClick={() => setShowAdvancedFilters((current) => !current)}
-                className="flex w-full items-center justify-between rounded-xl border border-zinc-800 bg-zinc-950/60 px-4 py-3 text-sm font-semibold text-zinc-300 hover:border-zinc-700"
+                className="flex min-w-0 w-full items-center justify-between rounded-xl border border-border bg-background/70 px-4 py-3 text-sm font-semibold text-foreground hover:bg-muted"
                 aria-expanded={showAdvancedFilters}
               >
                 <span className="flex items-center gap-2">
@@ -710,12 +710,12 @@ function FilterField({
   children: ReactNode;
 }) {
   return (
-    <label className="block">
-      <span className="mb-2 flex items-center gap-2 text-sm text-zinc-300">
+    <label className="block min-w-0 overflow-hidden">
+      <span className="mb-2 flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
         {icon}
         {label}
       </span>
-      {children}
+      <span className="block min-w-0 max-w-full">{children}</span>
     </label>
   );
 }
@@ -730,12 +730,12 @@ function FilterSummary({
   value: string;
 }) {
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-4">
-      <div className="flex items-center gap-2 text-sm text-zinc-500">
+    <div className="min-w-0 rounded-xl border border-border bg-card p-4">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
         {icon}
         {label}
       </div>
-      <p className="mt-2 truncate font-semibold">{value}</p>
+      <p className="mt-2 truncate font-semibold text-card-foreground">{value}</p>
     </div>
   );
 }
@@ -744,7 +744,7 @@ export default function SearchPage() {
   return (
     <Suspense
       fallback={
-        <main className="flex min-h-screen items-center justify-center bg-zinc-950 text-white">
+        <main className="flex min-h-screen items-center justify-center bg-background text-foreground">
           Chargement de la recherche...
         </main>
       }
