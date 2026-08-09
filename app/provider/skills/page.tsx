@@ -23,6 +23,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { getActiveClientProfile } from "@/lib/account-switcher";
 import KlyxSelect from "@/app/components/KlyxSelect";
+import SkillRequirementsPanel from "@/app/provider/skills/SkillRequirementsPanel";
 
 type ProofType =
   | "diploma"
@@ -128,6 +129,24 @@ export default function ProviderSkillsPage() {
   >({});
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [requirementsReady, setRequirementsReady] =
+    useState<Record<string, boolean>>({});
+
+  function handleRequirementReady(
+    userServiceId: string,
+    ready: boolean
+  ) {
+    setRequirementsReady((current) => {
+      if (current[userServiceId] === ready) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [userServiceId]: ready,
+      };
+    });
+  }
 
   async function token() {
     const {
@@ -629,6 +648,16 @@ export default function ProviderSkillsPage() {
                     />
                   </label>
 
+                  <SkillRequirementsPanel
+                    userServiceId={skill.userServiceId}
+                    refreshKey={[
+                      verification?.documents.length ?? 0,
+                      years[skill.userServiceId] ?? 0,
+                      verification?.status ?? "not_started",
+                    ].join(":")}
+                    onReadyChange={handleRequirementReady}
+                  />
+
                   <div className="mt-5">
                     <p className="text-sm font-black">
                       Preuves ajoutées
@@ -728,16 +757,25 @@ export default function ProviderSkillsPage() {
                       </button>
 
                       <button
-                        type="button"
-                        disabled={
-                          busy ===
-                          skill.userServiceId
-                        }
-                        onClick={() =>
-                          void save(skill, true)
-                        }
-                        className="inline-flex h-11 items-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-black text-white"
-                      >
+  type="button"
+  disabled={
+    busy === skill.userServiceId ||
+    requirementsReady[
+      skill.userServiceId
+    ] !== true
+  }
+  title={
+    requirementsReady[
+      skill.userServiceId
+    ] === true
+      ? "Envoyer cette compétence à KLYX"
+      : "Complète d'abord toutes les exigences obligatoires."
+  }
+  onClick={() =>
+    void save(skill, true)
+  }
+  className="inline-flex h-11 items-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45"
+>
                         <Send size={17} />
                         Envoyer à KLYX
                       </button>
@@ -752,4 +790,5 @@ export default function ProviderSkillsPage() {
     </main>
   );
 }
+
 

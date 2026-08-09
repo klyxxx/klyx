@@ -1,4 +1,4 @@
-export type PricingType = "hourly" | "fixed";
+﻿export type PricingType = "hourly" | "fixed";
 
 export type AvailabilityDay = {
   dayOfWeek: number;
@@ -17,6 +17,8 @@ export type ProviderServiceDraft = {
   description: string;
   pricingType: PricingType;
   price: number | null;
+  hourlyPrice: number | null;
+  fixedPrice: number | null;
   city: string;
   serviceArea: string[];
   travelRadiusKm: number;
@@ -109,3 +111,4 @@ export function formatServicePrice(
     ? `${price.toFixed(2)} € forfait`
     : `${price.toFixed(2)} €/h`;
 }
+

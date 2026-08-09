@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
+import { assertStripeRuntimeReady } from "@/lib/stripe-runtime";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
@@ -56,6 +57,7 @@ async function updateConnectedAccount(
 }
 
 export async function POST(request: Request) {
+  assertStripeRuntimeReady();
   let stripe: Stripe;
   let webhookSecret: string;
 
@@ -246,3 +248,4 @@ export async function POST(request: Request) {
     );
   }
 }
+

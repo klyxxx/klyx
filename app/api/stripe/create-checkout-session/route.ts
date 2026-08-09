@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
+import { assertStripeRuntimeReady } from "@/lib/stripe-runtime";
 import { randomUUID } from "node:crypto";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -251,6 +252,7 @@ async function resolveService(
 }
 
 export async function POST(request: Request) {
+  assertStripeRuntimeReady();
   try {
     const stripeSecretKey = requiredEnv("STRIPE_SECRET_KEY");
     const stripe = new Stripe(stripeSecretKey);
@@ -661,3 +663,4 @@ export async function POST(request: Request) {
     );
   }
 }
+

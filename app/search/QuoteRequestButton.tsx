@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   FormEvent,
@@ -52,17 +52,12 @@ function initialDescription(
     parts.push(`Date souhaitée : ${filters.date}.`);
   }
 
-  if (filters.time) {
-    parts.push(`Heure souhaitée : ${filters.time}.`);
+  if (filters.startTime) {
+    parts.push(`Heure de début : ${filters.startTime}.`);
   }
 
-  const duration = Number(filters.duration);
-
-  if (
-    Number.isFinite(duration) &&
-    duration > 0
-  ) {
-    parts.push(`Durée estimée : ${duration} heure(s).`);
+  if (filters.endTime) {
+    parts.push(`Heure de fin : ${filters.endTime}.`);
   }
 
   if (filters.budget) {
@@ -94,14 +89,35 @@ export default function QuoteRequestButton({
     useState("");
 
   const durationHours = useMemo(() => {
-    const value = Number(filters.duration);
+    if (!filters.startTime || !filters.endTime) {
+      return null;
+    }
 
-    return Number.isFinite(value) &&
-      value > 0 &&
-      value <= 48
-      ? value
-      : null;
-  }, [filters.duration]);
+    const [startHour, startMinute] =
+      filters.startTime.split(":").map(Number);
+
+    const [endHour, endMinute] =
+      filters.endTime.split(":").map(Number);
+
+    const start =
+      startHour * 60 + startMinute;
+
+    const end =
+      endHour * 60 + endMinute;
+
+    if (
+      !Number.isFinite(start) ||
+      !Number.isFinite(end) ||
+      end <= start
+    ) {
+      return null;
+    }
+
+    return (end - start) / 60;
+  }, [
+    filters.startTime,
+    filters.endTime,
+  ]);
 
   async function accessToken(): Promise<string> {
     const {
@@ -149,7 +165,7 @@ export default function QuoteRequestButton({
           requestedDate:
             filters.date || null,
           requestedTime:
-            filters.time || null,
+            filters.startTime || null,
           durationHours,
         }),
       });
@@ -289,17 +305,15 @@ export default function QuoteRequestButton({
                     }
                   />
                   <Summary
-                    label="Heure"
+                    label="Début"
                     value={
-                      filters.time || "À préciser"
+                      filters.startTime || "À préciser"
                     }
                   />
                   <Summary
-                    label="Durée"
+                    label="Fin"
                     value={
-                      durationHours
-                        ? `${durationHours} h`
-                        : "À préciser"
+                      filters.endTime || "À préciser"
                     }
                   />
                 </div>
@@ -399,3 +413,4 @@ function Summary({
     </div>
   );
 }
+

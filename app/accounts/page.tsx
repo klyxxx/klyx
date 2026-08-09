@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
   ChangeEvent,
@@ -31,6 +31,7 @@ import {
   type ServiceOption,
 } from "@/lib/account-switcher";
 import { supabase } from "@/lib/supabase";
+import KlyxSelect from "@/app/components/KlyxSelect";
 
 type FormMode = "create" | "edit" | null;
 
@@ -682,24 +683,22 @@ export default function AccountsPage() {
                   <span className="mb-2 block text-sm font-semibold">
                     Premier service
                   </span>
-                  <select
+                  <KlyxSelect
                     value={form.serviceId}
-                    onChange={(event) =>
+                    onChange={(value) =>
                       setForm((current) => ({
                         ...current,
-                        serviceId: event.target.value,
+                        serviceId: value,
                       }))
                     }
+                    placeholder="Choisir un service"
                     required
-                    className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
-                  >
-                    <option value="">Choisir un service</option>
-                    {services.map((service) => (
-                      <option key={service.id} value={service.id}>
-                        {service.name}
-                      </option>
-                    ))}
-                  </select>
+                    options={services.map((service) => ({
+                      value: service.id,
+                      label: service.name,
+                    }))}
+                    ariaLabel="Premier service"
+                  />
                   {services.length === 0 && (
                     <span className="mt-2 block text-xs text-red-600 dark:text-red-400">
                       Aucun service n’est encore disponible dans Supabase.
@@ -829,3 +828,4 @@ function FormField({
     </label>
   );
 }
+

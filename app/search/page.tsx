@@ -42,8 +42,8 @@ type DraftFilters = {
   service: string;
   city: string;
   date: string;
-  time: string;
-  duration: string;
+  startTime: string;
+  endTime: string;
   budget: string;
   pricing: string;
   sort: ProviderSearchSort;
@@ -63,8 +63,11 @@ function filtersFromParams(params: { get(name: string): string | null }): DraftF
     service: params.get("service")?.trim() || "all",
     city: params.get("city")?.trim() || "",
     date: params.get("date")?.trim() || "",
-    time: params.get("time")?.trim() || "",
-    duration: params.get("duration")?.trim() || "1",
+    startTime:
+      params.get("start")?.trim() ||
+      params.get("time")?.trim() ||
+      "",
+    endTime: params.get("end")?.trim() || "",
     budget: params.get("budget")?.trim() || "",
     pricing: params.get("pricing")?.trim() || "all",
     sort: SORT_OPTIONS.some((option) => option.value === requestedSort)
@@ -91,10 +94,8 @@ function bookingHref(provider: ProviderSearchItem, filters: DraftFilters): strin
   const params = new URLSearchParams({ service: provider.serviceSlug });
 
   if (filters.date) params.set("date", filters.date);
-  if (filters.time) {
-    params.set("time", filters.time);
-    params.set("duration", filters.duration || "1");
-  }
+  if (filters.startTime) params.set("start", filters.startTime);
+  if (filters.endTime) params.set("end", filters.endTime);
 
   return `/providers/${provider.profileId}/book?${params.toString()}`;
 }
@@ -175,7 +176,8 @@ function SearchContent() {
   const hasCommercialFilters = Boolean(
     appliedFilters.city ||
       appliedFilters.date ||
-      appliedFilters.time ||
+      appliedFilters.startTime ||
+      appliedFilters.endTime ||
       appliedFilters.budget ||
       appliedFilters.pricing !== "all"
   );
@@ -195,10 +197,8 @@ function SearchContent() {
     if (draft.service !== "all") params.set("service", draft.service);
     if (draft.city.trim()) params.set("city", draft.city.trim());
     if (draft.date) params.set("date", draft.date);
-    if (draft.time) {
-      params.set("time", draft.time);
-      params.set("duration", draft.duration || "1");
-    }
+    if (draft.startTime) params.set("start", draft.startTime);
+    if (draft.endTime) params.set("end", draft.endTime);
     if (draft.budget && Number(draft.budget) >= 0) {
       params.set("budget", draft.budget);
     }
@@ -217,7 +217,7 @@ function SearchContent() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-5 py-10 text-white">
+    <main className="min-h-screen overflow-x-hidden bg-zinc-950 px-3 py-5 text-white sm:px-5 sm:py-8">
       <div className="mx-auto max-w-7xl">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -293,25 +293,22 @@ function SearchContent() {
               />
             </FilterField>
 
-            <FilterField label="Heure souhaitée" icon={<Clock3 size={17} />}>
+            <FilterField label="Heure de début" icon={<Clock3 size={17} />}>
               <input
                 type="time"
-                value={draft.time}
-                onChange={(event) => updateDraft("time", event.target.value)}
+                value={draft.startTime}
+                onChange={(event) => updateDraft("startTime", event.target.value)}
                 className="filter-control"
               />
             </FilterField>
 
-            <FilterField label="Durée" icon={<Clock3 size={17} />}>
-              <KlyxSelect
-                value={draft.duration}
-                disabled={!draft.time}
-                onChange={(value) => updateDraft("duration", value)}
-                options={[1, 2, 3, 4, 6, 8].map((hours) => ({
-                  value: String(hours),
-                  label: `${hours} heure${hours > 1 ? "s" : ""}`,
-                }))}
-                ariaLabel="Durée"
+            <FilterField label="Heure de fin" icon={<Clock3 size={17} />}>
+              <input
+                type="time"
+                value={draft.endTime}
+                min={draft.startTime || undefined}
+                onChange={(event) => updateDraft("endTime", event.target.value)}
+                className="filter-control"
               />
             </FilterField>
 
@@ -379,7 +376,13 @@ function SearchContent() {
             icon={<CalendarDays size={17} />}
             label="Quand"
             value={`${dateLabel(appliedFilters.date)}${
-              appliedFilters.time ? ` à ${appliedFilters.time}` : ""
+              appliedFilters.startTime
+                ? ` de ${appliedFilters.startTime}${
+                    appliedFilters.endTime
+                      ? ` à ${appliedFilters.endTime}`
+                      : ""
+                  }`
+                : ""
             }`}
           />
           <FilterSummary
@@ -438,8 +441,8 @@ function SearchContent() {
                 service: appliedFilters.service,
                 city: appliedFilters.city,
                 date: appliedFilters.date,
-                time: appliedFilters.time,
-                duration: appliedFilters.duration,
+                startTime: appliedFilters.startTime,
+                endTime: appliedFilters.endTime,
                 budget: appliedFilters.budget,
                 pricing: appliedFilters.pricing,
                 sort: appliedFilters.sort,
@@ -456,8 +459,8 @@ function SearchContent() {
                 service: appliedFilters.service,
                 city: appliedFilters.city,
                 date: appliedFilters.date,
-                time: appliedFilters.time,
-                duration: appliedFilters.duration,
+                startTime: appliedFilters.startTime,
+                endTime: appliedFilters.endTime,
                 budget: appliedFilters.budget,
                 pricing: appliedFilters.pricing,
                 sort: appliedFilters.sort,
@@ -512,8 +515,8 @@ function SearchContent() {
                   matchingFilters={{
                     city: appliedFilters.city,
                     date: appliedFilters.date,
-                    time: appliedFilters.time,
-                    duration: appliedFilters.duration,
+                    startTime: appliedFilters.startTime,
+                    endTime: appliedFilters.endTime,
                     budget: appliedFilters.budget,
                     pricing: appliedFilters.pricing,
                   }}
@@ -543,8 +546,8 @@ function ProviderCardView({
   matchingFilters: {
     city: string;
     date: string;
-    time: string;
-    duration: string;
+    startTime: string;
+    endTime: string;
     budget: string;
     pricing: string;
   };
@@ -715,6 +718,10 @@ export default function SearchPage() {
     </Suspense>
   );
 }
+
+
+
+
 
 
 

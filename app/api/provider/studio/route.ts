@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { getActiveProfile } from "@/lib/active-profile";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -10,13 +10,6 @@ import {
   type ProviderServiceDraft,
   type ProviderStudioData,
 } from "@/lib/provider-studio";
-
-const INITIAL_SERVICE_SLUGS = [
-  "babysitting",
-  "cleaning",
-  "moving",
-  "handyman",
-];
 
 const DOCUMENT_TYPES = ["identity", "address", "insurance", "company"];
 const GALLERY_BUCKET = "avatars";
@@ -60,6 +53,8 @@ type ServiceProfileRow = {
   description: string | null;
   pricing_type: string | null;
   price: number | null;
+  hourly_price: number | null;
+  fixed_price: number | null;
   city: string | null;
   service_area: string[] | null;
   travel_radius_km: number | null;
@@ -98,6 +93,8 @@ type StudioServiceInput = {
   description?: unknown;
   pricingType?: unknown;
   price?: unknown;
+  hourlyPrice?: unknown;
+  fixedPrice?: unknown;
   city?: unknown;
   serviceArea?: unknown;
   travelRadiusKm?: unknown;
@@ -120,6 +117,8 @@ type ValidatedService = {
   description: string;
   pricingType: PricingType;
   price: number | null;
+  hourlyPrice: number | null;
+  fixedPrice: number | null;
   city: string;
   serviceArea: string[];
   travelRadiusKm: number;
@@ -208,7 +207,6 @@ async function loadStudioData(profileId: string): Promise<ProviderStudioData> {
     supabaseAdmin
       .from("services")
       .select("id, name, slug")
-      .in("slug", INITIAL_SERVICE_SLUGS)
       .order("name", { ascending: true }),
     supabaseAdmin
       .from("user_services")
@@ -254,7 +252,7 @@ async function loadStudioData(profileId: string): Promise<ProviderStudioData> {
       supabaseAdmin
         .from("service_profiles")
         .select(
-          "id, user_service_id, title, description, pricing_type, price, city, service_area, travel_radius_km, available"
+          "id, user_service_id, title, description, pricing_type, price, hourly_price, fixed_price, city, service_area, travel_radius_km, available"
         )
         .in("user_service_id", userServiceIds),
       supabaseAdmin
@@ -309,6 +307,24 @@ async function loadStudioData(profileId: string): Promise<ProviderStudioData> {
         serviceProfile?.price === null || serviceProfile?.price === undefined
           ? null
           : Number(serviceProfile.price),
+      hourlyPrice:
+        serviceProfile?.hourly_price === null ||
+        serviceProfile?.hourly_price === undefined
+          ? serviceProfile?.pricing_type === "hourly" &&
+            serviceProfile?.price !== null &&
+            serviceProfile?.price !== undefined
+            ? Number(serviceProfile.price)
+            : null
+          : Number(serviceProfile.hourly_price),
+      fixedPrice:
+        serviceProfile?.fixed_price === null ||
+        serviceProfile?.fixed_price === undefined
+          ? serviceProfile?.pricing_type === "fixed" &&
+            serviceProfile?.price !== null &&
+            serviceProfile?.price !== undefined
+            ? Number(serviceProfile.price)
+            : null
+          : Number(serviceProfile.fixed_price),
       city: serviceProfile?.city ?? profile.city ?? "Bruxelles",
       serviceArea:
         serviceProfile?.service_area && serviceProfile.service_area.length > 0
@@ -434,6 +450,18 @@ function validateServices(value: unknown, requireComplete: boolean): ValidatedSe
       item.pricingType === "fixed" ? "fixed" : "hourly";
     const priceValue =
       item.price === null || item.price === "" ? null : Number(item.price);
+    const hourlyPrice =
+      item.hourlyPrice === null || item.hourlyPrice === ""
+        ? pricingType === "hourly"
+          ? priceValue
+          : null
+        : Number(item.hourlyPrice);
+    const fixedPrice =
+      item.fixedPrice === null || item.fixedPrice === ""
+        ? pricingType === "fixed"
+          ? priceValue
+          : null
+        : Number(item.fixedPrice);
     const city = cleanText(item.city, 100);
     const travelRadiusKm = Number(item.travelRadiusKm ?? 10);
     const serviceArea = Array.isArray(item.serviceArea)
@@ -466,7 +494,9 @@ function validateServices(value: unknown, requireComplete: boolean): ValidatedSe
       title,
       description,
       pricingType,
-      price: priceValue,
+      price: pricingType === "fixed" ? fixedPrice : hourlyPrice,
+      hourlyPrice,
+      fixedPrice,
       city,
       serviceArea,
       travelRadiusKm,
@@ -562,8 +592,7 @@ export async function PUT(request: Request) {
         .single(),
       supabaseAdmin
         .from("services")
-        .select("id, slug")
-        .in("slug", INITIAL_SERVICE_SLUGS),
+        .select("id, slug"),
       supabaseAdmin
         .from("provider_documents")
         .select("document_type")
@@ -701,6 +730,8 @@ export async function PUT(request: Request) {
         description: service.description || null,
         pricing_type: service.pricingType,
         price: service.price,
+        hourly_price: service.hourlyPrice,
+        fixed_price: service.fixedPrice,
         city: service.city || null,
         service_area: service.serviceArea,
         travel_radius_km: service.travelRadiusKm,
@@ -955,3 +986,4 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: message }, { status: statusForError(message) });
   }
 }
+

@@ -306,7 +306,18 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
       body: formData,
     });
     const data = await readApiResponse(response);
-    applyStudioData(data);
+
+    setStudio((current) =>
+      current
+        ? {
+            ...current,
+            profile: data.profile,
+            providerProfile: data.providerProfile,
+            gallery: data.gallery,
+            documents: data.documents,
+          }
+        : data
+    );
   }
 
   async function handleGalleryUpload(event: ChangeEvent<HTMLInputElement>) {
@@ -398,7 +409,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
 
   return (
     <main className="min-h-screen bg-zinc-950 px-4 py-8 text-white sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
+      <div className="mx-auto min-w-0 max-w-7xl overflow-x-hidden">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <Link
             href="/dashboard"
@@ -1134,4 +1145,6 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+
+
 

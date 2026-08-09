@@ -1,0 +1,49 @@
+KLYX — ÉTAPE 8.0 V2
+
+Ce correctif remplace uniquement le script PowerShell défectueux.
+
+Il ne remplace pas :
+- app/api/stripe/webhook/route.ts
+- lib/stripe-webhook-events.ts
+- supabase/step-8-0-stripe-webhook-events.sql
+
+Ces fichiers du ZIP 8.0 précédent restent valides.
+
+INSTALLATION
+
+1. Décompresse ce ZIP.
+2. Copie le dossier scripts dans :
+C:\Users\fenjo\Documents\klyx
+
+3. Exécute :
+
+cd C:\Users\fenjo\Documents\klyx
+powershell -ExecutionPolicy Bypass -File .\scripts\apply-step-8-0-v2.ps1
+
+4. Puis :
+
+npm run build
+
+ATTENDU
+
+[OK] Reservations triees par ordre d'arrivee.
+ETAPE 8.0 V2 APPLIQUEE.
+FIFO actif : created_at ASC.
+
+TEST EXACTEMENT COMME DANS KLYX
+
+Prestataire
+-> Réservations & missions
+-> À traiter
+
+Crée 2 nouvelles demandes.
+
+Attendu :
+la demande reçue en premier est affichée en premier.
+
+APRÈS BUILD OK
+
+git add "app/bookings/page.tsx" "scripts/apply-step-8-0-v2.ps1"
+git status
+git commit -m "Fix FIFO booking sort script"
+git push

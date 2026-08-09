@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -153,8 +153,7 @@ export default function BookingsPage() {
         .or(
           `parent_id.eq.${profile.id},provider_id.eq.${profile.id},babysitter_id.eq.${profile.id}`
         )
-        .order("booking_date", { ascending: false })
-        .order("start_time", { ascending: false });
+        .order("created_at", { ascending: true });
 
       if (bookingError) throw new Error(bookingError.message);
 
@@ -439,3 +438,4 @@ function BookingCardView({ booking }: { booking: BookingCard }) {
     </article>
   );
 }
+

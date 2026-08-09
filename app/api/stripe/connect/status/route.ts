@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
+import { assertStripeRuntimeReady } from "@/lib/stripe-runtime";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
@@ -18,6 +19,7 @@ function requiredEnv(name: string): string {
 }
 
 export async function GET(request: Request) {
+  assertStripeRuntimeReady();
   try {
     const stripe = new Stripe(requiredEnv("STRIPE_SECRET_KEY"));
     const { profile: activeProfile } =
@@ -85,3 +87,4 @@ export async function GET(request: Request) {
     );
   }
 }
+

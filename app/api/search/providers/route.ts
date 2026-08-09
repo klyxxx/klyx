@@ -12,7 +12,6 @@ import {
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getApprovedUserServiceIds } from "@/lib/provider-skill-publication";
 
-const SERVICE_SLUGS = ["babysitting", "cleaning", "moving", "handyman"];
 const SORT_VALUES: ProviderSearchSort[] = [
   "recommended",
   "price_asc",
@@ -81,8 +80,8 @@ type Filters = {
   serviceSlug: string;
   city: string;
   date: string;
-  time: string;
-  durationHours: number;
+  startTime: string;
+  endTime: string;
   budgetMax: number | null;
   pricingType: "all" | ProviderPricingType;
   sort: ProviderSearchSort;
@@ -128,17 +127,32 @@ function parseFilters(request: Request): Filters {
   const requestedService = cleanText(params.get("service"), 40);
   const requestedPricing = cleanText(params.get("pricing"), 20);
   const requestedSort = cleanText(params.get("sort"), 30) as ProviderSearchSort;
-  const requestedTime = cleanText(params.get("time"), 5);
-  const duration = numberParam(params.get("duration"), 1, 12);
+  const legacyTime = cleanText(params.get("time"), 5);
+  const requestedStart = cleanText(params.get("start") ?? (legacyTime || null), 5);
+  const requestedEnd = cleanText(params.get("end"), 5);
+  const legacyDuration = numberParam(params.get("duration"), 1, 12);
+  const startMinutes = timeToMinutes(requestedStart);
+  const legacyEnd =
+    startMinutes !== null && legacyDuration !== null
+      ? (() => {
+          const total = startMinutes + legacyDuration * 60;
+          const hours = Math.floor(total / 60);
+          const minutes = total % 60;
+          return hours <= 23
+            ? `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`
+            : "";
+        })()
+      : "";
 
   return {
-    serviceSlug: SERVICE_SLUGS.includes(requestedService)
-      ? requestedService
-      : "all",
+    serviceSlug: requestedService || "all",
     city: cleanText(params.get("city"), 80),
     date: validDate(cleanText(params.get("date"), 10)),
-    time: timeToMinutes(requestedTime) === null ? "" : requestedTime,
-    durationHours: duration ?? 1,
+    startTime: startMinutes === null ? "" : requestedStart,
+    endTime:
+      timeToMinutes(requestedEnd) !== null
+        ? requestedEnd
+        : legacyEnd,
     budgetMax: numberParam(params.get("budget"), 0, 100000),
     pricingType:
       requestedPricing === "hourly" || requestedPricing === "fixed"
@@ -164,17 +178,18 @@ function locationMatches(candidate: Candidate, city: string): boolean {
 }
 
 function availabilityMatches(candidate: Candidate, filters: Filters): boolean {
-  if (!filters.date && !filters.time) return true;
+  if (!filters.date && !filters.startTime && !filters.endTime) return true;
   if (candidate.slots.length === 0) return false;
 
   const day = filters.date
     ? new Date(`${filters.date}T12:00:00Z`).getUTCDay()
     : null;
-  const requestedStart = filters.time ? timeToMinutes(filters.time) : null;
-  const requestedEnd =
-    requestedStart === null
-      ? null
-      : requestedStart + filters.durationHours * 60;
+  const requestedStart = filters.startTime
+    ? timeToMinutes(filters.startTime)
+    : null;
+  const requestedEnd = filters.endTime
+    ? timeToMinutes(filters.endTime)
+    : null;
 
   return candidate.slots.some((slot) => {
     if (day !== null && Number(slot.day_of_week) !== day) return false;
@@ -287,8 +302,7 @@ function publicItem(
 async function loadCandidates(filters: Filters): Promise<Candidate[]> {
   let servicesQuery = supabaseAdmin
     .from("services")
-    .select("id, name, slug")
-    .in("slug", SERVICE_SLUGS);
+    .select("id, name, slug");
 
   if (filters.serviceSlug !== "all") {
     servicesQuery = servicesQuery.eq("slug", filters.serviceSlug);
@@ -473,7 +487,8 @@ export async function GET(request: Request) {
     const hasCommercialFilters = Boolean(
       filters.city ||
         filters.date ||
-        filters.time ||
+        filters.startTime ||
+        filters.endTime ||
         filters.budgetMax !== null ||
         filters.pricingType !== "all"
     );
@@ -511,5 +526,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
+
+
 
 

@@ -177,3 +177,40 @@ button:active:not(:disabled),
 a:active {
   transform: scale(0.985);
 }
+
+/* KLYX 12.1 - mobile forms */
+.klyx-page,
+.klyx-card,
+form,
+fieldset,
+label {
+  min-width: 0;
+}
+
+.klyx-input,
+.filter-control,
+input,
+textarea,
+select {
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.filter-control {
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .klyx-page {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    font-size: 16px;
+  }
+}

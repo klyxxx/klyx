@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   ProviderSearchItem,
   ProviderSearchResponse,
 } from "@/lib/provider-search";
@@ -7,8 +7,8 @@ export type SearchRecoveryFilters = {
   service: string;
   city: string;
   date: string;
-  time: string;
-  duration: string;
+  startTime: string;
+  endTime: string;
   budget: string;
   pricing: string;
   sort: string;
@@ -36,30 +36,80 @@ function cloneFilters(
   return { ...filters };
 }
 
+function timeToMinutes(value: string): number | null {
+  const match = /^(\d{2}):(\d{2})$/.exec(value);
+
+  if (!match) return null;
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+
+  if (
+    hours > 23 ||
+    minutes > 59
+  ) {
+    return null;
+  }
+
+  return hours * 60 + minutes;
+}
+
+function durationHours(
+  filters: SearchRecoveryFilters
+): number {
+  const start =
+    timeToMinutes(filters.startTime);
+
+  const end =
+    timeToMinutes(filters.endTime);
+
+  if (
+    start === null ||
+    end === null ||
+    end <= start
+  ) {
+    return 1;
+  }
+
+  return Math.max(
+    1,
+    (end - start) / 60
+  );
+}
+
 function providerPriceEstimate(
   provider: ProviderSearchItem,
-  durationHours: number
+  hours: number
 ): number | null {
-  if (provider.price === null) return null;
+  if (provider.price === null) {
+    return null;
+  }
 
   return provider.pricingType === "hourly"
-    ? provider.price * durationHours
+    ? provider.price * hours
     : provider.price;
 }
 
 function lowestEstimatedPrice(
   providers: ProviderSearchItem[],
-  durationHours: number
+  hours: number
 ): number | null {
   const values = providers
     .map((provider) =>
-      providerPriceEstimate(provider, durationHours)
+      providerPriceEstimate(
+        provider,
+        hours
+      )
     )
     .filter(
       (value): value is number =>
-        value !== null && Number.isFinite(value)
+        value !== null &&
+        Number.isFinite(value)
     )
-    .sort((first, second) => first - second);
+    .sort(
+      (first, second) =>
+        first - second
+    );
 
   return values[0] ?? null;
 }
@@ -68,30 +118,43 @@ export function buildSearchRecoverySuggestions(
   filters: SearchRecoveryFilters,
   result: ProviderSearchResponse
 ): SearchRecoverySuggestion[] {
-  const suggestions: SearchRecoverySuggestion[] = [];
-  const durationHours = Math.max(
-    1,
-    Number(filters.duration) || 1
-  );
+  const suggestions: SearchRecoverySuggestion[] =
+    [];
+
+  const hours =
+    durationHours(filters);
 
   if (filters.budget) {
-    const currentBudget = Number(filters.budget);
-    const cheapest = lowestEstimatedPrice(
-      result.providers,
-      durationHours
-    );
+    const currentBudget =
+      Number(filters.budget);
+
+    const cheapest =
+      lowestEstimatedPrice(
+        result.providers,
+        hours
+      );
 
     if (
-      Number.isFinite(currentBudget) &&
+      Number.isFinite(
+        currentBudget
+      ) &&
       cheapest !== null &&
       cheapest > currentBudget
     ) {
-      const next = cloneFilters(filters);
-      next.budget = String(Math.ceil(cheapest));
+      const next =
+        cloneFilters(filters);
+
+      next.budget =
+        String(
+          Math.ceil(cheapest)
+        );
 
       suggestions.push({
         id: "raise_budget",
-        title: `Augmenter le budget à ${Math.ceil(cheapest)} €`,
+        title:
+          `Augmenter le budget à ${Math.ceil(
+            cheapest
+          )} €`,
         description:
           "C’est le budget minimum estimé parmi les alternatives actuellement trouvées.",
         priority: 100,
@@ -99,12 +162,15 @@ export function buildSearchRecoverySuggestions(
       });
     }
 
-    const next = cloneFilters(filters);
+    const next =
+      cloneFilters(filters);
+
     next.budget = "";
 
     suggestions.push({
       id: "remove_budget",
-      title: "Retirer temporairement le budget maximum",
+      title:
+        "Retirer temporairement le budget maximum",
       description:
         "KLYX gardera les prix visibles pour que tu puisses comparer avant de réserver.",
       priority: 80,
@@ -112,30 +178,39 @@ export function buildSearchRecoverySuggestions(
     });
   }
 
-  if (filters.time) {
-    const next = cloneFilters(filters);
-    next.time = "";
-    next.duration = "1";
+  if (
+    filters.startTime ||
+    filters.endTime
+  ) {
+    const next =
+      cloneFilters(filters);
+
+    next.startTime = "";
+    next.endTime = "";
 
     suggestions.push({
       id: "remove_time",
-      title: "Chercher toute la journée",
+      title:
+        "Chercher toute la journée",
       description:
-        "Conserve la date mais laisse KLYX afficher les prestataires disponibles à d’autres heures.",
+        "Conserve la date mais affiche aussi les prestataires disponibles à d’autres heures.",
       priority: 95,
       nextFilters: next,
     });
   }
 
   if (filters.date) {
-    const next = cloneFilters(filters);
+    const next =
+      cloneFilters(filters);
+
     next.date = "";
-    next.time = "";
-    next.duration = "1";
+    next.startTime = "";
+    next.endTime = "";
 
     suggestions.push({
       id: "remove_date",
-      title: "Retirer la date précise",
+      title:
+        "Retirer la date précise",
       description:
         "Affiche les prestataires du service sans imposer un jour particulier.",
       priority: 65,
@@ -144,29 +219,62 @@ export function buildSearchRecoverySuggestions(
   }
 
   if (
-    filters.time &&
-    Number(filters.duration) > 1
+    filters.startTime &&
+    filters.endTime &&
+    hours > 1
   ) {
-    const next = cloneFilters(filters);
-    next.duration = "1";
+    const start =
+      timeToMinutes(
+        filters.startTime
+      );
 
-    suggestions.push({
-      id: "shorter_duration",
-      title: "Tester une durée d’1 heure",
-      description:
-        "Un créneau plus court peut faire apparaître davantage de disponibilités.",
-      priority: 75,
-      nextFilters: next,
-    });
+    if (start !== null) {
+      const next =
+        cloneFilters(filters);
+
+      const end =
+        start + 60;
+
+      if (end < 24 * 60) {
+        next.endTime =
+          `${String(
+            Math.floor(end / 60)
+          ).padStart(
+            2,
+            "0"
+          )}:${String(
+            end % 60
+          ).padStart(
+            2,
+            "0"
+          )}`;
+
+        suggestions.push({
+          id:
+            "shorter_duration",
+          title:
+            "Tester un créneau d’1 heure",
+          description:
+            "Un créneau plus court peut faire apparaître davantage de prestataires disponibles.",
+          priority: 75,
+          nextFilters: next,
+        });
+      }
+    }
   }
 
-  if (filters.pricing !== "all") {
-    const next = cloneFilters(filters);
+  if (
+    filters.pricing !== "all"
+  ) {
+    const next =
+      cloneFilters(filters);
+
     next.pricing = "all";
 
     suggestions.push({
       id: "remove_pricing",
-      title: "Accepter tous les types de tarifs",
+      title:
+        "Accepter tous les types de tarifs",
       description:
         "Inclut les prestataires au forfait et au tarif horaire.",
       priority: 55,
@@ -175,12 +283,15 @@ export function buildSearchRecoverySuggestions(
   }
 
   if (filters.city) {
-    const next = cloneFilters(filters);
+    const next =
+      cloneFilters(filters);
+
     next.city = "";
 
     suggestions.push({
       id: "remove_city",
-      title: "Élargir à toutes les zones",
+      title:
+        "Élargir à toutes les zones",
       description:
         "Utile si aucun prestataire n’est encore publié dans la zone saisie.",
       priority: 45,
@@ -188,38 +299,54 @@ export function buildSearchRecoverySuggestions(
     });
   }
 
-  const showAll = cloneFilters(filters);
+  const showAll =
+    cloneFilters(filters);
+
   showAll.city = "";
   showAll.date = "";
-  showAll.time = "";
-  showAll.duration = "1";
+  showAll.startTime = "";
+  showAll.endTime = "";
   showAll.budget = "";
   showAll.pricing = "all";
 
   suggestions.push({
     id: "show_all",
-    title: "Voir tous les prestataires de ce service",
+    title:
+      "Voir tous les prestataires de ce service",
     description:
       "Conserve seulement le service demandé et retire les contraintes commerciales.",
     priority: 20,
     nextFilters: showAll,
   });
 
-  const unique = new Map<
-    SearchRecoverySuggestion["id"],
-    SearchRecoverySuggestion
-  >();
+  const unique =
+    new Map<
+      SearchRecoverySuggestion["id"],
+      SearchRecoverySuggestion
+    >();
 
-  for (const suggestion of suggestions) {
-    if (!unique.has(suggestion.id)) {
-      unique.set(suggestion.id, suggestion);
+  for (
+    const suggestion of suggestions
+  ) {
+    if (
+      !unique.has(
+        suggestion.id
+      )
+    ) {
+      unique.set(
+        suggestion.id,
+        suggestion
+      );
     }
   }
 
-  return [...unique.values()]
+  return [
+    ...unique.values(),
+  ]
     .sort(
       (first, second) =>
-        second.priority - first.priority
+        second.priority -
+        first.priority
     )
     .slice(0, 5);
 }
@@ -227,25 +354,43 @@ export function buildSearchRecoverySuggestions(
 export function recoveryHref(
   filters: SearchRecoveryFilters
 ): string {
-  const params = new URLSearchParams();
+  const params =
+    new URLSearchParams();
 
-  if (filters.service !== "all") {
-    params.set("service", filters.service);
+  if (
+    filters.service !== "all"
+  ) {
+    params.set(
+      "service",
+      filters.service
+    );
   }
 
   if (filters.city.trim()) {
-    params.set("city", filters.city.trim());
+    params.set(
+      "city",
+      filters.city.trim()
+    );
   }
 
   if (filters.date) {
-    params.set("date", filters.date);
+    params.set(
+      "date",
+      filters.date
+    );
   }
 
-  if (filters.time) {
-    params.set("time", filters.time);
+  if (filters.startTime) {
     params.set(
-      "duration",
-      filters.duration || "1"
+      "start",
+      filters.startTime
+    );
+  }
+
+  if (filters.endTime) {
+    params.set(
+      "end",
+      filters.endTime
     );
   }
 
@@ -253,21 +398,36 @@ export function recoveryHref(
     filters.budget &&
     Number(filters.budget) >= 0
   ) {
-    params.set("budget", filters.budget);
+    params.set(
+      "budget",
+      filters.budget
+    );
   }
 
-  if (filters.pricing !== "all") {
-    params.set("pricing", filters.pricing);
+  if (
+    filters.pricing !== "all"
+  ) {
+    params.set(
+      "pricing",
+      filters.pricing
+    );
   }
 
   if (
     filters.sort &&
-    filters.sort !== "recommended"
+    filters.sort !==
+      "recommended"
   ) {
-    params.set("sort", filters.sort);
+    params.set(
+      "sort",
+      filters.sort
+    );
   }
 
-  const query = params.toString();
+  const query =
+    params.toString();
 
-  return query ? `/search?${query}` : "/search";
+  return query
+    ? `/search?${query}`
+    : "/search";
 }
