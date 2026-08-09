@@ -108,11 +108,13 @@ export default function ProviderBookingPage() {
   const providerId = params.id;
   const serviceSlug = searchParams.get("service")?.trim() || "babysitting";
   const requestedDate = validRequestedDate(searchParams.get("date"));
-  const requestedTime = validRequestedTime(searchParams.get("time"));
-  const requestedEndTime = endTimeFromRequest(
-    requestedTime,
-    searchParams.get("duration")
+  const requestedTime = validRequestedTime(
+    searchParams.get("start") ?? searchParams.get("time")
   );
+  const requestedExplicitEndTime = validRequestedTime(searchParams.get("end"));
+  const requestedEndTime =
+    requestedExplicitEndTime ||
+    endTimeFromRequest(requestedTime, searchParams.get("duration"));
 
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [serviceProfile, setServiceProfile] = useState<ServiceProfileRow | null>(null);
@@ -231,6 +233,44 @@ export default function ProviderBookingPage() {
     setErrorMessage("");
 
     try {
+      const startMinutes = timeToMinutes(startTime);
+      const endMinutes = timeToMinutes(endTime);
+
+      if (
+        !bookingDate ||
+        startMinutes === null ||
+        endMinutes === null ||
+        endMinutes <= startMinutes
+      ) {
+        throw new Error(
+          "Le créneau choisi n'est pas valide. Vérifie la date, l'heure de début et l'heure de fin."
+        );
+      }
+
+      if (selectedDayAvailability.length === 0) {
+        throw new Error(
+          "Le prestataire n'a déclaré aucune disponibilité pour ce jour."
+        );
+      }
+
+      const fitsAvailability = selectedDayAvailability.some((slot) => {
+        const slotStart = timeToMinutes(slot.start_time.slice(0, 5));
+        const slotEnd = timeToMinutes(slot.end_time.slice(0, 5));
+
+        return (
+          slotStart !== null &&
+          slotEnd !== null &&
+          startMinutes >= slotStart &&
+          endMinutes <= slotEnd
+        );
+      });
+
+      if (!fitsAvailability) {
+        throw new Error(
+          "Ce créneau est en dehors des horaires déclarés par le prestataire."
+        );
+      }
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -285,7 +325,7 @@ export default function ProviderBookingPage() {
 
   if (errorMessage && !profile) {
     return (
-      <main className="min-h-screen bg-zinc-950 px-5 py-10 text-white">
+      <main className="min-h-screen overflow-x-hidden bg-zinc-950 px-3 py-5 text-white sm:px-5 sm:py-8">
         <div className="mx-auto max-w-3xl rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-red-300">
           {errorMessage}
         </div>
@@ -299,7 +339,7 @@ export default function ProviderBookingPage() {
   const minimumDate = new Date().toISOString().slice(0, 10);
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-5 py-10 text-white">
+    <main className="min-h-screen overflow-x-hidden bg-zinc-950 px-3 py-5 text-white sm:px-5 sm:py-8">
       <div className="mx-auto max-w-5xl">
         <Link
           href={`/providers/${providerId}`}
@@ -310,12 +350,12 @@ export default function ProviderBookingPage() {
         </Link>
 
         <section className="mt-8 grid overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900/70 md:grid-cols-[280px_1fr]">
-          <div className="flex min-h-72 items-center justify-center bg-zinc-800">
+          <div className="flex min-h-52 items-center justify-center bg-zinc-800 sm:min-h-72">
             {profile?.avatar_url ? (
               <img
                 src={profile.avatar_url}
                 alt={fullName}
-                className="h-full min-h-72 w-full object-cover"
+                className="h-full min-h-52 w-full object-cover sm:min-h-72"
               />
             ) : (
               <UserRound size={80} className="text-zinc-500" />

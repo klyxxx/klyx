@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
   type FormEvent,
@@ -115,6 +115,7 @@ function SearchContent() {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   useEffect(() => {
     const syncTimer = window.setTimeout(() => {
@@ -191,6 +192,17 @@ function SearchContent() {
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (
+      draft.startTime &&
+      draft.endTime &&
+      draft.endTime <= draft.startTime
+    ) {
+      setErrorMessage("L'heure de fin doit être après l'heure de début.");
+      return;
+    }
+
+    setErrorMessage("");
 
     const params = new URLSearchParams();
 
@@ -312,7 +324,29 @@ function SearchContent() {
               />
             </FilterField>
 
-            <FilterField label="Prix maximum" icon={<Euro size={17} />}>
+            <div className="md:col-span-2 xl:col-span-4">
+              <button
+                type="button"
+                onClick={() => setShowAdvancedFilters((current) => !current)}
+                className="flex w-full items-center justify-between rounded-xl border border-zinc-800 bg-zinc-950/60 px-4 py-3 text-sm font-semibold text-zinc-300 hover:border-zinc-700"
+                aria-expanded={showAdvancedFilters}
+              >
+                <span className="flex items-center gap-2">
+                  <SlidersHorizontal size={17} />
+                  Filtres avancés
+                </span>
+                <span className="text-zinc-500">
+                  {showAdvancedFilters ? "Masquer" : "Afficher"}
+                </span>
+              </button>
+            </div>
+
+            <div
+              className={`grid gap-4 md:col-span-2 md:grid-cols-2 xl:col-span-4 xl:grid-cols-3 ${
+                showAdvancedFilters ? "grid" : "hidden md:grid"
+              }`}
+            >
+              <FilterField label="Prix maximum" icon={<Euro size={17} />}>
               <input
                 type="number"
                 min="0"
@@ -337,19 +371,20 @@ function SearchContent() {
               />
             </FilterField>
 
-            <FilterField label="Trier par" icon={<ShieldCheck size={17} />}>
-              <KlyxSelect
-                value={draft.sort}
-                onChange={(value) =>
-                  updateDraft("sort", value as ProviderSearchSort)
-                }
-                options={SORT_OPTIONS.map((option) => ({
-                  value: option.value,
-                  label: option.label,
-                }))}
-                ariaLabel="Trier par"
-              />
-            </FilterField>
+              <FilterField label="Trier par" icon={<ShieldCheck size={17} />}>
+                <KlyxSelect
+                  value={draft.sort}
+                  onChange={(value) =>
+                    updateDraft("sort", value as ProviderSearchSort)
+                  }
+                  options={SORT_OPTIONS.map((option) => ({
+                    value: option.value,
+                    label: option.label,
+                  }))}
+                  ariaLabel="Trier par"
+                />
+              </FilterField>
+            </div>
           </div>
 
           <button
@@ -361,7 +396,7 @@ function SearchContent() {
           </button>
         </form>
 
-        <section className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="mt-4 hidden gap-3 sm:grid sm:grid-cols-2 lg:grid-cols-4">
           <FilterSummary
             icon={<Search size={17} />}
             label="Service"
