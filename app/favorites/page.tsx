@@ -151,7 +151,7 @@ export default function FavoritesPage() {
             <h1 className="mt-2 text-3xl font-black tracking-[-0.04em] sm:text-4xl">Mes favoris</h1>
             <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground dark:text-zinc-400">Retrouve ici tous les prestataires et services que tu as enregistrés.</p>
           </div>
-          <Link href="/search" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-violet-600 px-5 text-sm font-black transition hover:bg-violet-700"><Search size={17} />Trouver un service</Link>
+          <Link href="/search" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-violet-600 px-5 text-sm font-black text-white transition hover:bg-violet-700"><Search size={17} />Trouver un service</Link>
         </div>
         {errorMessage && <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-300">{errorMessage}</div>}
         {favorites.length === 0 ? (
@@ -159,7 +159,7 @@ export default function FavoritesPage() {
             <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-violet-500/10 text-violet-300"><Heart size={25} /></span>
             <h2 className="mt-5 text-xl font-black">Aucun favori pour le moment</h2>
             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground dark:text-zinc-400">Explore les services KLYX et ajoute les prestataires qui t’intéressent.</p>
-            <Link href="/search" className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl bg-violet-600 px-6 text-sm font-black transition hover:bg-violet-700"><Search size={17} />Trouver un service</Link>
+            <Link href="/search" className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl bg-violet-600 px-6 text-sm font-black text-white transition hover:bg-violet-700"><Search size={17} />Trouver un service</Link>
           </section>
         ) : (
           <div className="mt-8 grid min-w-0 gap-5 sm:grid-cols-2 xl:grid-cols-3">
@@ -170,11 +170,11 @@ export default function FavoritesPage() {
                   <div className="absolute right-3 top-3"><FavoriteButton serviceProfileId={favorite.serviceProfileId} compact /></div>
                 </div>
                 <div className="min-w-0 p-5">
-                  <p className="truncate text-sm font-bold text-violet-300">{favorite.title}</p>
+                  <p className="truncate text-sm font-bold text-violet-700 dark:text-violet-300">{favorite.title}</p>
                   <h2 className="mt-2 truncate text-xl font-black">{favorite.fullName}</h2>
                   <p className="mt-3 flex min-w-0 items-center gap-2 text-sm text-muted-foreground dark:text-zinc-400"><MapPin size={16} className="shrink-0" /><span className="truncate">{favorite.city}</span></p>
                   <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><p className="font-black">{displayPrice(favorite)}</p><p className="inline-flex items-center gap-1 text-sm text-muted-foreground dark:text-zinc-400"><Star size={15} />{favorite.rating.toFixed(1)} ({favorite.reviewCount})</p></div>
-                  <Link href={`/providers/${favorite.userId}`} className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-violet-600 px-5 text-sm font-black transition hover:bg-violet-700">Voir le profil</Link>
+                  <Link href={`/providers/${favorite.userId}`} className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-violet-600 px-5 text-sm font-black text-white transition hover:bg-violet-700">Voir le profil</Link>
                 </div>
               </article>
             ))}

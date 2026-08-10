@@ -335,7 +335,7 @@ export default function AppSidebar() {
               setQuery(event.target.value)
             }
             placeholder="Rechercher dans KLYX"
-            className="h-11 w-full rounded-xl border border-border dark:border-white/10 bg-white/[0.055] pl-9 pr-12 text-sm text-white outline-none placeholder:text-muted-foreground dark:text-white/35 focus:border-violet-400/40"
+            className="h-11 w-full rounded-xl border border-border bg-background pl-9 pr-12 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-violet-400/40 dark:border-white/10 dark:bg-white/[0.055] dark:text-white dark:placeholder:text-white/35"
           />
 
           <span className="pointer-events-none absolute right-2 top-1/2 inline-flex -translate-y-1/2 items-center gap-1 rounded-md border border-border dark:border-white/10 px-1.5 py-1 text-[9px] font-bold text-muted-foreground dark:text-white/35">
@@ -344,7 +344,7 @@ export default function AppSidebar() {
         </div>
 
         {query.trim() && (
-          <div className="mt-2 max-h-72 overflow-y-auto rounded-xl border border-border dark:border-white/10 bg-[#0f0e14] p-1.5 shadow-2xl">
+          <div className="mt-2 max-h-72 overflow-y-auto rounded-xl border border-border bg-card p-1.5 shadow-2xl dark:border-white/10 dark:bg-[#0f0e14]">
             {searchResults.length === 0 ? (
               <p className="px-3 py-3 text-xs text-muted-foreground dark:text-white/40">
                 Aucun résultat.
@@ -405,7 +405,7 @@ export default function AppSidebar() {
                   ? accountType === "provider"
                     ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_10px_24px_rgba(37,99,235,0.25)]"
                     : "bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-[0_10px_24px_rgba(109,40,217,0.28)]"
-                  : "text-muted-foreground dark:text-white/62 hover:bg-white/7 hover:text-white"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground dark:text-white/62 dark:hover:bg-white/7 dark:hover:text-white"
               }`}
             >
               <span
@@ -455,7 +455,7 @@ export default function AppSidebar() {
       </nav>
 
       <div className="p-3">
-        <div className="rounded-2xl border border-white/8 bg-white/[0.035] p-2">
+        <div className="rounded-2xl border border-border bg-muted/40 p-2 dark:border-white/8 dark:bg-white/[0.035]">
           <button
             type="button"
             onClick={logout}
@@ -482,14 +482,14 @@ export default function AppSidebar() {
           onClick={() =>
             setMobileOpen(true)
           }
-          className="grid h-11 w-11 place-items-center rounded-2xl border border-border dark:border-white/10 bg-white/5 text-white"
+          className="grid h-11 w-11 place-items-center rounded-2xl border border-border bg-card text-foreground dark:border-white/10 dark:bg-white/5 dark:text-white"
           aria-label="Ouvrir le menu"
         >
           <Menu size={22} />
         </button>
       </header>
 
-      <aside className="hidden h-screen w-[18rem] shrink-0 flex-col border-r border-white/8 bg-[linear-gradient(180deg,#15131d_0%,#0b0a0f_100%)] lg:sticky lg:top-0 lg:flex">
+      <aside className="hidden h-screen w-[18rem] shrink-0 flex-col border-r border-border bg-card text-foreground dark:border-white/8 dark:bg-[linear-gradient(180deg,#15131d_0%,#0b0a0f_100%)] dark:text-white lg:sticky lg:top-0 lg:flex">
         {navigation}
       </aside>
 
@@ -504,13 +504,13 @@ export default function AppSidebar() {
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
           />
 
-          <aside className="relative flex h-full w-[min(88vw,330px)] flex-col bg-[linear-gradient(180deg,#15131d_0%,#0b0a0f_100%)] shadow-2xl">
+          <aside className="relative flex h-full w-[min(88vw,330px)] flex-col bg-card text-foreground shadow-2xl dark:bg-[linear-gradient(180deg,#15131d_0%,#0b0a0f_100%)] dark:text-white">
             <button
               type="button"
               onClick={() =>
                 setMobileOpen(false)
               }
-              className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-xl bg-white/7 text-white"
+              className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-xl bg-muted text-foreground dark:bg-white/7 dark:text-white"
               aria-label="Fermer"
             >
               <X size={20} />

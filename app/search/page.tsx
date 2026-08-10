@@ -247,7 +247,7 @@ function SearchContent() {
 
           <Link
             href="/request"
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-500/40 bg-violet-500/10 px-5 py-3 font-semibold text-violet-200 hover:bg-violet-500/20"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-500/30 bg-violet-500/10 px-5 py-3 font-semibold text-violet-700 hover:bg-violet-500/15 dark:border-violet-500/40 dark:text-violet-200 dark:hover:bg-violet-500/20"
           >
             <Search size={18} />
             Décrire mon besoin à KLYX
@@ -389,7 +389,7 @@ function SearchContent() {
 
           <button
             type="submit"
-            className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-6 py-4 font-semibold hover:bg-violet-700"
+            className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-6 py-4 font-semibold text-white hover:bg-violet-700"
           >
             <Search size={19} />
             Rechercher les prestataires
@@ -438,7 +438,7 @@ function SearchContent() {
         )}
 
         {!loading && errorMessage && (
-          <div className="mt-8 rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-red-300">
+          <div className="mt-8 rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-red-700 dark:text-red-300">
             <div className="flex gap-3">
               <AlertCircle className="mt-0.5 shrink-0" size={20} />
               <div>
@@ -458,13 +458,13 @@ function SearchContent() {
 
         {!loading && !errorMessage && result.showingAlternatives && (
           <>
-            <div className="mt-8 flex gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 text-amber-200">
+            <div className="mt-8 flex gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 text-amber-800 dark:text-amber-200">
               <AlertCircle className="mt-0.5 shrink-0" size={20} />
               <div>
                 <p className="font-semibold">
                   Aucun profil ne correspond exactement à tous les critères.
                 </p>
-                <p className="mt-1 text-sm text-amber-100/80">
+                <p className="mt-1 text-sm text-amber-800/80 dark:text-amber-100/80">
                   KLYX affiche les alternatives les plus proches et peut adapter
                   la recherche avec ton accord.
                 </p>
@@ -513,7 +513,7 @@ function SearchContent() {
               <button
                 type="button"
                 onClick={resetFilters}
-                className="mt-6 rounded-xl bg-violet-600 px-6 py-3 font-semibold hover:bg-violet-700"
+                className="mt-6 rounded-xl bg-violet-600 px-6 py-3 font-semibold text-white hover:bg-violet-700"
               >
                 Voir tous les prestataires
               </button>
