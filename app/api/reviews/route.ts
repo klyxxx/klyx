@@ -1,10 +1,11 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 import {
   apiErrorStatus,
   getAuthenticatedProfile,
 } from "@/lib/api-auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { recalculateProviderScores } from "@/lib/provider-score";
 
 type BookingRow = {
   id: string;
@@ -273,6 +274,16 @@ export async function POST(request: Request) {
       console.error(
         "Review notification error:",
         notificationError.message
+      );
+    }
+    try {
+      await recalculateProviderScores(providerId);
+    } catch (scoreError) {
+      console.error(
+        "Review score recalculation error:",
+        scoreError instanceof Error
+          ? scoreError.message
+          : scoreError
       );
     }
 
