@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import {
   DAY_LABELS,
   normalizeLocation,
@@ -57,6 +57,8 @@ type ServiceProfileRow = {
   klyx_score: number | null;
   completed_jobs: number | null;
   cancellation_rate: number | null;
+  rating: number | null;
+  review_count: number | null;
 };
 
 type AvailabilityRow = {
@@ -246,6 +248,15 @@ function compareCandidates(
     if (firstPrice !== secondPrice) return firstPrice - secondPrice;
   }
 
+  if (sort === "rating_desc") {
+    if (first.rating !== second.rating) {
+      return second.rating - first.rating;
+    }
+
+    if (first.reviewCount !== second.reviewCount) {
+      return second.reviewCount - first.reviewCount;
+    }
+  }
   if (sort === "experience_desc") {
     if (first.yearsExperience !== second.yearsExperience) {
       return second.yearsExperience - first.yearsExperience;
@@ -371,7 +382,7 @@ async function loadCandidates(filters: Filters): Promise<Candidate[]> {
       supabaseAdmin
         .from("service_profiles")
         .select(
-          "user_service_id, title, pricing_type, price, city, service_area, travel_radius_km, klyx_score, completed_jobs, cancellation_rate"
+          "user_service_id, title, pricing_type, price, city, service_area, travel_radius_km, klyx_score, completed_jobs, cancellation_rate, rating, review_count"
         )
         .in("user_service_id", userServiceIds)
         .eq("available", true),
@@ -458,6 +469,8 @@ async function loadCandidates(filters: Filters): Promise<Candidate[]> {
         klyxScore: Number(serviceProfile.klyx_score ?? 50),
         completedJobs: Number(serviceProfile.completed_jobs ?? 0),
         cancellationRate: Number(serviceProfile.cancellation_rate ?? 0),
+        rating: Number(serviceProfile.rating ?? 0),
+        reviewCount: Number(serviceProfile.review_count ?? 0),
         yearsExperience: Number(providerProfile.years_experience ?? 0),
         isVerified: providerProfile.verification_status === "verified",
         slots: slotsByUserService.get(userService.id) ?? [],

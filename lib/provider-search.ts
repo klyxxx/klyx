@@ -4,6 +4,7 @@ export type ProviderSearchSort =
   | "recommended"
   | "price_asc"
   | "score_desc"
+  | "rating_desc"
   | "experience_desc";
 
 export type ProviderSearchItem = {
@@ -25,6 +26,8 @@ export type ProviderSearchItem = {
   klyxScore: number;
   completedJobs: number;
   cancellationRate: number;
+  rating: number;
+  reviewCount: number;
   yearsExperience: number;
   isVerified: boolean;
   availabilitySummary: string;
@@ -59,6 +62,7 @@ export const SORT_OPTIONS: Array<{
   { value: "recommended", label: "Recommandés" },
   { value: "price_asc", label: "Prix croissant" },
   { value: "score_desc", label: "Meilleur score" },
+  { value: "rating_desc", label: "Mieux notés" },
   { value: "experience_desc", label: "Plus expérimentés" },
 ];
 
