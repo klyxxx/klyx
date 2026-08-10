@@ -1,173 +1,154 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useState,
+} from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
-import { getActiveClientProfile } from "@/lib/account-switcher";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  LoaderCircle,
+  Star,
+  UserRound,
+} from "lucide-react";
 
-type BookingRow = {
-  id: string;
-  parent_id: string;
-  babysitter_id: string;
-  status: string;
+type ReviewApiResponse = {
+  bookingId?: string;
+  providerId?: string;
+  targetName?: string;
+  avatarUrl?: string | null;
+  review?: {
+    id: string;
+    rating: number;
+    comment: string;
+  } | null;
+  message?: string;
+  error?: string;
 };
 
-type ReviewRow = {
-  id: string;
-  rating: number;
-  comment: string | null;
-};
+async function readResponse(
+  response: Response
+): Promise<ReviewApiResponse> {
+  const body =
+    (await response.json()) as ReviewApiResponse;
+
+  if (!response.ok) {
+    throw new Error(
+      body.error || "Une erreur inattendue est survenue."
+    );
+  }
+
+  return body;
+}
 
 export default function ReviewPage() {
   const params = useParams<{ bookingId: string }>();
   const router = useRouter();
 
+  const bookingId = params.bookingId;
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [booking, setBooking] = useState<BookingRow | null>(null);
+  const [providerId, setProviderId] = useState("");
+  const [targetName, setTargetName] =
+    useState("Prestataire KLYX");
+  const [avatarUrl, setAvatarUrl] =
+    useState<string | null>(null);
   const [reviewId, setReviewId] = useState("");
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
-  const [targetName, setTargetName] = useState("Prestataire");
+  const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-
-  const bookingId = params.bookingId;
 
   const loadPage = useCallback(async () => {
     setLoading(true);
     setErrorMessage("");
 
     try {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+      const response = await fetch(
+        `/api/reviews?bookingId=${encodeURIComponent(
+          bookingId
+        )}`,
+        {
+          method: "GET",
+          cache: "no-store",
+        }
+      );
 
-      if (userError || !user) {
-        router.replace("/login");
-        return;
-      }
+      const body = await readResponse(response);
 
-      const activeProfile = await getActiveClientProfile();
+      setProviderId(body.providerId ?? "");
+      setTargetName(
+        body.targetName ?? "Prestataire KLYX"
+      );
+      setAvatarUrl(body.avatarUrl ?? null);
 
-      const { data: bookingData, error: bookingError } = await supabase
-        .from("bookings")
-        .select("id, parent_id, babysitter_id, status")
-        .eq("id", bookingId)
-        .maybeSingle();
-
-      if (bookingError) throw new Error(bookingError.message);
-      if (!bookingData) throw new Error("Réservation introuvable.");
-
-      const currentBooking = bookingData as BookingRow;
-
-      if (currentBooking.parent_id !== activeProfile.id) {
-        throw new Error("Seul le client peut laisser un avis.");
-      }
-
-      if (currentBooking.status !== "completed") {
-        throw new Error("La réservation doit être terminée.");
-      }
-
-      setBooking(currentBooking);
-
-      const [
-        { data: profileData, error: profileError },
-        { data: reviewData, error: reviewError },
-      ] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("full_name, first_name, last_name")
-          .eq("id", currentBooking.babysitter_id)
-          .maybeSingle(),
-        supabase
-          .from("reviews")
-          .select("id, rating, comment")
-          .eq("booking_id", currentBooking.id)
-          .eq("author_id", activeProfile.id)
-          .maybeSingle(),
-      ]);
-
-      if (profileError) throw new Error(profileError.message);
-      if (reviewError) throw new Error(reviewError.message);
-
-      if (profileData) {
-        setTargetName(
-          profileData.full_name?.trim() ||
-            `${profileData.first_name ?? ""} ${profileData.last_name ?? ""}`.trim() ||
-            "Prestataire"
-        );
-      }
-
-      if (reviewData) {
-        const review = reviewData as ReviewRow;
-        setReviewId(review.id);
-        setRating(review.rating);
-        setComment(review.comment ?? "");
+      if (body.review) {
+        setReviewId(body.review.id);
+        setRating(body.review.rating);
+        setComment(body.review.comment);
       }
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Chargement impossible."
+        error instanceof Error
+          ? error.message
+          : "Chargement impossible."
       );
     } finally {
       setLoading(false);
     }
-  }, [bookingId, router]);
+  }, [bookingId]);
 
   useEffect(() => {
     void loadPage();
   }, [loadPage]);
 
-  async function saveReview(event: FormEvent<HTMLFormElement>) {
+  async function saveReview(
+    event: FormEvent<HTMLFormElement>
+  ) {
     event.preventDefault();
 
-    if (!booking) return;
-
     setSaving(true);
+    setMessage("");
     setErrorMessage("");
 
     try {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError || !user) {
-        router.replace("/login");
-        return;
-      }
-
-      const activeProfile = await getActiveClientProfile();
-
-      if (reviewId) {
-        const { error } = await supabase
-          .from("reviews")
-          .update({
-            rating,
-            comment: comment.trim() || null,
-          })
-          .eq("id", reviewId)
-          .eq("author_id", activeProfile.id);
-
-        if (error) throw new Error(error.message);
-      } else {
-        const { error } = await supabase.from("reviews").insert({
-          booking_id: booking.id,
-          author_id: activeProfile.id,
-          target_id: booking.babysitter_id,
+      const response = await fetch("/api/reviews", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          bookingId,
           rating,
-          comment: comment.trim() || null,
-        });
+          comment,
+        }),
+      });
 
-        if (error) throw new Error(error.message);
-      }
+      const body = await readResponse(response);
 
-      alert(reviewId ? "Avis modifié." : "Avis publié.");
-      router.push(`/babysitters/${booking.babysitter_id}`);
+      setReviewId(body.review?.id ?? reviewId);
+      setMessage(body.message ?? "Avis enregistré.");
+
+      const nextProviderId =
+        body.providerId ?? providerId;
+
+      window.setTimeout(() => {
+        router.push(
+          nextProviderId
+            ? `/providers/${nextProviderId}`
+            : "/bookings"
+        );
+      }, 700);
     } catch (error) {
       setErrorMessage(
-        error instanceof Error ? error.message : "Enregistrement impossible."
+        error instanceof Error
+          ? error.message
+          : "Enregistrement impossible."
       );
     } finally {
       setSaving(false);
@@ -176,104 +157,192 @@ export default function ReviewPage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 text-foreground dark:text-white">
-        Chargement...
-      </main>
-    );
-  }
-
-  if (!booking) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 px-6 text-center text-foreground dark:text-white">
-        <div>
-          <h1 className="text-2xl font-bold">Avis indisponible</h1>
-          <p className="mt-3 text-red-400">{errorMessage}</p>
-          <Link
-            href="/dashboard"
-            className="mt-6 inline-flex rounded-xl bg-violet-600 px-6 py-3 font-semibold"
-          >
-            Retour au tableau de bord
-          </Link>
+      <main className="grid min-h-screen place-items-center bg-background px-5 text-foreground dark:bg-zinc-950">
+        <div className="inline-flex items-center gap-3 text-sm text-muted-foreground">
+          <LoaderCircle
+            size={19}
+            className="animate-spin"
+          />
+          Chargement de l’avis...
         </div>
       </main>
     );
   }
 
+  if (errorMessage && !providerId) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-background px-5 text-foreground dark:bg-zinc-950">
+        <section className="w-full max-w-xl rounded-3xl border border-border bg-card p-7 text-center dark:border-zinc-800 dark:bg-zinc-900">
+          <h1 className="text-2xl font-black">
+            Avis indisponible
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-red-600 dark:text-red-300">
+            {errorMessage}
+          </p>
+          <Link
+            href="/bookings"
+            className="mt-6 inline-flex rounded-xl bg-violet-600 px-6 py-3 text-sm font-black text-white hover:bg-violet-700"
+          >
+            Retour aux réservations
+          </Link>
+        </section>
+      </main>
+    );
+  }
+
   return (
-    <main className="min-h-screen bg-background dark:bg-zinc-950 px-4 py-10 text-foreground dark:text-white sm:px-6">
+    <main className="min-h-screen bg-background px-4 py-6 text-foreground dark:bg-zinc-950 sm:px-6 sm:py-10">
       <div className="mx-auto max-w-2xl">
-        <Link href="/dashboard" className="text-sm text-muted-foreground dark:text-zinc-400">
-          Retour au tableau de bord
+        <Link
+          href={`/bookings/${bookingId}`}
+          className="inline-flex items-center gap-2 text-sm font-bold text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft size={17} />
+          Retour à la mission
         </Link>
 
-        <section className="mt-8 rounded-3xl border border-border dark:border-zinc-800 bg-card/60 dark:bg-zinc-900/60 p-6 sm:p-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-violet-400">
-            KLYX
-          </p>
-
-          <h1 className="mt-3 text-3xl font-bold">
-            {reviewId ? "Modifier mon avis" : "Laisser un avis"}
-          </h1>
-
-          <p className="mt-3 text-muted-foreground dark:text-zinc-400">
-            Note ton expérience avec {targetName}.
-          </p>
-
-          {errorMessage && (
-            <div className="mt-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">
-              {errorMessage}
+        <section className="mt-6 overflow-hidden rounded-3xl border border-border bg-card shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="border-b border-border p-6 text-center dark:border-zinc-800 sm:p-8">
+            <div className="mx-auto grid h-20 w-20 place-items-center overflow-hidden rounded-3xl border border-border bg-muted dark:border-zinc-700 dark:bg-zinc-800">
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={targetName}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <UserRound
+                  size={38}
+                  className="text-muted-foreground"
+                />
+              )}
             </div>
-          )}
 
-          <form onSubmit={saveReview} className="mt-8 space-y-6">
+            <p className="mt-5 text-xs font-black uppercase tracking-[0.2em] text-violet-600 dark:text-violet-400">
+              Avis vérifié KLYX
+            </p>
+
+            <h1 className="mt-2 text-3xl font-black tracking-[-0.04em]">
+              {reviewId
+                ? "Modifier mon avis"
+                : "Comment s’est passée la mission ?"}
+            </h1>
+
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">
+              Ton avis concerne{" "}
+              <strong className="text-foreground">
+                {targetName}
+              </strong>
+              . Seules les missions terminées peuvent être
+              évaluées.
+            </p>
+          </div>
+
+          <form
+            onSubmit={saveReview}
+            className="space-y-7 p-6 sm:p-8"
+          >
             <div>
-              <p className="mb-3 text-sm font-medium text-foreground/80 dark:text-zinc-300">Note</p>
+              <p className="text-sm font-black">
+                Ta note
+              </p>
 
-              <div className="flex gap-2">
-                {[1, 2, 3, 4, 5].map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setRating(value)}
-                    className={`text-4xl ${
-                      value <= rating ? "text-amber-400" : "text-zinc-700"
-                    }`}
-                  >
-                    ★
-                  </button>
-                ))}
+              <div
+                className="mt-3 flex flex-wrap gap-2"
+                role="radiogroup"
+                aria-label="Note sur 5"
+              >
+                {[1, 2, 3, 4, 5].map((value) => {
+                  const selected = value <= rating;
+
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setRating(value)}
+                      className={`grid h-12 w-12 place-items-center rounded-xl border transition ${
+                        selected
+                          ? "border-amber-400/40 bg-amber-400/10 text-amber-500"
+                          : "border-border bg-background text-muted-foreground hover:bg-muted dark:border-zinc-700 dark:bg-zinc-950"
+                      }`}
+                      aria-label={`${value} étoile${
+                        value > 1 ? "s" : ""
+                      }`}
+                      aria-pressed={rating === value}
+                    >
+                      <Star
+                        size={24}
+                        fill={
+                          selected
+                            ? "currentColor"
+                            : "none"
+                        }
+                      />
+                    </button>
+                  );
+                })}
               </div>
+
+              <p className="mt-2 text-sm text-muted-foreground">
+                {rating}/5
+              </p>
             </div>
 
             <div>
               <label
-                htmlFor="comment"
-                className="mb-2 block text-sm font-medium text-foreground/80 dark:text-zinc-300"
+                htmlFor="review-comment"
+                className="text-sm font-black"
               >
                 Commentaire
               </label>
 
               <textarea
-                id="comment"
-                rows={6}
+                id="review-comment"
+                rows={5}
                 maxLength={1000}
                 value={comment}
-                onChange={(event) => setComment(event.target.value)}
-                placeholder="Décris ton expérience..."
-                className="w-full rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 px-4 py-3 outline-none focus:border-violet-500"
+                onChange={(event) =>
+                  setComment(event.target.value)
+                }
+                placeholder="Décris ton expérience, la ponctualité, la qualité du service..."
+                className="mt-3 w-full resize-y rounded-2xl border border-border bg-background px-4 py-3 text-foreground outline-none placeholder:text-muted-foreground focus:border-violet-500 focus:ring-4 focus:ring-violet-500/10 dark:border-zinc-700 dark:bg-zinc-950"
               />
+
+              <p className="mt-2 text-right text-xs text-muted-foreground">
+                {comment.length}/1000
+              </p>
             </div>
+
+            {errorMessage && (
+              <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-700 dark:text-red-300">
+                {errorMessage}
+              </div>
+            )}
+
+            {message && (
+              <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm font-bold text-emerald-700 dark:text-emerald-300">
+                <CheckCircle2 size={18} />
+                {message}
+              </div>
+            )}
 
             <button
               type="submit"
               disabled={saving}
-              className="w-full rounded-xl bg-violet-600 px-6 py-4 text-lg font-semibold hover:bg-violet-700 disabled:opacity-60"
+              className="inline-flex min-h-13 w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-6 py-4 text-base font-black text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
+              {saving && (
+                <LoaderCircle
+                  size={18}
+                  className="animate-spin"
+                />
+              )}
+
               {saving
                 ? "Enregistrement..."
                 : reviewId
-                  ? "Modifier l'avis"
-                  : "Publier l'avis"}
+                  ? "Modifier mon avis"
+                  : "Publier mon avis"}
             </button>
           </form>
         </section>
