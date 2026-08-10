@@ -69,6 +69,11 @@ const routesWithoutSidebar = [
   "/login",
   "/signup",
   "/reset-password",
+  "/legal",
+  "/privacy",
+  "/terms",
+  "/support",
+  "/delete-account",
 ];
 
 const clientMenu: MenuItem[] = [

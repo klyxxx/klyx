@@ -432,7 +432,35 @@ export default function SettingsPage() {
             </div>
           </Section>
 
-          <section className="rounded-3xl border border-border bg-card p-6">
+                    <Section icon={<ShieldAlert />} title="Confidentialité et assistance">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Link
+                href="/privacy"
+                className="rounded-2xl border border-border p-4 font-bold transition hover:bg-muted"
+              >
+                Politique de confidentialité
+              </Link>
+              <Link
+                href="/terms"
+                className="rounded-2xl border border-border p-4 font-bold transition hover:bg-muted"
+              >
+                Conditions d’utilisation
+              </Link>
+              <Link
+                href="/support"
+                className="rounded-2xl border border-border p-4 font-bold transition hover:bg-muted"
+              >
+                Assistance KLYX
+              </Link>
+              <Link
+                href="/delete-account"
+                className="rounded-2xl border border-border p-4 font-bold transition hover:bg-muted"
+              >
+                Suppression du compte sur le web
+              </Link>
+            </div>
+          </Section>
+<section className="rounded-3xl border border-border bg-card p-6">
             <button
               type="button"
               onClick={() => void logout()}
@@ -452,7 +480,7 @@ export default function SettingsPage() {
                   Supprimer mon compte
                 </h2>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Bloqué s’il existe une réservation active ou un paiement.
+                  Une réservation active doit être terminée ou annulée. Si le compte contient des paiements à conserver, KLYX peut traiter la suppression avec anonymisation et conservation limitée des données obligatoires.
                 </p>
               </div>
             </div>

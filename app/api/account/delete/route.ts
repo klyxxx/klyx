@@ -83,7 +83,7 @@ export async function DELETE(request: Request) {
         return NextResponse.json(
           {
             error:
-              "Ce compte contient un paiement. La suppression avec anonymisation financière sera ajoutée avant l’ouverture publique.",
+              "Ce compte contient des données de paiement qui nécessitent un traitement de suppression avec conservation limitée ou anonymisation. Utilise la page /delete-account pour initier la demande.",
           },
           { status: 409 }
         );
