@@ -330,7 +330,7 @@ export default function FounderCompactMenu({
               !value
           )
         }
-        className="inline-flex h-11 items-center gap-2 rounded-full border border-amber-400/20 bg-zinc-950 px-4 text-sm font-black text-white shadow-xl transition hover:bg-zinc-900"
+        className="inline-flex h-11 items-center gap-2 rounded-full border border-amber-400/20 bg-background dark:bg-zinc-950 px-4 text-sm font-black text-foreground dark:text-white shadow-xl transition hover:bg-card dark:bg-zinc-900"
         aria-expanded={open}
       >
         <Crown

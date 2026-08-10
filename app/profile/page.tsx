@@ -35,7 +35,7 @@ type ProfilePayload = {
 };
 
 function inputClassName(): string {
-  return "w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-zinc-600 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20";
+  return "w-full rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 px-4 py-3 text-foreground dark:text-white outline-none transition placeholder:text-zinc-600 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20";
 }
 
 export default function ProfilePage() {
@@ -200,13 +200,13 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-zinc-950 text-white">
+      <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 text-foreground dark:text-white">
         <div className="text-center">
           <LoaderCircle
             className="mx-auto animate-spin text-violet-400"
             size={40}
           />
-          <p className="mt-4 text-zinc-400">
+          <p className="mt-4 text-muted-foreground dark:text-zinc-400">
             Chargement du profil...
           </p>
         </div>
@@ -215,11 +215,11 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-4 py-8 text-white sm:px-6">
+    <main className="min-h-screen bg-background dark:bg-zinc-950 px-4 py-8 text-foreground dark:text-white sm:px-6">
       <div className="mx-auto max-w-4xl">
         <Link
           href="/dashboard"
-          className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-white"
+          className="inline-flex items-center gap-2 text-sm text-muted-foreground dark:text-zinc-400 hover:text-foreground dark:text-white"
         >
           <ArrowLeft size={18} />
           Tableau de bord
@@ -232,7 +232,7 @@ export default function ProfilePage() {
           <h1 className="mt-3 text-3xl font-bold sm:text-5xl">
             Mes informations
           </h1>
-          <p className="mt-3 text-zinc-400">
+          <p className="mt-3 text-muted-foreground dark:text-zinc-400">
             Gère la photo et les informations personnelles du profil actuellement actif.
           </p>
         </header>
@@ -251,10 +251,10 @@ export default function ProfilePage() {
 
         <form
           onSubmit={saveProfile}
-          className="mt-8 rounded-3xl border border-zinc-800 bg-zinc-900 p-5 sm:p-8"
+          className="mt-8 rounded-3xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-5 sm:p-8"
         >
-          <div className="flex flex-col gap-6 border-b border-zinc-800 pb-8 sm:flex-row sm:items-center">
-            <div className="flex h-36 w-36 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-violet-600 bg-zinc-800">
+          <div className="flex flex-col gap-6 border-b border-border dark:border-zinc-800 pb-8 sm:flex-row sm:items-center">
+            <div className="flex h-36 w-36 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-violet-600 bg-muted dark:bg-zinc-800">
               {avatarUrl ? (
                 <img
                   key={avatarUrl}
@@ -266,13 +266,13 @@ export default function ProfilePage() {
                   }
                 />
               ) : (
-                <UserRound size={62} className="text-zinc-500" />
+                <UserRound size={62} className="text-muted-foreground dark:text-zinc-500" />
               )}
             </div>
 
             <div>
               <h2 className="text-xl font-bold">Photo de profil</h2>
-              <p className="mt-2 text-sm text-zinc-400">
+              <p className="mt-2 text-sm text-muted-foreground dark:text-zinc-400">
                 Une photo claire augmente la confiance des autres utilisateurs.
               </p>
 
@@ -377,7 +377,7 @@ function Field({
     <div>
       <label
         htmlFor={id}
-        className="mb-2 block text-sm font-medium text-zinc-300"
+        className="mb-2 block text-sm font-medium text-foreground/80 dark:text-zinc-300"
       >
         {label}
       </label>

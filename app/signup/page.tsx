@@ -203,7 +203,7 @@ export default function SignupPage() {
 
   if (checkingSession) {
     return (
-      <main className="grid min-h-screen place-items-center bg-zinc-950 text-white">
+      <main className="grid min-h-screen place-items-center bg-background dark:bg-zinc-950 text-foreground dark:text-white">
         <div
           className="h-10 w-10 animate-spin rounded-full border-2 border-white/20 border-t-violet-500"
           aria-label="Vérification de la session"
@@ -213,7 +213,7 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-5 py-8 text-white sm:px-8">
+    <main className="min-h-screen bg-background dark:bg-zinc-950 px-5 py-8 text-foreground dark:text-white sm:px-8">
       <div className="mx-auto max-w-6xl">
         <KlyxLogo />
 
@@ -481,7 +481,7 @@ export default function SignupPage() {
               Déjà inscrit ?{" "}
               <Link
                 href="/login"
-                className="font-bold text-white hover:text-violet-300"
+                className="font-bold text-foreground dark:text-white hover:text-violet-300"
               >
                 Se connecter
               </Link>

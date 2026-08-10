@@ -73,10 +73,10 @@ export default function SearchRecovery({
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-violet-300">
               KLYX peut adapter la recherche
             </p>
-            <h3 className="mt-2 text-xl font-bold text-white">
+            <h3 className="mt-2 text-xl font-bold text-foreground dark:text-white">
               Essaie une de ces corrections
             </h3>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">
+            <p className="mt-2 text-sm leading-6 text-muted-foreground dark:text-zinc-400">
               Rien n’est modifié automatiquement. Tu choisis
               toi-même l’adaptation à appliquer.
             </p>
@@ -95,7 +95,7 @@ export default function SearchRecovery({
                 suggestion.nextFilters
               )}
               scroll={false}
-              className="group flex items-start justify-between gap-4 rounded-2xl border border-zinc-800 bg-zinc-950/55 p-4 transition hover:border-violet-500/50 hover:bg-violet-500/[0.08]"
+              className="group flex items-start justify-between gap-4 rounded-2xl border border-border dark:border-zinc-800 bg-background dark:bg-zinc-950/55 p-4 transition hover:border-violet-500/50 hover:bg-violet-500/[0.08]"
             >
               <div className="flex min-w-0 items-start gap-3">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/5 text-violet-300">
@@ -103,17 +103,17 @@ export default function SearchRecovery({
                 </span>
 
                 <div>
-                  <p className="font-semibold text-white">
+                  <p className="font-semibold text-foreground dark:text-white">
                     {suggestion.title}
                   </p>
-                  <p className="mt-1 text-sm leading-5 text-zinc-400">
+                  <p className="mt-1 text-sm leading-5 text-muted-foreground dark:text-zinc-400">
                     {suggestion.description}
                   </p>
                 </div>
               </div>
 
               <ArrowRight
-                className="mt-2 shrink-0 text-zinc-500 transition group-hover:translate-x-1 group-hover:text-violet-300"
+                className="mt-2 shrink-0 text-muted-foreground dark:text-zinc-500 transition group-hover:translate-x-1 group-hover:text-violet-300"
                 size={18}
               />
             </Link>

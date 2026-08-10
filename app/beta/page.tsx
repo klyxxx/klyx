@@ -19,7 +19,7 @@ const FEATURES = [
 
 export default function BetaPage() {
   return (
-    <main className="min-h-screen bg-zinc-950 px-5 py-8 text-white sm:px-8">
+    <main className="min-h-screen bg-background dark:bg-zinc-950 px-5 py-8 text-foreground dark:text-white sm:px-8">
       <div className="mx-auto max-w-6xl">
         <header className="flex flex-wrap items-center justify-between gap-4">
           <Link

@@ -231,13 +231,13 @@ export default function NotificationsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-5 py-10 text-white">
+    <main className="min-h-screen bg-background dark:bg-zinc-950 px-5 py-10 text-foreground dark:text-white">
       <div className="mx-auto max-w-4xl">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <Link
               href="/dashboard"
-              className="text-sm text-zinc-400 hover:text-white"
+              className="text-sm text-muted-foreground dark:text-zinc-400 hover:text-foreground dark:text-white"
             >
               Retour au tableau de bord
             </Link>
@@ -246,7 +246,7 @@ export default function NotificationsPage() {
               Notifications
             </h1>
 
-            <p className="mt-3 text-zinc-400">
+            <p className="mt-3 text-muted-foreground dark:text-zinc-400">
               {unreadCount} notification
               {unreadCount > 1 ? "s" : ""} non lue
               {unreadCount > 1 ? "s" : ""}.
@@ -260,7 +260,7 @@ export default function NotificationsPage() {
                 void loadNotifications()
               }
               disabled={loading}
-              className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 px-4 py-3 font-semibold hover:bg-zinc-900 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl border border-border dark:border-zinc-700 px-4 py-3 font-semibold hover:bg-card dark:bg-zinc-900 disabled:opacity-50"
             >
               <RefreshCw
                 size={18}
@@ -298,11 +298,11 @@ export default function NotificationsPage() {
         )}
 
         {loading ? (
-          <div className="mt-10 rounded-2xl border border-zinc-800 bg-zinc-900 p-8 text-center text-zinc-400">
+          <div className="mt-10 rounded-2xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-8 text-center text-muted-foreground dark:text-zinc-400">
             Chargement des notifications...
           </div>
         ) : notifications.length === 0 ? (
-          <div className="mt-10 rounded-2xl border border-zinc-800 bg-zinc-900 p-8 text-center">
+          <div className="mt-10 rounded-2xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-8 text-center">
             <Bell
               size={36}
               className="mx-auto text-zinc-600"
@@ -312,7 +312,7 @@ export default function NotificationsPage() {
               Aucune notification
             </h2>
 
-            <p className="mt-2 text-zinc-400">
+            <p className="mt-2 text-muted-foreground dark:text-zinc-400">
               Les changements importants apparaîtront ici.
             </p>
           </div>
@@ -339,14 +339,14 @@ export default function NotificationsPage() {
                     className={`flex w-full items-start gap-4 rounded-2xl border p-5 text-left transition disabled:opacity-60 ${
                       unread
                         ? "border-violet-500/30 bg-violet-500/10"
-                        : "border-zinc-800 bg-zinc-900"
+                        : "border-border dark:border-zinc-800 bg-card dark:bg-zinc-900"
                     }`}
                   >
                     <div
                       className={`mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
                         unread
                           ? "bg-violet-600 text-white"
-                          : "bg-zinc-800 text-zinc-500"
+                          : "bg-muted dark:bg-zinc-800 text-muted-foreground dark:text-zinc-500"
                       }`}
                     >
                       {unread ? (
@@ -362,7 +362,7 @@ export default function NotificationsPage() {
                           {notification.title}
                         </h2>
 
-                        <span className="text-xs text-zinc-500">
+                        <span className="text-xs text-muted-foreground dark:text-zinc-500">
                           {new Date(
                             notification.created_at
                           ).toLocaleString(
@@ -371,7 +371,7 @@ export default function NotificationsPage() {
                         </span>
                       </div>
 
-                      <p className="mt-2 text-sm text-zinc-300">
+                      <p className="mt-2 text-sm text-foreground/80 dark:text-zinc-300">
                         {notification.message}
                       </p>
                     </div>
@@ -379,7 +379,7 @@ export default function NotificationsPage() {
                     {notification.href && (
                       <ChevronRight
                         size={20}
-                        className="mt-2 shrink-0 text-zinc-500"
+                        className="mt-2 shrink-0 text-muted-foreground dark:text-zinc-500"
                       />
                     )}
                   </button>

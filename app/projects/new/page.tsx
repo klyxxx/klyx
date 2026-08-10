@@ -115,16 +115,16 @@ export default function NewProjectPage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-5 py-10 text-white">
+    <main className="min-h-screen bg-background dark:bg-zinc-950 px-5 py-10 text-foreground dark:text-white">
       <div className="mx-auto max-w-5xl">
         <Link
           href="/dashboard"
-          className="text-sm text-zinc-400 hover:text-white"
+          className="text-sm text-muted-foreground dark:text-zinc-400 hover:text-foreground dark:text-white"
         >
           Retour au tableau de bord
         </Link>
 
-        <section className="mt-10 rounded-3xl border border-zinc-800 bg-zinc-900/70 p-6 sm:p-10">
+        <section className="mt-10 rounded-3xl border border-border dark:border-zinc-800 bg-card/70 dark:bg-zinc-900/70 p-6 sm:p-10">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-600/20 text-violet-400">
             <FolderKanban size={28} />
           </div>
@@ -137,7 +137,7 @@ export default function NewProjectPage() {
             Décris ton objectif complet
           </h1>
 
-          <p className="mt-4 max-w-3xl text-zinc-400">
+          <p className="mt-4 max-w-3xl text-muted-foreground dark:text-zinc-400">
             KLYX transforme ton objectif en
             plan, services, budget estimé et
             ordre d’exécution.
@@ -154,7 +154,7 @@ export default function NewProjectPage() {
               }
               placeholder="Exemple : Je déménage le 15 septembre à Bruxelles avec un budget de 800 €."
               rows={6}
-              className="w-full resize-none rounded-2xl border border-zinc-700 bg-zinc-950 p-5 text-lg outline-none transition focus:border-violet-500"
+              className="w-full resize-none rounded-2xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 p-5 text-lg outline-none transition focus:border-violet-500"
             />
 
             {errorMessage && (
@@ -180,7 +180,7 @@ export default function NewProjectPage() {
         </section>
 
         {result?.project && (
-          <section className="mt-8 rounded-3xl border border-zinc-800 bg-zinc-900/70 p-6 sm:p-8">
+          <section className="mt-8 rounded-3xl border border-border dark:border-zinc-800 bg-card/70 dark:bg-zinc-900/70 p-6 sm:p-8">
             <h2 className="text-3xl font-bold">
               {result.project.title}
             </h2>
@@ -237,7 +237,7 @@ export default function NewProjectPage() {
                 .map((service) => (
                   <article
                     key={service.id}
-                    className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5"
+                    className="rounded-2xl border border-border dark:border-zinc-800 bg-background dark:bg-zinc-950 p-5"
                   >
                     <div className="flex items-start gap-4">
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-600 font-bold">
@@ -251,7 +251,7 @@ export default function NewProjectPage() {
                           }
                         </h4>
 
-                        <p className="mt-2 text-sm text-zinc-400">
+                        <p className="mt-2 text-sm text-muted-foreground dark:text-zinc-400">
                           {service.notes}
                         </p>
 
@@ -304,8 +304,8 @@ function Summary({
   value: string;
 }) {
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
-      <div className="flex items-center gap-2 text-sm text-zinc-400">
+    <div className="rounded-xl border border-border dark:border-zinc-800 bg-background dark:bg-zinc-950 p-4">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground dark:text-zinc-400">
         {icon}
         {label}
       </div>

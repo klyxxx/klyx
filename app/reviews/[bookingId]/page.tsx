@@ -176,7 +176,7 @@ export default function ReviewPage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-zinc-950 text-white">
+      <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 text-foreground dark:text-white">
         Chargement...
       </main>
     );
@@ -184,7 +184,7 @@ export default function ReviewPage() {
 
   if (!booking) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-zinc-950 px-6 text-center text-white">
+      <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 px-6 text-center text-foreground dark:text-white">
         <div>
           <h1 className="text-2xl font-bold">Avis indisponible</h1>
           <p className="mt-3 text-red-400">{errorMessage}</p>
@@ -200,13 +200,13 @@ export default function ReviewPage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-4 py-10 text-white sm:px-6">
+    <main className="min-h-screen bg-background dark:bg-zinc-950 px-4 py-10 text-foreground dark:text-white sm:px-6">
       <div className="mx-auto max-w-2xl">
-        <Link href="/dashboard" className="text-sm text-zinc-400">
+        <Link href="/dashboard" className="text-sm text-muted-foreground dark:text-zinc-400">
           Retour au tableau de bord
         </Link>
 
-        <section className="mt-8 rounded-3xl border border-zinc-800 bg-zinc-900/60 p-6 sm:p-8">
+        <section className="mt-8 rounded-3xl border border-border dark:border-zinc-800 bg-card/60 dark:bg-zinc-900/60 p-6 sm:p-8">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-violet-400">
             KLYX
           </p>
@@ -215,7 +215,7 @@ export default function ReviewPage() {
             {reviewId ? "Modifier mon avis" : "Laisser un avis"}
           </h1>
 
-          <p className="mt-3 text-zinc-400">
+          <p className="mt-3 text-muted-foreground dark:text-zinc-400">
             Note ton expérience avec {targetName}.
           </p>
 
@@ -227,7 +227,7 @@ export default function ReviewPage() {
 
           <form onSubmit={saveReview} className="mt-8 space-y-6">
             <div>
-              <p className="mb-3 text-sm font-medium text-zinc-300">Note</p>
+              <p className="mb-3 text-sm font-medium text-foreground/80 dark:text-zinc-300">Note</p>
 
               <div className="flex gap-2">
                 {[1, 2, 3, 4, 5].map((value) => (
@@ -248,7 +248,7 @@ export default function ReviewPage() {
             <div>
               <label
                 htmlFor="comment"
-                className="mb-2 block text-sm font-medium text-zinc-300"
+                className="mb-2 block text-sm font-medium text-foreground/80 dark:text-zinc-300"
               >
                 Commentaire
               </label>
@@ -260,7 +260,7 @@ export default function ReviewPage() {
                 value={comment}
                 onChange={(event) => setComment(event.target.value)}
                 placeholder="Décris ton expérience..."
-                className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 px-4 py-3 outline-none focus:border-violet-500"
               />
             </div>
 

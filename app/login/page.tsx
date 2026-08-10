@@ -82,11 +82,11 @@ export default function LoginPage() {
   }
 
   if (checkingSession) {
-    return <main className="grid min-h-screen place-items-center bg-zinc-950 text-white"><div className="h-10 w-10 animate-spin rounded-full border-2 border-white/20 border-t-violet-500" /></main>;
+    return <main className="grid min-h-screen place-items-center bg-background dark:bg-zinc-950 text-foreground dark:text-white"><div className="h-10 w-10 animate-spin rounded-full border-2 border-white/20 border-t-violet-500" /></main>;
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white lg:grid lg:grid-cols-[1.05fr_0.95fr]">
+    <main className="min-h-screen bg-background dark:bg-zinc-950 text-foreground dark:text-white lg:grid lg:grid-cols-[1.05fr_0.95fr]">
       <section className="relative hidden overflow-hidden border-r border-white/8 p-12 lg:flex lg:flex-col lg:justify-between">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(124,58,237,0.34),transparent_34%),radial-gradient(circle_at_90%_80%,rgba(59,130,246,0.18),transparent_30%)]" />
         <div className="relative"><KlyxLogo /></div>
@@ -112,7 +112,7 @@ export default function LoginPage() {
             {errorMessage && <p className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{errorMessage}</p>}
             <button type="submit" disabled={loading} className="klyx-button w-full !min-h-14">{loading ? "Connexion..." : "Se connecter"}</button>
           </form>
-          <p className="mt-8 text-center text-sm text-white/45">Nouveau sur KLYX ? <Link href="/signup" className="font-bold text-white hover:text-violet-300">Créer un compte</Link></p>
+          <p className="mt-8 text-center text-sm text-white/45">Nouveau sur KLYX ? <Link href="/signup" className="font-bold text-foreground dark:text-white hover:text-violet-300">Créer un compte</Link></p>
         </div>
       </section>
     </main>

@@ -225,7 +225,7 @@ export default function NotificationBell() {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="relative flex h-11 w-11 items-center justify-center rounded-full border border-zinc-800 bg-zinc-900 text-zinc-100 transition hover:bg-zinc-800"
+        className="relative flex h-11 w-11 items-center justify-center rounded-full border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 text-foreground dark:text-zinc-100 transition hover:bg-muted dark:bg-zinc-800"
         aria-label="Notifications"
         aria-expanded={open}
         aria-haspopup="dialog"
@@ -240,11 +240,11 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-3 w-[min(92vw,380px)] overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950 shadow-2xl">
-          <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-4">
+        <div className="absolute right-0 z-50 mt-3 w-[min(92vw,380px)] overflow-hidden rounded-2xl border border-border dark:border-zinc-800 bg-background dark:bg-zinc-950 shadow-2xl">
+          <div className="flex items-center justify-between border-b border-border dark:border-zinc-800 px-4 py-4">
             <div>
               <h2 className="font-semibold">Notifications</h2>
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-muted-foreground dark:text-zinc-500">
                 {unreadCount} non lue{unreadCount > 1 ? "s" : ""}
               </p>
             </div>
@@ -267,11 +267,11 @@ export default function NotificationBell() {
 
           <div className="max-h-[430px] overflow-y-auto">
             {loading ? (
-              <div className="p-6 text-center text-sm text-zinc-500">
+              <div className="p-6 text-center text-sm text-muted-foreground dark:text-zinc-500">
                 Chargement...
               </div>
             ) : notifications.length === 0 ? (
-              <div className="p-8 text-center text-sm text-zinc-500">
+              <div className="p-8 text-center text-sm text-muted-foreground dark:text-zinc-500">
                 Aucune notification.
               </div>
             ) : (
@@ -280,7 +280,7 @@ export default function NotificationBell() {
                   key={notification.id}
                   type="button"
                   onClick={() => void openNotification(notification)}
-                  className={`block w-full border-b border-zinc-900 px-4 py-4 text-left transition hover:bg-zinc-900 ${
+                  className={`block w-full border-b border-zinc-900 px-4 py-4 text-left transition hover:bg-card dark:bg-zinc-900 ${
                     notification.read_at ? "opacity-60" : "bg-violet-500/5"
                   }`}
                 >
@@ -291,7 +291,7 @@ export default function NotificationBell() {
 
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-3">
-                        <p className="font-semibold text-zinc-100">
+                        <p className="font-semibold text-foreground dark:text-zinc-100">
                           {notification.title}
                         </p>
 
@@ -301,7 +301,7 @@ export default function NotificationBell() {
                       </div>
 
                       {notification.message && (
-                        <p className="mt-1 text-sm text-zinc-400">
+                        <p className="mt-1 text-sm text-muted-foreground dark:text-zinc-400">
                           {notification.message}
                         </p>
                       )}

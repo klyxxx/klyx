@@ -414,7 +414,7 @@ export default function ProviderPaymentsPage() {
               <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex gap-4">
                   <div
-                    className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-white ${
+                    className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-foreground dark:text-white ${
                       fullyReady
                         ? "bg-emerald-600"
                         : "bg-amber-500"

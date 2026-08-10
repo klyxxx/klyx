@@ -335,7 +335,7 @@ function SearchContent() {
                   <SlidersHorizontal size={17} />
                   Filtres avancés
                 </span>
-                <span className="text-zinc-500">
+                <span className="text-muted-foreground dark:text-zinc-500">
                   {showAdvancedFilters ? "Masquer" : "Afficher"}
                 </span>
               </button>
@@ -432,7 +432,7 @@ function SearchContent() {
         </section>
 
         {loading && (
-          <div className="mt-8 rounded-2xl border border-zinc-800 bg-zinc-900 p-8 text-center text-zinc-400">
+          <div className="mt-8 rounded-2xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-8 text-center text-muted-foreground dark:text-zinc-400">
             KLYX vérifie les profils publiés et leurs disponibilités...
           </div>
         )}
@@ -503,9 +503,9 @@ function SearchContent() {
               result={result}
             />
 
-            <div className="mt-8 rounded-3xl border border-zinc-800 bg-zinc-900 p-8 text-center">
+            <div className="mt-8 rounded-3xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-8 text-center">
             <h2 className="text-2xl font-bold">Aucun prestataire publié</h2>
-            <p className="mx-auto mt-3 max-w-xl text-zinc-400">
+            <p className="mx-auto mt-3 max-w-xl text-muted-foreground dark:text-zinc-400">
               Aucun service actif ne correspond encore à cette recherche. Essaie
               une autre zone ou retire certains critères.
             </p>
@@ -525,8 +525,8 @@ function SearchContent() {
         {!loading && !errorMessage && result.providers.length > 0 && (
           <>
             <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm text-zinc-400">
-                <strong className="text-white">
+              <p className="text-sm text-muted-foreground dark:text-zinc-400">
+                <strong className="text-foreground dark:text-white">
                   {result.showingAlternatives
                     ? result.providers.length
                     : result.exactCount}
@@ -594,8 +594,8 @@ function ProviderCardView({
   const displayName = provider.businessName || fullName;
 
   return (
-    <article className="overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900">
-      <div className="relative flex h-52 items-center justify-center bg-zinc-800">
+    <article className="overflow-hidden rounded-3xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900">
+      <div className="relative flex h-52 items-center justify-center bg-muted dark:bg-zinc-800">
         {provider.avatarUrl ? (
           <img
             src={provider.avatarUrl}
@@ -603,7 +603,7 @@ function ProviderCardView({
             className="h-full w-full object-cover"
           />
         ) : (
-          <UserRound size={60} className="text-zinc-500" />
+          <UserRound size={60} className="text-muted-foreground dark:text-zinc-500" />
         )}
 
         {recommended && (
@@ -626,7 +626,7 @@ function ProviderCardView({
             </p>
             <h2 className="mt-2 truncate text-2xl font-bold">{displayName}</h2>
             {provider.businessName && (
-              <p className="mt-1 truncate text-sm text-zinc-400">{fullName}</p>
+              <p className="mt-1 truncate text-sm text-muted-foreground dark:text-zinc-400">{fullName}</p>
             )}
           </div>
 
@@ -634,7 +634,7 @@ function ProviderCardView({
             <p className="text-2xl font-bold text-violet-300">
               {provider.klyxScore.toFixed(0)}
             </p>
-            <p className="text-xs text-zinc-400">/100</p>
+            <p className="text-xs text-muted-foreground dark:text-zinc-400">/100</p>
           </div>
         </div>
 
@@ -649,22 +649,22 @@ function ProviderCardView({
           )}
         </div>
 
-        <p className="mt-3 line-clamp-2 min-h-10 text-sm text-zinc-400">
+        <p className="mt-3 line-clamp-2 min-h-10 text-sm text-muted-foreground dark:text-zinc-400">
           {provider.title || provider.headline || "Service professionnel KLYX"}
         </p>
 
-        <div className="mt-4 space-y-2 text-sm text-zinc-300">
+        <div className="mt-4 space-y-2 text-sm text-foreground/80 dark:text-zinc-300">
           <p className="flex items-center gap-2">
-            <MapPin size={16} className="text-zinc-500" />
+            <MapPin size={16} className="text-muted-foreground dark:text-zinc-500" />
             {provider.city || provider.serviceArea[0] || "Zone à confirmer"}
             {provider.travelRadiusKm > 0 && ` · ${provider.travelRadiusKm} km`}
           </p>
           <p className="flex items-center gap-2">
-            <Clock3 size={16} className="text-zinc-500" />
+            <Clock3 size={16} className="text-muted-foreground dark:text-zinc-500" />
             {provider.availabilitySummary}
           </p>
           <p className="flex items-center gap-2">
-            <CheckCircle2 size={16} className="text-zinc-500" />
+            <CheckCircle2 size={16} className="text-muted-foreground dark:text-zinc-500" />
             {provider.yearsExperience} an
             {provider.yearsExperience > 1 ? "s" : ""} d’expérience ·{" "}
             {provider.completedJobs} prestation
@@ -684,7 +684,7 @@ function ProviderCardView({
         <div className="mt-5 grid grid-cols-2 gap-3">
           <Link
             href={`/providers/${provider.profileId}`}
-            className="rounded-xl border border-zinc-700 px-4 py-3 text-center font-semibold hover:bg-zinc-800"
+            className="rounded-xl border border-border dark:border-zinc-700 px-4 py-3 text-center font-semibold hover:bg-muted dark:bg-zinc-800"
           >
             Voir le profil
           </Link>

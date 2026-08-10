@@ -30,7 +30,7 @@ export default function KlyxLogo({
       {!compact && (
         <span
           className={`text-[1.7rem] font-black tracking-[-0.06em] ${
-            dark ? "text-zinc-950 dark:text-white" : "text-white"
+            dark ? "text-zinc-950 dark:text-white" : "text-foreground dark:text-white"
           }`}
         >
           KLYX

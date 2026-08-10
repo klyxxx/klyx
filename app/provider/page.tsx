@@ -1,4 +1,4 @@
-﻿import { redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import ProviderStudio from "@/app/components/ProviderStudio";
 import ProviderReadinessStatus from "@/app/components/ProviderReadinessStatus";
 import { getActiveProfile } from "@/lib/active-profile";

@@ -21,7 +21,7 @@ export const metadata = {
 
 export default function InstallPage() {
   return (
-    <main className="min-h-screen bg-[#09090b] text-white">
+    <main className="min-h-screen bg-background dark:bg-[#09090b] text-foreground dark:text-white">
       <header className="border-b border-white/8">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8">
           <KlyxLogo href="/" />
@@ -39,7 +39,7 @@ export default function InstallPage() {
       <div className="mx-auto max-w-6xl px-5 py-10 sm:px-8 sm:py-14">
         <Link
           href="/"
-          className="inline-flex items-center gap-2 text-sm font-bold text-white/45 transition hover:text-white"
+          className="inline-flex items-center gap-2 text-sm font-bold text-white/45 transition hover:text-foreground dark:text-white"
         >
           <ArrowLeft size={17} />
           Retour à l’accueil

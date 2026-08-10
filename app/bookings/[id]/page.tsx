@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -95,7 +95,7 @@ const STATUS_STYLES: Record<string, string> = {
   pending: "border-amber-500/30 bg-amber-500/10 text-amber-300",
   accepted: "border-violet-500/30 bg-violet-500/10 text-violet-300",
   rejected: "border-red-500/30 bg-red-500/10 text-red-300",
-  cancelled: "border-zinc-700 bg-zinc-800 text-zinc-300",
+  cancelled: "border-border dark:border-zinc-700 bg-muted dark:bg-zinc-800 text-foreground/80 dark:text-zinc-300",
   completed: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
 };
 
@@ -367,7 +367,7 @@ export default function BookingDetailsPage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-zinc-950 text-white">
+      <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 text-foreground dark:text-white">
         Chargement de la réservation...
       </main>
     );
@@ -375,7 +375,7 @@ export default function BookingDetailsPage() {
 
   if (!booking || !activeProfile) {
     return (
-      <main className="min-h-screen bg-zinc-950 px-5 py-10 text-white">
+      <main className="min-h-screen bg-background dark:bg-zinc-950 px-5 py-10 text-foreground dark:text-white">
         <div className="mx-auto max-w-3xl rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-red-300">
           {errorMessage || "Réservation introuvable."}
         </div>
@@ -407,19 +407,19 @@ export default function BookingDetailsPage() {
           : "À payer";
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-5 py-10 text-white">
+    <main className="min-h-screen bg-background dark:bg-zinc-950 px-5 py-10 text-foreground dark:text-white">
       <div className="mx-auto max-w-6xl">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <Link
             href="/bookings"
-            className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-white"
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground dark:text-zinc-400 hover:text-foreground dark:text-white"
           >
             <ArrowLeft size={17} /> Retour aux réservations
           </Link>
           <button
             type="button"
             onClick={() => void loadBooking()}
-            className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 px-4 py-2 text-sm font-semibold hover:bg-zinc-900"
+            className="inline-flex items-center gap-2 rounded-xl border border-border dark:border-zinc-700 px-4 py-2 text-sm font-semibold hover:bg-card dark:bg-zinc-900"
           >
             <RefreshCw size={16} /> Actualiser
           </button>
@@ -440,7 +440,7 @@ export default function BookingDetailsPage() {
 
         <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_380px]">
           <div className="space-y-8">
-            <section className="rounded-3xl border border-zinc-800 bg-zinc-900 p-6 sm:p-8">
+            <section className="rounded-3xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-6 sm:p-8">
               <div className="flex flex-wrap items-start justify-between gap-5">
                 <div>
                   <p className="text-sm font-semibold uppercase tracking-[0.2em] text-violet-400">
@@ -482,8 +482,8 @@ export default function BookingDetailsPage() {
                 />
               </div>
 
-              <div className="mt-6 flex items-center gap-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800">
+              <div className="mt-6 flex items-center gap-4 rounded-2xl border border-border dark:border-zinc-800 bg-background dark:bg-zinc-950 p-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted dark:bg-zinc-800">
                   {otherProfile?.avatar_url ? (
                     <img
                       src={otherProfile.avatar_url}
@@ -491,11 +491,11 @@ export default function BookingDetailsPage() {
                       className="h-full w-full object-cover"
                     />
                   ) : (
-                    <UserRound className="text-zinc-500" size={24} />
+                    <UserRound className="text-muted-foreground dark:text-zinc-500" size={24} />
                   )}
                 </div>
                 <div>
-                  <p className="text-xs text-zinc-500">
+                  <p className="text-xs text-muted-foreground dark:text-zinc-500">
                     {role === "client" ? "Prestataire" : "Client"}
                   </p>
                   <p className="font-bold">{otherName}</p>
@@ -503,8 +503,8 @@ export default function BookingDetailsPage() {
               </div>
 
               {booking.message && (
-                <div className="mt-6 rounded-2xl border border-zinc-800 p-5">
-                  <p className="text-sm font-semibold text-zinc-400">Demande du client</p>
+                <div className="mt-6 rounded-2xl border border-border dark:border-zinc-800 p-5">
+                  <p className="text-sm font-semibold text-muted-foreground dark:text-zinc-400">Demande du client</p>
                   <p className="mt-2 whitespace-pre-wrap leading-7 text-zinc-200">
                     {booking.message}
                   </p>
@@ -545,14 +545,14 @@ export default function BookingDetailsPage() {
                 )}
             </section>
 
-            <section className="rounded-3xl border border-zinc-800 bg-zinc-900 p-6 sm:p-8">
+            <section className="rounded-3xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-6 sm:p-8">
               <div className="flex items-center gap-3">
                 <History className="text-violet-400" size={24} />
                 <h2 className="text-2xl font-bold">Historique</h2>
               </div>
 
               {events.length === 0 ? (
-                <p className="mt-5 text-zinc-400">Aucun événement enregistré.</p>
+                <p className="mt-5 text-muted-foreground dark:text-zinc-400">Aucun événement enregistré.</p>
               ) : (
                 <div className="mt-6 space-y-5">
                   {events.map((event, index) => (
@@ -565,11 +565,11 @@ export default function BookingDetailsPage() {
                         <p className="font-semibold">
                           {STATUS_LABELS[event.new_status] ?? event.new_status}
                         </p>
-                        <p className="mt-1 text-sm text-zinc-500">
+                        <p className="mt-1 text-sm text-muted-foreground dark:text-zinc-500">
                           {event.actorName} · {formatDateTime(event.created_at)}
                         </p>
                         {event.note && (
-                          <p className="mt-2 text-sm leading-6 text-zinc-300">{event.note}</p>
+                          <p className="mt-2 text-sm leading-6 text-foreground/80 dark:text-zinc-300">{event.note}</p>
                         )}
                       </div>
                     </div>
@@ -579,9 +579,9 @@ export default function BookingDetailsPage() {
             </section>
           </div>
 
-          <aside className="h-fit rounded-3xl border border-zinc-800 bg-zinc-900 p-6 lg:sticky lg:top-6">
+          <aside className="h-fit rounded-3xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-6 lg:sticky lg:top-6">
             <h2 className="text-xl font-bold">Actions</h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">
+            <p className="mt-2 text-sm leading-6 text-muted-foreground dark:text-zinc-400">
               {canProviderAnswer
                 ? "Réponds à la demande. Ton message sera visible par le client."
                 : "Les actions disponibles dépendent de l’état de la réservation."}
@@ -589,7 +589,7 @@ export default function BookingDetailsPage() {
 
             {(canProviderAnswer || canCancel) && (
               <label className="mt-5 block">
-                <span className="mb-2 block text-sm text-zinc-300">
+                <span className="mb-2 block text-sm text-foreground/80 dark:text-zinc-300">
                   {canProviderAnswer ? "Message de réponse" : "Motif d’annulation"}
                 </span>
                 <textarea
@@ -602,7 +602,7 @@ export default function BookingDetailsPage() {
                       ? "Ex. Je confirme, à bientôt."
                       : "Explique brièvement l’annulation."
                   }
-                  className="w-full resize-none rounded-xl border border-zinc-700 bg-zinc-950 p-4 outline-none focus:border-violet-500"
+                  className="w-full resize-none rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 p-4 outline-none focus:border-violet-500"
                 />
               </label>
             )}
@@ -650,7 +650,7 @@ export default function BookingDetailsPage() {
 
             <Link
               href={`/messages/${booking.id}`}
-              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-700 px-4 py-3 font-semibold hover:bg-zinc-800"
+              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border dark:border-zinc-700 px-4 py-3 font-semibold hover:bg-muted dark:bg-zinc-800"
             >
               <MessageCircle size={18} /> Ouvrir la messagerie
             </Link>
@@ -667,7 +667,7 @@ export default function BookingDetailsPage() {
             )}
 
             {!canProviderAnswer && !canPay && !canTrack && !canCancel && (
-              <div className="mt-5 rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-400">
+              <div className="mt-5 rounded-xl border border-border dark:border-zinc-800 bg-background dark:bg-zinc-950 p-4 text-sm text-muted-foreground dark:text-zinc-400">
                 Aucune action supplémentaire pour le moment.
               </div>
             )}
@@ -688,8 +688,8 @@ function InfoItem({
   value: string;
 }) {
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-4">
-      <p className="flex items-center gap-2 text-sm text-zinc-500">
+    <div className="rounded-2xl border border-border dark:border-zinc-800 bg-background dark:bg-zinc-950 p-4">
+      <p className="flex items-center gap-2 text-sm text-muted-foreground dark:text-zinc-500">
         {icon} {label}
       </p>
       <p className="mt-2 font-semibold capitalize">{value}</p>

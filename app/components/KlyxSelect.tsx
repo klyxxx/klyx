@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { Check, ChevronDown } from "lucide-react";
 import {
@@ -166,17 +166,17 @@ export default function KlyxSelect({
         onClick={() => !disabled && setOpen((current) => !current)}
         className={`flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl border px-4 text-left text-sm font-semibold shadow-sm outline-none transition ${
           disabled
-            ? "cursor-not-allowed border-white/5 bg-white/[0.025] text-white/30"
+            ? "cursor-not-allowed border-white/5 bg-white/[0.025] text-muted-foreground dark:text-white/30"
             : open
-              ? "border-violet-500/70 bg-zinc-950 text-white ring-4 ring-violet-500/10"
-              : "border-white/10 bg-zinc-950/80 text-white hover:border-violet-500/40 hover:bg-zinc-900"
+              ? "border-violet-500/70 bg-background dark:bg-zinc-950 text-foreground dark:text-white ring-4 ring-violet-500/10"
+              : "border-border dark:border-white/10 bg-background/80 dark:bg-zinc-950/80 text-foreground dark:text-white hover:border-violet-500/40 hover:bg-card dark:bg-zinc-900"
         }`}
       >
         <span
           className={
             selectedOption
-              ? "truncate text-white"
-              : "truncate text-zinc-500"
+              ? "truncate text-foreground dark:text-white"
+              : "truncate text-muted-foreground dark:text-zinc-500"
           }
         >
           {selectedOption?.label ?? placeholder}
@@ -184,7 +184,7 @@ export default function KlyxSelect({
 
         <ChevronDown
           size={18}
-          className={`shrink-0 text-zinc-500 transition-transform duration-200 ${
+          className={`shrink-0 text-muted-foreground dark:text-zinc-500 transition-transform duration-200 ${
             open ? "rotate-180 text-violet-300" : ""
           }`}
         />
@@ -194,7 +194,7 @@ export default function KlyxSelect({
         <div
           id={`${id}-listbox`}
           role="listbox"
-          className="klyx-scrollbar absolute left-0 right-0 z-[140] mt-2 max-h-72 overflow-y-auto rounded-2xl border border-white/10 bg-zinc-950/95 p-2 shadow-2xl backdrop-blur-2xl"
+          className="klyx-scrollbar absolute left-0 right-0 z-[140] mt-2 max-h-72 overflow-y-auto rounded-2xl border border-border dark:border-white/10 bg-background/95 dark:bg-zinc-950/95 p-2 shadow-2xl backdrop-blur-2xl"
         >
           {options.map((option) => {
             const selected = option.value === value;
@@ -223,7 +223,7 @@ export default function KlyxSelect({
                       ? "bg-gradient-to-r from-violet-600/25 to-indigo-600/20 font-black text-white"
                       : active
                         ? "bg-white/[0.07] text-white"
-                        : "text-zinc-300 hover:bg-white/[0.06] hover:text-white"
+                        : "text-foreground/80 dark:text-zinc-300 hover:bg-white/[0.06] hover:text-white"
                 }`}
               >
                 <span className="truncate">{option.label}</span>

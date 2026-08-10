@@ -106,8 +106,8 @@ export default function FavoriteButton({
       disabled={loading || saving}
       className={
         compact
-          ? "flex h-11 w-11 items-center justify-center rounded-full border border-zinc-700 bg-zinc-950/90 text-xl transition hover:bg-zinc-800 disabled:opacity-50"
-          : "inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 bg-zinc-950 px-5 py-3 font-semibold transition hover:bg-zinc-800 disabled:opacity-50"
+          ? "flex h-11 w-11 items-center justify-center rounded-full border border-border dark:border-zinc-700 bg-background/90 dark:bg-zinc-950/90 text-xl transition hover:bg-muted dark:bg-zinc-800 disabled:opacity-50"
+          : "inline-flex items-center justify-center gap-2 rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 px-5 py-3 font-semibold transition hover:bg-muted dark:bg-zinc-800 disabled:opacity-50"
       }
       aria-label={isFavorite ? "Retirer des favoris" : "Ajouter aux favoris"}
     >

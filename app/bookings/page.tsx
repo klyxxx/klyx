@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -73,7 +73,7 @@ const STATUS_STYLES: Record<string, string> = {
   pending: "border-amber-500/30 bg-amber-500/10 text-amber-300",
   accepted: "border-violet-500/30 bg-violet-500/10 text-violet-300",
   rejected: "border-red-500/30 bg-red-500/10 text-red-300",
-  cancelled: "border-zinc-700 bg-zinc-800 text-zinc-300",
+  cancelled: "border-border dark:border-zinc-700 bg-muted dark:bg-zinc-800 text-foreground/80 dark:text-zinc-300",
   completed: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
 };
 
@@ -266,11 +266,11 @@ export default function BookingsPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-5 py-10 text-white">
+    <main className="min-h-screen bg-background dark:bg-zinc-950 px-5 py-10 text-foreground dark:text-white">
       <div className="mx-auto max-w-6xl">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <Link href="/dashboard" className="text-sm text-zinc-400 hover:text-white">
+            <Link href="/dashboard" className="text-sm text-muted-foreground dark:text-zinc-400 hover:text-foreground dark:text-white">
               Retour au tableau de bord
             </Link>
             <p className="mt-6 text-sm font-semibold uppercase tracking-[0.2em] text-violet-400">
@@ -279,7 +279,7 @@ export default function BookingsPage() {
                 : "Espace client"}
             </p>
             <h1 className="mt-2 text-3xl font-bold sm:text-5xl">Mes réservations</h1>
-            <p className="mt-3 text-zinc-400">
+            <p className="mt-3 text-muted-foreground dark:text-zinc-400">
               Demandes, confirmations, rendez-vous et historique au même endroit.
             </p>
           </div>
@@ -288,7 +288,7 @@ export default function BookingsPage() {
             type="button"
             onClick={() => void loadBookings()}
             disabled={loading}
-            className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 px-5 py-3 font-semibold hover:bg-zinc-900 disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-xl border border-border dark:border-zinc-700 px-5 py-3 font-semibold hover:bg-card dark:bg-zinc-900 disabled:opacity-50"
           >
             <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
             Actualiser
@@ -311,7 +311,7 @@ export default function BookingsPage() {
                 className={`whitespace-nowrap rounded-full border px-4 py-2 text-sm font-semibold transition ${
                   filter === option.value
                     ? "border-violet-500 bg-violet-600 text-white"
-                    : "border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500"
+                    : "border-border dark:border-zinc-700 bg-card dark:bg-zinc-900 text-foreground/80 dark:text-zinc-300 hover:border-zinc-500"
                 }`}
               >
                 {option.label} · {counts[option.value]}
@@ -321,16 +321,16 @@ export default function BookingsPage() {
         )}
 
         {loading ? (
-          <div className="mt-10 rounded-2xl border border-zinc-800 bg-zinc-900 p-8 text-center text-zinc-400">
+          <div className="mt-10 rounded-2xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-8 text-center text-muted-foreground dark:text-zinc-400">
             Chargement des réservations...
           </div>
         ) : bookings.length === 0 ? (
           <EmptyState accountType={activeProfile?.accountType ?? "client"} />
         ) : visibleBookings.length === 0 ? (
-          <div className="mt-8 rounded-2xl border border-zinc-800 bg-zinc-900 p-8 text-center">
+          <div className="mt-8 rounded-2xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-8 text-center">
             <CheckCircle2 className="mx-auto text-emerald-400" size={40} />
             <h2 className="mt-4 text-xl font-bold">Rien à traiter</h2>
-            <p className="mt-2 text-zinc-400">
+            <p className="mt-2 text-muted-foreground dark:text-zinc-400">
               Toutes les demandes sont à jour. Consulte « À venir » ou l’historique.
             </p>
           </div>
@@ -348,10 +348,10 @@ export default function BookingsPage() {
 
 function EmptyState({ accountType }: { accountType: "client" | "provider" }) {
   return (
-    <div className="mt-10 rounded-3xl border border-zinc-800 bg-zinc-900 p-10 text-center">
+    <div className="mt-10 rounded-3xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-10 text-center">
       <Search className="mx-auto text-violet-400" size={44} />
       <h2 className="mt-5 text-2xl font-bold">Aucune réservation pour le moment</h2>
-      <p className="mx-auto mt-3 max-w-lg text-zinc-400">
+      <p className="mx-auto mt-3 max-w-lg text-muted-foreground dark:text-zinc-400">
         {accountType === "provider"
           ? "Les nouvelles demandes apparaîtront ici dès qu’un client réservera l’un de tes services."
           : "Trouve un prestataire publié et envoie ta première demande."}
@@ -371,13 +371,13 @@ function BookingCardView({ booking }: { booking: BookingCard }) {
 
   return (
     <article
-      className={`rounded-3xl border bg-zinc-900 p-6 transition hover:-translate-y-0.5 ${
-        actionRequired ? "border-violet-500/50" : "border-zinc-800"
+      className={`rounded-3xl border bg-card dark:bg-zinc-900 p-6 transition hover:-translate-y-0.5 ${
+        actionRequired ? "border-violet-500/50" : "border-border dark:border-zinc-800"
       }`}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted dark:bg-zinc-800">
             {booking.otherUserAvatar ? (
               <img
                 src={booking.otherUserAvatar}
@@ -385,7 +385,7 @@ function BookingCardView({ booking }: { booking: BookingCard }) {
                 className="h-full w-full object-cover"
               />
             ) : (
-              <UserRound className="text-zinc-500" size={24} />
+              <UserRound className="text-muted-foreground dark:text-zinc-500" size={24} />
             )}
           </div>
           <div className="min-w-0">
@@ -411,7 +411,7 @@ function BookingCardView({ booking }: { booking: BookingCard }) {
         </p>
       )}
 
-      <div className="mt-5 grid gap-3 text-sm text-zinc-400 sm:grid-cols-2">
+      <div className="mt-5 grid gap-3 text-sm text-muted-foreground dark:text-zinc-400 sm:grid-cols-2">
         <p className="flex items-center gap-2">
           <CalendarDays size={17} />
           {formatDate(booking.booking_date)}
@@ -422,9 +422,9 @@ function BookingCardView({ booking }: { booking: BookingCard }) {
         </p>
       </div>
 
-      <div className="mt-5 flex items-center justify-between border-t border-zinc-800 pt-5">
+      <div className="mt-5 flex items-center justify-between border-t border-border dark:border-zinc-800 pt-5">
         <div>
-          <p className="text-xs text-zinc-500">Total estimé</p>
+          <p className="text-xs text-muted-foreground dark:text-zinc-500">Total estimé</p>
           <p className="mt-1 text-xl font-bold">{formatAmount(booking)}</p>
         </div>
         <Link

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
   useEffect,
@@ -292,7 +292,7 @@ export default function AppSidebar() {
       <div className="px-5 pb-4 pt-6">
         <KlyxLogo href="/dashboard" />
 
-        <p className="mt-4 max-w-[13rem] text-xs leading-5 text-white/45">
+        <p className="mt-4 max-w-[13rem] text-xs leading-5 text-muted-foreground dark:text-white/45">
           {accountType === "provider"
             ? "Ton activité professionnelle KLYX."
             : accountType === "client"
@@ -301,7 +301,7 @@ export default function AppSidebar() {
         </p>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <span className="inline-flex rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-white/60">
+          <span className="inline-flex rounded-full border border-border dark:border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-muted-foreground dark:text-white/60">
             {accountType === "provider"
               ? "Compte prestataire"
               : accountType === "client"
@@ -325,7 +325,7 @@ export default function AppSidebar() {
         <div className="relative mt-4">
           <Search
             size={16}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground dark:text-white/40"
           />
 
           <input
@@ -335,18 +335,18 @@ export default function AppSidebar() {
               setQuery(event.target.value)
             }
             placeholder="Rechercher dans KLYX"
-            className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.055] pl-9 pr-12 text-sm text-white outline-none placeholder:text-white/35 focus:border-violet-400/40"
+            className="h-11 w-full rounded-xl border border-border dark:border-white/10 bg-white/[0.055] pl-9 pr-12 text-sm text-white outline-none placeholder:text-muted-foreground dark:text-white/35 focus:border-violet-400/40"
           />
 
-          <span className="pointer-events-none absolute right-2 top-1/2 inline-flex -translate-y-1/2 items-center gap-1 rounded-md border border-white/10 px-1.5 py-1 text-[9px] font-bold text-white/35">
+          <span className="pointer-events-none absolute right-2 top-1/2 inline-flex -translate-y-1/2 items-center gap-1 rounded-md border border-border dark:border-white/10 px-1.5 py-1 text-[9px] font-bold text-muted-foreground dark:text-white/35">
             <Command size={10} /> K
           </span>
         </div>
 
         {query.trim() && (
-          <div className="mt-2 max-h-72 overflow-y-auto rounded-xl border border-white/10 bg-[#0f0e14] p-1.5 shadow-2xl">
+          <div className="mt-2 max-h-72 overflow-y-auto rounded-xl border border-border dark:border-white/10 bg-[#0f0e14] p-1.5 shadow-2xl">
             {searchResults.length === 0 ? (
-              <p className="px-3 py-3 text-xs text-white/40">
+              <p className="px-3 py-3 text-xs text-muted-foreground dark:text-white/40">
                 Aucun résultat.
               </p>
             ) : (
@@ -364,10 +364,10 @@ export default function AppSidebar() {
                     className="mt-0.5 shrink-0 text-violet-300"
                   />
                   <span>
-                    <span className="block text-sm font-bold text-white">
+                    <span className="block text-sm font-bold text-foreground dark:text-white">
                       {item.title}
                     </span>
-                    <span className="mt-0.5 block text-[11px] text-white/40">
+                    <span className="mt-0.5 block text-[11px] text-muted-foreground dark:text-white/40">
                       {item.group}
                     </span>
                   </span>
@@ -405,7 +405,7 @@ export default function AppSidebar() {
                   ? accountType === "provider"
                     ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-[0_10px_24px_rgba(37,99,235,0.25)]"
                     : "bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-[0_10px_24px_rgba(109,40,217,0.28)]"
-                  : "text-white/62 hover:bg-white/7 hover:text-white"
+                  : "text-muted-foreground dark:text-white/62 hover:bg-white/7 hover:text-white"
               }`}
             >
               <span
@@ -474,7 +474,7 @@ export default function AppSidebar() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 flex items-center justify-between border-b border-black/5 bg-zinc-950/95 px-4 py-3 backdrop-blur-xl lg:hidden">
+      <header className="sticky top-0 z-40 flex items-center justify-between border-b border-black/5 bg-background/95 dark:bg-zinc-950/95 px-4 py-3 backdrop-blur-xl lg:hidden">
         <KlyxLogo href="/dashboard" />
 
         <button
@@ -482,7 +482,7 @@ export default function AppSidebar() {
           onClick={() =>
             setMobileOpen(true)
           }
-          className="grid h-11 w-11 place-items-center rounded-2xl border border-white/10 bg-white/5 text-white"
+          className="grid h-11 w-11 place-items-center rounded-2xl border border-border dark:border-white/10 bg-white/5 text-white"
           aria-label="Ouvrir le menu"
         >
           <Menu size={22} />

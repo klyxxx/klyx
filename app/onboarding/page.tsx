@@ -88,7 +88,7 @@ export default async function OnboardingPage() {
     <main className="klyx-page">
       <div className="mx-auto max-w-6xl">
         <section
-          className={`relative overflow-hidden rounded-[2rem] border border-white/10 p-7 text-white shadow-2xl sm:p-10 ${
+          className={`relative overflow-hidden rounded-[2rem] border border-white/10 p-7 text-foreground dark:text-white shadow-2xl sm:p-10 ${
             provider
               ? "bg-[linear-gradient(135deg,#111827_0%,#18233f_48%,#0f172a_100%)]"
               : "bg-[linear-gradient(135deg,#17131f_0%,#32135f_52%,#111827_100%)]"

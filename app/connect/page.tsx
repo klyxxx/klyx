@@ -116,7 +116,7 @@ export default function ConnectPage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-zinc-950 text-white">
+      <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 text-foreground dark:text-white">
         Chargement...
       </main>
     );
@@ -128,13 +128,13 @@ export default function ConnectPage() {
     status?.payoutsEnabled;
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-4 py-10 text-white sm:px-6">
+    <main className="min-h-screen bg-background dark:bg-zinc-950 px-4 py-10 text-foreground dark:text-white sm:px-6">
       <div className="mx-auto max-w-3xl">
-        <Link href="/dashboard" className="text-sm text-zinc-400">
+        <Link href="/dashboard" className="text-sm text-muted-foreground dark:text-zinc-400">
           Retour au tableau de bord
         </Link>
 
-        <section className="mt-8 rounded-3xl border border-zinc-800 bg-zinc-900/70 p-6 sm:p-8">
+        <section className="mt-8 rounded-3xl border border-border dark:border-zinc-800 bg-card/70 dark:bg-zinc-900/70 p-6 sm:p-8">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-violet-400">
             KLYX PRESTATAIRE
           </p>
@@ -143,7 +143,7 @@ export default function ConnectPage() {
             Recevoir mes paiements
           </h1>
 
-          <p className="mt-3 text-zinc-400">
+          <p className="mt-3 text-muted-foreground dark:text-zinc-400">
             Stripe vérifie ton identité et tes coordonnées bancaires. KLYX
             pourra ensuite te reverser automatiquement ta part.
           </p>
@@ -195,7 +195,7 @@ export default function ConnectPage() {
           <button
             type="button"
             onClick={() => void loadStatus()}
-            className="mt-4 w-full rounded-xl border border-zinc-700 px-6 py-3 font-semibold hover:bg-zinc-800"
+            className="mt-4 w-full rounded-xl border border-border dark:border-zinc-700 px-6 py-3 font-semibold hover:bg-muted dark:bg-zinc-800"
           >
             Actualiser le statut
           </button>
@@ -213,7 +213,7 @@ function StatusLine({
   complete: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-3">
+    <div className="flex items-center justify-between rounded-xl border border-border dark:border-zinc-800 bg-background dark:bg-zinc-950 px-4 py-3">
       <span>{label}</span>
       <span className={complete ? "text-emerald-400" : "text-amber-400"}>
         {complete ? "Terminé" : "À compléter"}

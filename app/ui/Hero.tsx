@@ -13,11 +13,11 @@ export default function Hero() {
             L’assistant qui organise vos services du quotidien
           </div>
 
-          <h1 className="text-balance text-5xl font-black tracking-[-0.055em] text-white sm:text-7xl lg:text-8xl">
+          <h1 className="text-balance text-5xl font-black tracking-[-0.055em] text-foreground dark:text-white sm:text-7xl lg:text-8xl">
             Un besoin. Le bon prestataire. Tout est organisé.
           </h1>
 
-          <p className="mx-auto mt-7 max-w-2xl text-pretty text-lg leading-8 text-zinc-400 sm:text-xl">
+          <p className="mx-auto mt-7 max-w-2xl text-pretty text-lg leading-8 text-muted-foreground dark:text-zinc-400 sm:text-xl">
             Recherchez, comparez, réservez et payez des professionnels fiables depuis une seule plateforme.
           </p>
 
@@ -40,7 +40,7 @@ export default function Hero() {
           ].map(([Icon, label]) => {
             const Component = Icon as typeof BadgeCheck;
             return (
-              <div key={String(label)} className="flex items-center justify-center gap-3 rounded-2xl border border-white/10 bg-white/[0.035] px-5 py-4 text-sm font-semibold text-zinc-300">
+              <div key={String(label)} className="flex items-center justify-center gap-3 rounded-2xl border border-white/10 bg-white/[0.035] px-5 py-4 text-sm font-semibold text-foreground/80 dark:text-zinc-300">
                 <Component className="h-5 w-5 text-violet-400" />
                 {String(label)}
               </div>

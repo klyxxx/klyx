@@ -317,7 +317,7 @@ export default function ProviderBookingPage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-zinc-950 text-white">
+      <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 text-foreground dark:text-white">
         Chargement...
       </main>
     );
@@ -325,7 +325,7 @@ export default function ProviderBookingPage() {
 
   if (errorMessage && !profile) {
     return (
-      <main className="min-h-screen overflow-x-hidden bg-zinc-950 px-3 py-5 text-white sm:px-5 sm:py-8">
+      <main className="min-h-screen overflow-x-hidden bg-background dark:bg-zinc-950 px-3 py-5 text-foreground dark:text-white sm:px-5 sm:py-8">
         <div className="mx-auto max-w-3xl rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-red-300">
           {errorMessage}
         </div>
@@ -339,18 +339,18 @@ export default function ProviderBookingPage() {
   const minimumDate = new Date().toISOString().slice(0, 10);
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-zinc-950 px-3 py-5 text-white sm:px-5 sm:py-8">
+    <main className="min-h-screen overflow-x-hidden bg-background dark:bg-zinc-950 px-3 py-5 text-foreground dark:text-white sm:px-5 sm:py-8">
       <div className="mx-auto max-w-5xl">
         <Link
           href={`/providers/${providerId}`}
-          className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-white"
+          className="inline-flex items-center gap-2 text-sm text-muted-foreground dark:text-zinc-400 hover:text-foreground dark:text-white"
         >
           <ArrowLeft size={17} />
           Retour au profil
         </Link>
 
-        <section className="mt-8 grid overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900/70 md:grid-cols-[280px_1fr]">
-          <div className="flex min-h-52 items-center justify-center bg-zinc-800 sm:min-h-72">
+        <section className="mt-8 grid overflow-hidden rounded-3xl border border-border dark:border-zinc-800 bg-card/70 dark:bg-zinc-900/70 md:grid-cols-[280px_1fr]">
+          <div className="flex min-h-52 items-center justify-center bg-muted dark:bg-zinc-800 sm:min-h-72">
             {profile?.avatar_url ? (
               <img
                 src={profile.avatar_url}
@@ -358,7 +358,7 @@ export default function ProviderBookingPage() {
                 className="h-full min-h-52 w-full object-cover sm:min-h-72"
               />
             ) : (
-              <UserRound size={80} className="text-zinc-500" />
+              <UserRound size={80} className="text-muted-foreground dark:text-zinc-500" />
             )}
           </div>
 
@@ -367,7 +367,7 @@ export default function ProviderBookingPage() {
               {SERVICE_LABELS[serviceSlug] || serviceSlug}
             </p>
             <h1 className="mt-3 text-3xl font-bold">{fullName}</h1>
-            <p className="mt-3 text-zinc-400">
+            <p className="mt-3 text-muted-foreground dark:text-zinc-400">
               {serviceProfile?.city || "Ville non renseignée"}
             </p>
             <p className="mt-4 text-2xl font-bold text-violet-400">
@@ -385,12 +385,12 @@ export default function ProviderBookingPage() {
           onSubmit={handleSubmit}
           className="mt-8 grid gap-8 lg:grid-cols-[1fr_320px]"
         >
-          <section className="rounded-3xl border border-zinc-800 bg-zinc-900/70 p-6 sm:p-8">
+          <section className="rounded-3xl border border-border dark:border-zinc-800 bg-card/70 dark:bg-zinc-900/70 p-6 sm:p-8">
             <h2 className="text-2xl font-bold">Choisis ton créneau</h2>
 
             <div className="mt-6 grid gap-5 sm:grid-cols-3">
               <label>
-                <span className="mb-2 flex items-center gap-2 text-sm text-zinc-300">
+                <span className="mb-2 flex items-center gap-2 text-sm text-foreground/80 dark:text-zinc-300">
                   <CalendarDays size={17} /> Date
                 </span>
                 <input
@@ -399,12 +399,12 @@ export default function ProviderBookingPage() {
                   required
                   value={bookingDate}
                   onChange={(event) => setBookingDate(event.target.value)}
-                  className="w-full rounded-xl border border-zinc-700 bg-zinc-950 p-4 outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 p-4 outline-none focus:border-violet-500"
                 />
               </label>
 
               <label>
-                <span className="mb-2 flex items-center gap-2 text-sm text-zinc-300">
+                <span className="mb-2 flex items-center gap-2 text-sm text-foreground/80 dark:text-zinc-300">
                   <Clock3 size={17} /> Début
                 </span>
                 <input
@@ -412,12 +412,12 @@ export default function ProviderBookingPage() {
                   required
                   value={startTime}
                   onChange={(event) => setStartTime(event.target.value)}
-                  className="w-full rounded-xl border border-zinc-700 bg-zinc-950 p-4 outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 p-4 outline-none focus:border-violet-500"
                 />
               </label>
 
               <label>
-                <span className="mb-2 flex items-center gap-2 text-sm text-zinc-300">
+                <span className="mb-2 flex items-center gap-2 text-sm text-foreground/80 dark:text-zinc-300">
                   <Clock3 size={17} /> Fin
                 </span>
                 <input
@@ -425,13 +425,13 @@ export default function ProviderBookingPage() {
                   required
                   value={endTime}
                   onChange={(event) => setEndTime(event.target.value)}
-                  className="w-full rounded-xl border border-zinc-700 bg-zinc-950 p-4 outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 p-4 outline-none focus:border-violet-500"
                 />
               </label>
             </div>
 
             {bookingDate && (
-              <div className="mt-4 rounded-xl border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-400">
+              <div className="mt-4 rounded-xl border border-border dark:border-zinc-800 bg-background dark:bg-zinc-950 p-4 text-sm text-muted-foreground dark:text-zinc-400">
                 {selectedDayAvailability.length > 0 ? (
                   <>
                     Disponible {DAY_LABELS[new Date(`${bookingDate}T12:00:00Z`).getUTCDay()]} :{" "}
@@ -449,7 +449,7 @@ export default function ProviderBookingPage() {
             )}
 
             <label className="mt-5 block">
-              <span className="mb-2 block text-sm text-zinc-300">
+              <span className="mb-2 block text-sm text-foreground/80 dark:text-zinc-300">
                 Détails de la demande
               </span>
               <textarea
@@ -458,9 +458,9 @@ export default function ProviderBookingPage() {
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
                 placeholder="Décris précisément ce dont tu as besoin."
-                className="w-full resize-none rounded-xl border border-zinc-700 bg-zinc-950 p-4 outline-none focus:border-violet-500"
+                className="w-full resize-none rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 p-4 outline-none focus:border-violet-500"
               />
-              <p className="mt-2 text-right text-xs text-zinc-500">
+              <p className="mt-2 text-right text-xs text-muted-foreground dark:text-zinc-500">
                 {message.length}/2000
               </p>
             </label>
@@ -472,27 +472,27 @@ export default function ProviderBookingPage() {
             )}
           </section>
 
-          <aside className="h-fit rounded-3xl border border-zinc-800 bg-zinc-900/70 p-6 lg:sticky lg:top-6">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-zinc-500">
+          <aside className="h-fit rounded-3xl border border-border dark:border-zinc-800 bg-card/70 dark:bg-zinc-900/70 p-6 lg:sticky lg:top-6">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground dark:text-zinc-500">
               Récapitulatif
             </p>
             <h2 className="mt-3 text-xl font-bold">
               {SERVICE_LABELS[serviceSlug] || "Service KLYX"}
             </h2>
 
-            <div className="mt-5 space-y-3 border-y border-zinc-800 py-5 text-sm">
+            <div className="mt-5 space-y-3 border-y border-border dark:border-zinc-800 py-5 text-sm">
               <p className="flex justify-between gap-3">
-                <span className="text-zinc-500">Prestataire</span>
+                <span className="text-muted-foreground dark:text-zinc-500">Prestataire</span>
                 <span className="text-right font-semibold">{fullName}</span>
               </p>
               <p className="flex justify-between gap-3">
-                <span className="text-zinc-500">Créneau</span>
+                <span className="text-muted-foreground dark:text-zinc-500">Créneau</span>
                 <span className="text-right font-semibold">
                   {startTime && endTime ? `${startTime}–${endTime}` : "À choisir"}
                 </span>
               </p>
               <p className="flex justify-between gap-3">
-                <span className="text-zinc-500">Tarif</span>
+                <span className="text-muted-foreground dark:text-zinc-500">Tarif</span>
                 <span className="text-right font-semibold">
                   {formatPrice(serviceProfile?.price ?? null, serviceProfile?.pricing_type ?? null)}
                 </span>
@@ -500,7 +500,7 @@ export default function ProviderBookingPage() {
             </div>
 
             <div className="mt-5 flex items-center justify-between gap-3">
-              <span className="flex items-center gap-2 text-zinc-400">
+              <span className="flex items-center gap-2 text-muted-foreground dark:text-zinc-400">
                 <Euro size={18} /> Total estimé
               </span>
               <strong className="text-2xl text-violet-300">
@@ -517,7 +517,7 @@ export default function ProviderBookingPage() {
               {submitting ? "Envoi en cours..." : "Envoyer la demande"}
             </button>
 
-            <p className="mt-4 text-center text-xs leading-5 text-zinc-500">
+            <p className="mt-4 text-center text-xs leading-5 text-muted-foreground dark:text-zinc-500">
               Aucun paiement n’est débité avant l’acceptation du prestataire.
             </p>
           </aside>

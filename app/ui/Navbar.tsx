@@ -3,14 +3,14 @@ import KlyxLogo from "@/app/ui/KlyxLogo";
 
 export default function Navbar() {
   return (
-    <header className="sticky top-0 z-50 border-b border-white/10 bg-zinc-950/85 backdrop-blur-xl">
+    <header className="sticky top-0 z-50 border-b border-white/10 bg-background/85 dark:bg-zinc-950/85 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 sm:px-8">
         <KlyxLogo />
 
-        <nav className="hidden items-center gap-8 text-sm font-medium text-zinc-300 md:flex">
-          <a href="#services" className="transition hover:text-white">Services</a>
-          <a href="#how-it-works" className="transition hover:text-white">Fonctionnement</a>
-          <a href="#trust" className="transition hover:text-white">Confiance</a>
+        <nav className="hidden items-center gap-8 text-sm font-medium text-foreground/80 dark:text-zinc-300 md:flex">
+          <a href="#services" className="transition hover:text-foreground dark:text-white">Services</a>
+          <a href="#how-it-works" className="transition hover:text-foreground dark:text-white">Fonctionnement</a>
+          <a href="#trust" className="transition hover:text-foreground dark:text-white">Confiance</a>
         </nav>
 
         <div className="flex items-center gap-3">

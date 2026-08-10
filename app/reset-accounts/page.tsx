@@ -24,7 +24,7 @@ export default function ResetAccountsPage() {
   }, []);
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-zinc-950 text-white">
+    <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 text-foreground dark:text-white">
       Réinitialisation des comptes...
     </main>
   );

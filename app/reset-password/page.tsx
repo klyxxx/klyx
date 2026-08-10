@@ -51,11 +51,11 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-zinc-950 px-4 text-white">
-      <div className="w-full max-w-md rounded-3xl border border-zinc-800 bg-zinc-900 p-8">
+    <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 px-4 text-foreground dark:text-white">
+      <div className="w-full max-w-md rounded-3xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-8">
         <h1 className="text-3xl font-bold">Nouveau mot de passe</h1>
 
-        <p className="mt-2 text-zinc-400">
+        <p className="mt-2 text-muted-foreground dark:text-zinc-400">
           Choisis un nouveau mot de passe pour ton compte.
         </p>
 
@@ -77,7 +77,7 @@ export default function ResetPasswordPage() {
             placeholder="Nouveau mot de passe"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-xl border border-zinc-700 bg-zinc-950 p-4"
+            className="w-full rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 p-4"
           />
 
           <input
@@ -85,7 +85,7 @@ export default function ResetPasswordPage() {
             placeholder="Confirmer le mot de passe"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full rounded-xl border border-zinc-700 bg-zinc-950 p-4"
+            className="w-full rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 p-4"
           />
 
           <button

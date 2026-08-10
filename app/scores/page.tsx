@@ -66,16 +66,16 @@ export default function ScoresPage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-5 py-10 text-white">
+    <main className="min-h-screen bg-background dark:bg-zinc-950 px-5 py-10 text-foreground dark:text-white">
       <div className="mx-auto max-w-3xl">
         <Link
           href="/dashboard"
-          className="text-sm text-zinc-400 hover:text-white"
+          className="text-sm text-muted-foreground dark:text-zinc-400 hover:text-foreground dark:text-white"
         >
           Retour au tableau de bord
         </Link>
 
-        <section className="mt-10 rounded-3xl border border-zinc-800 bg-zinc-900/70 p-6 sm:p-10">
+        <section className="mt-10 rounded-3xl border border-border dark:border-zinc-800 bg-card/70 dark:bg-zinc-900/70 p-6 sm:p-10">
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-violet-600/20 text-violet-400">
             <ShieldCheck size={28} />
           </div>
@@ -88,7 +88,7 @@ export default function ScoresPage() {
             Fiabilité des prestataires
           </h1>
 
-          <p className="mt-4 text-zinc-400">
+          <p className="mt-4 text-muted-foreground dark:text-zinc-400">
             Le score KLYX v1 utilise les prestations
             terminées, le taux d’annulation et
             l’historique d’activité.

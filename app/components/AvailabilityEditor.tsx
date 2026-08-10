@@ -195,17 +195,17 @@ export default function AvailabilityEditor({
 
   if (loading) {
     return (
-      <section className="rounded-3xl border border-zinc-800 bg-zinc-900/60 p-6 sm:p-8">
-        <p className="text-zinc-400">Chargement des disponibilités...</p>
+      <section className="rounded-3xl border border-border dark:border-zinc-800 bg-card/60 dark:bg-zinc-900/60 p-6 sm:p-8">
+        <p className="text-muted-foreground dark:text-zinc-400">Chargement des disponibilités...</p>
       </section>
     );
   }
 
   return (
-    <section className="rounded-3xl border border-zinc-800 bg-zinc-900/60 p-6 sm:p-8">
+    <section className="rounded-3xl border border-border dark:border-zinc-800 bg-card/60 dark:bg-zinc-900/60 p-6 sm:p-8">
       <div className="mb-6">
         <h2 className="text-xl font-semibold">Disponibilités hebdomadaires</h2>
-        <p className="mt-2 text-sm text-zinc-400">
+        <p className="mt-2 text-sm text-muted-foreground dark:text-zinc-400">
           Sélectionne les jours et les horaires pendant lesquels les clients
           peuvent te réserver.
         </p>
@@ -240,7 +240,7 @@ export default function AvailabilityEditor({
           return (
             <div
               key={day.dayOfWeek}
-              className="grid gap-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-4 md:grid-cols-[160px_1fr_1fr]"
+              className="grid gap-4 rounded-2xl border border-border dark:border-zinc-800 bg-background dark:bg-zinc-950 p-4 md:grid-cols-[160px_1fr_1fr]"
             >
               <label className="flex items-center gap-3 font-medium">
                 <input
@@ -257,7 +257,7 @@ export default function AvailabilityEditor({
               </label>
 
               <div>
-                <label className="mb-2 block text-xs text-zinc-500">
+                <label className="mb-2 block text-xs text-muted-foreground dark:text-zinc-500">
                   Début
                 </label>
                 <input
@@ -269,12 +269,12 @@ export default function AvailabilityEditor({
                       startTime: event.target.value,
                     })
                   }
-                  className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 outline-none focus:border-violet-500 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="w-full rounded-xl border border-border dark:border-zinc-700 bg-card dark:bg-zinc-900 px-4 py-3 outline-none focus:border-violet-500 disabled:cursor-not-allowed disabled:opacity-40"
                 />
               </div>
 
               <div>
-                <label className="mb-2 block text-xs text-zinc-500">
+                <label className="mb-2 block text-xs text-muted-foreground dark:text-zinc-500">
                   Fin
                 </label>
                 <input
@@ -286,7 +286,7 @@ export default function AvailabilityEditor({
                       endTime: event.target.value,
                     })
                   }
-                  className="w-full rounded-xl border border-zinc-700 bg-zinc-900 px-4 py-3 outline-none focus:border-violet-500 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="w-full rounded-xl border border-border dark:border-zinc-700 bg-card dark:bg-zinc-900 px-4 py-3 outline-none focus:border-violet-500 disabled:cursor-not-allowed disabled:opacity-40"
                 />
               </div>
             </div>

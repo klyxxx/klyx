@@ -374,13 +374,13 @@ function BabysittersContent() {
     fallbackMatches.length > 0;
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-5 py-10 text-white">
+    <main className="min-h-screen bg-background dark:bg-zinc-950 px-5 py-10 text-foreground dark:text-white">
       <div className="mx-auto max-w-6xl">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <Link
               href="/request"
-              className="text-sm text-zinc-400 hover:text-white"
+              className="text-sm text-muted-foreground dark:text-zinc-400 hover:text-foreground dark:text-white"
             >
               Modifier ma demande
             </Link>
@@ -389,7 +389,7 @@ function BabysittersContent() {
               Baby-sitters recommandées
             </h1>
 
-            <p className="mt-3 max-w-2xl text-zinc-400">
+            <p className="mt-3 max-w-2xl text-muted-foreground dark:text-zinc-400">
               KLYX compare la disponibilité, le prix, la ville et le
               score de confiance.
             </p>
@@ -397,14 +397,14 @@ function BabysittersContent() {
 
           <Link
             href="/request"
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-700 px-5 py-3 font-semibold hover:bg-zinc-900"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-border dark:border-zinc-700 px-5 py-3 font-semibold hover:bg-card dark:bg-zinc-900"
           >
             <SlidersHorizontal size={18} />
             Nouvelle recherche
           </Link>
         </div>
 
-        <section className="mt-8 grid gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/70 p-4 sm:grid-cols-4">
+        <section className="mt-8 grid gap-3 rounded-2xl border border-border dark:border-zinc-800 bg-card/70 dark:bg-zinc-900/70 p-4 sm:grid-cols-4">
           <FilterSummary
             icon={<MapPin size={18} />}
             label="Ville"
@@ -435,7 +435,7 @@ function BabysittersContent() {
         </section>
 
         {loading && (
-          <div className="mt-10 rounded-2xl border border-zinc-800 bg-zinc-900 p-8 text-center text-zinc-400">
+          <div className="mt-10 rounded-2xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-8 text-center text-muted-foreground dark:text-zinc-400">
             KLYX classe les meilleurs profils...
           </div>
         )}
@@ -466,12 +466,12 @@ function BabysittersContent() {
         {!loading &&
           !errorMessage &&
           displayedBabysitters.length === 0 && (
-            <div className="mt-10 rounded-2xl border border-zinc-800 bg-zinc-900 p-8 text-center">
+            <div className="mt-10 rounded-2xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-8 text-center">
               <h2 className="text-xl font-bold">
                 Aucun profil disponible
               </h2>
 
-              <p className="mt-3 text-zinc-400">
+              <p className="mt-3 text-muted-foreground dark:text-zinc-400">
                 Aucun prestataire actif n’est actuellement disponible.
               </p>
 
@@ -487,7 +487,7 @@ function BabysittersContent() {
         {!loading && displayedBabysitters.length > 0 && (
           <>
             <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm text-zinc-400">
+              <p className="text-sm text-muted-foreground dark:text-zinc-400">
                 {displayedBabysitters.length} profil
                 {displayedBabysitters.length > 1 ? "s" : ""} affiché
                 {displayedBabysitters.length > 1 ? "s" : ""}
@@ -523,8 +523,8 @@ function BabysitterCardView({
   recommended: boolean;
 }) {
   return (
-    <article className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900">
-      <div className="relative flex h-52 items-center justify-center bg-zinc-800">
+    <article className="overflow-hidden rounded-2xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900">
+      <div className="relative flex h-52 items-center justify-center bg-muted dark:bg-zinc-800">
         {babysitter.avatarUrl ? (
           <img
             src={babysitter.avatarUrl}
@@ -532,7 +532,7 @@ function BabysitterCardView({
             className="h-full w-full object-cover"
           />
         ) : (
-          <UserRound size={60} className="text-zinc-500" />
+          <UserRound size={60} className="text-muted-foreground dark:text-zinc-500" />
         )}
 
         {recommended && (
@@ -560,7 +560,7 @@ function BabysitterCardView({
             <p className="text-2xl font-bold text-violet-300">
               {babysitter.klyxScore.toFixed(0)}
             </p>
-            <p className="text-xs text-zinc-400">/100</p>
+            <p className="text-xs text-muted-foreground dark:text-zinc-400">/100</p>
           </div>
         </div>
 
@@ -568,7 +568,7 @@ function BabysitterCardView({
           {scoreLabel(babysitter.klyxScore)}
         </p>
 
-        <div className="mt-4 space-y-2 text-sm text-zinc-400">
+        <div className="mt-4 space-y-2 text-sm text-muted-foreground dark:text-zinc-400">
           <p className="flex items-center gap-2">
             <MapPin size={16} />
             {babysitter.city || "Ville non renseignée"}
@@ -616,8 +616,8 @@ function FilterSummary({
   value: string;
 }) {
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-950 p-4">
-      <div className="flex items-center gap-2 text-sm text-zinc-400">
+    <div className="rounded-xl border border-border dark:border-zinc-800 bg-background dark:bg-zinc-950 p-4">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground dark:text-zinc-400">
         {icon}
         {label}
       </div>
@@ -631,7 +631,7 @@ export default function BabysittersPage() {
   return (
     <Suspense
       fallback={
-        <main className="flex min-h-screen items-center justify-center bg-zinc-950 text-white">
+        <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 text-foreground dark:text-white">
           Chargement...
         </main>
       }

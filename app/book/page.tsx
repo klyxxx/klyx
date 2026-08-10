@@ -206,7 +206,7 @@ export default function BookingPage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-zinc-950 text-white">
+      <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 text-foreground dark:text-white">
         Chargement...
       </main>
     );
@@ -214,7 +214,7 @@ export default function BookingPage() {
 
   if (!babysitter) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-zinc-950 px-6 text-center text-white">
+      <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 px-6 text-center text-foreground dark:text-white">
         <div>
           <p>Baby-sitter introuvable ou indisponible.</p>
           {errorMessage && (
@@ -226,17 +226,17 @@ export default function BookingPage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 p-6 text-white sm:p-8">
+    <main className="min-h-screen bg-background dark:bg-zinc-950 p-6 text-foreground dark:text-white sm:p-8">
       <div className="mx-auto max-w-3xl">
         <h1 className="mb-2 text-3xl font-bold sm:text-4xl">
           Réserver une baby-sitter
         </h1>
 
-        <p className="mb-2 text-zinc-300">
+        <p className="mb-2 text-foreground/80 dark:text-zinc-300">
           {babysitter.firstName} {babysitter.lastName}
         </p>
 
-        <p className="mb-10 text-sm text-zinc-500">
+        <p className="mb-10 text-sm text-muted-foreground dark:text-zinc-500">
           {babysitter.city || "Ville non renseignée"}
           {babysitter.price !== null
             ? ` · ${babysitter.price.toFixed(2)} €/heure`
@@ -251,14 +251,14 @@ export default function BookingPage() {
 
         <div className="space-y-6">
           <div>
-            <label htmlFor="date" className="mb-2 block text-sm text-zinc-300">
+            <label htmlFor="date" className="mb-2 block text-sm text-foreground/80 dark:text-zinc-300">
               Date
             </label>
             <input
               id="date"
               type="date"
               min={new Date().toISOString().split("T")[0]}
-              className="w-full rounded-xl border border-zinc-800 bg-zinc-900 p-4 outline-none focus:border-violet-500"
+              className="w-full rounded-xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-4 outline-none focus:border-violet-500"
               value={date}
               onChange={(event) => setDate(event.target.value)}
             />
@@ -268,14 +268,14 @@ export default function BookingPage() {
             <div>
               <label
                 htmlFor="startTime"
-                className="mb-2 block text-sm text-zinc-300"
+                className="mb-2 block text-sm text-foreground/80 dark:text-zinc-300"
               >
                 Heure de début
               </label>
               <input
                 id="startTime"
                 type="time"
-                className="w-full rounded-xl border border-zinc-800 bg-zinc-900 p-4 outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-4 outline-none focus:border-violet-500"
                 value={startTime}
                 onChange={(event) => setStartTime(event.target.value)}
               />
@@ -284,14 +284,14 @@ export default function BookingPage() {
             <div>
               <label
                 htmlFor="endTime"
-                className="mb-2 block text-sm text-zinc-300"
+                className="mb-2 block text-sm text-foreground/80 dark:text-zinc-300"
               >
                 Heure de fin
               </label>
               <input
                 id="endTime"
                 type="time"
-                className="w-full rounded-xl border border-zinc-800 bg-zinc-900 p-4 outline-none focus:border-violet-500"
+                className="w-full rounded-xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-4 outline-none focus:border-violet-500"
                 value={endTime}
                 onChange={(event) => setEndTime(event.target.value)}
               />
@@ -301,7 +301,7 @@ export default function BookingPage() {
           <div>
             <label
               htmlFor="children"
-              className="mb-2 block text-sm text-zinc-300"
+              className="mb-2 block text-sm text-foreground/80 dark:text-zinc-300"
             >
               Nombre d'enfants
             </label>
@@ -310,7 +310,7 @@ export default function BookingPage() {
               type="number"
               min="1"
               step="1"
-              className="w-full rounded-xl border border-zinc-800 bg-zinc-900 p-4 outline-none focus:border-violet-500"
+              className="w-full rounded-xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-4 outline-none focus:border-violet-500"
               value={children}
               onChange={(event) => setChildren(event.target.value)}
             />
@@ -319,14 +319,14 @@ export default function BookingPage() {
           <div>
             <label
               htmlFor="message"
-              className="mb-2 block text-sm text-zinc-300"
+              className="mb-2 block text-sm text-foreground/80 dark:text-zinc-300"
             >
               Message
             </label>
             <textarea
               id="message"
               rows={6}
-              className="w-full rounded-xl border border-zinc-800 bg-zinc-900 p-4 outline-none focus:border-violet-500"
+              className="w-full rounded-xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-4 outline-none focus:border-violet-500"
               placeholder="Précise tes besoins."
               value={message}
               onChange={(event) => setMessage(event.target.value)}

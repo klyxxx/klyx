@@ -328,7 +328,7 @@ function ProviderCard({
   return (
     <article className="klyx-card klyx-card-hover group relative flex min-h-[32rem] flex-col overflow-hidden p-0">
       {position === 1 && (
-        <div className="absolute left-4 top-4 z-10 inline-flex items-center gap-2 rounded-full bg-zinc-950/90 px-3 py-1.5 text-xs font-black text-white shadow-lg backdrop-blur">
+        <div className="absolute left-4 top-4 z-10 inline-flex items-center gap-2 rounded-full bg-background/90 dark:bg-zinc-950/90 px-3 py-1.5 text-xs font-black text-foreground dark:text-white shadow-lg backdrop-blur">
           <Medal size={15} className="text-amber-400" />
           Meilleur choix
         </div>

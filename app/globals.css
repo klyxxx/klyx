@@ -292,3 +292,28 @@ input[type="time"] {
     padding-right: 0.5rem;
   }
 }
+
+/* KLYX 12.9 - GLOBAL LIGHT MODE */
+:root { color-scheme: light; }
+.dark { color-scheme: dark; }
+
+.klyx-app-shell,
+.klyx-app-content {
+  color: var(--foreground);
+}
+
+input,
+textarea,
+select {
+  color: var(--foreground);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted-foreground);
+}
+
+img,
+svg {
+  max-width: 100%;
+}

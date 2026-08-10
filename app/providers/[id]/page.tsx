@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -287,7 +287,7 @@ export default function ProviderProfilePage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-zinc-950 text-white">
+      <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 text-foreground dark:text-white">
         Chargement du profil...
       </main>
     );
@@ -295,7 +295,7 @@ export default function ProviderProfilePage() {
 
   if (errorMessage) {
     return (
-      <main className="min-h-screen bg-zinc-950 px-5 py-10 text-white">
+      <main className="min-h-screen bg-background dark:bg-zinc-950 px-5 py-10 text-foreground dark:text-white">
         <div className="mx-auto max-w-3xl rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-red-300">
           {errorMessage}
         </div>
@@ -305,10 +305,10 @@ export default function ProviderProfilePage() {
 
   if (!profile || !providerProfile) {
     return (
-      <main className="min-h-screen bg-zinc-950 px-5 py-10 text-white">
-        <div className="mx-auto max-w-3xl rounded-2xl border border-zinc-800 bg-zinc-900 p-8 text-center">
+      <main className="min-h-screen bg-background dark:bg-zinc-950 px-5 py-10 text-foreground dark:text-white">
+        <div className="mx-auto max-w-3xl rounded-2xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-8 text-center">
           <h1 className="text-2xl font-bold">Prestataire introuvable</h1>
-          <p className="mt-3 text-zinc-400">Cette fiche n’est pas encore publiée.</p>
+          <p className="mt-3 text-muted-foreground dark:text-zinc-400">Cette fiche n’est pas encore publiée.</p>
           <Link
             href="/search"
             className="mt-6 inline-flex rounded-xl bg-violet-600 px-6 py-3 font-semibold hover:bg-violet-700"
@@ -325,19 +325,19 @@ export default function ProviderProfilePage() {
     "Prestataire KLYX";
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-5 py-10 text-white">
+    <main className="min-h-screen bg-background dark:bg-zinc-950 px-5 py-10 text-foreground dark:text-white">
       <div className="mx-auto max-w-6xl">
         <Link
           href="/search"
-          className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-white"
+          className="inline-flex items-center gap-2 text-sm text-muted-foreground dark:text-zinc-400 hover:text-foreground dark:text-white"
         >
           <ArrowLeft size={17} />
           Retour à la recherche
         </Link>
 
-        <section className="mt-8 overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900/70">
+        <section className="mt-8 overflow-hidden rounded-3xl border border-border dark:border-zinc-800 bg-card/70 dark:bg-zinc-900/70">
           <div className="grid md:grid-cols-[340px_1fr]">
-            <div className="flex min-h-96 items-center justify-center bg-zinc-800">
+            <div className="flex min-h-96 items-center justify-center bg-muted dark:bg-zinc-800">
               {profile.avatar_url ? (
                 <img
                   src={profile.avatar_url}
@@ -345,7 +345,7 @@ export default function ProviderProfilePage() {
                   className="h-full min-h-96 w-full object-cover"
                 />
               ) : (
-                <UserRound size={90} className="text-zinc-500" />
+                <UserRound size={90} className="text-muted-foreground dark:text-zinc-500" />
               )}
             </div>
 
@@ -364,17 +364,17 @@ export default function ProviderProfilePage() {
                   </div>
                   <h1 className="mt-3 text-3xl font-bold sm:text-5xl">{fullName}</h1>
                   {providerProfile.business_name && (
-                    <p className="mt-2 text-lg text-zinc-400">{providerProfile.business_name}</p>
+                    <p className="mt-2 text-lg text-muted-foreground dark:text-zinc-400">{providerProfile.business_name}</p>
                   )}
-                  <p className="mt-5 text-xl font-semibold text-white">
+                  <p className="mt-5 text-xl font-semibold text-foreground dark:text-white">
                     {providerProfile.headline || "Prestataire de services du quotidien"}
                   </p>
                   {providerProfile.bio && (
-                    <p className="mt-4 whitespace-pre-line leading-7 text-zinc-300">
+                    <p className="mt-4 whitespace-pre-line leading-7 text-foreground/80 dark:text-zinc-300">
                       {providerProfile.bio}
                     </p>
                   )}
-                  <div className="mt-6 flex flex-wrap gap-4 text-sm text-zinc-400">
+                  <div className="mt-6 flex flex-wrap gap-4 text-sm text-muted-foreground dark:text-zinc-400">
                     <span className="inline-flex items-center gap-2">
                       <MapPin size={17} /> {profile.city || "Bruxelles"}
                     </span>
@@ -394,7 +394,7 @@ export default function ProviderProfilePage() {
                   <p className="mt-2 text-4xl font-bold text-violet-300">
                     {bestScore.toFixed(0)}
                   </p>
-                  <p className="text-sm text-zinc-400">/100</p>
+                  <p className="text-sm text-muted-foreground dark:text-zinc-400">/100</p>
                   <p className="mt-2 text-sm font-semibold text-violet-200">
                     {scoreLabel(bestScore)}
                   </p>
@@ -411,7 +411,7 @@ export default function ProviderProfilePage() {
               {gallery.map((item) => (
                 <figure
                   key={item.id}
-                  className="aspect-square overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900"
+                  className="aspect-square overflow-hidden rounded-2xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900"
                 >
                   <img
                     src={item.public_url}
@@ -427,7 +427,7 @@ export default function ProviderProfilePage() {
         <section className="mt-8">
           <h2 className="text-2xl font-bold">Services proposés</h2>
           {services.length === 0 ? (
-            <div className="mt-5 rounded-2xl border border-zinc-800 bg-zinc-900 p-6 text-zinc-400">
+            <div className="mt-5 rounded-2xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-6 text-muted-foreground dark:text-zinc-400">
               Aucun service disponible pour le moment.
             </div>
           ) : (
@@ -435,7 +435,7 @@ export default function ProviderProfilePage() {
               {services.map((service) => (
                 <article
                   key={service.userServiceId}
-                  className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6"
+                  className="rounded-2xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-6"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div>
@@ -448,17 +448,17 @@ export default function ProviderProfilePage() {
                       <p className="text-2xl font-bold text-violet-300">
                         {service.klyxScore.toFixed(0)}
                       </p>
-                      <p className="text-xs text-zinc-400">/100</p>
+                      <p className="text-xs text-muted-foreground dark:text-zinc-400">/100</p>
                     </div>
                   </div>
 
                   {service.description && (
-                    <p className="mt-4 line-clamp-4 leading-6 text-zinc-300">
+                    <p className="mt-4 line-clamp-4 leading-6 text-foreground/80 dark:text-zinc-300">
                       {service.description}
                     </p>
                   )}
 
-                  <div className="mt-5 space-y-2 text-sm text-zinc-400">
+                  <div className="mt-5 space-y-2 text-sm text-muted-foreground dark:text-zinc-400">
                     <p className="flex items-center gap-2">
                       <MapPin size={16} />
                       {service.serviceArea.length > 0

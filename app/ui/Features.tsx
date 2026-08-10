@@ -2,7 +2,7 @@ export default function Features() {
   return (
     <section
       id="features"
-      className="max-w-7xl mx-auto py-24 px-8 text-white"
+      className="max-w-7xl mx-auto py-24 px-8 text-foreground dark:text-white"
     >
       <h2 className="text-4xl font-bold text-center mb-12">
         Pourquoi choisir KLYX ?
@@ -10,7 +10,7 @@ export default function Features() {
 
       <div className="grid md:grid-cols-3 gap-8">
 
-        <div className="bg-zinc-900 p-8 rounded-2xl">
+        <div className="bg-card dark:bg-zinc-900 p-8 rounded-2xl">
           <h3 className="text-2xl font-bold mb-3">
             🛍️ Boutique instantanée
           </h3>
@@ -20,7 +20,7 @@ export default function Features() {
           </p>
         </div>
 
-        <div className="bg-zinc-900 p-8 rounded-2xl">
+        <div className="bg-card dark:bg-zinc-900 p-8 rounded-2xl">
           <h3 className="text-2xl font-bold mb-3">
             📈 Tableau de bord
           </h3>
@@ -30,7 +30,7 @@ export default function Features() {
           </p>
         </div>
 
-        <div className="bg-zinc-900 p-8 rounded-2xl">
+        <div className="bg-card dark:bg-zinc-900 p-8 rounded-2xl">
           <h3 className="text-2xl font-bold mb-3">
             💳 Paiement sécurisé
           </h3>

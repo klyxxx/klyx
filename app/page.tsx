@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import {
   ArrowRight,
   BadgeCheck,
@@ -53,8 +53,8 @@ const highlights = [
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen overflow-hidden bg-[#09090b] text-white">
-      <header className="sticky top-0 z-50 border-b border-white/8 bg-[#09090b]/88 backdrop-blur-2xl">
+    <main className="min-h-screen overflow-hidden bg-background dark:bg-[#09090b] text-foreground dark:text-white">
+      <header className="sticky top-0 z-50 border-b border-white/8 bg-background dark:bg-[#09090b]/88 backdrop-blur-2xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
           <KlyxLogo href="/" />
 
@@ -268,13 +268,13 @@ export default function HomePage() {
         <div className="mx-auto flex max-w-7xl flex-col gap-5 px-5 py-8 text-sm text-white/40 sm:flex-row sm:items-center sm:justify-between sm:px-8">
           <KlyxLogo href="/" />
           <div className="flex flex-wrap gap-5">
-            <Link href="/login" className="hover:text-white">
+            <Link href="/login" className="hover:text-foreground dark:text-white">
               Connexion
             </Link>
-            <Link href="/signup" className="hover:text-white">
+            <Link href="/signup" className="hover:text-foreground dark:text-white">
               Créer un compte
             </Link>
-            <Link href="/install" className="hover:text-white">
+            <Link href="/install" className="hover:text-foreground dark:text-white">
               Installer KLYX
             </Link>
           </div>

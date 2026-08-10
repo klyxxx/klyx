@@ -59,7 +59,7 @@ const DOCUMENT_STATUS: Record<string, { label: string; className: string }> = {
 };
 
 function inputClassName(): string {
-  return "w-full rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-zinc-600 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20";
+  return "w-full rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 px-4 py-3 text-foreground dark:text-white outline-none transition placeholder:text-zinc-600 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20";
 }
 
 async function readApiResponse(response: Response): Promise<ProviderStudioData> {
@@ -400,10 +400,10 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-zinc-950 text-white">
+      <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 text-foreground dark:text-white">
         <div className="text-center">
           <LoaderCircle className="mx-auto animate-spin text-violet-400" size={42} />
-          <p className="mt-4 text-zinc-400">Chargement du studio prestataire...</p>
+          <p className="mt-4 text-muted-foreground dark:text-zinc-400">Chargement du studio prestataire...</p>
         </div>
       </main>
     );
@@ -411,7 +411,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
 
   if (!studio) {
     return (
-      <main className="min-h-screen bg-zinc-950 px-5 py-10 text-white">
+      <main className="min-h-screen bg-background dark:bg-zinc-950 px-5 py-10 text-foreground dark:text-white">
         <div className="mx-auto max-w-3xl rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-red-200">
           {errorMessage || "La fiche prestataire est introuvable."}
         </div>
@@ -420,12 +420,12 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-4 py-8 text-white sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-background dark:bg-zinc-950 px-4 py-8 text-foreground dark:text-white sm:px-6 lg:px-8">
       <div className="mx-auto min-w-0 max-w-7xl overflow-x-hidden">
         <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
           <Link
             href="/dashboard"
-            className="inline-flex items-center gap-2 text-sm text-zinc-400 transition hover:text-white"
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground dark:text-zinc-400 transition hover:text-foreground dark:text-white"
           >
             <ArrowLeft size={18} />
             Tableau de bord
@@ -434,7 +434,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
           {studio.providerProfile.isPublished && (
             <Link
               href={`/providers/${profileId}`}
-              className="inline-flex items-center gap-2 rounded-xl border border-zinc-700 px-4 py-2 text-sm font-semibold transition hover:bg-zinc-800"
+              className="inline-flex items-center gap-2 rounded-xl border border-border dark:border-zinc-700 px-4 py-2 text-sm font-semibold transition hover:bg-muted dark:bg-zinc-800"
             >
               <Eye size={17} />
               Voir ma fiche publique
@@ -442,7 +442,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
           )}
         </div>
 
-        <header className="grid gap-6 rounded-3xl border border-zinc-800 bg-gradient-to-br from-violet-950/80 via-zinc-900 to-zinc-900 p-6 sm:p-8 lg:grid-cols-[1fr_360px]">
+        <header className="grid gap-6 rounded-3xl border border-border dark:border-zinc-800 bg-gradient-to-br from-violet-950/80 via-zinc-900 to-zinc-900 p-6 sm:p-8 lg:grid-cols-[1fr_360px]">
           <div>
             <div className="flex flex-wrap items-center gap-3">
               <p className="text-sm font-semibold uppercase tracking-[0.22em] text-violet-300">
@@ -454,7 +454,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
             <h1 className="mt-4 text-3xl font-bold sm:text-5xl">
               Construis une fiche qui donne confiance
             </h1>
-            <p className="mt-4 max-w-2xl leading-7 text-zinc-300">
+            <p className="mt-4 max-w-2xl leading-7 text-foreground/80 dark:text-zinc-300">
               Ajoute tes services, tarifs, zones, horaires, photos et documents. Une fois publiée, ta fiche apparaît dans la recherche KLYX.
             </p>
           </div>
@@ -462,14 +462,14 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
           <div className="rounded-2xl border border-white/10 bg-black/25 p-5">
             <div className="flex items-end justify-between gap-4">
               <div>
-                <p className="text-sm text-zinc-400">Profil complété</p>
+                <p className="text-sm text-muted-foreground dark:text-zinc-400">Profil complété</p>
                 <p className="mt-1 text-4xl font-bold text-violet-300">
                   {completionPercentage}%
                 </p>
               </div>
               <ShieldCheck size={38} className="text-violet-300" />
             </div>
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-zinc-800">
+            <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted dark:bg-zinc-800">
               <div
                 className="h-full rounded-full bg-violet-500 transition-all"
                 style={{ width: `${completionPercentage}%` }}
@@ -477,10 +477,10 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
             </div>
             <div className="mt-5 space-y-2">
               {completionItems.map((item) => (
-                <p key={item.label} className="flex items-center gap-2 text-sm text-zinc-300">
+                <p key={item.label} className="flex items-center gap-2 text-sm text-foreground/80 dark:text-zinc-300">
                   <span
                     className={`flex h-5 w-5 items-center justify-center rounded-full ${
-                      item.complete ? "bg-emerald-500 text-white" : "bg-zinc-700 text-zinc-400"
+                      item.complete ? "bg-emerald-500 text-white" : "bg-zinc-700 text-muted-foreground dark:text-zinc-400"
                     }`}
                   >
                     {item.complete ? <Check size={13} /> : null}
@@ -544,7 +544,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
               </div>
 
               <div className="mt-5">
-                <label htmlFor="bio" className="mb-2 block text-sm font-medium text-zinc-300">
+                <label htmlFor="bio" className="mb-2 block text-sm font-medium text-foreground/80 dark:text-zinc-300">
                   Présentation générale
                 </label>
                 <textarea
@@ -574,7 +574,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                     className={`rounded-2xl border p-4 text-left transition ${
                       service.enabled
                         ? "border-violet-500 bg-violet-500/10"
-                        : "border-zinc-800 bg-zinc-950 hover:border-zinc-700"
+                        : "border-border dark:border-zinc-800 bg-background dark:bg-zinc-950 hover:border-border dark:border-zinc-700"
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
@@ -583,13 +583,13 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                       </span>
                       <span
                         className={`flex h-6 w-6 items-center justify-center rounded-full ${
-                          service.enabled ? "bg-violet-500" : "bg-zinc-800"
+                          service.enabled ? "bg-violet-500" : "bg-muted dark:bg-zinc-800"
                         }`}
                       >
                         {service.enabled ? <Check size={15} /> : <Plus size={15} />}
                       </span>
                     </div>
-                    <p className="mt-2 text-xs text-zinc-500">
+                    <p className="mt-2 text-xs text-muted-foreground dark:text-zinc-500">
                       {service.enabled ? "Activé" : "Cliquer pour ajouter"}
                     </p>
                   </button>
@@ -597,7 +597,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
               </div>
 
               {enabledServices.length > 0 && (
-                <div className="mt-7 border-t border-zinc-800 pt-7">
+                <div className="mt-7 border-t border-border dark:border-zinc-800 pt-7">
                   <div className="mb-6 flex flex-wrap gap-2">
                     {enabledServices.map((service) => (
                       <button
@@ -607,7 +607,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                         className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
                           selectedServiceId === service.serviceId
                             ? "bg-white text-black"
-                            : "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                            : "bg-muted dark:bg-zinc-800 text-foreground/80 dark:text-zinc-300 hover:bg-zinc-700"
                         }`}
                       >
                         {serviceLabel(service.slug, service.name)}
@@ -644,7 +644,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
               title="Galerie photos"
               description="Ajoute jusqu’à huit photos de tes réalisations ou de ton environnement de travail."
             >
-              <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-700 bg-zinc-950 px-6 py-10 text-center transition hover:border-violet-500 hover:bg-violet-500/5">
+              <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 px-6 py-10 text-center transition hover:border-violet-500 hover:bg-violet-500/5">
                 {uploadingGallery ? (
                   <LoaderCircle className="animate-spin text-violet-400" size={32} />
                 ) : (
@@ -653,7 +653,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                 <span className="mt-3 font-semibold">
                   {uploadingGallery ? "Envoi en cours..." : "Ajouter une photo"}
                 </span>
-                <span className="mt-1 text-sm text-zinc-500">JPG, PNG ou WEBP · 6 Mo maximum</span>
+                <span className="mt-1 text-sm text-muted-foreground dark:text-zinc-500">JPG, PNG ou WEBP · 6 Mo maximum</span>
                 <input
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
@@ -668,7 +668,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                   {studio.gallery.map((item) => (
                     <figure
                       key={item.id}
-                      className="group relative aspect-square overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950"
+                      className="group relative aspect-square overflow-hidden rounded-2xl border border-border dark:border-zinc-800 bg-background dark:bg-zinc-950"
                     >
                       <img
                         src={item.publicUrl}
@@ -721,7 +721,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                   />
                 </label>
               </div>
-              <p className="mt-2 text-xs text-zinc-500">PDF, JPG, PNG ou WEBP · 10 Mo maximum</p>
+              <p className="mt-2 text-xs text-muted-foreground dark:text-zinc-500">PDF, JPG, PNG ou WEBP · 10 Mo maximum</p>
 
               <div className="mt-5 space-y-3">
                 {studio.documents.length === 0 ? (
@@ -738,11 +738,11 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                     return (
                       <div
                         key={document.id}
-                        className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-zinc-800 bg-zinc-950 p-4"
+                        className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border dark:border-zinc-800 bg-background dark:bg-zinc-950 p-4"
                       >
                         <div className="min-w-0">
                           <p className="font-semibold">{type?.label ?? "Document"}</p>
-                          <p className="mt-1 truncate text-sm text-zinc-500">
+                          <p className="mt-1 truncate text-sm text-muted-foreground dark:text-zinc-500">
                             {document.fileName}
                           </p>
                         </div>
@@ -753,7 +753,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                           <button
                             type="button"
                             onClick={() => void deleteMedia("document", document.id)}
-                            className="rounded-lg p-2 text-zinc-400 transition hover:bg-red-500/10 hover:text-red-300"
+                            className="rounded-lg p-2 text-muted-foreground dark:text-zinc-400 transition hover:bg-red-500/10 hover:text-red-300"
                             aria-label="Supprimer ce document"
                           >
                             <Trash2 size={17} />
@@ -768,9 +768,9 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
           </div>
 
           <aside className="space-y-5 xl:sticky xl:top-6 xl:self-start">
-            <div className="rounded-3xl border border-zinc-800 bg-zinc-900 p-6">
+            <div className="rounded-3xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-6">
               <h2 className="text-lg font-bold">Publication</h2>
-              <p className="mt-2 text-sm leading-6 text-zinc-400">
+              <p className="mt-2 text-sm leading-6 text-muted-foreground dark:text-zinc-400">
                 Enregistrer conserve un brouillon privé. Publier rend les services actifs dans la recherche.
               </p>
 
@@ -778,7 +778,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                 type="button"
                 onClick={() => void saveStudio(false)}
                 disabled={saving}
-                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-700 px-4 py-3 font-semibold transition hover:bg-zinc-800 disabled:opacity-50"
+                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border dark:border-zinc-700 px-4 py-3 font-semibold transition hover:bg-muted dark:bg-zinc-800 disabled:opacity-50"
               >
                 {saving ? <LoaderCircle className="animate-spin" size={18} /> : <Save size={18} />}
                 Enregistrer le brouillon
@@ -795,7 +795,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
               </button>
             </div>
 
-            <div className="rounded-3xl border border-zinc-800 bg-zinc-900 p-6">
+            <div className="rounded-3xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-6">
               <h2 className="font-bold">Résumé</h2>
               <div className="mt-4 space-y-4 text-sm">
                 <SummaryRow label="Services actifs" value={String(enabledServices.length)} />
@@ -816,13 +816,13 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
 
             <Link
               href="/profile"
-              className="flex items-center justify-between gap-4 rounded-2xl border border-zinc-800 bg-zinc-900 p-5 transition hover:border-zinc-700 hover:bg-zinc-800"
+              className="flex items-center justify-between gap-4 rounded-2xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-5 transition hover:border-border dark:border-zinc-700 hover:bg-muted dark:bg-zinc-800"
             >
               <div>
                 <p className="font-semibold">Informations personnelles</p>
-                <p className="mt-1 text-sm text-zinc-500">Photo, nom et ville</p>
+                <p className="mt-1 text-sm text-muted-foreground dark:text-zinc-500">Photo, nom et ville</p>
               </div>
-              <ChevronRight size={20} className="text-zinc-500" />
+              <ChevronRight size={20} className="text-muted-foreground dark:text-zinc-500" />
             </Link>
           </aside>
         </div>
@@ -849,7 +849,7 @@ function ServiceEditor({
   onRemoveZone: (zone: string) => void;
 }) {
   return (
-    <div className="space-y-7 rounded-2xl border border-zinc-800 bg-zinc-950 p-5 sm:p-6">
+    <div className="space-y-7 rounded-2xl border border-border dark:border-zinc-800 bg-background dark:bg-zinc-950 p-5 sm:p-6">
       <div>
         <p className="text-sm font-semibold uppercase tracking-[0.18em] text-violet-400">
           {serviceLabel(service.slug, service.name)}
@@ -875,7 +875,7 @@ function ServiceEditor({
       </div>
 
       <div>
-        <label className="mb-2 block text-sm font-medium text-zinc-300">
+        <label className="mb-2 block text-sm font-medium text-foreground/80 dark:text-zinc-300">
           Description du service
         </label>
         <textarea
@@ -891,15 +891,15 @@ function ServiceEditor({
 
       <div className="space-y-5">
         <div>
-          <label className="mb-2 block text-sm font-medium text-zinc-300">
+          <label className="mb-2 block text-sm font-medium text-foreground/80 dark:text-zinc-300">
             Tarif utilisé pour ce service
           </label>
-          <div className="grid min-w-0 grid-cols-2 rounded-xl border border-zinc-700 bg-zinc-900 p-1">
+          <div className="grid min-w-0 grid-cols-2 rounded-xl border border-border dark:border-zinc-700 bg-card dark:bg-zinc-900 p-1">
             <button
               type="button"
               onClick={() => onChange({ pricingType: "hourly", price: service.hourlyPrice })}
               className={`min-w-0 rounded-lg px-3 py-2 text-sm font-semibold ${
-                service.pricingType === "hourly" ? "bg-white text-black" : "text-zinc-400"
+                service.pricingType === "hourly" ? "bg-white text-black" : "text-muted-foreground dark:text-zinc-400"
               }`}
             >
               Par heure
@@ -908,22 +908,22 @@ function ServiceEditor({
               type="button"
               onClick={() => onChange({ pricingType: "fixed", price: service.fixedPrice })}
               className={`min-w-0 rounded-lg px-3 py-2 text-sm font-semibold ${
-                service.pricingType === "fixed" ? "bg-white text-black" : "text-zinc-400"
+                service.pricingType === "fixed" ? "bg-white text-black" : "text-muted-foreground dark:text-zinc-400"
               }`}
             >
               Prix fixe
             </button>
           </div>
-          <p className="mt-2 text-xs leading-5 text-zinc-500">
+          <p className="mt-2 text-xs leading-5 text-muted-foreground dark:text-zinc-500">
             Les deux montants restent mémorisés. Le bouton choisit seulement le tarif actif.
           </p>
         </div>
 
         <div className="grid min-w-0 gap-4 sm:grid-cols-2">
           <div className="min-w-0">
-            <label className="mb-2 block text-sm font-medium text-zinc-300">Tarif par heure (€)</label>
+            <label className="mb-2 block text-sm font-medium text-foreground/80 dark:text-zinc-300">Tarif par heure (€)</label>
             <div className="relative min-w-0">
-              <Euro className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+              <Euro className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground dark:text-zinc-500" size={18} />
               <input
                 type="number"
                 min="1"
@@ -945,9 +945,9 @@ function ServiceEditor({
           </div>
 
           <div className="min-w-0">
-            <label className="mb-2 block text-sm font-medium text-zinc-300">Prix fixe (€)</label>
+            <label className="mb-2 block text-sm font-medium text-foreground/80 dark:text-zinc-300">Prix fixe (€)</label>
             <div className="relative min-w-0">
-              <Euro className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
+              <Euro className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground dark:text-zinc-500" size={18} />
               <input
                 type="number"
                 min="1"
@@ -970,12 +970,12 @@ function ServiceEditor({
         </div>
       </div>
 
-      <div className="border-t border-zinc-800 pt-6">
+      <div className="border-t border-border dark:border-zinc-800 pt-6">
         <div className="flex items-center gap-2">
           <MapPin size={19} className="text-violet-400" />
           <h3 className="font-bold">Zones d’intervention</h3>
         </div>
-        <p className="mt-2 text-sm text-zinc-500">
+        <p className="mt-2 text-sm text-muted-foreground dark:text-zinc-500">
           Ajoute les communes et quartiers dans lesquels tu acceptes des demandes.
         </p>
 
@@ -995,7 +995,7 @@ function ServiceEditor({
           <button
             type="button"
             onClick={onAddZone}
-            className="shrink-0 rounded-xl bg-zinc-800 px-4 font-semibold hover:bg-zinc-700"
+            className="shrink-0 rounded-xl bg-muted dark:bg-zinc-800 px-4 font-semibold hover:bg-zinc-700"
           >
             <Plus size={19} />
           </button>
@@ -1028,7 +1028,7 @@ function ServiceEditor({
         </div>
       </div>
 
-      <div className="border-t border-zinc-800 pt-6">
+      <div className="border-t border-border dark:border-zinc-800 pt-6">
         <div className="flex items-center gap-2">
           <Clock3 size={19} className="text-violet-400" />
           <h3 className="font-bold">Disponibilités hebdomadaires</h3>
@@ -1044,7 +1044,7 @@ function ServiceEditor({
             return (
               <div
                 key={definition.value}
-                className="grid gap-3 rounded-xl border border-zinc-800 bg-zinc-900 p-3 sm:grid-cols-[130px_1fr_1fr] sm:items-center"
+                className="grid gap-3 rounded-xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-3 sm:grid-cols-[130px_1fr_1fr] sm:items-center"
               >
                 <label className="flex items-center gap-3 font-medium">
                   <input
@@ -1096,14 +1096,14 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-3xl border border-zinc-800 bg-zinc-900 p-5 sm:p-8">
+    <section className="rounded-3xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-5 sm:p-8">
       <div className="mb-7 flex items-start gap-4">
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
           {icon}
         </span>
         <div>
           <h2 className="text-xl font-bold">{title}</h2>
-          <p className="mt-1 text-sm leading-6 text-zinc-400">{description}</p>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground dark:text-zinc-400">{description}</p>
         </div>
       </div>
       {children}
@@ -1132,7 +1132,7 @@ function Field({
 }) {
   return (
     <div>
-      <label htmlFor={id} className="mb-2 block text-sm font-medium text-zinc-300">
+      <label htmlFor={id} className="mb-2 block text-sm font-medium text-foreground/80 dark:text-zinc-300">
         {label}
       </label>
       <input
@@ -1159,7 +1159,7 @@ function Counter({
   minimum?: number;
 }) {
   return (
-    <p className={`mt-2 text-right text-xs ${minimum && current < minimum ? "text-amber-400" : "text-zinc-500"}`}>
+    <p className={`mt-2 text-right text-xs ${minimum && current < minimum ? "text-amber-400" : "text-muted-foreground dark:text-zinc-500"}`}>
       {minimum && current < minimum ? `Minimum ${minimum} · ` : ""}
       {current}/{maximum}
     </p>
@@ -1183,8 +1183,8 @@ function StatusBadge({ published }: { published: boolean }) {
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-zinc-800 pb-3 last:border-0 last:pb-0">
-      <span className="text-zinc-500">{label}</span>
+    <div className="flex items-center justify-between gap-4 border-b border-border dark:border-zinc-800 pb-3 last:border-0 last:pb-0">
+      <span className="text-muted-foreground dark:text-zinc-500">{label}</span>
       <span className="font-semibold text-zinc-200">{value}</span>
     </div>
   );

@@ -280,7 +280,7 @@ export default function ConversationPage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-zinc-950 text-white">
+      <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 text-foreground dark:text-white">
         Chargement...
       </main>
     );
@@ -288,7 +288,7 @@ export default function ConversationPage() {
 
   if (!booking) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-zinc-950 px-6 text-center text-white">
+      <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 px-6 text-center text-foreground dark:text-white">
         <div>
           <h1 className="text-2xl font-bold">Conversation indisponible</h1>
           <p className="mt-3 text-red-400">{errorMessage}</p>
@@ -304,12 +304,12 @@ export default function ConversationPage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-4 py-6 text-white sm:px-6">
-      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-4xl flex-col overflow-hidden rounded-3xl border border-zinc-800 bg-zinc-900">
-        <header className="flex items-center gap-4 border-b border-zinc-800 p-4 sm:p-6">
+    <main className="min-h-screen bg-background dark:bg-zinc-950 px-4 py-6 text-foreground dark:text-white sm:px-6">
+      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-4xl flex-col overflow-hidden rounded-3xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900">
+        <header className="flex items-center gap-4 border-b border-border dark:border-zinc-800 p-4 sm:p-6">
           <Link
             href="/dashboard"
-            className="rounded-xl border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800"
+            className="rounded-xl border border-border dark:border-zinc-700 px-3 py-2 text-sm text-foreground/80 dark:text-zinc-300 hover:bg-muted dark:bg-zinc-800"
           >
             Retour
           </Link>
@@ -325,13 +325,13 @@ export default function ConversationPage() {
 
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-lg font-bold">{otherUserName}</h1>
-            <p className="truncate text-sm text-zinc-400">
+            <p className="truncate text-sm text-muted-foreground dark:text-zinc-400">
               {formatDate(booking.booking_date)} ·{" "}
               {formatTime(booking.start_time)}–{formatTime(booking.end_time)}
             </p>
           </div>
 
-          <span className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-300">
+          <span className="rounded-full border border-border dark:border-zinc-700 px-3 py-1 text-xs text-foreground/80 dark:text-zinc-300">
             {booking.status}
           </span>
         </header>
@@ -344,7 +344,7 @@ export default function ConversationPage() {
 
         <section className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
           {messages.length === 0 && (
-            <div className="py-16 text-center text-zinc-500">
+            <div className="py-16 text-center text-muted-foreground dark:text-zinc-500">
               Aucun message. Commence la conversation.
             </div>
           )}
@@ -361,7 +361,7 @@ export default function ConversationPage() {
                   className={`max-w-[85%] rounded-2xl px-4 py-3 sm:max-w-[70%] ${
                     isMine
                       ? "rounded-br-md bg-violet-600 text-white"
-                      : "rounded-bl-md bg-zinc-800 text-zinc-100"
+                      : "rounded-bl-md bg-muted dark:bg-zinc-800 text-foreground dark:text-zinc-100"
                   }`}
                 >
                   <p className="whitespace-pre-wrap break-words">
@@ -370,7 +370,7 @@ export default function ConversationPage() {
 
                   <div
                     className={`mt-2 flex items-center justify-end gap-2 text-xs ${
-                      isMine ? "text-violet-200" : "text-zinc-500"
+                      isMine ? "text-violet-200" : "text-muted-foreground dark:text-zinc-500"
                     }`}
                   >
                     <span>{formatMessageTime(message.created_at)}</span>
@@ -388,7 +388,7 @@ export default function ConversationPage() {
 
         <form
           onSubmit={sendMessage}
-          className="flex gap-3 border-t border-zinc-800 p-4 sm:p-6"
+          className="flex gap-3 border-t border-border dark:border-zinc-800 p-4 sm:p-6"
         >
           <textarea
             value={draft}
@@ -402,7 +402,7 @@ export default function ConversationPage() {
             rows={1}
             maxLength={2000}
             placeholder="Écris un message..."
-            className="min-h-12 flex-1 resize-none rounded-xl border border-zinc-700 bg-zinc-950 px-4 py-3 outline-none focus:border-violet-500"
+            className="min-h-12 flex-1 resize-none rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 px-4 py-3 outline-none focus:border-violet-500"
           />
 
           <button

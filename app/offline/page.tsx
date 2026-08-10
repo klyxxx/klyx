@@ -14,7 +14,7 @@ export const metadata = {
 
 export default function OfflinePage() {
   return (
-    <main className="grid min-h-screen place-items-center bg-[#09090b] px-5 py-10 text-white">
+    <main className="grid min-h-screen place-items-center bg-background dark:bg-[#09090b] px-5 py-10 text-foreground dark:text-white">
       <section className="w-full max-w-xl rounded-[2rem] border border-white/10 bg-white/[0.04] p-7 shadow-2xl sm:p-10">
         <KlyxLogo href="/" />
 
