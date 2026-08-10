@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { assertStripeRuntimeReady } from "@/lib/stripe-runtime";
 import { randomUUID } from "node:crypto";
 import Stripe from "stripe";
@@ -45,6 +45,7 @@ type ProviderRow = {
 type ServiceRow = {
   id: string;
   slug: string;
+  name: string | null;
 };
 
 type ServiceProfileRow = {
@@ -72,17 +73,9 @@ function timeToMinutes(value: string): number {
   return hours * 60 + minutes;
 }
 
-function serviceLabel(slug: string): string {
-  const labels: Record<string, string> = {
-    babysitting: "Baby-sitting",
-    cleaning: "Ménage",
-    moving: "Déménagement",
-    handyman: "Bricolage",
-  };
-
-  return labels[slug] ?? "Service KLYX";
+function serviceLabel(service: ServiceRow): string {
+  return service.name?.trim() || service.slug || "Service KLYX";
 }
-
 async function claimBookingPayment(
   bookingId: string,
   clientProfileId: string,
@@ -154,90 +147,59 @@ async function resolveService(
   userServiceId: string;
   serviceProfile: ServiceProfileRow;
 }> {
-  if (booking.service_id && booking.user_service_id) {
-    const [
-      { data: serviceData, error: serviceError },
-      { data: serviceProfileData, error: serviceProfileError },
-    ] = await Promise.all([
-      supabaseAdmin
-        .from("services")
-        .select("id, slug")
-        .eq("id", booking.service_id)
-        .maybeSingle(),
-
-      supabaseAdmin
-        .from("service_profiles")
-        .select("price, pricing_type")
-        .eq("user_service_id", booking.user_service_id)
-        .maybeSingle(),
-    ]);
-
-    if (serviceError) {
-      throw new Error(serviceError.message);
-    }
-
-    if (serviceProfileError) {
-      throw new Error(serviceProfileError.message);
-    }
-
-    if (!serviceData) {
-      throw new Error("Service introuvable.");
-    }
-
-    if (!serviceProfileData) {
-      throw new Error("Profil de service introuvable.");
-    }
-
-    return {
-      service: serviceData as ServiceRow,
-      userServiceId: booking.user_service_id,
-      serviceProfile: serviceProfileData as ServiceProfileRow,
-    };
+  if (!booking.service_id || !booking.user_service_id) {
+    throw new Error(
+      "Cette ancienne réservation ne contient pas de métier complet. Recrée la réservation avant de payer."
+    );
   }
 
-  const { data: serviceData, error: serviceError } =
-    await supabaseAdmin
+  const [
+    { data: serviceData, error: serviceError },
+    { data: userServiceData, error: userServiceError },
+    { data: serviceProfileData, error: serviceProfileError },
+  ] = await Promise.all([
+    supabaseAdmin
       .from("services")
-      .select("id, slug")
-      .eq("slug", "babysitting")
-      .maybeSingle();
+      .select("id, slug, name")
+      .eq("id", booking.service_id)
+      .maybeSingle(),
+
+    supabaseAdmin
+      .from("user_services")
+      .select("id, user_id, service_id, active")
+      .eq("id", booking.user_service_id)
+      .eq("user_id", providerId)
+      .eq("service_id", booking.service_id)
+      .eq("active", true)
+      .maybeSingle(),
+
+    supabaseAdmin
+      .from("service_profiles")
+      .select("price, pricing_type")
+      .eq("user_service_id", booking.user_service_id)
+      .maybeSingle(),
+  ]);
 
   if (serviceError) {
     throw new Error(serviceError.message);
+  }
+
+  if (userServiceError) {
+    throw new Error(userServiceError.message);
+  }
+
+  if (serviceProfileError) {
+    throw new Error(serviceProfileError.message);
   }
 
   if (!serviceData) {
     throw new Error("Service introuvable.");
   }
 
-  const service = serviceData as ServiceRow;
-
-  const { data: userServiceData, error: userServiceError } =
-    await supabaseAdmin
-      .from("user_services")
-      .select("id")
-      .eq("user_id", providerId)
-      .eq("service_id", service.id)
-      .eq("active", true)
-      .maybeSingle();
-
-  if (userServiceError) {
-    throw new Error(userServiceError.message);
-  }
-
   if (!userServiceData) {
-    throw new Error("Service prestataire introuvable.");
-  }
-
-  const { data: serviceProfileData, error: serviceProfileError } =
-    await supabaseAdmin
-      .from("service_profiles")
-      .select("price, pricing_type")
-      .eq("user_service_id", userServiceData.id)
-      .maybeSingle();
-
-  if (serviceProfileError) {
-    throw new Error(serviceProfileError.message);
+    throw new Error(
+      "Le métier de cette réservation ne correspond plus au prestataire."
+    );
   }
 
   if (!serviceProfileData) {
@@ -245,12 +207,11 @@ async function resolveService(
   }
 
   return {
-    service,
-    userServiceId: userServiceData.id,
+    service: serviceData as ServiceRow,
+    userServiceId: booking.user_service_id,
     serviceProfile: serviceProfileData as ServiceProfileRow,
   };
 }
-
 export async function POST(request: Request) {
   assertStripeRuntimeReady();
   try {
@@ -453,9 +414,7 @@ export async function POST(request: Request) {
               currency: "eur",
               unit_amount: amountTotal,
               product_data: {
-                name: `${serviceLabel(
-                  service.slug
-                )} · KLYX`,
+                name: `${serviceLabel(service)} · KLYX`,
                 description: `${
                   booking.booking_date
                 } · ${booking.start_time.slice(

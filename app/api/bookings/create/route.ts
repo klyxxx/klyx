@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { isUserServiceApproved } from "@/lib/provider-skill-publication";
 import {
@@ -42,15 +42,11 @@ type AcceptedQuoteRow = {
   expires_at: string | null;
 };
 
-function serviceLabel(slug: string): string {
-  const labels: Record<string, string> = {
-    babysitting: "Baby-sitting",
-    cleaning: "Ménage",
-    moving: "Déménagement",
-    handyman: "Bricolage",
-  };
-
-  return labels[slug] ?? "Service KLYX";
+function serviceLabel(service: {
+  slug: string;
+  name?: string | null;
+}): string {
+  return service.name?.trim() || service.slug || "Service KLYX";
 }
 
 function overlaps(
@@ -223,7 +219,7 @@ export async function POST(request: Request) {
     const { data: service, error: serviceError } =
       await supabaseAdmin
         .from("services")
-        .select("id, slug")
+        .select("id, slug, name")
         .eq("slug", serviceSlug)
         .maybeSingle();
 
