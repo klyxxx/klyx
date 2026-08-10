@@ -132,13 +132,9 @@ export default function KlyxSelect({
   }
 
   return (
-    <div ref={rootRef} className={`relative ${className}`}>
+    <div ref={rootRef} className={`relative min-w-0 ${className}`}>
       {name && (
-        <input
-          type="hidden"
-          name={name}
-          value={value}
-        />
+        <input type="hidden" name={name} value={value} />
       )}
 
       {required && (
@@ -164,19 +160,19 @@ export default function KlyxSelect({
         disabled={disabled}
         onKeyDown={handleKeyDown}
         onClick={() => !disabled && setOpen((current) => !current)}
-        className={`flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl border px-4 text-left text-sm font-semibold shadow-sm outline-none transition ${
+        className={`flex min-h-12 w-full min-w-0 items-center justify-between gap-3 rounded-2xl border px-4 text-left text-sm font-semibold shadow-sm outline-none transition ${
           disabled
-            ? "cursor-not-allowed border-white/5 bg-white/[0.025] text-muted-foreground dark:text-white/30"
+            ? "cursor-not-allowed border-border bg-muted/60 text-muted-foreground dark:border-white/5 dark:bg-white/[0.025] dark:text-white/30"
             : open
-              ? "border-violet-500/70 bg-background dark:bg-zinc-950 text-foreground dark:text-white ring-4 ring-violet-500/10"
-              : "border-border dark:border-white/10 bg-background/80 dark:bg-zinc-950/80 text-foreground dark:text-white hover:border-violet-500/40 hover:bg-card dark:bg-zinc-900"
+              ? "border-violet-500/70 bg-background text-foreground ring-4 ring-violet-500/10 dark:bg-zinc-950 dark:text-white"
+              : "border-border bg-background/80 text-foreground hover:border-violet-500/40 hover:bg-card dark:border-white/10 dark:bg-zinc-950/80 dark:text-white dark:hover:bg-zinc-900"
         }`}
       >
         <span
           className={
             selectedOption
-              ? "truncate text-foreground dark:text-white"
-              : "truncate text-muted-foreground dark:text-zinc-500"
+              ? "min-w-0 truncate text-foreground dark:text-white"
+              : "min-w-0 truncate text-muted-foreground dark:text-zinc-500"
           }
         >
           {selectedOption?.label ?? placeholder}
@@ -184,8 +180,8 @@ export default function KlyxSelect({
 
         <ChevronDown
           size={18}
-          className={`shrink-0 text-muted-foreground dark:text-zinc-500 transition-transform duration-200 ${
-            open ? "rotate-180 text-violet-300" : ""
+          className={`shrink-0 text-muted-foreground transition-transform duration-200 dark:text-zinc-500 ${
+            open ? "rotate-180 text-violet-600 dark:text-violet-300" : ""
           }`}
         />
       </button>
@@ -194,7 +190,7 @@ export default function KlyxSelect({
         <div
           id={`${id}-listbox`}
           role="listbox"
-          className="klyx-scrollbar absolute left-0 right-0 z-[140] mt-2 max-h-72 overflow-y-auto rounded-2xl border border-border dark:border-white/10 bg-background/95 dark:bg-zinc-950/95 p-2 shadow-2xl backdrop-blur-2xl"
+          className="klyx-scrollbar absolute left-0 right-0 z-[140] mt-2 max-h-72 min-w-0 overflow-y-auto rounded-2xl border border-border bg-card/98 p-2 text-foreground shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/95 dark:text-white"
         >
           {options.map((option) => {
             const selected = option.value === value;
@@ -216,20 +212,20 @@ export default function KlyxSelect({
                   }
                 }}
                 onClick={() => choose(option)}
-                className={`flex w-full items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-left text-sm transition ${
+                className={`flex w-full min-w-0 items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-left text-sm transition ${
                   option.disabled
-                    ? "cursor-not-allowed text-zinc-700"
+                    ? "cursor-not-allowed text-muted-foreground/50 dark:text-zinc-700"
                     : selected
-                      ? "bg-gradient-to-r from-violet-600/25 to-indigo-600/20 font-black text-white"
+                      ? "bg-violet-600 font-black text-white"
                       : active
-                        ? "bg-white/[0.07] text-white"
-                        : "text-foreground/80 dark:text-zinc-300 hover:bg-white/[0.06] hover:text-white"
+                        ? "bg-muted text-foreground dark:bg-white/[0.07] dark:text-white"
+                        : "text-foreground/80 hover:bg-muted hover:text-foreground dark:text-zinc-300 dark:hover:bg-white/[0.06] dark:hover:text-white"
                 }`}
               >
-                <span className="truncate">{option.label}</span>
+                <span className="min-w-0 truncate">{option.label}</span>
 
                 {selected && (
-                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-violet-600 text-white">
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-white/15 text-white">
                     <Check size={15} />
                   </span>
                 )}
@@ -241,4 +237,3 @@ export default function KlyxSelect({
     </div>
   );
 }
-

@@ -301,7 +301,7 @@ export default function AppSidebar() {
         </p>
 
         <div className="mt-4 flex flex-wrap gap-2">
-          <span className="inline-flex rounded-full border border-border dark:border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-muted-foreground dark:text-white/60">
+          <span className="inline-flex rounded-full border border-border bg-muted/60 px-3 py-1.5 dark:border-white/10 dark:bg-white/5 text-[11px] font-black uppercase tracking-[0.16em] text-muted-foreground dark:text-white/60">
             {accountType === "provider"
               ? "Compte prestataire"
               : accountType === "client"
@@ -357,7 +357,7 @@ export default function AppSidebar() {
                   onClick={() =>
                     openResult(item)
                   }
-                  className="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-white/7"
+                  className="flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-muted dark:hover:bg-white/7"
                 >
                   <Search
                     size={15}
@@ -412,7 +412,7 @@ export default function AppSidebar() {
                 className={`grid h-8 w-8 place-items-center rounded-xl ${
                   active
                     ? "bg-white/14"
-                    : "bg-white/[0.045] group-hover:bg-white/8"
+                    : "bg-muted group-hover:bg-muted/80 dark:bg-white/[0.045] dark:group-hover:bg-white/8"
                 }`}
               >
                 <Icon size={17} />
@@ -443,7 +443,7 @@ export default function AppSidebar() {
                 "/admin"
               )
                 ? "bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white"
-                : "text-violet-200 hover:bg-violet-500/10"
+                : "text-violet-700 hover:bg-violet-500/10 dark:text-violet-200"
             }`}
           >
             <span className="grid h-8 w-8 place-items-center rounded-xl bg-violet-500/15">

@@ -582,3 +582,180 @@ html:not(.dark) button[aria-label="Fermer le menu"] {
 .dark button[aria-label="Fermer le menu"] {
   color: #ffffff !important;
 }
+
+
+/* KLYX 12.16 - CANONICAL MOBILE + LIGHT/DARK */
+
+/* Cette couche est volontairement la dernière source de vérité du thème. */
+:root {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+html,
+body,
+.klyx-app-shell,
+.klyx-app-content {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+html,
+body {
+  overflow-x: clip;
+}
+
+/* Les contrôles natifs ne sont plus forcés en dark par les anciens styles 6.2D. */
+html:not(.dark) select,
+html:not(.dark) input,
+html:not(.dark) textarea {
+  color-scheme: light;
+}
+
+html.dark select,
+html.dark input,
+html.dark textarea {
+  color-scheme: dark;
+}
+
+html:not(.dark) select {
+  background-color: var(--background);
+  color: var(--foreground);
+  border-color: var(--border);
+}
+
+html:not(.dark) select option,
+html:not(.dark) select optgroup {
+  background: white;
+  color: rgb(24 24 27);
+}
+
+html.dark select {
+  background-color: rgb(24 24 27);
+  color: rgb(250 250 250);
+  border-color: rgb(63 63 70);
+}
+
+html.dark select option,
+html.dark select optgroup {
+  background: rgb(24 24 27);
+  color: rgb(250 250 250);
+}
+
+/* Les anciennes classes dark ne doivent jamais rendre une carte grise en mode clair. */
+html:not(.dark) .klyx-app-content [class*="dark:bg-zinc-950"],
+html:not(.dark) .klyx-app-content [class*="dark:bg-zinc-900"] {
+  background-color: var(--card) !important;
+}
+
+html:not(.dark) .klyx-app-content [class*="dark:bg-zinc-800"] {
+  background-color: var(--muted) !important;
+}
+
+html:not(.dark) .klyx-app-content [class*="dark:border-zinc-800"],
+html:not(.dark) .klyx-app-content [class*="dark:border-zinc-700"] {
+  border-color: var(--border) !important;
+}
+
+/* Champs mobiles : aucun parent ne peut imposer une largeur intrinsèque. */
+.klyx-app-content form,
+.klyx-app-content fieldset,
+.klyx-app-content label,
+.klyx-app-content .grid,
+.klyx-app-content .flex {
+  min-width: 0;
+}
+
+.klyx-app-content input,
+.klyx-app-content textarea,
+.klyx-app-content select,
+.klyx-input,
+.filter-control {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* iOS/Safari date et heure. */
+.klyx-app-content input[type="date"],
+.klyx-app-content input[type="time"] {
+  display: block;
+  inline-size: 100%;
+  width: 100%;
+  max-inline-size: 100%;
+  max-width: 100%;
+  min-inline-size: 0;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.klyx-app-content input[type="date"]::-webkit-date-and-time-value,
+.klyx-app-content input[type="time"]::-webkit-date-and-time-value {
+  min-width: 0;
+  width: 100%;
+  text-align: left;
+}
+
+.klyx-app-content input[type="date"]::-webkit-datetime-edit,
+.klyx-app-content input[type="time"]::-webkit-datetime-edit {
+  min-width: 0;
+  padding: 0;
+}
+
+.klyx-app-content input[type="date"]::-webkit-calendar-picker-indicator,
+.klyx-app-content input[type="time"]::-webkit-calendar-picker-indicator {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+/* Mobile header/menu : contraste garanti. */
+html:not(.dark) button[aria-label="Ouvrir le menu"],
+html:not(.dark) button[aria-label="Fermer le menu"] {
+  color: var(--foreground) !important;
+  background-color: var(--card) !important;
+  border-color: var(--border) !important;
+}
+
+html.dark button[aria-label="Ouvrir le menu"],
+html.dark button[aria-label="Fermer le menu"] {
+  color: white !important;
+}
+
+/* Le logo hérite du thème : noir en clair, blanc en sombre. */
+html:not(.dark) .klyx-logo {
+  color: rgb(9 9 11);
+}
+
+html.dark .klyx-logo {
+  color: white;
+}
+
+@media (max-width: 640px) {
+  .klyx-page {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .klyx-app-content input,
+  .klyx-app-content textarea,
+  .klyx-app-content select,
+  .klyx-app-content button {
+    font-size: 16px;
+  }
+
+  .klyx-app-content input[type="date"],
+  .klyx-app-content input[type="time"] {
+    padding-inline: 0.75rem !important;
+    overflow: hidden;
+  }
+
+  .klyx-app-content [class*="grid-cols-"] {
+    min-width: 0;
+  }
+}
+
