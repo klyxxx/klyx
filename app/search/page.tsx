@@ -25,11 +25,12 @@ import {
   UserRound,
 } from "lucide-react";
 import {
+  DEFAULT_SERVICE_OPTIONS,
   formatProviderPrice,
   PRICING_OPTIONS,
   scoreLabel,
-  SERVICE_OPTIONS,
   SORT_OPTIONS,
+  type PublicServiceOption,
   type ProviderSearchItem,
   type ProviderSearchResponse,
   type ProviderSearchSort,
@@ -116,6 +117,37 @@ function SearchContent() {
   const [errorMessage, setErrorMessage] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [serviceOptions, setServiceOptions] =
+    useState<PublicServiceOption[]>(DEFAULT_SERVICE_OPTIONS);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadServices() {
+      try {
+        const response = await fetch("/api/services/public", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const body = (await response.json()) as {
+          services?: PublicServiceOption[];
+        };
+
+        if (
+          response.ok &&
+          Array.isArray(body.services) &&
+          body.services.length > 0
+        ) {
+          setServiceOptions(body.services);
+        }
+      } catch {
+        // "Tous les services" reste disponible si le chargement échoue.
+      }
+    }
+
+    void loadServices();
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     const syncTimer = window.setTimeout(() => {
@@ -172,7 +204,7 @@ function SearchContent() {
   }, [queryString, reloadKey]);
 
   const serviceTitle =
-    SERVICE_OPTIONS.find((service) => service.value === appliedFilters.service)
+    serviceOptions.find((service) => service.value === appliedFilters.service)
       ?.label ?? "Tous les services";
   const hasCommercialFilters = Boolean(
     appliedFilters.city ||
@@ -278,7 +310,7 @@ function SearchContent() {
               <KlyxSelect
                 value={draft.service}
                 onChange={(value) => updateDraft("service", value)}
-                options={SERVICE_OPTIONS.map((option) => ({
+                options={serviceOptions.map((option) => ({
                   value: option.value,
                   label: option.label,
                 }))}

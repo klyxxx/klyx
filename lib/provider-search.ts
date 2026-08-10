@@ -7,6 +7,11 @@ export type ProviderSearchSort =
   | "rating_desc"
   | "experience_desc";
 
+export type PublicServiceOption = {
+  value: string;
+  label: string;
+};
+
 export type ProviderSearchItem = {
   profileId: string;
   userServiceId: string;
@@ -41,13 +46,9 @@ export type ProviderSearchResponse = {
   showingAlternatives: boolean;
 };
 
-export const SERVICE_OPTIONS = [
+export const DEFAULT_SERVICE_OPTIONS: PublicServiceOption[] = [
   { value: "all", label: "Tous les services" },
-  { value: "babysitting", label: "Baby-sitting" },
-  { value: "cleaning", label: "Ménage" },
-  { value: "moving", label: "Déménagement" },
-  { value: "handyman", label: "Bricolage" },
-] as const;
+];
 
 export const PRICING_OPTIONS = [
   { value: "all", label: "Tous les tarifs" },
@@ -55,10 +56,7 @@ export const PRICING_OPTIONS = [
   { value: "fixed", label: "Prix fixe" },
 ] as const;
 
-export const SORT_OPTIONS: Array<{
-  value: ProviderSearchSort;
-  label: string;
-}> = [
+export const SORT_OPTIONS: Array<{ value: ProviderSearchSort; label: string }> = [
   { value: "recommended", label: "Recommandés" },
   { value: "price_asc", label: "Prix croissant" },
   { value: "score_desc", label: "Meilleur score" },
@@ -67,40 +65,28 @@ export const SORT_OPTIONS: Array<{
 ];
 
 export const DAY_LABELS = [
-  "dimanche",
-  "lundi",
-  "mardi",
-  "mercredi",
-  "jeudi",
-  "vendredi",
-  "samedi",
+  "dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi",
 ] as const;
 
 export function serviceLabel(slug: string, fallback = "Service KLYX"): string {
-  return (
-    SERVICE_OPTIONS.find((service) => service.value === slug)?.label ?? fallback
-  );
+  const label = fallback.trim();
+  if (label && label !== "Service KLYX") return label;
+  return slug
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\p{L}/gu, (letter) => letter.toUpperCase());
 }
 
 export function normalizeLocation(value: string): string {
-  return value
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
+  return value.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "")
+    .replace(/[^a-z0-9]+/g, " ").trim();
 }
 
 export function timeToMinutes(value: string): number | null {
   const match = /^(\d{2}):(\d{2})$/.exec(value.slice(0, 5));
-
   if (!match) return null;
-
   const hours = Number(match[1]);
   const minutes = Number(match[2]);
-
   if (hours > 23 || minutes > 59) return null;
-
   return hours * 60 + minutes;
 }
 
@@ -109,7 +95,6 @@ export function formatProviderPrice(
   pricingType: ProviderPricingType
 ): string {
   if (price === null) return "Prix à confirmer";
-
   return pricingType === "fixed"
     ? `${price.toFixed(2)} € forfait`
     : `${price.toFixed(2)} €/h`;
@@ -120,6 +105,5 @@ export function scoreLabel(score: number): string {
   if (score >= 80) return "Très fiable";
   if (score >= 70) return "Fiable";
   if (score >= 60) return "Correct";
-
   return "Nouveau profil";
 }

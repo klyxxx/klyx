@@ -34,13 +34,6 @@ type AvailabilityRow = {
   end_time: string;
 };
 
-const SERVICE_LABELS: Record<string, string> = {
-  babysitting: "Baby-sitting",
-  cleaning: "Ménage",
-  moving: "Déménagement",
-  handyman: "Bricolage",
-};
-
 const DAY_LABELS = [
   "dimanche",
   "lundi",
@@ -106,7 +99,7 @@ export default function ProviderBookingPage() {
   const router = useRouter();
 
   const providerId = params.id;
-  const serviceSlug = searchParams.get("service")?.trim() || "babysitting";
+  const serviceSlug = searchParams.get("service")?.trim() || "";
   const requestedDate = validRequestedDate(searchParams.get("date"));
   const requestedTime = validRequestedTime(
     searchParams.get("start") ?? searchParams.get("time")
@@ -117,6 +110,7 @@ export default function ProviderBookingPage() {
     endTimeFromRequest(requestedTime, searchParams.get("duration"));
 
   const [profile, setProfile] = useState<ProfileRow | null>(null);
+  const [serviceName, setServiceName] = useState("Service KLYX");
   const [serviceProfile, setServiceProfile] = useState<ServiceProfileRow | null>(null);
   const [availability, setAvailability] = useState<AvailabilityRow[]>([]);
   const [bookingDate, setBookingDate] = useState(requestedDate);
@@ -133,6 +127,9 @@ export default function ProviderBookingPage() {
       setErrorMessage("");
 
       try {
+        if (!serviceSlug) {
+          throw new Error("Aucun service n’a été sélectionné.");
+        }
         const [{ data: profileData, error: profileError }, serviceResult] =
           await Promise.all([
             supabase
@@ -142,7 +139,7 @@ export default function ProviderBookingPage() {
               .maybeSingle(),
             supabase
               .from("services")
-              .select("id, slug")
+              .select("id, slug, name")
               .eq("slug", serviceSlug)
               .maybeSingle(),
           ]);
@@ -191,6 +188,12 @@ export default function ProviderBookingPage() {
         }
 
         setProfile(profileData as ProfileRow);
+        setServiceName(
+          typeof serviceResult.data.name === "string" &&
+            serviceResult.data.name.trim()
+            ? serviceResult.data.name.trim()
+            : serviceResult.data.slug
+        );
         setServiceProfile(serviceProfileResult.data as ServiceProfileRow);
         setAvailability((availabilityResult.data ?? []) as AvailabilityRow[]);
       } catch (error) {
@@ -364,7 +367,7 @@ export default function ProviderBookingPage() {
 
           <div className="p-6 sm:p-8">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-violet-400">
-              {SERVICE_LABELS[serviceSlug] || serviceSlug}
+              {serviceName}
             </p>
             <h1 className="mt-3 text-3xl font-bold">{fullName}</h1>
             <p className="mt-3 text-muted-foreground dark:text-zinc-400">
@@ -477,7 +480,7 @@ export default function ProviderBookingPage() {
               Récapitulatif
             </p>
             <h2 className="mt-3 text-xl font-bold">
-              {SERVICE_LABELS[serviceSlug] || "Service KLYX"}
+              {serviceName}
             </h2>
 
             <div className="mt-5 space-y-3 border-y border-border dark:border-zinc-800 py-5 text-sm">
