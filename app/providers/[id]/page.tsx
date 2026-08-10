@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { formatServicePrice, serviceLabel, type PricingType } from "@/lib/provider-studio";
+import PublicReviews from "./PublicReviews";
 
 type ProfileRow = {
   id: string;
@@ -499,9 +500,8 @@ export default function ProviderProfilePage() {
             </div>
           )}
         </section>
+        <PublicReviews providerId={profile.id} />
       </div>
     </main>
   );
 }
-
-
