@@ -413,13 +413,11 @@ export default function SettingsPage() {
                       }`}
                     >
                       <span
-                        aria-hidden="true"
-                        className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${
-                          enabled
-                            ? "translate-x-7"
-                            : "translate-x-1"
-                        }`}
-                      />
+  aria-hidden="true"
+  className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow-sm transition-all duration-200 ${
+    enabled ? "right-1" : "left-1"
+  }`}
+/>
                     </button>
                   </div>
                 );
