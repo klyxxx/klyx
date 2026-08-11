@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { notifyCompatibleProviders } from "@/lib/market-notifications";
 import {
   apiErrorStatus,
   getAuthenticatedProfile,
@@ -304,6 +305,12 @@ export async function POST(request: Request) {
       .single();
 
     if (error) throw new Error(error.message);
+    await notifyCompatibleProviders({
+      marketRequestId: created.id,
+      serviceId: service.id,
+      serviceName: service.name?.trim() || service.slug,
+      city,
+    });
 
     return NextResponse.json({
       request: created,

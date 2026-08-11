@@ -11,7 +11,6 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { getActiveClientProfile } from "@/lib/account-switcher";
 
 type NotificationRow = {
   id: string;
@@ -49,7 +48,40 @@ export default function NotificationsPage() {
         return;
       }
 
-      const activeProfile = await getActiveClientProfile();
+      const profileResponse = await fetch(
+        "/api/profiles/active",
+        {
+          method: "GET",
+          cache: "no-store",
+        }
+      );
+
+      const profileBody = (await profileResponse.json()) as {
+        profiles?: Array<{
+          id: string;
+          accountType: "client" | "provider";
+        }>;
+        activeProfileId?: string | null;
+        error?: string;
+      };
+
+      if (!profileResponse.ok) {
+        throw new Error(
+          profileBody.error ||
+            "Impossible de determiner le profil actif."
+        );
+      }
+
+      const activeProfile =
+        profileBody.profiles?.find(
+          (profile) =>
+            profile.id ===
+            profileBody.activeProfileId
+        ) ?? profileBody.profiles?.[0];
+
+      if (!activeProfile) {
+        throw new Error("Profil actif introuvable.");
+      }
 
       const { data, error } = await supabase
         .from("user_notifications")

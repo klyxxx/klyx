@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { createMarketNotification } from "@/lib/market-notifications";
 import {
   apiErrorStatus,
   getAuthenticatedProfile,
@@ -46,7 +47,7 @@ export async function POST(
       error: requestError,
     } = await supabaseAdmin
       .from("market_service_requests")
-      .select("id, service_id, status")
+      .select("id, client_profile_id, service_id, status")
       .eq("id", requestId)
       .maybeSingle();
 
@@ -120,6 +121,13 @@ export async function POST(
       .single();
 
     if (error) throw new Error(error.message);
+    await createMarketNotification({
+      userId: serviceRequest.client_profile_id,
+      marketRequestId: requestId,
+      title: "Nouvelle offre reçue",
+      message: `Un prestataire propose ${Number(amount).toFixed(2)} € pour ta demande.`,
+      href: "/requests",
+    });
 
     return NextResponse.json({
       offer,
@@ -259,6 +267,13 @@ export async function PATCH(
         .eq("request_id", requestId);
 
       if (error) throw new Error(error.message);
+      await createMarketNotification({
+        userId: offer.provider_profile_id,
+        marketRequestId: requestId,
+        title: "Offre non retenue",
+        message: "Ton offre n'a pas ete retenue pour cette demande.",
+        href: "/provider/jobs",
+      });
 
       return NextResponse.json({
         message: "Offre refusée.",
@@ -421,6 +436,13 @@ export async function PATCH(
       throw new Error(requestUpdateError.message);
     }
 
+    await createMarketNotification({
+      userId: offer.provider_profile_id,
+      marketRequestId: requestId,
+      title: "Offre acceptée",
+      message: "Ton offre a été acceptée. Le client peut maintenant finaliser la reservation.",
+      href: "/bookings",
+    });
     return NextResponse.json({
       quoteId: quote.id,
       bookingHref: `/quotes/${quote.id}/book`,
