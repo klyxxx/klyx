@@ -2,7 +2,7 @@ export const KLYX_PUBLIC_CONFIG = {
   name: "KLYX",
   supportEmail:
     process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() ||
-    "klyx237@gmail.com",
+    "klyxsupport@gmail.com",
   legalName:
     process.env.NEXT_PUBLIC_KLYX_LEGAL_NAME?.trim() ||
     "KLYX",

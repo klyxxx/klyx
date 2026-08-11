@@ -5,7 +5,6 @@ import {
   Headphones,
   Mail,
   ShieldAlert,
-  Trash2,
 } from "lucide-react";
 import KlyxPublicFooter from "@/app/components/KlyxPublicFooter";
 import { KLYX_PUBLIC_CONFIG } from "@/lib/klyx-public-config";
@@ -78,12 +77,6 @@ export default function SupportPage() {
               "KLYX — sécurité du compte",
               "Bonjour KLYX,\n\nAdresse e-mail du compte :\nProblème de sécurité rencontré :\n\n"
             )}
-          />
-          <SupportCard
-            icon={<Trash2 />}
-            title="Suppression"
-            text="Accéder au parcours officiel de suppression du compte."
-            href="/delete-account"
           />
         </div>
 
