@@ -486,14 +486,25 @@ export default function ProviderProfilePage() {
                     <p className="text-xl font-bold text-violet-400">
                       {formatServicePrice(service.price, service.pricingType)}
                     </p>
-                    <Link
-                      href={`/providers/${profile.id}/book?service=${encodeURIComponent(
-                        service.slug
-                      )}`}
-                      className="rounded-xl bg-white px-5 py-3 font-semibold text-black hover:bg-zinc-200"
-                    >
-                      Réserver
-                    </Link>
+                    <div className="flex flex-wrap gap-2">
+  <Link
+    href={`/providers/${profile.id}/quote?service=${encodeURIComponent(
+      service.slug
+    )}`}
+    className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-5 py-3 font-semibold text-violet-700 transition hover:bg-violet-500/15 dark:text-violet-200"
+  >
+    Demander un devis
+  </Link>
+
+  <Link
+    href={`/providers/${profile.id}/book?service=${encodeURIComponent(
+      service.slug
+    )}`}
+    className="rounded-xl bg-violet-600 px-5 py-3 font-semibold text-white transition hover:bg-violet-700"
+  >
+    Réserver directement
+  </Link>
+</div>
                   </div>
                 </article>
               ))}
