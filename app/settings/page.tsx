@@ -358,28 +358,73 @@ export default function SettingsPage() {
             </div>
           </Section>
 
-          <Section icon={<Bell />} title="Notifications">
-            {(
-              [
-                ["bookings", "Réservations"],
-                ["messages", "Messages"],
-                ["promotions", "Nouveautés"],
-              ] as const
-            ).map(([key, label]) => (
-              <label
-                key={key}
-                className="mb-3 flex items-center justify-between rounded-2xl border border-border p-4"
-              >
-                <span className="font-bold">{label}</span>
-                <input
-                  type="checkbox"
-                  checked={notifications[key]}
-                  onChange={(event) =>
-                    updateNotifications(key, event.target.checked)
-                  }
-                />
-              </label>
-            ))}
+                    <Section icon={<Bell />} title="Notifications">
+            <div className="space-y-3">
+              {(
+                [
+                  [
+                    "bookings",
+                    "Réservations",
+                    "Confirmations, changements de statut et rappels de mission.",
+                  ],
+                  [
+                    "messages",
+                    "Messages",
+                    "Nouveaux messages liés à tes demandes et missions.",
+                  ],
+                  [
+                    "promotions",
+                    "Nouveautés",
+                    "Nouvelles fonctions et informations importantes de KLYX.",
+                  ],
+                ] as const
+              ).map(([key, label, description]) => {
+                const enabled = notifications[key];
+
+                return (
+                  <div
+                    key={key}
+                    className="flex min-w-0 items-center justify-between gap-5 rounded-2xl border border-border bg-background/50 p-4 sm:p-5"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-black text-foreground">
+                        {label}
+                      </p>
+
+                      <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
+                        {description}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={enabled}
+                      aria-label={`${label} : ${
+                        enabled ? "activé" : "désactivé"
+                      }`}
+                      onClick={() =>
+                        updateNotifications(key, !enabled)
+                      }
+                      className={`relative h-8 w-14 shrink-0 rounded-full border transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-violet-500/20 ${
+                        enabled
+                          ? "border-violet-500 bg-violet-600"
+                          : "border-border bg-muted dark:bg-white/10"
+                      }`}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${
+                          enabled
+                            ? "translate-x-7"
+                            : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
           </Section>
 
           <Section icon={<Languages />} title="Langue">
