@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import KlyxLogo from "@/app/ui/KlyxLogo";
+import AssistantPriorityBadge from "@/app/components/AssistantPriorityBadge";
 import {
   searchKlyxNavigation,
   type KlyxNavItem,
@@ -77,6 +78,7 @@ const routesWithoutSidebar = [
 ];
 
 const clientMenu: MenuItem[] = [
+  { title: "Centre KLYX", href: "/assistant", icon: Sparkles },
   { title: "Vue d’ensemble", href: "/dashboard", icon: LayoutDashboard },
   { title: "Assistant KLYX", href: "/brain", icon: Sparkles },
   { title: "KLYX Agent", href: "/agent", icon: Bot },
@@ -96,6 +98,7 @@ const clientMenu: MenuItem[] = [
 ];
 
 const providerMenu: MenuItem[] = [
+  { title: "Centre KLYX", href: "/assistant", icon: Sparkles },
   { title: "Tableau professionnel", href: "/dashboard", icon: LayoutDashboard },
   { title: "Mon activité", href: "/provider", icon: BriefcaseBusiness },
   { title: "Assistant professionnel", href: "/provider/assistant", icon: Bot },
@@ -425,7 +428,11 @@ export default function AppSidebar() {
                 <Icon size={17} />
               </span>
 
-              <span>{item.title}</span>
+                            <span>{item.title}</span>
+
+              {item.href === "/assistant" && (
+                <AssistantPriorityBadge />
+              )}
             </Link>
           );
         })}

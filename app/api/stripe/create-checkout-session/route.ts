@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { markBookingPaidFromSession } from "@/lib/stripe-payments";
+import { calculateKlyxEconomics, getKlyxCommissionPercent } from "@/lib/klyx-economics";
 import {
   apiErrorStatus,
   getAuthenticatedProfile,
@@ -323,25 +324,13 @@ export async function POST(request: Request) {
         "Le montant calculé est trop faible."
       );
     }
-
-    const commissionPercent = Number(
-      process.env.KLYX_COMMISSION_PERCENT || "15"
+    const economics = calculateKlyxEconomics(
+      amountTotal,
+      getKlyxCommissionPercent()
     );
 
-    if (
-      Number.isNaN(commissionPercent) ||
-      commissionPercent < 0 ||
-      commissionPercent > 100
-    ) {
-      throw new Error(
-        "KLYX_COMMISSION_PERCENT doit être compris entre 0 et 100."
-      );
-    }
-
-    const applicationFeeAmount = Math.round(
-      amountTotal *
-        (commissionPercent / 100)
-    );
+    const applicationFeeAmount =
+      economics.platformFeeCents;
 
     const providerReady = Boolean(
       provider?.stripe_account_id &&

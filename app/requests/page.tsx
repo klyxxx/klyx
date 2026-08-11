@@ -8,12 +8,15 @@ import {
 import Link from "next/link";
 import {
   ArrowRight,
+  BadgeCheck,
   Check,
   Clock3,
   Euro,
   LoaderCircle,
   MapPin,
   Send,
+  Sparkles,
+  Star,
   Trash2,
   X,
 } from "lucide-react";
@@ -34,6 +37,21 @@ type Offer = {
     first_name: string | null;
     last_name: string | null;
   } | null;
+  providerStats: {
+    klyxScore: number;
+    rating: number;
+    reviewCount: number;
+    yearsExperience: number;
+    isVerified: boolean;
+  };
+  ranking: {
+    score: number;
+    reasons: string[];
+    priceScore: number;
+    trustScore: number;
+  };
+  isRecommended: boolean;
+  isCheapest: boolean;
 };
 
 type MarketRequest = {
@@ -357,9 +375,8 @@ export default function RequestsPage() {
             Publie ton besoin, compare les offres
           </h1>
           <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">
-            Pour les besoins où tu préfères
-            recevoir plusieurs propositions avant
-            de choisir.
+            KLYX classe les offres pour t’aider à comparer prix,
+            réputation et expérience. Tu gardes toujours la décision finale.
           </p>
         </section>
 
@@ -370,6 +387,12 @@ export default function RequestsPage() {
           <h2 className="text-2xl font-black">
             Nouvelle demande ouverte
           </h2>
+          <Link
+            href="/assistant/market"
+            className="klyx-button-secondary mt-4 w-full sm:w-auto"
+          >
+            Préparer avec KLYX Assistant
+          </Link>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
             <label>
@@ -523,8 +546,7 @@ export default function RequestsPage() {
             </div>
           ) : requests.length === 0 ? (
             <div className="klyx-card mt-5 p-6 text-muted-foreground">
-              Aucune demande ouverte pour le
-              moment.
+              Aucune demande ouverte pour le moment.
             </div>
           ) : (
             <div className="mt-5 grid gap-5">
@@ -575,12 +597,9 @@ export default function RequestsPage() {
                       <p className="font-black text-emerald-700 dark:text-emerald-300">
                         Prestataire sélectionné
                       </p>
+
                       <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                        Le prix accepté est
-                        maintenant protégé dans un
-                        devis KLYX. Vérifie le
-                        créneau avant de créer la
-                        réservation.
+                        Le prix accepté est maintenant protégé dans un devis KLYX.
                       </p>
 
                       <Link
@@ -611,10 +630,28 @@ export default function RequestsPage() {
                   )}
 
                   <div className="mt-6 border-t border-border pt-5">
-                    <p className="font-black">
-                      Offres reçues (
-                      {item.offers.length})
-                    </p>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-3">
+                        <p className="font-black">
+                          Offres reçues ({item.offers.length})
+                        </p>
+
+                        {item.offers.length > 0 && (
+                          <Link
+                            href={`/assistant/market/${item.id}`}
+                            className="inline-flex items-center gap-1 rounded-full border border-violet-500/25 bg-violet-500/10 px-3 py-1.5 text-xs font-black text-violet-700 hover:bg-violet-500/15 dark:text-violet-300"
+                          >
+                            Analyser avec KLYX
+                          </Link>
+                        )}
+                      </div>
+
+                      {item.offers.length > 1 && (
+                        <p className="text-xs font-bold text-muted-foreground">
+                          Classées par recommandation KLYX
+                        </p>
+                      )}
+                    </div>
 
                     {item.offers.length === 0 ? (
                       <p className="mt-3 text-sm text-muted-foreground">
@@ -622,89 +659,143 @@ export default function RequestsPage() {
                       </p>
                     ) : (
                       <div className="mt-3 grid gap-3">
-                        {item.offers.map(
-                          (offer) => (
-                            <div
-                              key={offer.id}
-                              className="rounded-2xl border border-border bg-background/60 p-4"
-                            >
-                              <div className="flex flex-wrap items-center justify-between gap-3">
-                                <div>
+                        {item.offers.map((offer) => (
+                          <div
+                            key={offer.id}
+                            className={`rounded-2xl border p-4 ${
+                              offer.isRecommended
+                                ? "border-violet-500/30 bg-violet-500/10"
+                                : "border-border bg-background/60"
+                            }`}
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-4">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
                                   <p className="font-black">
-                                    {providerName(
-                                      offer
-                                    )}
+                                    {providerName(offer)}
                                   </p>
-                                  <p className="mt-1 text-sm text-muted-foreground">
-                                    {offer.message ||
-                                      "Aucun message."}
-                                  </p>
+
+                                  {offer.isRecommended && (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-violet-600 px-2.5 py-1 text-xs font-black text-white">
+                                      <Sparkles size={12} />
+                                      Recommandé par KLYX
+                                    </span>
+                                  )}
+
+                                  {offer.isCheapest && (
+                                    <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-xs font-black text-emerald-700 dark:text-emerald-300">
+                                      Moins cher
+                                    </span>
+                                  )}
+
+                                  {offer.providerStats.isVerified && (
+                                    <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/25 bg-blue-500/10 px-2.5 py-1 text-xs font-black text-blue-700 dark:text-blue-300">
+                                      <BadgeCheck size={12} />
+                                      Vérifié
+                                    </span>
+                                  )}
                                 </div>
 
-                                <p className="text-xl font-black text-violet-600">
-                                  {Number(
-                                    offer.amount
-                                  ).toFixed(2)}{" "}
-                                  €
+                                <p className="mt-2 text-sm text-muted-foreground">
+                                  {offer.message ||
+                                    "Aucun message."}
                                 </p>
-                              </div>
 
-                              {item.status ===
-                                "open" &&
-                                offer.status ===
-                                  "sent" && (
-                                  <div className="mt-4 flex gap-2">
-                                    <button
-                                      type="button"
-                                      disabled={
-                                        busy ===
-                                        offer.id
-                                      }
-                                      onClick={() =>
-                                        void offerAction(
-                                          item.id,
-                                          offer.id,
-                                          "accept"
-                                        )
-                                      }
-                                      className="klyx-button flex-1"
-                                    >
-                                      <Check
-                                        size={17}
-                                      />
-                                      Accepter
-                                    </button>
+                                <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                                  <span className="rounded-full bg-muted px-2.5 py-1 font-bold">
+                                    Score KLYX{" "}
+                                    {Math.round(
+                                      offer.providerStats.klyxScore
+                                    )}
+                                  </span>
 
-                                    <button
-                                      type="button"
-                                      disabled={
-                                        busy ===
-                                        offer.id
-                                      }
-                                      onClick={() =>
-                                        void offerAction(
-                                          item.id,
-                                          offer.id,
-                                          "reject"
-                                        )
-                                      }
-                                      className="klyx-button-secondary flex-1"
-                                    >
-                                      <X size={17} />
-                                      Refuser
-                                    </button>
+                                  {offer.providerStats.reviewCount > 0 && (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 font-bold">
+                                      <Star size={12} />
+                                      {offer.providerStats.rating.toFixed(1)} ·{" "}
+                                      {offer.providerStats.reviewCount} avis
+                                    </span>
+                                  )}
+
+                                  {offer.providerStats.yearsExperience > 0 && (
+                                    <span className="rounded-full bg-muted px-2.5 py-1 font-bold">
+                                      {offer.providerStats.yearsExperience} an
+                                      {offer.providerStats.yearsExperience > 1
+                                        ? "s"
+                                        : ""}{" "}
+                                      d’expérience
+                                    </span>
+                                  )}
+                                </div>
+
+                                {offer.ranking.reasons.length > 0 && (
+                                  <div className="mt-3 flex flex-wrap gap-2">
+                                    {offer.ranking.reasons.map((reason) => (
+                                      <span
+                                        key={reason}
+                                        className="rounded-full border border-border bg-background px-2.5 py-1 text-xs font-bold text-muted-foreground"
+                                      >
+                                        {reason}
+                                      </span>
+                                    ))}
                                   </div>
                                 )}
+                              </div>
 
-                              {offer.status !==
-                                "sent" && (
-                                <p className="mt-3 text-xs font-black uppercase text-muted-foreground">
-                                  {offer.status}
+                              <div className="text-right">
+                                <p className="text-2xl font-black text-violet-600">
+                                  {Number(offer.amount).toFixed(2)} €
                                 </p>
-                              )}
+                                <p className="mt-1 text-xs font-black text-muted-foreground">
+                                  Recommandation {offer.ranking.score}/100
+                                </p>
+                              </div>
                             </div>
-                          )
-                        )}
+
+                            {item.status === "open" &&
+                              offer.status === "sent" && (
+                                <div className="mt-4 flex gap-2">
+                                  <button
+                                    type="button"
+                                    disabled={busy === offer.id}
+                                    onClick={() =>
+                                      void offerAction(
+                                        item.id,
+                                        offer.id,
+                                        "accept"
+                                      )
+                                    }
+                                    className="klyx-button flex-1"
+                                  >
+                                    <Check size={17} />
+                                    Choisir ce prestataire
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    disabled={busy === offer.id}
+                                    onClick={() =>
+                                      void offerAction(
+                                        item.id,
+                                        offer.id,
+                                        "reject"
+                                      )
+                                    }
+                                    className="klyx-button-secondary flex-1"
+                                  >
+                                    <X size={17} />
+                                    Refuser
+                                  </button>
+                                </div>
+                              )}
+
+                            {offer.status !== "sent" && (
+                              <p className="mt-3 text-xs font-black uppercase text-muted-foreground">
+                                {offer.status}
+                              </p>
+                            )}
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>

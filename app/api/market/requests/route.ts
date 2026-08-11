@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { notifyCompatibleProviders } from "@/lib/market-notifications";
+import { calculateClientOfferRanking } from "@/lib/client-offer-ranking";
 import {
   apiErrorStatus,
   getAuthenticatedProfile,
@@ -43,10 +44,9 @@ export async function GET(request: Request) {
           ? supabaseAdmin
               .from("market_service_offers")
               .select(
-                "id, request_id, provider_profile_id, amount, message, status, created_at"
+                "id, request_id, provider_profile_id, user_service_id, amount, message, status, created_at"
               )
               .in("request_id", requestIds)
-              .order("amount", { ascending: true })
           : Promise.resolve({ data: [], error: null }),
         serviceIds.length
           ? supabaseAdmin
@@ -64,34 +64,85 @@ export async function GET(request: Request) {
 
       if (offerError) throw new Error(offerError.message);
       if (serviceError) throw new Error(serviceError.message);
-      if (linkedQuoteError) {
-        throw new Error(linkedQuoteError.message);
-      }
+      if (linkedQuoteError) throw new Error(linkedQuoteError.message);
 
       const providerIds = [
         ...new Set(
-          (offers ?? []).map((offer) => offer.provider_profile_id)
+          (offers ?? []).map(
+            (offer) => offer.provider_profile_id
+          )
         ),
       ];
 
-      const { data: providers, error: providerError } =
-        providerIds.length
-          ? await supabaseAdmin
-              .from("profiles")
-              .select("id, first_name, last_name, avatar_url")
-              .in("id", providerIds)
-          : { data: [], error: null };
+      const userServiceIds = [
+        ...new Set(
+          (offers ?? []).map(
+            (offer) => offer.user_service_id
+          )
+        ),
+      ];
 
-      if (providerError) {
-        throw new Error(providerError.message);
+      const [
+        { data: providers, error: providerError },
+        { data: providerProfiles, error: providerProfileError },
+        { data: serviceProfiles, error: serviceProfileError },
+      ] = await Promise.all([
+        providerIds.length
+          ? supabaseAdmin
+              .from("profiles")
+              .select(
+                "id, first_name, last_name, avatar_url"
+              )
+              .in("id", providerIds)
+          : Promise.resolve({ data: [], error: null }),
+        providerIds.length
+          ? supabaseAdmin
+              .from("provider_profiles")
+              .select(
+                "profile_id, years_experience, verification_status"
+              )
+              .in("profile_id", providerIds)
+          : Promise.resolve({ data: [], error: null }),
+        userServiceIds.length
+          ? supabaseAdmin
+              .from("service_profiles")
+              .select(
+                "user_service_id, klyx_score, rating, review_count"
+              )
+              .in("user_service_id", userServiceIds)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+
+      if (providerError) throw new Error(providerError.message);
+      if (providerProfileError) {
+        throw new Error(providerProfileError.message);
+      }
+      if (serviceProfileError) {
+        throw new Error(serviceProfileError.message);
       }
 
       const serviceMap = new Map(
         (services ?? []).map((item) => [item.id, item])
       );
+
       const providerMap = new Map(
         (providers ?? []).map((item) => [item.id, item])
       );
+
+      const providerProfileMap = new Map(
+        (providerProfiles ?? []).map((item) => [
+          item.profile_id,
+          item,
+        ])
+      );
+
+      const serviceProfileMap = new Map(
+        (serviceProfiles ?? []).map((item) => [
+          item.user_service_id,
+          item,
+        ])
+      );
+
       const quoteMap = new Map(
         (linkedQuotes ?? []).map((item) => [
           item.market_request_id,
@@ -101,18 +152,120 @@ export async function GET(request: Request) {
 
       return NextResponse.json({
         role: "client",
-        requests: (requests ?? []).map((item) => ({
-          ...item,
-          service: serviceMap.get(item.service_id) ?? null,
-          bookingQuote: quoteMap.get(item.id) ?? null,
-          offers: (offers ?? [])
-            .filter((offer) => offer.request_id === item.id)
-            .map((offer) => ({
+        requests: (requests ?? []).map((item) => {
+          const rankedOffers = (offers ?? [])
+            .filter(
+              (offer) => offer.request_id === item.id
+            )
+            .map((offer) => {
+              const provider =
+                providerMap.get(
+                  offer.provider_profile_id
+                ) ?? null;
+
+              const providerProfile =
+                providerProfileMap.get(
+                  offer.provider_profile_id
+                ) ?? null;
+
+              const serviceProfile =
+                serviceProfileMap.get(
+                  offer.user_service_id
+                ) ?? null;
+
+              const ranking =
+                calculateClientOfferRanking({
+                  amount: Number(offer.amount),
+                  budgetMax:
+                    item.budget_max === null
+                      ? null
+                      : Number(item.budget_max),
+                  klyxScore: Number(
+                    serviceProfile?.klyx_score ?? 50
+                  ),
+                  rating: Number(
+                    serviceProfile?.rating ?? 0
+                  ),
+                  reviewCount: Number(
+                    serviceProfile?.review_count ?? 0
+                  ),
+                  yearsExperience: Number(
+                    providerProfile?.years_experience ?? 0
+                  ),
+                  isVerified:
+                    providerProfile?.verification_status ===
+                    "verified",
+                });
+
+              return {
+                ...offer,
+                provider,
+                providerStats: {
+                  klyxScore: Number(
+                    serviceProfile?.klyx_score ?? 50
+                  ),
+                  rating: Number(
+                    serviceProfile?.rating ?? 0
+                  ),
+                  reviewCount: Number(
+                    serviceProfile?.review_count ?? 0
+                  ),
+                  yearsExperience: Number(
+                    providerProfile?.years_experience ?? 0
+                  ),
+                  isVerified:
+                    providerProfile?.verification_status ===
+                    "verified",
+                },
+                ranking,
+              };
+            })
+            .sort((first, second) => {
+              if (
+                first.ranking.score !==
+                second.ranking.score
+              ) {
+                return (
+                  second.ranking.score -
+                  first.ranking.score
+                );
+              }
+
+              return (
+                Number(first.amount) -
+                Number(second.amount)
+              );
+            })
+            .map((offer, index) => ({
               ...offer,
-              provider:
-                providerMap.get(offer.provider_profile_id) ?? null,
-            })),
-        })),
+              isRecommended: index === 0,
+              isCheapest: false,
+            }));
+
+          if (rankedOffers.length > 0) {
+            const cheapestAmount = Math.min(
+              ...rankedOffers.map((offer) =>
+                Number(offer.amount)
+              )
+            );
+
+            for (const offer of rankedOffers) {
+              offer.isCheapest =
+                Number(offer.amount) ===
+                cheapestAmount;
+            }
+          }
+
+          return {
+            ...item,
+            service:
+              serviceMap.get(item.service_id) ??
+              null,
+            bookingQuote:
+              quoteMap.get(item.id) ?? null,
+            offers: rankedOffers,
+          };
+        }),
       });
     }
 
@@ -134,7 +287,9 @@ export async function GET(request: Request) {
 
     const serviceIds = [
       ...new Set(
-        (providerServices ?? []).map((item) => item.service_id)
+        (providerServices ?? []).map(
+          (item) => item.service_id
+        )
       ),
     ];
 
@@ -145,19 +300,22 @@ export async function GET(request: Request) {
       });
     }
 
-    const { data: requests, error } = await supabaseAdmin
-      .from("market_service_requests")
-      .select(
-        "id, client_profile_id, service_id, title, description, city, requested_date, requested_time, budget_max, status, created_at"
-      )
-      .eq("status", "open")
-      .in("service_id", serviceIds)
-      .order("created_at", { ascending: false })
-      .limit(50);
+    const { data: requests, error } =
+      await supabaseAdmin
+        .from("market_service_requests")
+        .select(
+          "id, client_profile_id, service_id, title, description, city, requested_date, requested_time, budget_max, status, created_at"
+        )
+        .eq("status", "open")
+        .in("service_id", serviceIds)
+        .order("created_at", { ascending: false })
+        .limit(50);
 
     if (error) throw new Error(error.message);
 
-    const requestIds = (requests ?? []).map((item) => item.id);
+    const requestIds = (requests ?? []).map(
+      (item) => item.id
+    );
 
     const [
       { data: services, error: serviceError },
@@ -186,18 +344,28 @@ export async function GET(request: Request) {
     }
 
     const serviceMap = new Map(
-      (services ?? []).map((item) => [item.id, item])
+      (services ?? []).map((item) => [
+        item.id,
+        item,
+      ])
     );
+
     const offerMap = new Map(
-      (offers ?? []).map((item) => [item.request_id, item])
+      (offers ?? []).map((item) => [
+        item.request_id,
+        item,
+      ])
     );
 
     return NextResponse.json({
       role: "provider",
       requests: (requests ?? []).map((item) => ({
         ...item,
-        service: serviceMap.get(item.service_id) ?? null,
-        myOffer: offerMap.get(item.id) ?? null,
+        service:
+          serviceMap.get(item.service_id) ??
+          null,
+        myOffer:
+          offerMap.get(item.id) ?? null,
       })),
     });
   } catch (error) {
@@ -232,10 +400,8 @@ export async function POST(request: Request) {
     const title = clean(body.title, 120);
     const description = clean(body.description, 2000);
     const city = clean(body.city, 100);
-    const requestedDate =
-      clean(body.requestedDate, 10) || null;
-    const requestedTime =
-      clean(body.requestedTime, 5) || null;
+    const requestedDate = clean(body.requestedDate, 10) || null;
+    const requestedTime = clean(body.requestedTime, 5) || null;
 
     const budgetRaw =
       body.budgetMax === null ||
@@ -273,9 +439,7 @@ export async function POST(request: Request) {
         .eq("slug", serviceSlug)
         .maybeSingle();
 
-    if (serviceError) {
-      throw new Error(serviceError.message);
-    }
+    if (serviceError) throw new Error(serviceError.message);
 
     if (!service) {
       return NextResponse.json(
@@ -284,31 +448,34 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: created, error } = await supabaseAdmin
-      .from("market_service_requests")
-      .insert({
-        client_profile_id: profile.id,
-        service_id: service.id,
-        title,
-        description,
-        city,
-        requested_date: requestedDate,
-        requested_time: requestedTime
-          ? `${requestedTime}:00`
-          : null,
-        budget_max: budgetMax,
-        status: "open",
-      })
-      .select(
-        "id, title, description, city, requested_date, requested_time, budget_max, status, created_at"
-      )
-      .single();
+    const { data: created, error } =
+      await supabaseAdmin
+        .from("market_service_requests")
+        .insert({
+          client_profile_id: profile.id,
+          service_id: service.id,
+          title,
+          description,
+          city,
+          requested_date: requestedDate,
+          requested_time: requestedTime
+            ? `${requestedTime}:00`
+            : null,
+          budget_max: budgetMax,
+          status: "open",
+        })
+        .select(
+          "id, title, description, city, requested_date, requested_time, budget_max, status, created_at"
+        )
+        .single();
 
     if (error) throw new Error(error.message);
+
     await notifyCompatibleProviders({
       marketRequestId: created.id,
       serviceId: service.id,
-      serviceName: service.name?.trim() || service.slug,
+      serviceName:
+        service.name?.trim() || service.slug,
       city,
     });
 

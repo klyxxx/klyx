@@ -86,7 +86,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background dark:bg-zinc-950 text-foreground dark:text-white lg:grid lg:grid-cols-[1.05fr_0.95fr]">
+    <main className="dark min-h-screen bg-background dark:bg-zinc-950 text-foreground dark:text-white lg:grid lg:grid-cols-[1.05fr_0.95fr]">
       <section className="relative hidden overflow-hidden border-r border-white/8 p-12 lg:flex lg:flex-col lg:justify-between">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(124,58,237,0.34),transparent_34%),radial-gradient(circle_at_90%_80%,rgba(59,130,246,0.18),transparent_30%)]" />
         <div className="relative"><KlyxLogo /></div>

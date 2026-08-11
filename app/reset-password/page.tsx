@@ -51,7 +51,7 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 px-4 text-foreground dark:text-white">
+    <main className="dark flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 px-4 text-foreground dark:text-white">
       <div className="w-full max-w-md rounded-3xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-8">
         <h1 className="text-3xl font-bold">Nouveau mot de passe</h1>
 
