@@ -299,7 +299,7 @@ export default function AppSidebar() {
 
   const navigation = (
     <>
-      <div className="px-5 pb-4 pt-6" data-klyx-fixed-sidebar="true">
+      <div className="shrink-0 px-5 pb-4 pt-6">
         <KlyxLogo href="/dashboard" />
 
         <p className="mt-4 max-w-[13rem] text-xs leading-5 text-muted-foreground dark:text-white/45">
@@ -388,7 +388,7 @@ export default function AppSidebar() {
         )}
       </div>
 
-      <nav className="klyx-scrollbar flex-1 space-y-1 overflow-y-auto px-3 py-2">
+      <nav className="klyx-scrollbar min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-2">
         {menu.map((item) => {
           const Icon = item.icon;
 
@@ -468,7 +468,7 @@ export default function AppSidebar() {
         )}
       </nav>
 
-      <div className="p-3">
+      <div className="shrink-0 p-3">
         <div className="rounded-2xl border border-border bg-muted/40 p-2 dark:border-white/8 dark:bg-white/[0.035]">
           <button
             type="button"
@@ -503,10 +503,16 @@ export default function AppSidebar() {
         </button>
       </header>
 
-      <aside className="hidden h-screen w-[18rem] shrink-0 flex-col border-r border-border bg-card text-foreground dark:border-white/8 dark:bg-[linear-gradient(180deg,#15131d_0%,#0b0a0f_100%)] dark:text-white lg:sticky lg:top-0 lg:flex sticky top-0 h-screen max-h-screen shrink-0 self-start overflow-hidden">
+      <aside className="fixed inset-y-0 left-0 z-50 hidden h-dvh w-[18rem] flex-col overflow-hidden border-r border-border bg-card text-foreground dark:border-white/8 dark:bg-[linear-gradient(180deg,#15131d_0%,#0b0a0f_100%)] dark:text-white lg:flex">
 {/* KLYX_FIXED_APP_SIDEBAR_12_67B */}
+        {/* KLYX_REAL_SIDEBAR_PHONE_REPAIR_12_67F */}
         {navigation}
       </aside>
+      {/* KLYX_SIDEBAR_SPACER_12_67F */}
+      <div
+        aria-hidden="true"
+        className="hidden w-[18rem] shrink-0 lg:block"
+      />
 
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">

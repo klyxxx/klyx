@@ -758,29 +758,3 @@ html.dark .klyx-logo {
     min-width: 0;
   }
 }
-
-/* KLYX_FIXED_SIDEBAR_REPAIR_12_67D */
-@media (min-width: 1024px) {
-  [data-klyx-fixed-sidebar="true"] {
-    position: fixed !important;
-    inset: 0 auto 0 0 !important;
-    width: 312px !important;
-    height: 100dvh !important;
-    max-height: 100dvh !important;
-    z-index: 60 !important;
-
-    /*
-     * IMPORTANT:
-     * le conteneur principal ne doit jamais devenir
-     * un deuxieme scroll container.
-     * La navigation interne KLYX gere deja son scroll.
-     */
-    overflow: hidden !important;
-    overscroll-behavior: none !important;
-    transform: translateZ(0);
-  }
-
-  :where(div, section, main):has(> [data-klyx-fixed-sidebar="true"]) {
-    padding-left: 312px !important;
-  }
-}

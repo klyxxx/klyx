@@ -259,32 +259,6 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <main className="klyx-page grid min-h-screen place-items-center">
-      {/* KLYX_PHONE_VISIBLE_SETTINGS_12_67C */}
-      <PhoneSettingsInline />
-      {/* KLYX_PHONE_SETTINGS_ENTRY_12_67B */}
-      <a
-        href="/settings/phone"
-        className="mx-auto mb-6 flex w-full max-w-6xl flex-col gap-4 rounded-[28px] border border-violet-500/25 bg-violet-500/[0.06] p-6 transition hover:border-violet-500/50 hover:bg-violet-500/[0.09] sm:flex-row sm:items-center sm:justify-between"
-      >
-        <div>
-          <div className="flex flex-wrap items-center gap-3">
-            <h2 className="text-xl font-black">
-              Téléphone
-            </h2>
-            <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-black text-emerald-500">
-              Numéro privé
-            </span>
-          </div>
-
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Ajoute ou modifie ton numéro pour pouvoir appeler la personne liée à une mission KLYX.
-          </p>
-        </div>
-
-        <span className="shrink-0 rounded-2xl bg-violet-600 px-5 py-3 text-center text-sm font-black text-white">
-          Gérer mon numéro
-        </span>
-      </a>
         <LoaderCircle className="animate-spin text-violet-600" size={38} />
       </main>
     );
@@ -308,6 +282,8 @@ export default function SettingsPage() {
         )}
 
         <div className="mt-8 space-y-6">
+          {/* KLYX_REAL_SIDEBAR_PHONE_REPAIR_12_67F */}
+          <PhoneSettingsInline />
           <Section icon={<Sun />} title="Apparence">
             <div className="grid gap-3 sm:grid-cols-3">
               {(["light", "dark", "system"] as const).map((value) => (
