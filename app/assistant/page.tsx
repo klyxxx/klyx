@@ -16,6 +16,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import ProactiveAssistantPanel from "@/app/components/ProactiveAssistantPanel";
 import AssistantBrief from "@/app/components/AssistantBrief";
+import AssistantCommandBar from "@/app/components/AssistantCommandBar";
 
 type AccountType = "client" | "provider";
 
@@ -134,6 +135,8 @@ export default function AssistantHomePage() {
           </p>
 
           <AssistantBrief />
+
+          <AssistantCommandBar />
         </section>
 
         <ProactiveAssistantPanel />

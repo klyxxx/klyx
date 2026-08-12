@@ -1,0 +1,521 @@
+"use client";
+
+import { FormEvent, useState, useEffect, useRef } from "react";
+import Link from "next/link";
+import {
+  ArrowLeft,
+  Bot,
+  CheckCircle2,
+  LoaderCircle,
+  Send,
+  Sparkles,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase";
+
+type BrainPayload = {
+  serviceSlug: string | null;
+  city: string | null;
+  date: string | null;
+  time: string | null;
+  budget: number | null;
+  memoryUsed?: boolean;
+  missing?: string[];
+  ready: boolean;
+};
+
+type Message = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+async function accessToken(): Promise<string> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session?.access_token) {
+    throw new Error("Session manquante.");
+  }
+
+  return session.access_token;
+}
+
+export default function MarketAssistantPage() {
+const router = useRouter();
+  const autoStartRef = useRef(false);
+
+  const [conversationId, setConversationId] =
+    useState<string | null>(null);
+
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      role: "assistant",
+      content:
+        "Décris ton besoin comme tu parlerais à quelqu’un. Je vais préparer une demande KLYX sans la publier tant que tu ne l’as pas confirmée.",
+    },
+  ]);
+
+  const [input, setInput] = useState("");
+  const [payload, setPayload] =
+    useState<BrainPayload | null>(null);
+
+  const [title, setTitle] = useState("");
+  const [description, setDescription] =
+    useState("");
+
+  const [loading, setLoading] = useState(false);
+  const [publishing, setPublishing] =
+    useState(false);
+
+  const [errorMessage, setErrorMessage] =
+    useState("");
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const initialRequest = searchParams.get("request")?.trim() ?? "";
+
+    if (!initialRequest || autoStartRef.current) return;
+
+    autoStartRef.current = true;
+    setInput((current) =>
+      current.trim() ? current : initialRequest
+    );
+  }, []);
+  async function sendMessage(
+    event: FormEvent<HTMLFormElement>
+  ) {
+    event.preventDefault();
+
+    const message = input.trim();
+
+    if (!message || loading) return;
+
+    setMessages((current) => [
+      ...current,
+      {
+        role: "user",
+        content: message,
+      },
+    ]);
+
+    setInput("");
+    setLoading(true);
+    setErrorMessage("");
+
+    try {
+      const token = await accessToken();
+
+      const response = await fetch(
+        "/api/brain/respond",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            conversationId,
+            message,
+          }),
+        }
+      );
+
+      const body = (await response.json()) as {
+        conversationId?: string;
+        reply?: string;
+        payload?: BrainPayload;
+        error?: string;
+      };
+
+      if (!response.ok || !body.reply) {
+        throw new Error(
+          body.error ||
+            "KLYX n’a pas pu analyser la demande."
+        );
+      }
+
+      setConversationId(
+        body.conversationId ?? null
+      );
+
+      setPayload(body.payload ?? null);
+
+      setMessages((current) => [
+        ...current,
+        {
+          role: "assistant",
+          content: body.reply as string,
+        },
+      ]);
+
+      if (body.payload?.ready) {
+        const service =
+          body.payload.serviceSlug ??
+          "service";
+
+        setTitle((current) =>
+          current.trim()
+            ? current
+            : `Besoin de ${service}`
+        );
+
+        setDescription((current) =>
+          current.trim()
+            ? current
+            : message
+        );
+      }
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message === "Session manquante."
+      ) {
+        router.replace("/login");
+        return;
+      }
+
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Impossible d’analyser la demande."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // KLYX_AUTOSTART_12_43
+  useEffect(() => {
+    if (!autoStartRef.current || !input.trim() || loading || conversationId) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      const form = document.querySelector<HTMLFormElement>(
+        'form[data-klyx-market-form="true"]'
+      );
+      form?.requestSubmit();
+    }, 120);
+
+    return () => window.clearTimeout(timer);
+  }, [input, loading, conversationId]);
+  async function publishRequest() {
+    if (!payload?.ready || publishing) {
+      return;
+    }
+
+    if (
+      !payload.serviceSlug ||
+      !payload.city
+    ) {
+      setErrorMessage(
+        "Le service et la ville sont indispensables."
+      );
+      return;
+    }
+
+    if (title.trim().length < 3) {
+      setErrorMessage(
+        "Ajoute un titre plus précis."
+      );
+      return;
+    }
+
+    if (description.trim().length < 10) {
+      setErrorMessage(
+        "Décris le besoin en au moins 10 caractères."
+      );
+      return;
+    }
+
+    setPublishing(true);
+    setErrorMessage("");
+
+    try {
+      const token = await accessToken();
+
+      const response = await fetch(
+        "/api/brain/market-publish",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            conversationId,
+            serviceSlug:
+              payload.serviceSlug,
+            title: title.trim(),
+            description:
+              description.trim(),
+            city: payload.city,
+            requestedDate:
+              payload.date,
+            requestedTime:
+              payload.time,
+            budgetMax:
+              payload.budget,
+            confirmed: true,
+          }),
+        }
+      );
+
+      const body = (await response.json()) as {
+        requestId?: string;
+        href?: string;
+        error?: string;
+      };
+
+      if (!response.ok || !body.requestId) {
+        throw new Error(
+          body.error ||
+            "Impossible de publier la demande."
+        );
+      }
+
+      router.push(body.href || "/requests");
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Impossible de publier la demande."
+      );
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  return (
+    <main className="klyx-page">
+      <div className="mx-auto max-w-5xl">
+        <Link
+          href="/requests"
+          className="inline-flex items-center gap-2 text-sm font-black text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeft size={17} />
+          Retour aux demandes
+        </Link>
+
+        <section className="mt-6 overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#17131f,#4c1d95_52%,#111827)] p-7 text-white sm:p-10">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white/70">
+            <Sparkles size={14} />
+            KLYX Assistant
+          </div>
+
+          <h1 className="mt-4 text-3xl font-black sm:text-5xl">
+            Décris. KLYX prépare. Tu confirmes.
+          </h1>
+
+          <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">
+            L’assistant comprend ton besoin, prépare
+            les informations de la demande et ne publie
+            rien sans ton action explicite.
+          </p>
+        </section>
+
+        <section className="klyx-card mt-7 p-5 sm:p-7">
+          <div className="space-y-3">
+            {messages.map((message, index) => (
+              <div
+                key={`${message.role}-${index}`}
+                className={`flex ${
+                  message.role === "user"
+                    ? "justify-end"
+                    : "justify-start"
+                }`}
+              >
+                <div
+                  className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-6 ${
+                    message.role === "user"
+                      ? "bg-violet-600 text-white"
+                      : "border border-border bg-background text-foreground"
+                  }`}
+                >
+                  {message.role ===
+                    "assistant" && (
+                    <div className="mb-1 flex items-center gap-2 text-xs font-black text-violet-600">
+                      <Bot size={14} />
+                      KLYX
+                    </div>
+                  )}
+
+                  {message.content}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <form
+            onSubmit={sendMessage}
+            className="mt-5 flex flex-col gap-3 sm:flex-row"
+          >
+            <input
+              value={input}
+              onChange={(event) =>
+                setInput(event.target.value)
+              }
+              className="klyx-input flex-1"
+              placeholder="Ex. J’ai besoin d’un déménageur à Bruxelles samedi vers 10h, budget 180 €."
+            />
+
+            <button
+              disabled={
+                loading || !input.trim()
+              }
+              className="klyx-button sm:w-auto"
+            >
+              {loading ? (
+                <LoaderCircle
+                  className="animate-spin"
+                  size={18}
+                />
+              ) : (
+                <Send size={18} />
+              )}
+              Envoyer
+            </button>
+          </form>
+        </section>
+
+        {payload?.ready && (
+          <section className="klyx-card mt-6 p-6 sm:p-8">
+            <div className="flex items-start gap-3">
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-emerald-500/10 text-emerald-600">
+                <CheckCircle2 size={21} />
+              </div>
+
+              <div>
+                <p className="klyx-eyebrow">
+                  Prêt à confirmer
+                </p>
+                <h2 className="mt-1 text-2xl font-black">
+                  Vérifie avant publication
+                </h2>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <Info
+                label="Service"
+                value={
+                  payload.serviceSlug ??
+                  "—"
+                }
+              />
+              <Info
+                label="Ville"
+                value={payload.city ?? "—"}
+              />
+              <Info
+                label="Date"
+                value={payload.date ?? "—"}
+              />
+              <Info
+                label="Heure"
+                value={payload.time ?? "—"}
+              />
+              <Info
+                label="Budget"
+                value={
+                  payload.budget == null
+                    ? "Non défini"
+                    : `${payload.budget.toFixed(
+                        2
+                      )} €`
+                }
+              />
+            </div>
+
+            <div className="mt-6 grid gap-4">
+              <label>
+                <span className="mb-2 block text-sm font-black">
+                  Titre
+                </span>
+                <input
+                  value={title}
+                  onChange={(event) =>
+                    setTitle(
+                      event.target.value
+                    )
+                  }
+                  className="klyx-input"
+                  maxLength={120}
+                />
+              </label>
+
+              <label>
+                <span className="mb-2 block text-sm font-black">
+                  Description
+                </span>
+                <textarea
+                  value={description}
+                  onChange={(event) =>
+                    setDescription(
+                      event.target.value
+                    )
+                  }
+                  className="klyx-input min-h-36 resize-y p-4"
+                  maxLength={2000}
+                />
+              </label>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm leading-6 text-muted-foreground">
+              KLYX a seulement préparé la demande.
+              Le bouton ci-dessous est ta confirmation
+              explicite de publication.
+            </div>
+
+            <button
+              type="button"
+              disabled={publishing}
+              onClick={() =>
+                void publishRequest()
+              }
+              className="klyx-button mt-5 w-full"
+            >
+              {publishing ? (
+                <LoaderCircle
+                  className="animate-spin"
+                  size={18}
+                />
+              ) : (
+                <Sparkles size={18} />
+              )}
+              Confirmer et publier
+            </button>
+          </section>
+        )}
+
+        {errorMessage && (
+          <div className="mt-5 rounded-2xl border border-rose-500/25 bg-rose-500/10 p-4 text-sm text-rose-700 dark:text-rose-300">
+            {errorMessage}
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}
+
+function Info({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-border bg-background p-4">
+      <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+      <p className="mt-1 font-black">
+        {value}
+      </p>
+    </div>
+  );
+}

@@ -15,9 +15,37 @@ type BrainContext = {
   memoryUsed: boolean;
 };
 
+type BrainReadinessPayload = {
+  score: number;
+  label: string;
+  isComplete: boolean;
+  remainingCount: number;
+  missing: string[];
+  nextMissing: string | null;
+  nextStep:
+    | "confirm_request"
+    | "collect_missing_information";
+  requiresConfirmation: boolean;
+  confirmationState:
+    | "awaiting_user_confirmation"
+    | "not_ready";
+  confirmationOptions: Array<{
+    id: "confirm" | "edit";
+    action: "confirm_request" | "edit_request";
+    label: "Confirmer" | "Modifier";
+  }>;
+  summary: {
+    service: string;
+    city: string;
+    date: string;
+    time: string;
+  } | null;
+  automaticExecutionAllowed: false;
+};
 type BrainPayload = BrainContext & {
   missing: string[];
   ready: boolean;
+  readiness: BrainReadinessPayload;
 };
 
 type ConversationRow = {
@@ -323,6 +351,35 @@ function detectDate(text: string): string | null {
     return toLocalIsoDate(date);
   }
 
+  // KLYX_WEEKDAY_12_45
+  const weekdayRules = [
+    { day: 1, aliases: ["lundi"] },
+    { day: 2, aliases: ["mardi"] },
+    { day: 3, aliases: ["mercredi"] },
+    { day: 4, aliases: ["jeudi"] },
+    { day: 5, aliases: ["vendredi"] },
+    { day: 6, aliases: ["samedi"] },
+    { day: 0, aliases: ["dimanche"] },
+  ];
+
+  for (const rule of weekdayRules) {
+    if (
+      rule.aliases.some((alias) =>
+        approximatelyContains(value, alias)
+      )
+    ) {
+      const date = new Date(now);
+      const currentDay = date.getDay();
+      let daysAhead = (rule.day - currentDay + 7) % 7;
+
+      if (daysAhead === 0) {
+        daysAhead = 7;
+      }
+
+      date.setDate(date.getDate() + daysAhead);
+      return toLocalIsoDate(date);
+    }
+  }
   const numericMatch = text.match(
     /\b(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2,4}))?\b/
   );
@@ -355,6 +412,53 @@ function detectDate(text: string): string | null {
 function detectTime(text: string): string | null {
   const value = normalize(text);
 
+  // KLYX_NATURAL_TIME_12_46
+  const naturalTimes = [
+    {
+      expressions: ["midi", "a midi", "vers midi"],
+      time: "12:00",
+    },
+    {
+      expressions: ["minuit", "a minuit", "vers minuit"],
+      time: "00:00",
+    },
+    {
+      expressions: [
+        "le matin",
+        "dans la matinee",
+        "en matinee",
+        "matin",
+      ],
+      time: "09:00",
+    },
+    {
+      expressions: [
+        "l apres midi",
+        "dans l apres midi",
+        "apres midi",
+      ],
+      time: "14:00",
+    },
+    {
+      expressions: [
+        "le soir",
+        "dans la soiree",
+        "en soiree",
+        "soir",
+      ],
+      time: "18:00",
+    },
+  ];
+
+  for (const naturalTime of naturalTimes) {
+    if (
+      naturalTime.expressions.some((expression) =>
+        approximatelyContains(value, expression)
+      )
+    ) {
+      return naturalTime.time;
+    }
+  }
   const match = value.match(
     /\b(?:vers\s+|a\s+)?(\d{1,2})(?:\s*(?:h|heure|heures|:)\s*(\d{1,2}))?\b/
   );
@@ -381,6 +485,25 @@ function detectTime(text: string): string | null {
 }
 
 function detectBudget(text: string): number | null {
+  // KLYX_NATURAL_BUDGET_12_47
+  const normalizedBudgetText = normalize(text);
+
+  const budgetPatterns = [
+    /(?:budget|maximum|max|jusqu a|pas plus de)\s*(?:de|est|a|:)?\s*(\d+(?:[.,]\d{1,2})?)\s*(?:€|euros?|eur)?/i,
+    /(\d+(?:[.,]\d{1,2})?)\s*(?:€|euros?|eur)\s*(?:max|maximum)/i,
+    /(?:pour|avec)\s*(\d+(?:[.,]\d{1,2})?)\s*(?:€|euros?|eur)/i,
+  ];
+
+  for (const pattern of budgetPatterns) {
+    const match = normalizedBudgetText.match(pattern);
+    if (!match) continue;
+
+    const amount = Number(match[1].replace(",", "."));
+
+    if (Number.isFinite(amount) && amount > 0 && amount <= 1000000) {
+      return Math.round(amount * 100) / 100;
+    }
+  }
   const value = normalize(text);
 
   const match = value.match(
@@ -595,39 +718,322 @@ function buildMissingFields(
   return missing;
 }
 
+function knownContextSummary(context: BrainContext): string {
+  const parts: string[] = [];
+
+  if (context.serviceSlug) {
+    parts.push(serviceLabel(context.serviceSlug));
+  }
+
+  if (context.city) {
+    parts.push(`à ${context.city}`);
+  }
+
+  if (context.date) {
+    parts.push(`le ${context.date}`);
+  }
+
+  if (context.time) {
+    parts.push(`à ${context.time}`);
+  }
+
+  if (context.budget != null) {
+    parts.push(`budget max ${context.budget.toFixed(2)} €`);
+  }
+
+  return parts.join(", ");
+}
+
+// KLYX_RESPONSE_METADATA_12_61
+function buildReadinessPayload(
+  context: BrainContext,
+  missing: string[]
+): BrainReadinessPayload {
+  const remainingCount = missing.length;
+  const score = Math.round(
+    ((4 - remainingCount) / 4) * 100
+  );
+
+  const label =
+    score === 100
+      ? "Demande complète"
+      : score >= 75
+        ? "Presque prête"
+        : score >= 50
+          ? "Demande en cours"
+          : "Je précise ton besoin";
+
+  const isComplete = score === 100;
+  const nextMissing = missing[0] ?? null;
+
+  const summary =
+    isComplete &&
+    context.serviceSlug &&
+    context.city &&
+    context.date &&
+    context.time
+      ? {
+          service: context.serviceSlug,
+          city: context.city,
+          date: context.date,
+          time: context.time,
+        }
+      : null;
+
+  return {
+    score,
+    label,
+    isComplete,
+    remainingCount,
+    missing: [...missing],
+    nextMissing,
+    nextStep: isComplete
+      ? "confirm_request"
+      : "collect_missing_information",
+    requiresConfirmation: isComplete,
+    confirmationState: isComplete
+      ? "awaiting_user_confirmation"
+      : "not_ready",
+    confirmationOptions: isComplete
+      ? [
+          {
+            id: "confirm",
+            action: "confirm_request",
+            label: "Confirmer",
+          },
+          {
+            id: "edit",
+            action: "edit_request",
+            label: "Modifier",
+          },
+        ]
+      : [],
+    summary,
+    automaticExecutionAllowed: false,
+  };
+}
 function buildReply(
   context: BrainContext,
   missing: string[]
 ): string {
+  // KLYX_COMPLETENESS_12_49
+  const completionParts: string[] = [];
+
+  if (context.serviceSlug) completionParts.push("service");
+  if (context.city) completionParts.push("ville");
+  if (context.date) completionParts.push("date");
+  if (context.time) completionParts.push("heure");
+
+  const completionScore = Math.round(
+    (completionParts.length / 4) * 100
+  );
+
+  const completionLabel =
+    completionScore === 100
+      ? "Demande complète"
+      : completionScore >= 75
+        ? "Presque prête"
+        : completionScore >= 50
+          ? "Demande en cours"
+          : "Je précise ton besoin";
+  // KLYX_READINESS_12_50
+  const missingCompletionParts: string[] = [];
+
+  if (!context.serviceSlug) missingCompletionParts.push("service");
+  if (!context.city) missingCompletionParts.push("ville");
+  if (!context.date) missingCompletionParts.push("date");
+  if (!context.time) missingCompletionParts.push("heure");
+
+  const isRequestComplete = completionScore === 100;
+  const nextMissingPart = missingCompletionParts[0] ?? null;
+
+    // KLYX_GUIDED_COMPLETION_12_51
+  const nextCompletionQuestion =
+    nextMissingPart === "service"
+      ? "Quel service te faut-il ? Tu peux aussi simplement décrire le problème."
+      : nextMissingPart === "ville"
+        ? "Dans quelle ville as-tu besoin du service ?"
+        : nextMissingPart === "date"
+          ? "Pour quelle date souhaites-tu ce service ?"
+          : nextMissingPart === "heure"
+            ? "À quelle heure souhaites-tu ce service ?"
+            : null;
+// KLYX_PROGRESS_FEEDBACK_12_52
+const remainingCompletionCount = missingCompletionParts.length;
+
+const completionStatusText = isRequestComplete
+  ? `${completionLabel} (${completionScore} %)`
+  : `${completionLabel} (${completionScore} %) - ${remainingCompletionCount} information${remainingCompletionCount > 1 ? "s" : ""} restante${remainingCompletionCount > 1 ? "s" : ""}`;
+// KLYX_REQUEST_SUMMARY_12_53
+const completionRequestSummary = isRequestComplete
+  ? {
+      service: context.serviceSlug,
+      city: context.city,
+      date: context.date,
+      time: context.time,
+    }
+  : null;
+
+const completionConfirmationText = isRequestComplete
+  ? `Service: ${context.serviceSlug} | Ville: ${context.city} | Date: ${context.date} | Heure: ${context.time}`
+  : null;
+// KLYX_CONFIRMATION_GATE_12_54
+const requiresUserConfirmation = isRequestComplete;
+
+const completionNextStep = isRequestComplete
+  ? "confirm_request"
+  : "collect_missing_information";
+
+const automaticExecutionAllowed = false;
+// KLYX_CONFIRMATION_PROMPT_12_55
+const completionConfirmationPrompt = isRequestComplete
+  ? "Ta demande est complète. Vérifie le résumé puis confirme avant toute publication, réservation ou paiement."
+  : null;
+// KLYX_CONFIRMATION_CHOICES_12_56
+const completionConfirmationState = isRequestComplete
+  ? "awaiting_user_confirmation"
+  : "not_ready";
+
+const completionConfirmationOptions = isRequestComplete
+  ? [
+      {
+        id: "confirm",
+        action: "confirm_request",
+        label: "Confirmer",
+      },
+      {
+        id: "edit",
+        action: "edit_request",
+        label: "Modifier",
+      },
+    ]
+  : [];
+// KLYX_CONFIRMATION_POLICY_12_57
+const confirmationProtectedActions = [
+  "market_publish",
+  "booking_create",
+  "payment_create",
+] as const;
+
+const confirmationSafeActions = [
+  "edit_request",
+] as const;
+
+const completionConfirmationPolicy = {
+  required: requiresUserConfirmation,
+  protectedActions: confirmationProtectedActions,
+  safeActions: confirmationSafeActions,
+  automaticExecutionAllowed,
+} as const;
+// KLYX_ACTION_ELIGIBILITY_12_58
+const completionActionEligibility = {
+  editRequest: true,
+  marketPublish: false,
+  bookingCreate: false,
+  paymentCreate: false,
+  blockedReason: isRequestComplete
+    ? "awaiting_user_confirmation"
+    : "request_incomplete",
+} as const;
+// KLYX_POST_CONFIRMATION_12_59
+const completionPostConfirmation = isRequestComplete
+  ? {
+      nextState: "ready_for_market_publish",
+      unlocks: ["market_publish"],
+      remainsProtected: [
+        "booking_create",
+        "payment_create",
+      ],
+      requiresExplicitConfirmation: true,
+      automaticExecutionAllowed: false,
+    }
+  : null;
+const requestReadiness = {
+    score: completionScore,
+    label: completionLabel,
+    isComplete: isRequestComplete,
+    missing: missingCompletionParts,
+    nextMissing: nextMissingPart,
+    question: nextCompletionQuestion,
+  remainingCount: remainingCompletionCount,
+  statusText: completionStatusText,
+  summary: completionRequestSummary,
+  confirmationText: completionConfirmationText,
+  requiresConfirmation: requiresUserConfirmation,
+  nextStep: completionNextStep,
+  automaticExecutionAllowed,
+  confirmationPrompt: completionConfirmationPrompt,
+  confirmationState: completionConfirmationState,
+  confirmationOptions: completionConfirmationOptions,
+  confirmationPolicy: completionConfirmationPolicy,
+  actionEligibility: completionActionEligibility,
+  postConfirmation: completionPostConfirmation,
+  };
+
+  void requestReadiness;
+  // KLYX_AMBIGUITY_12_48
+  const firstMissing = missing[0] ?? null;
+
+  const guidedQuestions: Record<string, string> = {
+    service:
+      "De quel service as-tu besoin ? Décris simplement le travail à faire, même si tu ne connais pas le nom exact du métier.",
+    ville:
+      "Dans quelle ville ou commune la prestation doit-elle avoir lieu ?",
+    date:
+      "Quel jour souhaites-tu la prestation ? Tu peux répondre naturellement : demain, samedi, lundi prochain ou avec une date.",
+    heure:
+      "À quel moment souhaites-tu la prestation ? Par exemple : 10h30, midi, le matin, l’après-midi ou le soir.",
+  };
+
+  if (firstMissing && guidedQuestions[firstMissing]) {
+    const summary =
+      typeof knownContextSummary === "function"
+        ? knownContextSummary(context)
+        : "";
+
+    return summary
+      ? `J’ai déjà compris : ${summary}. ${guidedQuestions[firstMissing]}`
+      : guidedQuestions[firstMissing];
+  }
   if (missing.length > 0) {
     const questions: Record<string, string> = {
       service:
-        "Quel service souhaites-tu réserver ? Tu peux écrire par exemple : baby-sitting, ménage, déménagement ou bricolage.",
+        "Quel service souhaites-tu ? Tu peux écrire par exemple : baby-sitting, ménage, déménagement ou bricolage.",
       ville:
-        "Dans quelle ville as-tu besoin de ce service ?",
+        "Dans quelle ville dois-je chercher le prestataire ?",
       date:
-        "Pour quelle date ? Tu peux écrire par exemple : demain ou 15/09/2026.",
+        "Pour quelle date souhaites-tu la prestation ? Tu peux répondre par exemple : demain ou 15/09/2026.",
       heure:
-        "À quelle heure souhaites-tu la prestation ?",
+        "À quelle heure souhaites-tu que la prestation commence ?",
     };
 
-    return questions[missing[0]];
+    const summary = knownContextSummary(context);
+
+    const prefix = summary
+      ? `J’ai déjà compris : ${summary}. `
+      : "";
+
+        // KLYX_VISIBLE_READINESS_12_60
+    const guidedQuestion =
+      nextCompletionQuestion ??
+      questions[missing[0]] ??
+      "Peux-tu préciser ta demande ?";
+
+    return `${completionStatusText}\n\n${guidedQuestion}`;
   }
 
   const budgetText =
     context.budget != null
-      ? `, avec un budget maximum de ${context.budget.toFixed(
-          2
-        )} €`
+      ? `, avec un budget maximum de ${context.budget.toFixed(2)} €`
       : "";
 
-  return `J’ai compris : ${serviceLabel(
-    context.serviceSlug
-  )} à ${context.city}, le ${context.date} à ${
-    context.time
-  }${budgetText}. Je peux maintenant chercher les meilleurs prestataires.`;
+    return `${completionStatusText}\n\n${
+    completionConfirmationText ?? "Demande prête."
+  }\n\n${
+    completionConfirmationPrompt ??
+    "Vérifie la demande puis confirme avant de continuer."
+  }`;
 }
-
 async function insertBrainMessage(params: {
   conversationId: string;
   role: "user" | "assistant";
@@ -706,11 +1112,16 @@ export async function POST(request: Request) {
     const ready = missing.length === 0;
     const reply = buildReply(context, missing);
 
-    const payload: BrainPayload = {
+        const readiness = buildReadinessPayload(
+      context,
+      missing
+    );
+const payload: BrainPayload = {
       ...context,
       missing,
       ready,
-    };
+          readiness,
+};
 
     await insertBrainMessage({
       conversationId,

@@ -1,0 +1,185 @@
+﻿
+> klyx@0.1.0 build
+> next build
+
+▲ Next.js 16.2.12 (Turbopack)
+- Environments: .env.local
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 14.6s
+  Running TypeScript ...
+  Finished TypeScript in 24.9s ...
+  Collecting page data using 11 workers ...
+  Generating static pages using 11 workers (0/143) ...
+  Generating static pages using 11 workers (35/143) 
+  Generating static pages using 11 workers (71/143) 
+  Generating static pages using 11 workers (107/143) 
+✓ Generating static pages using 11 workers (143/143) in 1305ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ƒ /_not-found
+├ ƒ /accounts
+├ ƒ /admin
+├ ƒ /admin/disputes
+├ ƒ /admin/launch
+├ ƒ /admin/services
+├ ƒ /admin/skills
+├ ƒ /admin/sumsub
+├ ƒ /admin/verifications
+├ ƒ /agent
+├ ƒ /ai-status
+├ ƒ /api/account/delete
+├ ƒ /api/admin/access
+├ ƒ /api/admin/disputes
+├ ƒ /api/admin/service-proposals
+├ ƒ /api/admin/skill-verifications
+├ ƒ /api/admin/skill-verifications/document
+├ ƒ /api/admin/stripe-readiness
+├ ƒ /api/admin/stripe-webhook-health
+├ ƒ /api/admin/sumsub
+├ ƒ /api/admin/verifications
+├ ƒ /api/admin/verifications/document
+├ ƒ /api/agent/plans
+├ ƒ /api/ai/respond
+├ ƒ /api/bookings/create
+├ ƒ /api/bookings/status
+├ ƒ /api/bookings/tracking
+├ ƒ /api/brain/actions
+├ ƒ /api/brain/confirm-request
+├ ƒ /api/brain/market-advice/[id]
+├ ƒ /api/brain/market-publish
+├ ƒ /api/brain/market-status/[id]
+├ ƒ /api/brain/memory-context
+├ ƒ /api/brain/recommend
+├ ƒ /api/brain/respond
+├ ƒ /api/disputes
+├ ƒ /api/founder/accounts-audit
+├ ƒ /api/founder/accounts-cleanup
+├ ƒ /api/founder/status
+├ ƒ /api/founder/test-center
+├ ƒ /api/founder/transaction-readiness
+├ ƒ /api/market/requests
+├ ƒ /api/market/requests/[id]/offers
+├ ƒ /api/memory/preferences
+├ ƒ /api/memory/profile
+├ ƒ /api/notifications/read
+├ ƒ /api/profile/avatar
+├ ƒ /api/profile/me
+├ ƒ /api/profile/mode
+├ ƒ /api/profiles/active
+├ ƒ /api/profiles/manage
+├ ƒ /api/projects/plan
+├ ƒ /api/provider/assistant
+├ ƒ /api/provider/finance
+├ ƒ /api/provider/planning
+├ ƒ /api/provider/service-proposals
+├ ƒ /api/provider/skill-requirements
+├ ƒ /api/provider/skills-verification
+├ ƒ /api/provider/studio
+├ ƒ /api/provider/sumsub/status
+├ ƒ /api/provider/sumsub/token
+├ ƒ /api/provider/verification
+├ ƒ /api/provider/verification/document
+├ ƒ /api/provider/zones
+├ ƒ /api/providers/[id]/reviews
+├ ƒ /api/providers/[id]/verified-services
+├ ƒ /api/public/economics
+├ ƒ /api/quotes
+├ ƒ /api/quotes/[id]
+├ ƒ /api/requests/analyze
+├ ƒ /api/requests/photo
+├ ƒ /api/reviews
+├ ƒ /api/scores/recalculate
+├ ƒ /api/search/coverage
+├ ƒ /api/search/provider-coverage
+├ ƒ /api/search/providers
+├ ƒ /api/security/risk
+├ ƒ /api/services/public
+├ ƒ /api/stripe/connect/create-account
+├ ƒ /api/stripe/connect/status
+├ ƒ /api/stripe/create-checkout-session
+├ ƒ /api/stripe/webhook
+├ ƒ /api/sumsub/webhook
+├ ƒ /assistant
+├ ƒ /assistant/actions
+├ ƒ /assistant/market
+├ ƒ /assistant/market/[id]
+├ ƒ /babysitters
+├ ƒ /babysitters/[id]
+├ ƒ /beta
+├ ƒ /book
+├ ƒ /bookings
+├ ƒ /bookings/[id]
+├ ƒ /brain
+├ ƒ /connect
+├ ƒ /coverage
+├ ƒ /create-store
+├ ƒ /dashboard
+├ ƒ /delete-account
+├ ƒ /dev/accounts
+├ ƒ /favorites
+├ ƒ /founder
+├ ƒ /founder/cleanup
+├ ƒ /founder/economics
+├ ƒ /founder/final-check
+├ ƒ /founder/test
+├ ƒ /founder/transaction-test
+├ ƒ /install
+├ ƒ /legal
+├ ƒ /login
+├ ○ /manifest.webmanifest
+├ ƒ /memory
+├ ƒ /messages
+├ ƒ /messages/[bookingId]
+├ ƒ /notifications
+├ ƒ /offline
+├ ƒ /onboarding
+├ ƒ /payment/success
+├ ƒ /privacy
+├ ƒ /profile
+├ ƒ /projects/new
+├ ƒ /provider
+├ ƒ /provider/assistant
+├ ƒ /provider/jobs
+├ ƒ /provider/payments
+├ ƒ /provider/planning
+├ ƒ /provider/quotes
+├ ƒ /provider/services/new
+├ ƒ /provider/skills
+├ ƒ /provider/trust
+├ ƒ /provider/trust/new
+├ ƒ /provider/verification
+├ ƒ /provider/verification/sumsub
+├ ƒ /provider/zones
+├ ƒ /providers/[id]
+├ ƒ /providers/[id]/book
+├ ƒ /providers/[id]/quote
+├ ƒ /quotes
+├ ƒ /quotes/[id]/book
+├ ƒ /recommendations
+├ ƒ /request
+├ ƒ /request/confirm
+├ ƒ /request/photo
+├ ƒ /requests
+├ ƒ /reset-accounts
+├ ƒ /reset-password
+├ ƒ /reviews/[bookingId]
+├ ƒ /scores
+├ ƒ /search
+├ ƒ /security
+├ ƒ /settings
+├ ƒ /signup
+├ ƒ /support
+├ ƒ /terms
+├ ƒ /tracking/[bookingId]
+├ ƒ /trust
+└ ƒ /trust/new
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

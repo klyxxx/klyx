@@ -16,8 +16,22 @@ function clean(
     : "";
 }
 
+import { requireBrainMarketConfirmation } from "@/lib/brain-market-confirmation";
+
 export async function POST(request: Request) {
   try {
+    // KLYX_MARKET_CONFIRMATION_GATE_12_65
+    const klyxConfirmationGateRequest =
+      request.clone();
+
+    const klyxConfirmationGateBody =
+      await klyxConfirmationGateRequest.json();
+
+    await requireBrainMarketConfirmation({
+      request: request,
+      body: klyxConfirmationGateBody,
+    });
+
     const { profile } =
       await getAuthenticatedProfile(request);
 

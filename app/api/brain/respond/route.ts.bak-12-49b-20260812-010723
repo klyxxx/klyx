@@ -1,0 +1,901 @@
+import { NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+import {
+  apiErrorStatus,
+  getAuthenticatedProfile,
+  requireAccountType,
+} from "@/lib/api-auth";
+
+type BrainContext = {
+  serviceSlug: string | null;
+  city: string | null;
+  date: string | null;
+  time: string | null;
+  budget: number | null;
+  memoryUsed: boolean;
+};
+
+type BrainPayload = BrainContext & {
+  missing: string[];
+  ready: boolean;
+};
+
+type ConversationRow = {
+  id: string;
+};
+
+type MessagePayloadRow = {
+  payload: Partial<BrainPayload> | null;
+};
+
+type PreferencesRow = {
+  default_city: string | null;
+  default_budget: number | null;
+  preferred_service_slugs: string[] | null;
+  ai_memory_enabled: boolean | null;
+  scheduling_notes: string | null;
+};
+
+type ServiceRule = {
+  slug: string;
+  label: string;
+  expressions: string[];
+};
+
+type CityRule = {
+  city: string;
+  aliases: string[];
+};
+
+function normalize(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/['’`-]/g, " ")
+    .replace(/[^a-z0-9€\s:/.-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function levenshtein(a: string, b: string): number {
+  const rows = a.length + 1;
+  const columns = b.length + 1;
+
+  const matrix = Array.from({ length: rows }, () =>
+    Array<number>(columns).fill(0)
+  );
+
+  for (let row = 0; row < rows; row += 1) {
+    matrix[row][0] = row;
+  }
+
+  for (let column = 0; column < columns; column += 1) {
+    matrix[0][column] = column;
+  }
+
+  for (let row = 1; row < rows; row += 1) {
+    for (let column = 1; column < columns; column += 1) {
+      const cost = a[row - 1] === b[column - 1] ? 0 : 1;
+
+      matrix[row][column] = Math.min(
+        matrix[row - 1][column] + 1,
+        matrix[row][column - 1] + 1,
+        matrix[row - 1][column - 1] + cost
+      );
+    }
+  }
+
+  return matrix[a.length][b.length];
+}
+
+function approximatelyContains(
+  text: string,
+  expression: string
+): boolean {
+  const normalizedText = normalize(text);
+  const normalizedExpression = normalize(expression);
+
+  if (!normalizedExpression) {
+    return false;
+  }
+
+  if (normalizedText.includes(normalizedExpression)) {
+    return true;
+  }
+
+  const textWords = normalizedText.split(" ");
+  const expressionWords = normalizedExpression.split(" ");
+
+  if (expressionWords.length === 1) {
+    const maximumDistance =
+      normalizedExpression.length <= 5 ? 1 : 2;
+
+    return textWords.some(
+      (word) =>
+        levenshtein(word, normalizedExpression) <=
+        maximumDistance
+    );
+  }
+
+  for (
+    let index = 0;
+    index <= textWords.length - expressionWords.length;
+    index += 1
+  ) {
+    const candidate = textWords
+      .slice(index, index + expressionWords.length)
+      .join(" ");
+
+    const maximumDistance =
+      normalizedExpression.length <= 10 ? 2 : 3;
+
+    if (
+      levenshtein(candidate, normalizedExpression) <=
+      maximumDistance
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+const SERVICE_RULES: ServiceRule[] = [
+  {
+    slug: "babysitting",
+    label: "baby-sitting",
+    expressions: [
+      "baby sitter",
+      "babysitter",
+      "baby-sitter",
+      "babysiter",
+      "garde enfant",
+      "garde d enfant",
+      "garder mon enfant",
+      "garder mes enfants",
+      "garde mes enfants",
+      "garde mon enfant",
+      "nounou",
+      "gardienne enfant",
+    ],
+  },
+  {
+    slug: "cleaning",
+    label: "ménage",
+    expressions: [
+      "menage",
+      "ménage",
+      "nettoyage",
+      "nettoyer",
+      "femme de menage",
+      "homme de menage",
+      "nettoyage maison",
+      "nettoyage appartement",
+    ],
+  },
+  {
+    slug: "moving",
+    label: "déménagement",
+    expressions: [
+      "demenagement",
+      "déménagement",
+      "demenager",
+      "déménager",
+      "demenageur",
+      "déménageur",
+      "transport meubles",
+      "changer de maison",
+      "changer appartement",
+    ],
+  },
+  {
+    slug: "handyman",
+    label: "bricolage",
+    expressions: [
+      "bricolage",
+      "bricoleur",
+      "reparation",
+      "réparation",
+      "reparer",
+      "réparer",
+      "monter meuble",
+      "petits travaux",
+      "homme a tout faire",
+    ],
+  },
+];
+
+const CITY_RULES: CityRule[] = [
+  {
+    city: "Bruxelles",
+    aliases: ["bruxelles", "brussel", "bxl", "bx", "bruxel"],
+  },
+  {
+    city: "Anderlecht",
+    aliases: ["anderlecht"],
+  },
+  {
+    city: "Schaerbeek",
+    aliases: ["schaerbeek", "schaarbeek"],
+  },
+  {
+    city: "Ixelles",
+    aliases: ["ixelles", "elsene"],
+  },
+  {
+    city: "Uccle",
+    aliases: ["uccle", "ukkel"],
+  },
+  {
+    city: "Etterbeek",
+    aliases: ["etterbeek"],
+  },
+  {
+    city: "Forest",
+    aliases: ["forest", "vorst"],
+  },
+  {
+    city: "Saint-Gilles",
+    aliases: ["saint gilles", "sint gillis"],
+  },
+  {
+    city: "Jette",
+    aliases: ["jette"],
+  },
+  {
+    city: "Evere",
+    aliases: ["evere"],
+  },
+  {
+    city: "Molenbeek-Saint-Jean",
+    aliases: [
+      "molenbeek",
+      "molenbeek saint jean",
+      "sint jans molenbeek",
+    ],
+  },
+];
+
+function detectService(text: string): string | null {
+  for (const rule of SERVICE_RULES) {
+    const matches = rule.expressions.some((expression) =>
+      approximatelyContains(text, expression)
+    );
+
+    if (matches) {
+      return rule.slug;
+    }
+  }
+
+  return null;
+}
+
+function detectCity(text: string): string | null {
+  for (const rule of CITY_RULES) {
+    const matches = rule.aliases.some((alias) =>
+      approximatelyContains(text, alias)
+    );
+
+    if (matches) {
+      return rule.city;
+    }
+  }
+
+  return null;
+}
+
+function toLocalIsoDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function detectDate(text: string): string | null {
+  const value = normalize(text);
+  const now = new Date();
+
+  if (
+    value.includes("aujourd hui") ||
+    value.includes("aujourdhui") ||
+    value.includes("aujoudhui")
+  ) {
+    return toLocalIsoDate(now);
+  }
+
+  if (
+    value.includes("apres demain") ||
+    value.includes("apresdemain")
+  ) {
+    const date = new Date(now);
+    date.setDate(date.getDate() + 2);
+    return toLocalIsoDate(date);
+  }
+
+  if (
+    value.includes("demain") ||
+    approximatelyContains(value, "demain")
+  ) {
+    const date = new Date(now);
+    date.setDate(date.getDate() + 1);
+    return toLocalIsoDate(date);
+  }
+
+  // KLYX_WEEKDAY_12_45
+  const weekdayRules = [
+    { day: 1, aliases: ["lundi"] },
+    { day: 2, aliases: ["mardi"] },
+    { day: 3, aliases: ["mercredi"] },
+    { day: 4, aliases: ["jeudi"] },
+    { day: 5, aliases: ["vendredi"] },
+    { day: 6, aliases: ["samedi"] },
+    { day: 0, aliases: ["dimanche"] },
+  ];
+
+  for (const rule of weekdayRules) {
+    if (
+      rule.aliases.some((alias) =>
+        approximatelyContains(value, alias)
+      )
+    ) {
+      const date = new Date(now);
+      const currentDay = date.getDay();
+      let daysAhead = (rule.day - currentDay + 7) % 7;
+
+      if (daysAhead === 0) {
+        daysAhead = 7;
+      }
+
+      date.setDate(date.getDate() + daysAhead);
+      return toLocalIsoDate(date);
+    }
+  }
+  const numericMatch = text.match(
+    /\b(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2,4}))?\b/
+  );
+
+  if (!numericMatch) {
+    return null;
+  }
+
+  const day = Number(numericMatch[1]);
+  const month = Number(numericMatch[2]);
+
+  let year = numericMatch[3]
+    ? Number(numericMatch[3])
+    : now.getFullYear();
+
+  if (year < 100) {
+    year += 2000;
+  }
+
+  const date = new Date(year, month - 1, day);
+
+  const valid =
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day;
+
+  return valid ? toLocalIsoDate(date) : null;
+}
+
+function detectTime(text: string): string | null {
+  const value = normalize(text);
+
+  // KLYX_NATURAL_TIME_12_46
+  const naturalTimes = [
+    {
+      expressions: ["midi", "a midi", "vers midi"],
+      time: "12:00",
+    },
+    {
+      expressions: ["minuit", "a minuit", "vers minuit"],
+      time: "00:00",
+    },
+    {
+      expressions: [
+        "le matin",
+        "dans la matinee",
+        "en matinee",
+        "matin",
+      ],
+      time: "09:00",
+    },
+    {
+      expressions: [
+        "l apres midi",
+        "dans l apres midi",
+        "apres midi",
+      ],
+      time: "14:00",
+    },
+    {
+      expressions: [
+        "le soir",
+        "dans la soiree",
+        "en soiree",
+        "soir",
+      ],
+      time: "18:00",
+    },
+  ];
+
+  for (const naturalTime of naturalTimes) {
+    if (
+      naturalTime.expressions.some((expression) =>
+        approximatelyContains(value, expression)
+      )
+    ) {
+      return naturalTime.time;
+    }
+  }
+  const match = value.match(
+    /\b(?:vers\s+|a\s+)?(\d{1,2})(?:\s*(?:h|heure|heures|:)\s*(\d{1,2}))?\b/
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2] ?? "0");
+
+  if (
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
+    return null;
+  }
+
+  return `${String(hours).padStart(2, "0")}:${String(
+    minutes
+  ).padStart(2, "0")}`;
+}
+
+function detectBudget(text: string): number | null {
+  // KLYX_NATURAL_BUDGET_12_47
+  const normalizedBudgetText = normalize(text);
+
+  const budgetPatterns = [
+    /(?:budget|maximum|max|jusqu a|pas plus de)\s*(?:de|est|a|:)?\s*(\d+(?:[.,]\d{1,2})?)\s*(?:€|euros?|eur)?/i,
+    /(\d+(?:[.,]\d{1,2})?)\s*(?:€|euros?|eur)\s*(?:max|maximum)/i,
+    /(?:pour|avec)\s*(\d+(?:[.,]\d{1,2})?)\s*(?:€|euros?|eur)/i,
+  ];
+
+  for (const pattern of budgetPatterns) {
+    const match = normalizedBudgetText.match(pattern);
+    if (!match) continue;
+
+    const amount = Number(match[1].replace(",", "."));
+
+    if (Number.isFinite(amount) && amount > 0 && amount <= 1000000) {
+      return Math.round(amount * 100) / 100;
+    }
+  }
+  const value = normalize(text);
+
+  const match = value.match(
+    /(?:budget|maximum|max|jusqu a|jusqua)?\s*(\d+(?:[.,]\d{1,2})?)\s*(?:€|euro|euros)\b/
+  );
+
+  if (!match) {
+    return null;
+  }
+
+  const amount = Number(match[1].replace(",", "."));
+
+  return Number.isFinite(amount) ? amount : null;
+}
+
+function serviceLabel(slug: string | null): string {
+  return (
+    SERVICE_RULES.find((rule) => rule.slug === slug)?.label ??
+    "service"
+  );
+}
+
+function wantsMemory(text: string): boolean {
+  return [
+    "comme d habitude",
+    "comme dhabitude",
+    "pareil que la derniere fois",
+    "la meme chose",
+    "comme avant",
+  ].some((expression) =>
+    approximatelyContains(text, expression)
+  );
+}
+
+function mergeContext(
+  previous: BrainContext,
+  currentMessage: string
+): BrainContext {
+  return {
+    serviceSlug:
+      detectService(currentMessage) ?? previous.serviceSlug,
+    city: detectCity(currentMessage) ?? previous.city,
+    date: detectDate(currentMessage) ?? previous.date,
+    time: detectTime(currentMessage) ?? previous.time,
+    budget:
+      detectBudget(currentMessage) ?? previous.budget,
+    memoryUsed: previous.memoryUsed,
+  };
+}
+
+async function createConversation(
+  userId: string,
+  firstMessage: string
+): Promise<string> {
+  const { data, error } = await supabaseAdmin
+    .from("brain_conversations")
+    .insert({
+      user_id: userId,
+      title: firstMessage.slice(0, 60),
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const conversation = data as ConversationRow;
+
+  return conversation.id;
+}
+
+async function verifyConversationOwnership(
+  conversationId: string,
+  userId: string
+): Promise<void> {
+  const { data, error } = await supabaseAdmin
+    .from("brain_conversations")
+    .select("id")
+    .eq("id", conversationId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new Error("Conversation introuvable.");
+  }
+}
+
+async function resolveConversationId(
+  userId: string,
+  requestedConversationId: string | undefined,
+  firstMessage: string
+): Promise<string> {
+  if (!requestedConversationId) {
+    return createConversation(userId, firstMessage);
+  }
+
+  await verifyConversationOwnership(
+    requestedConversationId,
+    userId
+  );
+
+  return requestedConversationId;
+}
+
+async function getPreviousContext(
+  conversationId: string
+): Promise<BrainContext> {
+  const { data, error } = await supabaseAdmin
+    .from("brain_messages")
+    .select("payload")
+    .eq("conversation_id", conversationId)
+    .eq("role", "assistant")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const row = data as MessagePayloadRow | null;
+  const payload = row?.payload ?? null;
+
+  return {
+    serviceSlug: payload?.serviceSlug ?? null,
+    city: payload?.city ?? null,
+    date: payload?.date ?? null,
+    time: payload?.time ?? null,
+    budget:
+      typeof payload?.budget === "number"
+        ? payload.budget
+        : null,
+    memoryUsed: Boolean(payload?.memoryUsed),
+  };
+}
+
+async function applyUserMemory(
+  userId: string,
+  message: string,
+  context: BrainContext
+): Promise<BrainContext> {
+  if (!wantsMemory(message)) {
+    return context;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("user_preferences")
+    .select(
+      "default_city, default_budget, preferred_service_slugs, ai_memory_enabled, scheduling_notes"
+    )
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const preferences = data as PreferencesRow | null;
+
+  if (!preferences?.ai_memory_enabled) {
+    return context;
+  }
+
+  return {
+    ...context,
+    serviceSlug:
+      context.serviceSlug ??
+      preferences.preferred_service_slugs?.[0] ??
+      null,
+    city:
+      context.city ??
+      preferences.default_city ??
+      null,
+    time:
+      context.time ??
+      detectTime(preferences.scheduling_notes ?? ""),
+    budget:
+      context.budget ??
+      (preferences.default_budget != null
+        ? Number(preferences.default_budget)
+        : null),
+    memoryUsed: true,
+  };
+}
+
+function buildMissingFields(
+  context: BrainContext
+): string[] {
+  const missing: string[] = [];
+
+  if (!context.serviceSlug) {
+    missing.push("service");
+  }
+
+  if (!context.city) {
+    missing.push("ville");
+  }
+
+  if (!context.date) {
+    missing.push("date");
+  }
+
+  if (!context.time) {
+    missing.push("heure");
+  }
+
+  return missing;
+}
+
+function knownContextSummary(context: BrainContext): string {
+  const parts: string[] = [];
+
+  if (context.serviceSlug) {
+    parts.push(serviceLabel(context.serviceSlug));
+  }
+
+  if (context.city) {
+    parts.push(`à ${context.city}`);
+  }
+
+  if (context.date) {
+    parts.push(`le ${context.date}`);
+  }
+
+  if (context.time) {
+    parts.push(`à ${context.time}`);
+  }
+
+  if (context.budget != null) {
+    parts.push(`budget max ${context.budget.toFixed(2)} €`);
+  }
+
+  return parts.join(", ");
+}
+
+function buildReply(
+  context: BrainContext,
+  missing: string[]
+): string {
+  // KLYX_AMBIGUITY_12_48
+  const firstMissing = missing[0] ?? null;
+
+  const guidedQuestions: Record<string, string> = {
+    service:
+      "De quel service as-tu besoin ? Décris simplement le travail à faire, même si tu ne connais pas le nom exact du métier.",
+    ville:
+      "Dans quelle ville ou commune la prestation doit-elle avoir lieu ?",
+    date:
+      "Quel jour souhaites-tu la prestation ? Tu peux répondre naturellement : demain, samedi, lundi prochain ou avec une date.",
+    heure:
+      "À quel moment souhaites-tu la prestation ? Par exemple : 10h30, midi, le matin, l’après-midi ou le soir.",
+  };
+
+  if (firstMissing && guidedQuestions[firstMissing]) {
+    const summary =
+      typeof knownContextSummary === "function"
+        ? knownContextSummary(context)
+        : "";
+
+    return summary
+      ? `J’ai déjà compris : ${summary}. ${guidedQuestions[firstMissing]}`
+      : guidedQuestions[firstMissing];
+  }
+  if (missing.length > 0) {
+    const questions: Record<string, string> = {
+      service:
+        "Quel service souhaites-tu ? Tu peux écrire par exemple : baby-sitting, ménage, déménagement ou bricolage.",
+      ville:
+        "Dans quelle ville dois-je chercher le prestataire ?",
+      date:
+        "Pour quelle date souhaites-tu la prestation ? Tu peux répondre par exemple : demain ou 15/09/2026.",
+      heure:
+        "À quelle heure souhaites-tu que la prestation commence ?",
+    };
+
+    const summary = knownContextSummary(context);
+
+    const prefix = summary
+      ? `J’ai déjà compris : ${summary}. `
+      : "";
+
+    return `${prefix}${questions[missing[0]]}`;
+  }
+
+  const budgetText =
+    context.budget != null
+      ? `, avec un budget maximum de ${context.budget.toFixed(2)} €`
+      : "";
+
+  return `J’ai tout ce qu’il faut : ${serviceLabel(
+    context.serviceSlug
+  )} à ${context.city}, le ${context.date} à ${
+    context.time
+  }${budgetText}. Vérifie le résumé puis confirme avant que KLYX publie ta demande.`;
+}
+async function insertBrainMessage(params: {
+  conversationId: string;
+  role: "user" | "assistant";
+  content: string;
+  payload?: Record<string, unknown>;
+}): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("brain_messages")
+    .insert({
+      conversation_id: params.conversationId,
+      role: params.role,
+      content: params.content,
+      payload: params.payload ?? {},
+    });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+async function touchConversation(
+  conversationId: string
+): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("brain_conversations")
+    .update({
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", conversationId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const { profile } = await getAuthenticatedProfile(request);
+    requireAccountType(profile, "client");
+
+    const body = (await request.json()) as {
+      conversationId?: string;
+      message?: string;
+    };
+
+    const message = body.message?.trim();
+
+    if (!message) {
+      return NextResponse.json(
+        { error: "Écris un message." },
+        { status: 400 }
+      );
+    }
+
+    const conversationId = await resolveConversationId(
+      profile.id,
+      body.conversationId,
+      message
+    );
+
+    const previousContext =
+      await getPreviousContext(conversationId);
+
+    const mergedContext = mergeContext(
+      previousContext,
+      message
+    );
+
+    const context = await applyUserMemory(
+      profile.id,
+      message,
+      mergedContext
+    );
+
+    const missing = buildMissingFields(context);
+    const ready = missing.length === 0;
+    const reply = buildReply(context, missing);
+
+    const payload: BrainPayload = {
+      ...context,
+      missing,
+      ready,
+    };
+
+    await insertBrainMessage({
+      conversationId,
+      role: "user",
+      content: message,
+    });
+
+    await insertBrainMessage({
+      conversationId,
+      role: "assistant",
+      content: reply,
+      payload,
+    });
+
+    await touchConversation(conversationId);
+
+    return NextResponse.json({
+      conversationId,
+      reply,
+      payload,
+    });
+  } catch (error) {
+    console.error("KLYX Brain error:", error);
+
+    const message =
+      error instanceof Error
+        ? error.message
+        : "KLYX Brain est indisponible.";
+
+    const status =
+      message === "Conversation introuvable."
+        ? 404
+        : apiErrorStatus(message);
+
+    return NextResponse.json(
+      { error: message },
+      { status }
+    );
+  }
+}

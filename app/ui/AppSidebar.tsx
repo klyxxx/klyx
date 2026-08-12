@@ -299,7 +299,7 @@ export default function AppSidebar() {
 
   const navigation = (
     <>
-      <div className="px-5 pb-4 pt-6">
+      <div className="px-5 pb-4 pt-6" data-klyx-fixed-sidebar="true">
         <KlyxLogo href="/dashboard" />
 
         <p className="mt-4 max-w-[13rem] text-xs leading-5 text-muted-foreground dark:text-white/45">
@@ -503,7 +503,8 @@ export default function AppSidebar() {
         </button>
       </header>
 
-      <aside className="hidden h-screen w-[18rem] shrink-0 flex-col border-r border-border bg-card text-foreground dark:border-white/8 dark:bg-[linear-gradient(180deg,#15131d_0%,#0b0a0f_100%)] dark:text-white lg:sticky lg:top-0 lg:flex">
+      <aside className="hidden h-screen w-[18rem] shrink-0 flex-col border-r border-border bg-card text-foreground dark:border-white/8 dark:bg-[linear-gradient(180deg,#15131d_0%,#0b0a0f_100%)] dark:text-white lg:sticky lg:top-0 lg:flex sticky top-0 h-screen max-h-screen shrink-0 self-start overflow-hidden">
+{/* KLYX_FIXED_APP_SIDEBAR_12_67B */}
         {navigation}
       </aside>
 

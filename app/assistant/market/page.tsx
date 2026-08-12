@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -29,6 +29,26 @@ type Message = {
   content: string;
 };
 
+// KLYX_PUBLISH_PROOF_WIRING_12_66B
+function getKlyxPublishProof() {
+  if (typeof window === "undefined") {
+    return {
+      conversationId: null,
+      confirmationId: null,
+    };
+  }
+
+  const params = new URLSearchParams(
+    window.location.search
+  );
+
+  return {
+    conversationId:
+      params.get("conversationId"),
+    confirmationId:
+      params.get("confirmationId"),
+  };
+}
 async function accessToken(): Promise<string> {
   const {
     data: { session },
@@ -42,7 +62,8 @@ async function accessToken(): Promise<string> {
 }
 
 export default function MarketAssistantPage() {
-  const router = useRouter();
+const router = useRouter();
+  const autoStartRef = useRef(false);
 
   const [conversationId, setConversationId] =
     useState<string | null>(null);
@@ -70,6 +91,17 @@ export default function MarketAssistantPage() {
   const [errorMessage, setErrorMessage] =
     useState("");
 
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const initialRequest = searchParams.get("request")?.trim() ?? "";
+
+    if (!initialRequest || autoStartRef.current) return;
+
+    autoStartRef.current = true;
+    setInput((current) =>
+      current.trim() ? current : initialRequest
+    );
+  }, []);
   async function sendMessage(
     event: FormEvent<HTMLFormElement>
   ) {
@@ -174,6 +206,21 @@ export default function MarketAssistantPage() {
     }
   }
 
+  // KLYX_AUTOSTART_12_43
+  useEffect(() => {
+    if (!autoStartRef.current || !input.trim() || loading || conversationId) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      const form = document.querySelector<HTMLFormElement>(
+        'form[data-klyx-market-form="true"]'
+      );
+      form?.requestSubmit();
+    }, 120);
+
+    return () => window.clearTimeout(timer);
+  }, [input, loading, conversationId]);
   async function publishRequest() {
     if (!payload?.ready || publishing) {
       return;
@@ -233,7 +280,10 @@ export default function MarketAssistantPage() {
             budgetMax:
               payload.budget,
             confirmed: true,
-          }),
+          
+            // KLYX_PUBLISH_PROOF_SHORTHAND_REPAIR_12_66F
+// KLYX_PUBLISH_PROOF_PAYLOAD_12_66B
+            confirmationId: getKlyxPublishProof().confirmationId}),
         }
       );
 

@@ -47,6 +47,12 @@ function ConfirmRequestContent() {
   const searchParams = useSearchParams();
   const minimumDate = todayInBrussels();
 
+  // KLYX_CONFIRMATION_PROOF_12_64
+  const conversationId =
+    searchParams.get("conversationId")?.trim() ?? "";
+  const confirmationId =
+    searchParams.get("confirmationId")?.trim() ?? "";
+
   const initialRequest = useMemo<ConfirmedRequest>(
     () => ({
       service: searchParams.get("service")?.trim() ?? "",
@@ -125,7 +131,14 @@ function ConfirmRequestContent() {
       params.set("budget", request.budget);
     }
 
-    router.push(`/recommendations?${params.toString()}`);
+        if (conversationId) {
+      params.set("conversationId", conversationId);
+    }
+
+    if (confirmationId) {
+      params.set("confirmationId", confirmationId);
+    }
+router.push(`/recommendations?${params.toString()}`);
   }
 
   const serviceLabel =

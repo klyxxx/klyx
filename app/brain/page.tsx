@@ -1,5 +1,7 @@
 "use client";
 
+import BrainReadinessCard, { type BrainReadinessViewModel } from "@/app/components/BrainReadinessCard";
+
 import {
   FormEvent,
   KeyboardEvent,
@@ -45,6 +47,7 @@ type BrainPayload = {
   budget: number | null;
   memoryUsed: boolean;
   ready: boolean;
+  readiness?: BrainReadinessViewModel;
 };
 
 type StructuredBrainResponse = {
@@ -333,7 +336,106 @@ export default function BrainPage() {
     }
   }
 
-  function openResults() {
+    // KLYX_ASSISTANT_READINESS_UI_12_62
+  function editCurrentRequest() {
+    setInput("");
+    setErrorMessage("");
+
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLTextAreaElement>("textarea")?.focus();
+    });
+  }
+// KLYX_EXPLICIT_CONFIRMATION_12_63
+  // KLYX_CONFIRMATION_PROOF_12_64
+async function confirmCurrentRequest() {
+  if (
+    !payload?.ready ||
+    !payload.readiness?.isComplete
+  ) {
+    setErrorMessage(
+      "La demande doit être complète avant confirmation."
+    );
+    return;
+  }
+
+  if (!conversationId) {
+    setErrorMessage(
+      "Conversation KLYX introuvable."
+    );
+    return;
+  }
+
+  setLoading(true);
+  setErrorMessage("");
+
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.access_token) {
+      router.replace("/login");
+      return;
+    }
+
+    const response = await fetch(
+      "/api/brain/confirm-request",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:
+            "Bearer " + session.access_token,
+        },
+        body: JSON.stringify({
+          conversationId,
+          request: {
+            serviceSlug: payload.serviceSlug,
+            city: payload.city,
+            date: payload.date,
+            time: payload.time,
+            budget: payload.budget,
+          },
+        }),
+      }
+    );
+
+    const result =
+      (await response.json()) as {
+        confirmed?: boolean;
+        error?: string;
+      };
+
+    if (!response.ok || !result.confirmed) {
+      throw new Error(
+        result.error ||
+          "KLYX n'a pas pu confirmer la demande."
+      );
+    }
+
+    const confirmationId =
+      (result as { confirmationId?: string })
+        .confirmationId;
+
+    if (!confirmationId) {
+      throw new Error(
+        "Preuve de confirmation KLYX manquante."
+      );
+    }
+
+    openResults(confirmationId);
+  } catch (error) {
+    setErrorMessage(
+      error instanceof Error
+        ? error.message
+        : "Confirmation impossible."
+    );
+  } finally {
+    setLoading(false);
+  }
+}
+  // KLYX_OPEN_RESULTS_HANDLER_REPAIR_12_64C
+function openResults(confirmationId?: string) {
     if (!payload?.ready) return;
 
     const params = new URLSearchParams();
@@ -348,7 +450,14 @@ export default function BrainPage() {
       params.set("budget", String(payload.budget));
     }
 
-    router.push(`/request/confirm?${params.toString()}`);
+        if (conversationId) {
+      params.set("conversationId", conversationId);
+    }
+
+    if (confirmationId) {
+      params.set("confirmationId", confirmationId);
+    }
+router.push(`/request/confirm?${params.toString()}`);
   }
 
   return (
@@ -429,6 +538,13 @@ export default function BrainPage() {
                   </div>
                 ))}
 
+                {payload?.readiness && (
+                  <BrainReadinessCard
+                    readiness={payload.readiness}
+                    onConfirm={() => void confirmCurrentRequest()}
+                    onEdit={editCurrentRequest}
+                  />
+                )}
                 {messages.length === 1 && (
                   <>
                     <MemoryQuickStart
@@ -493,7 +609,7 @@ export default function BrainPage() {
                   <div className="border-t border-border bg-violet-500/[0.04] p-5 pt-0">
                     <button
                       type="button"
-                      onClick={openResults}
+                      onClick={() => openResults()}
                       className="flex w-full items-center justify-center gap-2 rounded-2xl border border-violet-500/25 bg-background px-6 py-3.5 text-sm font-bold text-violet-700 transition hover:bg-violet-500/10 dark:text-violet-300"
                     >
                       Comparer tous les prestataires
