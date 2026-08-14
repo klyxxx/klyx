@@ -1,0 +1,124 @@
+{
+    "Step":  "13.37",
+    "GeneratedAt":  "2026-08-13T20:40:44.1480723+02:00",
+    "PreviousOfficialMigrationCount":  21,
+    "ArchivedMigrationCount":  21,
+    "OfficialMigrationCountAfter":  1,
+    "CanonicalBaseline":  "supabase\\migrations\\20260814000000_klyx_canonical_baseline.sql",
+    "CanonicalBaselineSha256":  "850298c5ca38a2b0339e7b0cdc2d7522f72a5924e9acffcb87c8e5f012094ba2",
+    "PreviousOfficialMigrations":  [
+                                       {
+                                           "Name":  "20260812141355_remote_schema.sql",
+                                           "Sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                                           "Length":  0
+                                       },
+                                       {
+                                           "Name":  "20260812161413_klyx_phone_12_67.sql",
+                                           "Sha256":  "b4247fa8a6ba0241df328640ad5fe60c4b1dc91510ec2cbd0bcab84ebdd63d41",
+                                           "Length":  1013
+                                       },
+                                       {
+                                           "Name":  "20260812182000_klyx_phone_otp_security_12_71.sql",
+                                           "Sha256":  "84e658ee97318b75022c2edca5672c57d89c6a61a6c8138e38acbc7d88e8e5fd",
+                                           "Length":  708
+                                       },
+                                       {
+                                           "Name":  "20260812183500_klyx_phone_contact_audit_12_72.sql",
+                                           "Sha256":  "25641d165bba9a136b925cfa46fefcaf17c117a74c21677c7035833ee99a6efe",
+                                           "Length":  1030
+                                       },
+                                       {
+                                           "Name":  "20260812195600_klyx_multi_slot_market_12_83.sql",
+                                           "Sha256":  "83bf95fc438ebad546e4fef464518a60c118a2d058cfca48ed1f14345c778cb2",
+                                           "Length":  4260
+                                       },
+                                       {
+                                           "Name":  "20260812202000_klyx_booking_groups_12_85.sql",
+                                           "Sha256":  "a9f6ec16c3e113d0ef477f337c096847797c46664ccaab701133c1030d6134d9",
+                                           "Length":  14149
+                                       },
+                                       {
+                                           "Name":  "20260812203500_klyx_group_payment_12_86.sql",
+                                           "Sha256":  "ae8a57671ff0718a7c1a2d755dd477b2025ad2611c7b0f8c3e7693ca7a4529cb",
+                                           "Length":  3970
+                                       },
+                                       {
+                                           "Name":  "20260812205500_klyx_group_review_12_88.sql",
+                                           "Sha256":  "1439a3bfa08b7bcdbf77d6a1c2f223c31205ef196165ceb733018539c185f8e6",
+                                           "Length":  426
+                                       },
+                                       {
+                                           "Name":  "20260812210700_klyx_group_cancellation_request_12_89.sql",
+                                           "Sha256":  "63af0a62c1792f8a65719910bd9ce6c7daaaf90ef9b7e86f7b21bc5d995b57e0",
+                                           "Length":  2385
+                                       },
+                                       {
+                                           "Name":  "20260812211800_klyx_group_cancellation_resolution_12_90.sql",
+                                           "Sha256":  "c07704e3d523d3d6123d92cc1b7b9e8e32b3a5f96f090f4722b9d424aeaba181",
+                                           "Length":  6225
+                                       },
+                                       {
+                                           "Name":  "20260812223200_klyx_group_atomic_live_coverage_12_96.sql",
+                                           "Sha256":  "6f45fe7ea8dc07fee118ad285e9f57f28da757ce18951c26d93923c47e3b6b26",
+                                           "Length":  9057
+                                       },
+                                       {
+                                           "Name":  "20260813101500_klyx_group_provider_accept_live_13_06.sql",
+                                           "Sha256":  "92def032d66e91024faf78317ed650a1cf784ce21e764d012411ffde2058d542",
+                                           "Length":  8031
+                                       },
+                                       {
+                                           "Name":  "20260813102500_klyx_group_provider_accept_live_13_06.sql",
+                                           "Sha256":  "d633437317106fc739a0d7011891b9629f29f59cec0f1649f28e9b089c3ae22b",
+                                           "Length":  9252
+                                       },
+                                       {
+                                           "Name":  "20260813105500_klyx_multi_slot_offer_atomic_13_09.sql",
+                                           "Sha256":  "7b745c3d6a18bb94e85eff00e838fe047680c5aebe545637c2d721d36530024f",
+                                           "Length":  6978
+                                       },
+                                       {
+                                           "Name":  "20260813133650_klyx_split_plan_confirmation_compat_13_19i.sql",
+                                           "Sha256":  "bee79d07505ddfdee9f1e33389824fce02b6d43433e93a9df763642453bf19e6",
+                                           "Length":  3460
+                                       },
+                                       {
+                                           "Name":  "20260813133700_klyx_split_booking_batch_13_19.sql",
+                                           "Sha256":  "d0596aa89a3e6b9c02c04275b7f328ec42b41eab9c7a1086b5315dcf09bfc162",
+                                           "Length":  2683
+                                       },
+                                       {
+                                           "Name":  "20260813143000_klyx_split_booking_recovery_13_20.sql",
+                                           "Sha256":  "a4459e393954ac051c7a99f92d3bf71484ef4cb468f56938b32f36af2cf4506c",
+                                           "Length":  5406
+                                       },
+                                       {
+                                           "Name":  "20260813154500_klyx_split_price_confirmation_13_23.sql",
+                                           "Sha256":  "be594d3c9957e67f5ccc34e0ee97848f0eb4d61f01bac6f9f3fd2f6bfc9907f6",
+                                           "Length":  4036
+                                       },
+                                       {
+                                           "Name":  "20260813165000_klyx_split_payment_confirmation_13_26.sql",
+                                           "Sha256":  "6261281e01f29b7d1d449680ea35e0a5080138bbddf0185587abab7be7514ab6",
+                                           "Length":  5568
+                                       },
+                                       {
+                                           "Name":  "20260813174500_klyx_split_checkout_13_27.sql",
+                                           "Sha256":  "37aab80cc11b185e78cf5d3961bb22db772dde6137404bf84c3912427479ac53",
+                                           "Length":  10647
+                                       },
+                                       {
+                                           "Name":  "20260813182500_klyx_split_refund_reconciliation_13_28.sql",
+                                           "Sha256":  "8fc74ad1cf9c04bad88adc443cbc62da5cdfaaf65a05b1599f46917b4046b68a",
+                                           "Length":  4577
+                                       }
+                                   ],
+    "ArchiveHashesVerified":  true,
+    "CriticalSchemaVerified":  true,
+    "FreshLocalRebuildSucceeded":  true,
+    "ProductionDatabaseModified":  false,
+    "LinkedWriteUsed":  false,
+    "DbPushLinkedUsed":  false,
+    "DbResetLinkedUsed":  false,
+    "LocalCutoverExecuted":  true
+}

@@ -1,0 +1,801 @@
+import {
+  NextResponse,
+} from "next/server";
+
+import {
+  getAuthenticatedProfile,
+} from "@/lib/api-auth";
+
+import {
+  supabaseAdmin,
+} from "@/lib/supabase-admin";
+
+// KLYX_MULTI_PROVIDER_FALLBACK_API_13_15
+
+type JsonRecord = Record<
+  string,
+  unknown
+>;
+
+type RouteContext = {
+  params:
+    Promise<{
+      id:
+        string;
+    }>;
+};
+
+function record(
+  value:
+    unknown
+): JsonRecord | null {
+  if (
+    !value ||
+    typeof value !==
+      "object" ||
+    Array.isArray(
+      value
+    )
+  ) {
+    return null;
+  }
+
+  return value as
+    JsonRecord;
+}
+
+function text(
+  value:
+    unknown
+): string {
+  return typeof value ===
+    "string"
+    ? value.trim()
+    : "";
+}
+
+function integer(
+  value:
+    unknown
+): number {
+  const parsed =
+    Number(
+      value
+    );
+
+  return Number.isFinite(
+    parsed
+  )
+    ? Math.max(
+        Math.trunc(
+          parsed
+        ),
+        0
+      )
+    : 0;
+}
+
+function booleanValue(
+  value:
+    unknown
+): boolean {
+  return (
+    value === true ||
+    value === "true"
+  );
+}
+
+function firstText(
+  source:
+    JsonRecord,
+
+  keys:
+    string[]
+): string {
+  for (
+    const key
+    of keys
+  ) {
+    const value =
+      text(
+        source[
+          key
+        ]
+      );
+
+    if (value) {
+      return value;
+    }
+  }
+
+  return "";
+}
+
+function firstInteger(
+  source:
+    JsonRecord,
+
+  keys:
+    string[]
+): number {
+  for (
+    const key
+    of keys
+  ) {
+    const value =
+      integer(
+        source[
+          key
+        ]
+      );
+
+    if (
+      value >
+      0
+    ) {
+      return value;
+    }
+  }
+
+  return 0;
+}
+
+function requestOwnerId(
+  request:
+    JsonRecord
+): string {
+  return firstText(
+    request,
+    [
+      "client_profile_id",
+      "client_id",
+      "profile_id",
+      "owner_profile_id",
+    ]
+  );
+}
+
+function requestMode(
+  request:
+    JsonRecord
+): string {
+  return firstText(
+    request,
+    [
+      "request_mode",
+      "mode",
+    ]
+  ).toLowerCase();
+}
+
+function candidateProviderId(
+  candidate:
+    JsonRecord
+): string {
+  return firstText(
+    candidate,
+    [
+      "provider_profile_id",
+      "provider_id",
+    ]
+  );
+}
+
+function candidateCoverageCount(
+  candidate:
+    JsonRecord
+): number {
+  return firstInteger(
+    candidate,
+    [
+      "coverage_count",
+      "coverageCount",
+      "covered_slots_count",
+    ]
+  );
+}
+
+function candidateSlotCount(
+  candidate:
+    JsonRecord,
+
+  fallback:
+    number
+): number {
+  return (
+    firstInteger(
+      candidate,
+      [
+        "slot_count",
+        "slotCount",
+      ]
+    ) ||
+    fallback
+  );
+}
+
+function candidateFullCoverage(
+  candidate:
+    JsonRecord,
+
+  coverageCount:
+    number,
+
+  slotCount:
+    number
+): boolean {
+  return (
+    booleanValue(
+      candidate.full_coverage
+    ) ||
+    booleanValue(
+      candidate.fullCoverage
+    ) ||
+    (
+      slotCount >
+        0 &&
+      coverageCount ===
+        slotCount
+    )
+  );
+}
+
+function candidateScore(
+  candidate:
+    JsonRecord
+): number {
+  const fields = [
+    "ranking_score",
+    "score",
+    "match_score",
+    "klyx_score",
+  ];
+
+  for (
+    const field
+    of fields
+  ) {
+    const parsed =
+      Number(
+        candidate[
+          field
+        ]
+      );
+
+    if (
+      Number.isFinite(
+        parsed
+      )
+    ) {
+      return parsed;
+    }
+  }
+
+  return 0;
+}
+
+export async function GET(
+  request:
+    Request,
+
+  context:
+    RouteContext
+) {
+  try {
+    const {
+      id:
+        requestId,
+    } =
+      await context.params;
+
+    if (
+      !requestId
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Demande KLYX invalide.",
+        },
+        {
+          status:
+            400,
+        }
+      );
+    }
+
+    const {
+      profile,
+    } =
+      await getAuthenticatedProfile(
+        request
+      );
+
+    if (
+      profile.account_type !==
+      "client"
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Cette analyse est reservee au profil client.",
+        },
+        {
+          status:
+            403,
+        }
+      );
+    }
+
+    const {
+      data:
+        requestData,
+
+      error:
+        requestError,
+    } =
+      await supabaseAdmin
+        .from(
+          "market_service_requests"
+        )
+        .select(
+          "*"
+        )
+        .eq(
+          "id",
+          requestId
+        )
+        .maybeSingle();
+
+    if (
+      requestError
+    ) {
+      throw new Error(
+        "MULTI_PROVIDER_REQUEST_LOAD_FAILED:" +
+        requestError.message
+      );
+    }
+
+    const marketRequest =
+      record(
+        requestData
+      );
+
+    if (
+      !marketRequest
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Demande KLYX introuvable.",
+        },
+        {
+          status:
+            404,
+        }
+      );
+    }
+
+    const ownerId =
+      requestOwnerId(
+        marketRequest
+      );
+
+    if (
+      ownerId &&
+      ownerId !==
+        profile.id
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Acces refuse.",
+        },
+        {
+          status:
+            403,
+        }
+      );
+    }
+
+    const slotCount =
+      firstInteger(
+        marketRequest,
+        [
+          "slot_count",
+          "slotCount",
+        ]
+      );
+
+    const mode =
+      requestMode(
+        marketRequest
+      );
+
+    if (
+      mode !==
+        "multi_slot" &&
+      slotCount <
+        2
+    ) {
+      return NextResponse.json(
+        {
+          requestId,
+
+          requestMode:
+            mode ||
+            "single",
+
+          slotCount,
+
+          splitFallbackRequired:
+            false,
+
+          splitFallbackPossible:
+            false,
+
+          reason:
+            "SINGLE_SLOT_REQUEST",
+
+          automaticProviderSelection:
+            false,
+
+          automaticBooking:
+            false,
+
+          automaticPayment:
+            false,
+        }
+      );
+    }
+
+    const {
+      data:
+        candidateData,
+
+      error:
+        candidateError,
+    } =
+      await supabaseAdmin
+        .from(
+          "market_request_provider_candidates"
+        )
+        .select(
+          "*"
+        )
+        .eq(
+          "market_request_id",
+          requestId
+        );
+
+    if (
+      candidateError
+    ) {
+      throw new Error(
+        "MULTI_PROVIDER_CANDIDATES_LOAD_FAILED:" +
+        candidateError.message
+      );
+    }
+
+    const candidates =
+      (
+        candidateData ??
+        []
+      )
+        .map(
+          record
+        )
+        .filter(
+          (
+            item
+          ): item is JsonRecord =>
+            item !==
+            null
+        )
+        .map(
+          (
+            candidate
+          ) => {
+            const providerId =
+              candidateProviderId(
+                candidate
+              );
+
+            const coverageCount =
+              candidateCoverageCount(
+                candidate
+              );
+
+            const effectiveSlotCount =
+              candidateSlotCount(
+                candidate,
+                slotCount
+              );
+
+            const fullCoverage =
+              candidateFullCoverage(
+                candidate,
+                coverageCount,
+                effectiveSlotCount
+              );
+
+            return {
+              providerId,
+
+              coverageCount,
+
+              slotCount:
+                effectiveSlotCount,
+
+              fullCoverage,
+
+              score:
+                candidateScore(
+                  candidate
+                ),
+
+              coverageRatio:
+                effectiveSlotCount >
+                  0
+                  ? coverageCount /
+                    effectiveSlotCount
+                  : 0,
+            };
+          }
+        )
+        .filter(
+          (
+            candidate
+          ) =>
+            Boolean(
+              candidate.providerId
+            )
+        );
+
+    const fullCoverageProviders =
+      candidates
+        .filter(
+          (
+            candidate
+          ) =>
+            candidate.fullCoverage
+        )
+        .sort(
+          (
+            first,
+            second
+          ) =>
+            second.score -
+              first.score ||
+            second.coverageCount -
+              first.coverageCount
+        );
+
+    /*
+      Si un prestataire couvre N/N,
+      KLYX conserve la priorite historique
+      du prestataire unique.
+    */
+    if (
+      fullCoverageProviders.length >
+      0
+    ) {
+      return NextResponse.json(
+        {
+          requestId,
+
+          requestMode:
+            "multi_slot",
+
+          slotCount,
+
+          splitFallbackRequired:
+            false,
+
+          splitFallbackPossible:
+            false,
+
+          reason:
+            "SINGLE_PROVIDER_FULL_COVERAGE_AVAILABLE",
+
+          fullCoverageProviders:
+            fullCoverageProviders.map(
+              (
+                candidate
+              ) => ({
+                providerId:
+                  candidate.providerId,
+
+                coverageCount:
+                  candidate.coverageCount,
+
+                slotCount:
+                  candidate.slotCount,
+
+                coverageRatio:
+                  candidate.coverageRatio,
+
+                score:
+                  candidate.score,
+              })
+            ),
+
+          partialCandidates:
+            [],
+
+          automaticProviderSelection:
+            false,
+
+          automaticBooking:
+            false,
+
+          automaticPayment:
+            false,
+        }
+      );
+    }
+
+    const partialCandidates =
+      candidates
+        .filter(
+          (
+            candidate
+          ) =>
+            !candidate.fullCoverage &&
+            candidate.coverageCount >
+              0
+        )
+        .sort(
+          (
+            first,
+            second
+          ) =>
+            second.coverageCount -
+              first.coverageCount ||
+            second.score -
+              first.score
+        );
+
+    /*
+      13.15 ne pretend PAS encore savoir
+      quel prestataire couvre quel slot.
+
+      coverage_count seul ne suffit pas
+      pour prouver que deux prestataires
+      couvrent ensemble tous les slots.
+
+      Cette distinction evite un faux plan
+      commercial.
+    */
+    const theoreticalCoverage =
+      partialCandidates.reduce(
+        (
+          total,
+          candidate
+        ) =>
+          total +
+          candidate.coverageCount,
+        0
+      );
+
+    const enoughAggregateCoverage =
+      partialCandidates.length >=
+        2 &&
+      theoreticalCoverage >=
+        slotCount;
+
+    return NextResponse.json(
+      {
+        requestId,
+
+        requestMode:
+          "multi_slot",
+
+        slotCount,
+
+        splitFallbackRequired:
+          true,
+
+        /*
+          "candidate" signifie :
+          plusieurs prestataires pourraient
+          etre necessaires.
+
+          Pas encore une preuve N/N.
+        */
+        splitFallbackCandidate:
+          enoughAggregateCoverage,
+
+        splitFallbackPossible:
+          false,
+
+        splitPlanStatus:
+          enoughAggregateCoverage
+            ? "slot_mapping_required"
+            : "insufficient_partial_coverage",
+
+        reason:
+          enoughAggregateCoverage
+            ? "NO_SINGLE_PROVIDER_FULL_COVERAGE"
+            : "NOT_ENOUGH_PARTIAL_COVERAGE",
+
+        partialCandidates:
+          partialCandidates.map(
+            (
+              candidate,
+              index
+            ) => ({
+              rank:
+                index +
+                1,
+
+              providerId:
+                candidate.providerId,
+
+              coverageCount:
+                candidate.coverageCount,
+
+              slotCount:
+                candidate.slotCount,
+
+              coverageRatio:
+                candidate.coverageRatio,
+
+              score:
+                candidate.score,
+            })
+          ),
+
+        theoreticalCoverage,
+
+        nextRequiredProof:
+          "per_slot_provider_coverage",
+
+        explicitConfirmationRequired:
+          true,
+
+        automaticProviderSelection:
+          false,
+
+        automaticMarketAction:
+          false,
+
+        automaticBooking:
+          false,
+
+        automaticPayment:
+          false,
+      }
+    );
+  }
+  catch (
+    error
+  ) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "MULTI_PROVIDER_FALLBACK_FAILED";
+
+    return NextResponse.json(
+      {
+        error:
+          "Impossible de preparer le fallback multi-prestataires.",
+
+        detail:
+          message,
+
+        automaticProviderSelection:
+          false,
+
+        automaticBooking:
+          false,
+
+        automaticPayment:
+          false,
+      },
+      {
+        status:
+          500,
+      }
+    );
+  }
+}

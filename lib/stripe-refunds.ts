@@ -1,4 +1,7 @@
 import type Stripe from "stripe";
+import {
+  tryReconcileBookingGroupStripeRefund,
+} from "@/lib/stripe-group-refunds";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { upsertFinancialLedgerEntry } from "@/lib/payment-ledger";
 
@@ -111,6 +114,55 @@ async function notifyRefundStatus(params: {
 export async function reconcileStripeRefund(
   refund: Stripe.Refund
 ): Promise<void> {
+  // KLYX_SPLIT_REFUND_LEGACY_GUARD_13_28
+  const splitUnitId =
+    refund.metadata?.split_payment_unit_id?.trim() ?? "";
+
+  const splitPaymentIntentId =
+    typeof refund.payment_intent === "string"
+      ? refund.payment_intent
+      : refund.payment_intent?.id ?? null;
+
+  if (splitUnitId) {
+    throw new Error(
+      "Un remboursement split ne doit jamais passer par le moteur mono-réservation."
+    );
+  }
+
+  if (splitPaymentIntentId) {
+    const {
+      data: splitPaymentUnit,
+      error: splitPaymentUnitError,
+    } = await supabaseAdmin
+      .from("split_booking_payment_units")
+      .select("id")
+      .eq(
+        "stripe_payment_intent_id",
+        splitPaymentIntentId
+      )
+      .maybeSingle();
+
+    if (splitPaymentUnitError) {
+      throw new Error(
+        splitPaymentUnitError.message
+      );
+    }
+
+    if (splitPaymentUnit) {
+      throw new Error(
+        "Un remboursement split ne doit jamais passer par le moteur mono-réservation."
+      );
+    }
+  }
+  // KLYX_GROUP_REFUND_ROUTER_12_90
+  const handledAsGroup =
+    await tryReconcileBookingGroupStripeRefund(
+      refund
+    );
+
+  if (handledAsGroup) {
+    return;
+  }
   const booking = await findBookingFromRefund(refund);
 
   if (!booking) {

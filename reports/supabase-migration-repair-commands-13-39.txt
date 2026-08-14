@@ -1,0 +1,32 @@
+# ============================================================
+# KLYX 13.39 MIGRATION REPAIR PLAN
+# GENERATED ONLY - DO NOT EXECUTE AUTOMATICALLY
+# ============================================================
+
+Set-Location "C:\Users\fenjo\Documents\klyx"
+
+npx.cmd supabase migration repair 20260812141355 --status reverted --linked
+npx.cmd supabase migration repair 20260812161413 --status reverted --linked
+npx.cmd supabase migration repair 20260812182000 --status reverted --linked
+npx.cmd supabase migration repair 20260812183500 --status reverted --linked
+npx.cmd supabase migration repair 20260812195600 --status reverted --linked
+npx.cmd supabase migration repair 20260812202000 --status reverted --linked
+npx.cmd supabase migration repair 20260812203500 --status reverted --linked
+npx.cmd supabase migration repair 20260812205500 --status reverted --linked
+npx.cmd supabase migration repair 20260812210700 --status reverted --linked
+npx.cmd supabase migration repair 20260812211800 --status reverted --linked
+npx.cmd supabase migration repair 20260812223200 --status reverted --linked
+npx.cmd supabase migration repair 20260813101500 --status reverted --linked
+npx.cmd supabase migration repair 20260813102500 --status reverted --linked
+npx.cmd supabase migration repair 20260813105500 --status reverted --linked
+npx.cmd supabase migration repair 20260813133650 --status reverted --linked
+npx.cmd supabase migration repair 20260813133700 --status reverted --linked
+npx.cmd supabase migration repair 20260813143000 --status reverted --linked
+npx.cmd supabase migration repair 20260813154500 --status reverted --linked
+npx.cmd supabase migration repair 20260813165000 --status reverted --linked
+npx.cmd supabase migration repair 20260813174500 --status reverted --linked
+npx.cmd supabase migration repair 20260813182500 --status reverted --linked
+
+npx.cmd supabase migration list --linked
+
+# END OF PLAN

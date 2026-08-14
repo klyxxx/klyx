@@ -1,0 +1,23 @@
+======================================
+KLYX 13.43 - MIGRATION DIRECTORY HYGIENE
+======================================
+
+Backup artifacts detected : 2
+Backup artifacts archived : 2
+Archive hashes : VERIFIED
+Files deleted : 0
+
+Official SQL migrations : 1
+Canonical baseline : 20260814000000_klyx_canonical_baseline.sql
+Migration-list skip warnings : 0
+
+Production DB modified : NON
+Production schema modified : NON
+Production data modified : NON
+Linked write : NON
+migration repair : NON
+db push --linked : NON
+db reset --linked : NON
+
+Migration directory clean : OUI
+======================================

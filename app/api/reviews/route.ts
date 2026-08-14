@@ -4,14 +4,21 @@ import {
   apiErrorStatus,
   getAuthenticatedProfile,
 } from "@/lib/api-auth";
-import { supabaseAdmin } from "@/lib/supabase-admin";
-import { recalculateProviderScores } from "@/lib/provider-score";
+import {
+  recalculateProviderScores,
+} from "@/lib/provider-score";
+import {
+  supabaseAdmin,
+} from "@/lib/supabase-admin";
+
+// KLYX_SINGLE_REVIEW_GROUP_GUARD_12_88
 
 type BookingRow = {
   id: string;
   parent_id: string;
   provider_id: string | null;
   babysitter_id: string | null;
+  booking_group_id: string | null;
   status: string;
 };
 
@@ -25,220 +32,470 @@ type ReviewRow = {
   created_at?: string | null;
 };
 
-function providerIdFromBooking(booking: BookingRow): string | null {
-  return booking.provider_id ?? booking.babysitter_id ?? null;
+function providerIdFromBooking(
+  booking: BookingRow
+) {
+  return (
+    booking.provider_id ??
+    booking.babysitter_id ??
+    null
+  );
 }
 
 async function bookingForReview(
   bookingId: string,
   clientProfileId: string
 ): Promise<BookingRow> {
-  const { data, error } = await supabaseAdmin
+  const {
+    data,
+    error,
+  } = await supabaseAdmin
     .from("bookings")
     .select(
-      "id, parent_id, provider_id, babysitter_id, status"
+      "id, parent_id, provider_id, babysitter_id, booking_group_id, status"
     )
-    .eq("id", bookingId)
+    .eq(
+      "id",
+      bookingId
+    )
     .maybeSingle();
 
-  if (error) throw new Error(error.message);
-  if (!data) throw new Error("Réservation introuvable.");
-
-  const booking = data as BookingRow;
-
-  if (booking.parent_id !== clientProfileId) {
+  if (error) {
     throw new Error(
-      "Seul le client de cette réservation peut laisser un avis."
+      error.message
     );
   }
 
-  if (booking.status !== "completed") {
+  if (!data) {
     throw new Error(
-      "La mission doit être terminée avant de laisser un avis."
+      "Reservation introuvable."
     );
   }
 
-  if (!providerIdFromBooking(booking)) {
+  const booking =
+    data as BookingRow;
+
+  if (
+    booking.parent_id !==
+    clientProfileId
+  ) {
     throw new Error(
-      "Le prestataire associé à cette réservation est introuvable."
+      "Seul le client de cette reservation peut laisser un avis."
+    );
+  }
+
+  if (
+    booking.status !==
+    "completed"
+  ) {
+    throw new Error(
+      "La mission doit etre terminee avant de laisser un avis."
+    );
+  }
+
+  if (
+    !providerIdFromBooking(
+      booking
+    )
+  ) {
+    throw new Error(
+      "Prestataire introuvable."
     );
   }
 
   return booking;
 }
 
-export async function GET(request: Request) {
-  try {
-    const { profile } = await getAuthenticatedProfile(request);
+function groupedReviewResponse(
+  booking: BookingRow
+) {
+  return NextResponse.json(
+    {
+      error:
+        "Cette reservation appartient a une mission groupee. Un seul avis doit evaluer tous les creneaux.",
+      code:
+        "GROUP_REVIEW_REQUIRED",
+      groupId:
+        booking.booking_group_id,
+      href:
+        "/reviews/group/" +
+        booking.booking_group_id,
+    },
+    {
+      status: 409,
+    }
+  );
+}
 
-    if (profile.accountType !== "client") {
+export async function GET(
+  request: Request
+) {
+  try {
+    const {
+      profile,
+    } =
+      await getAuthenticatedProfile(
+        request
+      );
+
+    if (
+      profile.accountType !==
+      "client"
+    ) {
       return NextResponse.json(
-        { error: "Cette action est réservée au client." },
-        { status: 403 }
+        {
+          error:
+            "Cette action est reservee au client.",
+        },
+        {
+          status: 403,
+        }
       );
     }
 
-    const url = new URL(request.url);
-    const bookingId = url.searchParams.get("bookingId")?.trim();
+    const url =
+      new URL(
+        request.url
+      );
+
+    const bookingId =
+      url.searchParams
+        .get(
+          "bookingId"
+        )
+        ?.trim();
 
     if (!bookingId) {
       return NextResponse.json(
-        { error: "Réservation manquante." },
-        { status: 400 }
+        {
+          error:
+            "Reservation manquante.",
+        },
+        {
+          status: 400,
+        }
       );
     }
 
-    const booking = await bookingForReview(
-      bookingId,
-      profile.id
-    );
+    const booking =
+      await bookingForReview(
+        bookingId,
+        profile.id
+      );
 
-    const providerId = providerIdFromBooking(booking)!;
+    if (
+      booking.booking_group_id
+    ) {
+      return groupedReviewResponse(
+        booking
+      );
+    }
+
+    const providerId =
+      providerIdFromBooking(
+        booking
+      )!;
 
     const [
-      { data: provider, error: providerError },
-      { data: review, error: reviewError },
+      providerResult,
+      reviewResult,
     ] = await Promise.all([
       supabaseAdmin
         .from("profiles")
         .select(
           "id, full_name, first_name, last_name, avatar_url"
         )
-        .eq("id", providerId)
+        .eq(
+          "id",
+          providerId
+        )
         .maybeSingle(),
+
       supabaseAdmin
         .from("reviews")
         .select(
           "id, booking_id, author_id, target_id, rating, comment, created_at"
         )
-        .eq("booking_id", booking.id)
-        .eq("author_id", profile.id)
+        .eq(
+          "booking_id",
+          booking.id
+        )
+        .eq(
+          "author_id",
+          profile.id
+        )
         .maybeSingle(),
     ]);
 
-    if (providerError) throw new Error(providerError.message);
-    if (reviewError) throw new Error(reviewError.message);
+    if (
+      providerResult.error
+    ) {
+      throw new Error(
+        providerResult
+          .error.message
+      );
+    }
+
+    if (
+      reviewResult.error
+    ) {
+      throw new Error(
+        reviewResult
+          .error.message
+      );
+    }
+
+    const provider =
+      providerResult.data;
+
+    const review =
+      reviewResult.data;
 
     const targetName =
-      provider?.full_name?.trim() ||
-      `${provider?.first_name ?? ""} ${
-        provider?.last_name ?? ""
-      }`.trim() ||
+      provider?.full_name
+        ?.trim() ||
+      [
+        provider?.first_name,
+        provider?.last_name,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .trim() ||
       "Prestataire KLYX";
 
     return NextResponse.json({
-      bookingId: booking.id,
+      bookingId:
+        booking.id,
       providerId,
       targetName,
-      avatarUrl: provider?.avatar_url ?? null,
-      review: review
-        ? {
-            id: review.id,
-            rating: Number(review.rating),
-            comment: review.comment ?? "",
-          }
-        : null,
+      avatarUrl:
+        provider?.avatar_url ??
+        null,
+
+      review:
+        review
+          ? {
+              id:
+                review.id,
+
+              rating:
+                Number(
+                  review.rating
+                ),
+
+              comment:
+                review.comment ??
+                "",
+            }
+          : null,
     });
   } catch (error) {
     const message =
       error instanceof Error
         ? error.message
-        : "Impossible de charger l'avis.";
+        : "Impossible de charger l avis.";
 
     return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
+      {
+        error: message,
+      },
+      {
+        status:
+          apiErrorStatus(
+            message
+          ),
+      }
     );
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(
+  request: Request
+) {
   try {
-    const { profile } = await getAuthenticatedProfile(request);
+    const {
+      profile,
+    } =
+      await getAuthenticatedProfile(
+        request
+      );
 
-    if (profile.accountType !== "client") {
+    if (
+      profile.accountType !==
+      "client"
+    ) {
       return NextResponse.json(
-        { error: "Cette action est réservée au client." },
-        { status: 403 }
+        {
+          error:
+            "Cette action est reservee au client.",
+        },
+        {
+          status: 403,
+        }
       );
     }
 
-    const body = (await request.json()) as {
-      bookingId?: string;
-      rating?: number;
-      comment?: string;
-    };
+    const body =
+      (await request.json()) as {
+        bookingId?: string;
+        rating?: number;
+        comment?: string;
+      };
 
-    const bookingId = body.bookingId?.trim();
-    const rating = Number(body.rating);
+    const bookingId =
+      body.bookingId
+        ?.trim();
+
+    const rating =
+      Number(
+        body.rating
+      );
+
     const comment =
-      body.comment?.trim().slice(0, 1000) || null;
+      body.comment
+        ?.trim()
+        .slice(
+          0,
+          1000
+        ) ||
+      null;
 
     if (!bookingId) {
       return NextResponse.json(
-        { error: "Réservation manquante." },
-        { status: 400 }
+        {
+          error:
+            "Reservation manquante.",
+        },
+        {
+          status: 400,
+        }
       );
     }
 
     if (
-      !Number.isInteger(rating) ||
+      !Number.isInteger(
+        rating
+      ) ||
       rating < 1 ||
       rating > 5
     ) {
       return NextResponse.json(
-        { error: "La note doit être comprise entre 1 et 5." },
-        { status: 400 }
+        {
+          error:
+            "La note doit etre comprise entre 1 et 5.",
+        },
+        {
+          status: 400,
+        }
       );
     }
 
-    const booking = await bookingForReview(
-      bookingId,
-      profile.id
-    );
+    const booking =
+      await bookingForReview(
+        bookingId,
+        profile.id
+      );
 
-    const providerId = providerIdFromBooking(booking)!;
+    if (
+      booking.booking_group_id
+    ) {
+      return groupedReviewResponse(
+        booking
+      );
+    }
 
-    const { data: existing, error: existingError } =
-      await supabaseAdmin
-        .from("reviews")
-        .select("id")
-        .eq("booking_id", booking.id)
-        .eq("author_id", profile.id)
-        .maybeSingle();
+    const providerId =
+      providerIdFromBooking(
+        booking
+      )!;
+
+    const {
+      data: existing,
+      error:
+        existingError,
+    } = await supabaseAdmin
+      .from("reviews")
+      .select("id")
+      .eq(
+        "booking_id",
+        booking.id
+      )
+      .eq(
+        "author_id",
+        profile.id
+      )
+      .maybeSingle();
 
     if (existingError) {
-      throw new Error(existingError.message);
+      throw new Error(
+        existingError.message
+      );
     }
 
-    let review: ReviewRow | null = null;
+    let review:
+      ReviewRow | null =
+      null;
 
     if (existing) {
-      const { data, error } = await supabaseAdmin
+      const {
+        data,
+        error,
+      } = await supabaseAdmin
         .from("reviews")
         .update({
-          target_id: providerId,
+          target_id:
+            providerId,
+
           rating,
+
           comment,
-          updated_at: new Date().toISOString(),
+
+          updated_at:
+            new Date()
+              .toISOString(),
         })
-        .eq("id", existing.id)
-        .eq("author_id", profile.id)
+        .eq(
+          "id",
+          existing.id
+        )
+        .eq(
+          "author_id",
+          profile.id
+        )
         .select(
           "id, booking_id, author_id, target_id, rating, comment"
         )
         .single();
 
-      if (error) throw new Error(error.message);
-      review = data as ReviewRow;
+      if (error) {
+        throw new Error(
+          error.message
+        );
+      }
+
+      review =
+        data as ReviewRow;
     } else {
-      const { data, error } = await supabaseAdmin
+      const {
+        data,
+        error,
+      } = await supabaseAdmin
         .from("reviews")
         .insert({
-          booking_id: booking.id,
-          author_id: profile.id,
-          target_id: providerId,
+          booking_id:
+            booking.id,
+
+          booking_group_id:
+            null,
+
+          author_id:
+            profile.id,
+
+          target_id:
+            providerId,
+
           rating,
+
           comment,
         })
         .select(
@@ -246,38 +503,73 @@ export async function POST(request: Request) {
         )
         .single();
 
-      if (error) throw new Error(error.message);
-      review = data as ReviewRow;
+      if (error) {
+        throw new Error(
+          error.message
+        );
+      }
+
+      review =
+        data as ReviewRow;
     }
 
-    const { error: notificationError } =
-      await supabaseAdmin
-        .from("user_notifications")
-        .upsert(
-          {
-            user_id: providerId,
-            booking_id: booking.id,
-            type: "system",
-            title: "Nouvel avis reçu",
-            message: `Un client a laissé une note de ${rating}/5 après une mission terminée.`,
-            href: `/providers/${providerId}`,
-            deduplication_key:
-              `booking:${booking.id}:review-provider`,
-          },
-          {
-            onConflict: "deduplication_key",
-            ignoreDuplicates: true,
-          }
-        );
+    const {
+      error:
+        notificationError,
+    } = await supabaseAdmin
+      .from(
+        "user_notifications"
+      )
+      .upsert(
+        {
+          user_id:
+            providerId,
 
-    if (notificationError) {
+          booking_id:
+            booking.id,
+
+          type:
+            "system",
+
+          title:
+            "Nouvel avis recu",
+
+          message:
+            "Un client a laisse une note de " +
+            String(rating) +
+            "/5 apres une mission terminee.",
+
+          href:
+            "/providers/" +
+            providerId,
+
+          deduplication_key:
+            "booking:" +
+            booking.id +
+            ":review-provider",
+        },
+        {
+          onConflict:
+            "deduplication_key",
+
+          ignoreDuplicates:
+            true,
+        }
+      );
+
+    if (
+      notificationError
+    ) {
       console.error(
         "Review notification error:",
         notificationError.message
       );
     }
+
     try {
-      await recalculateProviderScores(providerId);
+      await recalculateProviderScores(
+        providerId
+      );
     } catch (scoreError) {
       console.error(
         "Review score recalculation error:",
@@ -289,25 +581,42 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       review: {
-        id: review.id,
-        rating: Number(review.rating),
-        comment: review.comment ?? "",
+        id:
+          review.id,
+
+        rating:
+          Number(
+            review.rating
+          ),
+
+        comment:
+          review.comment ??
+          "",
       },
+
       providerId,
-      message: existing
-        ? "Avis modifié."
-        : "Avis publié.",
+
+      message:
+        existing
+          ? "Avis modifie."
+          : "Avis publie.",
     });
   } catch (error) {
     const message =
       error instanceof Error
         ? error.message
-        : "Impossible d'enregistrer l'avis.";
+        : "Impossible d enregistrer l avis.";
 
     return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
+      {
+        error: message,
+      },
+      {
+        status:
+          apiErrorStatus(
+            message
+          ),
+      }
     );
   }
 }
-

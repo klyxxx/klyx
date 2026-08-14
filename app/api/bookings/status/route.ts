@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
@@ -15,6 +15,7 @@ type BookingRow = {
   parent_id: string;
   provider_id: string | null;
   babysitter_id: string | null;
+  booking_group_id: string | null;
   booking_date: string;
   start_time: string;
   end_time: string;
@@ -326,7 +327,7 @@ export async function POST(request: Request) {
     const { data, error } = await supabaseAdmin
       .from("bookings")
       .select(
-        "id, parent_id, provider_id, babysitter_id, booking_date, start_time, end_time, status, payment_status, payment_mode, amount_total, currency, stripe_payment_intent_id, refund_status, stripe_refund_id"
+        "id, parent_id, provider_id, babysitter_id, booking_group_id, booking_date, start_time, end_time, status, payment_status, payment_mode, amount_total, currency, stripe_payment_intent_id, refund_status, stripe_refund_id"
       )
       .eq("id", bookingId)
       .maybeSingle();
@@ -341,6 +342,21 @@ export async function POST(request: Request) {
     }
 
     const booking = data as BookingRow;
+
+    // KLYX_GROUP_STATUS_GUARD_12_85
+    if (booking.booking_group_id) {
+      return NextResponse.json(
+        {
+          error:
+            "Cette reservation appartient a un groupe. Modifie le groupe complet depuis KLYX.",
+          code: "GROUP_STATUS_REQUIRED",
+          groupId: booking.booking_group_id,
+        },
+        { status: 409 }
+      );
+    }
+
+
     const providerId =
       booking.provider_id ?? booking.babysitter_id;
     const isClient = booking.parent_id === profile.id;

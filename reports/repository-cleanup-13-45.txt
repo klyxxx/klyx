@@ -1,0 +1,19 @@
+======================================
+KLYX 13.45 - CONTROLLED REPOSITORY CLEANUP
+======================================
+
+Backup files eligible : 192
+Backup files moved : 192
+Temporary directories eligible : 2
+Temporary directories moved : 2
+Generic artifact candidates review-only : 0
+
+Archive hashes verified : OUI
+Canonical migration preserved : OUI
+Irreversible deletions : 0
+Source files edited : 0
+Production DB modified : NON
+Linked write : NON
+
+Cleanup reversible : OUI
+======================================

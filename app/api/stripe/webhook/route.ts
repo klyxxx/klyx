@@ -1,7 +1,13 @@
+import { handleSplitStripeWebhookEvent } from "@/lib/split-stripe-payments";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import {
+  markBookingGroupFailedFromSession,
+  markBookingGroupPaidFromSession,
+  recordBookingGroupPaymentFailure,
+} from "@/lib/stripe-group-payments";
 import {
   getPaymentFailureDetails,
   markBookingFailedFromSession,
@@ -13,164 +19,385 @@ import {
   markStripeWebhookFailed,
   markStripeWebhookProcessed,
 } from "@/lib/stripe-webhook-events";
-import { reconcileStripeRefund } from "@/lib/stripe-refunds";
+import {
+  reconcileStripeRefund,
+} from "@/lib/stripe-refunds";
+
+// KLYX_GROUP_WEBHOOK_12_86
 
 function getStripeWebhookConfig() {
-  const stripeSecretKey = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim() ?? "";
+  const stripeSecretKey =
+    process.env
+      .STRIPE_SECRET_KEY
+      ?.trim() ??
+    "";
+
+  const webhookSecret =
+    process.env
+      .STRIPE_WEBHOOK_SECRET
+      ?.trim() ??
+    "";
 
   if (!stripeSecretKey) {
-    throw new Error("STRIPE_SECRET_KEY manque dans les variables d'environnement.");
+    throw new Error(
+      "STRIPE_SECRET_KEY manque dans les variables d environnement."
+    );
   }
 
   if (!webhookSecret) {
-    throw new Error("STRIPE_WEBHOOK_SECRET manque dans les variables d'environnement.");
+    throw new Error(
+      "STRIPE_WEBHOOK_SECRET manque dans les variables d environnement."
+    );
   }
 
-  if (!stripeSecretKey.startsWith("sk_test_") && !stripeSecretKey.startsWith("sk_live_")) {
-    throw new Error("STRIPE_SECRET_KEY n'est pas une clé secrète Stripe valide.");
+  if (
+    !stripeSecretKey.startsWith(
+      "sk_test_"
+    ) &&
+    !stripeSecretKey.startsWith(
+      "sk_live_"
+    )
+  ) {
+    throw new Error(
+      "STRIPE_SECRET_KEY invalide."
+    );
   }
 
-  if (!webhookSecret.startsWith("whsec_")) {
-    throw new Error("STRIPE_WEBHOOK_SECRET doit être le secret whsec_ de cet endpoint.");
+  if (
+    !webhookSecret.startsWith(
+      "whsec_"
+    )
+  ) {
+    throw new Error(
+      "STRIPE_WEBHOOK_SECRET doit commencer par whsec_."
+    );
   }
 
   return {
-    stripe: new Stripe(stripeSecretKey),
+    stripe:
+      new Stripe(
+        stripeSecretKey
+      ),
     webhookSecret,
   };
 }
 
-async function updateConnectedAccount(account: Stripe.Account) {
-  const { error } = await supabaseAdmin
+async function updateConnectedAccount(
+  account: Stripe.Account
+) {
+  const {
+    error,
+  } = await supabaseAdmin
     .from("profiles")
     .update({
-      stripe_onboarding_complete: Boolean(account.details_submitted),
-      stripe_charges_enabled: Boolean(account.charges_enabled),
-      stripe_payouts_enabled: Boolean(account.payouts_enabled),
+      stripe_onboarding_complete:
+        Boolean(
+          account.details_submitted
+        ),
+      stripe_charges_enabled:
+        Boolean(
+          account.charges_enabled
+        ),
+      stripe_payouts_enabled:
+        Boolean(
+          account.payouts_enabled
+        ),
     })
-    .eq("stripe_account_id", account.id);
+    .eq(
+      "stripe_account_id",
+      account.id
+    );
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(
+      error.message
+    );
   }
 }
 
-export async function POST(request: Request) {
+function isGroupSession(
+  session: Stripe.Checkout.Session
+) {
+  return Boolean(
+    session.metadata
+      ?.booking_group_id
+  );
+}
+
+function isGroupIntent(
+  intent: Stripe.PaymentIntent
+) {
+  return Boolean(
+    intent.metadata
+      ?.booking_group_id
+  );
+}
+
+export async function POST(
+  request: Request
+) {
   let stripe: Stripe;
-  let webhookSecret: string;
+  let webhookSecret:
+    string;
 
   try {
-    const config = getStripeWebhookConfig();
-    stripe = config.stripe;
-    webhookSecret = config.webhookSecret;
+    const config =
+      getStripeWebhookConfig();
+
+    stripe =
+      config.stripe;
+
+    webhookSecret =
+      config.webhookSecret;
   } catch (error) {
     const message =
       error instanceof Error
         ? error.message
-        : "Configuration Stripe webhook incomplète.";
+        : "Configuration Stripe webhook incomplete.";
 
-    console.error("Stripe webhook configuration error:", message);
+    console.error(
+      "Stripe webhook configuration error:",
+      message
+    );
 
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: message,
+      },
+      {
+        status: 500,
+      }
+    );
   }
 
-  const signature = request.headers.get("stripe-signature");
+  const signature =
+    request.headers.get(
+      "stripe-signature"
+    );
 
   if (!signature) {
     return NextResponse.json(
-      { error: "Signature Stripe manquante." },
-      { status: 400 }
+      {
+        error:
+          "Signature Stripe manquante.",
+      },
+      {
+        status: 400,
+      }
     );
   }
 
-  let event: Stripe.Event;
+  let event:
+    Stripe.Event;
 
   try {
-    const rawBody = await request.text();
+    const rawBody =
+      await request.text();
 
-    event = stripe.webhooks.constructEvent(
-      rawBody,
-      signature,
-      webhookSecret
-    );
+    event =
+      stripe.webhooks.constructEvent(
+        rawBody,
+        signature,
+        webhookSecret
+      );
   } catch (error) {
     const message =
       error instanceof Error
         ? error.message
         : "Signature Stripe invalide.";
 
-    console.error("Stripe webhook signature error:", message);
+    console.error(
+      "Stripe webhook signature error:",
+      message
+    );
 
-    return NextResponse.json({ error: message }, { status: 400 });
+    return NextResponse.json(
+      {
+        error: message,
+      },
+      {
+        status: 400,
+      }
+    );
   }
 
-  let claimed = false;
+  let claimed =
+    false;
 
   try {
-    const claim = await claimStripeWebhookEvent(event);
+    const claim =
+      await claimStripeWebhookEvent(
+        event
+      );
 
-    if (!claim.shouldProcess) {
+    if (
+      !claim.shouldProcess
+    ) {
       return NextResponse.json(
         {
-          received: true,
-          duplicate: true,
-          reason: claim.reason,
-          eventId: event.id,
-          eventType: event.type,
+          received:
+            true,
+          duplicate:
+            true,
+          reason:
+            claim.reason,
+          eventId:
+            event.id,
+          eventType:
+            event.type,
         },
-        { status: 200 }
+        {
+          status: 200,
+        }
       );
     }
 
-    claimed = true;
+    claimed =
+      true;
 
+    // KLYX_SPLIT_STRIPE_WEBHOOK_WIRING_13_27
+    const splitPaymentHandled =
+      await handleSplitStripeWebhookEvent(
+        stripe,
+        event
+      );
+
+    if (splitPaymentHandled) {
+      await markStripeWebhookProcessed(
+        event.id
+      );
+
+      return NextResponse.json(
+        {
+          received: true,
+          duplicate: false,
+          splitPayment: true,
+          eventId: event.id,
+          eventType: event.type,
+        },
+        {
+          status: 200,
+        }
+      );
+    }
     switch (event.type) {
       case "checkout.session.completed":
       case "checkout.session.async_payment_succeeded": {
-        const session = event.data.object as Stripe.Checkout.Session;
+        const session =
+          event.data
+            .object as
+            Stripe.Checkout.Session;
 
-        if (session.payment_status === "paid") {
-          await markBookingPaidFromSession(session);
+        if (
+          session.payment_status ===
+          "paid"
+        ) {
+          if (
+            isGroupSession(
+              session
+            )
+          ) {
+            await markBookingGroupPaidFromSession(
+              session
+            );
+          } else {
+            await markBookingPaidFromSession(
+              session
+            );
+          }
         }
 
         break;
       }
 
       case "checkout.session.async_payment_failed": {
-        const session = event.data.object as Stripe.Checkout.Session;
+        const session =
+          event.data
+            .object as
+            Stripe.Checkout.Session;
 
         const paymentIntentId =
-          typeof session.payment_intent === "string"
+          typeof session.payment_intent ===
+          "string"
             ? session.payment_intent
-            : session.payment_intent?.id;
+            : session.payment_intent
+                ?.id;
 
-        const paymentIntent = paymentIntentId
-          ? await stripe.paymentIntents.retrieve(paymentIntentId)
-          : null;
+        const intent =
+          paymentIntentId
+            ? await stripe
+                .paymentIntents
+                .retrieve(
+                  paymentIntentId
+                )
+            : null;
 
-        await markBookingFailedFromSession(
-          session,
-          paymentIntent
-            ? getPaymentFailureDetails(paymentIntent)
-            : undefined
-        );
+        const failure =
+          intent
+            ? getPaymentFailureDetails(
+                intent
+              )
+            : {
+                code:
+                  "payment_failed",
+                message:
+                  "Le paiement a ete refuse.",
+              };
+
+        if (
+          isGroupSession(
+            session
+          )
+        ) {
+          await markBookingGroupFailedFromSession(
+            session,
+            failure
+          );
+        } else {
+          await markBookingFailedFromSession(
+            session,
+            failure
+          );
+        }
 
         break;
       }
 
       case "payment_intent.payment_failed": {
-        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        const intent =
+          event.data
+            .object as
+            Stripe.PaymentIntent;
 
-        const sessions = await stripe.checkout.sessions.list({
-          payment_intent: paymentIntent.id,
-          limit: 1,
-        });
+        const sessions =
+          await stripe
+            .checkout
+            .sessions
+            .list({
+              payment_intent:
+                intent.id,
+              limit: 1,
+            });
 
-        await recordBookingPaymentFailure(
-          paymentIntent,
-          sessions.data[0]?.id ?? null
-        );
+        if (
+          isGroupIntent(
+            intent
+          )
+        ) {
+          await recordBookingGroupPaymentFailure(
+            intent,
+            sessions.data[0]
+              ?.id ??
+              null
+          );
+        } else {
+          await recordBookingPaymentFailure(
+            intent,
+            sessions.data[0]
+              ?.id ??
+              null
+          );
+        }
 
         break;
       }
@@ -178,24 +405,48 @@ export async function POST(request: Request) {
       case "refund.created":
       case "refund.updated":
       case "refund.failed": {
-        const refund = event.data.object as Stripe.Refund;
-        await reconcileStripeRefund(refund);
+        const refund =
+          event.data
+            .object as
+            Stripe.Refund;
+
+        await reconcileStripeRefund(
+          refund
+        );
+
         break;
       }
 
       case "charge.refunded": {
-        const charge = event.data.object as Stripe.Charge;
+        const charge =
+          event.data
+            .object as
+            Stripe.Charge;
 
-        for (const refund of charge.refunds?.data ?? []) {
-          await reconcileStripeRefund(refund);
+        for (
+          const refund
+          of charge.refunds
+            ?.data ??
+            []
+        ) {
+          await reconcileStripeRefund(
+            refund
+          );
         }
 
         break;
       }
 
       case "account.updated": {
-        const account = event.data.object as Stripe.Account;
-        await updateConnectedAccount(account);
+        const account =
+          event.data
+            .object as
+            Stripe.Account;
+
+        await updateConnectedAccount(
+          account
+        );
+
         break;
       }
 
@@ -203,16 +454,24 @@ export async function POST(request: Request) {
         break;
     }
 
-    await markStripeWebhookProcessed(event.id);
+    await markStripeWebhookProcessed(
+      event.id
+    );
 
     return NextResponse.json(
       {
-        received: true,
-        duplicate: false,
-        eventId: event.id,
-        eventType: event.type,
+        received:
+          true,
+        duplicate:
+          false,
+        eventId:
+          event.id,
+        eventType:
+          event.type,
       },
-      { status: 200 }
+      {
+        status: 200,
+      }
     );
   } catch (error) {
     const message =
@@ -228,16 +487,23 @@ export async function POST(request: Request) {
     );
 
     if (claimed) {
-      await markStripeWebhookFailed(event.id, message);
+      await markStripeWebhookFailed(
+        event.id,
+        message
+      );
     }
 
     return NextResponse.json(
       {
         error: message,
-        eventId: event.id,
-        eventType: event.type,
+        eventId:
+          event.id,
+        eventType:
+          event.type,
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
 }

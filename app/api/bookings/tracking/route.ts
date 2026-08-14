@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
+  syncBookingGroupLifecycle,
+} from "@/lib/booking-group-lifecycle";
+
+// KLYX_GROUP_TRACKING_SYNC_12_87
+import {
   apiErrorStatus,
   getAuthenticatedProfile,
 } from "@/lib/api-auth";
@@ -23,6 +28,7 @@ type BookingRow = {
   parent_id: string;
   provider_id: string | null;
   babysitter_id: string | null;
+  booking_group_id: string | null;
   status: string;
   payment_status: string | null;
   service_status: ServiceStatus | null;
@@ -122,7 +128,7 @@ export async function POST(request: Request) {
     const { data, error } = await supabaseAdmin
       .from("bookings")
       .select(
-        "id, parent_id, provider_id, babysitter_id, status, payment_status, service_status, provider_finished_at, client_confirmed_at"
+        "id, parent_id, provider_id, babysitter_id, booking_group_id, status, payment_status, service_status, provider_finished_at, client_confirmed_at"
       )
       .eq("id", bookingId)
       .maybeSingle();
@@ -367,6 +373,12 @@ export async function POST(request: Request) {
       }
 
       await Promise.all(notifications);
+
+      if (booking.booking_group_id) {
+        await syncBookingGroupLifecycle(
+          booking.booking_group_id
+        );
+      }
 
       return NextResponse.json({
         serviceStatus: "completed",

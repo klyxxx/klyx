@@ -1,0 +1,415 @@
+import { NextResponse } from "next/server";
+import {
+  apiErrorStatus,
+  getAuthenticatedProfile,
+} from "@/lib/api-auth";
+
+// KLYX_SERVER_COMMAND_ROUTER_12_80
+
+type ActionKind =
+  | "compare_offers"
+  | "finalize_booking"
+  | "payment_pending"
+  | "track_mission"
+  | "confirm_completion"
+  | "review_completed"
+  | "provider_offer_update"
+  | "provider_booking_request"
+  | "provider_track_mission"
+  | "provider_finish_mission";
+
+type CommandAction = {
+  id: string;
+  kind: ActionKind;
+  priority: number;
+  title: string;
+  description: string;
+  href: string;
+  label: string;
+};
+
+type CommandBody = {
+  message?: string;
+  actions?: unknown;
+};
+
+const ALLOWED_KINDS = new Set<ActionKind>([
+  "compare_offers",
+  "finalize_booking",
+  "payment_pending",
+  "track_mission",
+  "confirm_completion",
+  "review_completed",
+  "provider_offer_update",
+  "provider_booking_request",
+  "provider_track_mission",
+  "provider_finish_mission",
+]);
+
+function normalize(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function includesAny(
+  value: string,
+  expressions: string[]
+) {
+  return expressions.some((expression) =>
+    value.includes(expression)
+  );
+}
+
+function isAllowedHref(value: string) {
+  return (
+    value === "/bookings" ||
+    value === "/assistant/actions" ||
+    value.startsWith("/bookings/") ||
+    value.startsWith("/tracking/") ||
+    value.startsWith("/assistant/market/") ||
+    value.startsWith("/quotes/")
+  );
+}
+
+function sanitizeAction(
+  value: unknown
+): CommandAction | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const item = value as Record<string, unknown>;
+
+  if (
+    typeof item.id !== "string" ||
+    typeof item.kind !== "string" ||
+    typeof item.priority !== "number" ||
+    typeof item.title !== "string" ||
+    typeof item.description !== "string" ||
+    typeof item.href !== "string" ||
+    typeof item.label !== "string"
+  ) {
+    return null;
+  }
+
+  if (!ALLOWED_KINDS.has(item.kind as ActionKind)) {
+    return null;
+  }
+
+  if (!isAllowedHref(item.href)) {
+    return null;
+  }
+
+  return {
+    id: item.id.slice(0, 200),
+    kind: item.kind as ActionKind,
+    priority: Math.max(
+      0,
+      Math.min(1000, item.priority)
+    ),
+    title: item.title.slice(0, 200),
+    description: item.description.slice(0, 500),
+    href: item.href,
+    label: item.label.slice(0, 120),
+  };
+}
+
+function sanitizeActions(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [] as CommandAction[];
+  }
+
+  return value
+    .slice(0, 20)
+    .map(sanitizeAction)
+    .filter(
+      (item): item is CommandAction =>
+        item !== null
+    );
+}
+
+function actionIntentScore(
+  action: CommandAction,
+  message: string
+) {
+  let score = action.priority;
+
+  if (
+    action.kind === "payment_pending" &&
+    includesAny(message, [
+      "payer",
+      "paiement",
+      "payement",
+      "regler",
+      "carte bancaire",
+    ])
+  ) {
+    score += 2000;
+  }
+
+  if (
+    (
+      action.kind === "track_mission" ||
+      action.kind ===
+        "provider_track_mission"
+    ) &&
+    includesAny(message, [
+      "suivre",
+      "suivi",
+      "ou en est",
+      "ou est le prestataire",
+      "prestataire en route",
+      "prestataire arrive",
+      "etat de la mission",
+      "etat de la prestation",
+    ])
+  ) {
+    score += 1900;
+  }
+
+  if (
+    action.kind === "confirm_completion" &&
+    includesAny(message, [
+      "confirmer la fin",
+      "confirmer mission",
+      "confirmer la mission",
+      "mission terminee",
+      "prestation terminee",
+      "travail termine",
+    ])
+  ) {
+    score += 2100;
+  }
+
+  if (
+    action.kind ===
+      "provider_finish_mission" &&
+    includesAny(message, [
+      "declarer la fin",
+      "terminer la mission",
+      "finir la mission",
+      "mission finie",
+      "travail fini",
+    ])
+  ) {
+    score += 2100;
+  }
+
+  if (
+    action.kind ===
+      "provider_booking_request" &&
+    includesAny(message, [
+      "nouvelle reservation",
+      "demande client",
+      "accepter la reservation",
+      "refuser la reservation",
+      "repondre au client",
+    ])
+  ) {
+    score += 1900;
+  }
+
+  if (
+    action.kind === "compare_offers" &&
+    includesAny(message, [
+      "comparer les offres",
+      "voir les offres",
+      "choisir une offre",
+      "choisir prestataire",
+    ])
+  ) {
+    score += 1800;
+  }
+
+  if (
+    action.kind === "finalize_booking" &&
+    includesAny(message, [
+      "finaliser la reservation",
+      "choisir le creneau",
+      "confirmer le creneau",
+    ])
+  ) {
+    score += 1800;
+  }
+
+  if (
+    action.kind === "review_completed" &&
+    includesAny(message, [
+      "laisser un avis",
+      "donner mon avis",
+      "noter le prestataire",
+    ])
+  ) {
+    score += 1700;
+  }
+
+  return score;
+}
+
+function hasSpecificExistingIntent(message: string) {
+  return includesAny(message, [
+    "payer",
+    "paiement",
+    "payement",
+    "regler",
+    "suivre",
+    "suivi",
+    "ou en est",
+    "ou est le prestataire",
+    "confirmer la fin",
+    "confirmer mission",
+    "mission terminee",
+    "prestation terminee",
+    "declarer la fin",
+    "terminer la mission",
+    "finir la mission",
+    "nouvelle reservation",
+    "demande client",
+    "comparer les offres",
+    "voir les offres",
+    "choisir une offre",
+    "finaliser la reservation",
+    "choisir le creneau",
+    "laisser un avis",
+    "donner mon avis",
+  ]);
+}
+
+function hasGeneralActionIntent(message: string) {
+  return includesAny(message, [
+    "que dois je faire",
+    "quoi faire maintenant",
+    "prochaine action",
+    "prochaine etape",
+    "quelle est la suite",
+    "continuer ma demande",
+    "reprendre ma demande",
+    "mes actions",
+    "ma priorite",
+  ]);
+}
+
+function hasNewNeedIntent(message: string) {
+  return includesAny(message, [
+    "j ai besoin de",
+    "je cherche",
+    "trouve moi",
+    "trouver quelqu un",
+    "cherche quelqu un",
+    "besoin d un",
+    "besoin d une",
+    "je voudrais un",
+    "je voudrais une",
+  ]);
+}
+
+function bestAction(
+  actions: CommandAction[],
+  message: string
+) {
+  if (actions.length === 0) {
+    return null;
+  }
+
+  const ranked = [...actions].sort(
+    (first, second) =>
+      actionIntentScore(second, message) -
+      actionIntentScore(first, message)
+  );
+
+  return ranked[0] ?? null;
+}
+
+export async function POST(request: Request) {
+  try {
+    await getAuthenticatedProfile(request);
+
+    const body =
+      (await request.json()) as CommandBody;
+
+    const rawMessage =
+      body.message?.trim() ?? "";
+
+    if (!rawMessage) {
+      return NextResponse.json(
+        { error: "Message manquant." },
+        { status: 400 }
+      );
+    }
+
+    if (rawMessage.length > 700) {
+      return NextResponse.json(
+        { error: "Message trop long." },
+        { status: 400 }
+      );
+    }
+
+    const message = normalize(rawMessage);
+    const actions = sanitizeActions(body.actions);
+
+    const specificExistingIntent =
+      hasSpecificExistingIntent(message);
+
+    const generalActionIntent =
+      hasGeneralActionIntent(message);
+
+    const newNeedIntent =
+      hasNewNeedIntent(message);
+
+    if (
+      actions.length > 0 &&
+      (
+        specificExistingIntent ||
+        generalActionIntent
+      )
+    ) {
+      const action =
+        bestAction(actions, message);
+
+      if (action) {
+        return NextResponse.json({
+          mode: "existing_action",
+          requiresConfirmation: false,
+          automaticExecutionAllowed: false,
+          action,
+        });
+      }
+    }
+
+    if (newNeedIntent || !generalActionIntent) {
+      const params = new URLSearchParams();
+      params.set("request", rawMessage);
+
+      return NextResponse.json({
+        mode: "new_request",
+        requiresConfirmation: true,
+        automaticExecutionAllowed: false,
+        href:
+          "/assistant/market?" +
+          params.toString(),
+      });
+    }
+
+    return NextResponse.json({
+      mode: "no_action",
+      requiresConfirmation: false,
+      automaticExecutionAllowed: false,
+      href: "/assistant/actions",
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Commande KLYX indisponible.";
+
+    return NextResponse.json(
+      { error: message },
+      { status: apiErrorStatus(message) }
+    );
+  }
+}

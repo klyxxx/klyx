@@ -1,0 +1,1376 @@
+import {
+  createHash,
+} from "node:crypto";
+
+import {
+  NextResponse,
+} from "next/server";
+
+import {
+  getAuthenticatedProfile,
+  requireAccountType,
+} from "@/lib/api-auth";
+
+import {
+  supabaseAdmin,
+} from "@/lib/supabase-admin";
+
+// KLYX_SPLIT_PLAN_CONFIRMATION_API_13_18
+// KLYX_SPLIT_PLAN_CONFIRMATION_COMPAT_13_19C
+
+type JsonRecord =
+  Record<string, unknown>;
+
+type RouteContext = {
+  params:
+    Promise<{
+      id:
+        string;
+    }>;
+};
+
+type CanonicalSlot = {
+  id:
+    string;
+
+  position:
+    number;
+
+  date:
+    string;
+
+  startTime:
+    string;
+
+  endTime:
+    string;
+
+  budgetMax:
+    number | null;
+
+  providerId:
+    string;
+
+  userServiceId:
+    string;
+};
+
+type CanonicalPlan = {
+  requestId:
+    string;
+
+  slotCount:
+    number;
+
+  providerCount:
+    number;
+
+  providerIds:
+    string[];
+
+  slots:
+    CanonicalSlot[];
+};
+
+type ConfirmationRow = {
+  id:
+    string;
+
+  market_request_id:
+    string;
+
+  client_profile_id:
+    string;
+
+  plan_hash:
+    string;
+
+  plan_snapshot:
+    unknown;
+
+  slot_count:
+    number;
+
+  provider_count:
+    number;
+
+  confirmed_at:
+    string;
+
+  invalidated_at:
+    string | null;
+
+  invalidation_reason:
+    string | null;
+};
+
+function asRecord(
+  value:
+    unknown
+): JsonRecord | null {
+  if (
+    !value ||
+    typeof value !==
+      "object" ||
+    Array.isArray(
+      value
+    )
+  ) {
+    return null;
+  }
+
+  return value as JsonRecord;
+}
+
+function cleanText(
+  value:
+    unknown
+): string {
+  return typeof value ===
+    "string"
+    ? value.trim()
+    : "";
+}
+
+function integer(
+  value:
+    unknown
+): number {
+  const parsed =
+    Number(
+      value
+    );
+
+  return Number.isFinite(
+    parsed
+  )
+    ? Math.trunc(
+        parsed
+      )
+    : 0;
+}
+
+function numberOrNull(
+  value:
+    unknown
+): number | null {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return null;
+  }
+
+  const parsed =
+    Number(
+      value
+    );
+
+  return Number.isFinite(
+    parsed
+  )
+    ? parsed
+    : null;
+}
+
+function canonicalPlan(
+  requestId:
+    string,
+
+  value:
+    unknown
+): CanonicalPlan | null {
+  const root =
+    asRecord(
+      value
+    );
+
+  if (!root) {
+    return null;
+  }
+
+  const rawSlots =
+    Array.isArray(
+      root.slots
+    )
+      ? root.slots
+      : [];
+
+  const rawAssignments =
+    Array.isArray(
+      root.assignments
+    )
+      ? root.assignments
+      : [];
+
+  if (
+    rawSlots.length <
+      2 ||
+    rawAssignments.length <
+      2
+  ) {
+    return null;
+  }
+
+  const assignmentBySlot =
+    new Map<
+      string,
+      {
+        providerId:
+          string;
+
+        userServiceId:
+          string;
+      }
+    >();
+
+  for (
+    const rawAssignment
+    of rawAssignments
+  ) {
+    const assignment =
+      asRecord(
+        rawAssignment
+      );
+
+    if (!assignment) {
+      return null;
+    }
+
+    const providerId =
+      cleanText(
+        assignment.providerId
+      );
+
+    const userServiceId =
+      cleanText(
+        assignment.userServiceId
+      );
+
+    const slotIds =
+      Array.isArray(
+        assignment.assignedSlotIds
+      )
+        ? assignment.assignedSlotIds
+        : [];
+
+    if (
+      !providerId ||
+      !userServiceId ||
+      slotIds.length ===
+        0
+    ) {
+      return null;
+    }
+
+    for (
+      const rawSlotId
+      of slotIds
+    ) {
+      const slotId =
+        cleanText(
+          rawSlotId
+        );
+
+      if (!slotId) {
+        return null;
+      }
+
+      const previous =
+        assignmentBySlot.get(
+          slotId
+        );
+
+      if (
+        previous &&
+        (
+          previous.providerId !==
+            providerId ||
+          previous.userServiceId !==
+            userServiceId
+        )
+      ) {
+        return null;
+      }
+
+      assignmentBySlot.set(
+        slotId,
+        {
+          providerId,
+          userServiceId,
+        }
+      );
+    }
+  }
+
+  const slots:
+    CanonicalSlot[] =
+    [];
+
+  const seen =
+    new Set<string>();
+
+  for (
+    const rawSlot
+    of rawSlots
+  ) {
+    const slot =
+      asRecord(
+        rawSlot
+      );
+
+    if (!slot) {
+      return null;
+    }
+
+    const id =
+      cleanText(
+        slot.id
+      );
+
+    if (
+      !id ||
+      seen.has(
+        id
+      )
+    ) {
+      return null;
+    }
+
+    const assignment =
+      assignmentBySlot.get(
+        id
+      );
+
+    if (!assignment) {
+      return null;
+    }
+
+    seen.add(
+      id
+    );
+
+    slots.push({
+      id,
+
+      position:
+        integer(
+          slot.position
+        ),
+
+      date:
+        cleanText(
+          slot.date
+        ),
+
+      startTime:
+        cleanText(
+          slot.startTime
+        ),
+
+      endTime:
+        cleanText(
+          slot.endTime
+        ),
+
+      budgetMax:
+        numberOrNull(
+          slot.budgetMax
+        ),
+
+      providerId:
+        assignment.providerId,
+
+      userServiceId:
+        assignment.userServiceId,
+    });
+  }
+
+  if (
+    assignmentBySlot.size !==
+    slots.length
+  ) {
+    return null;
+  }
+
+  slots.sort(
+    (
+      first,
+      second
+    ) =>
+      first.position -
+        second.position ||
+      first.date.localeCompare(
+        second.date
+      ) ||
+      first.startTime.localeCompare(
+        second.startTime
+      ) ||
+      first.id.localeCompare(
+        second.id
+      )
+  );
+
+  const providerIds =
+    Array.from(
+      new Set(
+        slots.map(
+          (
+            slot
+          ) =>
+            slot.providerId
+        )
+      )
+    )
+      .sort();
+
+  if (
+    providerIds.length <
+    2
+  ) {
+    return null;
+  }
+
+  return {
+    requestId,
+
+    slotCount:
+      slots.length,
+
+    providerCount:
+      providerIds.length,
+
+    providerIds,
+
+    slots,
+  };
+}
+
+function hashPlan(
+  plan:
+    CanonicalPlan
+): string {
+  return createHash(
+    "sha256"
+  )
+    .update(
+      JSON.stringify(
+        plan
+      ),
+      "utf8"
+    )
+    .digest(
+      "hex"
+    );
+}
+
+async function forwardHeaders(
+  request:
+    Request
+): Promise<Headers> {
+  const headers =
+    new Headers();
+
+  const authorization =
+    request.headers.get(
+      "authorization"
+    );
+
+  const cookie =
+    request.headers.get(
+      "cookie"
+    );
+
+  if (
+    authorization
+  ) {
+    headers.set(
+      "authorization",
+      authorization
+    );
+  }
+
+  if (
+    cookie
+  ) {
+    headers.set(
+      "cookie",
+      cookie
+    );
+  }
+
+  return headers;
+}
+
+async function fetchLivePlan(
+  request:
+    Request,
+
+  requestId:
+    string
+): Promise<{
+  ok:
+    boolean;
+
+  body:
+    JsonRecord | null;
+}> {
+  const url =
+    new URL(
+      "/api/market/requests/" +
+      encodeURIComponent(
+        requestId
+      ) +
+      "/split-fallback/slot-map",
+      request.url
+    );
+
+  const response =
+    await fetch(
+      url,
+      {
+        method:
+          "GET",
+
+        cache:
+          "no-store",
+
+        headers:
+          await forwardHeaders(
+            request
+          ),
+      }
+    );
+
+  let body:
+    JsonRecord | null =
+    null;
+
+  try {
+    body =
+      asRecord(
+        await response.json()
+      );
+  }
+  catch {
+    body =
+      null;
+  }
+
+  return {
+    ok:
+      response.ok,
+
+    body,
+  };
+}
+
+function planFromLiveResponse(
+  requestId:
+    string,
+
+  body:
+    JsonRecord | null
+): CanonicalPlan | null {
+  if (!body) {
+    return null;
+  }
+
+  if (
+    body.splitPlanPossible !==
+      true ||
+    body.singleProviderFullCoverage ===
+      true
+  ) {
+    return null;
+  }
+
+  return canonicalPlan(
+    requestId,
+    {
+      slots:
+        body.slots,
+
+      assignments:
+        body.assignments,
+    }
+  );
+}
+
+async function invalidate(
+  confirmationId:
+    string,
+
+  reason:
+    string
+): Promise<void> {
+  const now =
+    new Date()
+      .toISOString();
+
+  await supabaseAdmin
+    .from(
+      "market_split_plan_confirmations"
+    )
+    .update({
+      invalidated_at:
+        now,
+
+      invalidation_reason:
+        reason,
+
+      updated_at:
+        now,
+    })
+    .eq(
+      "id",
+      confirmationId
+    )
+    .is(
+      "invalidated_at",
+      null
+    );
+}
+
+async function validateProof(
+  request:
+    Request,
+
+  requestId:
+    string,
+
+  confirmation:
+    ConfirmationRow
+) {
+  const live =
+    await fetchLivePlan(
+      request,
+      requestId
+    );
+
+  if (
+    !live.ok
+  ) {
+    await invalidate(
+      confirmation.id,
+      "live_plan_unavailable"
+    );
+
+    return NextResponse.json(
+      {
+        confirmed:
+          false,
+
+        valid:
+          false,
+
+        code:
+          "SPLIT_PLAN_CONFIRMATION_INVALIDATED",
+
+        reason:
+          "LIVE_PLAN_UNAVAILABLE",
+
+        confirmationId:
+          confirmation.id,
+
+        reconfirmationRequired:
+          true,
+
+        automaticProviderSelection:
+          false,
+
+        automaticBooking:
+          false,
+
+        automaticPayment:
+          false,
+      },
+      {
+        status:
+          409,
+      }
+    );
+  }
+
+  const currentPlan =
+    planFromLiveResponse(
+      requestId,
+      live.body
+    );
+
+  if (!currentPlan) {
+    await invalidate(
+      confirmation.id,
+      "split_plan_no_longer_valid"
+    );
+
+    return NextResponse.json(
+      {
+        confirmed:
+          false,
+
+        valid:
+          false,
+
+        code:
+          "SPLIT_PLAN_CONFIRMATION_INVALIDATED",
+
+        reason:
+          "SPLIT_PLAN_NO_LONGER_VALID",
+
+        confirmationId:
+          confirmation.id,
+
+        reconfirmationRequired:
+          true,
+
+        automaticProviderSelection:
+          false,
+
+        automaticBooking:
+          false,
+
+        automaticPayment:
+          false,
+      },
+      {
+        status:
+          409,
+      }
+    );
+  }
+
+  const currentHash =
+    hashPlan(
+      currentPlan
+    );
+
+  if (
+    currentHash !==
+    confirmation.plan_hash
+  ) {
+    await invalidate(
+      confirmation.id,
+      "live_plan_changed"
+    );
+
+    return NextResponse.json(
+      {
+        confirmed:
+          false,
+
+        valid:
+          false,
+
+        code:
+          "SPLIT_PLAN_CHANGED",
+
+        reason:
+          "LIVE_PLAN_CHANGED",
+
+        confirmationId:
+          confirmation.id,
+
+        previousPlanHash:
+          confirmation.plan_hash,
+
+        currentPlanHash:
+          currentHash,
+
+        reconfirmationRequired:
+          true,
+
+        automaticProviderSelection:
+          false,
+
+        automaticBooking:
+          false,
+
+        automaticPayment:
+          false,
+      },
+      {
+        status:
+          409,
+      }
+    );
+  }
+
+  return NextResponse.json({
+    confirmed:
+      true,
+
+    valid:
+      true,
+
+    confirmationId:
+      confirmation.id,
+
+    planHash:
+      confirmation.plan_hash,
+
+    slotCount:
+      confirmation.slot_count,
+
+    providerCount:
+      confirmation.provider_count,
+
+    confirmedAt:
+      confirmation.confirmed_at,
+
+    proofType:
+      "exact_multi_provider_plan",
+
+    explicitConfirmationProof:
+      true,
+
+    reconfirmationRequired:
+      false,
+
+    automaticProviderSelection:
+      false,
+
+    automaticBooking:
+      false,
+
+    automaticPayment:
+      false,
+  });
+}
+
+export async function GET(
+  request:
+    Request,
+
+  context:
+    RouteContext
+) {
+  try {
+    const {
+      profile,
+    } =
+      await getAuthenticatedProfile(
+        request
+      );
+
+    requireAccountType(
+      profile,
+      "client"
+    );
+
+    const {
+      id:
+        requestId,
+    } =
+      await context.params;
+
+    if (!requestId) {
+      return NextResponse.json(
+        {
+          error:
+            "Demande KLYX invalide.",
+        },
+        {
+          status:
+            400,
+        }
+      );
+    }
+
+    const url =
+      new URL(
+        request.url
+      );
+
+    const explicitId =
+      url.searchParams
+        .get(
+          "confirmationId"
+        )
+        ?.trim() ??
+      "";
+
+    let query =
+      supabaseAdmin
+        .from(
+          "market_split_plan_confirmations"
+        )
+        .select(
+          "id, market_request_id, client_profile_id, plan_hash, plan_snapshot, slot_count, provider_count, confirmed_at, invalidated_at, invalidation_reason"
+        )
+        .eq(
+          "market_request_id",
+          requestId
+        )
+        .eq(
+          "client_profile_id",
+          profile.id
+        );
+
+    if (
+      explicitId
+    ) {
+      query =
+        query.eq(
+          "id",
+          explicitId
+        );
+    }
+    else {
+      query =
+        query.is(
+          "invalidated_at",
+          null
+        );
+    }
+
+    const {
+      data,
+      error,
+    } =
+      await query
+        .order(
+          "confirmed_at",
+          {
+            ascending:
+              false,
+          }
+        )
+        .limit(
+          1
+        )
+        .maybeSingle();
+
+    if (
+      error
+    ) {
+      throw new Error(
+        error.message
+      );
+    }
+
+    const confirmation =
+      data as unknown as
+        ConfirmationRow |
+        null;
+
+    if (
+      !confirmation
+    ) {
+      return NextResponse.json({
+        confirmed:
+          false,
+
+        valid:
+          false,
+
+        reconfirmationRequired:
+          false,
+
+        automaticProviderSelection:
+          false,
+
+        automaticBooking:
+          false,
+
+        automaticPayment:
+          false,
+      });
+    }
+
+    if (
+      confirmation.invalidated_at
+    ) {
+      return NextResponse.json(
+        {
+          confirmed:
+            false,
+
+          valid:
+            false,
+
+          confirmationId:
+            confirmation.id,
+
+          reason:
+            confirmation.invalidation_reason,
+
+          reconfirmationRequired:
+            true,
+
+          automaticProviderSelection:
+            false,
+
+          automaticBooking:
+            false,
+
+          automaticPayment:
+            false,
+        },
+        {
+          status:
+            409,
+        }
+      );
+    }
+
+    return validateProof(
+      request,
+      requestId,
+      confirmation
+    );
+  }
+  catch (
+    error
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "Impossible de vérifier la confirmation du plan.",
+
+        detail:
+          error instanceof Error
+            ? error.message
+            : "SPLIT_PLAN_CONFIRMATION_CHECK_FAILED",
+
+        automaticProviderSelection:
+          false,
+
+        automaticBooking:
+          false,
+
+        automaticPayment:
+          false,
+      },
+      {
+        status:
+          500,
+      }
+    );
+  }
+}
+
+export async function POST(
+  request:
+    Request,
+
+  context:
+    RouteContext
+) {
+  try {
+    const {
+      profile,
+    } =
+      await getAuthenticatedProfile(
+        request
+      );
+
+    requireAccountType(
+      profile,
+      "client"
+    );
+
+    const {
+      id:
+        requestId,
+    } =
+      await context.params;
+
+    if (!requestId) {
+      return NextResponse.json(
+        {
+          error:
+            "Demande KLYX invalide.",
+        },
+        {
+          status:
+            400,
+        }
+      );
+    }
+
+    const body =
+      asRecord(
+        await request.json()
+      );
+
+    if (!body) {
+      return NextResponse.json(
+        {
+          error:
+            "Confirmation invalide.",
+        },
+        {
+          status:
+            400,
+        }
+      );
+    }
+
+    const submittedPlan =
+      canonicalPlan(
+        requestId,
+        body.plan
+      );
+
+    if (!submittedPlan) {
+      return NextResponse.json(
+        {
+          code:
+            "SPLIT_PLAN_INVALID_CONFIRMATION",
+
+          error:
+            "Le plan confirmé est incomplet ou invalide.",
+
+          automaticProviderSelection:
+            false,
+
+          automaticBooking:
+            false,
+
+          automaticPayment:
+            false,
+        },
+        {
+          status:
+            400,
+        }
+      );
+    }
+
+    /*
+      Revalidation LIVE au moment exact
+      du clic utilisateur.
+    */
+    const live =
+      await fetchLivePlan(
+        request,
+        requestId
+      );
+
+    if (
+      !live.ok
+    ) {
+      return NextResponse.json(
+        {
+          code:
+            "SPLIT_PLAN_LIVE_REVALIDATION_FAILED",
+
+          error:
+            "KLYX ne peut plus prouver ce plan actuellement.",
+
+          reconfirmationRequired:
+            true,
+
+          automaticProviderSelection:
+            false,
+
+          automaticBooking:
+            false,
+
+          automaticPayment:
+            false,
+        },
+        {
+          status:
+            409,
+        }
+      );
+    }
+
+    const currentPlan =
+      planFromLiveResponse(
+        requestId,
+        live.body
+      );
+
+    if (!currentPlan) {
+      return NextResponse.json(
+        {
+          code:
+            "SPLIT_PLAN_NO_LONGER_AVAILABLE",
+
+          error:
+            "Ce plan multi-prestataires n'est plus disponible.",
+
+          reconfirmationRequired:
+            true,
+
+          automaticProviderSelection:
+            false,
+
+          automaticBooking:
+            false,
+
+          automaticPayment:
+            false,
+        },
+        {
+          status:
+            409,
+        }
+      );
+    }
+
+    const submittedHash =
+      hashPlan(
+        submittedPlan
+      );
+
+    const currentHash =
+      hashPlan(
+        currentPlan
+      );
+
+    if (
+      submittedHash !==
+      currentHash
+    ) {
+      return NextResponse.json(
+        {
+          code:
+            "SPLIT_PLAN_CHANGED",
+
+          error:
+            "Le plan a changé depuis son affichage. Vérifie le nouveau plan avant de confirmer.",
+
+          submittedPlanHash:
+            submittedHash,
+
+          currentPlanHash:
+            currentHash,
+
+          reconfirmationRequired:
+            true,
+
+          automaticProviderSelection:
+            false,
+
+          automaticBooking:
+            false,
+
+          automaticPayment:
+            false,
+        },
+        {
+          status:
+            409,
+        }
+      );
+    }
+
+    const {
+      data:
+        confirmationId,
+
+      error:
+        confirmationError,
+    } =
+      await supabaseAdmin.rpc(
+        "klyx_confirm_split_plan_13_18",
+        {
+          p_request_id:
+            requestId,
+
+          p_client_profile_id:
+            profile.id,
+
+          p_plan_hash:
+            currentHash,
+
+          p_plan_snapshot:
+            currentPlan,
+
+          p_slot_count:
+            currentPlan.slotCount,
+
+          p_provider_count:
+            currentPlan.providerCount,
+        }
+      );
+
+    if (
+      confirmationError
+    ) {
+      throw new Error(
+        confirmationError.message
+      );
+    }
+
+    if (
+      typeof confirmationId !==
+        "string" ||
+      !confirmationId
+    ) {
+      throw new Error(
+        "SPLIT_PLAN_CONFIRMATION_ID_REQUIRED"
+      );
+    }
+
+    return NextResponse.json({
+      confirmed:
+        true,
+
+      valid:
+        true,
+
+      confirmationId,
+
+      planHash:
+        currentHash,
+
+      slotCount:
+        currentPlan.slotCount,
+
+      providerCount:
+        currentPlan.providerCount,
+
+      proofType:
+        "exact_multi_provider_plan",
+
+      explicitConfirmationProof:
+        true,
+
+      reconfirmationRequired:
+        false,
+
+      automaticProviderSelection:
+        false,
+
+      automaticBooking:
+        false,
+
+      automaticPayment:
+        false,
+    });
+  }
+  catch (
+    error
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "Impossible de confirmer le plan multi-prestataires.",
+
+        detail:
+          error instanceof Error
+            ? error.message
+            : "SPLIT_PLAN_CONFIRMATION_FAILED",
+
+        automaticProviderSelection:
+          false,
+
+        automaticBooking:
+          false,
+
+        automaticPayment:
+          false,
+      },
+      {
+        status:
+          500,
+      }
+    );
+  }
+}

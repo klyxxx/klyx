@@ -39,6 +39,20 @@ type Message = {
   mode?: "openai" | "fallback" | "structured";
 };
 
+type BrainSlot = {
+  date: string;
+  startTime: string | null;
+  endTime: string | null;
+  budget: number | null;
+};
+
+type BrainMultiSlotSchedule = {
+  multiSlot: true;
+  slots: BrainSlot[];
+  needsExactTimes: boolean;
+  readyForMatching: boolean;
+};
+
 type BrainPayload = {
   serviceSlug: string | null;
   city: string | null;
@@ -48,6 +62,7 @@ type BrainPayload = {
   memoryUsed: boolean;
   ready: boolean;
   readiness?: BrainReadinessViewModel;
+  schedule?: BrainMultiSlotSchedule | null;
 };
 
 type StructuredBrainResponse = {
@@ -121,6 +136,11 @@ function mergeLocalUnderstanding(
   message: string
 ): BrainPayload | null {
   if (!payload) return null;
+
+  // KLYX_MULTI_SLOT_BRAIN_UI_12_83
+  if (payload.schedule?.multiSlot) {
+    return payload;
+  }
 
   const detectedTime = payload.time ?? detectTimeLocally(message);
 
@@ -271,9 +291,11 @@ export default function BrainPage() {
       setPayload(understoodPayload);
 
       let finalReply =
-        understoodPayload?.ready
-          ? buildNaturalConfirmation(understoodPayload)
-          : structuredResult.reply;
+        understoodPayload?.schedule?.multiSlot
+          ? structuredResult.reply
+          : understoodPayload?.ready
+            ? buildNaturalConfirmation(understoodPayload)
+            : structuredResult.reply;
 
       let finalMode: Message["mode"] = "structured";
 
@@ -395,6 +417,7 @@ async function confirmCurrentRequest() {
             date: payload.date,
             time: payload.time,
             budget: payload.budget,
+            schedule: payload.schedule ?? null,
           },
         }),
       }
@@ -439,6 +462,36 @@ function openResults(confirmationId?: string) {
     if (!payload?.ready) return;
 
     const params = new URLSearchParams();
+
+    // KLYX_MULTI_SLOT_OPEN_RESULTS_12_83
+    if (payload.schedule?.multiSlot) {
+      if (payload.serviceSlug) {
+        params.set("service", payload.serviceSlug);
+      }
+
+      if (payload.city) {
+        params.set("city", payload.city);
+      }
+
+      params.set(
+        "schedule",
+        JSON.stringify(payload.schedule)
+      );
+
+      if (conversationId) {
+        params.set("conversationId", conversationId);
+      }
+
+      if (confirmationId) {
+        params.set("confirmationId", confirmationId);
+      }
+
+      router.push(
+        "/request/confirm-multi?" +
+          params.toString()
+      );
+      return;
+    }
 
     if (payload.serviceSlug) {
       params.set("service", payload.serviceSlug);

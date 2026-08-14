@@ -1,0 +1,43 @@
+{
+    "schemaVersion":  1,
+    "project":  "KLYX",
+    "updatedAt":  "2026-08-14",
+    "repository":  {
+                       "localPath":  "C:\\Users\\fenjo\\Documents\\klyx",
+                       "github":  "klyxxx/klyx",
+                       "branch":  "main"
+                   },
+    "product":  {
+                    "market":  "Brussels, Belgium",
+                    "language":  "fr",
+                    "initialCategories":  [
+                                              "babysitting",
+                                              "cleaning",
+                                              "moving",
+                                              "handyman"
+                                          ],
+                    "revenueGoalEur":  100000,
+                    "revenueDeadline":  "2029-08-01"
+                },
+    "development":  {
+                        "lastConfirmedStep":  "13.60",
+                        "currentStep":  "13.61",
+                        "currentStepStatus":  "pending-final-verification",
+                        "nextStep":  "13.62",
+                        "paidApiMode":  "disabled",
+                        "targetDevelopmentCostEur":  0
+                    },
+    "safety":  {
+                   "automaticExecutionAllowed":  false,
+                   "explicitConfirmationRequired":  true,
+                   "llmCanControlUserReply":  false,
+                   "paidOpenAiCallsEnabled":  false
+               },
+    "verification":  [
+                         "npm.cmd test",
+                         "npx.cmd tsc --noEmit --pretty false",
+                         "npm.cmd run build"
+                     ],
+    "canonicalMigration":  "supabase/migrations/20260814000000_klyx_canonical_baseline.sql",
+    "secretsIncluded":  false
+}

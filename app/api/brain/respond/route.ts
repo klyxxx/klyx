@@ -1,10 +1,28 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
+  runKlyxLlmShadow,
+} from "@/lib/brain/llm/shadow";
+
+import {
+  sanitizeKlyxShadowForClient,
+} from "@/lib/brain/shadow/shadow-sanitizer";
+
+import type {
+  KlyxPublicShadowStatus,
+} from "@/lib/brain/shadow/shadow-public";
+
+// KLYX_SHADOW_ISOLATION_13_56
+import {
   apiErrorStatus,
   getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
+import {
+  buildMultiSlotReply,
+  parseMultiSlotSchedule,
+  type BrainMultiSlotSchedule,
+} from "@/lib/brain-multi-slot";
 
 type BrainContext = {
   serviceSlug: string | null;
@@ -46,6 +64,11 @@ type BrainPayload = BrainContext & {
   missing: string[];
   ready: boolean;
   readiness: BrainReadinessPayload;
+  schedule: BrainMultiSlotSchedule | null;
+
+
+  // KLYX_LLM_SHADOW_13_55
+  llmShadow?: KlyxPublicShadowStatus;
 };
 
 type ConversationRow = {
@@ -1102,26 +1125,79 @@ export async function POST(request: Request) {
       message
     );
 
-    const context = await applyUserMemory(
+    const memoryContext = await applyUserMemory(
       profile.id,
       message,
       mergedContext
     );
 
+    // KLYX_MULTI_SLOT_INTEGRATION_12_82
+    const schedule = parseMultiSlotSchedule(
+      message,
+      {
+        fallbackBudget:
+          memoryContext.budget,
+      }
+    );
+
+    const context: BrainContext =
+      schedule
+        ? {
+            ...memoryContext,
+            date:
+              schedule.slots[0]?.date ??
+              memoryContext.date,
+            time:
+              schedule.slots[0]?.startTime ??
+              memoryContext.time,
+            budget:
+              schedule.slots[0]?.budget ??
+              memoryContext.budget,
+          }
+        : memoryContext;
     const missing = buildMissingFields(context);
     const ready = missing.length === 0;
-    const reply = buildReply(context, missing);
 
-        const readiness = buildReadinessPayload(
+    // Deterministic Brain remains authoritative.
+    const reply = buildReply(
       context,
       missing
     );
-const payload: BrainPayload = {
+
+    const readiness = buildReadinessPayload(
+      context,
+      missing
+    );
+
+    // KLYX_LLM_SHADOW_13_55
+    // Internal comparison only.
+    // LLM output never replaces the user-visible deterministic reply.
+    const llmShadow = await runKlyxLlmShadow({
+      message,
+      deterministicReply: reply,
+      context: {
+        serviceSlug: context.serviceSlug,
+        city: context.city,
+        date: context.date,
+        time: context.time,
+        budget: context.budget,
+        memoryUsed: context.memoryUsed,
+      },
+    });
+
+    const publicLlmShadow = sanitizeKlyxShadowForClient(
+      llmShadow,
+      process.env.KLYX_LLM_SHADOW_ENABLED === "1"
+    );
+
+    const payload: BrainPayload = {
       ...context,
       missing,
       ready,
-          readiness,
-};
+      readiness,
+      schedule,
+      llmShadow: publicLlmShadow,
+    };
 
     await insertBrainMessage({
       conversationId,

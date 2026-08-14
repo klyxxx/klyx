@@ -1,0 +1,52 @@
+export type {
+  KlyxShadowInput,
+  KlyxShadowResult,
+} from "./llm-shadow";
+
+export {
+  runKlyxLlmShadow,
+} from "./llm-shadow";
+
+export type {
+  KlyxShadowObservation,
+} from "./shadow-observation";
+
+export {
+  createKlyxShadowObservation,
+} from "./shadow-observation";
+
+export {
+  logKlyxShadowObservation,
+} from "./shadow-observability";
+
+export type {
+  KlyxBrainShadowInput,
+} from "./brain-shadow-integration";
+
+export {
+  observeBrainWithLlmShadow,
+} from "./brain-shadow-integration";
+
+export type {
+  KlyxPublicShadowStatus,
+} from "./shadow-public";
+
+export {
+  createDisabledPublicShadowStatus,
+} from "./shadow-public";
+
+export type {
+  InternalShadowLike,
+} from "./shadow-sanitizer";
+
+export {
+  sanitizeKlyxShadowForClient,
+} from "./shadow-sanitizer";
+export type {
+  KlyxShadowComparison,
+  KlyxShadowComparisonInput,
+} from "./shadow-comparison";
+
+export {
+  compareKlyxBrainWithShadow,
+} from "./shadow-comparison";

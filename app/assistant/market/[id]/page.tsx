@@ -1,5 +1,7 @@
+// KLYX_LIVE_ADVICE_CLIENT_12_99
 "use client";
 
+import SplitPlanEntryCard from "./SplitPlanEntryCard";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -40,6 +42,12 @@ type AdviceOffer = {
   };
   isRecommended: boolean;
   isCheapest: boolean;
+  coverage: {
+    count: number;
+    total: number;
+    fullCoverage: boolean;
+    label: string;
+  };
 };
 
 type AdviceResponse = {
@@ -49,6 +57,18 @@ type AdviceResponse = {
     serviceName: string;
     city: string;
     budgetMax: number | null;
+    budgetTotal: number | null;
+    requestMode: "single" | "multi_slot";
+    slotCount: number;
+    preferSingleProvider: boolean;
+    slots: Array<{
+      position: number;
+      date: string;
+      startTime: string;
+      endTime: string;
+      budget: number | null;
+      durationMinutes: number;
+    }>;
     status: string;
   };
   offers: AdviceOffer[];
@@ -60,6 +80,14 @@ type AdviceResponse = {
     amount: number;
   } | null;
   summary: string;
+  liveCoverageChecked?:
+    boolean;
+
+  staleOffersRemoved?:
+    number;
+
+  automaticSelection?:
+    boolean;
 };
 
 type PendingChoice = {
@@ -95,9 +123,53 @@ export default function MarketAdvicePage() {
   const [errorMessage, setErrorMessage] =
     useState("");
 
-  async function load() {
-    setLoading(true);
-    setErrorMessage("");
+// KLYX_LIVE_ADVICE_CLIENT_STATE_12_99
+  const [
+    liveAdvice,
+    setLiveAdvice,
+  ] =
+    useState<{
+      checked:
+        boolean;
+
+      staleOffersRemoved:
+        number;
+
+      refreshedAt:
+        string |
+        null;
+    }>({
+      checked:
+        false,
+
+      staleOffersRemoved:
+        0,
+
+      refreshedAt:
+        null,
+    });
+
+  async function load(
+    options?: {
+      silent?:
+        boolean;
+    }
+  ) {
+    // KLYX_LIVE_ADVICE_SILENT_LOAD_12_99
+    const silent =
+      Boolean(
+        options?.silent
+      );
+
+    if (!silent) {
+      setLoading(
+        true
+      );
+
+      setErrorMessage(
+        ""
+      );
+    }
 
     try {
       const accessToken = await token();
@@ -126,8 +198,37 @@ export default function MarketAdvicePage() {
         );
       }
 
-      setData(body as AdviceResponse);
+      // KLYX_LIVE_ADVICE_PAYLOAD_12_99
+      const advice =
+        body as AdviceResponse;
+
+      setData(
+        advice
+      );
+
+      if (
+        advice.liveCoverageChecked
+      ) {
+        setLiveAdvice({
+          checked:
+            true,
+
+          staleOffersRemoved:
+            Number(
+              advice.staleOffersRemoved ??
+              0
+            ),
+
+          refreshedAt:
+            new Date()
+              .toISOString(),
+        });
+      }
     } catch (error) {
+      // KLYX_LIVE_ADVICE_SILENT_ERROR_12_99
+      if (silent) {
+        return;
+      }
       if (
         error instanceof Error &&
         error.message ===
@@ -143,12 +244,40 @@ export default function MarketAdvicePage() {
           : "Analyse impossible."
       );
     } finally {
-      setLoading(false);
+      // KLYX_LIVE_ADVICE_LOADING_FIX_12_99
+      if (!silent) {
+        setLoading(
+          false
+        );
+      }
     }
   }
 
+  // KLYX_LIVE_ADVICE_AUTO_REFRESH_12_99
   useEffect(() => {
     void load();
+
+    const intervalId =
+      window.setInterval(
+        () => {
+          if (
+            document.visibilityState ===
+            "visible"
+          ) {
+            void load({
+              silent:
+                true,
+            });
+          }
+        },
+        15000
+      );
+
+    return () => {
+      window.clearInterval(
+        intervalId
+      );
+    };
   }, [params.id]);
 
   function prepareChoice(offer: AdviceOffer) {
@@ -158,6 +287,16 @@ export default function MarketAdvicePage() {
     ) {
       setErrorMessage(
         "Cette offre ne peut plus être sélectionnée."
+      );
+      return;
+    }
+
+    if (
+      data.request.requestMode === "multi_slot" &&
+      !offer.coverage.fullCoverage
+    ) {
+      setErrorMessage(
+        "Ce prestataire ne couvre pas tous les créneaux. KLYX ne peut pas créer une réservation groupée complète avec cette offre."
       );
       return;
     }
@@ -175,35 +314,98 @@ export default function MarketAdvicePage() {
       return;
     }
 
-    setBusyOfferId(pendingChoice.offerId);
+    setBusyOfferId(
+      pendingChoice.offerId
+    );
     setErrorMessage("");
 
     try {
-      const accessToken = await token();
+      const accessToken =
+        await token();
 
-      const response = await fetch(
-        `/api/market/requests/${params.id}/offers`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type":
-              "application/json",
-            Authorization:
-              `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({
-            offerId: pendingChoice.offerId,
-            action: "accept",
-          }),
+      if (
+        data?.request.requestMode ===
+        "multi_slot"
+      ) {
+        const response =
+          await fetch(
+            `/api/market/requests/${params.id}/group-booking`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type":
+                  "application/json",
+                Authorization:
+                  `Bearer ${accessToken}`,
+              },
+              body:
+                JSON.stringify({
+                  offerId:
+                    pendingChoice.offerId,
+                }),
+            }
+          );
+
+        const body =
+          (await response.json()) as {
+            groupId?: string;
+            href?: string;
+            error?: string;
+          };
+
+        if (!response.ok) {
+          throw new Error(
+            body.error ||
+              "Impossible de créer la réservation groupée."
+          );
         }
-      );
 
-      const body = (await response.json()) as {
-        quoteId?: string;
-        bookingHref?: string;
-        message?: string;
-        error?: string;
-      };
+        if (!body.groupId) {
+          throw new Error(
+            "Identifiant de réservation groupée manquant."
+          );
+        }
+
+        setPendingChoice(
+          null
+        );
+
+        router.push(
+          body.href ||
+            `/booking-groups/${body.groupId}`
+        );
+
+        return;
+      }
+
+      const response =
+        await fetch(
+          `/api/market/requests/${params.id}/offers`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type":
+                "application/json",
+              Authorization:
+                `Bearer ${accessToken}`,
+            },
+            body:
+              JSON.stringify({
+                offerId:
+                  pendingChoice.offerId,
+                action:
+                  "accept",
+              }),
+          }
+        );
+
+      const body =
+        (await response.json()) as {
+          quoteId?: string;
+          bookingHref?: string;
+          message?: string;
+          error?: string;
+        };
 
       if (!response.ok) {
         throw new Error(
@@ -212,10 +414,16 @@ export default function MarketAdvicePage() {
         );
       }
 
-      setPendingChoice(null);
+      setPendingChoice(
+        null
+      );
 
-      if (body.bookingHref) {
-        router.push(body.bookingHref);
+      if (
+        body.bookingHref
+      ) {
+        router.push(
+          body.bookingHref
+        );
         return;
       }
 
@@ -226,7 +434,9 @@ export default function MarketAdvicePage() {
         return;
       }
 
-      router.push("/requests");
+      router.push(
+        "/requests"
+      );
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -237,7 +447,6 @@ export default function MarketAdvicePage() {
       setBusyOfferId("");
     }
   }
-
   if (loading) {
     return (
       <main className="klyx-page grid min-h-screen place-items-center">
@@ -291,6 +500,106 @@ export default function MarketAdvicePage() {
         </section>
 
         <MarketStatusTracker requestId={params.id} />
+        {/* KLYX_LIVE_ADVICE_BADGE_12_99 */}
+        {liveAdvice.checked && (
+          <section className="mt-4 flex flex-col gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <ShieldCheck
+                size={18}
+                className="mt-0.5 shrink-0 text-emerald-600"
+              />
+
+              <div>
+                <p className="text-sm font-black text-emerald-700 dark:text-emerald-300">
+                  Disponibilites revalidees en direct
+                </p>
+
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  {liveAdvice.staleOffersRemoved > 0
+                    ? String(
+                        liveAdvice.staleOffersRemoved
+                      ) +
+                      " prestataire(s) devenu(s) indisponible(s) ont ete retires du classement."
+                    : "Tous les prestataires affiches couvrent encore la mission."}
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              disabled={Boolean(busyOfferId)}
+              onClick={() =>
+                void load({
+                  silent:
+                    true,
+                })
+              }
+              className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl border border-emerald-500/25 bg-background px-4 text-xs font-black transition hover:bg-muted disabled:opacity-50"
+            >
+              Revalider maintenant
+            </button>
+          </section>
+        )}
+
+        {/* KLYX_MULTI_SLOT_ADVICE_UI_12_84 */}
+        {data.request.requestMode === "multi_slot" && (
+          <section className="klyx-card mt-6 p-6 sm:p-8">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="klyx-eyebrow">
+                  Demande groupee
+                </p>
+
+                <h2 className="mt-2 text-2xl font-black">
+                  {data.request.slotCount} creneaux a couvrir
+                </h2>
+
+                <p className="mt-2 text-sm text-muted-foreground">
+                  KLYX classe d abord les prestataires capables de couvrir toute la mission.
+                </p>
+              </div>
+
+              <span className="rounded-full border border-violet-500/25 bg-violet-500/10 px-3 py-1.5 text-xs font-black text-violet-700 dark:text-violet-300">
+                Meme prestataire prioritaire
+              </span>
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
+              {data.request.slots.map((slot) => (
+                <div
+                  key={String(slot.position)}
+                  className="rounded-2xl border border-border bg-background p-4"
+                >
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-muted-foreground">
+                    Creneau {slot.position}
+                  </p>
+
+                  <p className="mt-2 font-black">
+                    {slot.date}
+                  </p>
+
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {slot.startTime} - {slot.endTime}
+                    {" · "}
+                    {(slot.durationMinutes / 60).toFixed(2)} h
+                  </p>
+
+                  {slot.budget !== null && (
+                    <p className="mt-2 text-sm font-black text-violet-600">
+                      Budget {slot.budget.toFixed(2)} EUR
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {data.request.budgetTotal !== null && (
+              <p className="mt-5 inline-flex rounded-full bg-muted px-3 py-1.5 text-sm font-black">
+                Budget total : {data.request.budgetTotal.toFixed(2)} EUR
+              </p>
+            )}
+          </section>
+        )}
         <section className="klyx-card mt-6 border-violet-500/20 p-6 sm:p-8">
           <p className="klyx-eyebrow">
             Analyse KLYX
@@ -365,6 +674,19 @@ export default function MarketAdvicePage() {
                         {offer.isCheapest && (
                           <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-xs font-black text-emerald-700 dark:text-emerald-300">
                             Moins cher
+                          </span>
+                        )}
+
+                        {data.request.requestMode === "multi_slot" && (
+                          <span
+                            className={
+                              offer.coverage.fullCoverage
+                                ? "inline-flex items-center gap-1 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-xs font-black text-emerald-700 dark:text-emerald-300"
+                                : "inline-flex items-center gap-1 rounded-full border border-amber-500/25 bg-amber-500/10 px-2.5 py-1 text-xs font-black text-amber-700 dark:text-amber-300"
+                            }
+                          >
+                            <Check size={12} />
+                            {offer.coverage.label}
                           </span>
                         )}
 
@@ -450,9 +772,36 @@ export default function MarketAdvicePage() {
                         {offer.ranking.score}/100
                       </p>
 
-                      {data.request.status ===
-                        "open" &&
-                      offer.status === "sent" ? (
+                      {/* KLYX_GROUP_SELECTION_UI_12_85 */}
+                      {data.request.requestMode === "multi_slot" &&
+                      data.request.status === "open" &&
+                      offer.status === "sent" &&
+                      offer.coverage.fullCoverage ? (
+                        <button
+                          type="button"
+                          disabled={Boolean(busyOfferId)}
+                          onClick={() =>
+                            prepareChoice(offer)
+                          }
+                          className="klyx-button mt-4"
+                        >
+                          <Check size={17} />
+                          Choisir tous les creneaux
+                        </button>
+                      ) : data.request.requestMode === "multi_slot" &&
+                        data.request.status === "open" &&
+                        offer.status === "sent" ? (
+                        <button
+                          type="button"
+                          disabled
+                          className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl border border-border bg-muted px-4 text-sm font-black text-muted-foreground"
+                        >
+                          <ShieldCheck size={17} />
+                          Couverture incomplete
+                        </button>
+                      ) : data.request.status ===
+                          "open" &&
+                        offer.status === "sent" ? (
                         <button
                           type="button"
                           disabled={
@@ -557,6 +906,9 @@ export default function MarketAdvicePage() {
           </section>
         </div>
       )}
-    </main>
+          {/* KLYX_MULTI_PROVIDER_REVIEW_WIRING_13_17 */}
+      <SplitPlanEntryCard />
+
+</main>
   );
 }

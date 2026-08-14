@@ -1,0 +1,270 @@
+{
+    "Step":  "13.36",
+    "GeneratedAt":  "2026-08-13T20:33:59.9395316+02:00",
+    "Strategy":  "verified_baseline_plus_future_incremental_migrations",
+    "CanonicalCandidateDirectory":  "supabase\\canonical-migrations-13-36",
+    "CanonicalCandidateBaseline":  "supabase\\canonical-migrations-13-36\\20260814000000_klyx_canonical_baseline.sql",
+    "SourceBaseline":  "supabase\\baseline-staging-13-34\\20260814000000_klyx_public_baseline_13_34.sql",
+    "SourceBaselineSha256":  "abfac83618c78890c780e08703298819423a8a21cb4c56a8ef577568ddc30c8f",
+    "CanonicalBaselineSha256":  "850298c5ca38a2b0339e7b0cdc2d7522f72a5924e9acffcb87c8e5f012094ba2",
+    "Fidelity13_35Verified":  true,
+    "CriticalTablesPresent":  true,
+    "OfficialMigrationCount":  21,
+    "LegacyMigrationCount":  28,
+    "OfficialMigrations":  [
+                               {
+                                   "Path":  "supabase\\migrations\\20260812141355_remote_schema.sql",
+                                   "Sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                                   "Length":  0
+                               },
+                               {
+                                   "Path":  "supabase\\migrations\\20260812161413_klyx_phone_12_67.sql",
+                                   "Sha256":  "b4247fa8a6ba0241df328640ad5fe60c4b1dc91510ec2cbd0bcab84ebdd63d41",
+                                   "Length":  1013
+                               },
+                               {
+                                   "Path":  "supabase\\migrations\\20260812182000_klyx_phone_otp_security_12_71.sql",
+                                   "Sha256":  "84e658ee97318b75022c2edca5672c57d89c6a61a6c8138e38acbc7d88e8e5fd",
+                                   "Length":  708
+                               },
+                               {
+                                   "Path":  "supabase\\migrations\\20260812183500_klyx_phone_contact_audit_12_72.sql",
+                                   "Sha256":  "25641d165bba9a136b925cfa46fefcaf17c117a74c21677c7035833ee99a6efe",
+                                   "Length":  1030
+                               },
+                               {
+                                   "Path":  "supabase\\migrations\\20260812195600_klyx_multi_slot_market_12_83.sql",
+                                   "Sha256":  "83bf95fc438ebad546e4fef464518a60c118a2d058cfca48ed1f14345c778cb2",
+                                   "Length":  4260
+                               },
+                               {
+                                   "Path":  "supabase\\migrations\\20260812202000_klyx_booking_groups_12_85.sql",
+                                   "Sha256":  "a9f6ec16c3e113d0ef477f337c096847797c46664ccaab701133c1030d6134d9",
+                                   "Length":  14149
+                               },
+                               {
+                                   "Path":  "supabase\\migrations\\20260812203500_klyx_group_payment_12_86.sql",
+                                   "Sha256":  "ae8a57671ff0718a7c1a2d755dd477b2025ad2611c7b0f8c3e7693ca7a4529cb",
+                                   "Length":  3970
+                               },
+                               {
+                                   "Path":  "supabase\\migrations\\20260812205500_klyx_group_review_12_88.sql",
+                                   "Sha256":  "1439a3bfa08b7bcdbf77d6a1c2f223c31205ef196165ceb733018539c185f8e6",
+                                   "Length":  426
+                               },
+                               {
+                                   "Path":  "supabase\\migrations\\20260812210700_klyx_group_cancellation_request_12_89.sql",
+                                   "Sha256":  "63af0a62c1792f8a65719910bd9ce6c7daaaf90ef9b7e86f7b21bc5d995b57e0",
+                                   "Length":  2385
+                               },
+                               {
+                                   "Path":  "supabase\\migrations\\20260812211800_klyx_group_cancellation_resolution_12_90.sql",
+                                   "Sha256":  "c07704e3d523d3d6123d92cc1b7b9e8e32b3a5f96f090f4722b9d424aeaba181",
+                                   "Length":  6225
+                               },
+                               {
+                                   "Path":  "supabase\\migrations\\20260812223200_klyx_group_atomic_live_coverage_12_96.sql",
+                                   "Sha256":  "6f45fe7ea8dc07fee118ad285e9f57f28da757ce18951c26d93923c47e3b6b26",
+                                   "Length":  9057
+                               },
+                               {
+                                   "Path":  "supabase\\migrations\\20260813101500_klyx_group_provider_accept_live_13_06.sql",
+                                   "Sha256":  "92def032d66e91024faf78317ed650a1cf784ce21e764d012411ffde2058d542",
+                                   "Length":  8031
+                               },
+                               {
+                                   "Path":  "supabase\\migrations\\20260813102500_klyx_group_provider_accept_live_13_06.sql",
+                                   "Sha256":  "d633437317106fc739a0d7011891b9629f29f59cec0f1649f28e9b089c3ae22b",
+                                   "Length":  9252
+                               },
+                               {
+                                   "Path":  "supabase\\migrations\\20260813105500_klyx_multi_slot_offer_atomic_13_09.sql",
+                                   "Sha256":  "7b745c3d6a18bb94e85eff00e838fe047680c5aebe545637c2d721d36530024f",
+                                   "Length":  6978
+                               },
+                               {
+                                   "Path":  "supabase\\migrations\\20260813133650_klyx_split_plan_confirmation_compat_13_19i.sql",
+                                   "Sha256":  "bee79d07505ddfdee9f1e33389824fce02b6d43433e93a9df763642453bf19e6",
+                                   "Length":  3460
+                               },
+                               {
+                                   "Path":  "supabase\\migrations\\20260813133700_klyx_split_booking_batch_13_19.sql",
+                                   "Sha256":  "d0596aa89a3e6b9c02c04275b7f328ec42b41eab9c7a1086b5315dcf09bfc162",
+                                   "Length":  2683
+                               },
+                               {
+                                   "Path":  "supabase\\migrations\\20260813143000_klyx_split_booking_recovery_13_20.sql",
+                                   "Sha256":  "a4459e393954ac051c7a99f92d3bf71484ef4cb468f56938b32f36af2cf4506c",
+                                   "Length":  5406
+                               },
+                               {
+                                   "Path":  "supabase\\migrations\\20260813154500_klyx_split_price_confirmation_13_23.sql",
+                                   "Sha256":  "be594d3c9957e67f5ccc34e0ee97848f0eb4d61f01bac6f9f3fd2f6bfc9907f6",
+                                   "Length":  4036
+                               },
+                               {
+                                   "Path":  "supabase\\migrations\\20260813165000_klyx_split_payment_confirmation_13_26.sql",
+                                   "Sha256":  "6261281e01f29b7d1d449680ea35e0a5080138bbddf0185587abab7be7514ab6",
+                                   "Length":  5568
+                               },
+                               {
+                                   "Path":  "supabase\\migrations\\20260813174500_klyx_split_checkout_13_27.sql",
+                                   "Sha256":  "37aab80cc11b185e78cf5d3961bb22db772dde6137404bf84c3912427479ac53",
+                                   "Length":  10647
+                               },
+                               {
+                                   "Path":  "supabase\\migrations\\20260813182500_klyx_split_refund_reconciliation_13_28.sql",
+                                   "Sha256":  "8fc74ad1cf9c04bad88adc443cbc62da5cdfaaf65a05b1599f46917b4046b68a",
+                                   "Length":  4577
+                               }
+                           ],
+    "LegacyMigrations":  [
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260804_multi_profiles_phase_1.sql",
+                                 "Sha256":  "4eb5a016501c172738fe9eb096cf1df7f68bf208dce70e3ce5fd2c6bee68b8e3",
+                                 "Length":  2339
+                             },
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260805_active_profile_phase_2.sql",
+                                 "Sha256":  "81ec770dabd19a9fc53c55c4c67129838ee86c23731875ebdd32810ac97f75e0",
+                                 "Length":  17468
+                             },
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260805_booking_workflow_mvp.sql",
+                                 "Sha256":  "2466e9c2931dda461d78b8b2fe6c8e46e81d47cdb9f9a93ea2c019d315dba00c",
+                                 "Length":  5957
+                             },
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260805_payment_notifications_ux.sql",
+                                 "Sha256":  "07244533950a3f75d5f57ef895757521d7ac7cd6f8d7cf95aea0c9f809dc00b6",
+                                 "Length":  5719
+                             },
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260805_profile_management_phase_3.sql",
+                                 "Sha256":  "8389d912e83543314d91c645ec17c9c59cb8fc5625b98ccaa34a7333fabd416f",
+                                 "Length":  4911
+                             },
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260805_provider_commercial_profile.sql",
+                                 "Sha256":  "8c742f942f21faa4366e4d1f98df93a1ccd18cdbcf24a1c76d57a9d9add50073",
+                                 "Length":  8251
+                             },
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260805_service_proposals.sql",
+                                 "Sha256":  "206c4b29ad00bd15daaa4e0e440219577195ee1b168fa8e5d82a7545cc355bc4",
+                                 "Length":  1797
+                             },
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260805_unique_booking_payment.sql",
+                                 "Sha256":  "459ca83534620d25c611c2bf661c4104158e3ab250637e57a0df595034260737",
+                                 "Length":  6576
+                             },
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260806_cancellations_refunds.sql",
+                                 "Sha256":  "4e4ca9bfafca6acb1bbcac0e3d59103abf2a685509db0f01d8f09355479767f2",
+                                 "Length":  1039
+                             },
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260806_client_agent_plans.sql",
+                                 "Sha256":  "d087e6b3ea8e09ab400e12f1f0525015cfe3a5cbe8205197f5f26533e52ce4c5",
+                                 "Length":  1756
+                             },
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260806_client_memory_profile.sql",
+                                 "Sha256":  "b47716301a96b9a6f845affe2a5e91417465f630c976f24861dbedc6513e0707",
+                                 "Length":  1727
+                             },
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260806_dispute_administration.sql",
+                                 "Sha256":  "46d69cbddf3ead12513644738d0fe87020a5f54d2a1b7394c59fac05c6b8def1",
+                                 "Length":  1031
+                             },
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260806_mission_confirmation.sql",
+                                 "Sha256":  "e300d5a470eb72740ed06dcf13e47cdc0642903d7218534359f1be89ac6e4afd",
+                                 "Length":  442
+                             },
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260806_photo_service_requests.sql",
+                                 "Sha256":  "82e2616310faaae7c98d8091b0bf9dbc0d711590d8d3f9ba0fd70f8e0ea56a37",
+                                 "Length":  3466
+                             },
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260806_provider_assistant.sql",
+                                 "Sha256":  "7060f821a0335e14225539bfc1352186893c3fee2baac3adb8401a9274a4d24c",
+                                 "Length":  1461
+                             },
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260806_provider_service_zones.sql",
+                                 "Sha256":  "1674a6798234a3d4a2555048c475e3c4a3c253f7831ceacad72c41a69e03af9b",
+                                 "Length":  1879
+                             },
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260806_provider_verification.sql",
+                                 "Sha256":  "3648d89c4d550620be30e2ce784c31039b5ac013b06984184dff77a50885df53",
+                                 "Length":  6219
+                             },
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260806_security_risk.sql",
+                                 "Sha256":  "110deff4b0e67ae7b7a96e8d7dd3efa82e1ca0997106f8f5386fe258dc022f37",
+                                 "Length":  3308
+                             },
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260806_trust_disputes.sql",
+                                 "Sha256":  "24983e51675088439db138002100d4bae79febb2366aae1e91922a72abf07d86",
+                                 "Length":  3641
+                             },
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260806_verification_moderation.sql",
+                                 "Sha256":  "73bc485c5cd4b54419f878a31f55aa58d3ec4fe3a0b1fd5eea530ef2fe22d1b0",
+                                 "Length":  1551
+                             },
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260807_quote_booking_link.sql",
+                                 "Sha256":  "184dac2058ce9017bc9fa3f535b8d6f515e72d12579082054e57b970f6e99266",
+                                 "Length":  630
+                             },
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260807_service_quotes.sql",
+                                 "Sha256":  "b52f6237c735cead907f324615a0532944a7bea758e707cc9ef0f0bd8871a0b9",
+                                 "Length":  3026
+                             },
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260809_step_12_1_pricing.sql",
+                                 "Sha256":  "003cabb7e811afde8389c6e36c9d12b6806ff7c3b1c00707d7e2383c4351d32a",
+                                 "Length":  995
+                             },
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260809_step_12_5_security_gate.sql",
+                                 "Sha256":  "d0f22360d401c92a4b5b7dcaf4909bd9191b1acc67b92bae6f5f0add8eb0d541",
+                                 "Length":  1383
+                             },
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260811_step_12_24_open_requests_offers.sql",
+                                 "Sha256":  "432f3ee4cfc46496bc28b42083d8be9c3a434661ad94e9077ae6fa3d55527504",
+                                 "Length":  4170
+                             },
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260811_step_12_25_market_to_booking.sql",
+                                 "Sha256":  "2a832fdf11b298e9375b3dd4b8631c15a48c1e1118647e09de2630a0f77ef3f9",
+                                 "Length":  768
+                             },
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260811_step_12_27_market_notifications.sql",
+                                 "Sha256":  "12c0cf030952a2c252a3407d23611dbeed094518066ffb8fb104fb8f8c5ff9a3",
+                                 "Length":  721
+                             },
+                             {
+                                 "Path":  "supabase\\migrations_legacy_20260812-161308\\20260812154600_klyx_phone_12_67.sql",
+                                 "Sha256":  "b4247fa8a6ba0241df328640ad5fe60c4b1dc91510ec2cbd0bcab84ebdd63d41",
+                                 "Length":  1013
+                             }
+                         ],
+    "OfficialMigrationsUnchanged":  true,
+    "ProductionDatabaseModified":  false,
+    "LinkedWriteUsed":  false,
+    "FilesMoved":  0,
+    "FilesDeleted":  0,
+    "CutoverExecuted":  false,
+    "ReadyForControlledCutover":  true
+}

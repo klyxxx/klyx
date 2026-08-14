@@ -1,0 +1,27 @@
+======================================
+KLYX 13.40 - FINAL PRE-REPAIR SAFETY GATE
+======================================
+
+Remote public schema snapshot : CREATED
+Remote schema SHA256 : 088018edf8517632b4f436eb2cb3871b1bf7f30e85daa18d89b787ac5140c50f
+
+Remote migration history snapshot : CREATED
+Remote history SHA256 : 225e1a1678db599bd09a12c5751cf8ded7ec0bf36be9cfce825f7258e0ce7211
+
+Canonical baseline SHA256 : 850298c5ca38a2b0339e7b0cdc2d7522f72a5924e9acffcb87c8e5f012094ba2
+13.39 plan SHA256 : 5714cf2926d56ab6348ae435c0e48169cd018f5f6d376712028dab4baad2ef50
+13.39 commands SHA256 : ee4c0404893c253273ac54af63eece39f1577002c9d4053a6036e41cdf438de3
+
+Critical remote schema : VERIFIED
+Plan commands whitelist : VERIFIED
+Remote history unchanged since 13.39 : True
+
+Production DB modified : NON
+Production schema modified : NON
+Linked write : NON
+migration repair executed : NON
+db push --linked : NON
+db reset --linked : NON
+
+Ready for migration history repair : OUI
+======================================

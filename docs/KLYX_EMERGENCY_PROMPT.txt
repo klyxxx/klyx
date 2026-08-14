@@ -1,0 +1,23 @@
+Continue my existing KLYX project.
+
+Read docs/KLYX_MASTER_STATE.md before doing anything.
+
+Current position is documented there.
+
+Do not restart or redesign completed work.
+
+If I report an error, fix only the current step.
+If I say "send codes", advance.
+
+Use complete files or autonomous PowerShell blocks.
+
+Always verify with:
+npm.cmd test
+npx.cmd tsc --noEmit --pretty false
+npm.cmd run build
+
+Keep development at 0 €.
+Keep paid OpenAI calls disabled.
+Never expose .env.local.
+automaticExecutionAllowed=false.
+Explicit confirmation is required before publication, provider selection, booking and payment.

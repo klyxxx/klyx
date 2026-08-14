@@ -1,0 +1,781 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+  --radius-sm: 0.6rem;
+  --radius-md: 0.85rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 2rem;
+}
+
+:root {
+  --background: oklch(0.985 0.006 286);
+  --foreground: oklch(0.16 0.02 286);
+  --card: oklch(1 0 0 / 88%);
+  --card-foreground: oklch(0.16 0.02 286);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.16 0.02 286);
+  --primary: oklch(0.55 0.25 292);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.95 0.018 286);
+  --secondary-foreground: oklch(0.23 0.03 286);
+  --muted: oklch(0.96 0.012 286);
+  --muted-foreground: oklch(0.52 0.025 286);
+  --accent: oklch(0.94 0.035 292);
+  --accent-foreground: oklch(0.42 0.19 292);
+  --destructive: oklch(0.58 0.24 27);
+  --border: oklch(0.89 0.02 286 / 75%);
+  --input: oklch(0.9 0.018 286);
+  --ring: oklch(0.64 0.21 292);
+  --sidebar: oklch(0.16 0.03 286);
+  --sidebar-foreground: oklch(0.96 0.01 286);
+  --sidebar-primary: oklch(0.62 0.25 292);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.24 0.04 286);
+  --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-border: oklch(1 0 0 / 9%);
+}
+
+.dark {
+  --background: oklch(0.115 0.018 286);
+  --foreground: oklch(0.97 0.008 286);
+  --card: oklch(0.17 0.024 286 / 88%);
+  --card-foreground: oklch(0.97 0.008 286);
+  --popover: oklch(0.17 0.024 286);
+  --popover-foreground: oklch(0.97 0.008 286);
+  --primary: oklch(0.67 0.23 292);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.21 0.028 286);
+  --secondary-foreground: oklch(0.96 0.008 286);
+  --muted: oklch(0.2 0.024 286);
+  --muted-foreground: oklch(0.7 0.025 286);
+  --accent: oklch(0.25 0.07 292);
+  --accent-foreground: oklch(0.92 0.05 292);
+  --destructive: oklch(0.68 0.2 25);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 14%);
+  --ring: oklch(0.67 0.23 292);
+  --sidebar: oklch(0.095 0.018 286);
+  --sidebar-foreground: oklch(0.96 0.008 286);
+  --sidebar-primary: oklch(0.67 0.23 292);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.17 0.025 286);
+  --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-border: oklch(1 0 0 / 9%);
+}
+
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  html { @apply font-sans; }
+  body {
+    @apply bg-background text-foreground;
+    background-image:
+      radial-gradient(circle at 10% 0%, rgba(124, 58, 237, 0.10), transparent 27rem),
+      radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.07), transparent 28rem);
+    background-attachment: fixed;
+  }
+  ::selection { background: rgba(124, 58, 237, 0.28); }
+}
+
+@layer components {
+  .klyx-page { @apply mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-10 lg:py-10; }
+  .klyx-card {
+    @apply rounded-3xl border border-white/60 bg-card shadow-[0_18px_55px_rgba(24,24,27,0.07)] backdrop-blur-xl dark:border-white/8 dark:shadow-[0_22px_70px_rgba(0,0,0,0.28)];
+  }
+  .klyx-card-hover { @apply transition duration-300 hover:-translate-y-1 hover:shadow-[0_24px_70px_rgba(76,29,149,0.13)]; }
+  .klyx-eyebrow { @apply text-xs font-bold uppercase tracking-[0.2em] text-violet-600 dark:text-violet-400; }
+  .klyx-title { @apply text-3xl font-black tracking-[-0.045em] text-zinc-950 sm:text-4xl dark:text-white; }
+  .klyx-subtitle { @apply mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base; }
+  .klyx-input {
+    @apply h-12 w-full rounded-2xl border border-border bg-background/70 px-4 text-sm text-foreground shadow-sm outline-none transition placeholder:text-muted-foreground focus:border-violet-500 focus:ring-4 focus:ring-violet-500/10;
+  }
+  .klyx-button {
+    @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-700 to-indigo-600 px-5 text-sm font-bold text-white shadow-[0_12px_28px_rgba(109,40,217,0.28)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_35px_rgba(109,40,217,0.38)] disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:translate-y-0;
+  }
+  .klyx-button-secondary { @apply inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-card px-5 text-sm font-bold text-foreground transition hover:bg-accent; }
+  .filter-control {
+  @apply h-12 w-full rounded-2xl border border-border bg-background/70 px-4 text-sm text-foreground shadow-sm outline-none transition placeholder:text-muted-foreground focus:border-violet-500 focus:ring-4 focus:ring-violet-500/10;
+}
+}
+
+/* KLYX STEP 6.2D SELECTS */
+select,
+.klyx-input,
+.filter-control {
+  color-scheme: dark;
+}
+
+select {
+  background-color: rgb(18 18 24);
+  color: rgb(250 250 250);
+  border-color: rgb(63 63 70);
+}
+
+select:hover,
+select:focus {
+  border-color: rgb(139 92 246);
+  outline: none;
+}
+
+select option,
+select optgroup {
+  background: rgb(24 24 27);
+  color: rgb(250 250 250);
+}
+
+select option:checked {
+  background: rgb(109 40 217);
+  color: white;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+button:active:not(:disabled),
+a:active {
+  transform: scale(0.985);
+}
+
+/* KLYX 12.1 - mobile forms */
+.klyx-page,
+.klyx-card,
+form,
+fieldset,
+label {
+  min-width: 0;
+}
+
+.klyx-input,
+.filter-control,
+input,
+textarea,
+select {
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.filter-control {
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .klyx-page {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    font-size: 16px;
+  }
+}
+
+/* KLYX 12.8 - Light mode + mobile search */
+:root {
+  color-scheme: light;
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.klyx-input,
+.filter-control,
+input,
+textarea,
+select {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.klyx-input,
+.filter-control,
+select {
+  color-scheme: inherit;
+}
+
+select {
+  background-color: var(--background);
+  color: var(--foreground);
+  border-color: var(--border);
+}
+
+.dark select {
+  background-color: rgb(24 24 27);
+  color: rgb(250 250 250);
+  border-color: rgb(63 63 70);
+}
+
+select option,
+select optgroup {
+  background: white;
+  color: rgb(24 24 27);
+}
+
+.dark select option,
+.dark select optgroup {
+  background: rgb(24 24 27);
+  color: rgb(250 250 250);
+}
+
+select option:checked {
+  background: rgb(109 40 217);
+  color: white;
+}
+
+input[type="date"],
+input[type="time"] {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+@media (max-width: 640px) {
+  input[type="date"],
+  input[type="time"] {
+    padding-left: 0.75rem;
+    padding-right: 0.5rem;
+  }
+}
+
+/* KLYX 12.9 - GLOBAL LIGHT MODE */
+:root { color-scheme: light; }
+.dark { color-scheme: dark; }
+
+.klyx-app-shell,
+.klyx-app-content {
+  color: var(--foreground);
+}
+
+input,
+textarea,
+select {
+  color: var(--foreground);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted-foreground);
+}
+
+img,
+svg {
+  max-width: 100%;
+}
+
+
+/* KLYX 12.10 - THEME FINAL + MOBILE SAFARI */
+
+/*
+  12.10 does not rewrite business pages.
+  It neutralizes legacy dark-only utility classes only when the root is NOT dark.
+*/
+html:not(.dark) .klyx-app-content [class*="bg-zinc-950"] {
+  background-color: var(--background) !important;
+}
+
+html:not(.dark) .klyx-app-content [class*="bg-zinc-900"] {
+  background-color: var(--card) !important;
+}
+
+html:not(.dark) .klyx-app-content [class*="bg-zinc-800"] {
+  background-color: var(--muted) !important;
+}
+
+html:not(.dark) .klyx-app-content [class*="border-zinc-800"],
+html:not(.dark) .klyx-app-content [class*="border-zinc-700"] {
+  border-color: var(--border) !important;
+}
+
+html:not(.dark) .klyx-app-content [class*="text-zinc-100"],
+html:not(.dark) .klyx-app-content [class*="text-zinc-200"],
+html:not(.dark) .klyx-app-content [class*="text-zinc-300"] {
+  color: var(--foreground) !important;
+}
+
+html:not(.dark) .klyx-app-content [class*="text-zinc-400"],
+html:not(.dark) .klyx-app-content [class*="text-zinc-500"],
+html:not(.dark) .klyx-app-content [class*="text-zinc-600"] {
+  color: var(--muted-foreground) !important;
+}
+
+/* Mobile top bar / hamburger. */
+html:not(.dark) button[aria-label="Ouvrir le menu"],
+html:not(.dark) button[aria-label="Fermer le menu"] {
+  color: var(--foreground) !important;
+  background: var(--card) !important;
+  border-color: var(--border) !important;
+}
+
+.dark button[aria-label="Ouvrir le menu"],
+.dark button[aria-label="Fermer le menu"] {
+  color: white !important;
+}
+
+/* Search/date/time controls must never exceed their parent on Safari/iPhone. */
+input[type="date"],
+input[type="time"] {
+  display: block;
+  inline-size: 100%;
+  width: 100%;
+  max-inline-size: 100%;
+  max-width: 100%;
+  min-inline-size: 0;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+input[type="date"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value {
+  min-width: 0;
+  text-align: left;
+}
+
+@media (max-width: 640px) {
+  input[type="date"],
+  input[type="time"] {
+    inline-size: 100% !important;
+    width: 100% !important;
+    max-inline-size: 100% !important;
+    max-width: 100% !important;
+    min-inline-size: 0 !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding-inline: 0.875rem !important;
+    overflow: hidden !important;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator {
+    margin: 0;
+    padding: 0;
+    opacity: 0.72;
+  }
+
+  .klyx-app-content,
+  .klyx-app-content > main,
+  .klyx-app-content form,
+  .klyx-app-content fieldset,
+  .klyx-app-content label {
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
+
+/* KLYX 12.10B - LIGHT PROFILES + MOBILE FIELDS */
+
+/* -------------------------------------------------------
+   1. MODE CLAIR : cartes/profils encore gris ou sombres
+   ------------------------------------------------------- */
+
+html:not(.dark) .klyx-app-content article,
+html:not(.dark) .klyx-app-content section,
+html:not(.dark) .klyx-app-content aside,
+html:not(.dark) .klyx-app-content form {
+  color: var(--foreground);
+}
+
+/* Neutralise les anciennes surfaces sombres uniquement en mode clair. */
+html:not(.dark) .klyx-app-content [class*="bg-zinc-950"],
+html:not(.dark) .klyx-app-content [class*="bg-neutral-950"],
+html:not(.dark) .klyx-app-content [class*="bg-stone-950"] {
+  background-color: var(--background) !important;
+}
+
+html:not(.dark) .klyx-app-content [class*="bg-zinc-900"],
+html:not(.dark) .klyx-app-content [class*="bg-neutral-900"],
+html:not(.dark) .klyx-app-content [class*="bg-stone-900"] {
+  background-color: var(--card) !important;
+}
+
+html:not(.dark) .klyx-app-content [class*="bg-zinc-800"],
+html:not(.dark) .klyx-app-content [class*="bg-neutral-800"],
+html:not(.dark) .klyx-app-content [class*="bg-stone-800"] {
+  background-color: var(--muted) !important;
+}
+
+/* Bordures legacy */
+html:not(.dark) .klyx-app-content [class*="border-zinc-800"],
+html:not(.dark) .klyx-app-content [class*="border-zinc-700"],
+html:not(.dark) .klyx-app-content [class*="border-neutral-800"],
+html:not(.dark) .klyx-app-content [class*="border-neutral-700"] {
+  border-color: var(--border) !important;
+}
+
+/* Texte legacy */
+html:not(.dark) .klyx-app-content [class*="text-zinc-100"],
+html:not(.dark) .klyx-app-content [class*="text-zinc-200"],
+html:not(.dark) .klyx-app-content [class*="text-zinc-300"],
+html:not(.dark) .klyx-app-content [class*="text-neutral-100"],
+html:not(.dark) .klyx-app-content [class*="text-neutral-200"],
+html:not(.dark) .klyx-app-content [class*="text-neutral-300"] {
+  color: var(--foreground) !important;
+}
+
+html:not(.dark) .klyx-app-content [class*="text-zinc-400"],
+html:not(.dark) .klyx-app-content [class*="text-zinc-500"],
+html:not(.dark) .klyx-app-content [class*="text-zinc-600"],
+html:not(.dark) .klyx-app-content [class*="text-neutral-400"],
+html:not(.dark) .klyx-app-content [class*="text-neutral-500"],
+html:not(.dark) .klyx-app-content [class*="text-neutral-600"] {
+  color: var(--muted-foreground) !important;
+}
+
+/* Les cartes de profil doivent rester blanches/claires. */
+html:not(.dark) .klyx-app-content article[class*="rounded"],
+html:not(.dark) .klyx-app-content section[class*="rounded"][class*="border"],
+html:not(.dark) .klyx-app-content aside[class*="rounded"][class*="border"] {
+  background-color: var(--card);
+  border-color: var(--border);
+}
+
+/* -------------------------------------------------------
+   2. INPUTS DATE / TIME : Safari / iPhone / petits ecrans
+   ------------------------------------------------------- */
+
+input[type="date"],
+input[type="time"] {
+  display: block;
+  inline-size: 100%;
+  width: 100%;
+  max-inline-size: 100%;
+  max-width: 100%;
+  min-inline-size: 0;
+  min-width: 0;
+  box-sizing: border-box;
+  appearance: none;
+  -webkit-appearance: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--foreground);
+  background-color: color-mix(in oklab, var(--background) 82%, transparent);
+}
+
+.dark input[type="date"],
+.dark input[type="time"] {
+  color-scheme: dark;
+}
+
+html:not(.dark) input[type="date"],
+html:not(.dark) input[type="time"] {
+  color-scheme: light;
+}
+
+input[type="date"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value {
+  min-width: 0;
+  width: 100%;
+  text-align: left;
+}
+
+input[type="date"]::-webkit-datetime-edit,
+input[type="time"]::-webkit-datetime-edit {
+  min-width: 0;
+  padding: 0;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-calendar-picker-indicator {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0;
+  opacity: 0.72;
+}
+
+/* Tous les parents directs des controles doivent pouvoir retrecir. */
+.klyx-app-content label,
+.klyx-app-content form,
+.klyx-app-content fieldset,
+.klyx-app-content .grid,
+.klyx-app-content .flex {
+  min-width: 0;
+}
+
+@media (max-width: 640px) {
+  .klyx-app-content input[type="date"],
+  .klyx-app-content input[type="time"] {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    inline-size: 100% !important;
+    max-inline-size: 100% !important;
+    min-inline-size: 0 !important;
+    margin: 0 !important;
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+
+  .klyx-app-content input,
+  .klyx-app-content select,
+  .klyx-app-content textarea {
+    max-width: 100%;
+    min-width: 0;
+  }
+}
+
+/* -------------------------------------------------------
+   3. MENU MOBILE
+   ------------------------------------------------------- */
+
+html:not(.dark) button[aria-label="Ouvrir le menu"],
+html:not(.dark) button[aria-label="Fermer le menu"] {
+  color: #09090b !important;
+}
+
+.dark button[aria-label="Ouvrir le menu"],
+.dark button[aria-label="Fermer le menu"] {
+  color: #ffffff !important;
+}
+
+
+/* KLYX 12.16 - CANONICAL MOBILE + LIGHT/DARK */
+
+/* Cette couche est volontairement la dernière source de vérité du thème. */
+:root {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+html,
+body,
+.klyx-app-shell,
+.klyx-app-content {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+html,
+body {
+  overflow-x: clip;
+}
+
+/* Les contrôles natifs ne sont plus forcés en dark par les anciens styles 6.2D. */
+html:not(.dark) select,
+html:not(.dark) input,
+html:not(.dark) textarea {
+  color-scheme: light;
+}
+
+html.dark select,
+html.dark input,
+html.dark textarea {
+  color-scheme: dark;
+}
+
+html:not(.dark) select {
+  background-color: var(--background);
+  color: var(--foreground);
+  border-color: var(--border);
+}
+
+html:not(.dark) select option,
+html:not(.dark) select optgroup {
+  background: white;
+  color: rgb(24 24 27);
+}
+
+html.dark select {
+  background-color: rgb(24 24 27);
+  color: rgb(250 250 250);
+  border-color: rgb(63 63 70);
+}
+
+html.dark select option,
+html.dark select optgroup {
+  background: rgb(24 24 27);
+  color: rgb(250 250 250);
+}
+
+/* Les anciennes classes dark ne doivent jamais rendre une carte grise en mode clair. */
+html:not(.dark) .klyx-app-content [class*="dark:bg-zinc-950"],
+html:not(.dark) .klyx-app-content [class*="dark:bg-zinc-900"] {
+  background-color: var(--card) !important;
+}
+
+html:not(.dark) .klyx-app-content [class*="dark:bg-zinc-800"] {
+  background-color: var(--muted) !important;
+}
+
+html:not(.dark) .klyx-app-content [class*="dark:border-zinc-800"],
+html:not(.dark) .klyx-app-content [class*="dark:border-zinc-700"] {
+  border-color: var(--border) !important;
+}
+
+/* Champs mobiles : aucun parent ne peut imposer une largeur intrinsèque. */
+.klyx-app-content form,
+.klyx-app-content fieldset,
+.klyx-app-content label,
+.klyx-app-content .grid,
+.klyx-app-content .flex {
+  min-width: 0;
+}
+
+.klyx-app-content input,
+.klyx-app-content textarea,
+.klyx-app-content select,
+.klyx-input,
+.filter-control {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* iOS/Safari date et heure. */
+.klyx-app-content input[type="date"],
+.klyx-app-content input[type="time"] {
+  display: block;
+  inline-size: 100%;
+  width: 100%;
+  max-inline-size: 100%;
+  max-width: 100%;
+  min-inline-size: 0;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.klyx-app-content input[type="date"]::-webkit-date-and-time-value,
+.klyx-app-content input[type="time"]::-webkit-date-and-time-value {
+  min-width: 0;
+  width: 100%;
+  text-align: left;
+}
+
+.klyx-app-content input[type="date"]::-webkit-datetime-edit,
+.klyx-app-content input[type="time"]::-webkit-datetime-edit {
+  min-width: 0;
+  padding: 0;
+}
+
+.klyx-app-content input[type="date"]::-webkit-calendar-picker-indicator,
+.klyx-app-content input[type="time"]::-webkit-calendar-picker-indicator {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+/* Mobile header/menu : contraste garanti. */
+html:not(.dark) button[aria-label="Ouvrir le menu"],
+html:not(.dark) button[aria-label="Fermer le menu"] {
+  color: var(--foreground) !important;
+  background-color: var(--card) !important;
+  border-color: var(--border) !important;
+}
+
+html.dark button[aria-label="Ouvrir le menu"],
+html.dark button[aria-label="Fermer le menu"] {
+  color: white !important;
+}
+
+/* Le logo hérite du thème : noir en clair, blanc en sombre. */
+html:not(.dark) .klyx-logo {
+  color: rgb(9 9 11);
+}
+
+html.dark .klyx-logo {
+  color: white;
+}
+
+@media (max-width: 640px) {
+  .klyx-page {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .klyx-app-content input,
+  .klyx-app-content textarea,
+  .klyx-app-content select,
+  .klyx-app-content button {
+    font-size: 16px;
+  }
+
+  .klyx-app-content input[type="date"],
+  .klyx-app-content input[type="time"] {
+    padding-inline: 0.75rem !important;
+    overflow: hidden;
+  }
+
+  .klyx-app-content [class*="grid-cols-"] {
+    min-width: 0;
+  }
+}
+
+/* KLYX_FIXED_SIDEBAR_12_67C */
+@media (min-width: 1024px) {
+  [data-klyx-fixed-sidebar="true"] {
+    position: fixed !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 312px !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    z-index: 60 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    overscroll-behavior: contain !important;
+  }
+
+  :where(div, section, main):has(> [data-klyx-fixed-sidebar="true"]) {
+    padding-left: 312px !important;
+  }
+}

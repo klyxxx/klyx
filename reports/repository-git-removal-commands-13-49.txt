@@ -1,0 +1,14 @@
+# ============================================================
+# KLYX 13.49 - GENERATED GIT REMOVAL PLAN
+# DO NOT EXECUTE AUTOMATICALLY
+# ============================================================
+
+Set-Location "C:\Users\fenjo\Documents\klyx"
+
+
+git status --short
+npm.cmd test
+npx.cmd tsc --noEmit --pretty false
+npm.cmd run build
+
+# END - GENERATED ONLY

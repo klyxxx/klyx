@@ -1,0 +1,93 @@
+======================================
+KLYX 13.31 - SUPABASE MIGRATION AUDIT
+======================================
+
+SQL total : 54
+Migrations actives : 21
+SQL disperses : 33
+Dossiers migration legacy : 1
+Timestamps dupliques : 0
+
+Fresh rebuild ready : False
+Destructive changes : NON
+
+---- MIGRATIONS ACTIVES ----
+20260812141355_remote_schema.sql | empty=True | tables=0 | alters=0 | functions=0 | policies=0
+20260812161413_klyx_phone_12_67.sql | empty=False | tables=0 | alters=4 | functions=0 | policies=0
+20260812182000_klyx_phone_otp_security_12_71.sql | empty=False | tables=1 | alters=1 | functions=0 | policies=0
+20260812183500_klyx_phone_contact_audit_12_72.sql | empty=False | tables=1 | alters=1 | functions=0 | policies=0
+20260812195600_klyx_multi_slot_market_12_83.sql | empty=False | tables=2 | alters=9 | functions=0 | policies=0
+20260812202000_klyx_booking_groups_12_85.sql | empty=False | tables=1 | alters=4 | functions=2 | policies=0
+20260812203500_klyx_group_payment_12_86.sql | empty=False | tables=0 | alters=13 | functions=1 | policies=0
+20260812205500_klyx_group_review_12_88.sql | empty=False | tables=0 | alters=1 | functions=0 | policies=0
+20260812210700_klyx_group_cancellation_request_12_89.sql | empty=False | tables=1 | alters=8 | functions=0 | policies=0
+20260812211800_klyx_group_cancellation_resolution_12_90.sql | empty=False | tables=0 | alters=10 | functions=1 | policies=0
+20260812223200_klyx_group_atomic_live_coverage_12_96.sql | empty=False | tables=0 | alters=0 | functions=2 | policies=0
+20260813101500_klyx_group_provider_accept_live_13_06.sql | empty=False | tables=0 | alters=0 | functions=1 | policies=0
+20260813102500_klyx_group_provider_accept_live_13_06.sql | empty=False | tables=0 | alters=0 | functions=1 | policies=0
+20260813105500_klyx_multi_slot_offer_atomic_13_09.sql | empty=False | tables=0 | alters=0 | functions=1 | policies=0
+20260813133650_klyx_split_plan_confirmation_compat_13_19i.sql | empty=False | tables=1 | alters=1 | functions=1 | policies=0
+20260813133700_klyx_split_booking_batch_13_19.sql | empty=False | tables=2 | alters=2 | functions=0 | policies=0
+20260813143000_klyx_split_booking_recovery_13_20.sql | empty=False | tables=1 | alters=1 | functions=3 | policies=0
+20260813154500_klyx_split_price_confirmation_13_23.sql | empty=False | tables=1 | alters=1 | functions=1 | policies=0
+20260813165000_klyx_split_payment_confirmation_13_26.sql | empty=False | tables=1 | alters=1 | functions=1 | policies=0
+20260813174500_klyx_split_checkout_13_27.sql | empty=False | tables=2 | alters=2 | functions=5 | policies=0
+20260813182500_klyx_split_refund_reconciliation_13_28.sql | empty=False | tables=1 | alters=10 | functions=1 | policies=0
+
+---- SQL DISPERSES ----
+C:\Users\fenjo\Documents\klyx\supabase\step-8-0-stripe-webhook-events.sql
+C:\Users\fenjo\Documents\klyx\supabase\step-8-1-booking-financial-ledger.sql
+C:\Users\fenjo\Documents\klyx\supabase\step-9-0-provider-skill-verification.sql
+C:\Users\fenjo\Documents\klyx\supabase\step-9-2-sumsub.sql
+C:\Users\fenjo\Documents\klyx\supabase\step-9-3-skill-qualification-rules.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260804_multi_profiles_phase_1.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260805_active_profile_phase_2.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260805_booking_workflow_mvp.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260805_payment_notifications_ux.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260805_profile_management_phase_3.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260805_provider_commercial_profile.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260805_service_proposals.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260805_unique_booking_payment.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260806_cancellations_refunds.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260806_client_agent_plans.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260806_client_memory_profile.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260806_dispute_administration.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260806_mission_confirmation.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260806_photo_service_requests.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260806_provider_assistant.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260806_provider_service_zones.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260806_provider_verification.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260806_security_risk.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260806_trust_disputes.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260806_verification_moderation.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260807_quote_booking_link.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260807_service_quotes.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260809_step_12_1_pricing.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260809_step_12_5_security_gate.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260811_step_12_24_open_requests_offers.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260811_step_12_25_market_to_booking.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260811_step_12_27_market_notifications.sql
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260812154600_klyx_phone_12_67.sql
+
+---- DOSSIERS MIGRATION LEGACY ----
+C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308
+
+---- COUVERTURE STRUCTURES CRITIQUES ----
+profiles : 34
+bookings : 16
+services : 10
+user_services : 10
+service_profiles : 5
+split_booking_batches : 6
+split_booking_batch_items : 2
+split_booking_price_confirmations : 2
+split_booking_payment_confirmations : 2
+split_booking_payment_runs : 2
+split_booking_payment_units : 2
+booking_financial_ledger : 1
+stripe : 9
+sumsub : 1
+rls : 2
+policy : 19
+
+======================================

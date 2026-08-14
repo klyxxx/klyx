@@ -1,0 +1,38 @@
+import {
+  defineConfig,
+} from "vitest/config";
+
+// KLYX_AUTOMATED_TEST_FOUNDATION_13_29
+// KLYX_VITEST_NATIVE_SAFE_13_29A
+
+export default defineConfig({
+  test: {
+    environment:
+      "node",
+
+    globals:
+      false,
+
+    include: [
+      "tests/**/*.test.ts",
+    ],
+
+    exclude: [
+      "node_modules/**",
+      ".next/**",
+      "scripts/backups/**",
+    ],
+
+    clearMocks:
+      true,
+
+    restoreMocks:
+      true,
+
+    mockReset:
+      true,
+
+    testTimeout:
+      10_000,
+  },
+});

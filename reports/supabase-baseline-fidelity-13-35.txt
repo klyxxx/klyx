@@ -1,0 +1,21 @@
+======================================
+KLYX 13.35 - BASELINE FIDELITY AUDIT
+======================================
+
+tables | remote=60 | local=60 | equal=True
+views | remote=0 | local=0 | equal=True
+functions | remote=45 | local=45 | equal=True
+indexes | remote=105 | local=105 | equal=True
+policies | remote=69 | local=69 | equal=True
+triggers | remote=16 | local=16 | equal=True
+types | remote=0 | local=0 | equal=True
+
+Object inventories equal : True
+Critical tables present : True
+Raw dump hashes equal : False
+
+Production DB modified : NON
+Linked write used : NON
+Official migrations modified : NON
+
+======================================

@@ -1,0 +1,18 @@
+======================================
+KLYX 13.34 LOCAL REBUILD
+======================================
+
+Status : BLOCKED_NO_DOCKER
+Docker available : NON
+Local Supabase started : NON
+Local DB reset : NON
+Migrations prepared : 52
+
+Production DB modified : NON
+--linked used : NON
+--db-url used : NON
+
+Action requise :
+Installer/demarrer Docker Desktop puis relancer le checker.
+
+======================================

@@ -1,0 +1,5 @@
+KLYX 13.33
+Phase: 03_services_market
+Files: 1
+
+0043_20260809_step_12_1_pricing.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260809_step_12_1_pricing.sql

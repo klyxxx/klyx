@@ -1,0 +1,3020 @@
+{
+    "Step":  "13.52",
+    "GeneratedAt":  "2026-08-13T21:51:50.8954480+02:00",
+    "BrainRelatedFileCount":  119,
+    "BrainApiRouteCount":  11,
+    "AssistantRelatedRouteCount":  13,
+    "LlmSignalFileCount":  3,
+    "TrueLlmAlreadyPresent":  true,
+    "RuleHeavyFileCount":  97,
+    "ConfirmationGuardFileCount":  92,
+    "MemoryRelatedFileCount":  73,
+    "BrainFiles":  [
+                       {
+                           "RelativePath":  "app\\page.tsx",
+                           "BrainSignals":  [
+                                                "assistant"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  0,
+                           "ConfirmationSignals":  [
+
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  11896,
+                           "Sha256":  "903f4b079b877a3e739f9110c6975ac8f1846c63bd41ccfcb07a5d2a21d7014e"
+                       },
+                       {
+                           "RelativePath":  "app\\admin\\disputes\\page.tsx",
+                           "BrainSignals":  [
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  8,
+                           "ConfirmationSignals":  [
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  15989,
+                           "Sha256":  "7742d141c822ee935c4a8615db3fb3987e4c1b1878b0d016a4ced93876a8f9c0"
+                       },
+                       {
+                           "RelativePath":  "app\\admin\\verifications\\page.tsx",
+                           "BrainSignals":  [
+                                                "recommend"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  3,
+                           "ConfirmationSignals":  [
+
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  12753,
+                           "Sha256":  "698f38725c9d224c615a26aeb09e4639594c73b9f6dbf55dbd0f267a8be3fc29"
+                       },
+                       {
+                           "RelativePath":  "app\\agent\\page.tsx",
+                           "BrainSignals":  [
+                                                "memory"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  7,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "memory"
+                                             ],
+                           "Length":  15400,
+                           "Sha256":  "2bce9d56e01f0efc6b1ae5af16dda8e7556da0bc68547c650a30b9d250572d31"
+                       },
+                       {
+                           "RelativePath":  "app\\ai-status\\page.tsx",
+                           "BrainSignals":  [
+                                                "assistant"
+                                            ],
+                           "LlmSignals":  [
+                                              "openai"
+                                          ],
+                           "RuleSignalCount":  0,
+                           "ConfirmationSignals":  [
+                                                       "confirm"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  2692,
+                           "Sha256":  "3e4559942b0736cd8ec50447a99b56d34ecc900c28fa2ef07e2f0f2cd7f4313e"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\agent\\plans\\route.ts",
+                           "BrainSignals":  [
+                                                "memory"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  13,
+                           "ConfirmationSignals":  [
+
+                                                   ],
+                           "MemorySignals":  [
+                                                 "memory",
+                                                 "preferences",
+                                                 "profile"
+                                             ],
+                           "Length":  7541,
+                           "Sha256":  "d1d9f07549f8859c2de126438d82d4ddbc6aed4decee105889950235c7cbc168"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\booking-groups\\[id]\\route.ts",
+                           "BrainSignals":  [
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  26,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  16573,
+                           "Sha256":  "40cf0f6f106199d940962de899f4cae5b0d806e87e59bd3d17e8c53759ecfa34"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\booking-groups\\[id]\\cancellation\\route.ts",
+                           "BrainSignals":  [
+                                                "market",
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  36,
+                           "ConfirmationSignals":  [
+                                                       "explicit",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  20051,
+                           "Sha256":  "037827d57c88ca6d706372c94b2f833c6204c71ba8b422c2f6e4ff0ea20497a6"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\bookings\\create\\route.ts",
+                           "BrainSignals":  [
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  39,
+                           "ConfirmationSignals":  [
+                                                       "payment",
+                                                       "publish"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  16906,
+                           "Sha256":  "686b904249834b58d1cb3f5c4b1d7c0462e39a8afa0bd41c5230347987e099bd"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\bookings\\split-missions\\route.ts",
+                           "BrainSignals":  [
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  31,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "confirmed",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  21652,
+                           "Sha256":  "a3f74423bd28693ad73ee9387ead48d5f63ffb25c11ec8244a98bb98d16d3941"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\bookings\\split-missions\\[id]\\acceptance\\route.ts",
+                           "BrainSignals":  [
+                                                "market",
+                                                "recommend"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  25,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "confirmed",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  12979,
+                           "Sha256":  "07d9f55054dc2f12d018dc30eff7308dae07fcc0214cffee6a9c4639f1a16ba5"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\bookings\\split-missions\\[id]\\checkout\\route.ts",
+                           "BrainSignals":  [
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  72,
+                           "ConfirmationSignals":  [
+                                                       "checkout",
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "confirmed",
+                                                       "explicit",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  40661,
+                           "Sha256":  "cb08ac241182d800d05be4b2fae2d07a15acb0c95b6cd88aef213dfc6c0deca2"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\bookings\\split-missions\\[id]\\prices\\route.ts",
+                           "BrainSignals":  [
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  36,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "confirmed",
+                                                       "explicit",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  21461,
+                           "Sha256":  "776591bb9445a26c217329dcb64d5a801439141da63b40d84eab9ebe14b91379"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\brain\\actions\\route.ts",
+                           "BrainSignals":  [
+                                                "brain"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  2,
+                           "ConfirmationSignals":  [
+                                                       "automaticExecutionAllowed"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  3481,
+                           "Sha256":  "dd27105610884a2d68b02689390248bbfc1e5ecd47dc8edbe0e0d9dce2346f8d"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\brain\\command\\route.ts",
+                           "BrainSignals":  [
+                                                "assistant",
+                                                "brain",
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  15,
+                           "ConfirmationSignals":  [
+                                                       "automaticExecutionAllowed",
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  7209,
+                           "Sha256":  "33c037faffb7fa35d23015f5d11f88c3284c5bc74c9f1221c9da662df1bdd2c7"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\brain\\confirm-request\\route.ts",
+                           "BrainSignals":  [
+                                                "brain"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  11,
+                           "ConfirmationSignals":  [
+                                                       "automaticExecutionAllowed",
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "confirmed",
+                                                       "explicit"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  6323,
+                           "Sha256":  "26a6cae9f0fda63a19dbd0337a3d0de94b1e275bc2ac125d1af217dbdb93637e"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\brain\\market-advice\\[id]\\route.ts",
+                           "BrainSignals":  [
+                                                "market",
+                                                "recommend"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  26,
+                           "ConfirmationSignals":  [
+                                                       "explicit"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  30815,
+                           "Sha256":  "5c9319b3516da91f0193ad0236152792ec41109e99e696c0e9b419bc5d644531"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\brain\\market-publish\\route.ts",
+                           "BrainSignals":  [
+                                                "assistant",
+                                                "brain",
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  9,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "confirmed",
+                                                       "explicit",
+                                                       "publish"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  5362,
+                           "Sha256":  "95c2f83b87c0f281f2c2b419b9b55cb3c699d2ed94b527b3d93f59dbebdd4a0c"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\brain\\market-publish-multi\\route.ts",
+                           "BrainSignals":  [
+                                                "assistant",
+                                                "brain",
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  14,
+                           "ConfirmationSignals":  [
+                                                       "automaticExecutionAllowed",
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "confirmed",
+                                                       "explicit",
+                                                       "publish"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  8369,
+                           "Sha256":  "ba666b23634b2904b4211c532181f94814e889d0e0af2e47ad83290bf277124c"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\brain\\market-split-plan\\[id]\\route.ts",
+                           "BrainSignals":  [
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  8,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  4926,
+                           "Sha256":  "85604a630e35f2d5b8646b5b2869ea52f18e2722630a3585d9dfc7940bea547c"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\brain\\market-status\\[id]\\route.ts",
+                           "BrainSignals":  [
+                                                "assistant",
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  12,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  5193,
+                           "Sha256":  "6774e5bde20651cb0b66685ec6c62a0d86f66e652a737d94d23dc6c96f25bd5c"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\brain\\memory-context\\route.ts",
+                           "BrainSignals":  [
+                                                "memory"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  9,
+                           "ConfirmationSignals":  [
+
+                                                   ],
+                           "MemorySignals":  [
+                                                 "memory",
+                                                 "preferences",
+                                                 "profile"
+                                             ],
+                           "Length":  4268,
+                           "Sha256":  "0fd46fa6ec5cd949470096cde390f3fcf7e1c91d3921ef5e1e4ef33541776114"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\brain\\recommend\\route.ts",
+                           "BrainSignals":  [
+                                                "recommend"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  11,
+                           "ConfirmationSignals":  [
+
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  4906,
+                           "Sha256":  "0b325d1c61b78971f5fd5d6d590d65bda93cdf9fa760e098595a79f0cc478d7d"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\brain\\respond\\route.ts",
+                           "BrainSignals":  [
+                                                "assistant",
+                                                "brain",
+                                                "market",
+                                                "memory"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  62,
+                           "ConfirmationSignals":  [
+                                                       "automaticExecutionAllowed",
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "explicit",
+                                                       "payment",
+                                                       "publish"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "memory",
+                                                 "preferences",
+                                                 "profile"
+                                             ],
+                           "Length":  29441,
+                           "Sha256":  "a36b98903cdfd11a73305807d91cae03971e52918e1b9ba92f93d68acaafeca1"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\group-reviews\\route.ts",
+                           "BrainSignals":  [
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  21,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  11902,
+                           "Sha256":  "92f3f17c24483d95a89bb054651d04ee7732de15f246b333dc90d7431b3d692e"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\market\\requests\\route.ts",
+                           "BrainSignals":  [
+                                                "market",
+                                                "recommend"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  24,
+                           "ConfirmationSignals":  [
+
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  15966,
+                           "Sha256":  "504d2d02019de4f0ab5a235fdf13d2bfa2ef4168c2833e450d2d18e0a41efc96"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\market\\requests\\[id]\\group-booking\\route.ts",
+                           "BrainSignals":  [
+                                                "assistant",
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  40,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  23029,
+                           "Sha256":  "ead4da63b3534c719e0074510bb676b156148c6a5765b1efbaeffa55d6a14e3b"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\market\\requests\\[id]\\offers\\route.ts",
+                           "BrainSignals":  [
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  53,
+                           "ConfirmationSignals":  [
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  25162,
+                           "Sha256":  "652ff06f46a15129a79336727bf9a21fa7e1d86b5e400e2e189913dfc94e3ca2"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\market\\requests\\[id]\\split-fallback\\route.ts",
+                           "BrainSignals":  [
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  12,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "explicit",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  12757,
+                           "Sha256":  "0f627784a762f6b854fb7521b82f294551261d77e779a233b937431da28750fa"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\market\\requests\\[id]\\split-fallback\\book\\route.ts",
+                           "BrainSignals":  [
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  34,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "confirmed",
+                                                       "explicit",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  25593,
+                           "Sha256":  "424f53d307b0182e69538372333511bde29ecac8c254b681e8ad874388576663"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\market\\requests\\[id]\\split-fallback\\book\\recovery\\route.ts",
+                           "BrainSignals":  [
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  32,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "confirmed",
+                                                       "explicit",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  15173,
+                           "Sha256":  "a49ca9a1051804e043abfa4804b29c28d8a2e35985f7057656a5a5c19b126825"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\market\\requests\\[id]\\split-fallback\\confirm\\route.ts",
+                           "BrainSignals":  [
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  37,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "confirmed",
+                                                       "explicit",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  22431,
+                           "Sha256":  "761fb0ac021cec635ffd2e9baac8c8fba4446a7353808928657e9d7c8c3e4ed0"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\market\\requests\\[id]\\split-fallback\\slot-map\\route.ts",
+                           "BrainSignals":  [
+                                                "market",
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  44,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "explicit",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  32827,
+                           "Sha256":  "8e96c39168287758bd222c86cae5fd0060c9e42a0b931baab1064e063811380d"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\memory\\preferences\\route.ts",
+                           "BrainSignals":  [
+                                                "memory"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  2,
+                           "ConfirmationSignals":  [
+
+                                                   ],
+                           "MemorySignals":  [
+                                                 "memory",
+                                                 "preferences",
+                                                 "profile"
+                                             ],
+                           "Length":  3316,
+                           "Sha256":  "61571a7b6572490b4fb2d8973a94589980f5d4a13bccf5467bc3f3a7ef68624f"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\memory\\profile\\route.ts",
+                           "BrainSignals":  [
+                                                "memory"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  11,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmed"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "memory",
+                                                 "preferences",
+                                                 "profile"
+                                             ],
+                           "Length":  9510,
+                           "Sha256":  "e8bc40ae5542f6adedae14232a78b92ed0d949fefd3a27e604f56df67f7f93af"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\provider\\assistant\\route.ts",
+                           "BrainSignals":  [
+                                                "assistant"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  20,
+                           "ConfirmationSignals":  [
+
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  8173,
+                           "Sha256":  "95a8fc84d080dd669f93f08b11ca0d7f48448f535b2436edb260b96a020bd107"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\provider\\jobs\\route.ts",
+                           "BrainSignals":  [
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  10,
+                           "ConfirmationSignals":  [
+                                                       "automaticExecutionAllowed",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  13480,
+                           "Sha256":  "fe15f9007245ae2e9af1d5cf6e71c92fa7cb3d8404058e3fad44d3ddc5eaada2"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\requests\\analyze\\route.ts",
+                           "BrainSignals":  [
+                                                "memory"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  9,
+                           "ConfirmationSignals":  [
+
+                                                   ],
+                           "MemorySignals":  [
+                                                 "memory",
+                                                 "preferences",
+                                                 "profile"
+                                             ],
+                           "Length":  6481,
+                           "Sha256":  "1a242def8e136c9af0799468ad58901ff7f2b8347df04f1bdcb27ccc40e6446c"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\search\\providers\\route.ts",
+                           "BrainSignals":  [
+                                                "recommend"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  34,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "publish"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  16353,
+                           "Sha256":  "b94b229ebfb734fa9534c9a72b8f81adcec42b2032d99b7fa8fb41324382e195"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\security\\risk\\route.ts",
+                           "BrainSignals":  [
+                                                "recommend"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  6,
+                           "ConfirmationSignals":  [
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  7191,
+                           "Sha256":  "78f6bb5bab4b1c2b146919a1ad0c1d37d0c3574349cec2ace1a96531f05ba1e5"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\stripe\\create-checkout-session\\route.ts",
+                           "BrainSignals":  [
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  40,
+                           "ConfirmationSignals":  [
+                                                       "checkout",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  17313,
+                           "Sha256":  "fa24d6bcb8e09bba3f3da3d30ea368114d2ac6103323cde0b0610ac67fb63ab7"
+                       },
+                       {
+                           "RelativePath":  "app\\api\\stripe\\create-group-checkout-session\\route.ts",
+                           "BrainSignals":  [
+                                                "market",
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  36,
+                           "ConfirmationSignals":  [
+                                                       "checkout",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  16970,
+                           "Sha256":  "1dae2cb552d5a2d75c1bbd41516d89bd4061c9669969342bf994f96e6156e4b6"
+                       },
+                       {
+                           "RelativePath":  "app\\assistant\\page.tsx",
+                           "BrainSignals":  [
+                                                "assistant",
+                                                "brain",
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  5,
+                           "ConfirmationSignals":  [
+                                                       "confirm"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  9337,
+                           "Sha256":  "cf1d875c188e4389ce2a81bc56198760fed9ccb1c4c59b912fbd7a35fc71793b"
+                       },
+                       {
+                           "RelativePath":  "app\\assistant\\actions\\page.tsx",
+                           "BrainSignals":  [
+                                                "assistant",
+                                                "brain"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  11,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  8168,
+                           "Sha256":  "58cea6f282659db6489da9aee84bc2af0f9f68649506978eea7e3a5d5eb345bd"
+                       },
+                       {
+                           "RelativePath":  "app\\assistant\\market\\page.tsx",
+                           "BrainSignals":  [
+                                                "assistant",
+                                                "brain",
+                                                "market",
+                                                "market-publish",
+                                                "memory",
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  13,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "confirmed",
+                                                       "explicit",
+                                                       "publish"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "memory"
+                                             ],
+                           "Length":  14257,
+                           "Sha256":  "8de6f526165037de222ea6e1d0fefc786319c11b74b979345cd1d2daba4da194"
+                       },
+                       {
+                           "RelativePath":  "app\\assistant\\market\\[id]\\MarketStatusTracker.tsx",
+                           "BrainSignals":  [
+                                                "assistant",
+                                                "brain",
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  4,
+                           "ConfirmationSignals":  [
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  6391,
+                           "Sha256":  "2fde2c011e379ca55d4d8438188a758b2714dfbcdd42c650b140807a286e1d9f"
+                       },
+                       {
+                           "RelativePath":  "app\\assistant\\market\\[id]\\page.tsx",
+                           "BrainSignals":  [
+                                                "brain",
+                                                "market",
+                                                "recommend"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  20,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "explicit"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  27069,
+                           "Sha256":  "8eed7e58ce1b25b0a9d2499d764db38485496a7a550a2ec631a44569ddf07986"
+                       },
+                       {
+                           "RelativePath":  "app\\assistant\\market\\[id]\\SplitPlanEntryCard.tsx",
+                           "BrainSignals":  [
+                                                "assistant",
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  14,
+                           "ConfirmationSignals":  [
+
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  6174,
+                           "Sha256":  "b858bfdc36900ae74a7f57ef89ab8992635fd5b35d23426005e44e685248e281"
+                       },
+                       {
+                           "RelativePath":  "app\\assistant\\market\\[id]\\split-plan\\page.tsx",
+                           "BrainSignals":  [
+                                                "assistant",
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  10,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "explicit",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  21084,
+                           "Sha256":  "4f34fc3e09334a0242815f53babf40525b4548b104a89d62d4ea827bd30c54d1"
+                       },
+                       {
+                           "RelativePath":  "app\\assistant\\market\\[id]\\split-plan\\SplitBookingRecovery.tsx",
+                           "BrainSignals":  [
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  7,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmed"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  9492,
+                           "Sha256":  "df3829627a2312249f6b290640196ba3540194e34736f975a9ed76340861ae06"
+                       },
+                       {
+                           "RelativePath":  "app\\assistant\\market\\[id]\\split-plan\\SplitPlanBookingAction.tsx",
+                           "BrainSignals":  [
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  9,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "confirmed",
+                                                       "explicit",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  12813,
+                           "Sha256":  "e154947813382476912dacdb735d7d7d9445adf2d12fcd3f33a2e21d14dea44c"
+                       },
+                       {
+                           "RelativePath":  "app\\assistant\\market\\[id]\\split-plan\\SplitPlanConfirmation.tsx",
+                           "BrainSignals":  [
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  8,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "confirmed"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  10281,
+                           "Sha256":  "2f4ecba57a7ffe5edcda6bd6e4333536a70a20656743388ec6dde3817f722d2b"
+                       },
+                       {
+                           "RelativePath":  "app\\babysitters\\page.tsx",
+                           "BrainSignals":  [
+                                                "recommend",
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  30,
+                           "ConfirmationSignals":  [
+                                                       "confirm"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  19360,
+                           "Sha256":  "fe793e74fac065c893424752cba802362890bd12d5968420121449a3112d4f16"
+                       },
+                       {
+                           "RelativePath":  "app\\bookings\\SplitMissionSection.tsx",
+                           "BrainSignals":  [
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  5,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "confirmed"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  11444,
+                           "Sha256":  "a0daacff32783dc8b351dffd7048dc9f63299e44c5ae52e360bea2ede07b3c2e"
+                       },
+                       {
+                           "RelativePath":  "app\\bookings\\split\\[id]\\SplitMissionAcceptance.tsx",
+                           "BrainSignals":  [
+                                                "assistant",
+                                                "market",
+                                                "recommend",
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  4,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "explicit"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  13545,
+                           "Sha256":  "2793a42ae1f3050123399d93bf6a00770ce8f3913c28803e68be7874405425be"
+                       },
+                       {
+                           "RelativePath":  "app\\bookings\\split\\[id]\\SplitMissionCheckout.tsx",
+                           "BrainSignals":  [
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  5,
+                           "ConfirmationSignals":  [
+                                                       "checkout",
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "confirmed",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  11887,
+                           "Sha256":  "6cc168fe4edd096e0012ea378acee08d22926b6f1f88897cdac564ec8045b53f"
+                       },
+                       {
+                           "RelativePath":  "app\\bookings\\split\\[id]\\SplitMissionPaymentConfirmation.tsx",
+                           "BrainSignals":  [
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  12,
+                           "ConfirmationSignals":  [
+                                                       "checkout",
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "confirmed",
+                                                       "explicit",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  14083,
+                           "Sha256":  "8fd41826a06c34b329d40b39d0456af4a51e1ea439418eea2a03967506e6f385"
+                       },
+                       {
+                           "RelativePath":  "app\\bookings\\split\\[id]\\SplitMissionPaymentPlan.tsx",
+                           "BrainSignals":  [
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  10,
+                           "ConfirmationSignals":  [
+                                                       "checkout",
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "explicit",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  11548,
+                           "Sha256":  "1f68615ce47d792a059426b8a976843470be23b10807f25524ba62f05794dc9a"
+                       },
+                       {
+                           "RelativePath":  "app\\bookings\\split\\[id]\\SplitMissionPriceConfirmation.tsx",
+                           "BrainSignals":  [
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  6,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "confirmed",
+                                                       "explicit"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  14472,
+                           "Sha256":  "047ee0a90d879cb9ac1619ec4d27b5e799d61f3f102cf9d322cfe4913174e445"
+                       },
+                       {
+                           "RelativePath":  "app\\brain\\MemoryQuickStart.tsx",
+                           "BrainSignals":  [
+                                                "brain",
+                                                "memory"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  6,
+                           "ConfirmationSignals":  [
+
+                                                   ],
+                           "MemorySignals":  [
+                                                 "memory",
+                                                 "memory-context"
+                                             ],
+                           "Length":  6440,
+                           "Sha256":  "069942f4ebd30ad5bf5eaa852ebdc49ba6fa1b823a4722f13f27862f78603357"
+                       },
+                       {
+                           "RelativePath":  "app\\brain\\page.tsx",
+                           "BrainSignals":  [
+                                                "assistant",
+                                                "brain",
+                                                "confirm-request",
+                                                "memory",
+                                                "recommend",
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+                                              "openai"
+                                          ],
+                           "RuleSignalCount":  29,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "confirmed",
+                                                       "explicit"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "memory"
+                                             ],
+                           "Length":  24495,
+                           "Sha256":  "8677af67c145909202f218091f6b5dc3ee88e2f0025150c42361c76089ae46fd"
+                       },
+                       {
+                           "RelativePath":  "app\\brain\\SmartRecommendation.tsx",
+                           "BrainSignals":  [
+                                                "brain",
+                                                "memory",
+                                                "recommend",
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  12,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "memory",
+                                                 "profile"
+                                             ],
+                           "Length":  10500,
+                           "Sha256":  "96dfbecb5d950fd5a05db245b5fec33c633eb3d7d29ff1f6e5d5b2c755a274e5"
+                       },
+                       {
+                           "RelativePath":  "app\\components\\AssistantBrief.tsx",
+                           "BrainSignals":  [
+                                                "assistant",
+                                                "brain",
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  6,
+                           "ConfirmationSignals":  [
+
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  4891,
+                           "Sha256":  "73a561d11295ccb1aaac7325685624c59c761f64c51c3d65a97f28e9297798d4"
+                       },
+                       {
+                           "RelativePath":  "app\\components\\AssistantCommandBar.tsx",
+                           "BrainSignals":  [
+                                                "assistant",
+                                                "brain"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  8,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  7798,
+                           "Sha256":  "35928c71ce58680e9610b5bceb9febe4b68910e8a13d08ec9f2a722b3396722b"
+                       },
+                       {
+                           "RelativePath":  "app\\components\\AssistantPriorityBadge.tsx",
+                           "BrainSignals":  [
+                                                "assistant",
+                                                "brain"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  4,
+                           "ConfirmationSignals":  [
+
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  2553,
+                           "Sha256":  "0335c0b1b02b529f182eb7807a7f62c8d1908880302c8c1d740394e9ebcb695a"
+                       },
+                       {
+                           "RelativePath":  "app\\components\\BrainReadinessCard.tsx",
+                           "BrainSignals":  [
+                                                "brain"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  0,
+                           "ConfirmationSignals":  [
+                                                       "automaticExecutionAllowed",
+                                                       "confirm",
+                                                       "confirmation"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  5285,
+                           "Sha256":  "ba6b4654ba056230c98a0bbe23c64b68486e2cd9c074247fe284e3e680ae74db"
+                       },
+                       {
+                           "RelativePath":  "app\\components\\DashboardActionCenter.tsx",
+                           "BrainSignals":  [
+                                                "brain",
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  11,
+                           "ConfirmationSignals":  [
+                                                       "confirm"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  11412,
+                           "Sha256":  "8dbdb0699805558079b2a0596c167c9d6eca3d4c89e6ddc4a5271d9d9a0edf4d"
+                       },
+                       {
+                           "RelativePath":  "app\\components\\KlyxRoutePrefetch.tsx",
+                           "BrainSignals":  [
+                                                "assistant",
+                                                "brain",
+                                                "memory",
+                                                "recommend"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  0,
+                           "ConfirmationSignals":  [
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "memory",
+                                                 "profile"
+                                             ],
+                           "Length":  1212,
+                           "Sha256":  "ad5ec95b9d07145fdcafb21cbc77285f319a429e6622a1d4040cff95c493b724"
+                       },
+                       {
+                           "RelativePath":  "app\\components\\ProactiveAssistantPanel.tsx",
+                           "BrainSignals":  [
+                                                "assistant",
+                                                "brain"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  11,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "explicit",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  8832,
+                           "Sha256":  "c8d8cbd6866179d64382be38718d588dbb06cd80e48a3cb303593b8e1ad1e24c"
+                       },
+                       {
+                           "RelativePath":  "app\\dashboard\\ClientDashboard.tsx",
+                           "BrainSignals":  [
+                                                "assistant",
+                                                "brain"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  0,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  6223,
+                           "Sha256":  "d22d50f3743542a913138e4b6b54bed3a8167a09e8d77f5dcd77a3f8744650e4"
+                       },
+                       {
+                           "RelativePath":  "app\\memory\\layout.tsx",
+                           "BrainSignals":  [
+                                                "memory"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  3,
+                           "ConfirmationSignals":  [
+
+                                                   ],
+                           "MemorySignals":  [
+                                                 "memory",
+                                                 "profile"
+                                             ],
+                           "Length":  633,
+                           "Sha256":  "867cdcccaae2ed314075aa8ea008f47b4b24c6370dd7fe7608087b8da9085639"
+                       },
+                       {
+                           "RelativePath":  "app\\memory\\page.tsx",
+                           "BrainSignals":  [
+                                                "assistant",
+                                                "brain",
+                                                "memory"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  9,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "confirmed"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "memory",
+                                                 "preferences",
+                                                 "profile"
+                                             ],
+                           "Length":  22116,
+                           "Sha256":  "da3a4467a727950d23031fbbf39909bb36971a82ee9309f8bb672d9e6730c1af"
+                       },
+                       {
+                           "RelativePath":  "app\\onboarding\\page.tsx",
+                           "BrainSignals":  [
+                                                "assistant",
+                                                "brain"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  2,
+                           "ConfirmationSignals":  [
+
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  7211,
+                           "Sha256":  "53301b1a55f0543a8dcbf76a69bc33dd3badf707cd23a96ff382342e810a2378"
+                       },
+                       {
+                           "RelativePath":  "app\\payment\\success\\page.tsx",
+                           "BrainSignals":  [
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  5,
+                           "ConfirmationSignals":  [
+                                                       "checkout",
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "confirmed",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  3878,
+                           "Sha256":  "bad19fad08c01f177203a351dfc70a6761f93e1946607f494b40cbb6fcb34be1"
+                       },
+                       {
+                           "RelativePath":  "app\\provider\\assistant\\page.tsx",
+                           "BrainSignals":  [
+                                                "assistant"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  8,
+                           "ConfirmationSignals":  [
+                                                       "confirm"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  15072,
+                           "Sha256":  "ae3f7dd9d5f72d46d1a1396d9c3966e04a019d3d8b21f006302f33e1e0bb0734"
+                       },
+                       {
+                           "RelativePath":  "app\\provider\\jobs\\page.tsx",
+                           "BrainSignals":  [
+                                                "market",
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  15,
+                           "ConfirmationSignals":  [
+                                                       "automaticExecutionAllowed",
+                                                       "confirm"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  28678,
+                           "Sha256":  "2a1af9417c54f15bc6b36fcfcbef94ac1b46b6133c1bc69291fc9692f8361282"
+                       },
+                       {
+                           "RelativePath":  "app\\provider\\payments\\FinanceReconciliationStatus.tsx",
+                           "BrainSignals":  [
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  7,
+                           "ConfirmationSignals":  [
+                                                       "explicit"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  13147,
+                           "Sha256":  "e97ab29bd4d6fbecc510a74afebe34ecfb08fe8a332cae722ddbdebdfff0a9d9"
+                       },
+                       {
+                           "RelativePath":  "app\\recommendations\\page.tsx",
+                           "BrainSignals":  [
+                                                "recommend",
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  6,
+                           "ConfirmationSignals":  [
+                                                       "confirm"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  15982,
+                           "Sha256":  "4256a80c14a66f53bfee0e33205b32c3fbd3d7095c0c0f3ac3b92423eed8d6aa"
+                       },
+                       {
+                           "RelativePath":  "app\\request\\page.tsx",
+                           "BrainSignals":  [
+                                                "brain",
+                                                "memory",
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  9,
+                           "ConfirmationSignals":  [
+                                                       "confirm"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "memory"
+                                             ],
+                           "Length":  15637,
+                           "Sha256":  "62d6aae41971cc83e8901a22a1e68bed4e237d33fac28f880309881015a0b554"
+                       },
+                       {
+                           "RelativePath":  "app\\request\\confirm\\page.tsx",
+                           "BrainSignals":  [
+                                                "assistant",
+                                                "brain",
+                                                "recommend"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  7,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "confirmed"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  10280,
+                           "Sha256":  "32e6319d12601c2e549d4f15808011b47dce47a4b1c07c41c0821f543b5176fb"
+                       },
+                       {
+                           "RelativePath":  "app\\request\\confirm-multi\\page.tsx",
+                           "BrainSignals":  [
+                                                "brain",
+                                                "market",
+                                                "market-publish"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  8,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "confirmed",
+                                                       "publish"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  12632,
+                           "Sha256":  "9874c3e540ea9d9d3e49b208e9e5db1dc1ffcb2a1a388f210cd8f859b3a9df33"
+                       },
+                       {
+                           "RelativePath":  "app\\requests\\page.tsx",
+                           "BrainSignals":  [
+                                                "assistant",
+                                                "market",
+                                                "recommend"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  6,
+                           "ConfirmationSignals":  [
+                                                       "publish"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  25475,
+                           "Sha256":  "1e3a0cc0271ada94c09ba932275df0c8f94166aa9c4615e6fe4f2dbd9a70e262"
+                       },
+                       {
+                           "RelativePath":  "app\\reset-password\\page.tsx",
+                           "BrainSignals":  [
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  3,
+                           "ConfirmationSignals":  [
+                                                       "confirm"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  3128,
+                           "Sha256":  "ba227e05fdc92d3bb3ef385fa842eeb7c1e2ba300ba6b0cc3d5ab8fd01d3ee78"
+                       },
+                       {
+                           "RelativePath":  "app\\search\\page.tsx",
+                           "BrainSignals":  [
+                                                "market",
+                                                "recommend",
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  18,
+                           "ConfirmationSignals":  [
+                                                       "confirm"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  27344,
+                           "Sha256":  "ab1f66775f527ea2270e1c02e9c7c267624e83c2e0e820d0e8c9cb9961ce3865"
+                       },
+                       {
+                           "RelativePath":  "app\\search\\SearchRecovery.tsx",
+                           "BrainSignals":  [
+                                                "brain"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  5,
+                           "ConfirmationSignals":  [
+
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  3708,
+                           "Sha256":  "94b3c3806039a8bfa9b0271abbe1117f1c1843fc4e1521355177f9375f614f99"
+                       },
+                       {
+                           "RelativePath":  "app\\security\\page.tsx",
+                           "BrainSignals":  [
+                                                "recommend"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  2,
+                           "ConfirmationSignals":  [
+
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  10864,
+                           "Sha256":  "54a8eb5fa8ff4cfffaaf504189b146901def01e78e1bd5d55b7d8c58c44d4333"
+                       },
+                       {
+                           "RelativePath":  "app\\settings\\page.tsx",
+                           "BrainSignals":  [
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  16,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  20907,
+                           "Sha256":  "b8eec8ed4419d2e8e46f6cdd8079b6e3fa7dd6769b4a292fae4ee125dd1f1cc5"
+                       },
+                       {
+                           "RelativePath":  "app\\terms\\page.tsx",
+                           "BrainSignals":  [
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  0,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  5484,
+                           "Sha256":  "cccde8470a5d0a33fdfb3a5c1e2eace11a37b84825cbd4fa4b54f51d750e5556"
+                       },
+                       {
+                           "RelativePath":  "app\\ui\\AppSidebar.tsx",
+                           "BrainSignals":  [
+                                                "assistant",
+                                                "brain",
+                                                "memory"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  13,
+                           "ConfirmationSignals":  [
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "memory",
+                                                 "profile"
+                                             ],
+                           "Length":  17443,
+                           "Sha256":  "ea256d084ca544003a7ddccce66eee74cfaaa69038932a5ed271db566a109b42"
+                       },
+                       {
+                           "RelativePath":  "app\\ui\\Hero.tsx",
+                           "BrainSignals":  [
+                                                "assistant"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  0,
+                           "ConfirmationSignals":  [
+
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  2788,
+                           "Sha256":  "316ea063c0163659ed69efa35d1e8e688aa4479826bfb089352406ed40a6340c"
+                       },
+                       {
+                           "RelativePath":  "lib\\active-profile.ts",
+                           "BrainSignals":  [
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  10,
+                           "ConfirmationSignals":  [
+
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  4401,
+                           "Sha256":  "c7c7f784986900fec92b3b2dbb61d2770ebab17f851f8d558e90731105311011"
+                       },
+                       {
+                           "RelativePath":  "lib\\booking-group-lifecycle.ts",
+                           "BrainSignals":  [
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  18,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "confirmed",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  9102,
+                           "Sha256":  "2e51a04b11ecfc1ca54c1ab7c03541ac161cb266fd55c756fd809a5716f28971"
+                       },
+                       {
+                           "RelativePath":  "lib\\brain-actions.ts",
+                           "BrainSignals":  [
+                                                "assistant",
+                                                "brain",
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  44,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmed",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  18388,
+                           "Sha256":  "c9f031387f6cb45a64108bd276f2fb7ffead8467c64b23d9aa9a54c3bd662f7a"
+                       },
+                       {
+                           "RelativePath":  "lib\\brain-group-cancellation-actions.ts",
+                           "BrainSignals":  [
+                                                "brain"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  8,
+                           "ConfirmationSignals":  [
+                                                       "explicit",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  6137,
+                           "Sha256":  "cb3ba8cf10cb701f50dcac600fb3ffcf1690e36e83084f8102be4a2b647d6627"
+                       },
+                       {
+                           "RelativePath":  "lib\\brain-market-confirmation.ts",
+                           "BrainSignals":  [
+                                                "brain",
+                                                "market",
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  23,
+                           "ConfirmationSignals":  [
+                                                       "automaticExecutionAllowed",
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "confirmed",
+                                                       "explicit"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  6008,
+                           "Sha256":  "094c639a1c0c08607bf0df5d377be0fe2f21a5fdadf67b347aaecd64d57b6265"
+                       },
+                       {
+                           "RelativePath":  "lib\\brain-multi-slot-proof.ts",
+                           "BrainSignals":  [
+                                                "brain",
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  22,
+                           "ConfirmationSignals":  [
+                                                       "automaticExecutionAllowed",
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "confirmed",
+                                                       "explicit"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  6994,
+                           "Sha256":  "7e46d7f3ff4f5ac2123852d054c0378f318a1d3880c399506248499dc302fff1"
+                       },
+                       {
+                           "RelativePath":  "lib\\brain-multi-slot.ts",
+                           "BrainSignals":  [
+                                                "brain",
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  70,
+                           "ConfirmationSignals":  [
+
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  18739,
+                           "Sha256":  "8d3da675ddd11ae21210507ac56180e49873f6ed07ef8ae9372e5a34ff9a2f01"
+                       },
+                       {
+                           "RelativePath":  "lib\\client-agent.ts",
+                           "BrainSignals":  [
+                                                "memory"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  3,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "memory"
+                                             ],
+                           "Length":  5687,
+                           "Sha256":  "34c903b4bcb937a7135246f6354bcf84c2235a8b03c1b47ba72344b68a898de0"
+                       },
+                       {
+                           "RelativePath":  "lib\\klyx-ai.ts",
+                           "BrainSignals":  [
+                                                "assistant"
+                                            ],
+                           "LlmSignals":  [
+                                              "model:",
+                                              "openai"
+                                          ],
+                           "RuleSignalCount":  17,
+                           "ConfirmationSignals":  [
+                                                       "confirm"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  4898,
+                           "Sha256":  "82c24c001eddf060bd7f1674f8018ffcbb7fca70d9e26d960971f524071679c4"
+                       },
+                       {
+                           "RelativePath":  "lib\\klyx-navigation.ts",
+                           "BrainSignals":  [
+                                                "assistant",
+                                                "brain",
+                                                "memory"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  3,
+                           "ConfirmationSignals":  [
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "memory",
+                                                 "preferences",
+                                                 "profile"
+                                             ],
+                           "Length":  6837,
+                           "Sha256":  "5cf8883c50f388d73a87ccaed624a5ff748eb6179bb02be4e7b33a239c795a0d"
+                       },
+                       {
+                           "RelativePath":  "lib\\market-matching.ts",
+                           "BrainSignals":  [
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  14,
+                           "ConfirmationSignals":  [
+
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  3431,
+                           "Sha256":  "96624651cc65bca3a876efa24a874e8f5ec08239aaf52b223da8820e47753470"
+                       },
+                       {
+                           "RelativePath":  "lib\\market-multi-slot.ts",
+                           "BrainSignals":  [
+                                                "brain",
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  18,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmed"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  9614,
+                           "Sha256":  "867482d8078d4f45a924cf08a7b1feb3f789d109b861b7bd6faf695196303410"
+                       },
+                       {
+                           "RelativePath":  "lib\\market-notifications.ts",
+                           "BrainSignals":  [
+                                                "market",
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  4,
+                           "ConfirmationSignals":  [
+
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  1950,
+                           "Sha256":  "47b73dbd88350db26a6ae68cebb154b74f4a049523d56c9d23f37f1e9531d7e7"
+                       },
+                       {
+                           "RelativePath":  "lib\\multi-provider-split-plan.ts",
+                           "BrainSignals":  [
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  16,
+                           "ConfirmationSignals":  [
+                                                       "automaticExecutionAllowed",
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  17219,
+                           "Sha256":  "a18a93f97d92a98e5c2e0d355593356175df7c72ec1853ced4419f2a65443429"
+                       },
+                       {
+                           "RelativePath":  "lib\\multi-slot-live-coverage.ts",
+                           "BrainSignals":  [
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  23,
+                           "ConfirmationSignals":  [
+
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  12123,
+                           "Sha256":  "95ad00a24c10e6cefedec315adeda0e45c4471b33d7c382e7acc986db1e1df48"
+                       },
+                       {
+                           "RelativePath":  "lib\\photo-service-analysis.ts",
+                           "BrainSignals":  [
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  1,
+                           "ConfirmationSignals":  [
+
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  2885,
+                           "Sha256":  "71666208044809f77d8dc6f590a518b14098006ffca4114d8e6af6bb68a71cc7"
+                       },
+                       {
+                           "RelativePath":  "lib\\provider-assistant.ts",
+                           "BrainSignals":  [
+                                                "assistant"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  18,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  5991,
+                           "Sha256":  "9021629fc2a4ad684f59f8b0dfcf06bd8e1cdea3f89e68b60f8018a610cc9dfb"
+                       },
+                       {
+                           "RelativePath":  "lib\\provider-jobs-live-revalidation.ts",
+                           "BrainSignals":  [
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  22,
+                           "ConfirmationSignals":  [
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  11594,
+                           "Sha256":  "81628a288e2aa1d6c684b3327fc01c6e181d20f46e463322b251c8ceeffb73f3"
+                       },
+                       {
+                           "RelativePath":  "lib\\provider-planning.ts",
+                           "BrainSignals":  [
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  14,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmed"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  6783,
+                           "Sha256":  "d46ed5e6b4503c4c980faae2fae28b8d50cd88e0a2bc6da8d0e2cdb093c1728a"
+                       },
+                       {
+                           "RelativePath":  "lib\\provider-search.ts",
+                           "BrainSignals":  [
+                                                "recommend"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  8,
+                           "ConfirmationSignals":  [
+                                                       "confirm"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  3050,
+                           "Sha256":  "bca7b8f24b24d71665dbb397e4afb28b5fef7e6c6f5eb823aaabafe7626a5bd8"
+                       },
+                       {
+                           "RelativePath":  "lib\\provider-verification-precheck.ts",
+                           "BrainSignals":  [
+                                                "recommend"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  6,
+                           "ConfirmationSignals":  [
+
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  3575,
+                           "Sha256":  "7ddb8011837e89366c4499a39d80da97b86397bc15d2ffb4b4b3cb0ac84050b6"
+                       },
+                       {
+                           "RelativePath":  "lib\\search-recovery.ts",
+                           "BrainSignals":  [
+                                                "recommend"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  22,
+                           "ConfirmationSignals":  [
+
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  8234,
+                           "Sha256":  "e9d7a9a34cb88e05add54d9f09cf7b4952722af71faccc43eb86d9ed7bfa8787"
+                       },
+                       {
+                           "RelativePath":  "lib\\security-risk.ts",
+                           "BrainSignals":  [
+                                                "recommend"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  11,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "confirmation",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  4935,
+                           "Sha256":  "f3b6c243acee75bf72f0337199f3a40eff4ce6f68d125484d5db43429df0ce1c"
+                       },
+                       {
+                           "RelativePath":  "lib\\service-moderator.ts",
+                           "BrainSignals":  [
+                                                "assistant"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  5,
+                           "ConfirmationSignals":  [
+
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  4564,
+                           "Sha256":  "e0b69604fc3cc05dd5b98939c54fd607e382c5c20b45a56caa1acecd2b986704"
+                       },
+                       {
+                           "RelativePath":  "lib\\stripe-group-payments.ts",
+                           "BrainSignals":  [
+                                                "market",
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  26,
+                           "ConfirmationSignals":  [
+                                                       "checkout",
+                                                       "confirm",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  13210,
+                           "Sha256":  "7680d92a0db6657c16df88fb54936a158376253e70659b922b396afddf55eaa1"
+                       },
+                       {
+                           "RelativePath":  "lib\\stripe-group-refunds.ts",
+                           "BrainSignals":  [
+                                                "market"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  18,
+                           "ConfirmationSignals":  [
+                                                       "confirm",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "profile"
+                                             ],
+                           "Length":  11236,
+                           "Sha256":  "cb1b1d2d4c376279f7ae7e08fb477c820476adac6dc8f270a4876f03ca0ec16b"
+                       },
+                       {
+                           "RelativePath":  "lib\\stripe-payments.ts",
+                           "BrainSignals":  [
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  31,
+                           "ConfirmationSignals":  [
+                                                       "checkout",
+                                                       "confirm",
+                                                       "payment"
+                                                   ],
+                           "MemorySignals":  [
+
+                                             ],
+                           "Length":  16134,
+                           "Sha256":  "4e433b22653dd879dbf6e29e3ce2c5f0ac6bc2b128aa3b6c03e4160ccdc56419"
+                       },
+                       {
+                           "RelativePath":  "lib\\universal-service-request.ts",
+                           "BrainSignals":  [
+                                                "memory",
+                                                "respond"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  49,
+                           "ConfirmationSignals":  [
+                                                       "explicit"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "memory"
+                                             ],
+                           "Length":  8606,
+                           "Sha256":  "c28ec995956cc296cec2dfa95b9de62f8aaea5d8be2aa2e754e1499cf5e75e17"
+                       },
+                       {
+                           "RelativePath":  "lib\\supabase\\middleware.ts",
+                           "BrainSignals":  [
+                                                "brain",
+                                                "memory"
+                                            ],
+                           "LlmSignals":  [
+
+                                          ],
+                           "RuleSignalCount":  4,
+                           "ConfirmationSignals":  [
+                                                       "payment",
+                                                       "publish"
+                                                   ],
+                           "MemorySignals":  [
+                                                 "memory",
+                                                 "profile"
+                                             ],
+                           "Length":  2588,
+                           "Sha256":  "d46eb9821825c58919f84ef627c83bec2604206dfcd385cf4a532fdd56ef8f27"
+                       }
+                   ],
+    "BrainApiRoutes":  [
+                           "app\\api\\brain\\actions\\route.ts",
+                           "app\\api\\brain\\command\\route.ts",
+                           "app\\api\\brain\\confirm-request\\route.ts",
+                           "app\\api\\brain\\market-advice\\[id]\\route.ts",
+                           "app\\api\\brain\\market-publish\\route.ts",
+                           "app\\api\\brain\\market-publish-multi\\route.ts",
+                           "app\\api\\brain\\market-split-plan\\[id]\\route.ts",
+                           "app\\api\\brain\\market-status\\[id]\\route.ts",
+                           "app\\api\\brain\\memory-context\\route.ts",
+                           "app\\api\\brain\\recommend\\route.ts",
+                           "app\\api\\brain\\respond\\route.ts"
+                       ],
+    "AssistantRoutes":  [
+                            "app\\assistant\\page.tsx",
+                            "app\\assistant\\actions\\page.tsx",
+                            "app\\assistant\\market\\page.tsx",
+                            "app\\assistant\\market\\[id]\\MarketStatusTracker.tsx",
+                            "app\\assistant\\market\\[id]\\page.tsx",
+                            "app\\assistant\\market\\[id]\\SplitPlanEntryCard.tsx",
+                            "app\\assistant\\market\\[id]\\split-plan\\page.tsx",
+                            "app\\assistant\\market\\[id]\\split-plan\\SplitBookingRecovery.tsx",
+                            "app\\assistant\\market\\[id]\\split-plan\\SplitPlanBookingAction.tsx",
+                            "app\\assistant\\market\\[id]\\split-plan\\SplitPlanConfirmation.tsx",
+                            "app\\brain\\MemoryQuickStart.tsx",
+                            "app\\brain\\page.tsx",
+                            "app\\brain\\SmartRecommendation.tsx"
+                        ],
+    "LlmSignalFiles":  [
+                           "app\\ai-status\\page.tsx",
+                           "app\\brain\\page.tsx",
+                           "lib\\klyx-ai.ts"
+                       ],
+    "RuleHeavyFiles":  [
+                           {
+                               "RelativePath":  "app\\api\\bookings\\split-missions\\[id]\\checkout\\route.ts",
+                               "RuleSignalCount":  72
+                           },
+                           {
+                               "RelativePath":  "lib\\brain-multi-slot.ts",
+                               "RuleSignalCount":  70
+                           },
+                           {
+                               "RelativePath":  "app\\api\\brain\\respond\\route.ts",
+                               "RuleSignalCount":  62
+                           },
+                           {
+                               "RelativePath":  "app\\api\\market\\requests\\[id]\\offers\\route.ts",
+                               "RuleSignalCount":  53
+                           },
+                           {
+                               "RelativePath":  "lib\\universal-service-request.ts",
+                               "RuleSignalCount":  49
+                           },
+                           {
+                               "RelativePath":  "lib\\brain-actions.ts",
+                               "RuleSignalCount":  44
+                           },
+                           {
+                               "RelativePath":  "app\\api\\market\\requests\\[id]\\split-fallback\\slot-map\\route.ts",
+                               "RuleSignalCount":  44
+                           },
+                           {
+                               "RelativePath":  "app\\api\\stripe\\create-checkout-session\\route.ts",
+                               "RuleSignalCount":  40
+                           },
+                           {
+                               "RelativePath":  "app\\api\\market\\requests\\[id]\\group-booking\\route.ts",
+                               "RuleSignalCount":  40
+                           },
+                           {
+                               "RelativePath":  "app\\api\\bookings\\create\\route.ts",
+                               "RuleSignalCount":  39
+                           },
+                           {
+                               "RelativePath":  "app\\api\\market\\requests\\[id]\\split-fallback\\confirm\\route.ts",
+                               "RuleSignalCount":  37
+                           },
+                           {
+                               "RelativePath":  "app\\api\\stripe\\create-group-checkout-session\\route.ts",
+                               "RuleSignalCount":  36
+                           },
+                           {
+                               "RelativePath":  "app\\api\\booking-groups\\[id]\\cancellation\\route.ts",
+                               "RuleSignalCount":  36
+                           },
+                           {
+                               "RelativePath":  "app\\api\\bookings\\split-missions\\[id]\\prices\\route.ts",
+                               "RuleSignalCount":  36
+                           },
+                           {
+                               "RelativePath":  "app\\api\\search\\providers\\route.ts",
+                               "RuleSignalCount":  34
+                           },
+                           {
+                               "RelativePath":  "app\\api\\market\\requests\\[id]\\split-fallback\\book\\route.ts",
+                               "RuleSignalCount":  34
+                           },
+                           {
+                               "RelativePath":  "app\\api\\market\\requests\\[id]\\split-fallback\\book\\recovery\\route.ts",
+                               "RuleSignalCount":  32
+                           },
+                           {
+                               "RelativePath":  "lib\\stripe-payments.ts",
+                               "RuleSignalCount":  31
+                           },
+                           {
+                               "RelativePath":  "app\\api\\bookings\\split-missions\\route.ts",
+                               "RuleSignalCount":  31
+                           },
+                           {
+                               "RelativePath":  "app\\babysitters\\page.tsx",
+                               "RuleSignalCount":  30
+                           },
+                           {
+                               "RelativePath":  "app\\brain\\page.tsx",
+                               "RuleSignalCount":  29
+                           },
+                           {
+                               "RelativePath":  "lib\\stripe-group-payments.ts",
+                               "RuleSignalCount":  26
+                           },
+                           {
+                               "RelativePath":  "app\\api\\booking-groups\\[id]\\route.ts",
+                               "RuleSignalCount":  26
+                           },
+                           {
+                               "RelativePath":  "app\\api\\brain\\market-advice\\[id]\\route.ts",
+                               "RuleSignalCount":  26
+                           },
+                           {
+                               "RelativePath":  "app\\api\\bookings\\split-missions\\[id]\\acceptance\\route.ts",
+                               "RuleSignalCount":  25
+                           },
+                           {
+                               "RelativePath":  "app\\api\\market\\requests\\route.ts",
+                               "RuleSignalCount":  24
+                           },
+                           {
+                               "RelativePath":  "lib\\brain-market-confirmation.ts",
+                               "RuleSignalCount":  23
+                           },
+                           {
+                               "RelativePath":  "lib\\multi-slot-live-coverage.ts",
+                               "RuleSignalCount":  23
+                           },
+                           {
+                               "RelativePath":  "lib\\search-recovery.ts",
+                               "RuleSignalCount":  22
+                           },
+                           {
+                               "RelativePath":  "lib\\provider-jobs-live-revalidation.ts",
+                               "RuleSignalCount":  22
+                           },
+                           {
+                               "RelativePath":  "lib\\brain-multi-slot-proof.ts",
+                               "RuleSignalCount":  22
+                           },
+                           {
+                               "RelativePath":  "app\\api\\group-reviews\\route.ts",
+                               "RuleSignalCount":  21
+                           },
+                           {
+                               "RelativePath":  "app\\api\\provider\\assistant\\route.ts",
+                               "RuleSignalCount":  20
+                           },
+                           {
+                               "RelativePath":  "app\\assistant\\market\\[id]\\page.tsx",
+                               "RuleSignalCount":  20
+                           },
+                           {
+                               "RelativePath":  "lib\\market-multi-slot.ts",
+                               "RuleSignalCount":  18
+                           },
+                           {
+                               "RelativePath":  "app\\search\\page.tsx",
+                               "RuleSignalCount":  18
+                           },
+                           {
+                               "RelativePath":  "lib\\provider-assistant.ts",
+                               "RuleSignalCount":  18
+                           },
+                           {
+                               "RelativePath":  "lib\\booking-group-lifecycle.ts",
+                               "RuleSignalCount":  18
+                           },
+                           {
+                               "RelativePath":  "lib\\stripe-group-refunds.ts",
+                               "RuleSignalCount":  18
+                           },
+                           {
+                               "RelativePath":  "lib\\klyx-ai.ts",
+                               "RuleSignalCount":  17
+                           },
+                           {
+                               "RelativePath":  "lib\\multi-provider-split-plan.ts",
+                               "RuleSignalCount":  16
+                           },
+                           {
+                               "RelativePath":  "app\\settings\\page.tsx",
+                               "RuleSignalCount":  16
+                           },
+                           {
+                               "RelativePath":  "app\\provider\\jobs\\page.tsx",
+                               "RuleSignalCount":  15
+                           },
+                           {
+                               "RelativePath":  "app\\api\\brain\\command\\route.ts",
+                               "RuleSignalCount":  15
+                           },
+                           {
+                               "RelativePath":  "app\\api\\brain\\market-publish-multi\\route.ts",
+                               "RuleSignalCount":  14
+                           },
+                           {
+                               "RelativePath":  "lib\\provider-planning.ts",
+                               "RuleSignalCount":  14
+                           },
+                           {
+                               "RelativePath":  "lib\\market-matching.ts",
+                               "RuleSignalCount":  14
+                           },
+                           {
+                               "RelativePath":  "app\\assistant\\market\\[id]\\SplitPlanEntryCard.tsx",
+                               "RuleSignalCount":  14
+                           },
+                           {
+                               "RelativePath":  "app\\ui\\AppSidebar.tsx",
+                               "RuleSignalCount":  13
+                           },
+                           {
+                               "RelativePath":  "app\\assistant\\market\\page.tsx",
+                               "RuleSignalCount":  13
+                           },
+                           {
+                               "RelativePath":  "app\\api\\agent\\plans\\route.ts",
+                               "RuleSignalCount":  13
+                           },
+                           {
+                               "RelativePath":  "app\\api\\brain\\market-status\\[id]\\route.ts",
+                               "RuleSignalCount":  12
+                           },
+                           {
+                               "RelativePath":  "app\\brain\\SmartRecommendation.tsx",
+                               "RuleSignalCount":  12
+                           },
+                           {
+                               "RelativePath":  "app\\api\\market\\requests\\[id]\\split-fallback\\route.ts",
+                               "RuleSignalCount":  12
+                           },
+                           {
+                               "RelativePath":  "app\\bookings\\split\\[id]\\SplitMissionPaymentConfirmation.tsx",
+                               "RuleSignalCount":  12
+                           },
+                           {
+                               "RelativePath":  "lib\\security-risk.ts",
+                               "RuleSignalCount":  11
+                           },
+                           {
+                               "RelativePath":  "app\\components\\ProactiveAssistantPanel.tsx",
+                               "RuleSignalCount":  11
+                           },
+                           {
+                               "RelativePath":  "app\\components\\DashboardActionCenter.tsx",
+                               "RuleSignalCount":  11
+                           },
+                           {
+                               "RelativePath":  "app\\api\\memory\\profile\\route.ts",
+                               "RuleSignalCount":  11
+                           },
+                           {
+                               "RelativePath":  "app\\assistant\\actions\\page.tsx",
+                               "RuleSignalCount":  11
+                           },
+                           {
+                               "RelativePath":  "app\\api\\brain\\recommend\\route.ts",
+                               "RuleSignalCount":  11
+                           },
+                           {
+                               "RelativePath":  "app\\api\\brain\\confirm-request\\route.ts",
+                               "RuleSignalCount":  11
+                           },
+                           {
+                               "RelativePath":  "lib\\active-profile.ts",
+                               "RuleSignalCount":  10
+                           },
+                           {
+                               "RelativePath":  "app\\api\\provider\\jobs\\route.ts",
+                               "RuleSignalCount":  10
+                           },
+                           {
+                               "RelativePath":  "app\\bookings\\split\\[id]\\SplitMissionPaymentPlan.tsx",
+                               "RuleSignalCount":  10
+                           },
+                           {
+                               "RelativePath":  "app\\assistant\\market\\[id]\\split-plan\\page.tsx",
+                               "RuleSignalCount":  10
+                           },
+                           {
+                               "RelativePath":  "app\\api\\brain\\market-publish\\route.ts",
+                               "RuleSignalCount":  9
+                           },
+                           {
+                               "RelativePath":  "app\\api\\requests\\analyze\\route.ts",
+                               "RuleSignalCount":  9
+                           },
+                           {
+                               "RelativePath":  "app\\api\\brain\\memory-context\\route.ts",
+                               "RuleSignalCount":  9
+                           },
+                           {
+                               "RelativePath":  "app\\memory\\page.tsx",
+                               "RuleSignalCount":  9
+                           },
+                           {
+                               "RelativePath":  "app\\request\\page.tsx",
+                               "RuleSignalCount":  9
+                           },
+                           {
+                               "RelativePath":  "app\\assistant\\market\\[id]\\split-plan\\SplitPlanBookingAction.tsx",
+                               "RuleSignalCount":  9
+                           },
+                           {
+                               "RelativePath":  "lib\\provider-search.ts",
+                               "RuleSignalCount":  8
+                           },
+                           {
+                               "RelativePath":  "lib\\brain-group-cancellation-actions.ts",
+                               "RuleSignalCount":  8
+                           },
+                           {
+                               "RelativePath":  "app\\api\\brain\\market-split-plan\\[id]\\route.ts",
+                               "RuleSignalCount":  8
+                           },
+                           {
+                               "RelativePath":  "app\\assistant\\market\\[id]\\split-plan\\SplitPlanConfirmation.tsx",
+                               "RuleSignalCount":  8
+                           },
+                           {
+                               "RelativePath":  "app\\provider\\assistant\\page.tsx",
+                               "RuleSignalCount":  8
+                           },
+                           {
+                               "RelativePath":  "app\\admin\\disputes\\page.tsx",
+                               "RuleSignalCount":  8
+                           },
+                           {
+                               "RelativePath":  "app\\components\\AssistantCommandBar.tsx",
+                               "RuleSignalCount":  8
+                           },
+                           {
+                               "RelativePath":  "app\\request\\confirm-multi\\page.tsx",
+                               "RuleSignalCount":  8
+                           },
+                           {
+                               "RelativePath":  "app\\agent\\page.tsx",
+                               "RuleSignalCount":  7
+                           },
+                           {
+                               "RelativePath":  "app\\request\\confirm\\page.tsx",
+                               "RuleSignalCount":  7
+                           },
+                           {
+                               "RelativePath":  "app\\provider\\payments\\FinanceReconciliationStatus.tsx",
+                               "RuleSignalCount":  7
+                           },
+                           {
+                               "RelativePath":  "app\\assistant\\market\\[id]\\split-plan\\SplitBookingRecovery.tsx",
+                               "RuleSignalCount":  7
+                           },
+                           {
+                               "RelativePath":  "app\\api\\security\\risk\\route.ts",
+                               "RuleSignalCount":  6
+                           },
+                           {
+                               "RelativePath":  "lib\\provider-verification-precheck.ts",
+                               "RuleSignalCount":  6
+                           },
+                           {
+                               "RelativePath":  "app\\recommendations\\page.tsx",
+                               "RuleSignalCount":  6
+                           },
+                           {
+                               "RelativePath":  "app\\requests\\page.tsx",
+                               "RuleSignalCount":  6
+                           },
+                           {
+                               "RelativePath":  "app\\bookings\\split\\[id]\\SplitMissionPriceConfirmation.tsx",
+                               "RuleSignalCount":  6
+                           },
+                           {
+                               "RelativePath":  "app\\brain\\MemoryQuickStart.tsx",
+                               "RuleSignalCount":  6
+                           },
+                           {
+                               "RelativePath":  "app\\components\\AssistantBrief.tsx",
+                               "RuleSignalCount":  6
+                           },
+                           {
+                               "RelativePath":  "app\\bookings\\split\\[id]\\SplitMissionCheckout.tsx",
+                               "RuleSignalCount":  5
+                           },
+                           {
+                               "RelativePath":  "lib\\service-moderator.ts",
+                               "RuleSignalCount":  5
+                           },
+                           {
+                               "RelativePath":  "app\\search\\SearchRecovery.tsx",
+                               "RuleSignalCount":  5
+                           },
+                           {
+                               "RelativePath":  "app\\payment\\success\\page.tsx",
+                               "RuleSignalCount":  5
+                           },
+                           {
+                               "RelativePath":  "app\\assistant\\page.tsx",
+                               "RuleSignalCount":  5
+                           },
+                           {
+                               "RelativePath":  "app\\bookings\\SplitMissionSection.tsx",
+                               "RuleSignalCount":  5
+                           }
+                       ],
+    "ConfirmationGuardFiles":  [
+                                   "app\\admin\\disputes\\page.tsx",
+                                   "app\\agent\\page.tsx",
+                                   "app\\ai-status\\page.tsx",
+                                   "app\\api\\booking-groups\\[id]\\route.ts",
+                                   "app\\api\\booking-groups\\[id]\\cancellation\\route.ts",
+                                   "app\\api\\bookings\\create\\route.ts",
+                                   "app\\api\\bookings\\split-missions\\route.ts",
+                                   "app\\api\\bookings\\split-missions\\[id]\\acceptance\\route.ts",
+                                   "app\\api\\bookings\\split-missions\\[id]\\checkout\\route.ts",
+                                   "app\\api\\bookings\\split-missions\\[id]\\prices\\route.ts",
+                                   "app\\api\\brain\\actions\\route.ts",
+                                   "app\\api\\brain\\command\\route.ts",
+                                   "app\\api\\brain\\confirm-request\\route.ts",
+                                   "app\\api\\brain\\market-advice\\[id]\\route.ts",
+                                   "app\\api\\brain\\market-publish\\route.ts",
+                                   "app\\api\\brain\\market-publish-multi\\route.ts",
+                                   "app\\api\\brain\\market-split-plan\\[id]\\route.ts",
+                                   "app\\api\\brain\\market-status\\[id]\\route.ts",
+                                   "app\\api\\brain\\respond\\route.ts",
+                                   "app\\api\\group-reviews\\route.ts",
+                                   "app\\api\\market\\requests\\[id]\\group-booking\\route.ts",
+                                   "app\\api\\market\\requests\\[id]\\offers\\route.ts",
+                                   "app\\api\\market\\requests\\[id]\\split-fallback\\route.ts",
+                                   "app\\api\\market\\requests\\[id]\\split-fallback\\book\\route.ts",
+                                   "app\\api\\market\\requests\\[id]\\split-fallback\\book\\recovery\\route.ts",
+                                   "app\\api\\market\\requests\\[id]\\split-fallback\\confirm\\route.ts",
+                                   "app\\api\\market\\requests\\[id]\\split-fallback\\slot-map\\route.ts",
+                                   "app\\api\\memory\\profile\\route.ts",
+                                   "app\\api\\provider\\jobs\\route.ts",
+                                   "app\\api\\search\\providers\\route.ts",
+                                   "app\\api\\security\\risk\\route.ts",
+                                   "app\\api\\stripe\\create-checkout-session\\route.ts",
+                                   "app\\api\\stripe\\create-group-checkout-session\\route.ts",
+                                   "app\\assistant\\page.tsx",
+                                   "app\\assistant\\actions\\page.tsx",
+                                   "app\\assistant\\market\\page.tsx",
+                                   "app\\assistant\\market\\[id]\\MarketStatusTracker.tsx",
+                                   "app\\assistant\\market\\[id]\\page.tsx",
+                                   "app\\assistant\\market\\[id]\\split-plan\\page.tsx",
+                                   "app\\assistant\\market\\[id]\\split-plan\\SplitBookingRecovery.tsx",
+                                   "app\\assistant\\market\\[id]\\split-plan\\SplitPlanBookingAction.tsx",
+                                   "app\\assistant\\market\\[id]\\split-plan\\SplitPlanConfirmation.tsx",
+                                   "app\\babysitters\\page.tsx",
+                                   "app\\bookings\\SplitMissionSection.tsx",
+                                   "app\\bookings\\split\\[id]\\SplitMissionAcceptance.tsx",
+                                   "app\\bookings\\split\\[id]\\SplitMissionCheckout.tsx",
+                                   "app\\bookings\\split\\[id]\\SplitMissionPaymentConfirmation.tsx",
+                                   "app\\bookings\\split\\[id]\\SplitMissionPaymentPlan.tsx",
+                                   "app\\bookings\\split\\[id]\\SplitMissionPriceConfirmation.tsx",
+                                   "app\\brain\\page.tsx",
+                                   "app\\brain\\SmartRecommendation.tsx",
+                                   "app\\components\\AssistantCommandBar.tsx",
+                                   "app\\components\\BrainReadinessCard.tsx",
+                                   "app\\components\\DashboardActionCenter.tsx",
+                                   "app\\components\\KlyxRoutePrefetch.tsx",
+                                   "app\\components\\ProactiveAssistantPanel.tsx",
+                                   "app\\dashboard\\ClientDashboard.tsx",
+                                   "app\\memory\\page.tsx",
+                                   "app\\payment\\success\\page.tsx",
+                                   "app\\provider\\assistant\\page.tsx",
+                                   "app\\provider\\jobs\\page.tsx",
+                                   "app\\provider\\payments\\FinanceReconciliationStatus.tsx",
+                                   "app\\recommendations\\page.tsx",
+                                   "app\\request\\page.tsx",
+                                   "app\\request\\confirm\\page.tsx",
+                                   "app\\request\\confirm-multi\\page.tsx",
+                                   "app\\requests\\page.tsx",
+                                   "app\\reset-password\\page.tsx",
+                                   "app\\search\\page.tsx",
+                                   "app\\settings\\page.tsx",
+                                   "app\\terms\\page.tsx",
+                                   "app\\ui\\AppSidebar.tsx",
+                                   "lib\\booking-group-lifecycle.ts",
+                                   "lib\\brain-actions.ts",
+                                   "lib\\brain-group-cancellation-actions.ts",
+                                   "lib\\brain-market-confirmation.ts",
+                                   "lib\\brain-multi-slot-proof.ts",
+                                   "lib\\client-agent.ts",
+                                   "lib\\klyx-ai.ts",
+                                   "lib\\klyx-navigation.ts",
+                                   "lib\\market-multi-slot.ts",
+                                   "lib\\multi-provider-split-plan.ts",
+                                   "lib\\provider-assistant.ts",
+                                   "lib\\provider-jobs-live-revalidation.ts",
+                                   "lib\\provider-planning.ts",
+                                   "lib\\provider-search.ts",
+                                   "lib\\security-risk.ts",
+                                   "lib\\stripe-group-payments.ts",
+                                   "lib\\stripe-group-refunds.ts",
+                                   "lib\\stripe-payments.ts",
+                                   "lib\\universal-service-request.ts",
+                                   "lib\\supabase\\middleware.ts"
+                               ],
+    "MemoryRelatedFiles":  [
+                               "app\\admin\\disputes\\page.tsx",
+                               "app\\admin\\verifications\\page.tsx",
+                               "app\\agent\\page.tsx",
+                               "app\\api\\agent\\plans\\route.ts",
+                               "app\\api\\booking-groups\\[id]\\route.ts",
+                               "app\\api\\booking-groups\\[id]\\cancellation\\route.ts",
+                               "app\\api\\bookings\\create\\route.ts",
+                               "app\\api\\bookings\\split-missions\\route.ts",
+                               "app\\api\\bookings\\split-missions\\[id]\\acceptance\\route.ts",
+                               "app\\api\\bookings\\split-missions\\[id]\\checkout\\route.ts",
+                               "app\\api\\bookings\\split-missions\\[id]\\prices\\route.ts",
+                               "app\\api\\brain\\actions\\route.ts",
+                               "app\\api\\brain\\command\\route.ts",
+                               "app\\api\\brain\\confirm-request\\route.ts",
+                               "app\\api\\brain\\market-advice\\[id]\\route.ts",
+                               "app\\api\\brain\\market-publish\\route.ts",
+                               "app\\api\\brain\\market-publish-multi\\route.ts",
+                               "app\\api\\brain\\market-split-plan\\[id]\\route.ts",
+                               "app\\api\\brain\\market-status\\[id]\\route.ts",
+                               "app\\api\\brain\\memory-context\\route.ts",
+                               "app\\api\\brain\\recommend\\route.ts",
+                               "app\\api\\brain\\respond\\route.ts",
+                               "app\\api\\group-reviews\\route.ts",
+                               "app\\api\\market\\requests\\route.ts",
+                               "app\\api\\market\\requests\\[id]\\group-booking\\route.ts",
+                               "app\\api\\market\\requests\\[id]\\offers\\route.ts",
+                               "app\\api\\market\\requests\\[id]\\split-fallback\\route.ts",
+                               "app\\api\\market\\requests\\[id]\\split-fallback\\book\\route.ts",
+                               "app\\api\\market\\requests\\[id]\\split-fallback\\book\\recovery\\route.ts",
+                               "app\\api\\market\\requests\\[id]\\split-fallback\\confirm\\route.ts",
+                               "app\\api\\market\\requests\\[id]\\split-fallback\\slot-map\\route.ts",
+                               "app\\api\\memory\\preferences\\route.ts",
+                               "app\\api\\memory\\profile\\route.ts",
+                               "app\\api\\provider\\assistant\\route.ts",
+                               "app\\api\\provider\\jobs\\route.ts",
+                               "app\\api\\requests\\analyze\\route.ts",
+                               "app\\api\\search\\providers\\route.ts",
+                               "app\\api\\security\\risk\\route.ts",
+                               "app\\api\\stripe\\create-checkout-session\\route.ts",
+                               "app\\api\\stripe\\create-group-checkout-session\\route.ts",
+                               "app\\assistant\\actions\\page.tsx",
+                               "app\\assistant\\market\\page.tsx",
+                               "app\\babysitters\\page.tsx",
+                               "app\\brain\\MemoryQuickStart.tsx",
+                               "app\\brain\\page.tsx",
+                               "app\\brain\\SmartRecommendation.tsx",
+                               "app\\components\\KlyxRoutePrefetch.tsx",
+                               "app\\dashboard\\ClientDashboard.tsx",
+                               "app\\memory\\layout.tsx",
+                               "app\\memory\\page.tsx",
+                               "app\\onboarding\\page.tsx",
+                               "app\\recommendations\\page.tsx",
+                               "app\\request\\page.tsx",
+                               "app\\search\\page.tsx",
+                               "app\\settings\\page.tsx",
+                               "app\\ui\\AppSidebar.tsx",
+                               "lib\\active-profile.ts",
+                               "lib\\booking-group-lifecycle.ts",
+                               "lib\\brain-actions.ts",
+                               "lib\\brain-group-cancellation-actions.ts",
+                               "lib\\brain-market-confirmation.ts",
+                               "lib\\brain-multi-slot-proof.ts",
+                               "lib\\client-agent.ts",
+                               "lib\\klyx-navigation.ts",
+                               "lib\\market-multi-slot.ts",
+                               "lib\\multi-provider-split-plan.ts",
+                               "lib\\multi-slot-live-coverage.ts",
+                               "lib\\provider-jobs-live-revalidation.ts",
+                               "lib\\provider-search.ts",
+                               "lib\\stripe-group-payments.ts",
+                               "lib\\stripe-group-refunds.ts",
+                               "lib\\universal-service-request.ts",
+                               "lib\\supabase\\middleware.ts"
+                           ],
+    "SourceFilesModified":  0,
+    "RoutesModified":  0,
+    "DatabaseModified":  false,
+    "ProductionModified":  false,
+    "AuditOnly":  true,
+    "AuditComplete":  true
+}

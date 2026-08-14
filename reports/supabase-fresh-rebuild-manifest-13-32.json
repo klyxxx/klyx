@@ -1,0 +1,672 @@
+{
+    "Step":  "13.32",
+    "GeneratedAt":  "2026-08-13T18:12:37.0661226+02:00",
+    "Goal":  "fresh_database_rebuild",
+    "SourceAudit":  "13.31",
+    "CurrentFreshRebuildReady":  false,
+    "Counts":  {
+                   "SqlFiles":  54,
+                   "Active":  49,
+                   "Dispersed":  5,
+                   "Missing":  0,
+                   "ManualReview":  29,
+                   "DuplicateContentGroups":  1
+               },
+    "CanonicalPhases":  [
+                            {
+                                "Order":  1,
+                                "Name":  "extensions_and_foundation",
+                                "Purpose":  "Extensions PostgreSQL, fonctions utilitaires et fondations."
+                            },
+                            {
+                                "Order":  2,
+                                "Name":  "identity_and_profiles",
+                                "Purpose":  "Profils, comptes, rôles et identité KLYX."
+                            },
+                            {
+                                "Order":  3,
+                                "Name":  "services_and_market",
+                                "Purpose":  "Services, métiers, offres, demandes et matching."
+                            },
+                            {
+                                "Order":  4,
+                                "Name":  "bookings",
+                                "Purpose":  "Réservations simples et groupées."
+                            },
+                            {
+                                "Order":  5,
+                                "Name":  "payments",
+                                "Purpose":  "Stripe, ledger, paiements et remboursements."
+                            },
+                            {
+                                "Order":  6,
+                                "Name":  "split_missions",
+                                "Purpose":  "Missions multi-prestataires 13.18+."
+                            },
+                            {
+                                "Order":  7,
+                                "Name":  "trust_security",
+                                "Purpose":  "RLS, KYC, Sumsub, scores, litiges et sécurité."
+                            },
+                            {
+                                "Order":  8,
+                                "Name":  "brain_memory",
+                                "Purpose":  "Brain, mémoire, assistant et données IA."
+                            },
+                            {
+                                "Order":  9,
+                                "Name":  "final_constraints",
+                                "Purpose":  "Contraintes finales, index, triggers et politiques."
+                            }
+                        ],
+    "Files":  [
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations\\20260812141355_remote_schema.sql",
+                      "FileName":  "20260812141355_remote_schema.sql",
+                      "Exists":  true,
+                      "Sha256":  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                      "Timestamp":  "20260812141355",
+                      "Class":  "remote_snapshot",
+                      "ReviewStatus":  "exclude_candidate",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "do_not_import_automatically"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations\\20260812161413_klyx_phone_12_67.sql",
+                      "FileName":  "20260812161413_klyx_phone_12_67.sql",
+                      "Exists":  true,
+                      "Sha256":  "b4247fa8a6ba0241df328640ad5fe60c4b1dc91510ec2cbd0bcab84ebdd63d41",
+                      "Timestamp":  "20260812161413",
+                      "Class":  "schema_patch",
+                      "ReviewStatus":  "candidate",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "review_for_canonical_migration"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations\\20260812182000_klyx_phone_otp_security_12_71.sql",
+                      "FileName":  "20260812182000_klyx_phone_otp_security_12_71.sql",
+                      "Exists":  true,
+                      "Sha256":  "84e658ee97318b75022c2edca5672c57d89c6a61a6c8138e38acbc7d88e8e5fd",
+                      "Timestamp":  "20260812182000",
+                      "Class":  "schema",
+                      "ReviewStatus":  "candidate",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "review_for_canonical_migration"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations\\20260812183500_klyx_phone_contact_audit_12_72.sql",
+                      "FileName":  "20260812183500_klyx_phone_contact_audit_12_72.sql",
+                      "Exists":  true,
+                      "Sha256":  "25641d165bba9a136b925cfa46fefcaf17c117a74c21677c7035833ee99a6efe",
+                      "Timestamp":  "20260812183500",
+                      "Class":  "schema",
+                      "ReviewStatus":  "candidate",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "review_for_canonical_migration"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations\\20260812195600_klyx_multi_slot_market_12_83.sql",
+                      "FileName":  "20260812195600_klyx_multi_slot_market_12_83.sql",
+                      "Exists":  true,
+                      "Sha256":  "83bf95fc438ebad546e4fef464518a60c118a2d058cfca48ed1f14345c778cb2",
+                      "Timestamp":  "20260812195600",
+                      "Class":  "schema",
+                      "ReviewStatus":  "candidate",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "review_for_canonical_migration"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations\\20260812202000_klyx_booking_groups_12_85.sql",
+                      "FileName":  "20260812202000_klyx_booking_groups_12_85.sql",
+                      "Exists":  true,
+                      "Sha256":  "a9f6ec16c3e113d0ef477f337c096847797c46664ccaab701133c1030d6134d9",
+                      "Timestamp":  "20260812202000",
+                      "Class":  "schema",
+                      "ReviewStatus":  "candidate",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "review_for_canonical_migration"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations\\20260812203500_klyx_group_payment_12_86.sql",
+                      "FileName":  "20260812203500_klyx_group_payment_12_86.sql",
+                      "Exists":  true,
+                      "Sha256":  "ae8a57671ff0718a7c1a2d755dd477b2025ad2611c7b0f8c3e7693ca7a4529cb",
+                      "Timestamp":  "20260812203500",
+                      "Class":  "schema_patch",
+                      "ReviewStatus":  "candidate",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "review_for_canonical_migration"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations\\20260812205500_klyx_group_review_12_88.sql",
+                      "FileName":  "20260812205500_klyx_group_review_12_88.sql",
+                      "Exists":  true,
+                      "Sha256":  "1439a3bfa08b7bcdbf77d6a1c2f223c31205ef196165ceb733018539c185f8e6",
+                      "Timestamp":  "20260812205500",
+                      "Class":  "schema_patch",
+                      "ReviewStatus":  "candidate",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "review_for_canonical_migration"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations\\20260812210700_klyx_group_cancellation_request_12_89.sql",
+                      "FileName":  "20260812210700_klyx_group_cancellation_request_12_89.sql",
+                      "Exists":  true,
+                      "Sha256":  "63af0a62c1792f8a65719910bd9ce6c7daaaf90ef9b7e86f7b21bc5d995b57e0",
+                      "Timestamp":  "20260812210700",
+                      "Class":  "schema",
+                      "ReviewStatus":  "candidate",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "review_for_canonical_migration"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations\\20260812211800_klyx_group_cancellation_resolution_12_90.sql",
+                      "FileName":  "20260812211800_klyx_group_cancellation_resolution_12_90.sql",
+                      "Exists":  true,
+                      "Sha256":  "c07704e3d523d3d6123d92cc1b7b9e8e32b3a5f96f090f4722b9d424aeaba181",
+                      "Timestamp":  "20260812211800",
+                      "Class":  "schema_patch",
+                      "ReviewStatus":  "candidate",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "review_for_canonical_migration"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations\\20260812223200_klyx_group_atomic_live_coverage_12_96.sql",
+                      "FileName":  "20260812223200_klyx_group_atomic_live_coverage_12_96.sql",
+                      "Exists":  true,
+                      "Sha256":  "6f45fe7ea8dc07fee118ad285e9f57f28da757ce18951c26d93923c47e3b6b26",
+                      "Timestamp":  "20260812223200",
+                      "Class":  "function",
+                      "ReviewStatus":  "candidate",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "review_for_canonical_migration"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations\\20260813101500_klyx_group_provider_accept_live_13_06.sql",
+                      "FileName":  "20260813101500_klyx_group_provider_accept_live_13_06.sql",
+                      "Exists":  true,
+                      "Sha256":  "92def032d66e91024faf78317ed650a1cf784ce21e764d012411ffde2058d542",
+                      "Timestamp":  "20260813101500",
+                      "Class":  "function",
+                      "ReviewStatus":  "candidate",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "review_for_canonical_migration"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations\\20260813102500_klyx_group_provider_accept_live_13_06.sql",
+                      "FileName":  "20260813102500_klyx_group_provider_accept_live_13_06.sql",
+                      "Exists":  true,
+                      "Sha256":  "d633437317106fc739a0d7011891b9629f29f59cec0f1649f28e9b089c3ae22b",
+                      "Timestamp":  "20260813102500",
+                      "Class":  "function",
+                      "ReviewStatus":  "candidate",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "review_for_canonical_migration"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations\\20260813105500_klyx_multi_slot_offer_atomic_13_09.sql",
+                      "FileName":  "20260813105500_klyx_multi_slot_offer_atomic_13_09.sql",
+                      "Exists":  true,
+                      "Sha256":  "7b745c3d6a18bb94e85eff00e838fe047680c5aebe545637c2d721d36530024f",
+                      "Timestamp":  "20260813105500",
+                      "Class":  "function",
+                      "ReviewStatus":  "candidate",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "review_for_canonical_migration"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations\\20260813133650_klyx_split_plan_confirmation_compat_13_19i.sql",
+                      "FileName":  "20260813133650_klyx_split_plan_confirmation_compat_13_19i.sql",
+                      "Exists":  true,
+                      "Sha256":  "bee79d07505ddfdee9f1e33389824fce02b6d43433e93a9df763642453bf19e6",
+                      "Timestamp":  "20260813133650",
+                      "Class":  "schema",
+                      "ReviewStatus":  "candidate",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "review_for_canonical_migration"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations\\20260813133700_klyx_split_booking_batch_13_19.sql",
+                      "FileName":  "20260813133700_klyx_split_booking_batch_13_19.sql",
+                      "Exists":  true,
+                      "Sha256":  "d0596aa89a3e6b9c02c04275b7f328ec42b41eab9c7a1086b5315dcf09bfc162",
+                      "Timestamp":  "20260813133700",
+                      "Class":  "schema",
+                      "ReviewStatus":  "candidate",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "review_for_canonical_migration"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations\\20260813143000_klyx_split_booking_recovery_13_20.sql",
+                      "FileName":  "20260813143000_klyx_split_booking_recovery_13_20.sql",
+                      "Exists":  true,
+                      "Sha256":  "a4459e393954ac051c7a99f92d3bf71484ef4cb468f56938b32f36af2cf4506c",
+                      "Timestamp":  "20260813143000",
+                      "Class":  "schema",
+                      "ReviewStatus":  "candidate",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "review_for_canonical_migration"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations\\20260813154500_klyx_split_price_confirmation_13_23.sql",
+                      "FileName":  "20260813154500_klyx_split_price_confirmation_13_23.sql",
+                      "Exists":  true,
+                      "Sha256":  "be594d3c9957e67f5ccc34e0ee97848f0eb4d61f01bac6f9f3fd2f6bfc9907f6",
+                      "Timestamp":  "20260813154500",
+                      "Class":  "schema",
+                      "ReviewStatus":  "candidate",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "review_for_canonical_migration"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations\\20260813165000_klyx_split_payment_confirmation_13_26.sql",
+                      "FileName":  "20260813165000_klyx_split_payment_confirmation_13_26.sql",
+                      "Exists":  true,
+                      "Sha256":  "6261281e01f29b7d1d449680ea35e0a5080138bbddf0185587abab7be7514ab6",
+                      "Timestamp":  "20260813165000",
+                      "Class":  "schema",
+                      "ReviewStatus":  "candidate",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "review_for_canonical_migration"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations\\20260813174500_klyx_split_checkout_13_27.sql",
+                      "FileName":  "20260813174500_klyx_split_checkout_13_27.sql",
+                      "Exists":  true,
+                      "Sha256":  "37aab80cc11b185e78cf5d3961bb22db772dde6137404bf84c3912427479ac53",
+                      "Timestamp":  "20260813174500",
+                      "Class":  "schema",
+                      "ReviewStatus":  "candidate",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "review_for_canonical_migration"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations\\20260813182500_klyx_split_refund_reconciliation_13_28.sql",
+                      "FileName":  "20260813182500_klyx_split_refund_reconciliation_13_28.sql",
+                      "Exists":  true,
+                      "Sha256":  "8fc74ad1cf9c04bad88adc443cbc62da5cdfaaf65a05b1599f46917b4046b68a",
+                      "Timestamp":  "20260813182500",
+                      "Class":  "schema",
+                      "ReviewStatus":  "candidate",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "review_for_canonical_migration"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260804_multi_profiles_phase_1.sql",
+                      "FileName":  "20260804_multi_profiles_phase_1.sql",
+                      "Exists":  true,
+                      "Sha256":  "4eb5a016501c172738fe9eb096cf1df7f68bf208dce70e3ce5fd2c6bee68b8e3",
+                      "Timestamp":  "",
+                      "Class":  "schema_patch",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260805_active_profile_phase_2.sql",
+                      "FileName":  "20260805_active_profile_phase_2.sql",
+                      "Exists":  true,
+                      "Sha256":  "81ec770dabd19a9fc53c55c4c67129838ee86c23731875ebdd32810ac97f75e0",
+                      "Timestamp":  "",
+                      "Class":  "schema_patch",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260805_booking_workflow_mvp.sql",
+                      "FileName":  "20260805_booking_workflow_mvp.sql",
+                      "Exists":  true,
+                      "Sha256":  "2466e9c2931dda461d78b8b2fe6c8e46e81d47cdb9f9a93ea2c019d315dba00c",
+                      "Timestamp":  "",
+                      "Class":  "schema",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260805_payment_notifications_ux.sql",
+                      "FileName":  "20260805_payment_notifications_ux.sql",
+                      "Exists":  true,
+                      "Sha256":  "07244533950a3f75d5f57ef895757521d7ac7cd6f8d7cf95aea0c9f809dc00b6",
+                      "Timestamp":  "",
+                      "Class":  "schema_patch",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260805_profile_management_phase_3.sql",
+                      "FileName":  "20260805_profile_management_phase_3.sql",
+                      "Exists":  true,
+                      "Sha256":  "8389d912e83543314d91c645ec17c9c59cb8fc5625b98ccaa34a7333fabd416f",
+                      "Timestamp":  "",
+                      "Class":  "function",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260805_provider_commercial_profile.sql",
+                      "FileName":  "20260805_provider_commercial_profile.sql",
+                      "Exists":  true,
+                      "Sha256":  "8c742f942f21faa4366e4d1f98df93a1ccd18cdbcf24a1c76d57a9d9add50073",
+                      "Timestamp":  "",
+                      "Class":  "schema",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260805_service_proposals.sql",
+                      "FileName":  "20260805_service_proposals.sql",
+                      "Exists":  true,
+                      "Sha256":  "206c4b29ad00bd15daaa4e0e440219577195ee1b168fa8e5d82a7545cc355bc4",
+                      "Timestamp":  "",
+                      "Class":  "schema",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260805_unique_booking_payment.sql",
+                      "FileName":  "20260805_unique_booking_payment.sql",
+                      "Exists":  true,
+                      "Sha256":  "459ca83534620d25c611c2bf661c4104158e3ab250637e57a0df595034260737",
+                      "Timestamp":  "",
+                      "Class":  "schema_patch",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260806_cancellations_refunds.sql",
+                      "FileName":  "20260806_cancellations_refunds.sql",
+                      "Exists":  true,
+                      "Sha256":  "4e4ca9bfafca6acb1bbcac0e3d59103abf2a685509db0f01d8f09355479767f2",
+                      "Timestamp":  "",
+                      "Class":  "schema_patch",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260806_client_agent_plans.sql",
+                      "FileName":  "20260806_client_agent_plans.sql",
+                      "Exists":  true,
+                      "Sha256":  "d087e6b3ea8e09ab400e12f1f0525015cfe3a5cbe8205197f5f26533e52ce4c5",
+                      "Timestamp":  "",
+                      "Class":  "schema",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260806_client_memory_profile.sql",
+                      "FileName":  "20260806_client_memory_profile.sql",
+                      "Exists":  true,
+                      "Sha256":  "b47716301a96b9a6f845affe2a5e91417465f630c976f24861dbedc6513e0707",
+                      "Timestamp":  "",
+                      "Class":  "schema",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260806_dispute_administration.sql",
+                      "FileName":  "20260806_dispute_administration.sql",
+                      "Exists":  true,
+                      "Sha256":  "46d69cbddf3ead12513644738d0fe87020a5f54d2a1b7394c59fac05c6b8def1",
+                      "Timestamp":  "",
+                      "Class":  "schema_patch",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260806_mission_confirmation.sql",
+                      "FileName":  "20260806_mission_confirmation.sql",
+                      "Exists":  true,
+                      "Sha256":  "e300d5a470eb72740ed06dcf13e47cdc0642903d7218534359f1be89ac6e4afd",
+                      "Timestamp":  "",
+                      "Class":  "schema_patch",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260806_photo_service_requests.sql",
+                      "FileName":  "20260806_photo_service_requests.sql",
+                      "Exists":  true,
+                      "Sha256":  "82e2616310faaae7c98d8091b0bf9dbc0d711590d8d3f9ba0fd70f8e0ea56a37",
+                      "Timestamp":  "",
+                      "Class":  "schema",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260806_provider_assistant.sql",
+                      "FileName":  "20260806_provider_assistant.sql",
+                      "Exists":  true,
+                      "Sha256":  "7060f821a0335e14225539bfc1352186893c3fee2baac3adb8401a9274a4d24c",
+                      "Timestamp":  "",
+                      "Class":  "schema",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260806_provider_service_zones.sql",
+                      "FileName":  "20260806_provider_service_zones.sql",
+                      "Exists":  true,
+                      "Sha256":  "1674a6798234a3d4a2555048c475e3c4a3c253f7831ceacad72c41a69e03af9b",
+                      "Timestamp":  "",
+                      "Class":  "schema",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260806_provider_verification.sql",
+                      "FileName":  "20260806_provider_verification.sql",
+                      "Exists":  true,
+                      "Sha256":  "3648d89c4d550620be30e2ce784c31039b5ac013b06984184dff77a50885df53",
+                      "Timestamp":  "",
+                      "Class":  "schema",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260806_security_risk.sql",
+                      "FileName":  "20260806_security_risk.sql",
+                      "Exists":  true,
+                      "Sha256":  "110deff4b0e67ae7b7a96e8d7dd3efa82e1ca0997106f8f5386fe258dc022f37",
+                      "Timestamp":  "",
+                      "Class":  "schema",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260806_trust_disputes.sql",
+                      "FileName":  "20260806_trust_disputes.sql",
+                      "Exists":  true,
+                      "Sha256":  "24983e51675088439db138002100d4bae79febb2366aae1e91922a72abf07d86",
+                      "Timestamp":  "",
+                      "Class":  "schema",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260806_verification_moderation.sql",
+                      "FileName":  "20260806_verification_moderation.sql",
+                      "Exists":  true,
+                      "Sha256":  "73bc485c5cd4b54419f878a31f55aa58d3ec4fe3a0b1fd5eea530ef2fe22d1b0",
+                      "Timestamp":  "",
+                      "Class":  "schema",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260807_quote_booking_link.sql",
+                      "FileName":  "20260807_quote_booking_link.sql",
+                      "Exists":  true,
+                      "Sha256":  "184dac2058ce9017bc9fa3f535b8d6f515e72d12579082054e57b970f6e99266",
+                      "Timestamp":  "",
+                      "Class":  "schema_patch",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260807_service_quotes.sql",
+                      "FileName":  "20260807_service_quotes.sql",
+                      "Exists":  true,
+                      "Sha256":  "b52f6237c735cead907f324615a0532944a7bea758e707cc9ef0f0bd8871a0b9",
+                      "Timestamp":  "",
+                      "Class":  "schema",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260809_step_12_1_pricing.sql",
+                      "FileName":  "20260809_step_12_1_pricing.sql",
+                      "Exists":  true,
+                      "Sha256":  "003cabb7e811afde8389c6e36c9d12b6806ff7c3b1c00707d7e2383c4351d32a",
+                      "Timestamp":  "",
+                      "Class":  "schema_patch",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260809_step_12_5_security_gate.sql",
+                      "FileName":  "20260809_step_12_5_security_gate.sql",
+                      "Exists":  true,
+                      "Sha256":  "d0f22360d401c92a4b5b7dcaf4909bd9191b1acc67b92bae6f5f0add8eb0d541",
+                      "Timestamp":  "",
+                      "Class":  "function",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260811_step_12_24_open_requests_offers.sql",
+                      "FileName":  "20260811_step_12_24_open_requests_offers.sql",
+                      "Exists":  true,
+                      "Sha256":  "432f3ee4cfc46496bc28b42083d8be9c3a434661ad94e9077ae6fa3d55527504",
+                      "Timestamp":  "",
+                      "Class":  "schema",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260811_step_12_25_market_to_booking.sql",
+                      "FileName":  "20260811_step_12_25_market_to_booking.sql",
+                      "Exists":  true,
+                      "Sha256":  "2a832fdf11b298e9375b3dd4b8631c15a48c1e1118647e09de2630a0f77ef3f9",
+                      "Timestamp":  "",
+                      "Class":  "schema_patch",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260811_step_12_27_market_notifications.sql",
+                      "FileName":  "20260811_step_12_27_market_notifications.sql",
+                      "Exists":  true,
+                      "Sha256":  "12c0cf030952a2c252a3407d23611dbeed094518066ffb8fb104fb8f8c5ff9a3",
+                      "Timestamp":  "",
+                      "Class":  "schema_patch",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260812154600_klyx_phone_12_67.sql",
+                      "FileName":  "20260812154600_klyx_phone_12_67.sql",
+                      "Exists":  true,
+                      "Sha256":  "b4247fa8a6ba0241df328640ad5fe60c4b1dc91510ec2cbd0bcab84ebdd63d41",
+                      "Timestamp":  "20260812154600",
+                      "Class":  "schema_patch",
+                      "ReviewStatus":  "legacy_review",
+                      "CurrentlyActive":  true,
+                      "ProposedAction":  "compare_before_import"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\step-8-0-stripe-webhook-events.sql",
+                      "FileName":  "step-8-0-stripe-webhook-events.sql",
+                      "Exists":  true,
+                      "Sha256":  "dce91e84696fdc392e2eb68cfd4caa8a3340c22cb117aa96b2a00770d2c524e5",
+                      "Timestamp":  "",
+                      "Class":  "schema",
+                      "ReviewStatus":  "candidate",
+                      "CurrentlyActive":  false,
+                      "ProposedAction":  "review_for_canonical_migration"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\step-8-1-booking-financial-ledger.sql",
+                      "FileName":  "step-8-1-booking-financial-ledger.sql",
+                      "Exists":  true,
+                      "Sha256":  "f83eed1365cc0f12b734eb64e5df5ac0bb9a3628ab3b077f25154851c72e80dc",
+                      "Timestamp":  "",
+                      "Class":  "schema",
+                      "ReviewStatus":  "candidate",
+                      "CurrentlyActive":  false,
+                      "ProposedAction":  "review_for_canonical_migration"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\step-9-0-provider-skill-verification.sql",
+                      "FileName":  "step-9-0-provider-skill-verification.sql",
+                      "Exists":  true,
+                      "Sha256":  "e16c93b53ef1c20a7ffded8b86f1ff6262eb71cb64325e7e964c232881b15bea",
+                      "Timestamp":  "",
+                      "Class":  "schema",
+                      "ReviewStatus":  "candidate",
+                      "CurrentlyActive":  false,
+                      "ProposedAction":  "review_for_canonical_migration"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\step-9-2-sumsub.sql",
+                      "FileName":  "step-9-2-sumsub.sql",
+                      "Exists":  true,
+                      "Sha256":  "0b6924eb541409b0b9d1a1de3d2e8120d69f1a69cc6ea96b3f7c4e17684fae82",
+                      "Timestamp":  "",
+                      "Class":  "schema",
+                      "ReviewStatus":  "candidate",
+                      "CurrentlyActive":  false,
+                      "ProposedAction":  "review_for_canonical_migration"
+                  },
+                  {
+                      "Path":  "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\step-9-3-skill-qualification-rules.sql",
+                      "FileName":  "step-9-3-skill-qualification-rules.sql",
+                      "Exists":  true,
+                      "Sha256":  "7c2cf75166d0337975befae51c191cf2c5f52e67341c4b47f9bb76fabff00fa5",
+                      "Timestamp":  "",
+                      "Class":  "schema",
+                      "ReviewStatus":  "candidate",
+                      "CurrentlyActive":  false,
+                      "ProposedAction":  "review_for_canonical_migration"
+                  }
+              ],
+    "DuplicateContent":  [
+                             {
+                                 "Sha256":  "b4247fa8a6ba0241df328640ad5fe60c4b1dc91510ec2cbd0bcab84ebdd63d41",
+                                 "Files":  [
+                                               "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations\\20260812161413_klyx_phone_12_67.sql",
+                                               "C:\\Users\\fenjo\\Documents\\klyx\\supabase\\migrations_legacy_20260812-161308\\20260812154600_klyx_phone_12_67.sql"
+                                           ]
+                             }
+                         ],
+    "TargetInvariant":  "fresh Supabase database -\u003e supabase db push -\u003e complete KLYX schema",
+    "DestructiveChangesApplied":  false,
+    "DatabaseModified":  false,
+    "FilesMoved":  false,
+    "FilesDeleted":  false
+}

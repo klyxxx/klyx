@@ -1,0 +1,277 @@
+import { NextResponse } from "next/server";
+
+import {
+  apiErrorStatus,
+  getAuthenticatedProfile,
+} from "@/lib/api-auth";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+
+// KLYX_MUTUAL_VERIFIED_CONTACT_API_12_70
+
+type BookingRow = {
+  id: string;
+  parent_id: string;
+  provider_id: string | null;
+  babysitter_id: string | null;
+  status: string;
+};
+
+type ContactProfileRow = {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  phone_number: string | null;
+  phone_verified_at: string | null;
+  phone_visibility: string | null;
+};
+
+function formatName(
+  profile: ContactProfileRow
+) {
+  return (
+    [profile.first_name, profile.last_name]
+      .filter(Boolean)
+      .join(" ") ||
+    "Utilisateur KLYX"
+  );
+}
+
+function canRevealAtStatus(
+  status: string
+) {
+  return (
+    status === "accepted" ||
+    status === "completed"
+  );
+}
+
+function isTransactionVisible(
+  profile: ContactProfileRow
+) {
+  return (
+    profile.phone_visibility == null ||
+    profile.phone_visibility ===
+      "transaction_participants"
+  );
+}
+
+export async function GET(
+  request: Request,
+  context: {
+    params: Promise<{ id: string }>;
+  }
+) {
+  try {
+    const { id: bookingId } =
+      await context.params;
+
+    if (!bookingId) {
+      return NextResponse.json(
+        { error: "Reservation manquante." },
+        { status: 400 }
+      );
+    }
+
+    const { profile } =
+      await getAuthenticatedProfile(request);
+
+    const { data, error } =
+      await supabaseAdmin
+        .from("bookings")
+        .select(
+          "id, parent_id, provider_id, babysitter_id, status"
+        )
+        .eq("id", bookingId)
+        .maybeSingle();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    if (!data) {
+      return NextResponse.json(
+        { error: "Reservation introuvable." },
+        { status: 404 }
+      );
+    }
+
+    const booking = data as BookingRow;
+
+    const providerId =
+      booking.provider_id ??
+      booking.babysitter_id;
+
+    if (!providerId) {
+      return NextResponse.json(
+        { error: "Prestataire introuvable." },
+        { status: 409 }
+      );
+    }
+
+    const isClient =
+      booking.parent_id === profile.id;
+
+    const isProvider =
+      providerId === profile.id;
+
+    if (!isClient && !isProvider) {
+      return NextResponse.json(
+        { error: "Acces refuse." },
+        { status: 403 }
+      );
+    }
+
+    if (!canRevealAtStatus(booking.status)) {
+      return NextResponse.json({
+        contactAllowed: false,
+        phoneAvailable: false,
+        reason: "awaiting_acceptance",
+        message:
+          "Le contact sera disponible apres acceptation de la reservation.",
+      });
+    }
+
+    const otherProfileId =
+      isClient
+        ? providerId
+        : booking.parent_id;
+
+    const { data: profilesData, error: profilesError } =
+      await supabaseAdmin
+        .from("profiles")
+        .select(
+          "id, first_name, last_name, phone_number, phone_verified_at, phone_visibility"
+        )
+        .in("id", [profile.id, otherProfileId]);
+
+    if (profilesError) {
+      throw new Error(profilesError.message);
+    }
+
+    const profiles =
+      (profilesData ?? []) as ContactProfileRow[];
+
+    const ownProfile = profiles.find(
+      (item) => item.id === profile.id
+    );
+
+    const otherProfile = profiles.find(
+      (item) => item.id === otherProfileId
+    );
+
+    if (!ownProfile) {
+      return NextResponse.json(
+        { error: "Ton profil KLYX est introuvable." },
+        { status: 404 }
+      );
+    }
+
+    if (!otherProfile) {
+      return NextResponse.json(
+        { error: "Profil de contact introuvable." },
+        { status: 404 }
+      );
+    }
+
+    const otherName =
+      formatName(otherProfile);
+
+    const ownPhone =
+      ownProfile.phone_number?.trim() ?? "";
+
+    if (!ownPhone) {
+      return NextResponse.json({
+        contactAllowed: true,
+        phoneAvailable: false,
+        otherName,
+        reason: "own_missing_phone",
+        actionRequired: "verify_own_phone",
+        message:
+          "Ajoute ton numero avant d acceder au contact telephonique.",
+      });
+    }
+
+    if (!ownProfile.phone_verified_at) {
+      return NextResponse.json({
+        contactAllowed: true,
+        phoneAvailable: false,
+        otherName,
+        reason: "own_unverified_phone",
+        actionRequired: "verify_own_phone",
+        message:
+          "Verifie ton numero par SMS avant d acceder au contact telephonique.",
+      });
+    }
+
+    if (!isTransactionVisible(ownProfile)) {
+      return NextResponse.json({
+        contactAllowed: true,
+        phoneAvailable: false,
+        otherName,
+        reason: "own_private_phone",
+        actionRequired: "verify_own_phone",
+        message:
+          "Active le partage du numero avec les participants de mission.",
+      });
+    }
+
+    const otherPhone =
+      otherProfile.phone_number?.trim() ?? "";
+
+    if (!otherPhone) {
+      return NextResponse.json({
+        contactAllowed: true,
+        phoneAvailable: false,
+        otherName,
+        reason: "other_missing_phone",
+        message:
+          otherName +
+          " n a pas encore ajoute de numero.",
+      });
+    }
+
+    if (!otherProfile.phone_verified_at) {
+      return NextResponse.json({
+        contactAllowed: true,
+        phoneAvailable: false,
+        otherName,
+        reason: "other_unverified_phone",
+        message:
+          "Le numero de " +
+          otherName +
+          " doit encore etre verifie.",
+      });
+    }
+
+    if (!isTransactionVisible(otherProfile)) {
+      return NextResponse.json({
+        contactAllowed: true,
+        phoneAvailable: false,
+        otherName,
+        reason: "other_private_phone",
+        message:
+          otherName +
+          " ne partage pas son numero actuellement.",
+      });
+    }
+
+    return NextResponse.json({
+      contactAllowed: true,
+      phoneAvailable: true,
+      mutualVerification: true,
+      otherName,
+      phoneNumber: otherPhone,
+      verified: true,
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Contact KLYX indisponible.";
+
+    return NextResponse.json(
+      { error: message },
+      { status: apiErrorStatus(message) }
+    );
+  }
+}

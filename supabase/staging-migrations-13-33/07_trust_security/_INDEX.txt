@@ -1,0 +1,32 @@
+KLYX 13.33
+Phase: 07_trust_security
+Files: 28
+
+0001_20260812161413_klyx_phone_12_67.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations\20260812161413_klyx_phone_12_67.sql
+0002_20260812182000_klyx_phone_otp_security_12_71.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations\20260812182000_klyx_phone_otp_security_12_71.sql
+0003_20260812183500_klyx_phone_contact_audit_12_72.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations\20260812183500_klyx_phone_contact_audit_12_72.sql
+0004_20260812195600_klyx_multi_slot_market_12_83.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations\20260812195600_klyx_multi_slot_market_12_83.sql
+0010_20260812223200_klyx_group_atomic_live_coverage_12_96.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations\20260812223200_klyx_group_atomic_live_coverage_12_96.sql
+0011_20260813101500_klyx_group_provider_accept_live_13_06.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations\20260813101500_klyx_group_provider_accept_live_13_06.sql
+0012_20260813102500_klyx_group_provider_accept_live_13_06.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations\20260813102500_klyx_group_provider_accept_live_13_06.sql
+0013_20260813105500_klyx_multi_slot_offer_atomic_13_09.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations\20260813105500_klyx_multi_slot_offer_atomic_13_09.sql
+0014_20260813133650_klyx_split_plan_confirmation_compat_13_19i.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations\20260813133650_klyx_split_plan_confirmation_compat_13_19i.sql
+0021_20260804_multi_profiles_phase_1.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260804_multi_profiles_phase_1.sql
+0022_20260805_active_profile_phase_2.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260805_active_profile_phase_2.sql
+0023_20260805_booking_workflow_mvp.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260805_booking_workflow_mvp.sql
+0025_20260805_profile_management_phase_3.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260805_profile_management_phase_3.sql
+0026_20260805_provider_commercial_profile.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260805_provider_commercial_profile.sql
+0027_20260805_service_proposals.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260805_service_proposals.sql
+0030_20260806_client_agent_plans.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260806_client_agent_plans.sql
+0031_20260806_client_memory_profile.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260806_client_memory_profile.sql
+0034_20260806_photo_service_requests.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260806_photo_service_requests.sql
+0035_20260806_provider_assistant.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260806_provider_assistant.sql
+0036_20260806_provider_service_zones.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260806_provider_service_zones.sql
+0037_20260806_provider_verification.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260806_provider_verification.sql
+0040_20260806_verification_moderation.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260806_verification_moderation.sql
+0042_20260807_service_quotes.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260807_service_quotes.sql
+0044_20260809_step_12_5_security_gate.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260809_step_12_5_security_gate.sql
+0045_20260811_step_12_24_open_requests_offers.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260811_step_12_24_open_requests_offers.sql
+0050_step-9-0-provider-skill-verification.sql <- C:\Users\fenjo\Documents\klyx\supabase\step-9-0-provider-skill-verification.sql
+0051_step-9-2-sumsub.sql <- C:\Users\fenjo\Documents\klyx\supabase\step-9-2-sumsub.sql
+0052_step-9-3-skill-qualification-rules.sql <- C:\Users\fenjo\Documents\klyx\supabase\step-9-3-skill-qualification-rules.sql

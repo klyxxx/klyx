@@ -1,0 +1,756 @@
+$ErrorActionPreference = "Stop"
+
+$utf8 =
+    New-Object System.Text.UTF8Encoding($false)
+
+$root =
+    Split-Path -Parent $PSScriptRoot
+
+Set-Location $root
+
+$baselineVersion =
+    "20260814000000"
+
+$archiveDir =
+    Join-Path `
+        $root `
+        "supabase\migration-history-archive-13-37\previous-official"
+
+$preSchema =
+    Join-Path `
+        $root `
+        "reports\13-40-pre-repair-snapshot\remote-public-schema.sql"
+
+$postRoot =
+    Join-Path `
+        $root `
+        "reports\13-41-post-repair"
+
+$postSchema =
+    Join-Path `
+        $postRoot `
+        "remote-public-schema-13-41a.sql"
+
+$postHistory =
+    Join-Path `
+        $postRoot `
+        "remote-migration-history-13-41a.txt"
+
+$manifestPath =
+    Join-Path `
+        $root `
+        "reports\supabase-history-repair-13-41.json"
+
+$reportPath =
+    Join-Path `
+        $root `
+        "reports\supabase-history-repair-13-41.txt"
+
+# ============================================================
+# INPUTS
+# ============================================================
+
+foreach (
+    $required
+    in @(
+        $archiveDir,
+        $preSchema
+    )
+) {
+    if (
+        -not (
+            Test-Path `
+                -LiteralPath `
+                $required
+        )
+    ) {
+        throw (
+            "13.41a : requis introuvable : " +
+            $required
+        )
+    }
+}
+
+New-Item `
+    -ItemType Directory `
+    -Force `
+    -Path $postRoot |
+    Out-Null
+
+# ============================================================
+# ARCHIVED HISTORICAL VERSIONS
+# ============================================================
+
+$archiveVersions =
+    @()
+
+$archiveFiles =
+    @(
+        Get-ChildItem `
+            -LiteralPath `
+            $archiveDir `
+            -File `
+            -Filter "*.sql" |
+        Sort-Object Name
+    )
+
+foreach (
+    $file
+    in $archiveFiles
+) {
+    $hit =
+        [regex]::Match(
+            $file.Name,
+            '^(\d{14})'
+        )
+
+    if (
+        $hit.Success
+    ) {
+        $archiveVersions +=
+            $hit.Groups[1].Value
+    }
+}
+
+$archiveVersions =
+    @(
+        $archiveVersions |
+        Sort-Object -Unique
+    )
+
+if (
+    $archiveVersions.Count -lt 1
+) {
+    throw "13.41a : archive historique vide."
+}
+
+# ============================================================
+# FUNCTION: PARSE REMOTE COLUMN ONLY
+# ============================================================
+
+function Get-RemoteMigrationVersions {
+    param(
+        [string[]]$Lines
+    )
+
+    $versions =
+        New-Object System.Collections.Generic.List[string]
+
+    foreach (
+        $line
+        in $Lines
+    ) {
+        $text =
+            [string]$line
+
+        if (
+            -not $text.Contains("|")
+        ) {
+            continue
+        }
+
+        $parts =
+            $text.Split("|")
+
+        if (
+            $parts.Count -lt 2
+        ) {
+            continue
+        }
+
+        $remoteColumn =
+            $parts[1].Trim()
+
+        if (
+            $remoteColumn -match
+            '^\d{14}$'
+        ) {
+            if (
+                -not $versions.Contains(
+                    $remoteColumn
+                )
+            ) {
+                $versions.Add(
+                    $remoteColumn
+                )
+            }
+        }
+    }
+
+    return @(
+        $versions |
+        Sort-Object
+    )
+}
+
+# ============================================================
+# VERIFY SCHEMA BEFORE CONTINUING
+# ============================================================
+
+$referenceSchemaHash =
+    (
+        Get-FileHash `
+            -LiteralPath `
+            $preSchema `
+            -Algorithm SHA256
+    ).Hash.ToLowerInvariant()
+
+$currentSchemaBefore =
+    Join-Path `
+        $postRoot `
+        "remote-public-schema-before-13-41a.sql"
+
+Write-Host ""
+Write-Host "13.41a - Verifying production schema before reconciliation..."
+Write-Host ""
+
+cmd.exe /d /s /c `
+    (
+        'npx.cmd supabase db dump ' +
+        '--linked ' +
+        '--schema public ' +
+        '--file "' +
+        $currentSchemaBefore +
+        '" 2>&1'
+    )
+
+$dumpBeforeExit =
+    $LASTEXITCODE
+
+if (
+    $dumpBeforeExit -ne 0
+) {
+    throw (
+        "13.41a : schema dump before FAILED. ExitCode=" +
+        $dumpBeforeExit
+    )
+}
+
+$currentSchemaBeforeHash =
+    (
+        Get-FileHash `
+            -LiteralPath `
+            $currentSchemaBefore `
+            -Algorithm SHA256
+    ).Hash.ToLowerInvariant()
+
+if (
+    $currentSchemaBeforeHash -ne
+    $referenceSchemaHash
+) {
+    throw (
+        "13.41a : schema production different du snapshot 13.40. " +
+        "Aucune nouvelle ecriture migration ne sera executee."
+    )
+}
+
+# ============================================================
+# CURRENT TRUE REMOTE HISTORY
+# ============================================================
+
+Write-Host ""
+Write-Host "Reading TRUE remote migration column..."
+Write-Host ""
+
+$beforeOutput =
+    @(
+        cmd.exe /d /s /c `
+            "npx.cmd supabase migration list --linked 2>&1"
+    )
+
+$beforeExit =
+    $LASTEXITCODE
+
+foreach (
+    $line
+    in $beforeOutput
+) {
+    Write-Host $line
+}
+
+if (
+    $beforeExit -ne 0
+) {
+    throw (
+        "13.41a : migration list FAILED. ExitCode=" +
+        $beforeExit
+    )
+}
+
+$remoteBefore =
+    @(
+        Get-RemoteMigrationVersions `
+            -Lines $beforeOutput
+    )
+
+if (
+    $remoteBefore.Count -lt 1
+) {
+    throw "13.41a : aucune migration distante detectee."
+}
+
+Write-Host ""
+Write-Host (
+    "TRUE remote versions before : " +
+    $remoteBefore.Count
+)
+
+foreach (
+    $version
+    in $remoteBefore
+) {
+    Write-Host (
+        "REMOTE -> " +
+        $version
+    )
+}
+
+# ============================================================
+# SAFETY CLASSIFICATION
+# ============================================================
+
+$unknownRemote =
+    @(
+        $remoteBefore |
+        Where-Object {
+            $_ -ne $baselineVersion -and
+            $_ -notin $archiveVersions
+        }
+    )
+
+if (
+    $unknownRemote.Count -gt 0
+) {
+    Write-Host ""
+    Write-Host "UNKNOWN REMOTE MIGRATIONS:"
+
+    foreach (
+        $version
+        in $unknownRemote
+    ) {
+        Write-Host $version
+    }
+
+    throw (
+        "13.41a : migrations distantes inconnues. " +
+        "Repair bloque."
+    )
+}
+
+$remainingHistorical =
+    @(
+        $remoteBefore |
+        Where-Object {
+            $_ -ne $baselineVersion -and
+            $_ -in $archiveVersions
+        } |
+        Sort-Object -Unique
+    )
+
+$baselinePresent =
+    (
+        $baselineVersion -in
+        $remoteBefore
+    )
+
+# ============================================================
+# FINISH ONLY REMAINING HISTORICAL RECORDS
+# ============================================================
+
+$revertedNow =
+    New-Object System.Collections.Generic.List[string]
+
+foreach (
+    $version
+    in $remainingHistorical
+) {
+    Write-Host ""
+    Write-Host (
+        "13.41a reverting remaining historical record : " +
+        $version
+    )
+
+    $repairOutput =
+        @(
+            cmd.exe /d /s /c `
+                (
+                    "npx.cmd supabase migration repair " +
+                    $version +
+                    " --status reverted --linked 2>&1"
+                )
+        )
+
+    $repairExit =
+        $LASTEXITCODE
+
+    foreach (
+        $line
+        in $repairOutput
+    ) {
+        Write-Host $line
+    }
+
+    if (
+        $repairExit -ne 0
+    ) {
+        throw (
+            "13.41a : reverted FAILED : " +
+            $version +
+            ". ExitCode=" +
+            $repairExit
+        )
+    }
+
+    $revertedNow.Add(
+        $version
+    )
+}
+
+if (
+    -not $baselinePresent
+) {
+    Write-Host ""
+    Write-Host (
+        "13.41a applying canonical history record : " +
+        $baselineVersion
+    )
+
+    $applyOutput =
+        @(
+            cmd.exe /d /s /c `
+                (
+                    "npx.cmd supabase migration repair " +
+                    $baselineVersion +
+                    " --status applied --linked 2>&1"
+                )
+        )
+
+    $applyExit =
+        $LASTEXITCODE
+
+    foreach (
+        $line
+        in $applyOutput
+    ) {
+        Write-Host $line
+    }
+
+    if (
+        $applyExit -ne 0
+    ) {
+        throw (
+            "13.41a : baseline applied FAILED. ExitCode=" +
+            $applyExit
+        )
+    }
+}
+
+# ============================================================
+# TRUE FINAL REMOTE HISTORY
+# ============================================================
+
+Write-Host ""
+Write-Host "Verifying TRUE remote column after reconciliation..."
+Write-Host ""
+
+$afterOutput =
+    @(
+        cmd.exe /d /s /c `
+            "npx.cmd supabase migration list --linked 2>&1"
+    )
+
+$afterExit =
+    $LASTEXITCODE
+
+foreach (
+    $line
+    in $afterOutput
+) {
+    Write-Host $line
+}
+
+if (
+    $afterExit -ne 0
+) {
+    throw (
+        "13.41a : post migration list FAILED. ExitCode=" +
+        $afterExit
+    )
+}
+
+[System.IO.File]::WriteAllLines(
+    $postHistory,
+    @(
+        $afterOutput |
+        ForEach-Object {
+            [string]$_
+        }
+    ),
+    $utf8
+)
+
+$remoteAfter =
+    @(
+        Get-RemoteMigrationVersions `
+            -Lines $afterOutput
+    )
+
+Write-Host ""
+Write-Host (
+    "TRUE remote versions after : " +
+    $remoteAfter.Count
+)
+
+foreach (
+    $version
+    in $remoteAfter
+) {
+    Write-Host (
+        "REMOTE -> " +
+        $version
+    )
+}
+
+if (
+    $remoteAfter.Count -ne 1
+) {
+    throw (
+        "13.41a : historique REMOTE attendu=1, trouve=" +
+        $remoteAfter.Count +
+        " [" +
+        (
+            $remoteAfter -join ", "
+        ) +
+        "]"
+    )
+}
+
+if (
+    $remoteAfter[0] -ne
+    $baselineVersion
+) {
+    throw (
+        "13.41a : version distante finale incorrecte : " +
+        $remoteAfter[0]
+    )
+}
+
+# ============================================================
+# VERIFY PUBLIC SCHEMA STILL IDENTICAL
+# ============================================================
+
+Write-Host ""
+Write-Host "Verifying production schema after reconciliation..."
+Write-Host ""
+
+cmd.exe /d /s /c `
+    (
+        'npx.cmd supabase db dump ' +
+        '--linked ' +
+        '--schema public ' +
+        '--file "' +
+        $postSchema +
+        '" 2>&1'
+    )
+
+$dumpAfterExit =
+    $LASTEXITCODE
+
+if (
+    $dumpAfterExit -ne 0
+) {
+    throw (
+        "13.41a : post schema dump FAILED. ExitCode=" +
+        $dumpAfterExit
+    )
+}
+
+$postSchemaHash =
+    (
+        Get-FileHash `
+            -LiteralPath `
+            $postSchema `
+            -Algorithm SHA256
+    ).Hash.ToLowerInvariant()
+
+$schemaUnchanged =
+    (
+        $postSchemaHash -eq
+        $referenceSchemaHash
+    )
+
+if (
+    -not $schemaUnchanged
+) {
+    throw "13.41a : schema production a change."
+}
+
+# ============================================================
+# RESULT
+# ============================================================
+
+$result =
+    [pscustomobject]@{
+        Step =
+            "13.41a"
+
+        GeneratedAt =
+            (
+                Get-Date
+            ).ToString(
+                "o"
+            )
+
+        ParserFixed =
+            $true
+
+        ParsedRemoteColumnOnly =
+            $true
+
+        CanonicalBaselineVersion =
+            $baselineVersion
+
+        TrueRemoteVersionsBefore =
+            $remoteBefore
+
+        TrueRemoteVersionsAfter =
+            $remoteAfter
+
+        RemainingHistoricalVersionsDetected =
+            $remainingHistorical
+
+        HistoricalVersionsRevertedNow =
+            @(
+                $revertedNow
+            )
+
+        BaselineWasPresentBefore =
+            $baselinePresent
+
+        UnknownRemoteVersions =
+            $unknownRemote
+
+        RemoteHistoryCanonical =
+            $true
+
+        PreRepairSchemaSha256 =
+            $referenceSchemaHash
+
+        PostRepairSchemaSha256 =
+            $postSchemaHash
+
+        ProductionSchemaUnchanged =
+            $schemaUnchanged
+
+        MigrationRepairExecuted =
+            (
+                $revertedNow.Count -gt 0 -or
+                -not $baselinePresent
+            )
+
+        HistoryTableModified =
+            (
+                $revertedNow.Count -gt 0 -or
+                -not $baselinePresent
+            )
+
+        ApplicationSchemaModified =
+            $false
+
+        ApplicationDataModified =
+            $false
+
+        DbPushLinkedUsed =
+            $false
+
+        DbResetLinkedUsed =
+            $false
+
+        MigrationUpLinkedUsed =
+            $false
+
+        RepairCompleted =
+            $true
+    }
+
+[System.IO.File]::WriteAllText(
+    $manifestPath,
+    (
+        $result |
+        ConvertTo-Json -Depth 100
+    ),
+    $utf8
+)
+
+$report =
+    @(
+        "======================================",
+        "KLYX 13.41a - HISTORY RECONCILIATION",
+        "======================================",
+        "",
+        "Parser remote-column-only : OK",
+        (
+            "True remote versions before : " +
+            $remoteBefore.Count
+        ),
+        (
+            "Historical records remaining : " +
+            $remainingHistorical.Count
+        ),
+        (
+            "Historical records reverted now : " +
+            $revertedNow.Count
+        ),
+        (
+            "Baseline already present before : " +
+            $baselinePresent
+        ),
+        (
+            "True remote versions after : " +
+            $remoteAfter.Count
+        ),
+        (
+            "Final remote baseline : " +
+            $remoteAfter[0]
+        ),
+        "",
+        "Remote migration history canonical : OUI",
+        "Production public schema unchanged : OUI",
+        "Application schema modified : NON",
+        "Application data modified : NON",
+        "db push --linked : NON",
+        "db reset --linked : NON",
+        "migration up --linked : NON",
+        "",
+        "======================================"
+    )
+
+[System.IO.File]::WriteAllLines(
+    $reportPath,
+    $report,
+    $utf8
+)
+
+Write-Host ""
+Write-Host "======================================"
+Write-Host "KLYX 13.41a HISTORY RECONCILIATION OK"
+Write-Host "======================================"
+Write-Host "Migration list parser : REMOTE COLUMN ONLY"
+Write-Host (
+    "Remote versions before : " +
+    $remoteBefore.Count
+)
+Write-Host (
+    "Remaining historical reverted : " +
+    $revertedNow.Count
+)
+Write-Host "Remote versions after : 1"
+Write-Host (
+    "Canonical remote baseline : " +
+    $baselineVersion
+)
+Write-Host "Production public schema : UNCHANGED"
+Write-Host "Application data : UNCHANGED"
+Write-Host "db push --linked : NON"
+Write-Host "db reset --linked : NON"
+Write-Host "======================================"

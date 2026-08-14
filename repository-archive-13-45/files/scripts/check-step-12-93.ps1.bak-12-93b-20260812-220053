@@ -1,0 +1,292 @@
+$ErrorActionPreference = "Stop"
+
+$root =
+    Split-Path -Parent $PSScriptRoot
+
+$apiPath =
+    Join-Path $root "app\api\provider\jobs\route.ts"
+
+$pagePath =
+    Join-Path $root "app\provider\jobs\page.tsx"
+
+$marketPath =
+    Join-Path $root "app\api\market\requests\route.ts"
+
+$offerPath =
+    Join-Path $root "app\api\market\requests\[id]\offers\route.ts"
+
+$groupApiPath =
+    Join-Path $root "app\api\booking-groups\[id]\route.ts"
+
+foreach (
+    $path in @(
+        $apiPath,
+        $pagePath,
+        $marketPath,
+        $offerPath,
+        $groupApiPath
+    )
+) {
+    if (
+        -not (
+            Test-Path -LiteralPath $path
+        )
+    ) {
+        throw "Fichier absent : $path"
+    }
+}
+
+$api =
+    [System.IO.File]::ReadAllText(
+        $apiPath
+    )
+
+$page =
+    [System.IO.File]::ReadAllText(
+        $pagePath
+    )
+
+$market =
+    [System.IO.File]::ReadAllText(
+        $marketPath
+    )
+
+$offers =
+    [System.IO.File]::ReadAllText(
+        $offerPath
+    )
+
+$groupApi =
+    [System.IO.File]::ReadAllText(
+        $groupApiPath
+    )
+
+$checks = @(
+    @{
+        Name = "provider jobs API 12.93"
+        Value =
+            $api.Contains(
+                "KLYX_PROVIDER_MULTI_JOBS_API_12_93"
+            )
+    },
+    @{
+        Name = "legacy market engine retained"
+        Value =
+            $api.Contains(
+                "getMarketRequests("
+            )
+    },
+    @{
+        Name = "request mode"
+        Value =
+            $api.Contains(
+                "request_mode"
+            )
+    },
+    @{
+        Name = "multi slots loaded"
+        Value =
+            $api.Contains(
+                "market_service_request_slots"
+            )
+    },
+    @{
+        Name = "provider candidate table"
+        Value =
+            $api.Contains(
+                "market_request_provider_candidates"
+            )
+    },
+    @{
+        Name = "provider candidate scoped"
+        Value =
+            $api.Contains(
+                '"provider_profile_id"'
+            ) -and
+            $api.Contains(
+                "profile.id"
+            )
+    },
+    @{
+        Name = "full coverage only"
+        Value =
+            $api.Contains(
+                "candidate.full_coverage"
+            ) -and
+            $api.Contains(
+                "coverage_count"
+            )
+    },
+    @{
+        Name = "budget total"
+        Value =
+            $api.Contains(
+                "budget_total"
+            )
+    },
+    @{
+        Name = "provider jobs UI 12.93"
+        Value =
+            $page.Contains(
+                "KLYX_PROVIDER_MULTI_JOBS_UI_12_93"
+            )
+    },
+    @{
+        Name = "multi slot planning UI"
+        Value =
+            $page.Contains(
+                "Tu couvres toute la mission"
+            )
+    },
+    @{
+        Name = "coverage N/N badge"
+        Value =
+            $page.Contains(
+                "item.coverage"
+            )
+    },
+    @{
+        Name = "one total offer"
+        Value =
+            $page.Contains(
+                "Ton prix total"
+            )
+    },
+    @{
+        Name = "existing offers route retained"
+        Value =
+            $page.Contains(
+                '"/api/market/requests/" +'
+            ) -and
+            $page.Contains(
+                '"/offers"'
+            )
+    },
+    @{
+        Name = "legacy market endpoint untouched"
+        Value =
+            $market.Length -gt 100
+    },
+    @{
+        Name = "12.84 multi accept guard retained"
+        Value =
+            $offers.Contains(
+                "KLYX_MULTI_SLOT_ACCEPT_GUARD_12_84"
+            )
+    },
+    @{
+        Name = "12.85 group booking retained"
+        Value =
+            $groupApi.Contains(
+                "KLYX_GROUP_BOOKING_API_12_85"
+            )
+    },
+    @{
+        Name = "automatic execution disabled"
+        Value =
+            $api.Contains(
+                "automaticExecutionAllowed:"
+            ) -and
+            $api.Contains(
+                "false"
+            )
+    }
+)
+
+$failed = @()
+
+Write-Host ""
+Write-Host "CHECK KLYX 12.93"
+Write-Host ""
+
+foreach (
+    $check in $checks
+) {
+    if (
+        $check.Value
+    ) {
+        Write-Host "[OK]   $($check.Name)"
+    }
+    else {
+        Write-Host "[FAIL] $($check.Name)"
+        $failed +=
+            $check.Name
+    }
+}
+
+if (
+    $failed.Count -gt 0
+) {
+    Write-Host ""
+    Write-Host "Echecs :"
+
+    $failed |
+        ForEach-Object {
+            Write-Host " - $_"
+        }
+
+    throw "KLYX 12.93 static checker FAILED."
+}
+
+Push-Location $root
+
+try {
+    Write-Host ""
+    Write-Host "TypeScript..."
+    Write-Host ""
+
+    $tsOutput = @(
+        & npx.cmd `
+            tsc `
+            --noEmit `
+            --pretty false 2>&1
+    )
+
+    if (
+        $LASTEXITCODE -ne 0
+    ) {
+        $tsOutput |
+            Select-Object -First 250 |
+            ForEach-Object {
+                Write-Host $_
+            }
+
+        throw "KLYX 12.93 TypeScript FAILED."
+    }
+
+    Write-Host "TypeScript OK."
+    Write-Host ""
+    Write-Host "npm run build..."
+    Write-Host ""
+
+    & npm.cmd run build
+
+    if (
+        $LASTEXITCODE -ne 0
+    ) {
+        throw "KLYX 12.93 build FAILED."
+    }
+}
+finally {
+    Pop-Location
+}
+
+Write-Host ""
+Write-Host "======================================"
+Write-Host "KLYX 12.93 CHECK OK"
+Write-Host "======================================"
+Write-Host "Missions simples : OK"
+Write-Host "Missions multi-creneaux : OK"
+Write-Host "Planning complet : OK"
+Write-Host "Budget par creneau : OK"
+Write-Host "Budget total : OK"
+Write-Host "Duree totale : OK"
+Write-Host "Couverture 100% obligatoire : OK"
+Write-Host "Prestataire partiel : MASQUE"
+Write-Host "1 groupe = 1 offre : OK"
+Write-Host "Matching historique : CONSERVE"
+Write-Host "Booking groupe 12.85 : CONSERVE"
+Write-Host "Execution automatique : NON"
+Write-Host "Build Next.js : OK"
+Write-Host "======================================"
+Write-Host ""

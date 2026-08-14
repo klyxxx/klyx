@@ -1,0 +1,22 @@
+{
+    "Step":  "13.41d",
+    "GeneratedAt":  "2026-08-13T21:09:46.0420329+02:00",
+    "ParserSupportsBackticks":  true,
+    "RemoteVersions":  [
+                           "20260814000000"
+                       ],
+    "RemoteMigrationCount":  1,
+    "CanonicalBaselineVersion":  "20260814000000",
+    "RemoteHistoryCanonical":  true,
+    "ReferenceSchemaSha256":  "088018edf8517632b4f436eb2cb3871b1bf7f30e85daa18d89b787ac5140c50f",
+    "CurrentSchemaSha256":  "088018edf8517632b4f436eb2cb3871b1bf7f30e85daa18d89b787ac5140c50f",
+    "ProductionSchemaUnchanged":  true,
+    "ApplicationSchemaModified":  false,
+    "ApplicationDataModified":  false,
+    "MigrationRepairExecutedThisRun":  false,
+    "LinkedWriteUsedThisRun":  false,
+    "DbPushLinkedUsed":  false,
+    "DbResetLinkedUsed":  false,
+    "MigrationUpLinkedUsed":  false,
+    "RepairCompleted":  true
+}

@@ -1,344 +1,856 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import SplitMissionSection, {
+  splitMissionIsHistory,
+  splitMissionMatchesFilter,
+  splitMissionNeedsAction,
+  type SplitMissionSummary,
+} from "./SplitMissionSection";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+
 import {
   ArrowRight,
   CalendarDays,
   CheckCircle2,
   Clock3,
+  CreditCard,
+  Layers3,
+  LoaderCircle,
   RefreshCw,
   Search,
+  ShieldCheck,
   UserRound,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
-import { getActiveClientProfile, type SavedAccount } from "@/lib/account-switcher";
 
-type BookingRow = {
+import {
+  useRouter,
+} from "next/navigation";
+
+import {
+  supabase,
+} from "@/lib/supabase";
+
+// KLYX_GROUPED_BOOKINGS_PAGE_12_92
+
+type BookingFilter =
+  | "actions"
+  | "upcoming"
+  | "history"
+  | "all";
+
+type BookingCard = {
   id: string;
-  parent_id: string;
-  provider_id: string | null;
-  babysitter_id: string | null;
-  service_id: string | null;
-  booking_date: string;
-  start_time: string;
-  end_time: string;
-  status: string;
-  payment_status: string | null;
-  service_status: string | null;
-  amount_total: number | null;
-  estimated_amount_cents: number | null;
-  currency: string | null;
-  created_at: string;
+
+  entityType:
+    | "booking"
+    | "group";
+
+  href: string;
+
+  role:
+    | "client"
+    | "provider";
+
+  otherUserName:
+    string;
+
+  otherUserAvatar:
+    | string
+    | null;
+
+  serviceLabel:
+    string;
+
+  status:
+    string;
+
+  statusLabel:
+    string;
+
+  paymentStatus:
+    string;
+
+  amountCents:
+    | number
+    | null;
+
+  currency:
+    string;
+
+  dateFrom:
+    string;
+
+  dateTo:
+    string;
+
+  firstStart:
+    string;
+
+  lastEnd:
+    string;
+
+  slotCount:
+    number;
+
+  actionRequired:
+    boolean;
+
+  history:
+    boolean;
+
+  cancellationPending:
+    boolean;
+
+  refundStatus:
+    string;
+
+  createdAt:
+    string;
 };
 
-type ProfileRow = {
-  id: string;
-  first_name: string | null;
-  last_name: string | null;
-  avatar_url: string | null;
+type OverviewResponse = {
+  accountType?:
+    | "client"
+    | "provider";
+
+  cards?:
+    BookingCard[];
+
+  count?: number;
+
+  groupCount?: number;
+
+  childBookingsHidden?:
+    number;
+
+  groupedDisplay?:
+    boolean;
+
+  error?: string;
 };
 
-type ServiceRow = {
-  id: string;
-  slug: string;
-};
+const STATUS_STYLES:
+  Record<
+    string,
+    string
+  > = {
+    pending:
+      "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
 
-type BookingCard = BookingRow & {
-  otherUserName: string;
-  otherUserAvatar: string | null;
-  serviceLabel: string;
-  role: "client" | "provider";
-};
+    payment_pending:
+      "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300",
 
-type BookingFilter = "actions" | "upcoming" | "history" | "all";
+    accepted:
+      "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300",
 
-const SERVICE_LABELS: Record<string, string> = {
-  babysitting: "Baby-sitting",
-  cleaning: "Ménage",
-  moving: "Déménagement",
-  handyman: "Bricolage",
-};
+    completed:
+      "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
 
-const STATUS_LABELS: Record<string, string> = {
-  pending: "En attente",
-  accepted: "Acceptée",
-  rejected: "Refusée",
-  cancelled: "Annulée",
-  completed: "Terminée",
-};
+    cancelled:
+      "border-border bg-muted text-muted-foreground",
 
-const STATUS_STYLES: Record<string, string> = {
-  pending: "border-amber-500/30 bg-amber-500/10 text-amber-300",
-  accepted: "border-violet-500/30 bg-violet-500/10 text-violet-300",
-  rejected: "border-red-500/30 bg-red-500/10 text-red-300",
-  cancelled: "border-border dark:border-zinc-700 bg-muted dark:bg-zinc-800 text-foreground/80 dark:text-zinc-300",
-  completed: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-};
+    rejected:
+      "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300",
 
-function formatName(profile: ProfileRow | undefined): string {
-  if (!profile) return "Utilisateur KLYX";
+    cancellation_waiting:
+      "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
 
-  return (
-    [profile.first_name, profile.last_name].filter(Boolean).join(" ") ||
-    "Utilisateur KLYX"
+    cancellation_decision:
+      "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300",
+
+    refund_processing:
+      "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300",
+
+    refund_failed:
+      "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300",
+
+    refunded:
+      "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300",
+  };
+
+async function accessToken() {
+  const {
+    data: {
+      session,
+    },
+  } =
+    await supabase.auth.getSession();
+
+  if (
+    !session?.access_token
+  ) {
+    throw new Error(
+      "Session manquante."
+    );
+  }
+
+  return session.access_token;
+}
+
+function formatDate(
+  value: string
+) {
+  return new Intl.DateTimeFormat(
+    "fr-BE",
+    {
+      weekday:
+        "short",
+
+      day:
+        "2-digit",
+
+      month:
+        "short",
+
+      year:
+        "numeric",
+    }
+  ).format(
+    new Date(
+      value +
+      "T12:00:00"
+    )
   );
 }
 
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat("fr-BE", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(`${value}T12:00:00`));
-}
-
-function formatAmount(booking: BookingCard): string {
-  const amount = booking.estimated_amount_cents ?? booking.amount_total;
-
-  if (amount == null) return "Prix à confirmer";
-
-  return new Intl.NumberFormat("fr-BE", {
-    style: "currency",
-    currency: booking.currency || "EUR",
-  }).format(amount / 100);
-}
-
-function needsAction(booking: BookingCard): boolean {
-  if (booking.role === "provider") return booking.status === "pending";
+function dateLabel(
+  card: BookingCard
+) {
+  if (
+    card.dateFrom ===
+    card.dateTo
+  ) {
+    return formatDate(
+      card.dateFrom
+    );
+  }
 
   return (
-    booking.status === "accepted" &&
-    booking.payment_status !== "paid"
+    formatDate(
+      card.dateFrom
+    ) +
+    " → " +
+    formatDate(
+      card.dateTo
+    )
   );
 }
 
-function isHistory(booking: BookingCard): boolean {
-  return ["rejected", "cancelled", "completed"].includes(booking.status);
+function timeLabel(
+  card: BookingCard
+) {
+  if (
+    card.entityType ===
+      "group"
+  ) {
+    return (
+      String(
+        card.slotCount
+      ) +
+      " creneau" +
+      (
+        card.slotCount >
+        1
+          ? "x"
+          : ""
+      )
+    );
+  }
+
+  return (
+    card.firstStart.slice(
+      0,
+      5
+    ) +
+    " - " +
+    card.lastEnd.slice(
+      0,
+      5
+    )
+  );
+}
+
+function amountLabel(
+  card: BookingCard
+) {
+  if (
+    card.amountCents ==
+    null
+  ) {
+    return "Prix a confirmer";
+  }
+
+  return new Intl.NumberFormat(
+    "fr-BE",
+    {
+      style:
+        "currency",
+
+      currency:
+        card.currency ||
+        "EUR",
+    }
+  ).format(
+    card.amountCents /
+    100
+  );
 }
 
 export default function BookingsPage() {
-  const router = useRouter();
-  const [activeProfile, setActiveProfile] = useState<SavedAccount | null>(null);
-  const [bookings, setBookings] = useState<BookingCard[]>([]);
-  const [filter, setFilter] = useState<BookingFilter>("actions");
-  const [loading, setLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
+  const router =
+    useRouter();
 
-  const loadBookings = useCallback(async () => {
-    setLoading(true);
-    setErrorMessage("");
+  const [
+    accountType,
+    setAccountType,
+  ] =
+    useState<
+      | "client"
+      | "provider"
+    >(
+      "client"
+    );
 
-    try {
-      const {
-        data: { session },
-        error: sessionError,
-      } = await supabase.auth.getSession();
+  const [
+    bookings,
+    setBookings,
+  ] =
+    useState<
+      BookingCard[]
+    >([]);
+  // KLYX_SPLIT_MISSION_CONSOLIDATION_13_21
+  const [
+    splitMissions,
+    setSplitMissions,
+  ] =
+    useState<
+      SplitMissionSummary[]
+    >([]);
 
-      if (sessionError || !session?.user) {
-        router.replace("/login");
-        return;
-      }
+  const [
+    filter,
+    setFilter,
+  ] =
+    useState<BookingFilter>(
+      "actions"
+    );
 
-      const profile = await getActiveClientProfile();
-      setActiveProfile(profile);
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(true);
 
-      const { data: bookingData, error: bookingError } = await supabase
-        .from("bookings")
-        .select(
-          "id, parent_id, provider_id, babysitter_id, service_id, booking_date, start_time, end_time, status, payment_status, service_status, amount_total, estimated_amount_cents, currency, created_at"
-        )
-        .or(
-          `parent_id.eq.${profile.id},provider_id.eq.${profile.id},babysitter_id.eq.${profile.id}`
-        )
-        .order("created_at", { ascending: true });
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] =
+    useState("");
 
-      if (bookingError) throw new Error(bookingError.message);
+  const [
+    hiddenChildren,
+    setHiddenChildren,
+  ] =
+    useState(0);
 
-      const bookingRows = (bookingData ?? []) as BookingRow[];
+  const loadBookings =
+    useCallback(
+      async () => {
+        setLoading(
+          true
+        );
 
-      if (bookingRows.length === 0) {
-        setBookings([]);
-        return;
-      }
+        setErrorMessage(
+          ""
+        );
 
-      const profileIds = Array.from(
-        new Set(
-          bookingRows.flatMap((booking) =>
-            [booking.parent_id, booking.provider_id ?? booking.babysitter_id].filter(
-              (value): value is string => Boolean(value)
+        try {
+          const token =
+            await accessToken();
+
+          const response =
+            await fetch(
+              "/api/bookings/overview",
+              {
+                cache:
+                  "no-store",
+
+                headers: {
+                  Authorization:
+                    "Bearer " +
+                    token,
+                },
+              }
+            );
+
+          const body =
+            (await response.json()) as
+              OverviewResponse;
+
+          if (
+            !response.ok
+          ) {
+            throw new Error(
+              body.error ||
+              "Chargement impossible."
+            );
+          }
+
+          setAccountType(
+            body.accountType ??
+            "client"
+          );
+
+
+          // KLYX_SPLIT_MISSION_CHILD_FILTER_13_21D
+          const overviewCards =
+            body.cards ??
+            [];
+
+          let nextSplitMissions:
+            SplitMissionSummary[] =
+            [];
+
+          let hiddenSplitBookingIds =
+            new Set<string>();
+
+          if (
+            (
+              body.accountType ??
+              "client"
+            ) ===
+            "client"
+          ) {
+            try {
+              const splitResponse =
+                await fetch(
+                  "/api/bookings/split-missions",
+                  {
+                    cache:
+                      "no-store",
+
+                    headers: {
+                      Authorization:
+                        "Bearer " +
+                        token,
+                    },
+                  }
+                );
+
+              if (
+                splitResponse.ok
+              ) {
+                const splitBody =
+                  (
+                    await splitResponse.json()
+                  ) as {
+                    missions?:
+                      SplitMissionSummary[];
+
+                    childBookingIds?:
+                      string[];
+                  };
+
+                nextSplitMissions =
+                  Array.isArray(
+                    splitBody.missions
+                  )
+                    ? splitBody.missions
+                    : [];
+
+                hiddenSplitBookingIds =
+                  new Set(
+                    Array.isArray(
+                      splitBody.childBookingIds
+                    )
+                      ? splitBody.childBookingIds
+                      : []
+                  );
+              }
+            } catch {
+              nextSplitMissions =
+                [];
+
+              hiddenSplitBookingIds =
+                new Set<string>();
+            }
+          }
+
+          setSplitMissions(
+            nextSplitMissions
+          );
+
+          setBookings(
+            overviewCards.filter(
+              (
+                card
+              ) =>
+                !hiddenSplitBookingIds.has(
+                  card.id
+                )
             )
-          )
-        )
-      );
-      const serviceIds = Array.from(
-        new Set(
-          bookingRows
-            .map((booking) => booking.service_id)
-            .filter((value): value is string => Boolean(value))
-        )
-      );
+          );
 
-      const [profilesResult, servicesResult] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("id, first_name, last_name, avatar_url")
-          .in("id", profileIds),
-        serviceIds.length > 0
-          ? supabase.from("services").select("id, slug").in("id", serviceIds)
-          : Promise.resolve({ data: [] as ServiceRow[], error: null }),
-      ]);
+          setHiddenChildren(
+            (body.childBookingsHidden ?? 0) +
+            hiddenSplitBookingIds.size
+          );
+        } catch (error) {
+          if (
+            error instanceof Error &&
+            error.message ===
+              "Session manquante."
+          ) {
+            router.replace(
+              "/login"
+            );
 
-      if (profilesResult.error) throw new Error(profilesResult.error.message);
-      if (servicesResult.error) throw new Error(servicesResult.error.message);
+            return;
+          }
 
-      const profileById = new Map(
-        ((profilesResult.data ?? []) as ProfileRow[]).map((item) => [item.id, item])
-      );
-      const serviceById = new Map(
-        ((servicesResult.data ?? []) as ServiceRow[]).map((item) => [item.id, item])
-      );
-
-      setBookings(
-        bookingRows.map((booking): BookingCard => {
-          const providerId = booking.provider_id ?? booking.babysitter_id ?? "";
-          const role = booking.parent_id === profile.id ? "client" : "provider";
-          const otherUserId = role === "client" ? providerId : booking.parent_id;
-          const otherProfile = profileById.get(otherUserId);
-          const serviceSlug = booking.service_id
-            ? serviceById.get(booking.service_id)?.slug
-            : "babysitting";
-
-          return {
-            ...booking,
-            role,
-            otherUserName: formatName(otherProfile),
-            otherUserAvatar: otherProfile?.avatar_url ?? null,
-            serviceLabel:
-              SERVICE_LABELS[serviceSlug ?? ""] ?? serviceSlug ?? "Service KLYX",
-          };
-        })
-      );
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Impossible de charger les réservations."
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [router]);
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : "Impossible de charger les reservations."
+          );
+        } finally {
+          setLoading(
+            false
+          );
+        }
+      },
+      [
+        router,
+      ]
+    );
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void loadBookings();
-    }, 0);
-
-    return () => window.clearTimeout(timer);
+    void loadBookings();
   }, [loadBookings]);
 
-  const counts = useMemo(
-    () => ({
-      actions: bookings.filter(needsAction).length,
-      upcoming: bookings.filter((booking) => !isHistory(booking)).length,
-      history: bookings.filter(isHistory).length,
-      all: bookings.length,
-    }),
-    [bookings]
-  );
+  const counts =
+    useMemo(
+      () => ({
+        actions:
+          bookings.filter(
+            (booking) =>
+              booking.actionRequired
+          ).length,
 
-  const visibleBookings = useMemo(() => {
-    if (filter === "actions") return bookings.filter(needsAction);
-    if (filter === "upcoming") return bookings.filter((booking) => !isHistory(booking));
-    if (filter === "history") return bookings.filter(isHistory);
+        upcoming:
+          bookings.filter(
+            (booking) =>
+              !booking.history
+          ).length,
 
-    return bookings;
-  }, [bookings, filter]);
+        history:
+          bookings.filter(
+            (booking) =>
+              booking.history
+          ).length,
 
-  const filterOptions: Array<{ value: BookingFilter; label: string }> = [
-    { value: "actions", label: "À traiter" },
-    { value: "upcoming", label: "À venir" },
-    { value: "history", label: "Historique" },
-    { value: "all", label: "Toutes" },
-  ];
+        all:
+          bookings.length,
+      }),
+      [
+        bookings,
+      ]
+    );
+
+
+  // KLYX_SPLIT_MISSION_COUNTS_13_21D
+  const splitMissionCounts =
+    useMemo(
+      () => ({
+        actions:
+          splitMissions.filter(
+            splitMissionNeedsAction
+          ).length,
+
+        upcoming:
+          splitMissions.filter(
+            (
+              mission
+            ) =>
+              !splitMissionIsHistory(
+                mission
+              )
+          ).length,
+
+        history:
+          splitMissions.filter(
+            splitMissionIsHistory
+          ).length,
+
+        all:
+          splitMissions.length,
+      }),
+      [
+        splitMissions,
+      ]
+    );
+  const visibleBookings =
+    useMemo(
+      () => {
+        if (
+          filter ===
+          "actions"
+        ) {
+          return bookings.filter(
+            (booking) =>
+              booking.actionRequired
+          );
+        }
+
+        if (
+          filter ===
+          "upcoming"
+        ) {
+          return bookings.filter(
+            (booking) =>
+              !booking.history
+          );
+        }
+
+        if (
+          filter ===
+          "history"
+        ) {
+          return bookings.filter(
+            (booking) =>
+              booking.history
+          );
+        }
+
+        return bookings;
+      },
+      [
+        bookings,
+        filter,
+      ]
+    );
+
+  const filterOptions:
+    Array<{
+      value:
+        BookingFilter;
+
+      label:
+        string;
+    }> = [
+      {
+        value:
+          "actions",
+
+        label:
+          "A traiter",
+      },
+
+      {
+        value:
+          "upcoming",
+
+        label:
+          "A venir",
+      },
+
+      {
+        value:
+          "history",
+
+        label:
+          "Historique",
+      },
+
+      {
+        value:
+          "all",
+
+        label:
+          "Toutes",
+      },
+    ];
 
   return (
-    <main className="min-h-screen bg-background dark:bg-zinc-950 px-5 py-10 text-foreground dark:text-white">
+    <main className="min-h-screen bg-background px-5 py-10 text-foreground dark:bg-zinc-950">
       <div className="mx-auto max-w-6xl">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <Link href="/dashboard" className="text-sm text-muted-foreground dark:text-zinc-400 hover:text-foreground dark:text-white">
+            <Link
+              href="/dashboard"
+              className="text-sm text-muted-foreground transition hover:text-foreground"
+            >
               Retour au tableau de bord
             </Link>
-            <p className="mt-6 text-sm font-semibold uppercase tracking-[0.2em] text-violet-400">
-              {activeProfile?.accountType === "provider"
+
+            <p className="mt-6 text-sm font-black uppercase tracking-[0.2em] text-violet-600 dark:text-violet-400">
+              {accountType ===
+              "provider"
                 ? "Espace prestataire"
                 : "Espace client"}
             </p>
-            <h1 className="mt-2 text-3xl font-bold sm:text-5xl">Mes réservations</h1>
-            <p className="mt-3 text-muted-foreground dark:text-zinc-400">
-              Demandes, confirmations, rendez-vous et historique au même endroit.
+
+            <h1 className="mt-2 text-3xl font-black tracking-[-0.04em] sm:text-5xl">
+              Mes reservations
+            </h1>
+
+            <p className="mt-3 max-w-2xl text-muted-foreground">
+              Une mission multi-creneaux apparait maintenant comme
+              une seule reservation KLYX.
             </p>
           </div>
 
           <button
             type="button"
-            onClick={() => void loadBookings()}
-            disabled={loading}
-            className="inline-flex items-center gap-2 rounded-xl border border-border dark:border-zinc-700 px-5 py-3 font-semibold hover:bg-card dark:bg-zinc-900 disabled:opacity-50"
+            onClick={() =>
+              void loadBookings()
+            }
+            disabled={
+              loading
+            }
+            className="inline-flex h-12 items-center gap-2 rounded-xl border border-border bg-card px-5 text-sm font-black transition hover:bg-muted disabled:opacity-50"
           >
-            <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+            <RefreshCw
+              size={18}
+              className={
+                loading
+                  ? "animate-spin"
+                  : ""
+              }
+            />
+
             Actualiser
           </button>
         </div>
 
+        {hiddenChildren >
+          0 && (
+          <div className="mt-7 inline-flex items-center gap-2 rounded-full border border-violet-500/20 bg-violet-500/10 px-4 py-2 text-xs font-black text-violet-700 dark:text-violet-300">
+            <Layers3
+              size={15}
+            />
+
+            Vue groupee active
+          </div>
+        )}
+
         {errorMessage && (
-          <div className="mt-8 rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-red-300">
+          <div className="mt-8 rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-sm text-red-700 dark:text-red-300">
             {errorMessage}
           </div>
         )}
 
-        {!loading && bookings.length > 0 && (
+        {!loading &&
+          bookings.length >
+          0 && (
           <div className="mt-8 flex gap-2 overflow-x-auto pb-2">
-            {filterOptions.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => setFilter(option.value)}
-                className={`whitespace-nowrap rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                  filter === option.value
-                    ? "border-violet-500 bg-violet-600 text-white"
-                    : "border-border dark:border-zinc-700 bg-card dark:bg-zinc-900 text-foreground/80 dark:text-zinc-300 hover:border-zinc-500"
-                }`}
-              >
-                {option.label} · {counts[option.value]}
-              </button>
-            ))}
+            {filterOptions.map(
+              (
+                option
+              ) => (
+                <button
+                  key={
+                    option.value
+                  }
+                  type="button"
+                  onClick={() =>
+                    setFilter(
+                      option.value
+                    )
+                  }
+                  className={
+                    "whitespace-nowrap rounded-full border px-4 py-2 text-sm font-black transition " +
+                    (
+                      filter ===
+                      option.value
+                        ? "border-violet-500 bg-violet-600 text-white"
+                        : "border-border bg-card text-muted-foreground hover:text-foreground"
+                    )
+                  }
+                >
+                  {
+                    option.label
+                  }
+                  {" · "}
+                  {
+                    counts[
+                      option.value
+                    ]
+                  }
+                </button>
+              )
+            )}
           </div>
         )}
 
+        {/* KLYX_SPLIT_MISSION_LIST_WIRING_13_21 */}
+        {!loading && (
+          <SplitMissionSection
+            missions={
+              splitMissions
+            }
+            filter={
+              filter
+            }
+          />
+        )}
         {loading ? (
-          <div className="mt-10 rounded-2xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-8 text-center text-muted-foreground dark:text-zinc-400">
-            Chargement des réservations...
+          <div className="mt-10 flex min-h-48 items-center justify-center rounded-3xl border border-border bg-card">
+            <div className="flex items-center gap-3 text-sm font-bold text-muted-foreground">
+              <LoaderCircle
+                size={20}
+                className="animate-spin"
+              />
+
+              Chargement des reservations...
+            </div>
           </div>
-        ) : bookings.length === 0 ? (
-          <EmptyState accountType={activeProfile?.accountType ?? "client"} />
-        ) : visibleBookings.length === 0 ? (
-          <div className="mt-8 rounded-2xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-8 text-center">
-            <CheckCircle2 className="mx-auto text-emerald-400" size={40} />
-            <h2 className="mt-4 text-xl font-bold">Rien à traiter</h2>
-            <p className="mt-2 text-muted-foreground dark:text-zinc-400">
-              Toutes les demandes sont à jour. Consulte « À venir » ou l’historique.
+        ) : bookings.length === 0 && splitMissions.length === 0 ? (
+          <EmptyState
+            accountType={
+              accountType
+            }
+          />
+        ) : visibleBookings.length === 0 && splitMissions.filter((mission) => splitMissionMatchesFilter(mission, filter)).length === 0 ? (
+          <div className="mt-8 rounded-3xl border border-border bg-card p-10 text-center">
+            <CheckCircle2
+              className="mx-auto text-emerald-500"
+              size={42}
+            />
+
+            <h2 className="mt-4 text-xl font-black">
+              Rien a traiter
+            </h2>
+
+            <p className="mt-2 text-sm text-muted-foreground">
+              Les missions qui demandent ton intervention apparaitront ici.
             </p>
           </div>
         ) : (
           <div className="mt-8 grid gap-5 lg:grid-cols-2">
-            {visibleBookings.map((booking) => (
-              <BookingCardView key={booking.id} booking={booking} />
-            ))}
+            {visibleBookings.map(
+              (
+                booking
+              ) => (
+                <BookingCardView
+                  key={
+                    booking.entityType +
+                    ":" +
+                    booking.id
+                  }
+                  booking={
+                    booking
+                  }
+                />
+              )
+            )}
           </div>
         )}
       </div>
@@ -346,96 +858,256 @@ export default function BookingsPage() {
   );
 }
 
-function EmptyState({ accountType }: { accountType: "client" | "provider" }) {
+function EmptyState({
+  accountType,
+}: {
+  accountType:
+    | "client"
+    | "provider";
+}) {
   return (
-    <div className="mt-10 rounded-3xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-10 text-center">
-      <Search className="mx-auto text-violet-400" size={44} />
-      <h2 className="mt-5 text-2xl font-bold">Aucune réservation pour le moment</h2>
-      <p className="mx-auto mt-3 max-w-lg text-muted-foreground dark:text-zinc-400">
-        {accountType === "provider"
-          ? "Les nouvelles demandes apparaîtront ici dès qu’un client réservera l’un de tes services."
-          : "Trouve un prestataire publié et envoie ta première demande."}
+    <div className="mt-10 rounded-3xl border border-border bg-card p-10 text-center">
+      <Search
+        className="mx-auto text-violet-500"
+        size={44}
+      />
+
+      <h2 className="mt-5 text-2xl font-black">
+        Aucune reservation pour le moment
+      </h2>
+
+      <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-muted-foreground">
+        {accountType ===
+        "provider"
+          ? "Les nouvelles missions apparaitront ici lorsqu un client choisira tes services."
+          : "Trouve un prestataire et organise ta premiere mission avec KLYX."}
       </p>
+
       <Link
-        href={accountType === "provider" ? "/provider" : "/search"}
-        className="mt-6 inline-flex rounded-xl bg-violet-600 px-6 py-3 font-semibold hover:bg-violet-700"
+        href={
+          accountType ===
+          "provider"
+            ? "/provider"
+            : "/search"
+        }
+        className="mt-6 inline-flex h-12 items-center justify-center rounded-xl bg-violet-600 px-6 text-sm font-black text-white transition hover:bg-violet-700"
       >
-        {accountType === "provider" ? "Gérer ma fiche" : "Trouver un service"}
+        {accountType ===
+        "provider"
+          ? "Gerer ma fiche"
+          : "Trouver un service"}
       </Link>
     </div>
   );
 }
 
-function BookingCardView({ booking }: { booking: BookingCard }) {
-  const actionRequired = needsAction(booking);
+function BookingCardView({
+  booking,
+}: {
+  booking:
+    BookingCard;
+}) {
+  const grouped =
+    booking.entityType ===
+    "group";
 
   return (
     <article
-      className={`rounded-3xl border bg-card dark:bg-zinc-900 p-6 transition hover:-translate-y-0.5 ${
-        actionRequired ? "border-violet-500/50" : "border-border dark:border-zinc-800"
-      }`}
+      className={
+        "rounded-3xl border bg-card p-6 transition hover:-translate-y-0.5 " +
+        (
+          booking.actionRequired
+            ? "border-violet-500/50 shadow-[0_0_0_1px_rgba(139,92,246,0.08)]"
+            : "border-border"
+        )
+      }
     >
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted dark:bg-zinc-800">
+          <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-muted">
             {booking.otherUserAvatar ? (
               <img
-                src={booking.otherUserAvatar}
-                alt={booking.otherUserName}
+                src={
+                  booking.otherUserAvatar
+                }
+                alt={
+                  booking.otherUserName
+                }
                 className="h-full w-full object-cover"
               />
             ) : (
-              <UserRound className="text-muted-foreground dark:text-zinc-500" size={24} />
+              <UserRound
+                className="text-muted-foreground"
+                size={24}
+              />
             )}
           </div>
+
           <div className="min-w-0">
-            <p className="truncate text-lg font-bold">{booking.otherUserName}</p>
-            <p className="text-sm text-violet-400">{booking.serviceLabel}</p>
+            <p className="truncate text-lg font-black">
+              {
+                booking.otherUserName
+              }
+            </p>
+
+            <p className="text-sm font-bold text-violet-600 dark:text-violet-400">
+              {
+                booking.serviceLabel
+              }
+            </p>
           </div>
         </div>
 
         <span
-          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-semibold ${
-            STATUS_STYLES[booking.status] ?? STATUS_STYLES.cancelled
-          }`}
+          className={
+            "shrink-0 rounded-full border px-3 py-1 text-xs font-black " +
+            (
+              STATUS_STYLES[
+                booking.status
+              ] ??
+              "border-border bg-muted text-muted-foreground"
+            )
+          }
         >
-          {STATUS_LABELS[booking.status] ?? booking.status}
+          {
+            booking.statusLabel
+          }
         </span>
       </div>
 
-      {actionRequired && (
-        <p className="mt-5 rounded-xl border border-violet-500/30 bg-violet-500/10 p-3 text-sm font-semibold text-violet-200">
-          {booking.role === "provider"
-            ? "Cette demande attend ta réponse."
-            : "La demande est acceptée : tu peux payer la réservation."}
-        </p>
+      {grouped && (
+        <div className="mt-5 flex items-center gap-2 rounded-2xl border border-violet-500/20 bg-violet-500/5 p-3 text-sm">
+          <Layers3
+            className="shrink-0 text-violet-600"
+            size={18}
+          />
+
+          <div>
+            <p className="font-black">
+              Mission groupee
+            </p>
+
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {
+                booking.slotCount
+              }
+              {" creneaux reunis dans une seule reservation"}
+            </p>
+          </div>
+        </div>
       )}
 
-      <div className="mt-5 grid gap-3 text-sm text-muted-foreground dark:text-zinc-400 sm:grid-cols-2">
-        <p className="flex items-center gap-2">
-          <CalendarDays size={17} />
-          {formatDate(booking.booking_date)}
-        </p>
-        <p className="flex items-center gap-2">
-          <Clock3 size={17} />
-          {booking.start_time.slice(0, 5)}–{booking.end_time.slice(0, 5)}
-        </p>
+      {booking.actionRequired && (
+        <div className="mt-5 flex gap-2 rounded-2xl border border-violet-500/25 bg-violet-500/10 p-3 text-sm font-bold text-violet-700 dark:text-violet-300">
+          <ShieldCheck
+            size={18}
+            className="mt-0.5 shrink-0"
+          />
+
+          <span>
+            Une action de ta part est requise.
+          </span>
+        </div>
+      )}
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <Info
+          icon={
+            <CalendarDays
+              size={17}
+            />
+          }
+          label="Date"
+          value={
+            dateLabel(
+              booking
+            )
+          }
+        />
+
+        <Info
+          icon={
+            <Clock3
+              size={17}
+            />
+          }
+          label={
+            grouped
+              ? "Planning"
+              : "Horaire"
+          }
+          value={
+            timeLabel(
+              booking
+            )
+          }
+        />
       </div>
 
-      <div className="mt-5 flex items-center justify-between border-t border-border dark:border-zinc-800 pt-5">
-        <div>
-          <p className="text-xs text-muted-foreground dark:text-zinc-500">Total estimé</p>
-          <p className="mt-1 text-xl font-bold">{formatAmount(booking)}</p>
+      <div className="mt-3 rounded-2xl border border-border bg-background p-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-muted-foreground">
+            <CreditCard
+              size={16}
+            />
+
+            {grouped
+              ? "Total mission"
+              : "Montant"}
+          </div>
+
+          <p className="text-lg font-black">
+            {
+              amountLabel(
+                booking
+              )
+            }
+          </p>
         </div>
-        <Link
-          href={`/bookings/${booking.id}`}
-          className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-3 font-semibold hover:bg-violet-700"
-        >
-          {actionRequired ? "Traiter" : "Détails"}
-          <ArrowRight size={18} />
-        </Link>
       </div>
+
+      <Link
+        href={
+          booking.href
+        }
+        className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 text-sm font-black text-white transition hover:bg-violet-700"
+      >
+        {grouped
+          ? "Ouvrir la mission groupee"
+          : "Voir la reservation"}
+
+        <ArrowRight
+          size={17}
+        />
+      </Link>
     </article>
   );
 }
 
+function Info({
+  icon,
+  label,
+  value,
+}: {
+  icon:
+    React.ReactNode;
+
+  label:
+    string;
+
+  value:
+    string;
+}) {
+  return (
+    <div className="rounded-2xl border border-border bg-background p-4">
+      <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-muted-foreground">
+        {icon}
+        {label}
+      </div>
+
+      <p className="mt-2 text-sm font-black">
+        {value}
+      </p>
+    </div>
+  );
+}

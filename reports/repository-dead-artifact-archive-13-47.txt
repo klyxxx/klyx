@@ -1,0 +1,20 @@
+======================================
+KLYX 13.47 - DEAD ARTIFACT ARCHIVE
+======================================
+
+Dead candidates from 13.46 : 0
+Eligible existing files : 0
+Archived files : 0
+
+Archive hashes verified : OUI
+Used files preserved : OUI
+Tracked unreferenced files preserved : OUI
+Canonical migration preserved : OUI
+
+Irreversible deletions : 0
+Source files edited : 0
+Production DB modified : NON
+Linked write : NON
+Cleanup reversible : OUI
+
+======================================

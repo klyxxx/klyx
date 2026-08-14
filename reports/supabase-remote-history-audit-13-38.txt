@@ -1,0 +1,26 @@
+======================================
+KLYX 13.38 - REMOTE MIGRATION HISTORY AUDIT
+======================================
+
+Local canonical version : 20260814000000
+Local canonical count : 1
+Archived previous count : 21
+Remote recorded count : 22
+
+Baseline recorded remotely : True
+Remote matches previous history : True
+Remote matches canonical history : False
+History cutover required : True
+
+Archived versions present remotely : 21
+Archived versions missing remotely : 0
+Remote versions outside archive : 0
+
+Production DB modified : NON
+Linked read : OUI
+Linked write : NON
+migration repair : NON
+db push --linked : NON
+db reset --linked : NON
+
+======================================

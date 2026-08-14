@@ -1,5 +1,7 @@
 "use client";
 
+import FinanceExportButton from "./FinanceExportButton";
+import FinanceReconciliationStatus from "./FinanceReconciliationStatus";
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
@@ -19,6 +21,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import ProviderFinanceAudit from "./ProviderFinanceAudit";
 
 type StripeStatus = {
   connected: boolean;
@@ -501,6 +504,15 @@ export default function ProviderPaymentsPage() {
                 waitingText="Non activés"
               />
             </section>
+
+            {/* KLYX_GROUP_FINANCE_AUDIT_PAGE_13_03 */}
+            {/* KLYX_FINANCE_RECONCILIATION_PAGE_13_13 */}
+            <FinanceReconciliationStatus />
+
+            {/* KLYX_CANONICAL_FINANCE_EXPORT_PAGE_13_14 */}
+            <FinanceExportButton />
+
+            <ProviderFinanceAudit />
 
             <section className="klyx-card mt-6 overflow-hidden">
               <div className="border-b border-border p-6">

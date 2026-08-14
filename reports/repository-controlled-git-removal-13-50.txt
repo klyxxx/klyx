@@ -1,0 +1,16 @@
+======================================
+KLYX 13.50 - CONTROLLED GIT REMOVAL
+======================================
+
+Eligible files : 0
+Verified files : 0
+git rm files : 0
+
+Archive hashes verified : OUI
+Canonical migration preserved : OUI
+Irreversible deletion : 0
+Recovery archive : AVAILABLE
+
+Production DB modified : NON
+Linked write : NON
+======================================

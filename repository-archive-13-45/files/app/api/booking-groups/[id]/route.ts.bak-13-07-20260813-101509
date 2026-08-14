@@ -1,0 +1,696 @@
+import { NextResponse } from "next/server";
+
+import {
+  apiErrorStatus,
+  getAuthenticatedProfile,
+} from "@/lib/api-auth";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+import {
+  rankProvidersForMultiSlots,
+} from "@/lib/market-multi-slot";
+
+// KLYX_BOOKING_GROUP_API_12_85
+
+function time5(
+  value: string
+) {
+  return value.slice(
+    0,
+    5
+  );
+}
+
+async function getGroup(
+  groupId: string
+) {
+  const {
+    data,
+    error,
+  } = await supabaseAdmin
+    .from(
+      "booking_groups"
+    )
+    .select(
+      "id, market_request_id, client_profile_id, provider_profile_id, user_service_id, offer_id, status, payment_status, total_amount_cents, currency, slot_count, selected_at, accepted_at, rejected_at, created_at, updated_at"
+    )
+    .eq(
+      "id",
+      groupId
+    )
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      error.message
+    );
+  }
+
+  return data;
+}
+
+export async function GET(
+  request: Request,
+  context: {
+    params: Promise<{
+      id: string;
+    }>;
+  }
+) {
+  try {
+    const {
+      profile,
+    } =
+      await getAuthenticatedProfile(
+        request
+      );
+
+    const {
+      id: groupId,
+    } =
+      await context.params;
+
+    const group =
+      await getGroup(
+        groupId
+      );
+
+    if (!group) {
+      return NextResponse.json(
+        {
+          error:
+            "Reservation groupee introuvable.",
+        },
+        {
+          status: 404,
+        }
+      );
+    }
+
+    const isClient =
+      group.client_profile_id ===
+      profile.id;
+
+    const isProvider =
+      group.provider_profile_id ===
+      profile.id;
+
+    if (
+      !isClient &&
+      !isProvider
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Acces refuse.",
+        },
+        {
+          status: 403,
+        }
+      );
+    }
+
+    const [
+      bookingsResult,
+      requestResult,
+      profilesResult,
+    ] = await Promise.all([
+      supabaseAdmin
+        .from("bookings")
+        .select(
+          "id, group_position, booking_date, start_time, end_time, status, payment_status, service_status, amount_total, currency"
+        )
+        .eq(
+          "booking_group_id",
+          groupId
+        )
+        .order(
+          "group_position",
+          {
+            ascending: true,
+          }
+        ),
+
+      supabaseAdmin
+        .from(
+          "market_service_requests"
+        )
+        .select(
+          "id, title, city, service_id, status"
+        )
+        .eq(
+          "id",
+          group.market_request_id
+        )
+        .maybeSingle(),
+
+      supabaseAdmin
+        .from("profiles")
+        .select(
+          "id, first_name, last_name"
+        )
+        .in(
+          "id",
+          [
+            group.client_profile_id,
+            group.provider_profile_id,
+          ]
+        ),
+    ]);
+
+    if (
+      bookingsResult.error
+    ) {
+      throw new Error(
+        bookingsResult
+          .error.message
+      );
+    }
+
+    if (
+      requestResult.error
+    ) {
+      throw new Error(
+        requestResult
+          .error.message
+      );
+    }
+
+    if (
+      profilesResult.error
+    ) {
+      throw new Error(
+        profilesResult
+          .error.message
+      );
+    }
+
+    const marketRequest =
+      requestResult.data;
+
+    let serviceName =
+      "Service KLYX";
+
+    if (
+      marketRequest
+        ?.service_id
+    ) {
+      const {
+        data: service,
+        error:
+          serviceError,
+      } = await supabaseAdmin
+        .from("services")
+        .select(
+          "name, slug"
+        )
+        .eq(
+          "id",
+          marketRequest.service_id
+        )
+        .maybeSingle();
+
+      if (serviceError) {
+        throw new Error(
+          serviceError.message
+        );
+      }
+
+      serviceName =
+        service?.name
+          ?.trim() ||
+        service?.slug ||
+        serviceName;
+    }
+
+    const nameMap =
+      new Map(
+        (
+          profilesResult.data ??
+          []
+        ).map(
+          (person) => [
+            person.id,
+            [
+              person.first_name,
+              person.last_name,
+            ]
+              .filter(Boolean)
+              .join(" ") ||
+              "Utilisateur KLYX",
+          ]
+        )
+      );
+
+    return NextResponse.json({
+      group: {
+        ...group,
+        totalAmountCents:
+          Number(
+            group.total_amount_cents
+          ),
+        clientName:
+          nameMap.get(
+            group.client_profile_id
+          ) ??
+          "Client KLYX",
+        providerName:
+          nameMap.get(
+            group.provider_profile_id
+          ) ??
+          "Prestataire KLYX",
+      },
+      request: {
+        id:
+          marketRequest?.id ??
+          group.market_request_id,
+        title:
+          marketRequest?.title ??
+          "Reservation groupee",
+        city:
+          marketRequest?.city ??
+          "",
+        serviceName,
+        status:
+          marketRequest?.status ??
+          "",
+      },
+      bookings:
+        (
+          bookingsResult.data ??
+          []
+        ).map(
+          (booking) => ({
+            ...booking,
+            amount_total:
+              booking.amount_total ==
+              null
+                ? null
+                : Number(
+                    booking.amount_total
+                  ),
+            start_time:
+              time5(
+                booking.start_time
+              ),
+            end_time:
+              time5(
+                booking.end_time
+              ),
+          })
+        ),
+      role:
+        isClient
+          ? "client"
+          : "provider",
+      paymentActionAvailable:
+        isClient &&
+        group.status ===
+          "accepted" &&
+        group.payment_status !==
+          "paid",
+      automaticPayment:
+        false,
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Reservation groupee indisponible.";
+
+    return NextResponse.json(
+      {
+        error: message,
+      },
+      {
+        status:
+          apiErrorStatus(
+            message
+          ),
+      }
+    );
+  }
+}
+
+export async function PATCH(
+  request: Request,
+  context: {
+    params: Promise<{
+      id: string;
+    }>;
+  }
+) {
+  try {
+    const {
+      profile,
+    } =
+      await getAuthenticatedProfile(
+        request
+      );
+
+    const {
+      id: groupId,
+    } =
+      await context.params;
+
+    const body =
+      (await request.json()) as {
+        action?: string;
+        note?: string;
+      };
+
+    const action =
+      body.action
+        ?.trim() ??
+      "";
+
+    const note =
+      body.note
+        ?.trim()
+        .slice(
+          0,
+          500
+        ) ??
+      "";
+
+    if (
+      ![
+        "accept",
+        "reject",
+      ].includes(
+        action
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Action invalide.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    const group =
+      await getGroup(
+        groupId
+      );
+
+    if (!group) {
+      return NextResponse.json(
+        {
+          error:
+            "Reservation groupee introuvable.",
+        },
+        {
+          status: 404,
+        }
+      );
+    }
+
+    if (
+      group.provider_profile_id !==
+      profile.id
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Seul le prestataire peut confirmer ce groupe.",
+        },
+        {
+          status: 403,
+        }
+      );
+    }
+
+    if (
+      group.status !==
+        "pending_provider" &&
+      group.status !==
+        (
+          action ===
+          "accept"
+            ? "accepted"
+            : "rejected"
+        )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Ce groupe ne peut plus etre modifie.",
+        },
+        {
+          status: 409,
+        }
+      );
+    }
+
+    if (
+      action ===
+        "accept" &&
+      group.status ===
+        "pending_provider"
+    ) {
+      const {
+        data:
+          marketRequest,
+        error:
+          requestError,
+      } = await supabaseAdmin
+        .from(
+          "market_service_requests"
+        )
+        .select(
+          "id, service_id"
+        )
+        .eq(
+          "id",
+          group.market_request_id
+        )
+        .maybeSingle();
+
+      if (requestError) {
+        throw new Error(
+          requestError.message
+        );
+      }
+
+      if (!marketRequest) {
+        return NextResponse.json(
+          {
+            error:
+              "Demande Market introuvable.",
+          },
+          {
+            status: 404,
+          }
+        );
+      }
+
+      const {
+        data: slots,
+        error: slotsError,
+      } = await supabaseAdmin
+        .from(
+          "market_service_request_slots"
+        )
+        .select(
+          "requested_date, start_time, end_time, budget_max"
+        )
+        .eq(
+          "market_request_id",
+          group.market_request_id
+        );
+
+      if (slotsError) {
+        throw new Error(
+          slotsError.message
+        );
+      }
+
+      const candidates =
+        await rankProvidersForMultiSlots({
+          serviceId:
+            marketRequest.service_id,
+          slots:
+            (
+              slots ??
+              []
+            ).map(
+              (slot) => ({
+                date:
+                  slot.requested_date,
+                startTime:
+                  time5(
+                    slot.start_time
+                  ),
+                endTime:
+                  time5(
+                    slot.end_time
+                  ),
+                budget:
+                  slot.budget_max ==
+                  null
+                    ? null
+                    : Number(
+                        slot.budget_max
+                      ),
+              })
+            ),
+        });
+
+      const provider =
+        candidates.find(
+          (candidate) =>
+            candidate.providerProfileId ===
+            profile.id
+        );
+
+      if (
+        !provider ||
+        !provider.fullCoverage
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "Ton planning ne couvre plus tous les creneaux. Le groupe ne peut pas etre accepte.",
+          },
+          {
+            status: 409,
+          }
+        );
+      }
+    }
+
+    const {
+      data: statusData,
+      error:
+        decisionError,
+    } = await supabaseAdmin
+      .rpc(
+        "klyx_provider_group_decision",
+        {
+          p_group_id:
+            groupId,
+          p_provider_profile_id:
+            profile.id,
+          p_action:
+            action,
+          p_note:
+            note || null,
+        }
+      );
+
+    if (decisionError) {
+      throw new Error(
+        decisionError.message
+      );
+    }
+
+    const finalStatus =
+      typeof statusData ===
+      "string"
+        ? statusData
+        : String(
+            statusData ??
+            ""
+          );
+
+    const {
+      data:
+        childBookings,
+    } = await supabaseAdmin
+      .from("bookings")
+      .select("id")
+      .eq(
+        "booking_group_id",
+        groupId
+      )
+      .order(
+        "group_position",
+        {
+          ascending: true,
+        }
+      );
+
+    await supabaseAdmin
+      .from(
+        "user_notifications"
+      )
+      .upsert(
+        {
+          user_id:
+            group.client_profile_id,
+          booking_id:
+            childBookings?.[0]
+              ?.id ??
+            null,
+          market_request_id:
+            group.market_request_id,
+          type:
+            action ===
+            "accept"
+              ? "booking_accepted"
+              : "booking_rejected",
+          title:
+            action ===
+            "accept"
+              ? "Reservation groupee acceptee"
+              : "Reservation groupee refusee",
+          message:
+            action ===
+            "accept"
+              ? "Le prestataire a accepte tous les creneaux. Le paiement groupe sera la prochaine etape."
+              : note ||
+                "Le prestataire ne peut pas couvrir la reservation groupee.",
+          href:
+            "/booking-groups/" +
+            groupId,
+          deduplication_key:
+            "booking-group:" +
+            groupId +
+            ":" +
+            finalStatus,
+        },
+        {
+          onConflict:
+            "deduplication_key",
+          ignoreDuplicates:
+            true,
+        }
+      );
+
+    return NextResponse.json({
+      groupId,
+      status:
+        finalStatus,
+      paymentReady:
+        finalStatus ===
+        "accepted",
+      automaticPayment:
+        false,
+      message:
+        finalStatus ===
+        "accepted"
+          ? "Tous les creneaux sont acceptes."
+          : "Le groupe a ete refuse et la demande Market est de nouveau ouverte.",
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Decision groupee impossible.";
+
+    return NextResponse.json(
+      {
+        error: message,
+      },
+      {
+        status:
+          apiErrorStatus(
+            message
+          ),
+      }
+    );
+  }
+}

@@ -1,0 +1,21 @@
+======================================
+KLYX 13.37 - CONTROLLED LOCAL CUTOVER
+======================================
+
+Previous official migrations : 21
+Archived migrations : 21
+Official migrations after : 1
+Canonical baseline : 20260814000000_klyx_canonical_baseline.sql
+Canonical SHA256 : 850298c5ca38a2b0339e7b0cdc2d7522f72a5924e9acffcb87c8e5f012094ba2
+
+Archive hashes verified : OUI
+Critical schema verified : OUI
+Fresh local rebuild : OK
+
+Production DB modified : NON
+Linked write used : NON
+db push --linked : NON
+db reset --linked : NON
+
+Local cutover executed : OUI
+======================================

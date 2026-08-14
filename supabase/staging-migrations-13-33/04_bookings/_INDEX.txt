@@ -1,0 +1,9 @@
+KLYX 13.33
+Phase: 04_bookings
+Files: 5
+
+0007_20260812205500_klyx_group_review_12_88.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations\20260812205500_klyx_group_review_12_88.sql
+0033_20260806_mission_confirmation.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260806_mission_confirmation.sql
+0041_20260807_quote_booking_link.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260807_quote_booking_link.sql
+0046_20260811_step_12_25_market_to_booking.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260811_step_12_25_market_to_booking.sql
+0047_20260811_step_12_27_market_notifications.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260811_step_12_27_market_notifications.sql

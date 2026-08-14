@@ -1,0 +1,13 @@
+{
+    "Step":  "13.34",
+    "Status":  "blocked_no_docker",
+    "DockerAvailable":  false,
+    "LocalStackStarted":  false,
+    "ResetSucceeded":  false,
+    "MigrationCount":  52,
+    "FailedMigration":  null,
+    "ProductionDatabaseModified":  false,
+    "LinkedResetUsed":  false,
+    "DbUrlUsed":  false,
+    "WorkRoot":  "C:\\Users\\fenjo\\Documents\\klyx\\.klyx-local-rebuild-13-34"
+}

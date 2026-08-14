@@ -1,0 +1,1665 @@
+import { NextResponse } from "next/server";
+
+import { supabaseAdmin } from "@/lib/supabase-admin";
+import { calculateClientOfferRanking } from "@/lib/client-offer-ranking";
+import {
+  apiErrorStatus,
+  getAuthenticatedProfile,
+  requireAccountType,
+} from "@/lib/api-auth";
+import {
+  rankProvidersForMultiSlots,
+} from "@/lib/market-multi-slot";
+
+// KLYX_MULTI_SLOT_ADVICE_12_84
+
+type OfferRow = {
+  id: string;
+  provider_profile_id: string;
+  user_service_id: string;
+  amount: number;
+  message: string | null;
+  status: string;
+};
+
+type SlotRow = {
+  position: number;
+  requested_date: string;
+  start_time: string;
+  end_time: string;
+  budget_max: number | null;
+  duration_minutes: number;
+};
+
+type Coverage = {
+  count: number;
+  total: number;
+  fullCoverage: boolean;
+  label: string;
+};
+
+function providerName(
+  firstName: string | null,
+  lastName: string | null
+) {
+  return (
+    [firstName, lastName]
+      .filter(Boolean)
+      .join(" ") ||
+    "Prestataire KLYX"
+  );
+}
+
+function time5(
+  value: string
+) {
+  return value.slice(0, 5);
+}
+
+function coverageLabel(
+  count: number,
+  total: number
+) {
+  return (
+    String(count) +
+    "/" +
+    String(total) +
+    " creneau" +
+    (total > 1 ? "x" : "")
+  );
+}
+
+async function klyxMarketAdviceBeforeLiveFilter(
+  request: Request,
+  context: {
+    params: Promise<{
+      id: string;
+    }>;
+  }
+) {
+  try {
+    const { profile } =
+      await getAuthenticatedProfile(
+        request
+      );
+
+    requireAccountType(
+      profile,
+      "client"
+    );
+
+    const {
+      id: requestId,
+    } = await context.params;
+
+    const {
+      data: marketRequest,
+      error: requestError,
+    } = await supabaseAdmin
+      .from(
+        "market_service_requests"
+      )
+      .select(
+        "id, client_profile_id, service_id, title, description, city, requested_date, requested_time, budget_max, budget_total, request_mode, slot_count, prefer_single_provider, status, accepted_offer_id, created_at"
+      )
+      .eq(
+        "id",
+        requestId
+      )
+      .eq(
+        "client_profile_id",
+        profile.id
+      )
+      .maybeSingle();
+
+    if (requestError) {
+      throw new Error(
+        requestError.message
+      );
+    }
+
+    if (!marketRequest) {
+      return NextResponse.json(
+        {
+          error:
+            "Demande introuvable.",
+        },
+        {
+          status: 404,
+        }
+      );
+    }
+
+    const requestMode =
+      marketRequest.request_mode ===
+      "multi_slot"
+        ? "multi_slot"
+        : "single";
+
+    const [
+      serviceResult,
+      offersResult,
+      slotsResult,
+    ] = await Promise.all([
+      supabaseAdmin
+        .from("services")
+        .select(
+          "id, name, slug"
+        )
+        .eq(
+          "id",
+          marketRequest.service_id
+        )
+        .maybeSingle(),
+
+      supabaseAdmin
+        .from(
+          "market_service_offers"
+        )
+        .select(
+          "id, provider_profile_id, user_service_id, amount, message, status"
+        )
+        .eq(
+          "request_id",
+          requestId
+        )
+        .in(
+          "status",
+          [
+            "sent",
+            "accepted",
+          ]
+        )
+        .order(
+          "created_at",
+          {
+            ascending: true,
+          }
+        ),
+
+      requestMode ===
+        "multi_slot"
+        ? supabaseAdmin
+            .from(
+              "market_service_request_slots"
+            )
+            .select(
+              "position, requested_date, start_time, end_time, budget_max, duration_minutes"
+            )
+            .eq(
+              "market_request_id",
+              requestId
+            )
+            .order(
+              "position",
+              {
+                ascending:
+                  true,
+              }
+            )
+        : Promise.resolve({
+            data: [],
+            error: null,
+          }),
+    ]);
+
+    if (
+      serviceResult.error
+    ) {
+      throw new Error(
+        serviceResult.error.message
+      );
+    }
+
+    if (
+      offersResult.error
+    ) {
+      throw new Error(
+        offersResult.error.message
+      );
+    }
+
+    if (
+      slotsResult.error
+    ) {
+      throw new Error(
+        slotsResult.error.message
+      );
+    }
+
+    const service =
+      serviceResult.data;
+
+    const offerRows =
+      (
+        offersResult.data ??
+        []
+      ) as OfferRow[];
+
+    const slotRows =
+      (
+        slotsResult.data ??
+        []
+      ) as SlotRow[];
+
+    const slots =
+      slotRows.map(
+        (slot) => ({
+          position:
+            slot.position,
+          date:
+            slot.requested_date,
+          startTime:
+            time5(
+              slot.start_time
+            ),
+          endTime:
+            time5(
+              slot.end_time
+            ),
+          budget:
+            slot.budget_max ==
+            null
+              ? null
+              : Number(
+                  slot.budget_max
+                ),
+          durationMinutes:
+            Number(
+              slot.duration_minutes
+            ),
+        })
+      );
+
+    let coverageMap =
+      new Map<
+        string,
+        Coverage
+      >();
+
+    if (
+      requestMode ===
+        "multi_slot" &&
+      slots.length > 0
+    ) {
+      const liveCandidates =
+        await rankProvidersForMultiSlots({
+          serviceId:
+            marketRequest.service_id,
+          slots:
+            slots.map(
+              (slot) => ({
+                date:
+                  slot.date,
+                startTime:
+                  slot.startTime,
+                endTime:
+                  slot.endTime,
+                budget:
+                  slot.budget,
+              })
+            ),
+        });
+
+      coverageMap =
+        new Map(
+          liveCandidates.map(
+            (candidate) => [
+              candidate.providerProfileId,
+              {
+                count:
+                  candidate.coverageCount,
+                total:
+                  candidate.slotCount,
+                fullCoverage:
+                  candidate.fullCoverage,
+                label:
+                  coverageLabel(
+                    candidate.coverageCount,
+                    candidate.slotCount
+                  ),
+              },
+            ]
+          )
+        );
+    }
+
+    const defaultCoverage:
+      Coverage = {
+        count:
+          requestMode ===
+          "multi_slot"
+            ? 0
+            : 1,
+        total:
+          requestMode ===
+          "multi_slot"
+            ? Math.max(
+                slots.length,
+                Number(
+                  marketRequest.slot_count ??
+                    1
+                )
+              )
+            : 1,
+        fullCoverage:
+          requestMode !==
+          "multi_slot",
+        label:
+          requestMode ===
+          "multi_slot"
+            ? coverageLabel(
+                0,
+                Math.max(
+                  slots.length,
+                  Number(
+                    marketRequest.slot_count ??
+                      1
+                  )
+                )
+              )
+            : "Creneau compatible",
+      };
+
+    const requestPayload = {
+      id:
+        marketRequest.id,
+      title:
+        marketRequest.title,
+      serviceName:
+        service?.name ??
+        "Service KLYX",
+      city:
+        marketRequest.city,
+      budgetMax:
+        marketRequest.budget_max ==
+        null
+          ? null
+          : Number(
+              marketRequest.budget_max
+            ),
+      budgetTotal:
+        marketRequest.budget_total ==
+        null
+          ? null
+          : Number(
+              marketRequest.budget_total
+            ),
+      requestMode,
+      slotCount:
+        requestMode ===
+        "multi_slot"
+          ? slots.length
+          : 1,
+      preferSingleProvider:
+        Boolean(
+          marketRequest.prefer_single_provider
+        ),
+      slots,
+      status:
+        marketRequest.status,
+    };
+
+    if (
+      offerRows.length === 0
+    ) {
+      return NextResponse.json({
+        request:
+          requestPayload,
+        offers: [],
+        recommendation:
+          null,
+        summary:
+          requestMode ===
+          "multi_slot"
+            ? "Aucune offre n est encore disponible. KLYX privilegiera les prestataires capables de couvrir tous les creneaux."
+            : "Aucune offre n est encore disponible. KLYX pourra comparer les propositions des qu un prestataire repondra.",
+      });
+    }
+
+    const providerIds = [
+      ...new Set(
+        offerRows.map(
+          (offer) =>
+            offer.provider_profile_id
+        )
+      ),
+    ];
+
+    const userServiceIds = [
+      ...new Set(
+        offerRows.map(
+          (offer) =>
+            offer.user_service_id
+        )
+      ),
+    ];
+
+    const [
+      profilesResult,
+      providerProfilesResult,
+      serviceProfilesResult,
+    ] = await Promise.all([
+      supabaseAdmin
+        .from("profiles")
+        .select(
+          "id, first_name, last_name, avatar_url"
+        )
+        .in(
+          "id",
+          providerIds
+        ),
+
+      supabaseAdmin
+        .from(
+          "provider_profiles"
+        )
+        .select(
+          "profile_id, years_experience, verification_status"
+        )
+        .in(
+          "profile_id",
+          providerIds
+        ),
+
+      supabaseAdmin
+        .from(
+          "service_profiles"
+        )
+        .select(
+          "user_service_id, klyx_score, rating, review_count"
+        )
+        .in(
+          "user_service_id",
+          userServiceIds
+        ),
+    ]);
+
+    const firstError = [
+      profilesResult.error,
+      providerProfilesResult.error,
+      serviceProfilesResult.error,
+    ].find(Boolean);
+
+    if (firstError) {
+      throw new Error(
+        firstError.message
+      );
+    }
+
+    const profileMap =
+      new Map(
+        (
+          profilesResult.data ??
+          []
+        ).map(
+          (item) => [
+            item.id,
+            item,
+          ]
+        )
+      );
+
+    const providerProfileMap =
+      new Map(
+        (
+          providerProfilesResult.data ??
+          []
+        ).map(
+          (item) => [
+            item.profile_id,
+            item,
+          ]
+        )
+      );
+
+    const serviceProfileMap =
+      new Map(
+        (
+          serviceProfilesResult.data ??
+          []
+        ).map(
+          (item) => [
+            item.user_service_id,
+            item,
+          ]
+        )
+      );
+
+    const ranked =
+      offerRows.map(
+        (offer) => {
+          const publicProfile =
+            profileMap.get(
+              offer.provider_profile_id
+            );
+
+          const providerProfile =
+            providerProfileMap.get(
+              offer.provider_profile_id
+            );
+
+          const serviceProfile =
+            serviceProfileMap.get(
+              offer.user_service_id
+            );
+
+          const ranking =
+            calculateClientOfferRanking({
+              amount:
+                Number(
+                  offer.amount
+                ),
+              budgetMax:
+                marketRequest.budget_max ==
+                null
+                  ? null
+                  : Number(
+                      marketRequest.budget_max
+                    ),
+              klyxScore:
+                Number(
+                  serviceProfile
+                    ?.klyx_score ??
+                    50
+                ),
+              rating:
+                Number(
+                  serviceProfile
+                    ?.rating ??
+                    0
+                ),
+              reviewCount:
+                Number(
+                  serviceProfile
+                    ?.review_count ??
+                    0
+                ),
+              yearsExperience:
+                Number(
+                  providerProfile
+                    ?.years_experience ??
+                    0
+                ),
+              isVerified:
+                providerProfile
+                  ?.verification_status ===
+                "verified",
+            });
+
+          const coverage =
+            coverageMap.get(
+              offer.provider_profile_id
+            ) ??
+            defaultCoverage;
+
+          return {
+            id:
+              offer.id,
+            amount:
+              Number(
+                offer.amount
+              ),
+            message:
+              offer.message,
+            status:
+              offer.status,
+            providerId:
+              offer.provider_profile_id,
+            providerName:
+              providerName(
+                publicProfile
+                  ?.first_name ??
+                  null,
+                publicProfile
+                  ?.last_name ??
+                  null
+              ),
+            avatarUrl:
+              publicProfile
+                ?.avatar_url ??
+              null,
+            stats: {
+              klyxScore:
+                Number(
+                  serviceProfile
+                    ?.klyx_score ??
+                    50
+                ),
+              rating:
+                Number(
+                  serviceProfile
+                    ?.rating ??
+                    0
+                ),
+              reviewCount:
+                Number(
+                  serviceProfile
+                    ?.review_count ??
+                    0
+                ),
+              yearsExperience:
+                Number(
+                  providerProfile
+                    ?.years_experience ??
+                    0
+                ),
+              isVerified:
+                providerProfile
+                  ?.verification_status ===
+                "verified",
+            },
+            ranking,
+            coverage,
+          };
+        }
+      );
+
+    ranked.sort(
+      (first, second) => {
+        if (
+          requestMode ===
+          "multi_slot"
+        ) {
+          if (
+            first.coverage
+              .fullCoverage !==
+            second.coverage
+              .fullCoverage
+          ) {
+            return first
+              .coverage
+              .fullCoverage
+              ? -1
+              : 1;
+          }
+
+          if (
+            first.coverage.count !==
+            second.coverage.count
+          ) {
+            return (
+              second.coverage
+                .count -
+              first.coverage
+                .count
+            );
+          }
+        }
+
+        if (
+          first.ranking.score !==
+          second.ranking.score
+        ) {
+          return (
+            second.ranking.score -
+            first.ranking.score
+          );
+        }
+
+        return (
+          first.amount -
+          second.amount
+        );
+      }
+    );
+
+    const cheapestAmount =
+      Math.min(
+        ...ranked.map(
+          (offer) =>
+            offer.amount
+        )
+      );
+
+    const enriched =
+      ranked.map(
+        (
+          offer,
+          index
+        ) => ({
+          ...offer,
+          isRecommended:
+            index === 0,
+          isCheapest:
+            offer.amount ===
+            cheapestAmount,
+        })
+      );
+
+    const best =
+      enriched[0];
+
+    const fullCoverageOffers =
+      enriched.filter(
+        (offer) =>
+          offer.coverage
+            .fullCoverage
+      );
+
+    const summaryParts:
+      string[] = [];
+
+    if (
+      requestMode ===
+      "multi_slot"
+    ) {
+      if (
+        fullCoverageOffers.length >
+        0
+      ) {
+        summaryParts.push(
+          String(
+            fullCoverageOffers.length
+          ) +
+            " prestataire" +
+            (
+              fullCoverageOffers.length >
+              1
+                ? "s"
+                : ""
+            ) +
+            " couvre" +
+            (
+              fullCoverageOffers.length >
+              1
+                ? "nt"
+                : ""
+            ) +
+            " tous les creneaux."
+        );
+      } else {
+        summaryParts.push(
+          "Aucune offre ne couvre encore tous les creneaux."
+        );
+      }
+
+      summaryParts.push(
+        best.providerName +
+          " est actuellement classe premier avec " +
+          best.coverage.label +
+          " et un score KLYX de " +
+          String(
+            best.ranking.score
+          ) +
+          "/100."
+      );
+    } else {
+      summaryParts.push(
+        best.providerName +
+          " obtient la meilleure recommandation KLYX avec " +
+          String(
+            best.ranking.score
+          ) +
+          "/100."
+      );
+    }
+
+    summaryParts.push(
+      "Son offre est de " +
+        best.amount.toFixed(
+          2
+        ) +
+        " EUR."
+    );
+
+    if (
+      best.isCheapest
+    ) {
+      summaryParts.push(
+        "C est aussi l offre la moins chere actuellement."
+      );
+    }
+
+    if (
+      best.ranking.reasons
+        .length > 0
+    ) {
+      summaryParts.push(
+        "Points forts : " +
+          best.ranking.reasons.join(
+            ", "
+          ) +
+          "."
+      );
+    }
+
+    summaryParts.push(
+      "KLYX te conseille, mais ne choisit jamais a ta place."
+    );
+
+    return NextResponse.json({
+      request:
+        requestPayload,
+      offers:
+        enriched,
+      recommendation: {
+        offerId:
+          best.id,
+        providerId:
+          best.providerId,
+        providerName:
+          best.providerName,
+        score:
+          best.ranking.score,
+        amount:
+          best.amount,
+        coverage:
+          best.coverage,
+      },
+      summary:
+        summaryParts.join(
+          " "
+        ),
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Impossible d analyser les offres.";
+
+    return NextResponse.json(
+      {
+        error: message,
+      },
+      {
+        status:
+          apiErrorStatus(
+            message
+          ),
+      }
+    );
+  }
+}
+
+// KLYX_MULTI_SLOT_LIVE_ADVICE_12_98
+// KLYX_MULTI_SLOT_LIVE_ADVICE_TYPES_FIX_12_98B
+
+type KlyxLiveAdviceOffer = {
+  id: string;
+
+  providerId:
+    string;
+
+  providerName:
+    string;
+
+  amount:
+    number;
+
+  status:
+    string;
+
+  isRecommended?:
+    boolean;
+
+  isCheapest?:
+    boolean;
+
+  coverage?:
+    | {
+        count:
+          number;
+
+        total:
+          number;
+
+        fullCoverage:
+          boolean;
+
+        label?:
+          string;
+      }
+    | null;
+
+  [key: string]:
+    unknown;
+};
+
+type KlyxLiveAdviceBody = {
+  request?:
+    Record<
+      string,
+      unknown
+    >;
+
+  offers?:
+    KlyxLiveAdviceOffer[];
+
+  recommendation?:
+    | Record<
+        string,
+        unknown
+      >
+    | null;
+
+  summary?:
+    string;
+
+  [key: string]:
+    unknown;
+};
+
+type KlyxLiveOfferDbRow = {
+  id:
+    string;
+
+  provider_profile_id:
+    string;
+
+  user_service_id:
+    string;
+};
+
+type KlyxCoverageResult = {
+  ok?:
+    boolean;
+
+  code?:
+    string;
+
+  coverageCount?:
+    number;
+
+  slotCount?:
+    number;
+
+  fullCoverage?:
+    boolean;
+
+  checkedAt?:
+    string;
+};
+
+type KlyxLiveCoverageCheck = {
+  offer:
+    KlyxLiveAdviceOffer;
+
+  dbOffer:
+    KlyxLiveOfferDbRow |
+    null;
+
+  eligible:
+    boolean;
+
+  coverage:
+    KlyxCoverageResult;
+};
+
+function klyxNumber(
+  value: unknown,
+  fallback = 0
+) {
+  const parsed =
+    Number(
+      value
+    );
+
+  return Number.isFinite(
+    parsed
+  )
+    ? parsed
+    : fallback;
+}
+
+export async function GET(
+  request: Request,
+  context: {
+    params:
+      Promise<{
+        id: string;
+      }>;
+  }
+) {
+  /*
+    On conserve integralement le conseiller 12.84
+    puis KLYX applique une couche de fraicheur live.
+  */
+  const response =
+    await klyxMarketAdviceBeforeLiveFilter(
+      request,
+      context
+    );
+
+  if (
+    !response.ok
+  ) {
+    return response;
+  }
+
+  let body:
+    KlyxLiveAdviceBody;
+
+  try {
+    body =
+      (await response
+        .clone()
+        .json()) as
+        KlyxLiveAdviceBody;
+  } catch {
+    return response;
+  }
+
+  const {
+    id:
+      requestId,
+  } =
+    await context.params;
+
+  /*
+    On recharge la verite serveur.
+    On ne fait pas confiance aux donnees UI.
+  */
+  const {
+    data:
+      requestMetaData,
+
+    error:
+      requestMetaError,
+  } = await supabaseAdmin
+    .from(
+      "market_service_requests"
+    )
+    .select(
+      "id, request_mode, slot_count, status"
+    )
+    .eq(
+      "id",
+      requestId
+    )
+    .maybeSingle();
+
+  if (
+    requestMetaError
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          requestMetaError.message,
+
+        code:
+          "KLYX_LIVE_ADVICE_REQUEST_ERROR",
+      },
+      {
+        status: 500,
+      }
+    );
+  }
+
+  const requestMeta =
+    requestMetaData as unknown as {
+      id:
+        string;
+
+      request_mode:
+        string;
+
+      slot_count:
+        number;
+
+      status:
+        string;
+    } | null;
+
+  /*
+    Mission simple :
+    comportement historique strictement conserve.
+
+    Mission deja matchee :
+    on ne retire pas retrospectivement
+    le prestataire d une mission deja creee.
+  */
+  if (
+    !requestMeta ||
+    requestMeta.request_mode !==
+      "multi_slot" ||
+    requestMeta.status !==
+      "open"
+  ) {
+    return response;
+  }
+
+  const offers =
+    Array.isArray(
+      body.offers
+    )
+      ? body.offers
+      : [];
+
+  if (
+    offers.length ===
+    0
+  ) {
+    return NextResponse.json({
+      ...body,
+
+      liveCoverageChecked:
+        true,
+
+      staleOffersRemoved:
+        0,
+
+      automaticSelection:
+        false,
+    });
+  }
+
+  const offerIds =
+    offers
+      .map(
+        (offer) =>
+          offer.id
+      )
+      .filter(
+        Boolean
+      );
+
+  const {
+    data:
+      offerRowsData,
+
+    error:
+      offerRowsError,
+  } = await supabaseAdmin
+    .from(
+      "market_service_offers"
+    )
+    .select(
+      "id, provider_profile_id, user_service_id"
+    )
+    .eq(
+      "request_id",
+      requestId
+    )
+    .in(
+      "id",
+      offerIds
+    );
+
+  if (
+    offerRowsError
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          offerRowsError.message,
+
+        code:
+          "KLYX_LIVE_ADVICE_OFFERS_ERROR",
+      },
+      {
+        status: 500,
+      }
+    );
+  }
+
+  const offerRows =
+    (
+      offerRowsData ??
+      []
+    ) as unknown as
+      KlyxLiveOfferDbRow[];
+
+  const dbOfferMap =
+    new Map(
+      offerRows.map(
+        (offer) => [
+          offer.id,
+          offer,
+        ]
+      )
+    );
+
+  /*
+    Revalidation de chaque prestataire.
+
+    Le RPC 12.96 verifie :
+    - service actif
+    - nombre exact de slots
+    - disponibilites actuelles
+    - conflits bookings actuels
+    - couverture N/N
+  */
+  const checks:
+    KlyxLiveCoverageCheck[] =
+    await Promise.all(
+      offers.map(
+        async (
+          offer
+        ) => {
+          const dbOffer =
+            dbOfferMap.get(
+              offer.id
+            );
+
+          if (!dbOffer) {
+            return {
+              offer,
+
+              dbOffer:
+                null,
+
+              eligible:
+                false,
+
+              coverage:
+                {
+                  ok:
+                    false,
+
+                  code:
+                    "OFFER_NOT_FOUND",
+
+                  coverageCount:
+                    0,
+
+                  slotCount:
+                    requestMeta.slot_count,
+
+                  fullCoverage:
+                    false,
+                } satisfies
+                  KlyxCoverageResult,
+            };
+          }
+
+          const {
+            data:
+              coverageData,
+
+            error:
+              coverageError,
+          } = await supabaseAdmin
+            .rpc(
+              "klyx_group_live_coverage_check",
+              {
+                p_request_id:
+                  requestId,
+
+                p_provider_profile_id:
+                  dbOffer.provider_profile_id,
+
+                p_user_service_id:
+                  dbOffer.user_service_id,
+              }
+            );
+
+          if (
+            coverageError
+          ) {
+            throw new Error(
+              coverageError.message
+            );
+          }
+
+          const coverage =
+            (
+              coverageData ??
+              {}
+            ) as unknown as
+              KlyxCoverageResult;
+
+          const coverageCount =
+            klyxNumber(
+              coverage.coverageCount
+            );
+
+          const slotCount =
+            klyxNumber(
+              coverage.slotCount,
+              requestMeta.slot_count
+            );
+
+          const eligible =
+            coverage.ok ===
+              true &&
+            coverage.fullCoverage ===
+              true &&
+            coverageCount ===
+              requestMeta.slot_count &&
+            slotCount ===
+              requestMeta.slot_count;
+
+          return {
+            offer,
+            dbOffer,
+            eligible,
+
+            coverage: {
+              ...coverage,
+
+              coverageCount,
+
+              slotCount,
+
+              fullCoverage:
+                eligible,
+            },
+          };
+        }
+      )
+    );
+
+  /*
+    Resynchronisation du cache de matching.
+    La prochaine lecture prestataire/client
+    retrouve ainsi la meme verite.
+  */
+  const candidateRows =
+    checks
+      .filter(
+        (
+          item
+        ) =>
+          Boolean(
+            item.dbOffer
+          )
+      )
+      .map(
+        (
+          item
+        ) => ({
+          market_request_id:
+            requestId,
+
+          provider_profile_id:
+            item.dbOffer!
+              .provider_profile_id,
+
+          coverage_count:
+            klyxNumber(
+              item.coverage
+                .coverageCount
+            ),
+
+          slot_count:
+            klyxNumber(
+              item.coverage
+                .slotCount,
+              requestMeta.slot_count
+            ),
+
+          full_coverage:
+            item.eligible,
+        })
+      );
+
+  if (
+    candidateRows.length >
+    0
+  ) {
+    const {
+      error:
+        candidateError,
+    } = await supabaseAdmin
+      .from(
+        "market_request_provider_candidates"
+      )
+      .upsert(
+        candidateRows,
+        {
+          onConflict:
+            "market_request_id,provider_profile_id",
+        }
+      );
+
+    if (
+      candidateError
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            candidateError.message,
+
+          code:
+            "KLYX_LIVE_ADVICE_SYNC_ERROR",
+        },
+        {
+          status: 500,
+        }
+      );
+    }
+  }
+
+  const eligibleIds =
+    new Set(
+      checks
+        .filter(
+          (item) =>
+            item.eligible
+        )
+        .map(
+          (item) =>
+            item.offer.id
+        )
+    );
+
+  const coverageMap =
+    new Map(
+      checks.map(
+        (item) => [
+          item.offer.id,
+          item.coverage,
+        ]
+      )
+    );
+
+  /*
+    On conserve l ordre du conseiller KLYX.
+    Seuls les prestataires devenus invalides
+    sont retires.
+
+    Le premier restant devient recommande.
+  */
+  const liveOffers =
+    offers
+      .filter(
+        (offer) =>
+          eligibleIds.has(
+            offer.id
+          )
+      )
+      .map(
+        (offer) => {
+          const coverage =
+            coverageMap.get(
+              offer.id
+            );
+
+          return {
+            ...offer,
+
+            isRecommended:
+              false,
+
+            coverage: {
+              count:
+                klyxNumber(
+                  coverage
+                    ?.coverageCount
+                ),
+
+              total:
+                klyxNumber(
+                  coverage
+                    ?.slotCount,
+                  requestMeta.slot_count
+                ),
+
+              fullCoverage:
+                true,
+
+              label:
+                String(
+                  klyxNumber(
+                    coverage
+                      ?.coverageCount
+                  )
+                ) +
+                "/" +
+                String(
+                  klyxNumber(
+                    coverage
+                      ?.slotCount,
+                    requestMeta.slot_count
+                  )
+                ),
+            },
+          };
+        }
+      );
+
+  const staleOffersRemoved =
+    offers.length -
+    liveOffers.length;
+
+  if (
+    liveOffers.length ===
+    0
+  ) {
+    return NextResponse.json({
+      ...body,
+
+      request: {
+        ...(
+          body.request ??
+          {}
+        ),
+
+        requestMode:
+          "multi_slot",
+
+        slotCount:
+          requestMeta.slot_count,
+      },
+
+      offers:
+        [],
+
+      recommendation:
+        null,
+
+      summary:
+        "KLYX a revalide les disponibilites en direct. Aucun prestataire ne couvre actuellement tous les creneaux. La demande reste ouverte et aucun prestataire n est selectionne automatiquement.",
+
+      liveCoverageChecked:
+        true,
+
+      staleOffersRemoved,
+
+      automaticSelection:
+        false,
+    });
+  }
+
+  const cheapestAmount =
+    Math.min(
+      ...liveOffers.map(
+        (offer) =>
+          klyxNumber(
+            offer.amount
+          )
+      )
+    );
+
+  const refreshedOffers =
+    liveOffers.map(
+      (
+        offer,
+        index
+      ) => ({
+        ...offer,
+
+        isRecommended:
+          index === 0,
+
+        isCheapest:
+          klyxNumber(
+            offer.amount
+          ) ===
+          cheapestAmount,
+      })
+    );
+
+  const best =
+    refreshedOffers[0];
+
+  const ranking =
+    best.ranking as
+      | {
+          score?:
+            number;
+        }
+      | undefined;
+
+  const bestScore =
+    klyxNumber(
+      ranking?.score
+    );
+
+  return NextResponse.json({
+    ...body,
+
+    request: {
+      ...(
+        body.request ??
+        {}
+      ),
+
+      requestMode:
+        "multi_slot",
+
+      slotCount:
+        requestMeta.slot_count,
+    },
+
+    offers:
+      refreshedOffers,
+
+    recommendation: {
+      offerId:
+        best.id,
+
+      providerId:
+        best.providerId,
+
+      providerName:
+        best.providerName,
+
+      score:
+        bestScore,
+
+      amount:
+        klyxNumber(
+          best.amount
+        ),
+    },
+
+    summary:
+      "KLYX a revalide les disponibilites en direct. " +
+      best.providerName +
+      " est actuellement le meilleur prestataire couvrant les " +
+      String(
+        requestMeta.slot_count
+      ) +
+      "/" +
+      String(
+        requestMeta.slot_count
+      ) +
+      " creneaux. Son offre est de " +
+      klyxNumber(
+        best.amount
+      ).toFixed(
+        2
+      ) +
+      " EUR. KLYX te conseille, mais ton choix reste explicitement requis.",
+
+    liveCoverageChecked:
+      true,
+
+    staleOffersRemoved,
+
+    automaticSelection:
+      false,
+  });
+}

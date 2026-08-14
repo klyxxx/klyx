@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
+
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   apiErrorStatus,
   getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
+import {
+  normalizeMultiSlotSchedule,
+} from "@/lib/brain-multi-slot-proof";
 
-// KLYX_CONFIRM_REQUEST_API_12_63
-// KLYX_CONFIRMATION_PROOF_12_64
+// KLYX_CONFIRM_REQUEST_MULTI_SLOT_12_83
 
 type ConfirmedRequestInput = {
   serviceSlug?: string | null;
@@ -15,6 +18,7 @@ type ConfirmedRequestInput = {
   date?: string | null;
   time?: string | null;
   budget?: number | null;
+  schedule?: unknown;
 };
 
 type ConfirmRequestBody = {
@@ -26,165 +30,346 @@ type ConfirmationMessageRow = {
   id: string;
 };
 
-function cleanText(
-  value: string | null | undefined
-): string {
-  return value?.trim() ?? "";
+function clean(
+  value:
+    | string
+    | null
+    | undefined
+) {
+  return (
+    value?.trim() ??
+    ""
+  );
 }
 
-export async function POST(request: Request) {
+function totalBudget(
+  slots: ReturnType<
+    typeof normalizeMultiSlotSchedule
+  >
+) {
+  if (!slots) {
+    return null;
+  }
+
+  if (
+    !slots.every(
+      (slot) =>
+        slot.budget != null
+    )
+  ) {
+    return null;
+  }
+
+  return (
+    Math.round(
+      slots.reduce(
+        (total, slot) =>
+          total +
+          (
+            slot.budget ??
+            0
+          ),
+        0
+      ) * 100
+    ) / 100
+  );
+}
+
+export async function POST(
+  request: Request
+) {
   try {
     const { profile } =
-      await getAuthenticatedProfile(request);
+      await getAuthenticatedProfile(
+        request
+      );
 
-    requireAccountType(profile, "client");
+    requireAccountType(
+      profile,
+      "client"
+    );
 
     const body =
-      (await request.json()) as ConfirmRequestBody;
+      (await request.json()) as
+        ConfirmRequestBody;
 
     const conversationId =
-      cleanText(body.conversationId);
+      clean(
+        body.conversationId
+      );
 
     if (!conversationId) {
       return NextResponse.json(
-        { error: "Conversation KLYX manquante." },
-        { status: 400 }
+        {
+          error:
+            "Conversation KLYX manquante.",
+        },
+        {
+          status: 400,
+        }
       );
     }
 
     const serviceSlug =
-      cleanText(body.request?.serviceSlug);
+      clean(
+        body.request
+          ?.serviceSlug
+      );
 
     const city =
-      cleanText(body.request?.city);
+      clean(
+        body.request?.city
+      );
 
-    const date =
-      cleanText(body.request?.date);
+    const schedule =
+      normalizeMultiSlotSchedule(
+        body.request?.schedule
+      );
 
-    const time =
-      cleanText(body.request?.time);
+    let date =
+      clean(
+        body.request?.date
+      );
 
-    const budget =
-      body.request?.budget == null
+    let time =
+      clean(
+        body.request?.time
+      );
+
+    let requestBudget =
+      body.request?.budget ==
+        null
         ? null
-        : Number(body.request.budget);
+        : Number(
+            body.request
+              .budget
+          );
 
-    if (!serviceSlug || !city || !date || !time) {
+    if (schedule) {
+      date =
+        schedule[0].date;
+
+      time =
+        schedule[0]
+          .startTime;
+
+      requestBudget =
+        totalBudget(
+          schedule
+        );
+    }
+
+    if (
+      !serviceSlug ||
+      !city ||
+      !date ||
+      !time
+    ) {
       return NextResponse.json(
         {
           error:
-            "La demande doit être complète avant confirmation.",
+            "La demande doit etre complete avant confirmation.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
 
     if (
-      budget != null &&
-      (!Number.isFinite(budget) || budget < 0)
+      requestBudget != null &&
+      (
+        !Number.isFinite(
+          requestBudget
+        ) ||
+        requestBudget < 0
+      )
     ) {
       return NextResponse.json(
-        { error: "Budget invalide." },
-        { status: 400 }
+        {
+          error:
+            "Budget invalide.",
+        },
+        {
+          status: 400,
+        }
       );
     }
 
     const {
       data: conversation,
-      error: conversationError,
+      error:
+        conversationError,
     } = await supabaseAdmin
-      .from("brain_conversations")
+      .from(
+        "brain_conversations"
+      )
       .select("id")
-      .eq("id", conversationId)
-      .eq("user_id", profile.id)
+      .eq(
+        "id",
+        conversationId
+      )
+      .eq(
+        "user_id",
+        profile.id
+      )
       .maybeSingle();
 
-    if (conversationError) {
-      throw new Error(conversationError.message);
+    if (
+      conversationError
+    ) {
+      throw new Error(
+        conversationError
+          .message
+      );
     }
 
     if (!conversation) {
       return NextResponse.json(
-        { error: "Conversation KLYX introuvable." },
-        { status: 404 }
+        {
+          error:
+            "Conversation KLYX introuvable.",
+        },
+        {
+          status: 404,
+        }
       );
     }
 
     const confirmedAt =
-      new Date().toISOString();
+      new Date()
+        .toISOString();
 
-    const confirmationPayload = {
-      action: "confirm_request",
-      confirmed: true,
-      confirmedAt,
-      request: {
+    const confirmedRequest:
+      Record<
+        string,
+        unknown
+      > = {
         serviceSlug,
         city,
         date,
         time,
-        budget,
-      },
-      nextStep: "review_request",
-      automaticExecutionAllowed: false,
+        budget:
+          requestBudget,
+      };
+
+    if (schedule) {
+      confirmedRequest.requestMode =
+        "multi_slot";
+
+      confirmedRequest.schedule = {
+        multiSlot: true,
+        slots:
+          schedule,
+      };
+    }
+
+    const confirmationPayload = {
+      action:
+        "confirm_request",
+      confirmed: true,
+      confirmedAt,
+      request:
+        confirmedRequest,
+      nextStep:
+        schedule
+          ? "review_multi_slot_request"
+          : "review_request",
+      automaticExecutionAllowed:
+        false,
     };
 
     const {
-      data: confirmationMessage,
+      data:
+        confirmationMessage,
       error: messageError,
     } = await supabaseAdmin
-      .from("brain_messages")
+      .from(
+        "brain_messages"
+      )
       .insert({
-        conversation_id: conversationId,
+        conversation_id:
+          conversationId,
         role: "user",
         content:
-          "Confirmation explicite de la demande KLYX.",
-        payload: confirmationPayload,
+          schedule
+            ? "Confirmation explicite de la demande KLYX multi-creneaux."
+            : "Confirmation explicite de la demande KLYX.",
+        payload:
+          confirmationPayload,
       })
       .select("id")
       .single();
 
     if (messageError) {
-      throw new Error(messageError.message);
+      throw new Error(
+        messageError.message
+      );
     }
 
     const confirmationId =
-      (confirmationMessage as ConfirmationMessageRow).id;
+      (
+        confirmationMessage as
+          ConfirmationMessageRow
+      ).id;
 
     const { error: updateError } =
       await supabaseAdmin
-        .from("brain_conversations")
+        .from(
+          "brain_conversations"
+        )
         .update({
-          updated_at: confirmedAt,
+          updated_at:
+            confirmedAt,
         })
-        .eq("id", conversationId)
-        .eq("user_id", profile.id);
+        .eq(
+          "id",
+          conversationId
+        )
+        .eq(
+          "user_id",
+          profile.id
+        );
 
     if (updateError) {
-      throw new Error(updateError.message);
+      throw new Error(
+        updateError.message
+      );
     }
 
     return NextResponse.json({
       confirmed: true,
       confirmationId,
-      action: "confirm_request",
+      action:
+        "confirm_request",
       confirmedAt,
-      nextStep: "review_request",
-      automaticExecutionAllowed: false,
+      requestMode:
+        schedule
+          ? "multi_slot"
+          : "single",
+      nextStep:
+        schedule
+          ? "review_multi_slot_request"
+          : "review_request",
+      automaticExecutionAllowed:
+        false,
     });
   } catch (error) {
-    console.error(
-      "KLYX confirm request error:",
-      error
-    );
-
     const message =
       error instanceof Error
         ? error.message
         : "Confirmation KLYX indisponible.";
 
     return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
+      {
+        error: message,
+      },
+      {
+        status:
+          apiErrorStatus(
+            message
+          ),
+      }
     );
   }
 }

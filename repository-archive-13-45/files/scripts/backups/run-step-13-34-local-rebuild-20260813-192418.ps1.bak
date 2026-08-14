@@ -1,0 +1,692 @@
+$ErrorActionPreference = "Stop"
+
+$utf8 =
+    New-Object System.Text.UTF8Encoding($false)
+
+$root =
+    Split-Path -Parent $PSScriptRoot
+
+$stagingRoot =
+    Join-Path `
+        $root `
+        "supabase\staging-migrations-13-33"
+
+$manifestPath =
+    Join-Path `
+        $root `
+        "reports\supabase-staging-manifest-13-33.json"
+
+$workRoot =
+    Join-Path `
+        $root `
+        ".klyx-local-rebuild-13-34"
+
+$workSupabase =
+    Join-Path `
+        $workRoot `
+        "supabase"
+
+$workMigrations =
+    Join-Path `
+        $workSupabase `
+        "migrations"
+
+$reportPath =
+    Join-Path `
+        $root `
+        "reports\supabase-local-rebuild-13-34.txt"
+
+$jsonPath =
+    Join-Path `
+        $root `
+        "reports\supabase-local-rebuild-13-34.json"
+
+# KLYX_DISPOSABLE_LOCAL_REBUILD_13_34
+
+$manifest =
+    Get-Content `
+        -LiteralPath `
+        $manifestPath `
+        -Raw |
+    ConvertFrom-Json
+
+if (
+    $manifest.Step -ne
+    "13.33"
+) {
+    throw "13.34 : mauvais manifest source."
+}
+
+# ============================================================
+# SAFETY GUARDS
+# ============================================================
+
+if (
+    $env:SUPABASE_DB_URL
+) {
+    Write-Host "SUPABASE_DB_URL ignore volontairement."
+}
+
+if (
+    $env:DATABASE_URL
+) {
+    Write-Host "DATABASE_URL ignore volontairement."
+}
+
+if (
+    Test-Path `
+        -LiteralPath `
+        $workRoot
+) {
+    Remove-Item `
+        -LiteralPath `
+        $workRoot `
+        -Recurse `
+        -Force
+}
+
+New-Item `
+    -ItemType Directory `
+    -Force `
+    -Path $workMigrations |
+    Out-Null
+
+# ============================================================
+# CREATE ISOLATED SUPABASE PROJECT
+# ============================================================
+
+Push-Location $workRoot
+
+try {
+    npx.cmd supabase init
+
+    if (
+        $LASTEXITCODE -ne 0
+    ) {
+        throw "13.34 : supabase init FAILED."
+    }
+}
+finally {
+    Pop-Location
+}
+
+$configPath =
+    Join-Path `
+        $workSupabase `
+        "config.toml"
+
+if (
+    -not (
+        Test-Path `
+            -LiteralPath `
+            $configPath
+    )
+) {
+    throw "13.34 : config.toml local introuvable."
+}
+
+# ============================================================
+# COPY STAGED SQL IN DETERMINISTIC ORDER
+# ============================================================
+
+$stagedEntries =
+    @(
+        $manifest.Entries |
+        Where-Object {
+            $_.Status -eq
+            "staged"
+        }
+    )
+
+if (
+    $stagedEntries.Count -lt
+    1
+) {
+    throw "13.34 : aucune migration staging."
+}
+
+$orderedEntries =
+    @(
+        $stagedEntries |
+        Sort-Object `
+            Phase,
+            StagingPath
+    )
+
+$copyManifest =
+    @()
+
+$position =
+    0
+
+foreach (
+    $entry
+    in $orderedEntries
+) {
+    $source =
+        [string]$entry.StagingPath
+
+    if (
+        -not (
+            Test-Path `
+                -LiteralPath `
+                $source
+        )
+    ) {
+        throw (
+            "13.34 : migration staging absente : " +
+            $source
+        )
+    }
+
+    $position +=
+        1
+
+    $phase =
+        [string]$entry.Phase
+
+    $safePhase =
+        $phase `
+            -replace '[^a-zA-Z0-9_]', '_'
+
+    $sourceName =
+        [System.IO.Path]::GetFileNameWithoutExtension(
+            $source
+        )
+
+    $safeSource =
+        $sourceName `
+            -replace '[^a-zA-Z0-9_]', '_'
+
+    $timestamp =
+        (
+            20260814000000 +
+            $position
+        ).ToString()
+
+    $targetName =
+        $timestamp +
+        "_" +
+        $safePhase +
+        "_" +
+        $safeSource +
+        ".sql"
+
+    $target =
+        Join-Path `
+            $workMigrations `
+            $targetName
+
+    $content =
+        [System.IO.File]::ReadAllText(
+            $source
+        )
+
+    [System.IO.File]::WriteAllText(
+        $target,
+        $content,
+        $utf8
+    )
+
+    $copyManifest +=
+        [pscustomobject]@{
+            Position =
+                $position
+
+            Phase =
+                $phase
+
+            Source =
+                $source
+
+            Target =
+                $target
+
+            TargetName =
+                $targetName
+        }
+}
+
+# ============================================================
+# DOCKER / LOCAL STACK CHECK
+# ============================================================
+
+$dockerAvailable =
+    $false
+
+try {
+    docker version `
+        --format "{{.Server.Version}}" `
+        *> $null
+
+    if (
+        $LASTEXITCODE -eq 0
+    ) {
+        $dockerAvailable =
+            $true
+    }
+}
+catch {
+    $dockerAvailable =
+        $false
+}
+
+if (
+    -not $dockerAvailable
+) {
+    $result =
+        [pscustomobject]@{
+            Step =
+                "13.34"
+
+            Status =
+                "blocked_no_docker"
+
+            DockerAvailable =
+                $false
+
+            LocalStackStarted =
+                $false
+
+            ResetSucceeded =
+                $false
+
+            MigrationCount =
+                $copyManifest.Count
+
+            FailedMigration =
+                $null
+
+            ProductionDatabaseModified =
+                $false
+
+            LinkedResetUsed =
+                $false
+
+            DbUrlUsed =
+                $false
+
+            WorkRoot =
+                $workRoot
+        }
+
+    $json =
+        $result |
+        ConvertTo-Json -Depth 100
+
+    [System.IO.File]::WriteAllText(
+        $jsonPath,
+        $json,
+        $utf8
+    )
+
+    $text =
+@"
+======================================
+KLYX 13.34 LOCAL REBUILD
+======================================
+
+Status : BLOCKED_NO_DOCKER
+Docker available : NON
+Local Supabase started : NON
+Local DB reset : NON
+Migrations prepared : $($copyManifest.Count)
+
+Production DB modified : NON
+--linked used : NON
+--db-url used : NON
+
+Action requise :
+Installer/demarrer Docker Desktop puis relancer le checker.
+
+======================================
+"@
+
+    [System.IO.File]::WriteAllText(
+        $reportPath,
+        $text,
+        $utf8
+    )
+
+    Write-Host ""
+    Write-Host "======================================"
+    Write-Host "KLYX 13.34 BLOQUE PAR DOCKER"
+    Write-Host "======================================"
+    Write-Host "Migrations jetables : PREPAREES"
+    Write-Host "Docker : INDISPONIBLE"
+    Write-Host "Production DB : NON TOUCHEE"
+    Write-Host "======================================"
+
+    exit 20
+}
+
+# ============================================================
+# START LOCAL STACK ONLY
+# ============================================================
+
+$startSucceeded =
+    $false
+
+$resetSucceeded =
+    $false
+
+$resetOutput =
+    New-Object System.Collections.Generic.List[string]
+
+Push-Location $workRoot
+
+try {
+    Write-Host ""
+    Write-Host "Starting isolated local Supabase..."
+    Write-Host ""
+
+    $startLines =
+        @(
+            npx.cmd supabase start 2>&1
+        )
+
+    foreach (
+        $line
+        in $startLines
+    ) {
+        Write-Host $line
+    }
+
+    if (
+        $LASTEXITCODE -ne 0
+    ) {
+        throw "13.34 : supabase start local FAILED."
+    }
+
+    $startSucceeded =
+        $true
+
+    Write-Host ""
+    Write-Host "Resetting isolated local database..."
+    Write-Host ""
+
+    $resetLines =
+        @(
+            npx.cmd supabase db reset `
+                --local `
+                --no-seed `
+                2>&1
+        )
+
+    foreach (
+        $line
+        in $resetLines
+    ) {
+        $resetOutput.Add(
+            [string]$line
+        )
+
+        Write-Host $line
+    }
+
+    if (
+        $LASTEXITCODE -eq 0
+    ) {
+        $resetSucceeded =
+            $true
+    }
+}
+finally {
+    Write-Host ""
+    Write-Host "Stopping isolated local Supabase..."
+    Write-Host ""
+
+    npx.cmd supabase stop `
+        --no-backup `
+        *> $null
+
+    Pop-Location
+}
+
+# ============================================================
+# FAILURE DIAGNOSTICS
+# ============================================================
+
+$failedMigration =
+    $null
+
+if (
+    -not $resetSucceeded
+) {
+    foreach (
+        $line
+        in $resetOutput
+    ) {
+        $match =
+            [regex]::Match(
+                $line,
+                '(\d{14}_[^\s]+\.sql)'
+            )
+
+        if (
+            $match.Success
+        ) {
+            $failedMigration =
+                $match.Groups[1].Value
+
+            break
+        }
+    }
+}
+
+$status =
+    if (
+        $resetSucceeded
+    ) {
+        "success"
+    }
+    else {
+        "migration_failure"
+    }
+
+$result =
+    [pscustomobject]@{
+        Step =
+            "13.34"
+
+        Status =
+            $status
+
+        DockerAvailable =
+            $dockerAvailable
+
+        LocalStackStarted =
+            $startSucceeded
+
+        ResetSucceeded =
+            $resetSucceeded
+
+        MigrationCount =
+            $copyManifest.Count
+
+        FailedMigration =
+            $failedMigration
+
+        MigrationOrder =
+            $copyManifest
+
+        ResetOutput =
+            @(
+                $resetOutput
+            )
+
+        ProductionDatabaseModified =
+            $false
+
+        LinkedResetUsed =
+            $false
+
+        DbUrlUsed =
+            $false
+
+        WorkRoot =
+            $workRoot
+    }
+
+$json =
+    $result |
+    ConvertTo-Json -Depth 100
+
+[System.IO.File]::WriteAllText(
+    $jsonPath,
+    $json,
+    $utf8
+)
+
+$lines =
+    New-Object System.Collections.Generic.List[string]
+
+$lines.Add(
+    "======================================"
+)
+
+$lines.Add(
+    "KLYX 13.34 - DISPOSABLE LOCAL REBUILD"
+)
+
+$lines.Add(
+    "======================================"
+)
+
+$lines.Add(
+    ""
+)
+
+$lines.Add(
+    "Status : " +
+    $status
+)
+
+$lines.Add(
+    "Docker available : " +
+    $dockerAvailable
+)
+
+$lines.Add(
+    "Local stack started : " +
+    $startSucceeded
+)
+
+$lines.Add(
+    "Local db reset succeeded : " +
+    $resetSucceeded
+)
+
+$lines.Add(
+    "Migration count : " +
+    $copyManifest.Count
+)
+
+$lines.Add(
+    "Failed migration : " +
+    $failedMigration
+)
+
+$lines.Add(
+    ""
+)
+
+$lines.Add(
+    "Production database modified : NON"
+)
+
+$lines.Add(
+    "--linked used : NON"
+)
+
+$lines.Add(
+    "--db-url used : NON"
+)
+
+$lines.Add(
+    ""
+)
+
+$lines.Add(
+    "---- ORDER ----"
+)
+
+foreach (
+    $item
+    in $copyManifest
+) {
+    $lines.Add(
+        (
+            "{0:D4} | {1} | {2}" -f
+            $item.Position,
+            $item.Phase,
+            $item.TargetName
+        )
+    )
+}
+
+if (
+    -not $resetSucceeded
+) {
+    $lines.Add(
+        ""
+    )
+
+    $lines.Add(
+        "---- RESET OUTPUT ----"
+    )
+
+    foreach (
+        $line
+        in $resetOutput
+    ) {
+        $lines.Add(
+            $line
+        )
+    }
+}
+
+$lines.Add(
+    ""
+)
+
+$lines.Add(
+    "======================================"
+)
+
+[System.IO.File]::WriteAllLines(
+    $reportPath,
+    $lines,
+    $utf8
+)
+
+if (
+    -not $resetSucceeded
+) {
+    Write-Host ""
+    Write-Host "======================================"
+    Write-Host "KLYX 13.34 MIGRATION FAILURE DETECTED"
+    Write-Host "======================================"
+    Write-Host (
+        "Failed migration : " +
+        $failedMigration
+    )
+    Write-Host "Production DB : NON TOUCHEE"
+    Write-Host "======================================"
+
+    exit 30
+}
+
+Write-Host ""
+Write-Host "======================================"
+Write-Host "KLYX 13.34 LOCAL REBUILD OK"
+Write-Host "======================================"
+Write-Host (
+    "Migrations replayed : " +
+    $copyManifest.Count
+)
+Write-Host "Fresh local database : OK"
+Write-Host "Production DB : NON TOUCHEE"
+Write-Host "--linked : NON"
+Write-Host "--db-url : NON"
+Write-Host "======================================"

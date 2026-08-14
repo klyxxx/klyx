@@ -1,5 +1,7 @@
 "use client";
 import PhoneSettingsInline from "./PhoneSettingsInline";
+import PhonePrivacyControls from "./PhonePrivacyControls";
+import PhoneAccessHistory from "./PhoneAccessHistory";
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
@@ -284,6 +286,10 @@ export default function SettingsPage() {
         <div className="mt-8 space-y-6">
           {/* KLYX_REAL_SIDEBAR_PHONE_REPAIR_12_67F */}
           <PhoneSettingsInline />
+          {/* KLYX_PHONE_PRIVACY_SETTINGS_12_75 */}
+          <PhonePrivacyControls />
+          {/* KLYX_PHONE_ACCESS_HISTORY_SETTINGS_12_76 */}
+          <PhoneAccessHistory />
           <Section icon={<Sun />} title="Apparence">
             <div className="grid gap-3 sm:grid-cols-3">
               {(["light", "dark", "system"] as const).map((value) => (

@@ -1,0 +1,35 @@
+{
+    "Step":  "13.43",
+    "GeneratedAt":  "2026-08-13T21:18:33.1944336+02:00",
+    "CanonicalBaseline":  "20260814000000_klyx_canonical_baseline.sql",
+    "OfficialSqlMigrationCount":  1,
+    "BackupArtifactsDetected":  2,
+    "BackupArtifactsArchived":  2,
+    "ArchivedArtifacts":  [
+                              {
+                                  "Name":  "20260812182000_klyx_phone_otp_security_12_71.sql.bak-12-71-20260812-182933",
+                                  "Length":  708,
+                                  "Sha256":  "84e658ee97318b75022c2edca5672c57d89c6a61a6c8138e38acbc7d88e8e5fd"
+                              },
+                              {
+                                  "Name":  "20260813133700_klyx_split_booking_batch_13_19.sql.bak-13-19g-20260813-141033",
+                                  "Length":  6978,
+                                  "Sha256":  "7b745c3d6a18bb94e85eff00e838fe047680c5aebe545637c2d721d36530024f"
+                              }
+                          ],
+    "ArchiveHashesVerified":  true,
+    "BackupArtifactsRemaining":  0,
+    "MigrationListSkipWarnings":  0,
+    "MigrationDirectoryClean":  true,
+    "CanonicalHistoryStillVisible":  true,
+    "ProductionDatabaseModified":  false,
+    "ProductionSchemaModified":  false,
+    "ProductionDataModified":  false,
+    "LinkedReadUsed":  true,
+    "LinkedWriteUsed":  false,
+    "MigrationRepairExecuted":  false,
+    "DbPushLinkedUsed":  false,
+    "DbResetLinkedUsed":  false,
+    "FilesDeleted":  0,
+    "HygieneComplete":  true
+}

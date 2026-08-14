@@ -1,0 +1,137 @@
+======================================
+KLYX 13.52 - BRAIN LLM FOUNDATION AUDIT
+======================================
+
+Brain-related files : 119
+Brain API routes : 11
+Assistant-related routes : 13
+Files with LLM signals : 3
+True LLM already present : True
+Rule-heavy files : 97
+Confirmation guard files : 92
+Memory-related files : 73
+
+BRAIN API ROUTES:
+  app\api\brain\actions\route.ts
+  app\api\brain\command\route.ts
+  app\api\brain\confirm-request\route.ts
+  app\api\brain\market-advice\[id]\route.ts
+  app\api\brain\market-publish\route.ts
+  app\api\brain\market-publish-multi\route.ts
+  app\api\brain\market-split-plan\[id]\route.ts
+  app\api\brain\market-status\[id]\route.ts
+  app\api\brain\memory-context\route.ts
+  app\api\brain\recommend\route.ts
+  app\api\brain\respond\route.ts
+
+LLM SIGNAL FILES:
+  app\ai-status\page.tsx
+  app\brain\page.tsx
+  lib\klyx-ai.ts
+
+RULE-HEAVY FILES:
+  app\api\bookings\split-missions\[id]\checkout\route.ts | signals=72
+  lib\brain-multi-slot.ts | signals=70
+  app\api\brain\respond\route.ts | signals=62
+  app\api\market\requests\[id]\offers\route.ts | signals=53
+  lib\universal-service-request.ts | signals=49
+  lib\brain-actions.ts | signals=44
+  app\api\market\requests\[id]\split-fallback\slot-map\route.ts | signals=44
+  app\api\stripe\create-checkout-session\route.ts | signals=40
+  app\api\market\requests\[id]\group-booking\route.ts | signals=40
+  app\api\bookings\create\route.ts | signals=39
+  app\api\market\requests\[id]\split-fallback\confirm\route.ts | signals=37
+  app\api\stripe\create-group-checkout-session\route.ts | signals=36
+  app\api\booking-groups\[id]\cancellation\route.ts | signals=36
+  app\api\bookings\split-missions\[id]\prices\route.ts | signals=36
+  app\api\search\providers\route.ts | signals=34
+  app\api\market\requests\[id]\split-fallback\book\route.ts | signals=34
+  app\api\market\requests\[id]\split-fallback\book\recovery\route.ts | signals=32
+  lib\stripe-payments.ts | signals=31
+  app\api\bookings\split-missions\route.ts | signals=31
+  app\babysitters\page.tsx | signals=30
+  app\brain\page.tsx | signals=29
+  lib\stripe-group-payments.ts | signals=26
+  app\api\booking-groups\[id]\route.ts | signals=26
+  app\api\brain\market-advice\[id]\route.ts | signals=26
+  app\api\bookings\split-missions\[id]\acceptance\route.ts | signals=25
+  app\api\market\requests\route.ts | signals=24
+  lib\brain-market-confirmation.ts | signals=23
+  lib\multi-slot-live-coverage.ts | signals=23
+  lib\search-recovery.ts | signals=22
+  lib\provider-jobs-live-revalidation.ts | signals=22
+  lib\brain-multi-slot-proof.ts | signals=22
+  app\api\group-reviews\route.ts | signals=21
+  app\api\provider\assistant\route.ts | signals=20
+  app\assistant\market\[id]\page.tsx | signals=20
+  lib\market-multi-slot.ts | signals=18
+  app\search\page.tsx | signals=18
+  lib\provider-assistant.ts | signals=18
+  lib\booking-group-lifecycle.ts | signals=18
+  lib\stripe-group-refunds.ts | signals=18
+  lib\klyx-ai.ts | signals=17
+  lib\multi-provider-split-plan.ts | signals=16
+  app\settings\page.tsx | signals=16
+  app\provider\jobs\page.tsx | signals=15
+  app\api\brain\command\route.ts | signals=15
+  app\api\brain\market-publish-multi\route.ts | signals=14
+  lib\provider-planning.ts | signals=14
+  lib\market-matching.ts | signals=14
+  app\assistant\market\[id]\SplitPlanEntryCard.tsx | signals=14
+  app\ui\AppSidebar.tsx | signals=13
+  app\assistant\market\page.tsx | signals=13
+  app\api\agent\plans\route.ts | signals=13
+  app\api\brain\market-status\[id]\route.ts | signals=12
+  app\brain\SmartRecommendation.tsx | signals=12
+  app\api\market\requests\[id]\split-fallback\route.ts | signals=12
+  app\bookings\split\[id]\SplitMissionPaymentConfirmation.tsx | signals=12
+  lib\security-risk.ts | signals=11
+  app\components\ProactiveAssistantPanel.tsx | signals=11
+  app\components\DashboardActionCenter.tsx | signals=11
+  app\api\memory\profile\route.ts | signals=11
+  app\assistant\actions\page.tsx | signals=11
+  app\api\brain\recommend\route.ts | signals=11
+  app\api\brain\confirm-request\route.ts | signals=11
+  lib\active-profile.ts | signals=10
+  app\api\provider\jobs\route.ts | signals=10
+  app\bookings\split\[id]\SplitMissionPaymentPlan.tsx | signals=10
+  app\assistant\market\[id]\split-plan\page.tsx | signals=10
+  app\api\brain\market-publish\route.ts | signals=9
+  app\api\requests\analyze\route.ts | signals=9
+  app\api\brain\memory-context\route.ts | signals=9
+  app\memory\page.tsx | signals=9
+  app\request\page.tsx | signals=9
+  app\assistant\market\[id]\split-plan\SplitPlanBookingAction.tsx | signals=9
+  lib\provider-search.ts | signals=8
+  lib\brain-group-cancellation-actions.ts | signals=8
+  app\api\brain\market-split-plan\[id]\route.ts | signals=8
+  app\assistant\market\[id]\split-plan\SplitPlanConfirmation.tsx | signals=8
+  app\provider\assistant\page.tsx | signals=8
+  app\admin\disputes\page.tsx | signals=8
+  app\components\AssistantCommandBar.tsx | signals=8
+  app\request\confirm-multi\page.tsx | signals=8
+  app\agent\page.tsx | signals=7
+  app\request\confirm\page.tsx | signals=7
+  app\provider\payments\FinanceReconciliationStatus.tsx | signals=7
+  app\assistant\market\[id]\split-plan\SplitBookingRecovery.tsx | signals=7
+  app\api\security\risk\route.ts | signals=6
+  lib\provider-verification-precheck.ts | signals=6
+  app\recommendations\page.tsx | signals=6
+  app\requests\page.tsx | signals=6
+  app\bookings\split\[id]\SplitMissionPriceConfirmation.tsx | signals=6
+  app\brain\MemoryQuickStart.tsx | signals=6
+  app\components\AssistantBrief.tsx | signals=6
+  app\bookings\split\[id]\SplitMissionCheckout.tsx | signals=5
+  lib\service-moderator.ts | signals=5
+  app\search\SearchRecovery.tsx | signals=5
+  app\payment\success\page.tsx | signals=5
+  app\assistant\page.tsx | signals=5
+  app\bookings\SplitMissionSection.tsx | signals=5
+
+Source files modified : 0
+Routes modified : 0
+Database modified : NON
+Production modified : NON
+Audit only : OUI
+
+======================================

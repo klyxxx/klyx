@@ -1,0 +1,860 @@
+"use client";
+
+import SplitPlanConfirmation from "./SplitPlanConfirmation";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+import Link from "next/link";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  Euro,
+  LoaderCircle,
+  RefreshCw,
+  ShieldCheck,
+  UserRound,
+  UsersRound,
+} from "lucide-react";
+import {
+  useParams,
+} from "next/navigation";
+
+import {
+  supabase,
+} from "@/lib/supabase";
+
+// KLYX_MULTI_PROVIDER_REVIEW_PAGE_13_17
+
+type Slot = {
+  id:
+    string;
+
+  position:
+    number;
+
+  date:
+    string;
+
+  startTime:
+    string;
+
+  endTime:
+    string;
+
+  budgetMax:
+    number | null;
+};
+
+type Assignment = {
+  rank:
+    number;
+
+  providerId:
+    string;
+
+  providerName:
+    string;
+
+  userServiceId:
+    string;
+
+  score:
+    number;
+
+  assignedSlotIds:
+    string[];
+
+  assignedSlots:
+    Slot[];
+};
+
+type PreferredProvider = {
+  providerId:
+    string;
+
+  providerName:
+    string;
+
+  slotIds:
+    string[];
+
+  coverageCount:
+    number;
+
+  slotCount:
+    number;
+
+  score:
+    number;
+};
+
+type SlotMapResponse = {
+  requestId?:
+    string;
+
+  slotCount?:
+    number;
+
+  slots?:
+    Slot[];
+
+  singleProviderFullCoverage?:
+    boolean;
+
+  splitFallbackRequired?:
+    boolean;
+
+  splitPlanPossible?:
+    boolean;
+
+  splitPlanStatus?:
+    string;
+
+  reason?:
+    string;
+
+  preferredProvider?:
+    PreferredProvider;
+
+  assignments?:
+    Assignment[];
+
+  uncoveredSlotIds?:
+    string[];
+
+  verifiedProviderCount?:
+    number;
+
+  unverifiedProviderCount?:
+    number;
+
+  explicitConfirmationRequired?:
+    boolean;
+
+  automaticProviderSelection?:
+    boolean;
+
+  automaticBooking?:
+    boolean;
+
+  automaticPayment?:
+    boolean;
+
+  error?:
+    string;
+
+  detail?:
+    string;
+};
+
+function requestIdFromParams(
+  value:
+    string |
+    string[] |
+    undefined
+): string {
+  if (
+    typeof value ===
+    "string"
+  ) {
+    return value;
+  }
+
+  if (
+    Array.isArray(
+      value
+    )
+  ) {
+    return value[0] ??
+      "";
+  }
+
+  return "";
+}
+
+function formatDate(
+  value:
+    string
+): string {
+  if (
+    !value
+  ) {
+    return "Date à confirmer";
+  }
+
+  const date =
+    new Date(
+      value +
+      "T12:00:00"
+    );
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(
+    "fr-BE",
+    {
+      weekday:
+        "long",
+
+      day:
+        "2-digit",
+
+      month:
+        "long",
+
+      year:
+        "numeric",
+    }
+  ).format(
+    date
+  );
+}
+
+function formatBudget(
+  value:
+    number |
+    null
+): string {
+  if (
+    value ===
+      null ||
+    !Number.isFinite(
+      value
+    )
+  ) {
+    return "Budget non défini";
+  }
+
+  return new Intl.NumberFormat(
+    "fr-BE",
+    {
+      style:
+        "currency",
+
+      currency:
+        "EUR",
+    }
+  ).format(
+    value
+  );
+}
+
+export default function SplitPlanReviewPage() {
+  const params =
+    useParams();
+
+  const requestId =
+    requestIdFromParams(
+      params.id
+    );
+
+  const [
+    data,
+    setData,
+  ] =
+    useState<
+      SlotMapResponse |
+      null
+    >(
+      null
+    );
+
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(
+      true
+    );
+
+  const [
+    refreshing,
+    setRefreshing,
+  ] =
+    useState(
+      false
+    );
+
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] =
+    useState(
+      ""
+    );
+
+  const load =
+    useCallback(
+      async (
+        manual =
+          false
+      ) => {
+        if (
+          !requestId
+        ) {
+          setErrorMessage(
+            "Demande KLYX invalide."
+          );
+
+          setLoading(
+            false
+          );
+
+          return;
+        }
+
+        if (
+          manual
+        ) {
+          setRefreshing(
+            true
+          );
+        }
+        else {
+          setLoading(
+            true
+          );
+        }
+
+        setErrorMessage(
+          ""
+        );
+
+        try {
+          const {
+            data:
+              sessionData,
+          } =
+            await supabase.auth.getSession();
+
+          const accessToken =
+            sessionData.session?.access_token;
+
+          if (
+            !accessToken
+          ) {
+            throw new Error(
+              "Session KLYX manquante."
+            );
+          }
+
+          const response =
+            await fetch(
+              "/api/market/requests/" +
+              encodeURIComponent(
+                requestId
+              ) +
+              "/split-fallback/slot-map",
+              {
+                cache:
+                  "no-store",
+
+                headers: {
+                  Authorization:
+                    "Bearer " +
+                    accessToken,
+                },
+              }
+            );
+
+          const body =
+            (
+              await response.json()
+            ) as SlotMapResponse;
+
+          if (
+            !response.ok
+          ) {
+            throw new Error(
+              body.error ||
+              "Impossible de vérifier le plan KLYX."
+            );
+          }
+
+          setData(
+            body
+          );
+        }
+        catch (
+          error
+        ) {
+          setData(
+            null
+          );
+
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : "Impossible de vérifier le plan KLYX."
+          );
+        }
+        finally {
+          setLoading(
+            false
+          );
+
+          setRefreshing(
+            false
+          );
+        }
+      },
+      [
+        requestId,
+      ]
+    );
+
+  useEffect(
+    () => {
+      void load();
+    },
+    [
+      load,
+    ]
+  );
+
+  const assignedSlotIds =
+    useMemo(
+      () =>
+        new Set(
+          (
+            data?.assignments ??
+            []
+          ).flatMap(
+            (
+              assignment
+            ) =>
+              assignment.assignedSlotIds
+          )
+        ),
+      [
+        data,
+      ]
+    );
+
+  if (
+    loading
+  ) {
+    return (
+      <main className="klyx-page grid min-h-[70vh] place-items-center">
+        <div className="text-center">
+          <LoaderCircle
+            className="mx-auto animate-spin text-violet-500"
+            size={32}
+          />
+
+          <p className="mt-4 font-bold">
+            KLYX vérifie chaque créneau...
+          </p>
+
+          <p className="mt-2 text-sm text-muted-foreground">
+            Disponibilités, conflits et couverture live sont recalculés.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="klyx-page">
+      <div className="mx-auto max-w-5xl">
+        <Link
+          href={
+            "/assistant/market/" +
+            encodeURIComponent(
+              requestId
+            )
+          }
+          className="inline-flex items-center gap-2 text-sm font-black text-muted-foreground transition hover:text-foreground"
+        >
+          <ArrowLeft
+            size={17}
+          />
+
+          Retour à la demande
+        </Link>
+
+        <section className="relative mt-6 overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#17131f,#32135f_52%,#111827)] p-7 text-white sm:p-10">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white/70">
+            <UsersRound
+              size={15}
+            />
+
+            Organisation KLYX
+          </div>
+
+          <h1 className="mt-5 max-w-3xl text-3xl font-black tracking-tight sm:text-4xl">
+            Plan multi-prestataires
+          </h1>
+
+          <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70 sm:text-base">
+            KLYX répartit les créneaux uniquement à partir des disponibilités et conflits vérifiés en direct.
+            Ce plan reste une recommandation : aucune sélection, réservation ou opération de paiement n'est effectuée ici.
+          </p>
+        </section>
+
+        {errorMessage && (
+          <section className="mt-7 rounded-[2rem] border border-rose-500/25 bg-rose-500/10 p-6">
+            <div className="flex items-start gap-4">
+              <AlertTriangle
+                className="mt-0.5 shrink-0 text-rose-600"
+                size={24}
+              />
+
+              <div className="flex-1">
+                <h2 className="font-black">
+                  Plan indisponible
+                </h2>
+
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  {errorMessage}
+                </p>
+
+                <button
+                  type="button"
+                  disabled={
+                    refreshing
+                  }
+                  onClick={() =>
+                    void load(
+                      true
+                    )
+                  }
+                  className="mt-4 inline-flex h-10 items-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-black disabled:opacity-50"
+                >
+                  {refreshing ? (
+                    <LoaderCircle
+                      className="animate-spin"
+                      size={16}
+                    />
+                  ) : (
+                    <RefreshCw
+                      size={16}
+                    />
+                  )}
+
+                  Réessayer
+                </button>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {!errorMessage &&
+          data?.singleProviderFullCoverage ===
+            true && (
+          <section className="mt-7 rounded-[2rem] border border-emerald-500/25 bg-emerald-500/10 p-6 sm:p-8">
+            <div className="flex items-start gap-4">
+              <CheckCircle2
+                className="mt-0.5 shrink-0 text-emerald-600"
+                size={26}
+              />
+
+              <div>
+                <h2 className="text-xl font-black">
+                  Un seul prestataire couvre finalement tous les créneaux
+                </h2>
+
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  KLYX conserve la priorité au prestataire unique afin de simplifier la mission.
+                </p>
+
+                {data.preferredProvider && (
+                  <div className="mt-5 rounded-2xl border border-emerald-500/20 bg-background/70 p-5">
+                    <div className="flex items-center gap-3">
+                      <div className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-600 text-white">
+                        <UserRound
+                          size={20}
+                        />
+                      </div>
+
+                      <div>
+                        <p className="font-black">
+                          {data.preferredProvider.providerName}
+                        </p>
+
+                        <p className="text-xs text-muted-foreground">
+                          {data.preferredProvider.coverageCount}/
+                          {data.preferredProvider.slotCount} créneaux disponibles
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {!errorMessage &&
+          data &&
+          data.singleProviderFullCoverage !==
+            true &&
+          data.splitPlanPossible !==
+            true && (
+          <section className="mt-7 rounded-[2rem] border border-amber-500/25 bg-amber-500/10 p-6 sm:p-8">
+            <div className="flex items-start gap-4">
+              <AlertTriangle
+                className="mt-0.5 shrink-0 text-amber-600"
+                size={24}
+              />
+
+              <div>
+                <h2 className="text-xl font-black">
+                  Couverture complète non disponible
+                </h2>
+
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  KLYX ne peut pas prouver actuellement une combinaison couvrant tous les créneaux.
+                  Le plan n'est donc pas proposé.
+                </p>
+
+                {(data.uncoveredSlotIds?.length ??
+                  0) >
+                  0 && (
+                  <p className="mt-3 text-sm font-bold">
+                    Créneaux encore non couverts :{" "}
+                    {data.uncoveredSlotIds?.length}
+                  </p>
+                )}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {!errorMessage &&
+          data?.splitPlanPossible ===
+            true && (
+          <>
+            <section className="mt-7 grid gap-4 sm:grid-cols-3">
+              <article className="klyx-card p-5">
+                <p className="text-xs font-bold text-muted-foreground">
+                  Créneaux
+                </p>
+
+                <p className="mt-2 text-2xl font-black">
+                  {data.slotCount ??
+                    0}
+                </p>
+              </article>
+
+              <article className="klyx-card p-5">
+                <p className="text-xs font-bold text-muted-foreground">
+                  Prestataires nécessaires
+                </p>
+
+                <p className="mt-2 text-2xl font-black">
+                  {data.assignments?.length ??
+                    0}
+                </p>
+              </article>
+
+              <article className="klyx-card p-5">
+                <p className="text-xs font-bold text-muted-foreground">
+                  Couverture
+                </p>
+
+                <p className="mt-2 text-2xl font-black text-emerald-600">
+                  {assignedSlotIds.size}/
+                  {data.slotCount ??
+                    0}
+                </p>
+              </article>
+            </section>
+
+            <section className="mt-7 space-y-5">
+              {(data.assignments ??
+                []).map(
+                (
+                  assignment
+                ) => (
+                  <article
+                    key={
+                      assignment.providerId
+                    }
+                    className="klyx-card overflow-hidden"
+                  >
+                    <div className="flex flex-col gap-4 border-b border-border p-6 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-violet-600 text-white">
+                          <UserRound
+                            size={23}
+                          />
+                        </div>
+
+                        <div>
+                          <p className="text-xs font-black uppercase tracking-[0.15em] text-violet-600">
+                            Prestataire {assignment.rank}
+                          </p>
+
+                          <h2 className="mt-1 text-xl font-black">
+                            {assignment.providerName}
+                          </h2>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-border bg-muted/30 px-4 py-2 text-sm">
+                        <span className="font-black">
+                          {assignment.assignedSlotIds.length}
+                        </span>{" "}
+                        créneau
+                        {assignment.assignedSlotIds.length >
+                        1
+                          ? "x"
+                          : ""}
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 p-6">
+                      {assignment.assignedSlots.map(
+                        (
+                          slot
+                        ) => (
+                          <div
+                            key={
+                              slot.id
+                            }
+                            className="rounded-2xl border border-border bg-muted/20 p-5"
+                          >
+                            <div className="grid gap-4 sm:grid-cols-3">
+                              <div className="flex items-start gap-3">
+                                <CalendarDays
+                                  className="mt-0.5 shrink-0 text-violet-600"
+                                  size={18}
+                                />
+
+                                <div>
+                                  <p className="text-xs font-bold text-muted-foreground">
+                                    Date
+                                  </p>
+
+                                  <p className="mt-1 text-sm font-black capitalize">
+                                    {formatDate(
+                                      slot.date
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-start gap-3">
+                                <Clock3
+                                  className="mt-0.5 shrink-0 text-violet-600"
+                                  size={18}
+                                />
+
+                                <div>
+                                  <p className="text-xs font-bold text-muted-foreground">
+                                    Horaire
+                                  </p>
+
+                                  <p className="mt-1 text-sm font-black">
+                                    {slot.startTime} – {slot.endTime}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-start gap-3">
+                                <Euro
+                                  className="mt-0.5 shrink-0 text-violet-600"
+                                  size={18}
+                                />
+
+                                <div>
+                                  <p className="text-xs font-bold text-muted-foreground">
+                                    Budget maximum
+                                  </p>
+
+                                  <p className="mt-1 text-sm font-black">
+                                    {formatBudget(
+                                      slot.budgetMax
+                                    )}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  </article>
+                )
+              )}
+            </section>
+
+                        {/* KLYX_SPLIT_PLAN_CONFIRMATION_WIRING_13_18 */}
+            <SplitPlanConfirmation
+              requestId={requestId}
+              plan={{
+                slots: data.slots ?? [],
+                assignments: data.assignments ?? [],
+              }}
+            />
+
+<section className="mt-7 rounded-[2rem] border border-blue-500/20 bg-blue-500/10 p-6 sm:p-8">
+              <div className="flex items-start gap-4">
+                <ShieldCheck
+                  className="mt-0.5 shrink-0 text-blue-600"
+                  size={24}
+                />
+
+                <div>
+                  <h2 className="font-black">
+                    Aucun engagement pour le moment
+                  </h2>
+
+                  <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                    Ce plan a uniquement été calculé et affiché.
+                    KLYX n'a sélectionné aucun prestataire et n'a créé aucune réservation ni aucun paiement.
+                    Une confirmation explicite sera obligatoire avant la prochaine étape.
+                  </p>
+                </div>
+              </div>
+            </section>
+          </>
+        )}
+
+        {!errorMessage && (
+          <div className="mt-7 flex justify-end">
+            <button
+              type="button"
+              disabled={
+                refreshing
+              }
+              onClick={() =>
+                void load(
+                  true
+                )
+              }
+              className="inline-flex h-11 items-center gap-2 rounded-xl border border-border bg-background px-5 text-sm font-black disabled:opacity-50"
+            >
+              {refreshing ? (
+                <LoaderCircle
+                  className="animate-spin"
+                  size={17}
+                />
+              ) : (
+                <RefreshCw
+                  size={17}
+                />
+              )}
+
+              Revérifier le plan
+            </button>
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}

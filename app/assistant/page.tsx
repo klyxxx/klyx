@@ -136,7 +136,10 @@ export default function AssistantHomePage() {
 
           <AssistantBrief />
 
-          <AssistantCommandBar />
+          {/* KLYX_SMART_COMMAND_HOME_12_79 */}
+          <AssistantCommandBar
+            actions={data?.actions ?? []}
+          />
         </section>
 
         <ProactiveAssistantPanel />

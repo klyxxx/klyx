@@ -1,0 +1,10 @@
+KLYX 13.33
+Phase: 06_split_missions
+Files: 6
+
+0015_20260813133700_klyx_split_booking_batch_13_19.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations\20260813133700_klyx_split_booking_batch_13_19.sql
+0016_20260813143000_klyx_split_booking_recovery_13_20.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations\20260813143000_klyx_split_booking_recovery_13_20.sql
+0017_20260813154500_klyx_split_price_confirmation_13_23.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations\20260813154500_klyx_split_price_confirmation_13_23.sql
+0018_20260813165000_klyx_split_payment_confirmation_13_26.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations\20260813165000_klyx_split_payment_confirmation_13_26.sql
+0019_20260813174500_klyx_split_checkout_13_27.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations\20260813174500_klyx_split_checkout_13_27.sql
+0020_20260813182500_klyx_split_refund_reconciliation_13_28.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations\20260813182500_klyx_split_refund_reconciliation_13_28.sql

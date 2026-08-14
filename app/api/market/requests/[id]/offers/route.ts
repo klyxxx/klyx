@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import {
+  validateProviderLiveMultiSlotCoverage,
+} from "@/lib/multi-slot-live-coverage";
 import { createMarketNotification } from "@/lib/market-notifications";
 import {
   apiErrorStatus,
@@ -13,7 +16,7 @@ function clean(value: unknown, max: number): string {
     : "";
 }
 
-export async function POST(
+async function klyxOfferBeforeAtomicRecovery13_10(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
@@ -98,6 +101,378 @@ export async function POST(
       );
     }
 
+
+    // KLYX_MULTI_SLOT_OFFER_SERVER_GUARD_12_94
+    const {
+      data: requestMetaData,
+      error: requestMetaError,
+    } = await supabaseAdmin
+      .from(
+        "market_service_requests"
+      )
+      .select(
+        "id, request_mode, slot_count"
+      )
+      .eq(
+        "id",
+        requestId
+      )
+      .maybeSingle();
+
+    if (requestMetaError) {
+      throw new Error(
+        requestMetaError.message
+      );
+    }
+
+    const requestMeta =
+      requestMetaData as unknown as {
+        id: string;
+        request_mode:
+          | "single"
+          | "multi_slot";
+        slot_count: number;
+      } | null;
+
+    if (
+      requestMeta?.request_mode ===
+      "multi_slot"
+    ) {
+      const expectedSlotCount =
+        Number(
+          requestMeta.slot_count
+        );
+
+      if (
+        !Number.isInteger(
+          expectedSlotCount
+        ) ||
+        expectedSlotCount < 2
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "Le planning multi-creneaux de cette mission est invalide.",
+            code:
+              "MULTI_SLOT_INVALID_SCHEDULE",
+          },
+          {
+            status: 409,
+          }
+        );
+      }
+
+      if (
+        amount <= 0
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "Le prix total de la mission doit etre superieur a 0.",
+            code:
+              "MULTI_SLOT_INVALID_OFFER_AMOUNT",
+          },
+          {
+            status: 400,
+          }
+        );
+      }
+
+      const [
+        candidateResult,
+        slotResult,
+      ] = await Promise.all([
+        supabaseAdmin
+          .from(
+            "market_request_provider_candidates"
+          )
+          .select(
+            "market_request_id, provider_profile_id, coverage_count, slot_count, full_coverage"
+          )
+          .eq(
+            "market_request_id",
+            requestId
+          )
+          .eq(
+            "provider_profile_id",
+            profile.id
+          )
+          .maybeSingle(),
+
+        supabaseAdmin
+          .from(
+            "market_service_request_slots"
+          )
+          .select(
+            "id, position"
+          )
+          .eq(
+            "market_request_id",
+            requestId
+          ),
+      ]);
+
+      if (
+        candidateResult.error
+      ) {
+        throw new Error(
+          candidateResult
+            .error.message
+        );
+      }
+
+      if (
+        slotResult.error
+      ) {
+        throw new Error(
+          slotResult
+            .error.message
+        );
+      }
+
+      const candidate =
+        candidateResult.data as unknown as {
+          market_request_id:
+            string;
+
+          provider_profile_id:
+            string;
+
+          coverage_count:
+            number;
+
+          slot_count:
+            number;
+
+          full_coverage:
+            boolean;
+        } | null;
+
+      const slotRows =
+        (
+          slotResult.data ??
+          []
+        ) as unknown as Array<{
+          id: string;
+          position: number;
+        }>;
+
+      const actualSlotCount =
+        slotRows.length;
+
+      if (
+        actualSlotCount !==
+        expectedSlotCount
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "Le planning de cette mission a change. Recharge les opportunites KLYX avant de proposer un prix.",
+            code:
+              "MULTI_SLOT_SCHEDULE_CHANGED",
+          },
+          {
+            status: 409,
+          }
+        );
+      }
+
+      const uniquePositions =
+        new Set(
+          slotRows.map(
+            (slot) =>
+              Number(
+                slot.position
+              )
+          )
+        );
+
+      if (
+        uniquePositions.size !==
+        expectedSlotCount
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "Les creneaux de cette mission ne sont plus coherents.",
+            code:
+              "MULTI_SLOT_SCHEDULE_INVALID",
+          },
+          {
+            status: 409,
+          }
+        );
+      }
+
+      const candidateSlotCount =
+        Number(
+          candidate?.slot_count ??
+          0
+        );
+
+      const coverageCount =
+        Number(
+          candidate?.coverage_count ??
+          0
+        );
+
+      const eligible =
+        Boolean(
+          candidate &&
+          candidate.provider_profile_id ===
+            profile.id &&
+          candidate.market_request_id ===
+            requestId &&
+          candidate.full_coverage ===
+            true &&
+          candidateSlotCount ===
+            expectedSlotCount &&
+          coverageCount ===
+            expectedSlotCount
+        );
+
+      if (!eligible) {
+        return NextResponse.json(
+          {
+            error:
+              "Tu dois etre disponible sur tous les creneaux pour envoyer une offre sur cette mission groupee.",
+            code:
+              "MULTI_SLOT_FULL_COVERAGE_REQUIRED",
+
+            coverage: {
+              count:
+                coverageCount,
+
+              total:
+                expectedSlotCount,
+
+              fullCoverage:
+                false,
+            },
+          },
+          {
+            status: 403,
+          }
+        );
+      }
+    }
+    // KLYX_MULTI_SLOT_LIVE_OFFER_GUARD_12_95
+    if (
+      requestMeta?.request_mode ===
+      "multi_slot"
+    ) {
+      const liveCoverage =
+        await validateProviderLiveMultiSlotCoverage({
+          requestId,
+
+          providerProfileId:
+            profile.id,
+
+          userServiceId:
+            userService.id,
+
+          expectedSlotCount:
+            Number(
+              requestMeta.slot_count
+            ),
+        });
+
+      /*
+        Synchronise le snapshot candidat avec
+        la verite du planning au moment du clic.
+      */
+      const {
+        error:
+          candidateSyncError,
+      } = await supabaseAdmin
+        .from(
+          "market_request_provider_candidates"
+        )
+        .upsert(
+          {
+            market_request_id:
+              requestId,
+
+            provider_profile_id:
+              profile.id,
+
+            coverage_count:
+              liveCoverage.coverageCount,
+
+            slot_count:
+              liveCoverage.slotCount,
+
+            full_coverage:
+              liveCoverage.fullCoverage,
+          },
+          {
+            onConflict:
+              "market_request_id,provider_profile_id",
+          }
+        );
+
+      if (
+        candidateSyncError
+      ) {
+        throw new Error(
+          candidateSyncError.message
+        );
+      }
+
+      if (
+        !liveCoverage.fullCoverage
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "Ton planning a change. Tu ne couvres plus tous les creneaux de cette mission.",
+
+            code:
+              "MULTI_SLOT_LIVE_COVERAGE_REQUIRED",
+
+            coverage: {
+              count:
+                liveCoverage.coverageCount,
+
+              total:
+                liveCoverage.slotCount,
+
+              fullCoverage:
+                false,
+
+              checkedAt:
+                liveCoverage.checkedAt,
+
+              slots:
+                liveCoverage.slots.map(
+                  (slot) => ({
+                    position:
+                      slot.position,
+
+                    date:
+                      slot.date,
+
+                    startTime:
+                      slot.startTime,
+
+                    endTime:
+                      slot.endTime,
+
+                    covered:
+                      slot.covered,
+
+                    reason:
+                      slot.reason,
+                  })
+                ),
+            },
+          },
+          {
+            status: 409,
+          }
+        );
+      }
+    }
     const { data: offer, error } = await supabaseAdmin
       .from("market_service_offers")
       .upsert(
@@ -180,7 +555,7 @@ export async function PATCH(
     } = await supabaseAdmin
       .from("market_service_requests")
       .select(
-        "id, client_profile_id, service_id, title, description, requested_date, requested_time, status, accepted_offer_id"
+        "id, client_profile_id, service_id, title, description, requested_date, requested_time, request_mode, status, accepted_offer_id"
       )
       .eq("id", requestId)
       .eq("client_profile_id", profile.id)
@@ -194,6 +569,24 @@ export async function PATCH(
       return NextResponse.json(
         { error: "Demande introuvable." },
         { status: 404 }
+      );
+    }
+
+    // KLYX_MULTI_SLOT_ACCEPT_GUARD_12_84
+    if (
+      action === "accept" &&
+      serviceRequest.request_mode === "multi_slot"
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Cette demande contient plusieurs creneaux. Utilise le flux de reservation groupee KLYX.",
+          code:
+            "MULTI_SLOT_GROUP_BOOKING_REQUIRED",
+        },
+        {
+          status: 409,
+        }
       );
     }
 
@@ -459,5 +852,312 @@ export async function PATCH(
       { error: message },
       { status: apiErrorStatus(message) }
     );
+  }
+}
+
+// KLYX_MULTI_SLOT_OFFER_ATOMIC_RECOVERY_13_10
+
+type KlyxOfferRouteContext13_10 = {
+  params:
+    Promise<{
+      id:
+        string;
+    }>;
+};
+
+function klyxAtomicOfferRecovery13_10(
+  message:
+    string
+) {
+  const normalized =
+    message.toUpperCase();
+
+  if (
+    normalized.includes(
+      "KLYX_MULTI_SLOT_OFFER_ATOMIC_COVERAGE_REQUIRED"
+    )
+  ) {
+    return Response.json(
+      {
+        code:
+          "MULTI_SLOT_OFFER_AVAILABILITY_CHANGED",
+
+        error:
+          "Ton planning a change et tu ne couvres plus tous les creneaux de cette demande. KLYX a bloque l'offre.",
+
+        recovery: {
+          offerCreated:
+            false,
+
+          bookingCreated:
+            false,
+
+          paymentCreated:
+            false,
+
+          availabilityChanged:
+            true,
+
+          refreshJobs:
+            true,
+
+          reviewPlanning:
+            true,
+
+          retryAfterPlanningUpdate:
+            true,
+        },
+
+        automaticOffer:
+          false,
+
+        automaticBooking:
+          false,
+
+        automaticPayment:
+          false,
+      },
+      {
+        status:
+          409,
+
+        headers: {
+          "cache-control":
+            "no-store",
+        },
+      }
+    );
+  }
+
+  if (
+    normalized.includes(
+      "KLYX_MULTI_SLOT_OFFER_ATOMIC_REQUEST_NOT_OPEN"
+    )
+  ) {
+    return Response.json(
+      {
+        code:
+          "MULTI_SLOT_OFFER_REQUEST_CLOSED",
+
+        error:
+          "Cette demande n'est plus ouverte aux nouvelles offres.",
+
+        recovery: {
+          offerCreated:
+            false,
+
+          bookingCreated:
+            false,
+
+          paymentCreated:
+            false,
+
+          refreshJobs:
+            true,
+
+          retryAllowed:
+            false,
+        },
+
+        automaticOffer:
+          false,
+
+        automaticBooking:
+          false,
+
+        automaticPayment:
+          false,
+      },
+      {
+        status:
+          409,
+
+        headers: {
+          "cache-control":
+            "no-store",
+        },
+      }
+    );
+  }
+
+  if (
+    normalized.includes(
+      "KLYX_MULTI_SLOT_OFFER_ATOMIC_CONTEXT_REQUIRED"
+    )
+  ) {
+    return Response.json(
+      {
+        code:
+          "MULTI_SLOT_OFFER_CONTEXT_REQUIRED",
+
+        error:
+          "KLYX ne peut pas prouver le service exact utilise pour cette offre. L'envoi a ete bloque.",
+
+        recovery: {
+          offerCreated:
+            false,
+
+          bookingCreated:
+            false,
+
+          paymentCreated:
+            false,
+
+          refreshJobs:
+            true,
+
+          retryAllowed:
+            false,
+        },
+
+        automaticOffer:
+          false,
+
+        automaticBooking:
+          false,
+
+        automaticPayment:
+          false,
+      },
+      {
+        status:
+          409,
+
+        headers: {
+          "cache-control":
+            "no-store",
+        },
+      }
+    );
+  }
+
+  if (
+    normalized.includes(
+      "KLYX_MULTI_SLOT_OFFER_ATOMIC_INVALID_SLOT_COUNT"
+    )
+  ) {
+    return Response.json(
+      {
+        code:
+          "MULTI_SLOT_OFFER_INVALID_SLOT_COUNT",
+
+        error:
+          "La demande multi-creneaux est incoherente. Aucune offre n'a ete enregistree.",
+
+        recovery: {
+          offerCreated:
+            false,
+
+          bookingCreated:
+            false,
+
+          paymentCreated:
+            false,
+
+          retryAllowed:
+            false,
+        },
+
+        automaticOffer:
+          false,
+
+        automaticBooking:
+          false,
+
+        automaticPayment:
+          false,
+      },
+      {
+        status:
+          409,
+
+        headers: {
+          "cache-control":
+            "no-store",
+        },
+      }
+    );
+  }
+
+  return null;
+}
+
+export async function POST(
+  request:
+    Request,
+
+  context:
+    KlyxOfferRouteContext13_10
+) {
+  /*
+    Le handler historique conserve :
+    - authentification prestataire
+    - ownership
+    - validation montant
+    - garde 12.94
+    - revalidation 12.95
+    - upsert historique
+
+    13.10 ne modifie que la traduction
+    des blocages DB atomiques 13.09.
+  */
+
+  const safeRequest =
+    request.clone();
+
+  try {
+    const response =
+      await klyxOfferBeforeAtomicRecovery13_10(
+        safeRequest,
+        context
+      );
+
+    /*
+      Le handler historique peut deja avoir
+      transforme l'erreur Supabase en reponse.
+    */
+    if (
+      response.status >=
+      400
+    ) {
+      const inspected =
+        response.clone();
+
+      const raw =
+        await inspected.text();
+
+      const recovery =
+        klyxAtomicOfferRecovery13_10(
+          raw
+        );
+
+      if (recovery) {
+        return recovery;
+      }
+    }
+
+    return response;
+  } catch (error) {
+    /*
+      Ou l'erreur PostgreSQL peut remonter
+      directement jusqu'ici.
+    */
+    const message =
+      error instanceof Error
+        ? error.message
+        : String(
+            error
+          );
+
+    const recovery =
+      klyxAtomicOfferRecovery13_10(
+        message
+      );
+
+    if (recovery) {
+      return recovery;
+    }
+
+    throw error;
   }
 }

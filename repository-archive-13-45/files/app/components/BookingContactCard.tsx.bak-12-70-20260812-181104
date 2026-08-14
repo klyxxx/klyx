@@ -1,0 +1,189 @@
+'use client';
+
+import { useCallback, useEffect, useState } from 'react';
+import {
+  CheckCircle2,
+  LoaderCircle,
+  LockKeyhole,
+  Phone,
+  ShieldCheck,
+} from 'lucide-react';
+
+import { supabase } from '@/lib/supabase';
+
+// KLYX_BOOKING_CONTACT_CARD_12_68B
+
+type ContactPayload = {
+  contactAllowed?: boolean;
+  phoneAvailable?: boolean;
+  phoneNumber?: string | null;
+  otherName?: string;
+  verified?: boolean;
+  message?: string;
+  error?: string;
+};
+
+type Props = {
+  bookingId: string;
+  bookingStatus: string;
+  otherName: string;
+};
+
+export default function BookingContactCard({
+  bookingId,
+  bookingStatus,
+  otherName,
+}: Props) {
+  const [loading, setLoading] = useState(false);
+  const [payload, setPayload] =
+    useState<ContactPayload | null>(null);
+
+  const contactAllowed =
+    bookingStatus === 'accepted' ||
+    bookingStatus === 'completed';
+
+  const loadContact = useCallback(async () => {
+    if (!contactAllowed) return;
+
+    setLoading(true);
+
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+
+      if (!token) {
+        throw new Error('Session KLYX introuvable.');
+      }
+
+      const response = await fetch(
+        '/api/bookings/' +
+          encodeURIComponent(bookingId) +
+          '/contact',
+        {
+          cache: 'no-store',
+          headers: {
+            Authorization: 'Bearer ' + token,
+          },
+        }
+      );
+
+      const result =
+        (await response.json()) as ContactPayload;
+
+      if (!response.ok) {
+        throw new Error(
+          result.error || 'Contact indisponible.'
+        );
+      }
+
+      setPayload(result);
+    } catch (error) {
+      setPayload({
+        phoneAvailable: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Contact indisponible.',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [bookingId, contactAllowed]);
+
+  useEffect(() => {
+    setPayload(null);
+
+    if (contactAllowed) {
+      void loadContact();
+    }
+  }, [contactAllowed, loadContact]);
+
+  if (!contactAllowed) {
+    return (
+      <div className='mt-4 rounded-2xl border border-border bg-muted/30 p-4'>
+        <div className='flex items-start gap-3'>
+          <LockKeyhole
+            size={19}
+            className='mt-0.5 shrink-0 text-muted-foreground'
+          />
+
+          <div>
+            <p className='font-bold'>Contact protege</p>
+            <p className='mt-1 text-sm text-muted-foreground'>
+              Le numero de {otherName} sera disponible apres acceptation.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading || !payload) {
+    return (
+      <div className='mt-4 flex items-center gap-3 rounded-2xl border border-border bg-muted/30 p-4 text-sm text-muted-foreground'>
+        <LoaderCircle size={18} className='animate-spin' />
+        Chargement du contact...
+      </div>
+    );
+  }
+
+  if (!payload.phoneAvailable || !payload.phoneNumber) {
+    return (
+      <div className='mt-4 rounded-2xl border border-border bg-muted/30 p-4'>
+        <div className='flex items-start gap-3'>
+          <ShieldCheck
+            size={19}
+            className='mt-0.5 shrink-0 text-violet-500'
+          />
+
+          <div>
+            <p className='font-bold'>Contact KLYX</p>
+            <p className='mt-1 text-sm text-muted-foreground'>
+              {payload.error ||
+                payload.message ||
+                'Numero indisponible.'}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const name = payload.otherName || otherName;
+
+  return (
+    <div className='mt-4 rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.06] p-5'>
+      <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
+        <div className='min-w-0'>
+          <div className='flex flex-wrap items-center gap-2'>
+            <Phone size={18} className='text-emerald-500' />
+            <p className='font-black'>Appeler {name}</p>
+
+            {payload.verified && (
+              <span className='inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-1 text-xs font-black text-emerald-500'>
+                <CheckCircle2 size={13} />
+                Verifie
+              </span>
+            )}
+          </div>
+
+          <p className='mt-2 break-all text-base font-black'>
+            {payload.phoneNumber}
+          </p>
+
+          <p className='mt-1 text-xs text-muted-foreground'>
+            Visible uniquement pour cette reservation.
+          </p>
+        </div>
+
+        <a
+          href={'tel:' + payload.phoneNumber}
+          className='inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-6 text-sm font-black text-white hover:bg-emerald-500'
+        >
+          <Phone size={18} />
+          Appeler
+        </a>
+      </div>
+    </div>
+  );
+}

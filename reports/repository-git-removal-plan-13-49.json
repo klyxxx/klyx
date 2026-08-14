@@ -1,0 +1,27 @@
+{
+    "Step":  "13.49",
+    "GeneratedAt":  "2026-08-13T21:44:01.1929742+02:00",
+    "SourceAudit":  "13.48",
+    "CandidateCount":  0,
+    "EligibleRemovalPlanCount":  0,
+    "BlockedDirtyCount":  0,
+    "Candidates":  [
+
+                   ],
+    "EligibleRemovalFiles":  [
+
+                             ],
+    "BlockedDirtyFiles":  [
+
+                          ],
+    "GeneratedCommandsFile":  "reports\\repository-git-removal-commands-13-49.txt",
+    "GitStatusUnchanged":  true,
+    "HeadUnchanged":  true,
+    "GitRmExecuted":  false,
+    "FilesMoved":  0,
+    "FilesDeleted":  0,
+    "SourceFilesModified":  0,
+    "RepositoryModified":  false,
+    "PlanOnly":  true,
+    "AuditComplete":  true
+}

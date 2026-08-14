@@ -1,0 +1,16 @@
+KLYX 13.33
+Phase: 05_payments_finance
+Files: 12
+
+0005_20260812202000_klyx_booking_groups_12_85.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations\20260812202000_klyx_booking_groups_12_85.sql
+0006_20260812203500_klyx_group_payment_12_86.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations\20260812203500_klyx_group_payment_12_86.sql
+0008_20260812210700_klyx_group_cancellation_request_12_89.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations\20260812210700_klyx_group_cancellation_request_12_89.sql
+0009_20260812211800_klyx_group_cancellation_resolution_12_90.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations\20260812211800_klyx_group_cancellation_resolution_12_90.sql
+0024_20260805_payment_notifications_ux.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260805_payment_notifications_ux.sql
+0028_20260805_unique_booking_payment.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260805_unique_booking_payment.sql
+0029_20260806_cancellations_refunds.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260806_cancellations_refunds.sql
+0032_20260806_dispute_administration.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260806_dispute_administration.sql
+0038_20260806_security_risk.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260806_security_risk.sql
+0039_20260806_trust_disputes.sql <- C:\Users\fenjo\Documents\klyx\supabase\migrations_legacy_20260812-161308\20260806_trust_disputes.sql
+0048_step-8-0-stripe-webhook-events.sql <- C:\Users\fenjo\Documents\klyx\supabase\step-8-0-stripe-webhook-events.sql
+0049_step-8-1-booking-financial-ledger.sql <- C:\Users\fenjo\Documents\klyx\supabase\step-8-1-booking-financial-ledger.sql

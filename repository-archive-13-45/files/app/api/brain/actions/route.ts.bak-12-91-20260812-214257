@@ -1,0 +1,48 @@
+import { NextResponse } from "next/server";
+
+import {
+  apiErrorStatus,
+  getAuthenticatedProfile,
+} from "@/lib/api-auth";
+import { getBrainActions } from "@/lib/brain-actions";
+
+// KLYX_BRAIN_ACTIONS_ROUTE_12_81
+
+export async function GET(
+  request: Request
+) {
+  try {
+    const { profile } =
+      await getAuthenticatedProfile(
+        request
+      );
+
+    const actions =
+      await getBrainActions(profile);
+
+    return NextResponse.json({
+      profileId: profile.id,
+      accountType:
+        profile.accountType,
+      actions:
+        actions.slice(0, 20),
+      count:
+        actions.length,
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Impossible de charger les actions KLYX.";
+
+    return NextResponse.json(
+      {
+        error: message,
+      },
+      {
+        status:
+          apiErrorStatus(message),
+      }
+    );
+  }
+}

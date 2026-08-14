@@ -1,0 +1,111 @@
+import { NextResponse } from "next/server";
+
+import {
+  apiErrorStatus,
+  getAuthenticatedProfile,
+} from "@/lib/api-auth";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+import { sendPhoneOtp } from "@/lib/twilio-verify";
+
+// KLYX_PHONE_OTP_SEND_12_69
+
+type PhoneRow = {
+  phone_number: string | null;
+  phone_verified_at: string | null;
+};
+
+const cooldowns = new Map<string, number>();
+const COOLDOWN_MS = 60_000;
+
+function maskPhone(value: string) {
+  if (value.length <= 6) return value;
+
+  return (
+    value.slice(0, 4) +
+    "••••" +
+    value.slice(-3)
+  );
+}
+
+export async function POST(request: Request) {
+  try {
+    const { profile } =
+      await getAuthenticatedProfile(request);
+
+    const { data, error } =
+      await supabaseAdmin
+        .from("profiles")
+        .select(
+          "phone_number, phone_verified_at"
+        )
+        .eq("id", profile.id)
+        .single();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const row = data as PhoneRow;
+    const phoneNumber =
+      row.phone_number?.trim() ?? "";
+
+    if (!phoneNumber) {
+      return NextResponse.json(
+        {
+          error:
+            "Enregistre ton numero avant de demander un code.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (row.phone_verified_at) {
+      return NextResponse.json({
+        sent: false,
+        alreadyVerified: true,
+        verified: true,
+      });
+    }
+
+    const now = Date.now();
+    const previous =
+      cooldowns.get(profile.id) ?? 0;
+
+    const remaining =
+      COOLDOWN_MS - (now - previous);
+
+    if (remaining > 0) {
+      return NextResponse.json(
+        {
+          error:
+            "Attends avant de renvoyer un nouveau code.",
+          retryAfter: Math.ceil(
+            remaining / 1000
+          ),
+        },
+        { status: 429 }
+      );
+    }
+
+    await sendPhoneOtp(phoneNumber);
+
+    cooldowns.set(profile.id, now);
+
+    return NextResponse.json({
+      sent: true,
+      verified: false,
+      maskedPhone: maskPhone(phoneNumber),
+      retryAfter: 60,
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Envoi du code impossible.";
+
+    return NextResponse.json(
+      { error: message },
+      { status: apiErrorStatus(message) }
+    );
+  }
+}

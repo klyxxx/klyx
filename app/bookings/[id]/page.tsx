@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { getActiveClientProfile, type SavedAccount } from "@/lib/account-switcher";
+import BookingContactCard from "@/app/components/BookingContactCard";
 
 type BookingRow = {
   id: string;
@@ -502,6 +503,12 @@ export default function BookingDetailsPage() {
                 </div>
               </div>
 
+              {/* KLYX_SECURE_CONTACT_UI_12_68B */}
+              <BookingContactCard
+                bookingId={booking.id}
+                bookingStatus={booking.status}
+                otherName={otherName}
+              />
               {booking.message && (
                 <div className="mt-6 rounded-2xl border border-border dark:border-zinc-800 p-5">
                   <p className="text-sm font-semibold text-muted-foreground dark:text-zinc-400">Demande du client</p>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import DashboardActionCenter from "@/app/components/DashboardActionCenter";
+import ProviderActivitySnapshot from "./ProviderActivitySnapshot";
 import {
   ArrowRight,
   Banknote,
@@ -125,6 +126,9 @@ export default function ProviderDashboard({
 
       
       <DashboardActionCenter accountType="provider" />
+
+      {/* KLYX_PROVIDER_ACTIVITY_DASHBOARD_13_02 */}
+      <ProviderActivitySnapshot />
 
       <section className="mt-8">
         <p className="klyx-eyebrow">
