@@ -71,6 +71,116 @@ jobs:
       - name: Playwright E2E
         run: npm run test:e2e
 
+      # KLYX_PLAYWRIGHT_SECRET_SCAN_PHASE_7D
+      #
+      # Même si Playwright ou une future modification
+      # réintroduit accidentellement le mot de passe
+      # dans un rapport, GitHub ne doit jamais
+      # publier cet artifact.
+      - name: Guard Playwright report secrets
+        if: always()
+        shell: bash
+        run: |
+          python <<'PY'
+          import os
+          import shutil
+          import sys
+          import zipfile
+          from pathlib import Path
+
+          secret_text = os.environ.get(
+              "KLYX_E2E_PASSWORD",
+              "",
+          )
+
+          if not secret_text:
+              print(
+                  "KLYX_E2E_PASSWORD unavailable for artifact guard."
+              )
+              sys.exit(1)
+
+          secret = secret_text.encode(
+              "utf-8"
+          )
+
+          roots = [
+              Path("playwright-report"),
+              Path("test-results"),
+          ]
+
+          leak_found = False
+
+          def contains_secret(data: bytes) -> bool:
+              return bool(secret) and secret in data
+
+          def scan_zip(path: Path) -> bool:
+              try:
+                  with zipfile.ZipFile(path) as archive:
+                      for member in archive.infolist():
+                          if member.is_dir():
+                              continue
+
+                          try:
+                              data = archive.read(member)
+                          except Exception:
+                              continue
+
+                          if contains_secret(data):
+                              return True
+
+                  return False
+
+              except Exception:
+                  return False
+
+          for root in roots:
+              if not root.exists():
+                  continue
+
+              for path in root.rglob("*"):
+                  if not path.is_file():
+                      continue
+
+                  try:
+                      data = path.read_bytes()
+                  except Exception:
+                      continue
+
+                  if contains_secret(data):
+                      leak_found = True
+                      break
+
+                  if zipfile.is_zipfile(path):
+                      if scan_zip(path):
+                          leak_found = True
+                          break
+
+              if leak_found:
+                  break
+
+          if leak_found:
+              shutil.rmtree(
+                  "playwright-report",
+                  ignore_errors=True,
+              )
+
+              shutil.rmtree(
+                  "test-results",
+                  ignore_errors=True,
+              )
+
+              print(
+                  "Sensitive E2E credential detected. "
+                  "Playwright artifacts were deleted."
+              )
+
+              sys.exit(1)
+
+          print(
+              "Playwright report secret scan: PASS"
+          )
+          PY
+
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
@@ -78,4 +188,4 @@ jobs:
           name: klyx-playwright-report-${{ github.run_id }}
           path: playwright-report/
           if-no-files-found: ignore
-          retention-days: 14
+          retention-days: 7

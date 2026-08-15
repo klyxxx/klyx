@@ -39,6 +39,55 @@ function escapeRegExp(
   );
 }
 
+/*
+ * KLYX_E2E_SECRET_SCRUB_PHASE_7D
+ *
+ * Le mot de passe E2E ne doit jamais rester
+ * dans le DOM lorsqu'une assertion Playwright
+ * peut échouer et générer un contexte d'erreur.
+ */
+async function clearSensitivePassword(
+  page: Page
+) {
+  try {
+    await page
+      .locator(
+        'input[type="password"]'
+      )
+      .evaluateAll(
+        (inputs) => {
+          for (
+            const input
+            of inputs
+          ) {
+            const element =
+              input as HTMLInputElement;
+
+            element.value = "";
+
+            element.removeAttribute(
+              "value"
+            );
+
+            element.dispatchEvent(
+              new Event(
+                "input",
+                {
+                  bubbles: true,
+                }
+              )
+            );
+          }
+        }
+      );
+  } catch {
+    /*
+     * Le champ peut avoir disparu
+     * après une navigation réussie.
+     */
+  }
+}
+
 async function readProfiles(
   page: Page
 ): Promise<ProfilesState> {
@@ -154,9 +203,41 @@ async function switchThroughUi(
 test.describe(
   "KLYX authenticated multi-profile",
   () => {
+    /*
+     * KLYX_E2E_SENSITIVE_ARTIFACT_GUARD_PHASE_7D
+     *
+     * Ce test manipule un credential.
+     *
+     * Les tests publics conservent leurs
+     * diagnostics normaux, mais ce test
+     * sensible ne produit jamais :
+     *
+     * - trace
+     * - screenshot
+     * - vidéo
+     */
+    test.use({
+      trace: "off",
+      screenshot: "off",
+      video: "off",
+    });
+
     test.skip(
       !email || !password,
       "Dedicated KLYX E2E credentials are not configured."
+    );
+
+    /*
+     * Deuxième barrière :
+     * nettoyage même si le test s'arrête
+     * dans une étape ultérieure.
+     */
+    test.afterEach(
+      async ({ page }) => {
+        await clearSensitivePassword(
+          page
+        );
+      }
     );
 
     test(
@@ -166,27 +247,48 @@ test.describe(
           "/login"
         );
 
-        await page
-          .getByPlaceholder(
+        const emailInput =
+          page.getByPlaceholder(
             "vous@exemple.com"
-          )
-          .fill(email!);
+          );
 
-        await page
-          .getByPlaceholder(
+        const passwordInput =
+          page.getByPlaceholder(
             "Votre mot de passe"
-          )
-          .fill(password!);
+          );
 
-        await page
-          .getByRole(
+        const loginButton =
+          page.getByRole(
             "button",
             {
               name:
                 "Se connecter",
             }
-          )
-          .click();
+          );
+
+        await emailInput.fill(
+          email!
+        );
+
+        await passwordInput.fill(
+          password!
+        );
+
+        /*
+         * Important :
+         *
+         * Dès que le submit a reçu le mot
+         * de passe, on nettoie le DOM avant
+         * toute assertion susceptible
+         * d'échouer.
+         */
+        try {
+          await loginButton.click();
+        } finally {
+          await clearSensitivePassword(
+            page
+          );
+        }
 
         await expect(
           page
@@ -269,8 +371,8 @@ test.describe(
         );
 
         /*
-         * La sélection du profil doit
-         * survivre à un rechargement réel.
+         * Le profil actif doit survivre
+         * à un vrai rechargement.
          */
         await page.reload();
 
@@ -292,11 +394,8 @@ test.describe(
         );
 
         /*
-         * La session Auth doit également
-         * être toujours active.
-         *
-         * /login doit donc renvoyer
-         * automatiquement vers /dashboard.
+         * La connexion Supabase doit
+         * également rester active.
          */
         await page.goto(
           "/login"
