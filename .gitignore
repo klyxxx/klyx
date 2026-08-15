@@ -43,3 +43,5 @@ next-env.d.ts
 .klyx-local-backup/
 reports/master-audit/*.log
 reports/master-audit/
+/build-*-error.txt
+reports/*-typescript-errors.txt
