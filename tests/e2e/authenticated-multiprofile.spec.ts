@@ -14,15 +14,7 @@ const password =
  * KLYX_E2E_SENSITIVE_ARTIFACT_GUARD_PHASE_7D_1
  *
  * Ce fichier manipule un mot de passe E2E.
- *
- * IMPORTANT :
- * test.use doit rester au niveau supérieur.
- * Playwright refuse trace/screenshot/video
- * dans un describe car ces options changent
- * la configuration du worker.
- *
- * Les tests publics gardent leurs artifacts.
- * Seul ce fichier authentifié les désactive.
+ * Aucun screenshot, trace ou video.
  */
 test.use({
   trace: "off",
@@ -59,13 +51,6 @@ function escapeRegExp(
   );
 }
 
-/*
- * KLYX_E2E_SECRET_SCRUB_PHASE_7D_1
- *
- * Une fois le submit envoyé,
- * le mot de passe est supprimé
- * du DOM avant les assertions.
- */
 async function clearSensitivePassword(
   page: Page
 ) {
@@ -77,8 +62,7 @@ async function clearSensitivePassword(
       .evaluateAll(
         (inputs) => {
           for (
-            const input
-            of inputs
+            const input of inputs
           ) {
             const element =
               input as HTMLInputElement;
@@ -101,10 +85,7 @@ async function clearSensitivePassword(
         }
       );
   } catch {
-    /*
-     * Le champ peut déjà avoir disparu
-     * après la navigation.
-     */
+    // Le champ peut déjà avoir disparu.
   }
 }
 
@@ -239,6 +220,20 @@ test.describe(
     test(
       "login, switch client/provider and keep the session",
       async ({ page }) => {
+        /*
+         * KLYX_AUTH_E2E_TIMEOUT_PHASE_7D_1
+         *
+         * Le parcours authentifié traverse
+         * plusieurs routes/API réelles Supabase.
+         * Les compilations à froid Next.js
+         * peuvent dépasser 30 secondes.
+         *
+         * Les tests publics restent à 30 s.
+         */
+        test.setTimeout(
+          120_000
+        );
+
         await page.goto(
           "/login"
         );
@@ -273,11 +268,6 @@ test.describe(
         try {
           await loginButton.click();
         } finally {
-          /*
-           * Aucun mot de passe ne doit
-           * rester dans le DOM pendant
-           * les assertions suivantes.
-           */
           await clearSensitivePassword(
             page
           );
@@ -363,10 +353,6 @@ test.describe(
           provider!.id
         );
 
-        /*
-         * Le profil actif doit survivre
-         * à un vrai rechargement.
-         */
         await page.reload();
 
         await expect(
@@ -386,10 +372,6 @@ test.describe(
           provider!.id
         );
 
-        /*
-         * La session Supabase doit
-         * également rester active.
-         */
         await page.goto(
           "/login"
         );
