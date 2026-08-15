@@ -10,6 +10,26 @@ const email =
 const password =
   process.env.KLYX_E2E_PASSWORD;
 
+/*
+ * KLYX_E2E_SENSITIVE_ARTIFACT_GUARD_PHASE_7D_1
+ *
+ * Ce fichier manipule un mot de passe E2E.
+ *
+ * IMPORTANT :
+ * test.use doit rester au niveau supérieur.
+ * Playwright refuse trace/screenshot/video
+ * dans un describe car ces options changent
+ * la configuration du worker.
+ *
+ * Les tests publics gardent leurs artifacts.
+ * Seul ce fichier authentifié les désactive.
+ */
+test.use({
+  trace: "off",
+  screenshot: "off",
+  video: "off",
+});
+
 type Profile = {
   id: string;
   firstName: string;
@@ -40,11 +60,11 @@ function escapeRegExp(
 }
 
 /*
- * KLYX_E2E_SECRET_SCRUB_PHASE_7D
+ * KLYX_E2E_SECRET_SCRUB_PHASE_7D_1
  *
- * Le mot de passe E2E ne doit jamais rester
- * dans le DOM lorsqu'une assertion Playwright
- * peut échouer et générer un contexte d'erreur.
+ * Une fois le submit envoyé,
+ * le mot de passe est supprimé
+ * du DOM avant les assertions.
  */
 async function clearSensitivePassword(
   page: Page
@@ -82,8 +102,8 @@ async function clearSensitivePassword(
       );
   } catch {
     /*
-     * Le champ peut avoir disparu
-     * après une navigation réussie.
+     * Le champ peut déjà avoir disparu
+     * après la navigation.
      */
   }
 }
@@ -203,35 +223,11 @@ async function switchThroughUi(
 test.describe(
   "KLYX authenticated multi-profile",
   () => {
-    /*
-     * KLYX_E2E_SENSITIVE_ARTIFACT_GUARD_PHASE_7D
-     *
-     * Ce test manipule un credential.
-     *
-     * Les tests publics conservent leurs
-     * diagnostics normaux, mais ce test
-     * sensible ne produit jamais :
-     *
-     * - trace
-     * - screenshot
-     * - vidéo
-     */
-    test.use({
-      trace: "off",
-      screenshot: "off",
-      video: "off",
-    });
-
     test.skip(
       !email || !password,
       "Dedicated KLYX E2E credentials are not configured."
     );
 
-    /*
-     * Deuxième barrière :
-     * nettoyage même si le test s'arrête
-     * dans une étape ultérieure.
-     */
     test.afterEach(
       async ({ page }) => {
         await clearSensitivePassword(
@@ -274,17 +270,14 @@ test.describe(
           password!
         );
 
-        /*
-         * Important :
-         *
-         * Dès que le submit a reçu le mot
-         * de passe, on nettoie le DOM avant
-         * toute assertion susceptible
-         * d'échouer.
-         */
         try {
           await loginButton.click();
         } finally {
+          /*
+           * Aucun mot de passe ne doit
+           * rester dans le DOM pendant
+           * les assertions suivantes.
+           */
           await clearSensitivePassword(
             page
           );
@@ -394,7 +387,7 @@ test.describe(
         );
 
         /*
-         * La connexion Supabase doit
+         * La session Supabase doit
          * également rester active.
          */
         await page.goto(

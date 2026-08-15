@@ -71,13 +71,9 @@ jobs:
       - name: Playwright E2E
         run: npm run test:e2e
 
-      # KLYX_PLAYWRIGHT_SECRET_SCAN_PHASE_7D
-      #
-      # Même si Playwright ou une future modification
-      # réintroduit accidentellement le mot de passe
-      # dans un rapport, GitHub ne doit jamais
-      # publier cet artifact.
+      # KLYX_PLAYWRIGHT_SECRET_SCAN_PHASE_7D_1
       - name: Guard Playwright report secrets
+        id: artifact_guard
         if: always()
         shell: bash
         run: |
@@ -88,18 +84,29 @@ jobs:
           import zipfile
           from pathlib import Path
 
-          secret_text = os.environ.get(
+          password_text = os.environ.get(
               "KLYX_E2E_PASSWORD",
               "",
           )
 
-          if not secret_text:
+          if not password_text:
               print(
-                  "KLYX_E2E_PASSWORD unavailable for artifact guard."
+                  "E2E credential unavailable for artifact guard."
               )
+
+              shutil.rmtree(
+                  "playwright-report",
+                  ignore_errors=True,
+              )
+
+              shutil.rmtree(
+                  "test-results",
+                  ignore_errors=True,
+              )
+
               sys.exit(1)
 
-          secret = secret_text.encode(
+          password = password_text.encode(
               "utf-8"
           )
 
@@ -110,22 +117,35 @@ jobs:
 
           leak_found = False
 
-          def contains_secret(data: bytes) -> bool:
-              return bool(secret) and secret in data
+          def contains_secret(
+              data: bytes
+          ) -> bool:
+              return (
+                  bool(password)
+                  and password in data
+              )
 
-          def scan_zip(path: Path) -> bool:
+          def scan_zip(
+              path: Path
+          ) -> bool:
               try:
-                  with zipfile.ZipFile(path) as archive:
+                  with zipfile.ZipFile(
+                      path
+                  ) as archive:
                       for member in archive.infolist():
                           if member.is_dir():
                               continue
 
                           try:
-                              data = archive.read(member)
+                              data = archive.read(
+                                  member
+                              )
                           except Exception:
                               continue
 
-                          if contains_secret(data):
+                          if contains_secret(
+                              data
+                          ):
                               return True
 
                   return False
@@ -137,21 +157,31 @@ jobs:
               if not root.exists():
                   continue
 
-              for path in root.rglob("*"):
+              for path in root.rglob(
+                  "*"
+              ):
                   if not path.is_file():
                       continue
 
                   try:
-                      data = path.read_bytes()
+                      data = (
+                          path.read_bytes()
+                      )
                   except Exception:
                       continue
 
-                  if contains_secret(data):
+                  if contains_secret(
+                      data
+                  ):
                       leak_found = True
                       break
 
-                  if zipfile.is_zipfile(path):
-                      if scan_zip(path):
+                  if zipfile.is_zipfile(
+                      path
+                  ):
+                      if scan_zip(
+                          path
+                      ):
                           leak_found = True
                           break
 
@@ -171,7 +201,7 @@ jobs:
 
               print(
                   "Sensitive E2E credential detected. "
-                  "Playwright artifacts were deleted."
+                  "Artifacts deleted."
               )
 
               sys.exit(1)
@@ -181,8 +211,9 @@ jobs:
           )
           PY
 
+      # Upload autorisé uniquement après scanner réussi.
       - name: Upload Playwright report
-        if: always()
+        if: ${{ always() && steps.artifact_guard.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: klyx-playwright-report-${{ github.run_id }}
