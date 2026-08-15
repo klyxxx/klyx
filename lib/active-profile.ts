@@ -3,7 +3,6 @@ import "server-only";
 import { cookies } from "next/headers";
 
 import { createClient } from "@/lib/supabase/server";
-import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const ACTIVE_PROFILE_COOKIE =
   "klyx_active_profile";
@@ -73,61 +72,72 @@ function normalizeProfile(
   };
 }
 
-async function authenticatedUser() {
+async function authenticatedContext() {
   const supabase =
     await createClient();
 
   const {
     data: { user },
-  } = await supabase.auth.getUser();
+  } =
+    await supabase.auth.getUser();
 
-  return user;
+  return {
+    supabase,
+    user,
+  };
 }
 
 export async function getOwnedProfiles(): Promise<
   ActiveProfile[]
 > {
-  const user =
-    await authenticatedUser();
+  const {
+    supabase,
+    user,
+  } =
+    await authenticatedContext();
 
   if (!user) {
     return [];
   }
 
   /*
-   * ARCHITECTURE MODERNE
+   * KLYX_ACTIVE_PROFILE_RLS_PHASE_7C
    *
-   * Tous les profils appartenant
-   * au compte Supabase.
+   * Les profils modernes sont lus avec
+   * la session Supabase de l'utilisateur.
+   *
+   * Aucune service-role key n'est nécessaire
+   * pour un compte multi-profils moderne.
    */
   const {
     data: ownedData,
     error: ownedError,
-  } = await supabaseAdmin
-    .from("profiles")
-    .select(
-      `
-      id,
-      owner_user_id,
-      first_name,
-      last_name,
-      city,
-      country_code,
-      currency_code,
-      account_type,
-      avatar_url
-      `
-    )
-    .eq(
-      "owner_user_id",
-      user.id
-    )
-    .order(
-      "created_at",
-      {
-        ascending: true,
-      }
-    );
+  } =
+    await supabase
+      .from("profiles")
+      .select(
+        `
+        id,
+        owner_user_id,
+        first_name,
+        last_name,
+        city,
+        country_code,
+        currency_code,
+        account_type,
+        avatar_url
+        `
+      )
+      .eq(
+        "owner_user_id",
+        user.id
+      )
+      .order(
+        "created_at",
+        {
+          ascending: true,
+        }
+      );
 
   if (ownedError) {
     throw new Error(
@@ -152,38 +162,44 @@ export async function getOwnedProfiles(): Promise<
   }
 
   /*
-   * COMPATIBILITE ANCIEN KLYX
+   * Compatibilité uniquement pour
+   * les anciens profils KLYX.
    *
-   * Les premières versions
-   * utilisaient parfois :
-   *
-   * profiles.id = auth.users.id
-   *
-   * sans owner_user_id.
-   *
-   * On recherche uniquement
-   * CE cas très précis.
+   * L'admin est chargé dynamiquement
+   * seulement si aucun profil moderne
+   * appartenant au compte n'existe.
    */
+  const {
+    supabaseAdmin,
+  } =
+    await import(
+      "@/lib/supabase-admin"
+    );
+
   const {
     data: legacyProfile,
     error: legacyError,
-  } = await supabaseAdmin
-    .from("profiles")
-    .select(
-      `
-      id,
-      owner_user_id,
-      first_name,
-      last_name,
-      city,
-      country_code,
-      currency_code,
-      account_type,
-      avatar_url
-      `
-    )
-    .eq("id", user.id)
-    .maybeSingle();
+  } =
+    await supabaseAdmin
+      .from("profiles")
+      .select(
+        `
+        id,
+        owner_user_id,
+        first_name,
+        last_name,
+        city,
+        country_code,
+        currency_code,
+        account_type,
+        avatar_url
+        `
+      )
+      .eq(
+        "id",
+        user.id
+      )
+      .maybeSingle();
 
   if (legacyError) {
     throw new Error(
@@ -195,31 +211,25 @@ export async function getOwnedProfiles(): Promise<
     return [];
   }
 
-  /*
-   * Migration automatique
-   * et sûre de l'ancien profil.
-   *
-   * On ne répare que le profil
-   * dont l'ID correspond
-   * exactement au user Auth.
-   */
   if (
     !legacyProfile.owner_user_id
   ) {
     const {
       error: repairError,
-    } = await supabaseAdmin
-      .from("profiles")
-      .update({
-        owner_user_id:
-          user.id,
-        updated_at:
-          new Date().toISOString(),
-      })
-      .eq(
-        "id",
-        legacyProfile.id
-      );
+    } =
+      await supabaseAdmin
+        .from("profiles")
+        .update({
+          owner_user_id:
+            user.id,
+
+          updated_at:
+            new Date().toISOString(),
+        })
+        .eq(
+          "id",
+          legacyProfile.id
+        );
 
     if (repairError) {
       throw new Error(
@@ -275,10 +285,5 @@ export async function getActiveProfile(): Promise<
     }
   }
 
-  /*
-   * Cookie absent ou ancien :
-   * on utilise automatiquement
-   * le premier profil du compte.
-   */
   return profiles[0];
 }

@@ -20,6 +20,8 @@ jobs:
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      KLYX_E2E_EMAIL: ${{ secrets.KLYX_E2E_EMAIL }}
+      KLYX_E2E_PASSWORD: ${{ secrets.KLYX_E2E_PASSWORD }}
 
     steps:
       - name: Checkout repository
@@ -41,6 +43,16 @@ jobs:
 
           if [ -z "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" ]; then
             echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is missing"
+            exit 1
+          fi
+
+          if [ -z "$KLYX_E2E_EMAIL" ]; then
+            echo "KLYX_E2E_EMAIL is missing"
+            exit 1
+          fi
+
+          if [ -z "$KLYX_E2E_PASSWORD" ]; then
+            echo "KLYX_E2E_PASSWORD is missing"
             exit 1
           fi
 
