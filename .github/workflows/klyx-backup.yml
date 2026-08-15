@@ -1,0 +1,56 @@
+name: KLYX Source Backup
+
+on:
+  workflow_dispatch:
+
+  push:
+    branches:
+      - main
+
+  schedule:
+    - cron: "17 3 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    name: Create verified KLYX source backup
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create source backup
+        shell: pwsh
+        run: |
+          ./scripts/backup-klyx.ps1 `
+            -OutputDirectory "${{ runner.temp }}/klyx-backups"
+
+      - name: Verify source backup
+        shell: pwsh
+        run: |
+          $archive = Get-ChildItem `
+            -LiteralPath "${{ runner.temp }}/klyx-backups" `
+            -Filter "*.zip" |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+
+          if (-not $archive) {
+            throw "KLYX backup archive not found."
+          }
+
+          ./scripts/check-klyx-backup.ps1 `
+            -ArchivePath $archive.FullName
+
+      - name: Upload verified backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: klyx-source-backup-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/klyx-backups/*.zip
+            ${{ runner.temp }}/klyx-backups/*.sha256
+          if-no-files-found: error
+          retention-days: 30
