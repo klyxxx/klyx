@@ -277,8 +277,8 @@ function SearchContent() {
             </p>
           </div>
 
-          <Link
-            href="/request"
+                    {/* KLYX_SEARCH_ASSISTANT_BRIDGE_13_93 */}<Link
+            href="/assistant/market"
             className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-500/30 bg-violet-500/10 px-5 py-3 font-semibold text-violet-700 hover:bg-violet-500/15 dark:border-violet-500/40 dark:text-violet-200 dark:hover:bg-violet-500/20"
           >
             <Search size={18} />
@@ -286,7 +286,64 @@ function SearchContent() {
           </Link>
         </div>
 
-        <form
+                {/* KLYX_SEARCH_TWO_PATHS_13_93 */}
+        <section className="mt-7 grid gap-4 md:grid-cols-2">
+          <div className="rounded-2xl border border-violet-500/20 bg-violet-500/[0.045] p-5">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-violet-600 dark:text-violet-400">
+              Parcours assisté
+            </p>
+
+            <h2 className="mt-2 text-lg font-black">
+              KLYX organise mon besoin
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Décris simplement ce qu’il te faut. KLYX structure la demande,
+              prépare les solutions et attend ta confirmation avant publication.
+            </p>
+
+            <Link
+              href="/assistant/market"
+              className="mt-4 inline-flex items-center gap-2 text-sm font-black text-violet-600 dark:text-violet-400"
+            >
+              Utiliser l’assistant KLYX
+              <Search size={16} />
+            </Link>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-card p-5">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">
+              Parcours manuel
+            </p>
+
+            <h2 className="mt-2 text-lg font-black">
+              Je compare moi-même
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Choisis directement le service, la zone, la date,
+              les horaires, le budget et le mode de tarification.
+            </p>
+
+            <p className="mt-4 text-sm font-black text-foreground">
+              Les résultats restent triés selon les critères KLYX.
+            </p>
+          </div>
+        </section>
+
+        {/* KLYX_SEARCH_CONFIRMATION_REMINDER_13_93 */}
+        <div className="mt-4 flex items-start gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.045] p-4">
+          <ShieldCheck
+            size={18}
+            className="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400"
+          />
+
+          <p className="text-sm leading-6 text-muted-foreground">
+            Quel que soit le parcours choisi, KLYX ne sélectionne,
+            ne réserve et ne paie aucun prestataire sans ta confirmation.
+          </p>
+        </div>
+<form
           onSubmit={submitSearch}
           className="mt-8 min-w-0 overflow-hidden rounded-3xl border border-border bg-card p-5 sm:p-6"
         >
@@ -572,6 +629,191 @@ function SearchContent() {
                 Profils publiés uniquement
               </p>
             </div>
+            {/* KLYX_MARKET_DECISION_SUMMARY_13_75 */}
+            {(() => {
+              const highestScore =
+                [...result.providers].sort(
+                  (a, b) => b.klyxScore - a.klyxScore
+                )[0];
+
+              const bestRated =
+                [...result.providers]
+                  .filter(
+                    (provider) =>
+                      provider.reviewCount > 0
+                  )
+                  .sort(
+                    (a, b) =>
+                      b.rating - a.rating ||
+                      b.reviewCount - a.reviewCount
+                  )[0] ?? null;
+
+              const cheapest =
+                [...result.providers]
+                  .filter(
+                    (provider) =>
+                      provider.price !== null
+                  )
+                  .sort(
+                    (a, b) =>
+                      Number(a.price) -
+                      Number(b.price)
+                  )[0] ?? null;
+
+              const displayProviderName = (
+                provider: ProviderSearchItem
+              ) =>
+                provider.businessName ||
+                [provider.firstName, provider.lastName]
+                  .filter(Boolean)
+                  .join(" ") ||
+                "Prestataire KLYX";
+
+              return (
+                <section className="mt-5 overflow-hidden rounded-3xl border border-violet-500/20 bg-violet-500/5">
+                  <div className="p-5 sm:p-6">
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
+                          Comparaison KLYX
+                        </p>
+
+                        <h2 className="mt-2 text-xl font-black sm:text-2xl">
+                          Les profils qui ressortent
+                        </h2>
+
+                        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                          KLYX résume les différences principales.
+                          Ces indications servent à comparer :
+                          aucun prestataire n’est choisi automatiquement.
+                        </p>
+                      </div>
+
+                      <span className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-black">
+                        {result.providers.length} profil
+                        {result.providers.length > 1 ? "s" : ""} comparé
+                        {result.providers.length > 1 ? "s" : ""}
+                      </span>
+                    </div>
+
+                    <div className="mt-5 grid gap-3 md:grid-cols-3">
+                      <Link
+                        href={`/providers/${highestScore.profileId}`}
+                        className="rounded-2xl border border-violet-500/20 bg-background p-4 transition hover:border-violet-500/40"
+                      >
+                        <p className="text-xs font-black uppercase tracking-wide text-violet-600 dark:text-violet-400">
+                          Meilleur score KLYX
+                        </p>
+
+                        <p className="mt-2 truncate font-black">
+                          {displayProviderName(highestScore)}
+                        </p>
+
+                        <div className="mt-3 flex items-center gap-2">
+                          <ShieldCheck
+                            size={17}
+                            className="text-violet-500"
+                          />
+
+                          <span className="text-xl font-black">
+                            {highestScore.klyxScore.toFixed(0)}/100
+                          </span>
+                        </div>
+
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          {scoreLabel(highestScore.klyxScore)}
+                        </p>
+                      </Link>
+
+                      {bestRated ? (
+                        <Link
+                          href={`/providers/${bestRated.profileId}`}
+                          className="rounded-2xl border border-amber-500/20 bg-background p-4 transition hover:border-amber-500/40"
+                        >
+                          <p className="text-xs font-black uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                            Mieux noté
+                          </p>
+
+                          <p className="mt-2 truncate font-black">
+                            {displayProviderName(bestRated)}
+                          </p>
+
+                          <p className="mt-3 text-xl font-black">
+                            {bestRated.rating.toFixed(1)}/5
+                          </p>
+
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            {bestRated.reviewCount} avis vérifié
+                            {bestRated.reviewCount > 1 ? "s" : ""}
+                          </p>
+                        </Link>
+                      ) : (
+                        <div className="rounded-2xl border border-border bg-background p-4">
+                          <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
+                            Mieux noté
+                          </p>
+
+                          <p className="mt-2 font-black">
+                            Pas encore assez d’avis
+                          </p>
+
+                          <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                            KLYX attend des missions terminées avant
+                            d’utiliser les avis dans cette comparaison.
+                          </p>
+                        </div>
+                      )}
+
+                      {cheapest ? (
+                        <Link
+                          href={`/providers/${cheapest.profileId}`}
+                          className="rounded-2xl border border-emerald-500/20 bg-background p-4 transition hover:border-emerald-500/40"
+                        >
+                          <p className="text-xs font-black uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+                            Prix le plus bas
+                          </p>
+
+                          <p className="mt-2 truncate font-black">
+                            {displayProviderName(cheapest)}
+                          </p>
+
+                          <p className="mt-3 text-xl font-black">
+                            {formatProviderPrice(
+                              cheapest.price,
+                              cheapest.pricingType
+                            )}
+                          </p>
+
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            Pour les résultats actuellement affichés
+                          </p>
+                        </Link>
+                      ) : (
+                        <div className="rounded-2xl border border-border bg-background p-4">
+                          <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
+                            Prix le plus bas
+                          </p>
+
+                          <p className="mt-2 font-black">
+                            Prix à confirmer
+                          </p>
+
+                          <p className="mt-3 text-xs text-muted-foreground">
+                            Aucun tarif comparable n’est disponible.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-4 rounded-2xl border border-border bg-background/70 px-4 py-3 text-xs leading-5 text-muted-foreground">
+                      Le meilleur score, la meilleure note et le prix le
+                      plus bas peuvent appartenir à des prestataires
+                      différents. La décision finale reste toujours au client.
+                    </div>
+                  </div>
+                </section>
+              );
+            })()}
 
             <section className="mt-4 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
               {result.providers.map((provider, index) => (
@@ -703,6 +945,80 @@ function ProviderCardView({
             {provider.completedJobs > 1 ? "s" : ""}
           </p>
         </div>
+        {/* KLYX_MARKET_TRUST_EXPLAINER_13_73 */}
+        <div className="mt-5 rounded-2xl border border-violet-500/15 bg-violet-500/5 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-violet-600 dark:text-violet-400">
+                Confiance KLYX
+              </p>
+
+              <p className="mt-1 text-sm font-black">
+                Pourquoi ce profil ressort
+              </p>
+            </div>
+
+            <div className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/20 bg-background px-3 py-1.5 text-xs font-black">
+              <ShieldCheck size={14} />
+              {provider.klyxScore.toFixed(0)}/100
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <TrustSignal
+              label="Identité"
+              value={
+                provider.isVerified
+                  ? "Vérifiée"
+                  : "À confirmer"
+              }
+              positive={provider.isVerified}
+            />
+
+            <TrustSignal
+              label="Expérience"
+              value={`${provider.yearsExperience} an${
+                provider.yearsExperience > 1 ? "s" : ""
+              }`}
+              positive={provider.yearsExperience > 0}
+            />
+
+            <TrustSignal
+              label="Prestations"
+              value={`${provider.completedJobs} terminée${
+                provider.completedJobs > 1 ? "s" : ""
+              }`}
+              positive={provider.completedJobs > 0}
+            />
+            {/* KLYX_MARKET_VERIFIED_REVIEWS_13_74 */}
+            <TrustSignal
+              label="Avis vérifiés"
+              value={
+                provider.reviewCount > 0
+                  ? `${provider.rating.toFixed(1)}/5 · ${provider.reviewCount} avis`
+                  : "Aucun avis"
+              }
+              positive={provider.reviewCount > 0}
+            />
+
+            <TrustSignal
+              label="Disponibilité"
+              value={provider.availabilitySummary}
+              positive={true}
+            />
+          </div>
+
+          {recommended && (
+            <div className="mt-3 rounded-xl border border-violet-500/20 bg-violet-500/10 px-3 py-2.5 text-xs leading-5 text-muted-foreground">
+              <strong className="text-foreground">
+                Recommandé par KLYX :
+              </strong>{" "}
+              ce profil est actuellement le mieux classé parmi les
+              résultats correspondant à tes critères. Tu gardes
+              toujours la décision finale.
+            </div>
+          )}
+        </div>
 
         <p className="mt-5 text-xl font-bold text-violet-400">
           {formatProviderPrice(provider.price, provider.pricingType)}
@@ -732,6 +1048,41 @@ function ProviderCardView({
   );
 }
 
+function TrustSignal({
+  label,
+  value,
+  positive,
+}: {
+  label: string;
+  value: string;
+  positive: boolean;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-background p-3">
+      <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </p>
+
+      <div className="mt-1.5 flex items-start gap-1.5">
+        {positive ? (
+          <CheckCircle2
+            size={14}
+            className="mt-0.5 shrink-0 text-emerald-600"
+          />
+        ) : (
+          <AlertCircle
+            size={14}
+            className="mt-0.5 shrink-0 text-amber-500"
+          />
+        )}
+
+        <p className="min-w-0 text-xs font-black leading-5">
+          {value}
+        </p>
+      </div>
+    </div>
+  );
+}
 function FilterField({
   icon,
   label,

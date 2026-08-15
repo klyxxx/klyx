@@ -1,3 +1,4 @@
+// KLYX_PROVIDER_JOBS_UI_CURRENCY_PHASE_5C
 "use client";
 
 import {
@@ -13,7 +14,7 @@ import {
   BadgeCheck,
   CalendarDays,
   Clock3,
-  Euro,
+  Banknote,
   Layers3,
   LoaderCircle,
   MapPin,
@@ -76,6 +77,12 @@ type MarketRequest = {
   budget_max:
     | number
     | null;
+
+  country_code:
+    string;
+
+  currency:
+    string;
 
   requestMode:
     | "single"
@@ -247,12 +254,28 @@ function timeLabel(
 function money(
   value:
     | number
-    | null
+    | null,
+
+  currency:
+    string
 ) {
   if (
     value === null
   ) {
     return "Non precise";
+  }
+
+  const code =
+    currency
+      ?.trim()
+      .toUpperCase();
+
+  if (
+    !/^[A-Z]{3}$/.test(
+      code
+    )
+  ) {
+    return value.toFixed(2);
   }
 
   return new Intl.NumberFormat(
@@ -262,7 +285,7 @@ function money(
         "currency",
 
       currency:
-        "EUR",
+        code,
     }
   ).format(
     value
@@ -520,6 +543,23 @@ export default function ProviderJobsPage() {
                 item.myOffer
               )
           ).length,
+        pendingOffers:
+          requests.filter(
+            (item) =>
+              item.myOffer?.status === "pending"
+          ).length,
+
+        acceptedOffers:
+          requests.filter(
+            (item) =>
+              item.myOffer?.status === "accepted"
+          ).length,
+
+        rejectedOffers:
+          requests.filter(
+            (item) =>
+              item.myOffer?.status === "rejected"
+          ).length,
       }),
       [
         requests,
@@ -699,6 +739,135 @@ export default function ProviderJobsPage() {
           />
         </div>
 
+        {/* KLYX_PROVIDER_OFFER_TRACKING_13_77 */}
+        {!loading && counts.offered > 0 && (
+          <section className="mt-6 rounded-3xl border border-border bg-card p-5 sm:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
+                  Suivi de mes offres
+                </p>
+
+                <h2 className="mt-2 text-xl font-black">
+                  Où en sont mes propositions ?
+                </h2>
+
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                  KLYX suit les offres que tu as déjà envoyées.
+                  Le client doit toujours accepter explicitement
+                  une offre avant qu’une réservation puisse continuer.
+                </p>
+              </div>
+
+              <span className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-black">
+                {counts.offered} offre
+                {counts.offered > 1 ? "s" : ""} envoyée
+                {counts.offered > 1 ? "s" : ""}
+              </span>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
+                <p className="text-xs font-black uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                  En attente
+                </p>
+
+                <p className="mt-2 text-3xl font-black">
+                  {counts.pendingOffers}
+                </p>
+
+                <p className="mt-1 text-xs text-muted-foreground">
+                  réponse client attendue
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+                <p className="text-xs font-black uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                  Acceptées
+                </p>
+
+                <p className="mt-2 text-3xl font-black">
+                  {counts.acceptedOffers}
+                </p>
+
+                <p className="mt-1 text-xs text-muted-foreground">
+                  proposition choisie par le client
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4">
+                <p className="text-xs font-black uppercase tracking-wide text-rose-700 dark:text-rose-300">
+                  Refusées
+                </p>
+
+                <p className="mt-2 text-3xl font-black">
+                  {counts.rejectedOffers}
+                </p>
+
+                <p className="mt-1 text-xs text-muted-foreground">
+                  aucune action nécessaire
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 space-y-3">
+              {requests
+                .filter((request) => Boolean(request.myOffer))
+                .map((request) => {
+                  const status =
+                    request.myOffer?.status ?? "pending";
+
+                  const statusLabel =
+                    status === "accepted"
+                      ? "Acceptée"
+                      : status === "rejected"
+                        ? "Refusée"
+                        : "En attente";
+
+                  return (
+                    <div
+                      key={`offer-status-${request.id}`}
+                      className="flex flex-col gap-3 rounded-2xl border border-border bg-background p-4 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-black">
+                          {request.title}
+                        </p>
+
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Offre :{" "}
+                          {money(
+                            request.myOffer?.amount ?? null
+                          ,
+                          request.currency)}
+                        </p>
+                      </div>
+
+                      <span
+                        className={
+                          "inline-flex shrink-0 rounded-full px-3 py-1.5 text-xs font-black " +
+                          (
+                            status === "accepted"
+                              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                              : status === "rejected"
+                                ? "bg-rose-500/10 text-rose-700 dark:text-rose-300"
+                                : "bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                          )
+                        }
+                      >
+                        {statusLabel}
+                      </span>
+                    </div>
+                  );
+                })}
+            </div>
+
+            <p className="mt-5 text-xs leading-5 text-muted-foreground">
+              Une offre envoyée ne crée pas automatiquement de réservation
+              et ne déclenche aucun paiement.
+            </p>
+          </section>
+        )}
         {successMessage && (
           <div className="mt-5 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-sm font-bold text-emerald-700 dark:text-emerald-300">
             {
@@ -714,6 +883,192 @@ export default function ProviderJobsPage() {
             }
           </div>
         )}
+        {/* KLYX_PROVIDER_OPPORTUNITY_FOCUS_13_76 */}
+        {!loading && requests.length > 0 && (() => {
+          const byMatch =
+            [...requests].sort(
+              (a, b) =>
+                Number(b.match?.score ?? 0) -
+                Number(a.match?.score ?? 0)
+            );
+
+          const bestMatch =
+            byMatch[0];
+
+          const nextToAnswer =
+            byMatch.find(
+              (request) => !request.myOffer
+            ) ?? null;
+
+          const highestBudget =
+            [...requests]
+              .filter(
+                (request) =>
+                  request.budgetTotal !== null ||
+                  request.budget_max !== null
+              )
+              .sort(
+                (a, b) =>
+                  Number(
+                    b.budgetTotal ??
+                    b.budget_max ??
+                    0
+                  ) -
+                  Number(
+                    a.budgetTotal ??
+                    a.budget_max ??
+                    0
+                  )
+              )[0] ?? null;
+
+          return (
+            <section className="mt-6 overflow-hidden rounded-3xl border border-blue-500/20 bg-blue-500/5">
+              <div className="p-5 sm:p-6">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600 dark:text-blue-400">
+                      Priorité KLYX
+                    </p>
+
+                    <h2 className="mt-2 text-xl font-black sm:text-2xl">
+                      Les opportunités à regarder en premier
+                    </h2>
+
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                      KLYX résume les missions disponibles selon
+                      leur compatibilité, leur budget et tes offres
+                      déjà envoyées. Aucune offre n’est envoyée
+                      automatiquement.
+                    </p>
+                  </div>
+
+                  <span className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-black">
+                    {counts.total} mission
+                    {counts.total > 1 ? "s" : ""} disponible
+                    {counts.total > 1 ? "s" : ""}
+                  </span>
+                </div>
+
+                <div className="mt-5 grid gap-3 md:grid-cols-3">
+                  <div className="rounded-2xl border border-violet-500/20 bg-background p-4">
+                    <div className="flex items-center gap-2 text-violet-600 dark:text-violet-400">
+                      <Sparkles size={17} />
+
+                      <p className="text-xs font-black uppercase tracking-wide">
+                        Meilleur match
+                      </p>
+                    </div>
+
+                    <p className="mt-3 line-clamp-2 font-black">
+                      {bestMatch.title}
+                    </p>
+
+                    <p className="mt-3 text-2xl font-black">
+                      {bestMatch.match?.score ?? 0}%
+                    </p>
+
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {matchLabel(
+                        Number(bestMatch.match?.score ?? 0)
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-emerald-500/20 bg-background p-4">
+                    <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+                      <Banknote size={17} />
+
+                      <p className="text-xs font-black uppercase tracking-wide">
+                        Budget le plus élevé
+                      </p>
+                    </div>
+
+                    {highestBudget ? (
+                      <>
+                        <p className="mt-3 line-clamp-2 font-black">
+                          {highestBudget.title}
+                        </p>
+
+                        <p className="mt-3 text-xl font-black">
+                          {money(
+                            highestBudget.budgetTotal ??
+                            highestBudget.budget_max
+                          ,
+                          highestBudget.currency)}
+                        </p>
+
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Budget indiqué par le client
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="mt-3 font-black">
+                          Aucun budget indiqué
+                        </p>
+
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          Le prix reste à proposer.
+                        </p>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="rounded-2xl border border-blue-500/20 bg-background p-4">
+                    <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+                      <Send size={17} />
+
+                      <p className="text-xs font-black uppercase tracking-wide">
+                        Prochaine action
+                      </p>
+                    </div>
+
+                    {nextToAnswer ? (
+                      <>
+                        <p className="mt-3 line-clamp-2 font-black">
+                          {nextToAnswer.title}
+                        </p>
+
+                        <p className="mt-3 text-sm font-black text-blue-600 dark:text-blue-300">
+                          Offre à préparer
+                        </p>
+
+                        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                          Cette mission compatible n’a encore reçu
+                          aucune offre de ta part.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="mt-3 font-black">
+                          Tout est traité
+                        </p>
+
+                        <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                          Tu as déjà envoyé une offre sur toutes les
+                          opportunités actuellement affichées.
+                        </p>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-start gap-2 rounded-2xl border border-border bg-background/70 p-4 text-xs leading-5 text-muted-foreground">
+                  <ShieldCheck
+                    size={16}
+                    className="mt-0.5 shrink-0 text-blue-600"
+                  />
+
+                  <p>
+                    Cette priorité est une aide à la décision.
+                    Tu fixes toi-même ton prix et tu confirmes
+                    chaque offre avant son envoi.
+                  </p>
+                </div>
+              </div>
+            </section>
+          );
+        })()}
 
         {loading ? (
           <div className="grid min-h-72 place-items-center">
@@ -875,7 +1230,8 @@ export default function ProviderJobsPage() {
                           "multi_slot"
                             ? item.budgetTotal
                             : item.budget_max
-                        )}
+                        ,
+                          item.currency)}
                       </p>
 
                       {item.requestMode ===
@@ -948,7 +1304,8 @@ export default function ProviderJobsPage() {
                                   <span className="rounded-full bg-muted px-3 py-1 text-xs font-black">
                                     {money(
                                       slot.budgetMax
-                                    )}
+                                    ,
+                          item.currency)}
                                   </span>
                                 )}
                               </div>
@@ -1021,7 +1378,61 @@ export default function ProviderJobsPage() {
                     </div>
                   )}
 
-                  <form
+                                    {/* KLYX_JOB_TO_PROVIDER_ASSISTANT_13_78 */}
+                  <section className="mt-6 rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <Sparkles
+                            size={17}
+                            className="text-blue-600"
+                          />
+
+                          <p className="font-black">
+                            Besoin d’aide pour répondre ?
+                          </p>
+                        </div>
+
+                        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                          KLYX peut préparer une réponse à partir
+                          de cette mission. Rien n’est envoyé
+                          automatiquement au client.
+                        </p>
+                      </div>
+
+                      <a
+                        href={
+                          "/provider/assistant?prompt=" +
+                          encodeURIComponent(
+                            `Prépare une réponse professionnelle pour cette mission KLYX.
+Mission : ${item.title}
+Service : ${item.service?.name ?? "Service KLYX"}
+Ville : ${item.city}
+Budget client : ${money(
+                              item.requestMode === "multi_slot"
+                                ? item.budgetTotal
+                                : item.budget_max
+                            ,
+                          item.currency)}
+Description : ${item.description}
+Compatibilité KLYX : ${item.match?.score ?? 0}%.
+Je veux relire et modifier le brouillon avant toute action.`
+                          )
+                        }
+                        className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-black text-white hover:bg-blue-700"
+                      >
+                        <Sparkles size={16} />
+                        Préparer avec KLYX
+                      </a>
+                    </div>
+
+                    <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                      L’assistant prépare uniquement le contexte.
+                      Le prix final et l’envoi de l’offre restent
+                      sous ton contrôle.
+                    </p>
+                  </section>
+<form
                     onSubmit={(
                       event
                     ) =>
@@ -1034,7 +1445,7 @@ export default function ProviderJobsPage() {
                   >
                     <label>
                       <span className="mb-2 flex items-center gap-2 text-sm font-black">
-                        <Euro
+                        <Banknote
                           size={16}
                         />
 
@@ -1161,7 +1572,8 @@ export default function ProviderJobsPage() {
                         Number(
                           item.myOffer.amount
                         )
-                      )}
+                      ,
+                          item.currency)}
                     </p>
                   )}
                 </article>

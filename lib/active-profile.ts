@@ -18,6 +18,8 @@ export type ActiveProfile = {
   firstName: string;
   lastName: string;
   city: string;
+  countryCode: string | null;
+  currencyCode: string | null;
   accountType: AccountType;
   avatarUrl: string | null;
 };
@@ -28,6 +30,8 @@ type ProfileRow = {
   first_name: string | null;
   last_name: string | null;
   city: string | null;
+  country_code: string | null;
+  currency_code: string | null;
   account_type: string | null;
   avatar_url: string | null;
 };
@@ -51,6 +55,12 @@ function normalizeProfile(
 
     city:
       profile.city ?? "",
+
+    countryCode:
+      profile.country_code ?? null,
+
+    currencyCode:
+      profile.currency_code ?? null,
 
     accountType:
       profile.account_type ===
@@ -102,6 +112,8 @@ export async function getOwnedProfiles(): Promise<
       first_name,
       last_name,
       city,
+      country_code,
+      currency_code,
       account_type,
       avatar_url
       `
@@ -164,6 +176,8 @@ export async function getOwnedProfiles(): Promise<
       first_name,
       last_name,
       city,
+      country_code,
+      currency_code,
       account_type,
       avatar_url
       `

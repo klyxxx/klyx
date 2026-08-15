@@ -1,3 +1,4 @@
+// KLYX_MARKET_OFFER_TRANSACTION_CURRENCY_PHASE_5C
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
@@ -50,7 +51,7 @@ async function klyxOfferBeforeAtomicRecovery13_10(
       error: requestError,
     } = await supabaseAdmin
       .from("market_service_requests")
-      .select("id, client_profile_id, service_id, status")
+      .select("id, client_profile_id, service_id, country_code, currency, status")
       .eq("id", requestId)
       .maybeSingle();
 
@@ -480,6 +481,8 @@ async function klyxOfferBeforeAtomicRecovery13_10(
           request_id: requestId,
           provider_profile_id: profile.id,
           user_service_id: userService.id,
+          country_code: serviceRequest.country_code,
+          currency: serviceRequest.currency,
           amount,
           message: message || null,
           status: "sent",
@@ -491,7 +494,7 @@ async function klyxOfferBeforeAtomicRecovery13_10(
         }
       )
       .select(
-        "id, request_id, amount, message, status, created_at, updated_at"
+        "id, request_id, amount, country_code, currency, message, status, created_at, updated_at"
       )
       .single();
 
@@ -500,7 +503,7 @@ async function klyxOfferBeforeAtomicRecovery13_10(
       userId: serviceRequest.client_profile_id,
       marketRequestId: requestId,
       title: "Nouvelle offre reçue",
-      message: `Un prestataire propose ${Number(amount).toFixed(2)} € pour ta demande.`,
+      message: `Un prestataire propose ${Number(amount).toFixed(2)} ${serviceRequest.currency} pour ta demande.`,
       href: "/requests",
     });
 
@@ -555,7 +558,7 @@ export async function PATCH(
     } = await supabaseAdmin
       .from("market_service_requests")
       .select(
-        "id, client_profile_id, service_id, title, description, requested_date, requested_time, request_mode, status, accepted_offer_id"
+        "id, client_profile_id, service_id, title, description, requested_date, requested_time, request_mode, country_code, currency, status, accepted_offer_id"
       )
       .eq("id", requestId)
       .eq("client_profile_id", profile.id)
@@ -630,7 +633,7 @@ export async function PATCH(
       await supabaseAdmin
         .from("market_service_offers")
         .select(
-          "id, request_id, provider_profile_id, user_service_id, amount, message, status"
+          "id, request_id, provider_profile_id, user_service_id, amount, country_code, currency, message, status"
         )
         .eq("id", offerId)
         .eq("request_id", requestId)
@@ -732,6 +735,8 @@ export async function PATCH(
             offer.provider_profile_id,
           user_service_id: offer.user_service_id,
           market_request_id: requestId,
+          country_code: serviceRequest.country_code,
+          currency: serviceRequest.currency,
           title: serviceRequest.title,
           description: serviceRequest.description,
           requested_date:

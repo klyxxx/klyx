@@ -631,6 +631,160 @@ export default function MarketAdvicePage() {
           </div>
         )}
 
+        {/* KLYX_RECOMMENDATION_HERO_13_66 */}
+        {data.recommendation &&
+          (() => {
+            const recommendedOffer =
+              data.offers.find(
+                (offer) =>
+                  offer.id ===
+                  data.recommendation?.offerId
+              ) ?? null;
+
+            if (!recommendedOffer) {
+              return null;
+            }
+
+            const selectable =
+              data.request.status === "open" &&
+              recommendedOffer.status === "sent" &&
+              (data.request.requestMode !== "multi_slot" ||
+                recommendedOffer.coverage.fullCoverage);
+
+            return (
+              <section className="mt-6 overflow-hidden rounded-[2rem] border border-violet-500/30 bg-[linear-gradient(135deg,rgba(124,58,237,0.14),rgba(76,29,149,0.06),transparent)]">
+                <div className="border-b border-violet-500/15 p-6 sm:p-8">
+                  <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0">
+                      <div className="inline-flex items-center gap-2 rounded-full bg-violet-600 px-3 py-1.5 text-xs font-black text-white">
+                        <Sparkles size={13} />
+                        Choix recommandé par KLYX
+                      </div>
+
+                      <h2 className="mt-4 text-2xl font-black sm:text-3xl">
+                        {recommendedOffer.providerName}
+                      </h2>
+
+                      <p className="mt-2 max-w-2xl text-sm leading-7 text-muted-foreground">
+                        Parmi les offres actuellement disponibles, KLYX considère ce prestataire comme le meilleur équilibre pour ta demande.
+                      </p>
+
+                      <div className="mt-5 flex flex-wrap gap-2">
+                        <span className="rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1.5 text-xs font-black text-violet-700 dark:text-violet-300">
+                          Score KLYX {Math.round(recommendedOffer.stats.klyxScore)}
+                        </span>
+
+                        <span className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-black">
+                          Recommandation {recommendedOffer.ranking.score}/100
+                        </span>
+
+                        {recommendedOffer.stats.isVerified && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1.5 text-xs font-black text-blue-700 dark:text-blue-300">
+                            <BadgeCheck size={13} />
+                            Identité vérifiée
+                          </span>
+                        )}
+
+                        {recommendedOffer.isCheapest && (
+                          <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-black text-emerald-700 dark:text-emerald-300">
+                            Meilleur prix actuel
+                          </span>
+                        )}
+
+                        {recommendedOffer.stats.reviewCount > 0 && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-black">
+                            <Star size={13} />
+                            {recommendedOffer.stats.rating.toFixed(1)}
+                            {" · "}
+                            {recommendedOffer.stats.reviewCount} avis
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="shrink-0 rounded-3xl border border-violet-500/20 bg-background p-5 lg:min-w-[240px]">
+                      <p className="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">
+                        Offre proposée
+                      </p>
+
+                      <p className="mt-2 text-4xl font-black text-violet-600">
+                        {recommendedOffer.amount.toFixed(2)} €
+                      </p>
+
+                      {selectable ? (
+                        <button
+                          type="button"
+                          disabled={Boolean(busyOfferId)}
+                          onClick={() =>
+                            prepareChoice(recommendedOffer)
+                          }
+                          className="klyx-button mt-4 w-full"
+                        >
+                          <Check size={17} />
+                          Choisir cette recommandation
+                        </button>
+                      ) : (
+                        <div className="mt-4 rounded-xl bg-muted px-4 py-3 text-center text-xs font-black text-muted-foreground">
+                          Sélection indisponible
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-5 p-6 sm:p-8 lg:grid-cols-2">
+                  <div>
+                    <p className="text-sm font-black">
+                      Pourquoi KLYX le recommande
+                    </p>
+
+                    {recommendedOffer.ranking.reasons.length > 0 ? (
+                      <div className="mt-3 space-y-2">
+                        {recommendedOffer.ranking.reasons.map(
+                          (reason) => (
+                            <div
+                              key={reason}
+                              className="flex items-start gap-2 text-sm leading-6 text-muted-foreground"
+                            >
+                              <Check
+                                size={16}
+                                className="mt-1 shrink-0 text-emerald-600"
+                              />
+
+                              <span>{reason}</span>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-sm text-muted-foreground">
+                        Cette offre obtient actuellement le meilleur score global KLYX.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="rounded-2xl border border-border bg-background p-5">
+                    <div className="flex items-start gap-3">
+                      <ShieldCheck
+                        size={19}
+                        className="mt-0.5 shrink-0 text-violet-600"
+                      />
+
+                      <div>
+                        <p className="font-black">
+                          Une recommandation, pas une décision automatique
+                        </p>
+
+                        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                          KLYX compare et te conseille. Le prestataire n’est sélectionné qu’après ton action explicite, et le paiement reste une étape séparée.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            );
+          })()}
         {data.offers.length === 0 ? (
           <section className="klyx-card mt-6 p-8 text-center">
             <p className="font-black">

@@ -6,17 +6,30 @@ import {
   useMemo,
   useState,
 } from "react";
-import { useRouter } from "next/navigation";
+
+import {
+  useRouter,
+} from "next/navigation";
+
 import {
   ArrowRight,
   BriefcaseBusiness,
+  CheckCircle2,
   LoaderCircle,
   MapPin,
+  Search,
+  ShieldCheck,
+  Sparkles,
   UserRound,
 } from "lucide-react";
+
 import KlyxSelect from "@/app/components/KlyxSelect";
 
-type AccountType = "client" | "provider";
+// KLYX_FIRST_PROFILE_HANDOFF_13_87
+
+type AccountType =
+  | "client"
+  | "provider";
 
 type ServiceOption = {
   id: string;
@@ -29,29 +42,47 @@ type Props = {
   initialAccountType: AccountType;
 };
 
-function splitName(fullName: string) {
-  const parts = fullName
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
+function splitName(
+  fullName: string
+) {
+  const parts =
+    fullName
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
 
-  if (parts.length === 0) {
+  if (
+    parts.length ===
+    0
+  ) {
     return {
-      firstName: "",
-      lastName: "",
+      firstName:
+        "",
+      lastName:
+        "",
     };
   }
 
-  if (parts.length === 1) {
+  if (
+    parts.length ===
+    1
+  ) {
     return {
-      firstName: parts[0],
-      lastName: "",
+      firstName:
+        parts[0],
+      lastName:
+        "",
     };
   }
 
   return {
-    firstName: parts[0],
-    lastName: parts.slice(1).join(" "),
+    firstName:
+      parts[0],
+
+    lastName:
+      parts
+        .slice(1)
+        .join(" "),
   };
 }
 
@@ -59,43 +90,104 @@ export default function FirstProfileSetup({
   initialFullName,
   initialAccountType,
 }: Props) {
-  const router = useRouter();
+  const router =
+    useRouter();
 
-  const initialName = useMemo(
-    () => splitName(initialFullName),
-    [initialFullName]
-  );
+  const initialName =
+    useMemo(
+      () =>
+        splitName(
+          initialFullName
+        ),
+      [
+        initialFullName,
+      ]
+    );
 
-  const [firstName, setFirstName] =
-    useState(initialName.firstName);
-  const [lastName, setLastName] =
-    useState(initialName.lastName);
-  const [city, setCity] = useState("");
-  const [accountType, setAccountType] =
-    useState<AccountType>(initialAccountType);
-  const [serviceId, setServiceId] =
+  const [
+    firstName,
+    setFirstName,
+  ] =
+    useState(
+      initialName.firstName
+    );
+
+  const [
+    lastName,
+    setLastName,
+  ] =
+    useState(
+      initialName.lastName
+    );
+
+  const [
+    city,
+    setCity,
+  ] =
     useState("");
-  const [services, setServices] =
-    useState<ServiceOption[]>([]);
-  const [loadingServices, setLoadingServices] =
+
+  const [
+    accountType,
+    setAccountType,
+  ] =
+    useState<AccountType>(
+      initialAccountType
+    );
+
+  const [
+    serviceId,
+    setServiceId,
+  ] =
+    useState("");
+
+  const [
+    services,
+    setServices,
+  ] =
+    useState<ServiceOption[]>(
+      []
+    );
+
+  const [
+    loadingServices,
+    setLoadingServices,
+  ] =
     useState(true);
-  const [submitting, setSubmitting] =
+
+  const [
+    submitting,
+    setSubmitting,
+  ] =
     useState(false);
-  const [errorMessage, setErrorMessage] =
+
+  const [
+    errorMessage,
+    setErrorMessage,
+  ] =
     useState("");
 
-  useEffect(() => {
-    let cancelled = false;
+    // KLYX_FIRST_PROFILE_ROLE_LOCK_14_05
+  const [
+    roleChoiceUnlocked,
+    setRoleChoiceUnlocked,
+  ] = useState(false);
+useEffect(() => {
+    let cancelled =
+      false;
 
     async function loadServices() {
       try {
-        const response = await fetch(
-          "/api/profiles/manage",
-          {
-            method: "GET",
-            cache: "no-store",
-          }
-        );
+        const response =
+          await fetch(
+            "/api/profiles/manage",
+            {
+              method:
+                "GET",
+
+              cache:
+                "no-store",
+            }
+          );
 
         const body =
           (await response.json()) as {
@@ -103,31 +195,46 @@ export default function FirstProfileSetup({
             error?: string;
           };
 
-        if (!response.ok) {
+        if (
+          !response.ok
+        ) {
           throw new Error(
             body.error ||
               "Impossible de charger les services."
           );
         }
 
-        if (!cancelled) {
+        if (
+          !cancelled
+        ) {
           setServices(
-            Array.isArray(body.services)
+            Array.isArray(
+              body.services
+            )
               ? body.services
               : []
           );
         }
-      } catch (error) {
-        if (!cancelled) {
+      } catch (
+        error
+      ) {
+        if (
+          !cancelled
+        ) {
           setErrorMessage(
-            error instanceof Error
+            error instanceof
+              Error
               ? error.message
               : "Impossible de charger les services."
           );
         }
       } finally {
-        if (!cancelled) {
-          setLoadingServices(false);
+        if (
+          !cancelled
+        ) {
+          setLoadingServices(
+            false
+          );
         }
       }
     }
@@ -135,26 +242,36 @@ export default function FirstProfileSetup({
     void loadServices();
 
     return () => {
-      cancelled = true;
+      cancelled =
+        true;
     };
   }, []);
 
   useEffect(() => {
-    if (accountType === "client") {
+    if (
+      accountType ===
+      "client"
+    ) {
       setServiceId("");
     }
-  }, [accountType]);
+  }, [
+    accountType,
+  ]);
 
   async function submit(
-    event: FormEvent<HTMLFormElement>
+    event:
+      FormEvent<HTMLFormElement>
   ) {
     event.preventDefault();
 
     const cleanFirstName =
       firstName.trim();
+
     const cleanLastName =
       lastName.trim();
-    const cleanCity = city.trim();
+
+    const cleanCity =
+      city.trim();
 
     if (
       !cleanFirstName ||
@@ -164,16 +281,19 @@ export default function FirstProfileSetup({
       setErrorMessage(
         "Prénom, nom et ville sont obligatoires."
       );
+
       return;
     }
 
     if (
-      accountType === "provider" &&
+      accountType ===
+        "provider" &&
       !serviceId
     ) {
       setErrorMessage(
         "Choisis ton premier métier."
       );
+
       return;
     }
 
@@ -181,28 +301,39 @@ export default function FirstProfileSetup({
     setErrorMessage("");
 
     try {
-      const response = await fetch(
-        "/api/profiles/manage",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-          body: JSON.stringify({
-            firstName:
-              cleanFirstName,
-            lastName:
-              cleanLastName,
-            city: cleanCity,
-            accountType,
-            serviceId:
-              accountType === "provider"
-                ? serviceId
-                : null,
-          }),
-        }
-      );
+      const response =
+        await fetch(
+          "/api/profiles/manage",
+          {
+            method:
+              "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body:
+              JSON.stringify({
+                firstName:
+                  cleanFirstName,
+
+                lastName:
+                  cleanLastName,
+
+                city:
+                  cleanCity,
+
+                accountType,
+
+                serviceId:
+                  accountType ===
+                  "provider"
+                    ? serviceId
+                    : null,
+              }),
+          }
+        );
 
       const body =
         (await response.json()) as {
@@ -221,12 +352,14 @@ export default function FirstProfileSetup({
       }
 
       /*
-       * L'API pose déjà le cookie klyx_active_profile.
-       * On recharge uniquement les Server Components
-       * de l'onboarding, pas tout le navigateur.
+       * L'API pose le cookie klyx_active_profile.
+       * L'onboarding serveur relit ensuite le vrai
+       * profil actif et affiche le parcours adapté.
        */
       router.refresh();
-    } catch (error) {
+    } catch (
+      error
+    ) {
       setErrorMessage(
         error instanceof Error
           ? error.message
@@ -237,11 +370,31 @@ export default function FirstProfileSetup({
     }
   }
 
+  const provider =
+    accountType ===
+    "provider";
+
   return (
     <main className="klyx-page">
       <div className="mx-auto max-w-4xl">
-        <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#17131f_0%,#32135f_52%,#111827_100%)] p-7 text-white shadow-2xl sm:p-10">
-          <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full bg-violet-500/25 blur-3xl" />
+        <section
+          className={
+            `relative overflow-hidden rounded-[2rem] border border-white/10 p-7 text-white shadow-2xl sm:p-10 ${
+              provider
+                ? "bg-[linear-gradient(135deg,#111827_0%,#18233f_48%,#0f172a_100%)]"
+                : "bg-[linear-gradient(135deg,#17131f_0%,#32135f_52%,#111827_100%)]"
+            }`
+          }
+        >
+          <div
+            className={
+              `absolute -right-24 -top-24 h-80 w-80 rounded-full blur-3xl ${
+                provider
+                  ? "bg-blue-500/20"
+                  : "bg-violet-500/25"
+              }`
+            }
+          />
 
           <div className="relative z-10 max-w-3xl">
             <p className="text-xs font-black uppercase tracking-[0.18em] text-white/60">
@@ -253,26 +406,52 @@ export default function FirstProfileSetup({
             </h1>
 
             <p className="mt-4 text-sm leading-7 text-white/70 sm:text-base">
-              Ton compte est connecté. Il manque seulement quelques
-              informations pour créer ton espace actif.
+              Ton compte est connecté.
+              Configure maintenant ton premier espace
+              avant d’accéder au parcours KLYX adapté.
             </p>
+
+            {/* KLYX_INITIAL_ROLE_CONTEXT_13_87 */}
+            <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-sm font-black text-white/80">
+              {provider ? (
+                <BriefcaseBusiness
+                  size={16}
+                />
+              ) : (
+                <UserRound
+                  size={16}
+                />
+              )}
+
+              {provider
+                ? "Espace prestataire sélectionné"
+                : "Espace client sélectionné"}
+            </div>
           </div>
         </section>
 
         <form
-          onSubmit={submit}
+          onSubmit={
+            submit
+          }
           className="klyx-card mt-7 p-6 sm:p-8"
         >
           <div className="grid gap-5 sm:grid-cols-2">
             <label>
               <span className="mb-2 flex items-center gap-2 text-sm font-black">
-                <UserRound size={17} />
+                <UserRound
+                  size={17}
+                />
                 Prénom
               </span>
 
               <input
-                value={firstName}
-                onChange={(event) =>
+                value={
+                  firstName
+                }
+                onChange={(
+                  event
+                ) =>
                   setFirstName(
                     event.target.value
                   )
@@ -286,13 +465,19 @@ export default function FirstProfileSetup({
 
             <label>
               <span className="mb-2 flex items-center gap-2 text-sm font-black">
-                <UserRound size={17} />
+                <UserRound
+                  size={17}
+                />
                 Nom
               </span>
 
               <input
-                value={lastName}
-                onChange={(event) =>
+                value={
+                  lastName
+                }
+                onChange={(
+                  event
+                ) =>
                   setLastName(
                     event.target.value
                   )
@@ -307,14 +492,22 @@ export default function FirstProfileSetup({
 
           <label className="mt-5 block">
             <span className="mb-2 flex items-center gap-2 text-sm font-black">
-              <MapPin size={17} />
+              <MapPin
+                size={17}
+              />
               Ville
             </span>
 
             <input
-              value={city}
-              onChange={(event) =>
-                setCity(event.target.value)
+              value={
+                city
+              }
+              onChange={(
+                event
+              ) =>
+                setCity(
+                  event.target.value
+                )
               }
               maxLength={100}
               autoComplete="address-level2"
@@ -328,17 +521,65 @@ export default function FirstProfileSetup({
               Quel espace veux-tu créer ?
             </p>
 
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">
+              Le choix détermine le premier parcours affiché après création.
+            </p>
+
+                        {/* KLYX_FIRST_PROFILE_ROLE_CONFIRMATION_14_05 */}
+            <div className="mt-3 rounded-2xl border border-border bg-background p-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">
+                    Type de premier profil
+                  </p>
+
+                  <p className="mt-1 font-black">
+                    {accountType === "provider"
+                      ? "Prestataire"
+                      : "Client"}
+                  </p>
+
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    {roleChoiceUnlocked
+                      ? "Le choix est déverrouillé. Sélectionne volontairement le profil que tu veux créer."
+                      : "Ce choix vient de ton inscription. Il reste verrouillé pour éviter un changement accidentel."}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setRoleChoiceUnlocked(
+                      (value) => !value
+                    )
+                  }
+                  className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-border bg-card px-4 text-sm font-black transition hover:bg-muted"
+                >
+                  {roleChoiceUnlocked
+                    ? "Verrouiller le choix"
+                    : "Changer le type de profil"}
+                </button>
+              </div>
+            </div>
+<div className="mt-3 grid gap-3 sm:grid-cols-2">
               <button
                 type="button"
-                onClick={() =>
-                  setAccountType("client")
+                onClick={() => {
+                  if (!roleChoiceUnlocked) {
+                    return;
+                  }
+
+                  setAccountType("client");
+                }}
+                disabled={!roleChoiceUnlocked}
+                className={
+                  `rounded-2xl border p-5 text-left transition ${
+                    accountType ===
+                    "client"
+                      ? "border-violet-500 bg-violet-500/10 ring-4 ring-violet-500/10"
+                      : "border-border bg-background hover:bg-muted"
+                  }`
                 }
-                className={`rounded-2xl border p-5 text-left transition ${
-                  accountType === "client"
-                    ? "border-violet-500 bg-violet-500/10 ring-4 ring-violet-500/10"
-                    : "border-border bg-background hover:bg-muted"
-                }`}
               >
                 <UserRound
                   size={22}
@@ -353,6 +594,7 @@ export default function FirstProfileSetup({
                 <p className="mt-3 font-black">
                   Client
                 </p>
+
                 <p className="mt-1 text-sm text-muted-foreground">
                   Je cherche et réserve des services.
                 </p>
@@ -360,17 +602,22 @@ export default function FirstProfileSetup({
 
               <button
                 type="button"
-                onClick={() =>
-                  setAccountType(
+                onClick={() => {
+                  if (!roleChoiceUnlocked) {
+                    return;
+                  }
+
+                  setAccountType("provider");
+                }}
+                disabled={!roleChoiceUnlocked}
+                className={
+                  `rounded-2xl border p-5 text-left transition ${
+                    accountType ===
                     "provider"
-                  )
+                      ? "border-blue-500 bg-blue-500/10 ring-4 ring-blue-500/10"
+                      : "border-border bg-background hover:bg-muted"
+                  }`
                 }
-                className={`rounded-2xl border p-5 text-left transition ${
-                  accountType ===
-                  "provider"
-                    ? "border-blue-500 bg-blue-500/10 ring-4 ring-blue-500/10"
-                    : "border-border bg-background hover:bg-muted"
-                }`}
               >
                 <BriefcaseBusiness
                   size={22}
@@ -385,6 +632,7 @@ export default function FirstProfileSetup({
                 <p className="mt-3 font-black">
                   Prestataire
                 </p>
+
                 <p className="mt-1 text-sm text-muted-foreground">
                   Je propose mes compétences aux clients.
                 </p>
@@ -392,36 +640,156 @@ export default function FirstProfileSetup({
             </div>
           </div>
 
-          {accountType === "provider" && (
+          {provider && (
             <div className="mt-6">
               <p className="mb-2 text-sm font-black">
                 Premier métier
               </p>
 
               <KlyxSelect
-                value={serviceId}
-                onChange={setServiceId}
-                disabled={loadingServices}
+                value={
+                  serviceId
+                }
+                onChange={
+                  setServiceId
+                }
+                disabled={
+                  loadingServices
+                }
                 placeholder={
                   loadingServices
                     ? "Chargement..."
                     : "Choisir un métier"
                 }
-                options={services.map(
-                  (service) => ({
-                    value: service.id,
-                    label: service.name,
-                  })
-                )}
+                options={
+                  services.map(
+                    (
+                      service
+                    ) => ({
+                      value:
+                        service.id,
+
+                      label:
+                        service.name,
+                    })
+                  )
+                }
                 ariaLabel="Premier métier"
               />
 
               <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                Tu pourras ajouter d’autres métiers ensuite depuis ton
-                espace prestataire.
+                Tu pourras ajouter d’autres métiers ensuite
+                depuis ton espace prestataire.
               </p>
             </div>
           )}
+
+          {/* KLYX_PROFILE_NEXT_STEP_PREVIEW_13_87 */}
+          <section
+            className={
+              `mt-7 rounded-2xl border p-5 ${
+                provider
+                  ? "border-blue-500/20 bg-blue-500/[0.045]"
+                  : "border-violet-500/20 bg-violet-500/[0.045]"
+              }`
+            }
+          >
+            <div className="flex items-start gap-4">
+              <span
+                className={
+                  `grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${
+                    provider
+                      ? "bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                      : "bg-violet-500/10 text-violet-600 dark:text-violet-400"
+                  }`
+                }
+              >
+                {provider ? (
+                  <BriefcaseBusiness
+                    size={20}
+                  />
+                ) : (
+                  <Sparkles
+                    size={20}
+                  />
+                )}
+              </span>
+
+              <div className="min-w-0">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">
+                  Après cette étape
+                </p>
+
+                <h2 className="mt-2 text-lg font-black">
+                  {provider
+                    ? "KLYX prépare ton démarrage professionnel"
+                    : "KLYX t’aide à organiser ton premier besoin"}
+                </h2>
+
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  {provider
+                    ? "Tu retrouveras la progression de ton profil, les opportunités compatibles et l’Assistant Prestataire."
+                    : "Tu pourras décrire ton besoin, comparer les prestataires puis confirmer toi-même les étapes importantes."}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              {provider ? (
+                <>
+                  <NextStep
+                    icon={
+                      BriefcaseBusiness
+                    }
+                    title="Configure"
+                    text="Complète ton activité."
+                  />
+
+                  <NextStep
+                    icon={
+                      Search
+                    }
+                    title="Découvre"
+                    text="Vois les opportunités."
+                  />
+
+                  <NextStep
+                    icon={
+                      Sparkles
+                    }
+                    title="Prépare"
+                    text="Utilise l’assistant."
+                  />
+                </>
+              ) : (
+                <>
+                  <NextStep
+                    icon={
+                      Sparkles
+                    }
+                    title="Décris"
+                    text="Explique ton besoin."
+                  />
+
+                  <NextStep
+                    icon={
+                      Search
+                    }
+                    title="Compare"
+                    text="Examine les solutions."
+                  />
+
+                  <NextStep
+                    icon={
+                      ShieldCheck
+                    }
+                    title="Confirme"
+                    text="Tu gardes le contrôle."
+                  />
+                </>
+              )}
+            </div>
+          </section>
 
           {errorMessage && (
             <div className="mt-5 rounded-2xl border border-rose-500/25 bg-rose-500/10 p-4 text-sm text-rose-700 dark:text-rose-300">
@@ -443,21 +811,66 @@ export default function FirstProfileSetup({
                 size={18}
               />
             ) : (
-              <ArrowRight size={18} />
+              <ArrowRight
+                size={18}
+              />
             )}
 
             {submitting
               ? "Création du profil..."
-              : accountType ===
-                  "provider"
+              : provider
                 ? "Créer mon espace prestataire"
                 : "Créer mon espace client"}
           </button>
+
+          <div className="mt-4 flex items-start gap-2 text-xs leading-5 text-muted-foreground">
+            <CheckCircle2
+              size={15}
+              className="mt-0.5 shrink-0 text-emerald-600"
+            />
+
+            <p>
+              La création de ce profil ne déclenche aucune
+              réservation, offre ou paiement automatiquement.
+            </p>
+          </div>
         </form>
       </div>
     </main>
   );
 }
 
+function NextStep({
+  icon: Icon,
+  title,
+  text,
+}: {
+  icon:
+    | typeof Sparkles
+    | typeof Search
+    | typeof ShieldCheck
+    | typeof BriefcaseBusiness;
 
+  title:
+    string;
 
+  text:
+    string;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-background p-4">
+      <Icon
+        size={17}
+        className="text-muted-foreground"
+      />
+
+      <p className="mt-3 text-sm font-black">
+        {title}
+      </p>
+
+      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+        {text}
+      </p>
+    </div>
+  );
+}

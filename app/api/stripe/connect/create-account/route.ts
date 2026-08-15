@@ -1,3 +1,4 @@
+// KLYX_STRIPE_CONNECT_COUNTRY_PHASE_5G
 ﻿import { NextResponse } from "next/server";
 import { assertStripeRuntimeReady } from "@/lib/stripe-runtime";
 import Stripe from "stripe";
@@ -40,6 +41,29 @@ export async function POST(request: Request) {
       await getAuthenticatedProfile(request);
     requireAccountType(activeProfile, "provider");
 
+    const accountCountry =
+      activeProfile.countryCode
+        .trim()
+        .toUpperCase();
+
+    if (
+      !/^[A-Z]{2}$/.test(
+        accountCountry
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Configure ton pays KLYX avant de créer ton compte de paiement.",
+          code:
+            "KLYX_STRIPE_COUNTRY_REQUIRED",
+        },
+        {
+          status: 409,
+        }
+      );
+    }
+
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
       .select("id, stripe_account_id")
@@ -62,7 +86,8 @@ export async function POST(request: Request) {
     if (!accountId) {
       const account = await stripe.accounts.create({
         type: "express",
-        country: "BE",
+        country:
+          accountCountry as Stripe.AccountCreateParams["country"],
         email: user.email ?? undefined,
         capabilities: {
           card_payments: { requested: true },

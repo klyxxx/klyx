@@ -12,6 +12,8 @@ import {
   supabaseAdmin,
 } from "@/lib/supabase-admin";
 
+// KLYX_PROVIDER_FINANCE_CURRENCY_PHASE_4
+// Transaction currency first, authenticated profile currency only as empty/fallback context.
 // KLYX_GROUP_AWARE_FINANCE_COUNTS_13_04
 // KLYX_GROUP_CANONICAL_FINANCE_13_05
 // KLYX_GROUP_SCHEMA_RUNTIME_FINANCE_13_05C
@@ -253,7 +255,7 @@ function cents(
   );
 }
 
-function eurosToCents(
+function majorUnitsToCents(
   value:
     unknown
 ): number {
@@ -305,7 +307,7 @@ function canonicalGroupTotal(
         ? cents(
             raw
           )
-        : eurosToCents(
+        : majorUnitsToCents(
             raw
           );
 
@@ -685,7 +687,7 @@ export async function GET(
       return NextResponse.json({
         summary: {
           currency:
-            "EUR",
+            profile.currencyCode,
 
           grossPaidCents:
             0,
@@ -1167,8 +1169,8 @@ export async function GET(
         );
 
         /*
-          Un refund partiel reel de 30 EUR
-          sur un groupe de 100 EUR reste 30.
+          Un refund partiel reel de 30 unites
+          sur un groupe de 100 unites reste 30.
 
           Un doublon 100 + 100 reste 100.
         */
@@ -1253,7 +1255,7 @@ export async function GET(
         ?.currency ||
       ledger[0]
         ?.currency ||
-      "EUR";
+      profile.currencyCode;
 
     const rawTransactions13_11 =
       ledger
@@ -1306,7 +1308,7 @@ export async function GET(
 
               currency:
                 entry.currency ||
-                "EUR",
+                profile.currencyCode,
 
               grossAmountCents:
                 cents(

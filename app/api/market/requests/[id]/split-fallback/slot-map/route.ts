@@ -1,3 +1,4 @@
+// KLYX_SPLIT_PLAN_CURRENCY_PHASE_5C
 import {
   NextResponse,
 } from "next/server";
@@ -976,6 +977,43 @@ export async function GET(
       );
     }
 
+    const requestCountryCode =
+      firstText(
+        marketRequest,
+        [
+          "country_code",
+        ]
+      ).toUpperCase();
+
+    const requestCurrency =
+      firstText(
+        marketRequest,
+        [
+          "currency",
+        ]
+      ).toUpperCase();
+
+    if (
+      !/^[A-Z]{2}$/.test(
+        requestCountryCode
+      ) ||
+      !/^[A-Z]{3}$/.test(
+        requestCurrency
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "La devise transactionnelle de cette demande KLYX est manquante.",
+          code:
+            "KLYX_MARKET_CURRENCY_REQUIRED",
+        },
+        {
+          status: 409,
+        }
+      );
+    }
+
     const ownerId =
       requestOwner(
         marketRequest
@@ -1142,6 +1180,12 @@ export async function GET(
         {
           requestId,
 
+
+      countryCode:
+        requestCountryCode,
+
+      currency:
+        requestCurrency,
           slotCount:
             slots.length,
 
@@ -1205,6 +1249,12 @@ export async function GET(
         {
           requestId,
 
+
+      countryCode:
+        requestCountryCode,
+
+      currency:
+        requestCurrency,
           slotCount:
             slots.length,
 
@@ -1305,6 +1355,12 @@ export async function GET(
       return NextResponse.json({
         requestId,
 
+
+      countryCode:
+        requestCountryCode,
+
+      currency:
+        requestCurrency,
         slots,
 
         providerMappings:
@@ -1849,6 +1905,12 @@ export async function GET(
       return NextResponse.json({
         requestId,
 
+
+      countryCode:
+        requestCountryCode,
+
+      currency:
+        requestCurrency,
         slotCount:
           slots.length,
 
@@ -2103,6 +2165,12 @@ export async function GET(
     return NextResponse.json({
       requestId,
 
+
+      countryCode:
+        requestCountryCode,
+
+      currency:
+        requestCurrency,
       slotCount:
         slots.length,
 

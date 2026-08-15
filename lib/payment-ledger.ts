@@ -1,3 +1,4 @@
+// KLYX_LEDGER_CURRENCY_REQUIRED_PHASE_5G
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export type FinancialLedgerEntry = {
@@ -27,6 +28,24 @@ export async function upsertFinancialLedgerEntry(
 ): Promise<void> {
   const now = new Date().toISOString();
 
+  const currencyCode =
+    String(
+      entry.currency ??
+      ""
+    )
+      .trim()
+      .toUpperCase();
+
+  if (
+    !/^[A-Z]{3}$/.test(
+      currencyCode
+    )
+  ) {
+    throw new Error(
+      "KLYX_LEDGER_CURRENCY_REQUIRED"
+    );
+  }
+
   const { error } = await supabaseAdmin
     .from("booking_financial_ledger")
     .upsert(
@@ -35,7 +54,7 @@ export async function upsertFinancialLedgerEntry(
         entry_key: entry.entryKey,
         entry_type: entry.entryType,
         status: entry.status,
-        currency: (entry.currency || "EUR").toUpperCase(),
+        currency: currencyCode,
         gross_amount_cents: Math.max(entry.grossAmountCents ?? 0, 0),
         platform_fee_cents: Math.max(entry.platformFeeCents ?? 0, 0),
         provider_amount_cents:

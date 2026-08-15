@@ -1,3 +1,4 @@
+// KLYX_PROVIDER_ZONE_COUNTRY_PHASE_5G
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
@@ -5,7 +6,10 @@ import {
   getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
-import { findBelgianLocality } from "@/lib/belgian-localities";
+import {
+  BELGIAN_LOCALITIES_COUNTRY_CODE,
+  findBelgianLocality,
+} from "@/lib/belgian-localities";
 
 async function providerServices(profileId: string) {
   const { data, error } = await supabaseAdmin
@@ -85,6 +89,52 @@ export async function POST(request: Request) {
       await getAuthenticatedProfile(request);
 
     requireAccountType(profile, "provider");
+
+    const profileCountryCode =
+      profile.countryCode
+        .trim()
+        .toUpperCase();
+
+    if (
+      !/^[A-Z]{2}$/.test(
+        profileCountryCode
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Configure ton pays KLYX avant de créer une zone.",
+          code:
+            "KLYX_PROFILE_COUNTRY_REQUIRED",
+        },
+        {
+          status: 409,
+        }
+      );
+    }
+
+    /*
+      Ce routeur utilise encore le catalogue
+      de localités belges. Il doit donc échouer
+      explicitement pour les autres pays au lieu
+      d'enregistrer une fausse zone.
+    */
+    if (
+      profileCountryCode !==
+      BELGIAN_LOCALITIES_COUNTRY_CODE
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "La sélection de localités n'est pas encore disponible pour ton pays.",
+          code:
+            "KLYX_LOCALITY_CATALOG_NOT_AVAILABLE",
+        },
+        {
+          status: 409,
+        }
+      );
+    }
 
     const body = (await request.json()) as {
       userServiceId?: unknown;
@@ -173,7 +223,7 @@ export async function POST(request: Request) {
         {
           profile_id: profile.id,
           user_service_id: userServiceId,
-          country_code: "BE",
+          country_code: profileCountryCode,
           locality: knownLocality.name,
           postal_code: postalCode,
           radius_km: radiusKm,

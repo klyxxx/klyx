@@ -1,3 +1,7 @@
+// Reference geographique regionale KLYX.
+export const BELGIAN_LOCALITIES_COUNTRY_CODE =
+  "BE";
+
 export type BelgianLocality = {
   name: string;
   postalCodes: string[];

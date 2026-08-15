@@ -1,3 +1,4 @@
+// KLYX_MARKET_TRANSACTION_CURRENCY_API_PHASE_5C
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { notifyCompatibleProviders } from "@/lib/market-notifications";
@@ -22,7 +23,7 @@ export async function GET(request: Request) {
       const { data: requests, error } = await supabaseAdmin
         .from("market_service_requests")
         .select(
-          "id, client_profile_id, service_id, title, description, city, requested_date, requested_time, budget_max, status, accepted_offer_id, created_at, updated_at"
+          "id, client_profile_id, service_id, title, description, city, requested_date, requested_time, budget_max, country_code, currency, status, accepted_offer_id, created_at, updated_at"
         )
         .eq("client_profile_id", profile.id)
         .order("created_at", { ascending: false })
@@ -44,7 +45,7 @@ export async function GET(request: Request) {
           ? supabaseAdmin
               .from("market_service_offers")
               .select(
-                "id, request_id, provider_profile_id, user_service_id, amount, message, status, created_at"
+                "id, request_id, provider_profile_id, user_service_id, amount, country_code, currency, message, status, created_at"
               )
               .in("request_id", requestIds)
           : Promise.resolve({ data: [], error: null }),
@@ -304,7 +305,7 @@ export async function GET(request: Request) {
       await supabaseAdmin
         .from("market_service_requests")
         .select(
-          "id, client_profile_id, service_id, title, description, city, requested_date, requested_time, budget_max, status, created_at"
+          "id, client_profile_id, service_id, title, description, city, requested_date, requested_time, budget_max, country_code, currency, status, created_at"
         )
         .eq("status", "open")
         .in("service_id", serviceIds)
@@ -329,7 +330,7 @@ export async function GET(request: Request) {
         ? supabaseAdmin
             .from("market_service_offers")
             .select(
-              "id, request_id, amount, message, status, created_at"
+              "id, request_id, amount, country_code, currency, message, status, created_at"
             )
             .eq("provider_profile_id", profile.id)
             .in("request_id", requestIds)
@@ -417,6 +418,37 @@ export async function POST(request: Request) {
         ? budgetRaw
         : null;
 
+    const marketCountry =
+      profile.countryCode
+        .trim()
+        .toUpperCase();
+
+    const marketCurrency =
+      profile.currencyCode
+        .trim()
+        .toUpperCase();
+
+    if (
+      !/^[A-Z]{2}$/.test(
+        marketCountry
+      ) ||
+      !/^[A-Z]{3}$/.test(
+        marketCurrency
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Configure ton pays et ta devise KLYX avant de publier une demande.",
+          code:
+            "KLYX_PROFILE_MARKET_REQUIRED",
+        },
+        {
+          status: 409,
+        }
+      );
+    }
+
     if (
       !serviceSlug ||
       title.length < 3 ||
@@ -462,10 +494,12 @@ export async function POST(request: Request) {
             ? `${requestedTime}:00`
             : null,
           budget_max: budgetMax,
+          country_code: marketCountry,
+          currency: marketCurrency,
           status: "open",
         })
         .select(
-          "id, title, description, city, requested_date, requested_time, budget_max, status, created_at"
+          "id, title, description, city, requested_date, requested_time, budget_max, country_code, currency, status, created_at"
         )
         .single();
 

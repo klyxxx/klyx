@@ -1,3 +1,4 @@
+// KLYX_SKILL_COUNTRY_DYNAMIC_PHASE_5G
 ﻿import { NextResponse } from "next/server";
 
 import {
@@ -79,9 +80,28 @@ export async function GET(request: Request) {
       );
     }
 
-    // Pour l'instant KLYX utilise les règles Belgique.
-    // On ajoutera le vrai multi-pays plus tard.
-    const countryCode = "BE";
+    const countryCode =
+      profile.countryCode
+        .trim()
+        .toUpperCase();
+
+    if (
+      !/^[A-Z]{2}$/.test(
+        countryCode
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Configure ton pays KLYX avant de vérifier les exigences métier.",
+          code:
+            "KLYX_PROFILE_COUNTRY_REQUIRED",
+        },
+        {
+          status: 409,
+        }
+      );
+    }
 
     const rule =
       await getSkillQualificationRule({

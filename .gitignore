@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+*.bak
+.klyx-local-backup/
+reports/master-audit/*.log
+reports/master-audit/

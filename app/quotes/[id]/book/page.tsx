@@ -76,6 +76,47 @@ function fromMinutes(total: number): string {
   )}:${String(total % 60).padStart(2, "0")}`;
 }
 
+function QuoteBookingStep({
+  number,
+  title,
+  text,
+  done,
+}: {
+  number: string;
+  title: string;
+  text: string;
+  done: boolean;
+}) {
+  return (
+    <div className="bg-card p-5">
+      <div className="flex items-center gap-3">
+        <span
+          className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-black ${
+            done
+              ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+              : "border border-border bg-background text-muted-foreground"
+          }`}
+        >
+          {done ? (
+            <CheckCircle2
+              size={16}
+            />
+          ) : (
+            number
+          )}
+        </span>
+
+        <p className="font-black">
+          {title}
+        </p>
+      </div>
+
+      <p className="mt-3 text-sm leading-6 text-muted-foreground">
+        {text}
+      </p>
+    </div>
+  );
+}
 function calculateEndTime(
   startTime: string,
   durationHours: number
@@ -392,6 +433,50 @@ export default function QuoteBookingPage() {
             compatible avec les disponibilités actuelles.
           </p>
         </section>
+        {/* KLYX_BOOKING_CONTINUITY_13_68 */}
+        <section className="mt-6 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-5">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-700 dark:text-emerald-300">
+              Étape 1 · terminée
+            </p>
+
+            <p className="mt-2 font-black">
+              Prestataire choisi
+            </p>
+
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Tu as déjà accepté cette offre.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-violet-500/30 bg-violet-500/10 p-5">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-violet-700 dark:text-violet-300">
+              Étape 2 · maintenant
+            </p>
+
+            <p className="mt-2 font-black">
+              Confirmer le créneau
+            </p>
+
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Vérifie la date et les heures avant de créer la réservation.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-border bg-background p-5">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">
+              Étape 3 · ensuite
+            </p>
+
+            <p className="mt-2 font-black">
+              Paiement
+            </p>
+
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Aucun paiement n’est effectué sur cet écran.
+            </p>
+          </div>
+        </section>
 
         <section className="klyx-card mt-8 p-6 sm:p-8">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
@@ -435,7 +520,69 @@ export default function QuoteBookingPage() {
           </div>
         </section>
 
-        <form
+                {/* KLYX_QUOTE_TO_BOOKING_HANDOFF_13_96 */}
+        <section className="mt-6 overflow-hidden rounded-3xl border border-border bg-card">
+          <div className="border-b border-border p-5 sm:p-6">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
+              Étape suivante
+            </p>
+
+            <h2 className="mt-2 text-xl font-black sm:text-2xl">
+              Le devis est accepté. La réservation ne l’est pas encore.
+            </h2>
+
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+              Le prix et le prestataire sont maintenant connus,
+              mais tu dois encore vérifier le créneau avant de créer
+              réellement la réservation.
+            </p>
+          </div>
+
+          <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-4">
+            <QuoteBookingStep
+              number="1"
+              title="Devis accepté"
+              text="Le prestataire et le prix ont été validés."
+              done
+            />
+
+            <QuoteBookingStep
+              number="2"
+              title="Créneau"
+              text="Vérifie la date et les horaires disponibles."
+              done={false}
+            />
+
+            <QuoteBookingStep
+              number="3"
+              title="Réservation"
+              text="La réservation est créée seulement après ta confirmation."
+              done={false}
+            />
+
+            <QuoteBookingStep
+              number="4"
+              title="Suivi"
+              text="Une fois créée, la mission apparaît dans tes réservations."
+              done={false}
+            />
+          </div>
+
+          {/* KLYX_BOOKING_CONTROL_REMINDER_13_96 */}
+          <div className="flex items-start gap-3 border-t border-border bg-emerald-500/[0.035] p-4 sm:px-6">
+            <CheckCircle2
+              size={18}
+              className="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400"
+            />
+
+            <p className="text-sm leading-6 text-muted-foreground">
+              Accepter un devis ne crée pas automatiquement une réservation.
+              Cette page ne déclenche également aucun paiement :
+              tu gardes le contrôle de chaque étape.
+            </p>
+          </div>
+        </section>
+<form
           onSubmit={submit}
           className="klyx-card mt-6 p-6 sm:p-8"
         >
@@ -562,13 +709,72 @@ export default function QuoteBookingPage() {
             </div>
           )}
 
-          <div className="mt-5 flex items-start gap-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-sm text-muted-foreground">
-            <CheckCircle2
-              className="mt-0.5 shrink-0 text-emerald-600"
-              size={18}
-            />
-            Cette action crée uniquement une demande de réservation.
-            Le paiement reste séparé.
+          <div className="mt-6 rounded-3xl border border-violet-500/20 bg-violet-500/5 p-5">
+            <div className="flex items-start gap-3">
+              <CheckCircle2
+                className="mt-0.5 shrink-0 text-violet-600"
+                size={19}
+              />
+
+              <div>
+                <p className="font-black">
+                  Dernière vérification avant réservation
+                </p>
+
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  En confirmant, KLYX crée la réservation avec ce prestataire et ce créneau.
+                  Aucun paiement n’est déclenché ici.
+                </p>
+
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  <div className="rounded-xl border border-border bg-background px-4 py-3">
+                    <p className="text-xs font-bold text-muted-foreground">
+                      Prestataire
+                    </p>
+
+                    <p className="mt-1 font-black">
+                      {providerName}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-border bg-background px-4 py-3">
+                    <p className="text-xs font-bold text-muted-foreground">
+                      Prix accepté
+                    </p>
+
+                    <p className="mt-1 font-black">
+                      {quote.provider_price == null
+                        ? "—"
+                        : `${Number(
+                            quote.provider_price
+                          ).toFixed(2)} €`}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-border bg-background px-4 py-3">
+                    <p className="text-xs font-bold text-muted-foreground">
+                      Date
+                    </p>
+
+                    <p className="mt-1 font-black">
+                      {bookingDate || "À confirmer"}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-border bg-background px-4 py-3">
+                    <p className="text-xs font-bold text-muted-foreground">
+                      Horaire
+                    </p>
+
+                    <p className="mt-1 font-black">
+                      {startTime && endTime
+                        ? `${startTime} → ${endTime}`
+                        : "À confirmer"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <button
@@ -590,7 +796,7 @@ export default function QuoteBookingPage() {
             ) : (
               <Send size={18} />
             )}
-            Envoyer la demande de réservation
+            Confirmer et créer la réservation
           </button>
         </form>
       </div>

@@ -1,3 +1,4 @@
+// KLYX_FINANCE_EXPORT_CURRENCY_PHASE_5G
 "use client";
 
 import {
@@ -346,8 +347,7 @@ export default function FinanceExportButton() {
       rows.push(
         csvRow([
           "Devise",
-          summary.currency ??
-          "EUR",
+          summary.currency?.trim().toUpperCase() || "NON_DEFINIE",
         ])
       );
 

@@ -1,3 +1,4 @@
+// KLYX_PROVIDER_JOBS_CURRENCY_PHASE_5C
 import {
   NextResponse,
 } from "next/server";
@@ -35,6 +36,12 @@ type BaseRequest = {
   budget_max:
     | number
     | null;
+
+  country_code:
+    string;
+
+  currency:
+    string;
 
   status:
     string;

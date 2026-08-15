@@ -35,6 +35,7 @@ type ChildBooking = {
   id: string;
   amount_total: number | null;
   currency: string | null;
+  currency_code: string | null;
 };
 
 const groupSelection =
@@ -56,6 +57,68 @@ function paymentIntentId(
   );
 }
 
+// KLYX_GROUP_CURRENCY_INTEGRITY_14_26
+function normalizeGroupCurrency(
+  value: string | null | undefined
+): string {
+  const currency =
+    value
+      ?.trim()
+      .toUpperCase() ??
+    "";
+
+  if (
+    !/^[A-Z]{3}$/.test(
+      currency
+    )
+  ) {
+    throw new Error(
+      "Devise du groupe KLYX invalide ou absente."
+    );
+  }
+
+  return currency;
+}
+
+function groupCurrencyCode(
+  group: GroupRow
+): string {
+  return normalizeGroupCurrency(
+    group.currency
+  );
+}
+
+function childCurrencyCode(
+  child: ChildBooking,
+  fallback: string
+): string {
+  const raw =
+    child.currency_code ??
+    child.currency;
+
+  if (!raw) {
+    return fallback;
+  }
+
+  return normalizeGroupCurrency(
+    raw
+  );
+}
+
+function formatGroupAmount(
+  amountCents: number,
+  currency: string
+): string {
+  return new Intl.NumberFormat(
+    "fr",
+    {
+      style: "currency",
+      currency,
+    }
+  ).format(
+    amountCents / 100
+  );
+}
 async function findGroupFromSession(
   session: Stripe.Checkout.Session
 ): Promise<GroupRow> {
@@ -199,11 +262,7 @@ function verifySession(
     );
   }
 
-  const currency =
-    (
-      group.currency ||
-      "EUR"
-    ).toLowerCase();
+  const currency = groupCurrencyCode(group).toLowerCase();
 
   if (
     session.currency &&
@@ -225,7 +284,7 @@ async function children(
   } = await supabaseAdmin
     .from("bookings")
     .select(
-      "id, amount_total, currency"
+      "id, amount_total, currency, currency_code"
     )
     .eq(
       "booking_group_id",
@@ -430,6 +489,31 @@ export async function markBookingGroupPaidFromSession(
     );
   }
 
+  // KLYX_GROUP_CHILD_CURRENCY_GUARD_14_26
+  const canonicalGroupCurrency =
+    groupCurrencyCode(
+      group
+    );
+
+  for (
+    const child
+    of childRows
+  ) {
+    const childCurrency =
+      childCurrencyCode(
+        child,
+        canonicalGroupCurrency
+      );
+
+    if (
+      childCurrency !==
+      canonicalGroupCurrency
+    ) {
+      throw new Error(
+        "La devise d'une réservation ne correspond pas à la devise du groupe."
+      );
+    }
+  }
   const {
     error:
       childrenUpdateError,
@@ -522,8 +606,7 @@ export async function markBookingGroupPaidFromSession(
         status:
           "succeeded",
         currency:
-          child.currency ??
-          group.currency,
+          childCurrencyCode(child, canonicalGroupCurrency),
         grossAmountCents:
           gross,
         platformFeeCents:
@@ -554,11 +637,11 @@ export async function markBookingGroupPaidFromSession(
         "Paiement groupe confirme",
       message:
         "Le paiement unique de " +
-        (
-          amountTotal /
-          100
-        ).toFixed(2) +
-        " EUR couvre tous les creneaux.",
+        formatGroupAmount(
+          amountTotal,
+          canonicalGroupCurrency
+        ) +
+        " couvre tous les creneaux.",
       key:
         "booking-group:" +
         group.id +

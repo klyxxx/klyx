@@ -199,7 +199,69 @@ export default function HomePage() {
         </div>
       </section>
 
+            {/* KLYX_PUBLIC_PRODUCT_JOURNEY_13_84 */}
       <section className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="text-sm font-black uppercase tracking-[0.2em] text-violet-400">
+            Comment fonctionne KLYX
+          </p>
+
+          <h2 className="mt-4 text-4xl font-black tracking-[-0.05em] sm:text-5xl">
+            Du besoin à la mission terminée.
+          </h2>
+
+          <p className="mt-5 text-base leading-7 text-white/50">
+            KLYX organise les étapes pour éviter de multiplier
+            recherches, messages, devis et applications.
+          </p>
+        </div>
+
+        <div className="mt-12 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          <JourneyStep
+            number="01"
+            title="Décris ton besoin"
+            text="Explique simplement ce qu’il te faut, où et quand."
+          />
+
+          <JourneyStep
+            number="02"
+            title="KLYX compare"
+            text="Les prestataires sont comparés selon compatibilité, prix, disponibilité et confiance."
+          />
+
+          <JourneyStep
+            number="03"
+            title="Tu confirmes"
+            text="KLYX recommande, mais le choix du prestataire et la réservation restent sous ton contrôle."
+          />
+
+          <JourneyStep
+            number="04"
+            title="KLYX suit la mission"
+            text="Réservation, paiement, prestation et avis restent réunis jusqu’à la fin."
+          />
+        </div>
+
+        <div className="mt-8 flex items-start gap-3 rounded-[1.7rem] border border-emerald-500/15 bg-emerald-500/[0.05] p-5 sm:p-6">
+          <ShieldCheck
+            size={21}
+            className="mt-0.5 shrink-0 text-emerald-400"
+          />
+
+          <div>
+            <p className="font-black">
+              Tu gardes toujours la décision finale
+            </p>
+
+            <p className="mt-2 max-w-4xl text-sm leading-6 text-white/50">
+              Aucune publication de demande, sélection de prestataire,
+              réservation ou paiement n’est effectué automatiquement
+              sans une confirmation explicite de ta part.
+            </p>
+          </div>
+        </div>
+      </section>
+<section className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28">
         <div className="max-w-3xl">
           <p className="text-sm font-black uppercase tracking-[0.2em] text-violet-400">
             Une seule plateforme
@@ -235,7 +297,118 @@ export default function HomePage() {
         </div>
       </section>
 
+            {/* KLYX_PUBLIC_DUAL_ENTRY_13_85 */}
       <section className="mx-auto max-w-7xl px-5 pb-20 sm:px-8 sm:pb-28">
+        <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.025] p-7 sm:p-10">
+          <div className="mx-auto max-w-3xl text-center">
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-violet-400">
+              Rejoindre KLYX
+            </p>
+
+            <h2 className="mt-4 text-3xl font-black tracking-[-0.045em] sm:text-5xl">
+              Tu cherches un service ou tu proposes ton savoir-faire ?
+            </h2>
+
+            <p className="mt-5 text-sm leading-7 text-white/50 sm:text-base">
+              KLYX possède un parcours séparé pour les clients
+              et les prestataires, avec une seule plateforme
+              pour organiser toute la mission.
+            </p>
+          </div>
+
+          <div className="mt-10 grid gap-5 lg:grid-cols-2">
+            <article className="relative overflow-hidden rounded-[1.8rem] border border-violet-500/20 bg-violet-500/[0.055] p-6 sm:p-8">
+              <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-violet-500/10 blur-3xl" />
+
+              <div className="relative">
+                <span className="grid h-12 w-12 place-items-center rounded-2xl bg-violet-500/15 text-violet-300">
+                  <Search size={22} />
+                </span>
+
+                <p className="mt-6 text-xs font-black uppercase tracking-[0.18em] text-violet-300">
+                  Je suis client
+                </p>
+
+                <h3 className="mt-2 text-2xl font-black">
+                  J’ai besoin d’un service
+                </h3>
+
+                <p className="mt-3 max-w-lg text-sm leading-7 text-white/50">
+                  Décris ton besoin, compare les prestataires,
+                  confirme ton choix puis suis ta réservation
+                  jusqu’à la prestation terminée.
+                </p>
+
+                <div className="mt-6 space-y-2 text-sm text-white/60">
+                  <PublicBenefit text="Assistant KLYX pour organiser ton besoin" />
+                  <PublicBenefit text="Comparaison prix, disponibilité et confiance" />
+                  <PublicBenefit text="Réservation et suivi au même endroit" />
+                </div>
+
+                <Link
+                  href="/signup?type=client"
+                  className="mt-7 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 text-sm font-black text-white transition hover:bg-violet-500"
+                >
+                  Créer mon compte client
+                  <ArrowRight size={17} />
+                </Link>
+              </div>
+            </article>
+
+            <article className="relative overflow-hidden rounded-[1.8rem] border border-blue-500/20 bg-blue-500/[0.055] p-6 sm:p-8">
+              <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-blue-500/10 blur-3xl" />
+
+              <div className="relative">
+                <span className="grid h-12 w-12 place-items-center rounded-2xl bg-blue-500/15 text-blue-300">
+                  <BadgeCheck size={22} />
+                </span>
+
+                <p className="mt-6 text-xs font-black uppercase tracking-[0.18em] text-blue-300">
+                  Je suis prestataire
+                </p>
+
+                <h3 className="mt-2 text-2xl font-black">
+                  Je veux proposer mes services
+                </h3>
+
+                <p className="mt-3 max-w-lg text-sm leading-7 text-white/50">
+                  Présente ton activité, découvre les opportunités
+                  compatibles, prépare tes offres avec KLYX
+                  et suis tes missions.
+                </p>
+
+                <div className="mt-6 space-y-2 text-sm text-white/60">
+                  <PublicBenefit text="Profil professionnel et services configurables" />
+                  <PublicBenefit text="Opportunités selon ton activité" />
+                  <PublicBenefit text="Assistant prestataire et suivi des missions" />
+                </div>
+
+                <Link
+                  href="/signup?type=provider"
+                  className="mt-7 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-500"
+                >
+                  Créer mon espace prestataire
+                  <ArrowRight size={17} />
+                </Link>
+              </div>
+            </article>
+          </div>
+
+          <div className="mt-6 flex items-start gap-3 rounded-2xl border border-white/8 bg-white/[0.03] p-5">
+            <ShieldCheck
+              size={19}
+              className="mt-0.5 shrink-0 text-emerald-400"
+            />
+
+            <p className="text-sm leading-6 text-white/50">
+              L’inscription est gratuite. Le rôle choisi prépare
+              simplement ton espace KLYX : client et prestataire
+              gardent des parcours séparés.
+            </p>
+          </div>
+        </div>
+      </section>
+<section className="mx-auto max-w-7xl px-5 pb-20 sm:px-8 sm:pb-28">
         <div className="grid gap-8 overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#17131f,#2b1452_50%,#111827)] p-7 sm:p-10 lg:grid-cols-[1fr_0.75fr] lg:items-center">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.2em] text-violet-200">
@@ -284,6 +457,49 @@ export default function HomePage() {
   );
 }
 
+function PublicBenefit({
+  text,
+}: {
+  text: string;
+}) {
+  return (
+    <div className="flex items-start gap-2">
+      <CheckCircle2
+        size={16}
+        className="mt-0.5 shrink-0 text-emerald-400"
+      />
+
+      <span>
+        {text}
+      </span>
+    </div>
+  );
+}
+function JourneyStep({
+  number,
+  title,
+  text,
+}: {
+  number: string;
+  title: string;
+  text: string;
+}) {
+  return (
+    <article className="rounded-[1.7rem] border border-white/8 bg-white/[0.035] p-6">
+      <span className="text-xs font-black tracking-[0.18em] text-violet-400">
+        {number}
+      </span>
+
+      <h3 className="mt-4 text-xl font-black">
+        {title}
+      </h3>
+
+      <p className="mt-3 text-sm leading-7 text-white/48">
+        {text}
+      </p>
+    </article>
+  );
+}
 function ResultRow({
   icon,
   title,

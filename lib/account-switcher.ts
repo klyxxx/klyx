@@ -8,6 +8,8 @@ export type SavedAccount = {
   firstName: string;
   lastName: string;
   city: string;
+  countryCode: string | null;
+  currencyCode: string | null;
   accountType: AccountType;
   avatarUrl: string | null;
 };
@@ -22,6 +24,7 @@ export type ProfileFormValues = {
   firstName: string;
   lastName: string;
   city: string;
+  countryCode: string;
   accountType: AccountType;
   serviceId: string | null;
 };
@@ -216,7 +219,7 @@ export async function updateProfile(
   profileId: string,
   values: Pick<
     ProfileFormValues,
-    "firstName" | "lastName" | "city"
+    "firstName" | "lastName" | "city" | "countryCode"
   > & {
     avatarUrl?: string | null;
   }

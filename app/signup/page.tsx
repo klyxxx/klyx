@@ -349,7 +349,50 @@ export default function SignupPage() {
               </button>
             </div>
 
-            <form
+                        {/* KLYX_SIGNUP_ROLE_CONTINUITY_14_02 */}
+            <div className="mt-5 rounded-2xl border border-violet-500/20 bg-violet-500/[0.07] p-4">
+              <div className="flex items-start gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-500/15 text-violet-300">
+                  {accountType === "provider" ? (
+                    <BriefcaseBusiness size={19} />
+                  ) : (
+                    <UserRound size={19} />
+                  )}
+                </span>
+
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-violet-300">
+                    Profil sélectionné
+                  </p>
+
+                  <p className="mt-1 font-black">
+                    {accountType === "provider"
+                      ? "Je rejoins KLYX comme prestataire"
+                      : "Je rejoins KLYX comme client"}
+                  </p>
+
+                  <p className="mt-2 text-sm leading-6 text-white/50">
+                    {accountType === "provider"
+                      ? "Après ton inscription, KLYX te guidera pour préparer ton profil, tes services et ton activité."
+                      : "Après ton inscription, KLYX te guidera vers ton espace client pour organiser ton premier besoin."}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* KLYX_SIGNUP_NEXT_STEP_14_02 */}
+            <div className="mt-3 flex items-start gap-3 rounded-2xl border border-white/8 bg-white/[0.025] p-4">
+              <Check
+                size={17}
+                className="mt-0.5 shrink-0 text-emerald-400"
+              />
+
+              <p className="text-sm leading-6 text-white/45">
+                Ton choix de profil est conservé pendant la création du compte.
+                Tu pourras ensuite gérer plusieurs profils KLYX depuis une même connexion.
+              </p>
+            </div>
+<form
               onSubmit={
                 handleSignup
               }

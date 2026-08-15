@@ -99,6 +99,47 @@ const ACTION_LABELS: Partial<
   in_progress: "Commencer la prestation",
 };
 
+function MissionCompletionStep({
+  number,
+  title,
+  text,
+  done,
+}: {
+  number: string;
+  title: string;
+  text: string;
+  done: boolean;
+}) {
+  return (
+    <div className="bg-card p-5">
+      <div className="flex items-center gap-3">
+        <span
+          className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-black ${
+            done
+              ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+              : "border border-border bg-background text-muted-foreground"
+          }`}
+        >
+          {done ? (
+            <CheckCircle2
+              size={16}
+            />
+          ) : (
+            number
+          )}
+        </span>
+
+        <p className="font-black">
+          {title}
+        </p>
+      </div>
+
+      <p className="mt-3 text-sm leading-6 text-muted-foreground">
+        {text}
+      </p>
+    </div>
+  );
+}
 export default function TrackingPage() {
   const params = useParams<{ bookingId: string }>();
   const bookingId = params.bookingId;
@@ -399,7 +440,114 @@ export default function TrackingPage() {
           </div>
         )}
 
-        <section className="klyx-card mt-8 p-6 sm:p-8">
+                {/* KLYX_MISSION_COMPLETION_HANDOFF_13_98 */}
+        <section className="mt-6 overflow-hidden rounded-3xl border border-border bg-card">
+          <div className="border-b border-border p-5 sm:p-6">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
+              Fin de mission sécurisée
+            </p>
+
+            <h2 className="mt-2 text-xl font-black sm:text-2xl">
+              Le prestataire termine. Le client confirme.
+            </h2>
+
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+              La fin d’une mission utilise deux validations distinctes.
+              Le prestataire déclare d’abord son intervention terminée,
+              puis le client vérifie avant de confirmer définitivement.
+            </p>
+          </div>
+
+          <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-4">
+            <MissionCompletionStep
+              number="1"
+              title="Mission en cours"
+              text="Le prestataire réalise la prestation."
+              done={
+                currentStatus === "in_progress" ||
+                Boolean(booking.provider_finished_at) ||
+                Boolean(booking.client_confirmed_at)
+              }
+            />
+
+            <MissionCompletionStep
+              number="2"
+              title="Fin déclarée"
+              text="Le prestataire indique que son intervention est terminée."
+              done={Boolean(booking.provider_finished_at)}
+            />
+
+            <MissionCompletionStep
+              number="3"
+              title="Client confirme"
+              text="Le client vérifie avant de valider la fin réelle."
+              done={Boolean(booking.client_confirmed_at)}
+            />
+
+            <MissionCompletionStep
+              number="4"
+              title="Avis"
+              text="Après confirmation, le client peut évaluer la prestation."
+              done={currentStatus === "completed"}
+            />
+          </div>
+
+          {/* KLYX_TWO_PARTY_COMPLETION_GUARD_13_98 */}
+          <div className="border-t border-border p-4 sm:px-6">
+            {awaitingClientConfirmation ? (
+              <div className="flex items-start gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/[0.06] p-4">
+                <Clock3
+                  size={18}
+                  className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400"
+                />
+
+                <div>
+                  <p className="font-black text-amber-700 dark:text-amber-300">
+                    Validation client requise
+                  </p>
+
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    Le prestataire a déclaré la mission terminée,
+                    mais KLYX attend encore la confirmation du client.
+                  </p>
+                </div>
+              </div>
+            ) : currentStatus === "completed" ? (
+              <div className="flex flex-col gap-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2
+                    size={18}
+                    className="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400"
+                  />
+
+                  <div>
+                    <p className="font-black text-emerald-700 dark:text-emerald-300">
+                      Mission confirmée
+                    </p>
+
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      La prestation est terminée et validée par le client.
+                    </p>
+                  </div>
+                </div>
+
+                {isClient && (
+                  <Link
+                    href={`/reviews/${bookingId}`}
+                    className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-sm font-black text-white transition hover:bg-emerald-700"
+                  >
+                    Donner mon avis
+                  </Link>
+                )}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-border bg-background p-4 text-sm leading-6 text-muted-foreground">
+                KLYX attend les étapes de suivi avant la validation finale.
+              </div>
+            )}
+          </div>
+        </section>
+<section className="klyx-card mt-8 p-6 sm:p-8">
           <div className="space-y-3">
             {STEPS.map((step, index) => {
               const completed =
