@@ -15,7 +15,7 @@
 /playwright-report/
 /test-results/
 /blob-report/
-/playwright/.cache/
+playwright/.cache/
 
 # next.js
 /.next/
@@ -44,6 +44,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# Supabase local/link metadata
+supabase/.temp/
+
 # KLYX local safety
 *.bak
 .klyx-local-backup/
@@ -51,3 +54,14 @@ reports/master-audit/
 reports/master-audit/*.log
 /build-*-error.txt
 reports/*-typescript-errors.txt
+
+# KLYX encrypted disaster-recovery archives
+*.klyxdr
+*.klyxdr.sha256
+*.klyxdr.zip
+
+# Database dump artifacts
+*.dump
+*.dump.gz
+*.sql.dump
+*.sql.gz
