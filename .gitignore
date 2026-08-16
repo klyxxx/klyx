@@ -65,3 +65,15 @@ reports/*-typescript-errors.txt
 *.dump.gz
 *.sql.dump
 *.sql.gz
+# KLYX transient rebuild workspaces
+.klyx-baseline-rebuild-*/
+.klyx-fidelity-rebuild-*/
+.klyx-local-rebuild-*/
+
+# KLYX generated repository archives
+repository-archive-*/
+
+# KLYX generated reports - keep only continuity reports
+/reports/*
+!/reports/continuity/
+!/reports/continuity/**
