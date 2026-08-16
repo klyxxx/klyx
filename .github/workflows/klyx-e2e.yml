@@ -8,6 +8,10 @@ on:
       - main
       - "agent/**"
 
+  pull_request:
+    branches:
+      - main
+
 permissions:
   contents: read
 
@@ -15,7 +19,7 @@ jobs:
   browser-tests:
     name: Playwright browser verification
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -59,6 +63,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # KLYX_DEPENDENCY_SECURITY_GATE_PHASE_10A
+      - name: Production dependency security
+        run: npm audit --omit=dev --audit-level=moderate
+
+      - name: Development dependency security
+        run: npm audit --audit-level=high
+
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
@@ -67,6 +78,10 @@ jobs:
 
       - name: TypeScript
         run: npx tsc --noEmit --pretty false
+
+      # KLYX_PRODUCTION_BUILD_GATE_PHASE_10A
+      - name: Production build
+        run: npm run build
 
       - name: Playwright E2E
         run: npm run test:e2e
@@ -211,7 +226,6 @@ jobs:
           )
           PY
 
-      # Upload autorisé uniquement après scanner réussi.
       - name: Upload Playwright report
         if: ${{ always() && steps.artifact_guard.outcome == 'success' }}
         uses: actions/upload-artifact@v4
