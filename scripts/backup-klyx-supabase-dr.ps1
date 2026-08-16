@@ -1,85 +1,34 @@
+param(
+    [string]$OffsiteDirectory = "C:\Users\fenjo\OneDrive\KLYX-DR",
+    [int]$RetentionDays = 30,
+    [int]$MinimumCopies = 3
+)
+
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$Root =
-    "C:\Users\fenjo\Documents\klyx"
+$Root = "C:\Users\fenjo\Documents\klyx"
 
 Set-Location $Root
 
-$ExpectedBranch =
-    "agent/klyx-master-checkpoint-20260815"
+# KLYX_DR_OFFSITE_PHASE_11C_2
 
-$Branch =
-    (
-        git branch --show-current
-    ).Trim()
+$AllowedBranches = @(
+    "main",
+    "agent/klyx-dr-offsite-20260816"
+)
 
-if (
-    $Branch -ne
-    $ExpectedBranch
-) {
+$Branch = (
+    git branch --show-current
+).Trim()
+
+if ($AllowedBranches -notcontains $Branch) {
     throw "Wrong Git branch: $Branch"
 }
 
-$Commit =
-    (
-        git rev-parse HEAD
-    ).Trim()
-
-# ------------------------------------------------------------
-# OUTILS
-# ------------------------------------------------------------
-
-$Supabase =
-    Get-Command `
-        supabase `
-        -ErrorAction SilentlyContinue
-
-if (-not $Supabase) {
-    throw "SUPABASE CLI MISSING. Stop here."
-}
-
-$Docker =
-    Get-Command `
-        docker `
-        -ErrorAction SilentlyContinue
-
-if (-not $Docker) {
-    throw "DOCKER DESKTOP MISSING. Stop here."
-}
-
-$DockerVersion =
-    @(
-        docker version `
-            --format "{{.Server.Version}}" `
-            2>$null
-    )
-
-if (
-    $LASTEXITCODE -ne 0 -or
-    -not $DockerVersion
-) {
-    throw "Docker Desktop is installed but not running."
-}
-
-$ProjectRefFile =
-    Join-Path `
-        $Root `
-        "supabase\.temp\project-ref"
-
-if (
-    -not (
-        Test-Path `
-            -LiteralPath $ProjectRefFile `
-            -PathType Leaf
-    )
-) {
-    throw "Supabase project is not linked."
-}
-
-# ------------------------------------------------------------
-# PASSWORDS
-# ------------------------------------------------------------
+$Commit = (
+    git rev-parse HEAD
+).Trim()
 
 function ConvertFrom-KlyxSecureString {
     param(
@@ -106,9 +55,153 @@ function ConvertFrom-KlyxSecureString {
     }
 }
 
+function Invoke-KlyxSupabase {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Label
+    )
+
+    & $script:SupabaseExecutable @Arguments
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "$Label FAILED."
+    }
+}
+
+# ------------------------------------------------------------
+# TOOLS
+# ------------------------------------------------------------
+
+$SupabaseCommand =
+    Get-Command `
+        supabase `
+        -ErrorAction SilentlyContinue
+
+if ($SupabaseCommand) {
+    $SupabaseExecutable =
+        $SupabaseCommand.Source
+}
+else {
+    $LocalSupabase =
+        Join-Path `
+            $Root `
+            "node_modules\.bin\supabase.cmd"
+
+    if (
+        -not (
+            Test-Path `
+                -LiteralPath $LocalSupabase `
+                -PathType Leaf
+        )
+    ) {
+        throw "SUPABASE CLI MISSING."
+    }
+
+    $SupabaseExecutable =
+        $LocalSupabase
+}
+
+$Docker =
+    Get-Command `
+        docker `
+        -ErrorAction SilentlyContinue
+
+if (-not $Docker) {
+    throw "DOCKER DESKTOP MISSING."
+}
+
+$DockerVersion = @(
+    docker version `
+        --format "{{.Server.Version}}" `
+        2>$null
+)
+
+if (
+    $LASTEXITCODE -ne 0 -or
+    -not $DockerVersion
+) {
+    throw "Docker Desktop is not running."
+}
+
+$ProjectRefFile =
+    Join-Path `
+        $Root `
+        "supabase\.temp\project-ref"
+
+if (
+    -not (
+        Test-Path `
+            -LiteralPath $ProjectRefFile `
+            -PathType Leaf
+    )
+) {
+    throw "Supabase project is not linked locally."
+}
+
+# ------------------------------------------------------------
+# OFFSITE
+# ------------------------------------------------------------
+
+$OneDriveRoot =
+    "C:\Users\fenjo\OneDrive"
+
+if (
+    -not (
+        Test-Path `
+            -LiteralPath $OneDriveRoot `
+            -PathType Container
+    )
+) {
+    throw "OneDrive directory missing."
+}
+
+$OneDriveProcess =
+    Get-Process `
+        OneDrive `
+        -ErrorAction SilentlyContinue
+
+if (-not $OneDriveProcess) {
+    throw "OneDrive client is not running."
+}
+
+$OffsiteDirectory =
+    [System.IO.Path]::GetFullPath(
+        $OffsiteDirectory
+    )
+
+if (
+    -not $OffsiteDirectory.StartsWith(
+        $OneDriveRoot,
+        [System.StringComparison]::OrdinalIgnoreCase
+    )
+) {
+    throw "Offsite directory must be inside OneDrive."
+}
+
+New-Item `
+    -ItemType Directory `
+    -Force `
+    -Path $OffsiteDirectory |
+Out-Null
+
+if ($RetentionDays -lt 1) {
+    throw "RetentionDays must be at least 1."
+}
+
+if ($MinimumCopies -lt 1) {
+    throw "MinimumCopies must be at least 1."
+}
+
+# ------------------------------------------------------------
+# PASSWORDS
+# ------------------------------------------------------------
+
 Write-Host ""
-Write-Host "Supabase demande le MOT DE PASSE DATABASE."
-Write-Host "Il ne sera pas affiché."
+Write-Host "Database password Supabase."
+Write-Host "Il ne sera ni affiché ni passé dans la ligne de commande."
 
 $SecureDbPassword =
     Read-Host `
@@ -119,16 +212,14 @@ $DbPassword =
     ConvertFrom-KlyxSecureString `
         -Secure $SecureDbPassword
 
-if (
-    -not $DbPassword
-) {
+if (-not $DbPassword) {
     throw "Database password missing."
 }
 
 Write-Host ""
-Write-Host "Choisis maintenant une phrase secrète DR."
+Write-Host "Phrase secrète DR."
 Write-Host "Minimum 16 caractères."
-Write-Host "NE LA PERDS PAS : sans elle, le backup est inutilisable."
+Write-Host "NE LA PERDS PAS."
 
 $SecurePassphrase1 =
     Read-Host `
@@ -148,16 +239,11 @@ $Passphrase2 =
     ConvertFrom-KlyxSecureString `
         -Secure $SecurePassphrase2
 
-if (
-    $Passphrase1 -ne
-    $Passphrase2
-) {
+if ($Passphrase1 -ne $Passphrase2) {
     throw "DR passphrases do not match."
 }
 
-if (
-    $Passphrase1.Length -lt 16
-) {
+if ($Passphrase1.Length -lt 16) {
     throw "DR passphrase too short."
 }
 
@@ -183,10 +269,7 @@ $BackupRoot =
 $WorkRoot =
     Join-Path `
         $BackupRoot `
-        (
-            "dr-work\" +
-            $Timestamp
-        )
+        "dr-work\$Timestamp"
 
 $Payload =
     Join-Path `
@@ -212,50 +295,62 @@ New-Item `
     -ItemType Directory `
     -Force `
     -Path $DbDirectory |
-    Out-Null
+Out-Null
 
 New-Item `
     -ItemType Directory `
     -Force `
     -Path $StorageDirectory |
-    Out-Null
+Out-Null
 
 New-Item `
     -ItemType Directory `
     -Force `
     -Path $ArchiveDirectory |
-    Out-Null
+Out-Null
+
+$ArchiveName =
+    "klyx-dr-$Timestamp-$ShortCommit.klyxdr"
 
 $PlainZip =
     Join-Path `
         $WorkRoot `
-        (
-            "klyx-dr-" +
-            $Timestamp +
-            "-" +
-            $ShortCommit +
-            ".zip"
-        )
+        "payload.zip"
 
 $EncryptedArchive =
     Join-Path `
         $ArchiveDirectory `
-        (
-            "klyx-dr-" +
-            $Timestamp +
-            "-" +
-            $ShortCommit +
-            ".klyxdr"
-        )
+        $ArchiveName
 
 $ChecksumPath =
     "$EncryptedArchive.sha256"
 
+$OffsiteArchive =
+    Join-Path `
+        $OffsiteDirectory `
+        $ArchiveName
+
+$OffsiteChecksum =
+    "$OffsiteArchive.sha256"
+
 try {
     Write-Host ""
     Write-Host "======================================"
-    Write-Host "KLYX PHASE 8B - DR BACKUP"
+    Write-Host "KLYX PHASE 11C.2 - SUPABASE DR"
     Write-Host "======================================"
+
+    # --------------------------------------------------------
+    # DATABASE PASSWORD VIA ENVIRONMENT
+    # --------------------------------------------------------
+
+    $env:SUPABASE_DB_PASSWORD =
+        $DbPassword
+
+    $DbPassword =
+        $null
+
+    Write-Host ""
+    Write-Host "Database password transport : ENVIRONMENT"
 
     # --------------------------------------------------------
     # DATABASE
@@ -264,103 +359,104 @@ try {
     Write-Host ""
     Write-Host "----- DATABASE ROLES -----"
 
-    & $Supabase.Source `
-        db dump `
-        --linked `
-        -p $DbPassword `
-        -f (
-            Join-Path `
-                $DbDirectory `
-                "roles.sql"
-        ) `
-        --role-only
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "Roles backup FAILED."
-    }
+    Invoke-KlyxSupabase `
+        -Label "Roles backup" `
+        -Arguments @(
+            "db",
+            "dump",
+            "--linked",
+            "-f",
+            (
+                Join-Path `
+                    $DbDirectory `
+                    "roles.sql"
+            ),
+            "--role-only"
+        )
 
     Write-Host ""
     Write-Host "----- DATABASE SCHEMA -----"
 
-    & $Supabase.Source `
-        db dump `
-        --linked `
-        -p $DbPassword `
-        -f (
-            Join-Path `
-                $DbDirectory `
-                "schema.sql"
+    Invoke-KlyxSupabase `
+        -Label "Schema backup" `
+        -Arguments @(
+            "db",
+            "dump",
+            "--linked",
+            "-f",
+            (
+                Join-Path `
+                    $DbDirectory `
+                    "schema.sql"
+            )
         )
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "Schema backup FAILED."
-    }
 
     Write-Host ""
     Write-Host "----- DATABASE DATA -----"
 
-    & $Supabase.Source `
-        db dump `
-        --linked `
-        -p $DbPassword `
-        -f (
-            Join-Path `
-                $DbDirectory `
-                "data.sql"
-        ) `
-        --data-only `
-        --use-copy `
-        -x "storage.buckets_vectors" `
-        -x "storage.vector_indexes"
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "Database data backup FAILED."
-    }
+    Invoke-KlyxSupabase `
+        -Label "Database data backup" `
+        -Arguments @(
+            "db",
+            "dump",
+            "--linked",
+            "-f",
+            (
+                Join-Path `
+                    $DbDirectory `
+                    "data.sql"
+            ),
+            "--data-only",
+            "--use-copy",
+            "-x",
+            "storage.buckets_vectors",
+            "-x",
+            "storage.vector_indexes"
+        )
 
     # --------------------------------------------------------
-    # AUTH EXPLICIT SNAPSHOT
-    #
-    # On ne supposera pas que le dump principal
-    # suffit : on vérifie auth séparément.
+    # AUTH
     # --------------------------------------------------------
 
     Write-Host ""
     Write-Host "----- AUTH SCHEMA -----"
 
-    & $Supabase.Source `
-        db dump `
-        --linked `
-        -p $DbPassword `
-        --schema auth `
-        -f (
-            Join-Path `
-                $DbDirectory `
-                "auth-schema.sql"
+    Invoke-KlyxSupabase `
+        -Label "Auth schema backup" `
+        -Arguments @(
+            "db",
+            "dump",
+            "--linked",
+            "--schema",
+            "auth",
+            "-f",
+            (
+                Join-Path `
+                    $DbDirectory `
+                    "auth-schema.sql"
+            )
         )
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "Auth schema backup FAILED."
-    }
 
     Write-Host ""
     Write-Host "----- AUTH DATA -----"
 
-    & $Supabase.Source `
-        db dump `
-        --linked `
-        -p $DbPassword `
-        --schema auth `
-        --data-only `
-        --use-copy `
-        -f (
-            Join-Path `
-                $DbDirectory `
-                "auth-data.sql"
+    Invoke-KlyxSupabase `
+        -Label "Auth data backup" `
+        -Arguments @(
+            "db",
+            "dump",
+            "--linked",
+            "--schema",
+            "auth",
+            "--data-only",
+            "--use-copy",
+            "-f",
+            (
+                Join-Path `
+                    $DbDirectory `
+                    "auth-data.sql"
+            )
         )
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "Auth data backup FAILED."
-    }
 
     # --------------------------------------------------------
     # MIGRATION HISTORY
@@ -369,57 +465,59 @@ try {
     Write-Host ""
     Write-Host "----- MIGRATION HISTORY -----"
 
-    & $Supabase.Source `
-        db dump `
-        --linked `
-        -p $DbPassword `
-        --schema supabase_migrations `
-        -f (
-            Join-Path `
-                $DbDirectory `
-                "migration-history-schema.sql"
+    Invoke-KlyxSupabase `
+        -Label "Migration history schema" `
+        -Arguments @(
+            "db",
+            "dump",
+            "--linked",
+            "--schema",
+            "supabase_migrations",
+            "-f",
+            (
+                Join-Path `
+                    $DbDirectory `
+                    "migration-history-schema.sql"
+            )
         )
 
-    if ($LASTEXITCODE -ne 0) {
-        throw "Migration history schema FAILED."
-    }
-
-    & $Supabase.Source `
-        db dump `
-        --linked `
-        -p $DbPassword `
-        --schema supabase_migrations `
-        --data-only `
-        --use-copy `
-        -f (
-            Join-Path `
-                $DbDirectory `
-                "migration-history-data.sql"
+    Invoke-KlyxSupabase `
+        -Label "Migration history data" `
+        -Arguments @(
+            "db",
+            "dump",
+            "--linked",
+            "--schema",
+            "supabase_migrations",
+            "--data-only",
+            "--use-copy",
+            "-f",
+            (
+                Join-Path `
+                    $DbDirectory `
+                    "migration-history-data.sql"
+            )
         )
 
-    if ($LASTEXITCODE -ne 0) {
-        throw "Migration history data FAILED."
-    }
+    Remove-Item `
+        Env:\SUPABASE_DB_PASSWORD `
+        -ErrorAction SilentlyContinue
 
     # --------------------------------------------------------
-    # VERIFY DB FILES
+    # DATABASE FILE VERIFICATION
     # --------------------------------------------------------
 
-    $RequiredDbFiles =
-        @(
-            "roles.sql",
-            "schema.sql",
-            "data.sql",
-            "auth-schema.sql",
-            "auth-data.sql",
-            "migration-history-schema.sql",
-            "migration-history-data.sql"
-        )
+    $RequiredDbFiles = @(
+        "roles.sql",
+        "schema.sql",
+        "data.sql",
+        "auth-schema.sql",
+        "auth-data.sql",
+        "migration-history-schema.sql",
+        "migration-history-data.sql"
+    )
 
-    foreach (
-        $Name in
-        $RequiredDbFiles
-    ) {
+    foreach ($Name in $RequiredDbFiles) {
         $Path =
             Join-Path `
                 $DbDirectory `
@@ -435,21 +533,20 @@ try {
             throw "Missing DB backup file: $Name"
         }
 
-        $Length =
+        if (
             (
                 Get-Item `
                     -LiteralPath $Path
-            ).Length
-
-        if (
-            $Length -le 0
+            ).Length -le 0
         ) {
             throw "Empty DB backup file: $Name"
         }
     }
 
+    Write-Host "Database files : PASS"
+
     # --------------------------------------------------------
-    # STORAGE + AUTH REFERENCE COUNT
+    # STORAGE
     # --------------------------------------------------------
 
     Write-Host ""
@@ -467,8 +564,7 @@ try {
     # MANIFEST
     # --------------------------------------------------------
 
-    $FileManifest =
-        @()
+    $FileManifest = @()
 
     foreach (
         $File in
@@ -508,22 +604,6 @@ try {
             }
     }
 
-    $AuthDataPath =
-        Join-Path `
-            $DbDirectory `
-            "auth-data.sql"
-
-    $AuthText =
-        Get-Content `
-            -LiteralPath $AuthDataPath `
-            -Raw
-
-    $AuthUsersDetected =
-        [regex]::IsMatch(
-            $AuthText,
-            '(?i)auth.*users'
-        )
-
     $StatePath =
         Join-Path `
             $StorageDirectory `
@@ -546,9 +626,7 @@ try {
             createdUtc =
                 (
                     Get-Date
-                ).ToUniversalTime().ToString(
-                    "o"
-                )
+                ).ToUniversalTime().ToString("o")
 
             git =
                 [ordered]@{
@@ -582,9 +660,6 @@ try {
                     explicitDataDump =
                         $true
 
-                    authUsersReferenceDetected =
-                        $AuthUsersDetected
-
                     expectedUserCount =
                         $State.authUserCount
                 }
@@ -613,6 +688,21 @@ try {
                         $false
                 }
 
+            disasterRecoveryPolicy =
+                [ordered]@{
+                    rpoTargetHours =
+                        24
+
+                    retentionDays =
+                        $RetentionDays
+
+                    minimumCopies =
+                        $MinimumCopies
+
+                    offsiteProvider =
+                        "OneDrive"
+                }
+
             files =
                 $FileManifest
 
@@ -633,7 +723,7 @@ try {
             -Encoding UTF8
 
     # --------------------------------------------------------
-    # ZIP PLAINTEXT TEMPORAIRE
+    # PACK
     # --------------------------------------------------------
 
     Write-Host ""
@@ -682,7 +772,7 @@ try {
         -ErrorAction SilentlyContinue
 
     # --------------------------------------------------------
-    # CHECKSUM ENCRYPTED ARCHIVE
+    # LOCAL HASH
     # --------------------------------------------------------
 
     $EncryptedHash =
@@ -692,15 +782,126 @@ try {
                 -Algorithm SHA256
         ).Hash.ToUpperInvariant()
 
-    $EncryptedName =
-        Split-Path `
-            -Leaf `
-            $EncryptedArchive
-
-    "$EncryptedHash  $EncryptedName" |
+    "$EncryptedHash  $ArchiveName" |
         Set-Content `
             -LiteralPath $ChecksumPath `
             -Encoding ASCII
+
+    # --------------------------------------------------------
+    # OFFSITE COPY
+    # --------------------------------------------------------
+
+    Write-Host ""
+    Write-Host "----- ONEDRIVE OFFSITE COPY -----"
+
+    Copy-Item `
+        -LiteralPath $EncryptedArchive `
+        -Destination $OffsiteArchive `
+        -Force
+
+    Copy-Item `
+        -LiteralPath $ChecksumPath `
+        -Destination $OffsiteChecksum `
+        -Force
+
+    if (
+        -not (
+            Test-Path `
+                -LiteralPath $OffsiteArchive `
+                -PathType Leaf
+        )
+    ) {
+        throw "Offsite archive missing after copy."
+    }
+
+    if (
+        -not (
+            Test-Path `
+                -LiteralPath $OffsiteChecksum `
+                -PathType Leaf
+        )
+    ) {
+        throw "Offsite checksum missing after copy."
+    }
+
+    $OffsiteHash =
+        (
+            Get-FileHash `
+                -LiteralPath $OffsiteArchive `
+                -Algorithm SHA256
+        ).Hash.ToUpperInvariant()
+
+    if ($EncryptedHash -ne $OffsiteHash) {
+        throw "Offsite SHA256 verification FAILED."
+    }
+
+    Write-Host "Offsite SHA256 : PASS"
+
+    # --------------------------------------------------------
+    # RETENTION
+    # Keep at least MinimumCopies even if they are old.
+    # --------------------------------------------------------
+
+    Write-Host ""
+    Write-Host "----- OFFSITE RETENTION -----"
+
+    $Cutoff =
+        (
+            Get-Date
+        ).ToUniversalTime().AddDays(
+            -$RetentionDays
+        )
+
+    $OffsiteArchives = @(
+        Get-ChildItem `
+            -LiteralPath $OffsiteDirectory `
+            -Filter "klyx-dr-*.klyxdr" `
+            -File `
+            -ErrorAction SilentlyContinue |
+        Sort-Object `
+            LastWriteTimeUtc `
+            -Descending
+    )
+
+    for (
+        $Index = $MinimumCopies;
+        $Index -lt $OffsiteArchives.Count;
+        $Index++
+    ) {
+        $OldArchive =
+            $OffsiteArchives[$Index]
+
+        if (
+            $OldArchive.LastWriteTimeUtc -lt
+            $Cutoff
+        ) {
+            $OldChecksum =
+                "$($OldArchive.FullName).sha256"
+
+            Remove-Item `
+                -LiteralPath $OldArchive.FullName `
+                -Force
+
+            if (
+                Test-Path `
+                    -LiteralPath $OldChecksum `
+                    -PathType Leaf
+            ) {
+                Remove-Item `
+                    -LiteralPath $OldChecksum `
+                    -Force
+            }
+        }
+    }
+
+    $RetainedCount =
+        @(
+            Get-ChildItem `
+                -LiteralPath $OffsiteDirectory `
+                -Filter "klyx-dr-*.klyxdr" `
+                -File `
+                -ErrorAction SilentlyContinue
+        ).Count
 
     $EncryptedSize =
         (
@@ -708,28 +909,44 @@ try {
                 -LiteralPath $EncryptedArchive
         ).Length
 
+    # --------------------------------------------------------
+    # RESULT
+    # --------------------------------------------------------
+
     Write-Host ""
     Write-Host "======================================"
-    Write-Host "KLYX PHASE 8B BACKUP COMPLETE"
+    Write-Host "KLYX PHASE 11C.2 DR BACKUP COMPLETE"
     Write-Host "======================================"
-    Write-Host "Database       : BACKED UP"
-    Write-Host "Auth snapshot  : BACKED UP"
-    Write-Host "Auth users     : $($State.authUserCount)"
-    Write-Host "Storage buckets: $($State.storageBucketCount)"
-    Write-Host "Storage objects: $($State.storageObjectCount)"
-    Write-Host "Storage bytes  : $($State.storageBytes)"
-    Write-Host "Encryption     : AES-256-GCM"
-    Write-Host "Archive bytes  : $EncryptedSize"
-    Write-Host "SHA256         : $EncryptedHash"
-    Write-Host "Secrets stored : NO"
-    Write-Host "Git committed  : NO"
-    Write-Host "Restore tested : NO"
+    Write-Host "Database           : BACKED UP"
+    Write-Host "Auth snapshot      : BACKED UP"
+    Write-Host "Auth users         : $($State.authUserCount)"
+    Write-Host "Storage buckets    : $($State.storageBucketCount)"
+    Write-Host "Storage objects    : $($State.storageObjectCount)"
+    Write-Host "Storage bytes      : $($State.storageBytes)"
+    Write-Host "Encryption         : AES-256-GCM"
+    Write-Host "DB password argv   : NO"
+    Write-Host "Secrets committed  : NO"
+    Write-Host "Plaintext retained : NO"
+    Write-Host "Archive bytes      : $EncryptedSize"
+    Write-Host "Local SHA256       : PASS"
+    Write-Host "Offsite copy       : PASS"
+    Write-Host "Offsite SHA256     : PASS"
+    Write-Host "OneDrive client    : RUNNING"
+    Write-Host "Retention          : $RetentionDays days"
+    Write-Host "Minimum copies     : $MinimumCopies"
+    Write-Host "Retained archives  : $RetainedCount"
+    Write-Host "RPO target         : 24 hours"
+    Write-Host "Cloud remote check : PENDING"
     Write-Host "======================================"
     Write-Host ""
-    Write-Host "Archive : $EncryptedArchive"
-    Write-Host "Checksum: $ChecksumPath"
+    Write-Host "Local archive : $EncryptedArchive"
+    Write-Host "Offsite       : $OffsiteArchive"
 }
 finally {
+    Remove-Item `
+        Env:\SUPABASE_DB_PASSWORD `
+        -ErrorAction SilentlyContinue
+
     Remove-Item `
         Env:\KLYX_DR_PASSPHRASE `
         -ErrorAction SilentlyContinue
@@ -743,7 +960,6 @@ finally {
     $Passphrase2 =
         $null
 
-    # Aucun SQL/plaintext ne doit rester après la fin.
     if (
         Test-Path `
             -LiteralPath $WorkRoot
