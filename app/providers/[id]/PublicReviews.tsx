@@ -47,8 +47,14 @@ function reviewDate(value: string | null): string {
 
 export default function PublicReviews({
   providerId,
+  klyxScore,
+  verified,
+  yearsExperience,
 }: {
   providerId: string;
+  klyxScore: number;
+  verified: boolean;
+  yearsExperience: number;
 }) {
   const [loading, setLoading] = useState(true);
   const [averageRating, setAverageRating] =
@@ -164,6 +170,137 @@ export default function PublicReviews({
         )}
       </div>
 
+      {/* KLYX_TRUST_SUMMARY_13_72 */}
+      {!loading && !errorMessage && (
+        <section className="mt-6 overflow-hidden rounded-3xl border border-violet-500/20 bg-violet-500/5">
+          <div className="p-5 sm:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
+                  Résumé de confiance
+                </p>
+
+                <h3 className="mt-2 text-xl font-black">
+                  Ce que KLYX sait de ce prestataire
+                </h3>
+
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                  Ces indicateurs regroupent les missions,
+                  les avis vérifiés, l’expérience déclarée
+                  et les signaux de confiance KLYX.
+                </p>
+              </div>
+
+              {verified && (
+                <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-black text-emerald-700 dark:text-emerald-300">
+                  <BadgeCheck size={14} />
+                  Identité vérifiée
+                </span>
+              )}
+            </div>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <div className="rounded-2xl border border-border bg-background p-4">
+                <p className="text-xs font-bold text-muted-foreground">
+                  Note moyenne
+                </p>
+
+                <div className="mt-2 flex items-center gap-2">
+                  <Star
+                    size={18}
+                    className="text-amber-500"
+                    fill="currentColor"
+                  />
+
+                  <span className="text-2xl font-black">
+                    {reviewCount > 0
+                      ? averageRating.toFixed(1)
+                      : "—"}
+                  </span>
+
+                  <span className="text-sm text-muted-foreground">
+                    /5
+                  </span>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-border bg-background p-4">
+                <p className="text-xs font-bold text-muted-foreground">
+                  Avis vérifiés
+                </p>
+
+                <p className="mt-2 text-2xl font-black">
+                  {reviewCount}
+                </p>
+
+                <p className="mt-1 text-xs text-muted-foreground">
+                  mission{reviewCount > 1 ? "s" : ""} évaluée
+                  {reviewCount > 1 ? "s" : ""}
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4">
+                <p className="text-xs font-bold text-violet-700 dark:text-violet-300">
+                  KLYX Score
+                </p>
+
+                <p className="mt-2 text-2xl font-black text-violet-700 dark:text-violet-300">
+                  {klyxScore.toFixed(0)}
+                  <span className="text-sm">
+                    /100
+                  </span>
+                </p>
+
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Indicateur de confiance
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-border bg-background p-4">
+                <p className="text-xs font-bold text-muted-foreground">
+                  Vérification
+                </p>
+
+                <p className="mt-2 font-black">
+                  {verified
+                    ? "Identité vérifiée"
+                    : "Non vérifiée"}
+                </p>
+
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Statut du profil
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-border bg-background p-4">
+                <p className="text-xs font-bold text-muted-foreground">
+                  Expérience
+                </p>
+
+                <p className="mt-2 text-2xl font-black">
+                  {yearsExperience}
+                  <span className="ml-1 text-sm">
+                    an{yearsExperience > 1 ? "s" : ""}
+                  </span>
+                </p>
+
+                <p className="mt-1 text-xs text-muted-foreground">
+                  expérience déclarée
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-emerald-500/15 bg-emerald-500/5 p-4">
+              <p className="text-sm leading-6 text-muted-foreground">
+                Les avis affichés ici proviennent uniquement
+                de missions KLYX terminées. Après un nouvel avis,
+                KLYX recalcule les indicateurs de confiance du
+                prestataire.
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
       {loading && (
         <div className="mt-5 rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground dark:border-zinc-800 dark:bg-zinc-900">
           Chargement des avis...

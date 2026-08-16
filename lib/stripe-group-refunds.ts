@@ -1,3 +1,4 @@
+// KLYX_GROUP_REFUND_CURRENCY_PHASE_5G
 import "server-only";
 
 import type Stripe from "stripe";
@@ -502,18 +503,28 @@ export async function tryReconcileBookingGroupStripeRefund(
       });
     }
 
+    const refundCurrency =
+      String(
+        group.currency ??
+        ""
+      )
+        .trim()
+        .toUpperCase();
+
     const amountLabel =
-      (
-        refund.amount /
-        100
-      ).toFixed(
-        2
-      ) +
-      " " +
-      (
-        group.currency ||
-        "EUR"
-      ).toUpperCase();
+      /^[A-Z]{3}$/.test(
+        refundCurrency
+      )
+        ? (
+            refund.amount /
+            100
+          ).toFixed(2) +
+          " " +
+          refundCurrency
+        : (
+            refund.amount /
+            100
+          ).toFixed(2);
 
     await Promise.all([
       notify({

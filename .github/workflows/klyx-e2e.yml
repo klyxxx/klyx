@@ -1,0 +1,236 @@
+name: KLYX E2E
+
+on:
+  workflow_dispatch:
+
+  push:
+    branches:
+      - main
+      - "agent/**"
+
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  browser-tests:
+    name: Playwright browser verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      KLYX_E2E_EMAIL: ${{ secrets.KLYX_E2E_EMAIL }}
+      KLYX_E2E_PASSWORD: ${{ secrets.KLYX_E2E_PASSWORD }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Validate required environment
+        shell: bash
+        run: |
+          if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ]; then
+            echo "NEXT_PUBLIC_SUPABASE_URL is missing"
+            exit 1
+          fi
+
+          if [ -z "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" ]; then
+            echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is missing"
+            exit 1
+          fi
+
+          if [ -z "$KLYX_E2E_EMAIL" ]; then
+            echo "KLYX_E2E_EMAIL is missing"
+            exit 1
+          fi
+
+          if [ -z "$KLYX_E2E_PASSWORD" ]; then
+            echo "KLYX_E2E_PASSWORD is missing"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      # KLYX_DEPENDENCY_SECURITY_GATE_PHASE_10A
+      - name: Production dependency security
+        run: npm audit --omit=dev --audit-level=moderate
+
+      - name: Development dependency security
+        run: npm audit --audit-level=high
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Unit and integration tests
+        run: npm test
+
+      - name: TypeScript
+        run: npx tsc --noEmit --pretty false
+
+      # KLYX_PRODUCTION_BUILD_GATE_PHASE_10A
+      - name: Production build
+        run: npm run build
+
+      - name: Playwright E2E
+        run: npm run test:e2e
+
+      # KLYX_PLAYWRIGHT_SECRET_SCAN_PHASE_7D_1
+      - name: Guard Playwright report secrets
+        id: artifact_guard
+        if: always()
+        shell: bash
+        run: |
+          python <<'PY'
+          import os
+          import shutil
+          import sys
+          import zipfile
+          from pathlib import Path
+
+          password_text = os.environ.get(
+              "KLYX_E2E_PASSWORD",
+              "",
+          )
+
+          if not password_text:
+              print(
+                  "E2E credential unavailable for artifact guard."
+              )
+
+              shutil.rmtree(
+                  "playwright-report",
+                  ignore_errors=True,
+              )
+
+              shutil.rmtree(
+                  "test-results",
+                  ignore_errors=True,
+              )
+
+              sys.exit(1)
+
+          password = password_text.encode(
+              "utf-8"
+          )
+
+          roots = [
+              Path("playwright-report"),
+              Path("test-results"),
+          ]
+
+          leak_found = False
+
+          def contains_secret(
+              data: bytes
+          ) -> bool:
+              return (
+                  bool(password)
+                  and password in data
+              )
+
+          def scan_zip(
+              path: Path
+          ) -> bool:
+              try:
+                  with zipfile.ZipFile(
+                      path
+                  ) as archive:
+                      for member in archive.infolist():
+                          if member.is_dir():
+                              continue
+
+                          try:
+                              data = archive.read(
+                                  member
+                              )
+                          except Exception:
+                              continue
+
+                          if contains_secret(
+                              data
+                          ):
+                              return True
+
+                  return False
+
+              except Exception:
+                  return False
+
+          for root in roots:
+              if not root.exists():
+                  continue
+
+              for path in root.rglob(
+                  "*"
+              ):
+                  if not path.is_file():
+                      continue
+
+                  try:
+                      data = (
+                          path.read_bytes()
+                      )
+                  except Exception:
+                      continue
+
+                  if contains_secret(
+                      data
+                  ):
+                      leak_found = True
+                      break
+
+                  if zipfile.is_zipfile(
+                      path
+                  ):
+                      if scan_zip(
+                          path
+                      ):
+                          leak_found = True
+                          break
+
+              if leak_found:
+                  break
+
+          if leak_found:
+              shutil.rmtree(
+                  "playwright-report",
+                  ignore_errors=True,
+              )
+
+              shutil.rmtree(
+                  "test-results",
+                  ignore_errors=True,
+              )
+
+              print(
+                  "Sensitive E2E credential detected. "
+                  "Artifacts deleted."
+              )
+
+              sys.exit(1)
+
+          print(
+              "Playwright report secret scan: PASS"
+          )
+          PY
+
+      - name: Upload Playwright report
+        if: ${{ always() && steps.artifact_guard.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: klyx-playwright-report-${{ github.run_id }}
+          path: playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7

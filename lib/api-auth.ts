@@ -1,4 +1,4 @@
-﻿import "server-only";
+import "server-only";
 
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
@@ -21,6 +21,7 @@ export type AuthenticatedProfile = {
   firstName: string;
   lastName: string;
   countryCode: string;
+  currencyCode: string;
 };
 
 type ProfileRow = {
@@ -29,6 +30,8 @@ type ProfileRow = {
   account_type: string | null;
   first_name: string | null;
   last_name: string | null;
+  country_code: string | null;
+  currency_code: string | null;
 };
 
 function requiredEnv(name: string): string {
@@ -56,9 +59,11 @@ function normalizeProfile(
     firstName: profile.first_name ?? "",
     lastName: profile.last_name ?? "",
 
-    // KLYX fonctionne actuellement avec
-    // les règles de qualification Belgique.
-    countryCode: "BE",
+    // KLYX_REAL_PROFILE_MARKET_14_24
+    countryCode:
+      profile.country_code ?? "",
+    currencyCode:
+      profile.currency_code ?? "",
   };
 }
 
@@ -116,7 +121,7 @@ export async function getAuthenticatedProfile(
   } = await supabaseAdmin
     .from("profiles")
     .select(
-      "id, owner_user_id, account_type, first_name, last_name"
+      "id, owner_user_id, account_type, first_name, last_name, country_code, currency_code"
     )
     .eq(
       "owner_user_id",
@@ -203,6 +208,23 @@ export function apiErrorStatus(
     )
   ) {
     return 403;
+  }
+
+  if (
+    message.startsWith(
+      "KLYX_PROFILE_MARKET_REQUIRED"
+    ) ||
+    message.startsWith(
+      "KLYX_MARKET_NOT_SUPPORTED"
+    ) ||
+    message.startsWith(
+      "KLYX_CURRENCY_MARKET_MISMATCH"
+    ) ||
+    message.startsWith(
+      "KLYX_TRANSACTION_CURRENCY_MISMATCH"
+    )
+  ) {
+    return 409;
   }
 
   return 500;

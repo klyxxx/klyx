@@ -1,3 +1,4 @@
+// KLYX_REFUND_CURRENCY_PHASE_5G
 import type Stripe from "stripe";
 import {
   tryReconcileBookingGroupStripeRefund,
@@ -75,10 +76,34 @@ async function notifyRefundStatus(params: {
   amount: number;
   currency: string | null;
 }) {
-  const amountLabel = new Intl.NumberFormat("fr-BE", {
-    style: "currency",
-    currency: (params.currency || "EUR").toUpperCase(),
-  }).format(params.amount / 100);
+  const currencyCode =
+    String(
+      params.currency ??
+      ""
+    )
+      .trim()
+      .toUpperCase();
+
+  const amountLabel =
+    /^[A-Z]{3}$/.test(
+      currencyCode
+    )
+      ? new Intl.NumberFormat(
+          "fr-BE",
+          {
+            style:
+              "currency",
+            currency:
+              currencyCode,
+          }
+        ).format(
+          params.amount /
+          100
+        )
+      : (
+          params.amount /
+          100
+        ).toFixed(2);
 
   const success = params.status === "succeeded";
 

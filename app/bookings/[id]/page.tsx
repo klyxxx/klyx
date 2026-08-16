@@ -1,3 +1,4 @@
+// KLYX_BOOKING_DETAIL_CURRENCY_PHASE_5G
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -128,13 +129,47 @@ function formatDateTime(value: string): string {
   }).format(new Date(value));
 }
 
-function formatMoney(amount: number | null, currency = "EUR"): string {
-  if (amount == null) return "Prix à confirmer";
+function formatMoney(
+  amount: number | null,
+  currency: string
+): string {
+  if (
+    amount == null
+  ) {
+    return "Prix à confirmer";
+  }
 
-  return new Intl.NumberFormat("fr-BE", {
-    style: "currency",
-    currency,
-  }).format(amount / 100);
+  const code =
+    currency
+      ?.trim()
+      .toUpperCase();
+
+  if (
+    !/^[A-Z]{3}$/.test(
+      code
+    )
+  ) {
+    return (
+      (
+        amount /
+        100
+      ).toFixed(2) +
+      " · devise indisponible"
+    );
+  }
+
+  return new Intl.NumberFormat(
+    "fr-BE",
+    {
+      style:
+        "currency",
+      currency:
+        code,
+    }
+  ).format(
+    amount /
+    100
+  );
 }
 
 export default function BookingDetailsPage() {
@@ -410,6 +445,270 @@ export default function BookingDetailsPage() {
   return (
     <main className="min-h-screen bg-background dark:bg-zinc-950 px-5 py-10 text-foreground dark:text-white">
       <div className="mx-auto max-w-6xl">
+        {/* KLYX_BOOKING_PAYMENT_HANDOFF_13_97 */}
+        <section className="mt-6 overflow-hidden rounded-3xl border border-border bg-card">
+          <div className="border-b border-border p-5 sm:p-6">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
+              Parcours de la mission
+            </p>
+
+            <h2 className="mt-2 text-xl font-black sm:text-2xl">
+              Réservation, paiement, puis suivi.
+            </h2>
+
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+              Chaque étape reste séparée. Une réservation acceptée n’est pas
+              automatiquement payée, et un paiement déjà validé ne peut pas
+              être relancé comme un nouveau paiement.
+            </p>
+          </div>
+
+          <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-4">
+            <BookingPaymentStep
+              number="1"
+              title="Réservation"
+              text="La mission existe et possède son propre statut."
+              done
+            />
+
+            <BookingPaymentStep
+              number="2"
+              title="Acceptation"
+              text="Le prestataire doit accepter avant l’étape paiement."
+              done={booking.status === "accepted" || booking.status === "completed"}
+            />
+
+            <BookingPaymentStep
+              number="3"
+              title="Paiement"
+              text="Le client ouvre lui-même le paiement sécurisé."
+              done={booking.payment_status === "paid"}
+            />
+
+            <BookingPaymentStep
+              number="4"
+              title="Suivi"
+              text="Une mission payée peut ensuite être suivie jusqu’à sa fin."
+              done={canTrack || booking.status === "completed"}
+            />
+          </div>
+
+          {/* KLYX_DOUBLE_PAYMENT_UI_GUARD_13_97 */}
+          <div className="border-t border-border p-4 sm:px-6">
+            {booking.payment_status === "paid" ? (
+              <div className="flex items-start gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] p-4">
+                <CheckCircle2
+                  size={18}
+                  className="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400"
+                />
+
+                <div>
+                  <p className="font-black text-emerald-700 dark:text-emerald-300">
+                    Paiement déjà enregistré
+                  </p>
+
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    KLYX ne te propose plus de repayer cette réservation.
+                    Le paiement existant reste associé à cette mission.
+                  </p>
+                </div>
+              </div>
+            ) : canPay ? (
+              <div className="flex items-start gap-3 rounded-2xl border border-violet-500/20 bg-violet-500/[0.05] p-4">
+                <CreditCard
+                  size={18}
+                  className="mt-0.5 shrink-0 text-violet-600 dark:text-violet-400"
+                />
+
+                <div>
+                  <p className="font-black">
+                    Paiement disponible
+                  </p>
+
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    Le paiement ne démarre que lorsque tu choisis explicitement
+                    de payer cette réservation.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-border bg-background p-4 text-sm leading-6 text-muted-foreground">
+                Le paiement n’est pas disponible à cette étape du parcours.
+              </div>
+            )}
+          </div>
+        </section>
+        {/* KLYX_BOOKING_NEXT_ACTION_13_69 */}
+        <section className="mb-6 overflow-hidden rounded-[2rem] border border-violet-500/20 bg-[linear-gradient(135deg,rgba(124,58,237,0.12),rgba(76,29,149,0.04),transparent)]">
+          <div className="p-6 sm:p-8">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-violet-600">
+                  Suivi KLYX
+                </p>
+
+                <h1 className="mt-2 text-2xl font-black sm:text-3xl">
+                  {booking.status === "pending"
+                    ? role === "provider"
+                      ? "Une demande attend ta réponse"
+                      : "En attente de la réponse du prestataire"
+                    : booking.status === "accepted" &&
+                        booking.payment_status !== "paid"
+                      ? role === "client"
+                        ? "Le prestataire a accepté. Le paiement est la prochaine étape."
+                        : "Réservation acceptée. En attente du paiement du client."
+                      : booking.status === "accepted" &&
+                          booking.payment_status === "paid"
+                        ? "Tout est prêt pour la prestation"
+                        : booking.status === "completed"
+                          ? "Prestation terminée"
+                          : booking.status === "cancelled"
+                            ? "Cette réservation est annulée"
+                            : booking.status === "rejected"
+                              ? "Cette demande a été refusée"
+                              : "Suivi de la réservation"}
+                </h1>
+
+                <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
+                  {booking.status === "pending"
+                    ? role === "provider"
+                      ? "Vérifie la mission puis accepte ou refuse explicitement la demande."
+                      : "Aucune action n’est nécessaire pour le moment. KLYX attend la décision du prestataire."
+                    : booking.status === "accepted" &&
+                        booking.payment_status !== "paid"
+                      ? role === "client"
+                        ? "La réservation est acceptée. Rien n’est débité automatiquement : tu décides quand lancer le paiement sécurisé."
+                        : "Le client doit encore effectuer le paiement avant le démarrage de la prestation."
+                      : booking.status === "accepted" &&
+                          booking.payment_status === "paid"
+                        ? "Le paiement est confirmé. La prestation peut maintenant être suivie."
+                        : booking.status === "completed"
+                          ? "La prestation est terminée. L’évaluation devient la prochaine étape."
+                          : booking.status === "cancelled"
+                            ? "Le parcours de cette réservation est arrêté."
+                            : booking.status === "rejected"
+                              ? "Cette demande ne poursuivra pas le parcours."
+                              : "KLYX affiche ici l’état actuel et la prochaine action utile."}
+                </p>
+              </div>
+
+              {canPay && (
+                <button
+                  type="button"
+                  disabled={activeAction === "pay"}
+                  onClick={() => void payBooking()}
+                  className="klyx-button shrink-0 lg:min-w-[220px]"
+                >
+                  {activeAction === "pay" ? (
+                    <RefreshCw
+                      size={17}
+                      className="animate-spin"
+                    />
+                  ) : (
+                    <CreditCard size={17} />
+                  )}
+
+                  Payer maintenant
+                </button>
+              )}
+            </div>
+
+            <div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <JourneyStep
+                number="1"
+                label="Demande"
+                state={
+                  booking.status === "pending"
+                    ? "current"
+                    : booking.status === "rejected" ||
+                        booking.status === "cancelled"
+                      ? "stopped"
+                      : "done"
+                }
+              />
+
+              <JourneyStep
+                number="2"
+                label="Acceptation"
+                state={
+                  booking.status === "pending"
+                    ? "upcoming"
+                    : booking.status === "rejected" ||
+                        booking.status === "cancelled"
+                      ? "stopped"
+                      : "done"
+                }
+              />
+
+              <JourneyStep
+                number="3"
+                label="Paiement"
+                state={
+                  booking.payment_status === "paid"
+                    ? "done"
+                    : booking.status === "accepted"
+                      ? "current"
+                      : booking.status === "rejected" ||
+                          booking.status === "cancelled"
+                        ? "stopped"
+                        : "upcoming"
+                }
+              />
+
+              <JourneyStep
+                number="4"
+                label="Prestation"
+                state={
+                  booking.status === "completed"
+                    ? "done"
+                    : canTrack
+                      ? "current"
+                      : booking.status === "rejected" ||
+                          booking.status === "cancelled"
+                        ? "stopped"
+                        : "upcoming"
+                }
+              />
+            </div>
+
+            <div className="mt-5 flex flex-wrap gap-2 text-xs font-bold">
+              <span className="rounded-full border border-border bg-background px-3 py-1.5">
+                Réservation : {STATUS_LABELS[booking.status] ?? booking.status}
+              </span>
+
+              <span className="rounded-full border border-border bg-background px-3 py-1.5">
+                Paiement : {paymentLabel}
+              </span>
+
+              {canPay && (
+                <span className="rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1.5 text-violet-700 dark:text-violet-300">
+                  Action requise : paiement
+                </span>
+              )}
+
+              {canTrack && (
+                <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-emerald-700 dark:text-emerald-300">
+                  Prestation prête
+                </span>
+              )}
+            </div>
+
+            {canPay && (
+              <div className="mt-5 flex items-start gap-3 rounded-2xl border border-blue-500/20 bg-blue-500/10 p-4">
+                <CreditCard
+                  size={18}
+                  className="mt-0.5 shrink-0 text-blue-600"
+                />
+
+                <p className="text-sm leading-6 text-muted-foreground">
+                  Le paiement n’est jamais lancé automatiquement. Le bouton
+                  « Payer maintenant » ouvre le paiement sécurisé uniquement
+                  après ton action explicite.
+                </p>
+              </div>
+            )}
+          </div>
+        </section>
         <div className="flex flex-wrap items-center justify-between gap-4">
           <Link
             href="/bookings"
@@ -479,7 +778,7 @@ export default function BookingDetailsPage() {
                 <InfoItem
                   icon={<MapPin size={19} />}
                   label="Total estimé"
-                  value={formatMoney(amount, booking.currency || "EUR")}
+                  value={formatMoney(amount, booking.currency ?? "")}
                 />
               </div>
 
@@ -680,7 +979,51 @@ export default function BookingDetailsPage() {
             )}
           </aside>
         </div>
-      </div>
+      
+        {/* KLYX_VERIFIED_REVIEW_CTA_13_70 */}
+        {role === "client" && booking.status === "completed" && (
+          <section className="mb-6 overflow-hidden rounded-3xl border border-amber-500/25 bg-amber-500/5">
+            <div className="flex flex-col gap-5 p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-600 dark:text-amber-400">
+                  Avis vérifié KLYX
+                </p>
+
+                <h2 className="mt-2 text-2xl font-black tracking-tight">
+                  Comment s’est passée la prestation ?
+                </h2>
+
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
+                  La mission est terminée. Ton avis sera relié à cette
+                  réservation réelle et aidera les prochains clients KLYX.
+                </p>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <span className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-bold">
+                    Mission terminée
+                  </span>
+
+                  <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                    Réservation vérifiée
+                  </span>
+                </div>
+              </div>
+
+              <Link
+                href={`/reviews/${booking.id}`}
+                className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-xl bg-violet-600 px-6 py-3 text-sm font-black text-white transition hover:bg-violet-700"
+              >
+                Laisser mon avis
+              </Link>
+            </div>
+
+            <div className="border-t border-amber-500/15 px-6 py-4 text-xs leading-5 text-muted-foreground sm:px-8">
+              L’avis est disponible uniquement après une mission terminée.
+              Aucun avis n’est créé automatiquement.
+            </div>
+          </section>
+        )}
+</div>
     </main>
   );
 }
@@ -703,4 +1046,109 @@ function InfoItem({
     </div>
   );
 }
+function BookingPaymentStep({
+  number,
+  title,
+  text,
+  done,
+}: {
+  number: string;
+  title: string;
+  text: string;
+  done: boolean;
+}) {
+  return (
+    <div className="bg-card p-5">
+      <div className="flex items-center gap-3">
+        <span
+          className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-black ${
+            done
+              ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+              : "border border-border bg-background text-muted-foreground"
+          }`}
+        >
+          {done ? (
+            <Check
+              size={16}
+            />
+          ) : (
+            number
+          )}
+        </span>
 
+        <p className="font-black">
+          {title}
+        </p>
+      </div>
+
+      <p className="mt-3 text-sm leading-6 text-muted-foreground">
+        {text}
+      </p>
+    </div>
+  );
+}
+function JourneyStep({
+  number,
+  label,
+  state,
+}: {
+  number: string;
+  label: string;
+  state:
+    | "done"
+    | "current"
+    | "upcoming"
+    | "stopped";
+}) {
+  const className =
+    state === "done"
+      ? "border-emerald-500/25 bg-emerald-500/10"
+      : state === "current"
+        ? "border-violet-500/30 bg-violet-500/10"
+        : state === "stopped"
+          ? "border-rose-500/20 bg-rose-500/10"
+          : "border-border bg-background";
+
+  const numberClassName =
+    state === "done"
+      ? "bg-emerald-600 text-white"
+      : state === "current"
+        ? "bg-violet-600 text-white"
+        : state === "stopped"
+          ? "bg-rose-500/15 text-rose-600"
+          : "bg-muted text-muted-foreground";
+
+  return (
+    <div
+      className={`rounded-2xl border p-4 ${className}`}
+    >
+      <div className="flex items-center gap-3">
+        <span
+          className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-black ${numberClassName}`}
+        >
+          {state === "done" ? (
+            <Check size={15} />
+          ) : (
+            number
+          )}
+        </span>
+
+        <div>
+          <p className="font-black">
+            {label}
+          </p>
+
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {state === "done"
+              ? "Terminé"
+              : state === "current"
+                ? "Étape actuelle"
+                : state === "stopped"
+                  ? "Arrêté"
+                  : "À venir"}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}

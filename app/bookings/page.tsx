@@ -1,3 +1,4 @@
+// KLYX_BOOKINGS_UI_CURRENCY_PHASE_5G
 "use client";
 
 import SplitMissionSection, {
@@ -287,15 +288,33 @@ function amountLabel(
     return "Prix a confirmer";
   }
 
+  const currency =
+    card.currency
+      ?.trim()
+      .toUpperCase();
+
+  if (
+    !currency ||
+    !/^[A-Z]{3}$/.test(
+      currency
+    )
+  ) {
+    return (
+      (
+        card.amountCents /
+        100
+      ).toFixed(2) +
+      " · devise indisponible"
+    );
+  }
+
   return new Intl.NumberFormat(
     "fr-BE",
     {
       style:
         "currency",
 
-      currency:
-        card.currency ||
-        "EUR",
+      currency,
     }
   ).format(
     card.amountCents /
@@ -741,7 +760,385 @@ export default function BookingsPage() {
           </div>
         )}
 
-        {errorMessage && (
+        {/* KLYX_PROVIDER_MISSION_COCKPIT_13_79 */}
+        {!loading &&
+          accountType === "provider" &&
+          bookings.length > 0 &&
+          (() => {
+            const actionable =
+              bookings.filter(
+                (booking) =>
+                  booking.actionRequired
+              );
+
+            const upcoming =
+              bookings.filter(
+                (booking) =>
+                  !booking.history
+              );
+
+            const completed =
+              bookings.filter(
+                (booking) =>
+                  booking.status === "completed"
+              );
+
+            const nextAction =
+              actionable[0] ??
+              upcoming[0] ??
+              null;
+
+            return (
+              <section className="mt-8 overflow-hidden rounded-3xl border border-blue-500/20 bg-blue-500/5">
+                <div className="p-5 sm:p-6">
+                  <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600 dark:text-blue-400">
+                        Suivi KLYX prestataire
+                      </p>
+
+                      <h2 className="mt-2 text-2xl font-black">
+                        Ton activité maintenant
+                      </h2>
+
+                      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                        KLYX rassemble les réservations qui demandent
+                        ton attention, celles à venir et celles déjà
+                        terminées.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="rounded-2xl border border-amber-500/20 bg-background px-4 py-3 text-center">
+                        <p className="text-2xl font-black">
+                          {actionable.length}
+                        </p>
+
+                        <p className="mt-1 text-[11px] font-bold text-muted-foreground">
+                          À traiter
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-blue-500/20 bg-background px-4 py-3 text-center">
+                        <p className="text-2xl font-black">
+                          {upcoming.length}
+                        </p>
+
+                        <p className="mt-1 text-[11px] font-bold text-muted-foreground">
+                          À venir
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-emerald-500/20 bg-background px-4 py-3 text-center">
+                        <p className="text-2xl font-black">
+                          {completed.length}
+                        </p>
+
+                        <p className="mt-1 text-[11px] font-bold text-muted-foreground">
+                          Terminées
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {nextAction && (
+                    <div className="mt-5 rounded-2xl border border-border bg-background p-5">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="text-xs font-black uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">
+                            Prochaine étape
+                          </p>
+
+                          <h3 className="mt-2 text-lg font-black">
+                            {nextAction.actionRequired
+                              ? "Une action est requise"
+                              : "Prochaine mission"}
+                          </h3>
+
+                          <p className="mt-2 truncate text-sm font-bold">
+                            {nextAction.serviceLabel}
+                            {" · "}
+                            {nextAction.otherUserName}
+                          </p>
+
+                          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground">
+                            <span>
+                              {dateLabel(nextAction)}
+                            </span>
+
+                            <span>
+                              {timeLabel(nextAction)}
+                            </span>
+
+                            <span>
+                              {amountLabel(nextAction)}
+                            </span>
+                          </div>
+
+                          <p className="mt-3 text-xs text-muted-foreground">
+                            Statut :{" "}
+                            <strong className="text-foreground">
+                              {nextAction.statusLabel}
+                            </strong>
+                          </p>
+                        </div>
+
+                        <Link
+                          href={nextAction.href}
+                          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-black text-white hover:bg-blue-700"
+                        >
+                          Ouvrir la mission
+                          <ArrowRight size={17} />
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <Link
+                      href="/provider/jobs"
+                      className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-black hover:bg-muted"
+                    >
+                      <Search size={16} />
+                      Voir les opportunités
+                    </Link>
+
+                    <Link
+                      href="/provider/assistant"
+                      className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-black hover:bg-muted"
+                    >
+                      Assistant prestataire
+                      <ArrowRight size={16} />
+                    </Link>
+                  </div>
+
+                  <p className="mt-4 text-xs leading-5 text-muted-foreground">
+                    KLYX indique la prochaine étape mais ne confirme
+                    aucune mission et ne déclenche aucun paiement
+                    automatiquement.
+                  </p>
+                </div>
+              </section>
+            );
+          })()}
+                {/* KLYX_CLIENT_MISSION_COCKPIT_13_80 */}
+        {!loading &&
+          accountType === "client" &&
+          (bookings.length > 0 || splitMissions.length > 0) &&
+          (() => {
+            const actionableBookings =
+              bookings.filter(
+                (booking) =>
+                  booking.actionRequired
+              );
+
+            const upcomingBookings =
+              bookings.filter(
+                (booking) =>
+                  !booking.history
+              );
+
+            const completedBookings =
+              bookings.filter(
+                (booking) =>
+                  booking.status === "completed"
+              );
+
+            const splitActions =
+              splitMissions.filter(
+                splitMissionNeedsAction
+              );
+
+            const splitUpcoming =
+              splitMissions.filter(
+                (mission) =>
+                  !splitMissionIsHistory(
+                    mission
+                  )
+              );
+
+            const totalActions =
+              actionableBookings.length +
+              splitActions.length;
+
+            const totalUpcoming =
+              upcomingBookings.length +
+              splitUpcoming.length;
+
+            const nextBooking =
+              actionableBookings[0] ??
+              upcomingBookings[0] ??
+              null;
+
+            return (
+              <section className="mt-8 overflow-hidden rounded-3xl border border-violet-500/20 bg-violet-500/5">
+                <div className="p-5 sm:p-6">
+                  <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
+                        KLYX s’en occupe
+                      </p>
+
+                      <h2 className="mt-2 text-2xl font-black">
+                        {totalActions > 0
+                          ? "Ton action est nécessaire"
+                          : totalUpcoming > 0
+                            ? "Tes missions avancent"
+                            : "Tout est à jour"}
+                      </h2>
+
+                      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                        KLYX rassemble ici les réservations qui
+                        avancent, celles qui attendent ta confirmation
+                        et la prochaine étape à effectuer.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="rounded-2xl border border-amber-500/20 bg-background px-4 py-3 text-center">
+                        <p className="text-2xl font-black">
+                          {totalActions}
+                        </p>
+
+                        <p className="mt-1 text-[11px] font-bold text-muted-foreground">
+                          À confirmer
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-violet-500/20 bg-background px-4 py-3 text-center">
+                        <p className="text-2xl font-black">
+                          {totalUpcoming}
+                        </p>
+
+                        <p className="mt-1 text-[11px] font-bold text-muted-foreground">
+                          À venir
+                        </p>
+                      </div>
+
+                      <div className="rounded-2xl border border-emerald-500/20 bg-background px-4 py-3 text-center">
+                        <p className="text-2xl font-black">
+                          {completedBookings.length}
+                        </p>
+
+                        <p className="mt-1 text-[11px] font-bold text-muted-foreground">
+                          Terminées
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {nextBooking && (
+                    <div className="mt-5 rounded-2xl border border-border bg-background p-5">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="text-xs font-black uppercase tracking-[0.14em] text-violet-600 dark:text-violet-400">
+                            Prochaine étape KLYX
+                          </p>
+
+                          <h3 className="mt-2 text-lg font-black">
+                            {nextBooking.actionRequired
+                              ? "Ton accord est nécessaire"
+                              : "Mission en cours de suivi"}
+                          </h3>
+
+                          <p className="mt-2 truncate text-sm font-bold">
+                            {nextBooking.serviceLabel}
+                            {" · "}
+                            {nextBooking.otherUserName}
+                          </p>
+
+                          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground">
+                            <span>
+                              {dateLabel(nextBooking)}
+                            </span>
+
+                            <span>
+                              {timeLabel(nextBooking)}
+                            </span>
+
+                            <span>
+                              {amountLabel(nextBooking)}
+                            </span>
+                          </div>
+
+                          <p className="mt-3 text-xs text-muted-foreground">
+                            Statut :{" "}
+                            <strong className="text-foreground">
+                              {nextBooking.statusLabel}
+                            </strong>
+                          </p>
+                        </div>
+
+                        <Link
+                          href={nextBooking.href}
+                          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 text-sm font-black text-white hover:bg-violet-700"
+                        >
+                          Voir la mission
+                          <ArrowRight size={17} />
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+
+                  {!nextBooking &&
+                    splitMissions.length > 0 && (
+                    <div className="mt-5 rounded-2xl border border-violet-500/20 bg-background p-5">
+                      <div className="flex items-start gap-3">
+                        <Layers3
+                          size={20}
+                          className="mt-0.5 shrink-0 text-violet-600"
+                        />
+
+                        <div>
+                          <p className="font-black">
+                            Mission groupée suivie par KLYX
+                          </p>
+
+                          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                            Les différentes parties de ta mission
+                            apparaissent dans la vue groupée ci-dessous.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <Link
+                      href="/assistant/market"
+                      className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-black hover:bg-muted"
+                    >
+                      <ArrowRight size={16} />
+                      Organiser un autre besoin
+                    </Link>
+
+                    <Link
+                      href="/search"
+                      className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-black hover:bg-muted"
+                    >
+                      <Search size={16} />
+                      Chercher un prestataire
+                    </Link>
+                  </div>
+
+                  <div className="mt-4 flex items-start gap-2 rounded-2xl border border-border bg-background/70 p-4 text-xs leading-5 text-muted-foreground">
+                    <ShieldCheck
+                      size={16}
+                      className="mt-0.5 shrink-0 text-violet-600"
+                    />
+
+                    <p>
+                      KLYX peut suivre et recommander la prochaine
+                      étape, mais une confirmation explicite reste
+                      nécessaire avant un choix de prestataire,
+                      une réservation ou un paiement.
+                    </p>
+                  </div>
+                </div>
+              </section>
+            );
+          })()}
+{errorMessage && (
           <div className="mt-8 rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-sm text-red-700 dark:text-red-300">
             {errorMessage}
           </div>

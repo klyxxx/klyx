@@ -31,7 +31,9 @@ import {
   type ServiceOption,
 } from "@/lib/account-switcher";
 import { supabase } from "@/lib/supabase";
-import KlyxSelect from "@/app/components/KlyxSelect";
+import KlyxMarketSelect from "@/app/components/KlyxMarketSelect";
+import { getKlyxMarket } from "@/lib/klyx-supported-markets";
+import KlyxServiceSelect from "@/app/components/KlyxServiceSelect";
 
 type FormMode = "create" | "edit" | null;
 
@@ -39,6 +41,7 @@ type ProfileForm = {
   firstName: string;
   lastName: string;
   city: string;
+  countryCode: string;
   accountType: AccountType;
   serviceId: string;
 };
@@ -47,6 +50,7 @@ const EMPTY_FORM: ProfileForm = {
   firstName: "",
   lastName: "",
   city: "",
+  countryCode: "",
   accountType: "client",
   serviceId: "",
 };
@@ -68,6 +72,31 @@ async function fetchAccountsData() {
   };
 }
 
+function AccountStatCard({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: number;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+      <p className="text-xs font-black uppercase tracking-[0.15em] text-muted-foreground">
+        {label}
+      </p>
+
+      <p className="mt-3 text-3xl font-black tracking-[-0.04em]">
+        {value}
+      </p>
+
+      <p className="mt-1 text-xs text-muted-foreground">
+        {detail}
+      </p>
+    </div>
+  );
+}
 export default function AccountsPage() {
   const router = useRouter();
   const [profiles, setProfiles] = useState<SavedAccount[]>([]);
@@ -85,6 +114,11 @@ export default function AccountsPage() {
   const [removeAvatar, setRemoveAvatar] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  // KLYX_CREATED_PROFILE_NEXT_ACTION_14_13
+  const [
+    createdAccountType,
+    setCreatedAccountType,
+  ] = useState<AccountType | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -185,6 +219,8 @@ export default function AccountsPage() {
       firstName: profile.firstName,
       lastName: profile.lastName,
       city: profile.city,
+      countryCode:
+        profile.countryCode ?? "",
       accountType: profile.accountType,
       serviceId: "",
     });
@@ -262,9 +298,11 @@ export default function AccountsPage() {
     const firstName = form.firstName.trim();
     const lastName = form.lastName.trim();
     const city = form.city.trim();
+    const countryCode =
+      form.countryCode.trim().toUpperCase();
 
-    if (!firstName || !lastName || !city) {
-      setError("Le prénom, le nom et la ville sont obligatoires.");
+    if (!firstName || !lastName || !city || !countryCode) {
+      setError("Le prénom, le nom, la ville et le pays sont obligatoires.");
       return;
     }
 
@@ -273,7 +311,7 @@ export default function AccountsPage() {
       form.accountType === "provider" &&
       !form.serviceId
     ) {
-      setError("Choisis le premier service proposé par ce prestataire.");
+      setError("Choisis le premier métier proposé par ce prestataire.");
       return;
     }
 
@@ -287,6 +325,7 @@ export default function AccountsPage() {
           firstName,
           lastName,
           city,
+          countryCode,
           accountType: form.accountType,
           serviceId:
             form.accountType === "provider" ? form.serviceId : null,
@@ -309,6 +348,7 @@ export default function AccountsPage() {
         firstName,
         lastName,
         city,
+        countryCode,
         ...(avatarUrl !== undefined ? { avatarUrl } : {}),
       });
 
@@ -333,7 +373,12 @@ export default function AccountsPage() {
         }
       }
 
-      await refreshData();
+            if (formMode === "create") {
+        setCreatedAccountType(form.accountType);
+      } else {
+        setCreatedAccountType(null);
+      }
+await refreshData();
       setFormMode(null);
       setEditingProfileId(null);
       setAvatarFile(null);
@@ -378,6 +423,20 @@ export default function AccountsPage() {
   }
 
   async function handleDelete(profile: SavedAccount) {
+    // KLYX_ACTIVE_PROFILE_DELETE_GUARD_14_12
+    if (profile.id === activeProfileId) {
+      setError(
+        "Active d’abord un autre profil avant de supprimer celui-ci."
+      );
+      return;
+    }
+
+    if (profiles.length <= 1) {
+      setError(
+        "Ta connexion KLYX doit conserver au moins un profil."
+      );
+      return;
+    }
     const fullName = `${profile.firstName} ${profile.lastName}`.trim();
     const confirmed = window.confirm(
       `Supprimer le profil ${fullName} ? La connexion principale restera active.`
@@ -411,6 +470,41 @@ export default function AccountsPage() {
     );
   }
 
+  // KLYX_ACCOUNT_OVERVIEW_13_90
+  const clientProfiles =
+    profiles.filter(
+      (profile) =>
+        profile.accountType ===
+        "client"
+    ).length;
+
+  const providerProfiles =
+    profiles.filter(
+      (profile) =>
+        profile.accountType ===
+        "provider"
+    ).length;
+
+  const activeProfile =
+    profiles.find(
+      (profile) =>
+        profile.id ===
+        activeProfileId
+    ) ?? null;
+
+  const activeProfileName =
+    activeProfile
+      ? `${activeProfile.firstName} ${activeProfile.lastName}`.trim() ||
+        "Profil KLYX"
+      : "Aucun profil actif";
+
+  const activeProfileRole =
+    activeProfile?.accountType ===
+    "provider"
+      ? "Prestataire"
+      : activeProfile
+        ? "Client"
+        : "—";
   return (
     <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6 sm:py-12">
       <div className="mx-auto max-w-3xl">
@@ -422,7 +516,146 @@ export default function AccountsPage() {
           <ArrowLeft size={17} /> Retour au tableau de bord
         </button>
 
-        <section className="overflow-hidden rounded-3xl border border-border bg-card text-card-foreground shadow-sm">
+                {/* KLYX_MULTI_PROFILE_OVERVIEW_13_90 */}
+        <section className="mb-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
+                Ta connexion KLYX
+              </p>
+
+              <h1 className="mt-2 text-2xl font-black tracking-[-0.035em] sm:text-3xl">
+                Tous tes profils en un coup d’œil
+              </h1>
+            </div>
+
+            <span className="w-fit rounded-full border border-border bg-card px-3 py-1.5 text-xs font-black text-muted-foreground shadow-sm">
+              {profiles.length} / {MAX_PROFILES} profils
+            </span>
+          </div>
+
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <AccountStatCard
+              label="Profils KLYX"
+              value={profiles.length}
+              detail="Une seule connexion"
+            />
+
+            <AccountStatCard
+              label="Clients"
+              value={clientProfiles}
+              detail="Services du quotidien"
+            />
+
+            <AccountStatCard
+              label="Prestataires"
+              value={providerProfiles}
+              detail="Activités professionnelles"
+            />
+
+            <div className="rounded-2xl border border-violet-500/20 bg-violet-500/[0.045] p-5">
+              <p className="text-xs font-black uppercase tracking-[0.15em] text-muted-foreground">
+                Profil actif
+              </p>
+
+              <p className="mt-3 truncate text-lg font-black">
+                {activeProfileName}
+              </p>
+
+              <p className="mt-1 text-sm font-bold text-violet-600 dark:text-violet-400">
+                {activeProfileRole}
+              </p>
+            </div>
+          </div>
+
+          {/* KLYX_ACCOUNT_SESSION_SAFETY_13_90 */}
+          <div className="mt-4 rounded-2xl border border-border bg-card p-4 text-sm leading-6 text-muted-foreground">
+            Tous ces profils utilisent la même connexion KLYX.
+            Changer de profil ne demande pas un nouveau mot de passe
+            et ne crée pas une nouvelle session.
+          </div>
+        </section>
+        {/* KLYX_PROFILE_QUICK_CREATE_13_91 */}
+        <section className="mb-6 grid gap-4 md:grid-cols-2">
+          <button
+            type="button"
+            disabled={profiles.length >= MAX_PROFILES}
+            onClick={() =>
+              openCreateForm(
+                "client"
+              )
+            }
+            className="group rounded-3xl border border-violet-500/20 bg-violet-500/[0.045] p-6 text-left transition hover:-translate-y-0.5 hover:border-violet-500/35 hover:bg-violet-500/[0.07] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
+                <UserRound size={21} />
+              </span>
+
+              <Plus
+                size={20}
+                className="text-violet-600 transition group-hover:rotate-90 dark:text-violet-400"
+              />
+            </div>
+
+            <p className="mt-5 text-xs font-black uppercase tracking-[0.16em] text-violet-600 dark:text-violet-400">
+              Nouveau profil
+            </p>
+
+            <h2 className="mt-2 text-xl font-black">
+              Ajouter un profil client
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Crée un espace pour rechercher des services,
+              utiliser l’assistant KLYX et gérer des réservations.
+            </p>
+          </button>
+
+          <button
+            type="button"
+            disabled={profiles.length >= MAX_PROFILES}
+            onClick={() =>
+              openCreateForm(
+                "provider"
+              )
+            }
+            className="group rounded-3xl border border-blue-500/20 bg-blue-500/[0.045] p-6 text-left transition hover:-translate-y-0.5 hover:border-blue-500/35 hover:bg-blue-500/[0.07] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                <Briefcase size={21} />
+              </span>
+
+              <Plus
+                size={20}
+                className="text-blue-600 transition group-hover:rotate-90 dark:text-blue-400"
+              />
+            </div>
+
+            <p className="mt-5 text-xs font-black uppercase tracking-[0.16em] text-blue-600 dark:text-blue-400">
+              Nouveau profil
+            </p>
+
+            <h2 className="mt-2 text-xl font-black">
+              Ajouter un profil prestataire
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Crée un espace professionnel avec métier,
+              opportunités, assistant prestataire et missions.
+            </p>
+          </button>
+
+          {/* KLYX_PROFILE_LIMIT_GUIDANCE_13_91 */}
+          {profiles.length >= MAX_PROFILES && (
+            <div className="md:col-span-2 rounded-2xl border border-amber-500/20 bg-amber-500/[0.06] p-4 text-sm leading-6 text-amber-700 dark:text-amber-300">
+              Tu as atteint la limite de {MAX_PROFILES} profils KLYX.
+              Supprime un profil inutilisé avant d’en créer un nouveau.
+            </div>
+          )}
+        </section>
+<section className="overflow-hidden rounded-3xl border border-border bg-card text-card-foreground shadow-sm">
           <div className="flex flex-col gap-5 border-b border-border p-6 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-violet-600 dark:text-violet-400">
@@ -434,29 +667,159 @@ export default function AccountsPage() {
               <p className="mt-2 text-sm text-muted-foreground">
                 Une connexion, jusqu’à cinq profils, aucun nouveau mot de passe.
               </p>
+              {/* KLYX_PROFILE_TYPE_GUIDANCE_14_06 */}
+              <p className="mt-2 max-w-xl text-xs leading-5 text-muted-foreground">
+                Ajoute directement le type de profil dont tu as besoin.
+                Chaque profil garde son propre rôle, ses données et son parcours KLYX.
+              </p>
             </div>
 
-            <button
-              type="button"
-              disabled={profiles.length >= MAX_PROFILES}
-              onClick={() => openCreateForm()}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Plus size={18} /> Ajouter un profil
-            </button>
+                        {/* KLYX_EXPLICIT_PROFILE_CREATION_14_06 */}
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                disabled={profiles.length >= MAX_PROFILES}
+                onClick={() => openCreateForm("client")}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <UserRound size={18} />
+                Ajouter un client
+              </button>
+
+              <button
+                type="button"
+                disabled={profiles.length >= MAX_PROFILES}
+                onClick={() => openCreateForm("provider")}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 py-3 text-sm font-semibold transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Briefcase size={18} />
+                Ajouter un prestataire
+              </button>
+            </div>
           </div>
 
-          {(error || success) && (
+                    {/* KLYX_PROFILE_CAPACITY_14_11 */}
+          <div className="px-6 pt-5">
+            <div
+              className={`rounded-2xl border p-4 ${
+                profiles.length >= MAX_PROFILES
+                  ? "border-amber-500/30 bg-amber-500/10"
+                  : "border-border bg-muted/30"
+              }`}
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-black">
+                    Profils KLYX
+                  </p>
+
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    {profiles.length >= MAX_PROFILES
+                      ? "Tu as atteint la limite actuelle. Supprime un profil pour pouvoir en créer un nouveau."
+                      : "Tu peux utiliser plusieurs profils sous la même connexion principale."}
+                  </p>
+                </div>
+
+                <div
+                  className={`shrink-0 rounded-xl px-4 py-2 text-sm font-black ${
+                    profiles.length >= MAX_PROFILES
+                      ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                      : "bg-violet-500/10 text-violet-700 dark:text-violet-300"
+                  }`}
+                >
+                  {profiles.length} / {MAX_PROFILES} profils
+                </div>
+              </div>
+
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-violet-600 transition-all"
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      (profiles.length / MAX_PROFILES) * 100
+                    )}%`,
+                  }}
+                />
+              </div>
+
+              {/* KLYX_PROFILE_LIMIT_GUARD_14_11 */}
+              {profiles.length >= MAX_PROFILES && (
+                <p className="mt-3 text-xs font-bold text-amber-700 dark:text-amber-300">
+                  La création de nouveaux profils est désactivée tant que la limite est atteinte.
+                </p>
+              )}
+            </div>
+          </div>
+{(error || success) && (
             <div className="px-6 pt-5">
               {error && (
                 <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300">
                   {error}
                 </p>
               )}
-              {success && (
-                <p className="rounded-xl bg-green-50 p-3 text-sm text-green-700 dark:bg-green-950/30 dark:text-green-300">
-                  {success}
-                </p>
+                            {success && (
+                <div className="space-y-3">
+                  <p className="rounded-xl bg-green-50 p-3 text-sm text-green-700 dark:bg-green-950/30 dark:text-green-300">
+                    {success}
+                  </p>
+
+                  {/* KLYX_CREATED_PROFILE_HANDOFF_14_13 */}
+                  {createdAccountType && (
+                    <div className="rounded-2xl border border-violet-500/20 bg-violet-500/5 p-4">
+                      <p className="text-xs font-black uppercase tracking-[0.16em] text-violet-600 dark:text-violet-400">
+                        Profil prêt
+                      </p>
+
+                      <p className="mt-2 font-black">
+                        {createdAccountType === "provider"
+                          ? "Ton profil prestataire est prêt."
+                          : "Ton profil client est prêt."}
+                      </p>
+
+                      <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                        {createdAccountType === "provider"
+                          ? "Prépare ton activité avant de répondre aux opportunités."
+                          : "Tu peux maintenant organiser ton premier besoin avec KLYX."}
+                      </p>
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            router.push(
+                              createdAccountType === "provider"
+                                ? "/provider"
+                                : "/assistant/market"
+                            )
+                          }
+                          className="inline-flex min-h-11 items-center justify-center rounded-xl bg-violet-600 px-4 py-3 text-sm font-black text-white transition hover:bg-violet-700"
+                        >
+                          {createdAccountType === "provider"
+                            ? "Préparer mon activité"
+                            : "Organiser mon premier besoin"}
+                        </button>
+
+                        {createdAccountType === "provider" && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              router.push("/provider/jobs")
+                            }
+                            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-border bg-background px-4 py-3 text-sm font-black transition hover:bg-muted"
+                          >
+                            Voir les opportunités
+                          </button>
+                        )}
+                      </div>
+
+                      {/* KLYX_CREATED_PROFILE_EXPLICIT_CONTROL_14_13 */}
+                      <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                        KLYX ne lance aucune action automatiquement. Tu choisis quand continuer.
+                      </p>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -494,11 +857,23 @@ export default function AccountsPage() {
                           ? "Compte prestataire"
                           : "Compte client"}
                         {profile.city ? ` · ${profile.city}` : ""}
+                        {profile.countryCode
+                          ? ` · ${profile.countryCode}`
+                          : ""}
+                        {profile.currencyCode
+                          ? ` · ${profile.currencyCode}`
+                          : ""}
                       </p>
                     </div>
                   </div>
 
                   <div className="mt-4 flex flex-wrap gap-2 sm:justify-end">
+                    {/* KLYX_ACTIVE_PROFILE_DELETE_NOTICE_14_12 */}
+                    {isActive && profiles.length > 1 && (
+                      <p className="w-full text-xs text-muted-foreground sm:text-right">
+                        Pour supprimer ce profil, active d’abord un autre profil.
+                      </p>
+                    )}
                     {!isActive && (
                       <button
                         type="button"
@@ -524,6 +899,7 @@ export default function AccountsPage() {
                     <button
                       type="button"
                       disabled={
+                        isActive ||
                         profiles.length <= 1 ||
                         deletingId !== null ||
                         switchingId !== null
@@ -677,13 +1053,39 @@ export default function AccountsPage() {
                 }
                 autoComplete="address-level2"
               />
+              {/* KLYX_PROFILE_COUNTRY_FIELD_14_21 */}
+              <label className="block">
+                <span className="mb-2 block text-sm font-semibold">
+                  Pays
+                </span>
+
+                <KlyxMarketSelect
+                  value={form.countryCode}
+                  onChange={(countryCode) =>
+                    setForm((current) => ({
+                      ...current,
+                      countryCode,
+                    }))
+                  }
+                  required
+                />
+
+                {form.countryCode && (
+                  <span className="mt-2 block text-xs text-muted-foreground">
+                    Devise KLYX :{" "}
+                    {getKlyxMarket(
+                      form.countryCode
+                    )?.currencyCode ?? "—"}
+                  </span>
+                )}
+              </label>
 
               {formMode === "create" && form.accountType === "provider" && (
                 <label className="block">
                   <span className="mb-2 block text-sm font-semibold">
-                    Premier service
+                    Premier métier
                   </span>
-                  <KlyxSelect
+                  <KlyxServiceSelect
                     value={form.serviceId}
                     onChange={(value) =>
                       setForm((current) => ({
@@ -691,13 +1093,15 @@ export default function AccountsPage() {
                         serviceId: value,
                       }))
                     }
-                    placeholder="Choisir un service"
+                    placeholder="Choisir un métier"
+                    searchPlaceholder="Ex. plombier, photographe, développeur..."
                     required
                     options={services.map((service) => ({
                       value: service.id,
                       label: service.name,
+                      keywords: service.slug,
                     }))}
-                    ariaLabel="Premier service"
+                    ariaLabel="Premier métier proposé"
                   />
                   {services.length === 0 && (
                     <span className="mt-2 block text-xs text-red-600 dark:text-red-400">

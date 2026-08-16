@@ -9,6 +9,7 @@ import Link from "next/link";
 import {
   ArrowRight,
   BadgeCheck,
+  CheckCircle2,
   Check,
   Clock3,
   Euro,
@@ -86,6 +87,31 @@ async function token() {
   return session.access_token;
 }
 
+function RequestJourneyStep({
+  number,
+  title,
+  text,
+}: {
+  number: string;
+  title: string;
+  text: string;
+}) {
+  return (
+    <div className="bg-card p-5">
+      <span className="grid h-8 w-8 place-items-center rounded-full bg-violet-500/10 text-xs font-black text-violet-600 dark:text-violet-400">
+        {number}
+      </span>
+
+      <p className="mt-3 font-black">
+        {title}
+      </p>
+
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">
+        {text}
+      </p>
+    </div>
+  );
+}
 function providerName(offer: Offer) {
   const name = [
     offer.provider?.first_name,
@@ -507,7 +533,20 @@ export default function RequestsPage() {
             </label>
           </div>
 
-          <button
+                    {/* KLYX_MANUAL_PUBLISH_CONFIRMATION_13_95 */}
+          <div className="mt-5 flex items-start gap-3 rounded-2xl border border-amber-500/20 bg-amber-500/[0.06] p-4">
+            <CheckCircle2
+              size={18}
+              className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400"
+            />
+
+            <p className="text-sm leading-6 text-muted-foreground">
+              Vérifie les informations ci-dessus. La demande ne sera publiée
+              sur le marché KLYX que lorsque tu cliqueras sur le bouton
+              de confirmation ci-dessous.
+            </p>
+          </div>
+<button
             disabled={busy === "publish"}
             className="klyx-button mt-5 w-full"
           >
@@ -519,7 +558,7 @@ export default function RequestsPage() {
             ) : (
               <Send size={18} />
             )}
-            Publier la demande
+            Confirmer et publier la demande
           </button>
         </form>
 
@@ -535,7 +574,71 @@ export default function RequestsPage() {
           </div>
         )}
 
-        <section className="mt-8">
+                {/* KLYX_REQUEST_LIFECYCLE_13_95 */}
+        <section className="mt-8 overflow-hidden rounded-3xl border border-border bg-card">
+          <div className="border-b border-border p-5 sm:p-6">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
+              Après publication
+            </p>
+
+            <h2 className="mt-2 text-xl font-black sm:text-2xl">
+              KLYX organise les offres. Tu gardes la décision.
+            </h2>
+
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
+              Une demande publiée peut recevoir plusieurs propositions.
+              KLYX les classe pour faciliter la comparaison, mais aucune offre
+              n’est acceptée et aucune réservation n’est créée sans ton action.
+            </p>
+          </div>
+
+          <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-5">
+            <RequestJourneyStep
+              number="1"
+              title="Publie"
+              text="Ta demande devient visible aux prestataires compatibles."
+            />
+
+            <RequestJourneyStep
+              number="2"
+              title="Reçois"
+              text="Les prestataires peuvent envoyer leurs propositions."
+            />
+
+            <RequestJourneyStep
+              number="3"
+              title="Compare"
+              text="Prix, confiance et expérience t’aident à décider."
+            />
+
+            <RequestJourneyStep
+              number="4"
+              title="Choisis"
+              text="Tu acceptes toi-même l’offre qui te convient."
+            />
+
+            <RequestJourneyStep
+              number="5"
+              title="Réserve"
+              text="La réservation reste une étape distincte et confirmée."
+            />
+          </div>
+
+          {/* KLYX_REQUEST_DECISION_CONTROL_13_95 */}
+          <div className="flex items-start gap-3 border-t border-border bg-emerald-500/[0.035] p-4 sm:px-6">
+            <CheckCircle2
+              size={18}
+              className="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400"
+            />
+
+            <p className="text-sm leading-6 text-muted-foreground">
+              Une recommandation KLYX reste une aide à la décision :
+              elle ne sélectionne pas automatiquement un prestataire,
+              ne crée pas de réservation et ne déclenche aucun paiement.
+            </p>
+          </div>
+        </section>
+<section className="mt-8">
           <h2 className="text-2xl font-black">
             Mes demandes
           </h2>

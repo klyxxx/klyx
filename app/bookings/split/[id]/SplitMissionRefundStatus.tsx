@@ -1,3 +1,4 @@
+// KLYX_SPLIT_REFUND_CURRENCY_PHASE_5G
 "use client";
 
 import {
@@ -111,6 +112,25 @@ function money(
   currency:
     string
 ): string {
+  const code =
+    currency
+      ?.trim()
+      .toUpperCase();
+
+  if (
+    !/^[A-Z]{3}$/.test(
+      code
+    )
+  ) {
+    return (
+      (
+        cents /
+        100
+      ).toFixed(2) +
+      " · devise indisponible"
+    );
+  }
+
   return new Intl.NumberFormat(
     "fr-BE",
     {
@@ -118,8 +138,7 @@ function money(
         "currency",
 
       currency:
-        currency ||
-        "EUR",
+        code,
     }
   ).format(
     cents /
@@ -301,8 +320,7 @@ export default function SplitMissionRefundStatus({
     [];
 
   const currency =
-    result?.currency ??
-    "EUR";
+    result?.currency?.trim().toUpperCase() ?? "";
 
   return (
     <section className="klyx-card mt-8 p-6 sm:p-7">

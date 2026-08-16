@@ -33,8 +33,8 @@ const clientSteps: ClientStep[] = [
   {
     title: "Explique ton premier besoin",
     description:
-      "Utilise l’assistant KLYX pour décrire ce que tu veux faire sans devoir connaître le bon métier.",
-    href: "/brain",
+      "Décris ton besoin. KLYX le structure, prépare la recherche et attend ta confirmation avant publication.",
+    href: "/assistant/market",
     button: "Parler à KLYX",
     icon: Sparkles,
   },
@@ -48,6 +48,7 @@ const clientSteps: ClientStep[] = [
   },
 ];
 
+// KLYX_ONBOARDING_REAL_WORKFLOWS_13_86
 export default async function OnboardingPage() {
   const supabase = await createClient();
 
@@ -137,7 +138,94 @@ export default async function OnboardingPage() {
           </div>
         </section>
 
-        <section className="mt-8">
+                {/* KLYX_ROLE_NEXT_ACTION_14_03 */}
+        <section className="mt-8 overflow-hidden rounded-3xl border border-border bg-card">
+          <div className="grid lg:grid-cols-[1fr_auto] lg:items-center">
+            <div className="p-6 sm:p-8">
+              <p
+                className={`text-xs font-black uppercase tracking-[0.18em] ${
+                  provider
+                    ? "text-blue-600 dark:text-blue-400"
+                    : "text-violet-600 dark:text-violet-400"
+                }`}
+              >
+                Prochaine action
+              </p>
+
+              <h2 className="mt-2 text-2xl font-black tracking-[-0.035em]">
+                {provider
+                  ? "Prépare ton activité avant de répondre aux missions."
+                  : "Organise ton premier besoin avec KLYX."}
+              </h2>
+
+              <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
+                {provider
+                  ? "Complète les éléments essentiels de ton profil prestataire, puis consulte les opportunités compatibles avec tes services."
+                  : "Décris simplement ce dont tu as besoin. KLYX prépare la demande et attend toujours ta confirmation avant publication."}
+              </p>
+
+              {/* KLYX_ROLE_SAFETY_CONTEXT_14_03 */}
+              <div className="mt-5 flex items-start gap-3 rounded-2xl border border-border bg-background p-4">
+                <BadgeCheck
+                  size={18}
+                  className={`mt-0.5 shrink-0 ${
+                    provider
+                      ? "text-blue-600 dark:text-blue-400"
+                      : "text-emerald-600 dark:text-emerald-400"
+                  }`}
+                />
+
+                <p className="text-sm leading-6 text-muted-foreground">
+                  {provider
+                    ? "Ton profil et tes services restent sous ton contrôle. KLYX ne répond à aucune mission automatiquement."
+                    : "KLYX peut comprendre et préparer ton besoin, mais ne publie, ne réserve et ne paie rien sans ton action explicite."}
+                </p>
+              </div>
+            </div>
+
+            <div className="border-t border-border p-6 lg:min-w-72 lg:border-l lg:border-t-0">
+              {provider ? (
+                <div className="grid gap-3">
+                  <Link
+                    href="/provider"
+                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 text-sm font-black text-white transition hover:bg-blue-500"
+                  >
+                    <BriefcaseBusiness size={18} />
+                    Préparer mon activité
+                    <ArrowRight size={17} />
+                  </Link>
+
+                  <Link
+                    href="/provider/jobs"
+                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-background px-5 text-sm font-black transition hover:bg-muted"
+                  >
+                    Voir les opportunités
+                  </Link>
+                </div>
+              ) : (
+                <div className="grid gap-3">
+                  <Link
+                    href="/assistant/market"
+                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-violet-600 px-5 text-sm font-black text-white transition hover:bg-violet-500"
+                  >
+                    <Sparkles size={18} />
+                    Organiser mon besoin
+                    <ArrowRight size={17} />
+                  </Link>
+
+                  <Link
+                    href="/search"
+                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-background px-5 text-sm font-black transition hover:bg-muted"
+                  >
+                    <Search size={18} />
+                    Chercher moi-même
+                  </Link>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+<section className="mt-8">
           <p
             className={
               provider
@@ -159,7 +247,77 @@ export default async function OnboardingPage() {
           </p>
 
           {provider ? (
-            <ProviderOnboardingProgress />
+            <>
+              <ProviderOnboardingProgress />
+
+              {/* KLYX_PROVIDER_ONBOARDING_SHORTCUTS_13_86 */}
+              <div className="mt-6 grid gap-4 md:grid-cols-2">
+                <Link
+                  href="/provider/jobs"
+                  prefetch
+                  className="klyx-card klyx-card-hover flex items-start gap-4 p-5"
+                >
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                    <Search size={20} />
+                  </span>
+
+                  <div>
+                    <p className="font-black">
+                      Voir mes opportunités KLYX
+                    </p>
+
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      Découvre les missions compatibles avec ton profil,
+                      tes services et tes disponibilités.
+                    </p>
+
+                    <span className="mt-3 inline-flex items-center gap-2 text-sm font-black text-blue-600 dark:text-blue-400">
+                      Ouvrir les opportunités
+                      <ArrowRight size={16} />
+                    </span>
+                  </div>
+                </Link>
+
+                <Link
+                  href="/provider/assistant"
+                  prefetch
+                  className="klyx-card klyx-card-hover flex items-start gap-4 p-5"
+                >
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
+                    <Sparkles size={20} />
+                  </span>
+
+                  <div>
+                    <p className="font-black">
+                      Utiliser l’Assistant Prestataire
+                    </p>
+
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      Prépare une réponse, un devis ou une disponibilité
+                      avant toute action envers le client.
+                    </p>
+
+                    <span className="mt-3 inline-flex items-center gap-2 text-sm font-black text-violet-600 dark:text-violet-400">
+                      Ouvrir l’assistant
+                      <ArrowRight size={16} />
+                    </span>
+                  </div>
+                </Link>
+              </div>
+
+              <div className="mt-5 flex items-start gap-3 rounded-2xl border border-border bg-card p-5">
+                <BadgeCheck
+                  size={18}
+                  className="mt-0.5 shrink-0 text-emerald-600"
+                />
+
+                <p className="text-sm leading-6 text-muted-foreground">
+                  KLYX peut t’aider à préparer ton activité,
+                  mais aucune offre ni mission n’est acceptée
+                  automatiquement à ta place.
+                </p>
+              </div>
+            </>
           ) : (
             <div className="mt-6 grid gap-5 md:grid-cols-3">
               {clientSteps.map((step, index) => {

@@ -10,6 +10,7 @@ type BookingPaymentRow = {
   payment_status: string | null;
   amount_total: number | null;
   currency: string | null;
+  currency_code: string | null;
   payment_mode: string | null;
   application_fee_amount: number | null;
   stripe_checkout_session_id: string | null;
@@ -22,7 +23,7 @@ export type PaymentFailureDetails = {
 };
 
 const bookingSelection =
-  "id, parent_id, provider_id, babysitter_id, payment_status, amount_total, currency, payment_mode, application_fee_amount, stripe_checkout_session_id, stripe_payment_intent_id";
+  "id, parent_id, provider_id, babysitter_id, payment_status, amount_total, currency, currency_code, payment_mode, application_fee_amount, stripe_checkout_session_id, stripe_payment_intent_id";
 
 const FAILURE_MESSAGES: Record<string, string> = {
   insufficient_funds:
@@ -81,13 +82,44 @@ function paymentIntentId(
   return session.payment_intent?.id ?? null;
 }
 
+// KLYX_PAYMENT_CURRENCY_INTEGRITY_14_26
+function normalizeKlyxPaymentCurrency(
+  value: string | null | undefined
+): string {
+  const currency =
+    value
+      ?.trim()
+      .toUpperCase() ??
+    "";
+
+  if (
+    !/^[A-Z]{3}$/.test(
+      currency
+    )
+  ) {
+    throw new Error(
+      "Devise KLYX invalide ou absente."
+    );
+  }
+
+  return currency;
+}
+
+function bookingCurrencyCode(
+  booking: BookingPaymentRow
+): string {
+  return normalizeKlyxPaymentCurrency(
+    booking.currency_code ??
+    booking.currency
+  );
+}
 function formatAmount(
   amount: number,
   currency: string | null
 ): string {
   return new Intl.NumberFormat("fr-BE", {
     style: "currency",
-    currency: (currency || "EUR").toUpperCase(),
+    currency: normalizeKlyxPaymentCurrency(currency),
   }).format(amount / 100);
 }
 
@@ -226,9 +258,7 @@ function verifySessionMatchesBooking(
     );
   }
 
-  const expectedCurrency = (
-    booking.currency || "EUR"
-  ).toLowerCase();
+  const expectedCurrency = bookingCurrencyCode(booking).toLowerCase();
 
   if (
     session.currency &&
@@ -267,9 +297,7 @@ function verifyIntentMatchesBooking(
     );
   }
 
-  const expectedCurrency = (
-    booking.currency || "EUR"
-  ).toLowerCase();
+  const expectedCurrency = bookingCurrencyCode(booking).toLowerCase();
 
   if (intent.currency !== expectedCurrency) {
     throw new Error(
@@ -293,7 +321,7 @@ async function notifyPaymentSucceeded(
   const amount = booking.amount_total ?? 0;
   const amountLabel =
     amount > 0
-      ? formatAmount(amount, booking.currency)
+      ? formatAmount(amount, bookingCurrencyCode(booking))
       : null;
 
   const providerId =
@@ -451,7 +479,7 @@ export async function markBookingPaidFromSession(
       entryType:
         "payment_succeeded",
       status: "succeeded",
-      currency: booking.currency,
+      currency: bookingCurrencyCode(booking),
       grossAmountCents: amountTotal,
       platformFeeCents:
         platformFeeAmount,
@@ -546,7 +574,7 @@ export async function recordBookingPaymentFailure(
       `booking:${booking.id}:payment-failed:${intent.id}`,
     entryType: "payment_failed",
     status: "failed",
-    currency: booking.currency,
+    currency: bookingCurrencyCode(booking),
     grossAmountCents: intent.amount,
     paymentMode:
       booking.payment_mode,
@@ -632,7 +660,7 @@ export async function markBookingFailedFromSession(
       `booking:${booking.id}:payment-failed:${incomingPaymentIntentId ?? session.id}`,
     entryType: "payment_failed",
     status: "failed",
-    currency: booking.currency,
+    currency: bookingCurrencyCode(booking),
     grossAmountCents:
       session.amount_total ??
       booking.amount_total ??

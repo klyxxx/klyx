@@ -1,28 +1,15 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { getAuthenticatedProfile } from "@/lib/api-auth";
+import {
+  adminErrorStatus,
+  requireKlyxAdmin,
+} from "@/lib/admin-auth";
 import { inspectStripeRuntime } from "@/lib/stripe-runtime";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
-async function requireAdmin(request: Request) {
-  const { user } = await getAuthenticatedProfile(request);
-
-  const adminEmails = (process.env.KLYX_ADMIN_EMAILS || "")
-    .split(",")
-    .map((value) => value.trim().toLowerCase())
-    .filter(Boolean);
-
-  if (
-    !user.email ||
-    !adminEmails.includes(user.email.toLowerCase())
-  ) {
-    throw new Error("Acces administrateur requis.");
-  }
-}
-
-export async function GET(request: Request) {
+export async function GET() {
   try {
-    await requireAdmin(request);
+    await requireKlyxAdmin();
 
     const report = inspectStripeRuntime();
     const secretKey =
@@ -101,10 +88,7 @@ export async function GET(request: Request) {
     return NextResponse.json(
       { error: message },
       {
-        status:
-          message === "Acces administrateur requis."
-            ? 403
-            : 500,
+        status: adminErrorStatus(error),
       }
     );
   }

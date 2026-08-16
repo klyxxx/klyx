@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   apiErrorStatus,
@@ -6,6 +6,10 @@ import {
   requireAccountType,
 } from "@/lib/api-auth";
 import { calculateQuote } from "@/lib/quote-calculator";
+import {
+  assertKlyxSameCurrency,
+  resolveKlyxProfileMoney,
+} from "@/lib/klyx-money";
 
 type QuoteAction =
   | "send"
@@ -19,7 +23,7 @@ async function quoteById(
   const { data, error } = await supabaseAdmin
     .from("service_quotes")
     .select(
-      "id, client_profile_id, provider_profile_id, user_service_id, title, description, requested_date, requested_time, duration_hours, pricing_type, unit_price, quantity, estimated_total, provider_price, provider_message, status, expires_at, accepted_at, rejected_at, created_at, updated_at"
+      "id, client_profile_id, provider_profile_id, user_service_id, country_code, currency, title, description, requested_date, requested_time, duration_hours, pricing_type, unit_price, quantity, estimated_total, provider_price, provider_message, status, expires_at, accepted_at, rejected_at, created_at, updated_at"
     )
     .eq("id", quoteId)
     .maybeSingle();
@@ -49,7 +53,7 @@ export async function GET(request: Request) {
     let query = supabaseAdmin
       .from("service_quotes")
       .select(
-        "id, client_profile_id, provider_profile_id, user_service_id, title, description, requested_date, requested_time, duration_hours, pricing_type, unit_price, quantity, estimated_total, provider_price, provider_message, status, expires_at, accepted_at, rejected_at, created_at, updated_at"
+        "id, client_profile_id, provider_profile_id, user_service_id, country_code, currency, title, description, requested_date, requested_time, duration_hours, pricing_type, unit_price, quantity, estimated_total, provider_price, provider_message, status, expires_at, accepted_at, rejected_at, created_at, updated_at"
       )
       .order("created_at", { ascending: false })
       .limit(50);
@@ -142,6 +146,15 @@ export async function POST(request: Request) {
       await getAuthenticatedProfile(request);
 
     requireAccountType(profile, "client");
+
+    // KLYX_QUOTE_CLIENT_MONEY_14_24
+    const clientMoney =
+      resolveKlyxProfileMoney({
+        countryCode:
+          profile.countryCode,
+        currencyCode:
+          profile.currencyCode,
+      });
 
     const body = (await request.json()) as {
       providerProfileId?: unknown;
@@ -306,6 +319,47 @@ export async function POST(request: Request) {
       );
     }
 
+    // KLYX_QUOTE_PROVIDER_CURRENCY_GUARD_14_24
+    const {
+      data: providerMarket,
+      error: providerMarketError,
+    } = await supabaseAdmin
+      .from("profiles")
+      .select(
+        "country_code, currency_code"
+      )
+      .eq("id", providerProfileId)
+      .maybeSingle();
+
+    if (providerMarketError) {
+      throw new Error(
+        providerMarketError.message
+      );
+    }
+
+    if (!providerMarket) {
+      return NextResponse.json(
+        {
+          error:
+            "Profil prestataire introuvable.",
+        },
+        { status: 404 }
+      );
+    }
+
+    const providerMoney =
+      resolveKlyxProfileMoney({
+        countryCode:
+          providerMarket.country_code,
+        currencyCode:
+          providerMarket.currency_code,
+      });
+
+    assertKlyxSameCurrency(
+      clientMoney.currencyCode,
+      providerMoney.currencyCode
+    );
+
     const { data: serviceProfile, error: serviceError } =
       await supabaseAdmin
         .from("service_profiles")
@@ -367,11 +421,18 @@ export async function POST(request: Request) {
           quantity: calculation.quantity,
           estimated_total:
             calculation.estimatedTotal,
+
+          // KLYX_QUOTE_CURRENCY_SNAPSHOT_WRITE_14_24
+          country_code:
+            clientMoney.countryCode,
+          currency:
+            clientMoney.currencyCode,
+
           status: "requested",
           expires_at: expiresAt.toISOString(),
         })
         .select(
-          "id, title, status, pricing_type, unit_price, quantity, estimated_total, expires_at"
+          "id, country_code, currency, title, status, pricing_type, unit_price, quantity, estimated_total, expires_at"
         )
         .single();
 

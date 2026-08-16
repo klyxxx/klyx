@@ -24,6 +24,7 @@ type BookingRow = {
   end_time: string;
   status: string;
   payment_status: string | null;
+  currency_code: string | null;
   pricing_type_snapshot: string | null;
   unit_price_cents: number | null;
   estimated_amount_cents: number | null;
@@ -125,7 +126,7 @@ async function getBooking(
   const { data, error } = await supabaseAdmin
     .from("bookings")
     .select(
-      "id, parent_id, provider_id, babysitter_id, booking_group_id, service_id, user_service_id, booking_date, start_time, end_time, status, payment_status, pricing_type_snapshot, unit_price_cents, estimated_amount_cents, amount_total, stripe_checkout_session_id"
+      "id, parent_id, provider_id, babysitter_id, booking_group_id, service_id, user_service_id, booking_date, start_time, end_time, status, payment_status, currency_code, pricing_type_snapshot, unit_price_cents, estimated_amount_cents, amount_total, stripe_checkout_session_id"
     )
     .eq("id", bookingId)
     .maybeSingle();
@@ -372,6 +373,22 @@ export async function POST(request: Request) {
         "Le montant calculé est trop faible."
       );
     }
+    // KLYX_STRIPE_BOOKING_CURRENCY_14_25
+    const checkoutCurrency =
+      booking.currency_code
+        ?.trim()
+        .toLowerCase() ??
+      "";
+
+    if (
+      !/^[a-z]{3}$/.test(
+        checkoutCurrency
+      )
+    ) {
+      throw new Error(
+        "Devise de réservation invalide."
+      );
+    }
     const economics = calculateKlyxEconomics(
       amountTotal,
       getKlyxCommissionPercent()
@@ -448,7 +465,7 @@ export async function POST(request: Request) {
           {
             quantity: 1,
             price_data: {
-              currency: "eur",
+              currency: checkoutCurrency,
               unit_amount: amountTotal,
               product_data: {
                 name: `${serviceLabel(service)} · KLYX`,

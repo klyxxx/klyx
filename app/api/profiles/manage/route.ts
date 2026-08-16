@@ -5,6 +5,7 @@ import {
 } from "@/lib/active-profile";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/supabase/server";
+import { getKlyxMarket } from "@/lib/klyx-supported-markets";
 
 type AccountType = "client" | "provider";
 
@@ -12,6 +13,7 @@ type CreateProfileBody = {
   firstName?: unknown;
   lastName?: unknown;
   city?: unknown;
+  countryCode?: unknown;
   accountType?: unknown;
   serviceId?: unknown;
 };
@@ -21,6 +23,7 @@ type UpdateProfileBody = {
   firstName?: unknown;
   lastName?: unknown;
   city?: unknown;
+  countryCode?: unknown;
   avatarUrl?: unknown;
 };
 
@@ -68,8 +71,35 @@ function readProfileInput(body: CreateProfileBody | UpdateProfileBody): ProfileI
   return { firstName, lastName, city };
 }
 
+// KLYX_PROFILE_MARKET_VALIDATION_14_21
+function readProfileMarket(countryCode: unknown) {
+  const normalized =
+    typeof countryCode === "string"
+      ? countryCode.trim().toUpperCase()
+      : "";
+
+  const market =
+    getKlyxMarket(normalized);
+
+  if (!market) {
+    throw new Error(
+      "KLYX_MARKET_NOT_SUPPORTED"
+    );
+  }
+
+  return {
+    countryCode:
+      market.countryCode,
+    currencyCode:
+      market.currencyCode,
+  };
+}
 function errorMessage(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error ?? "");
+
+  if (raw.includes("KLYX_MARKET_NOT_SUPPORTED")) {
+    return "Ce pays n’est pas encore pris en charge par KLYX.";
+  }
 
   if (raw.includes("KLYX_PROFILE_LIMIT_REACHED")) {
     return "Tu peux enregistrer au maximum cinq profils KLYX.";
@@ -142,6 +172,8 @@ export async function POST(request: Request) {
 
   try {
     const profileInput = readProfileInput(body);
+    const marketInput = readProfileMarket(body.countryCode);
+
     const accountType: AccountType | null =
       body.accountType === "client" || body.accountType === "provider"
         ? body.accountType
@@ -181,6 +213,28 @@ export async function POST(request: Request) {
       throw new Error(error?.message ?? "Le profil n’a pas été créé.");
     }
 
+    // KLYX_PROFILE_MARKET_WRITE_14_21
+    const {
+      error: marketWriteError,
+    } = await supabaseAdmin
+      .from("profiles")
+      .update({
+        country_code:
+          marketInput.countryCode,
+        currency_code:
+          marketInput.currencyCode,
+        updated_at:
+          new Date().toISOString(),
+      })
+      .eq("id", profileId)
+      .eq("owner_user_id", user.id);
+
+    if (marketWriteError) {
+      throw new Error(
+        marketWriteError.message
+      );
+    }
+
     const response = NextResponse.json({ profileId }, { status: 201 });
     setActiveProfileCookie(response, profileId);
     return response;
@@ -215,11 +269,17 @@ export async function PATCH(request: Request) {
 
   try {
     const profileInput = readProfileInput(body);
+    const marketInput = readProfileMarket(body.countryCode);
+
     const updatePayload: Record<string, string | null> = {
       first_name: profileInput.firstName,
       last_name: profileInput.lastName,
       full_name: `${profileInput.firstName} ${profileInput.lastName}`,
       city: profileInput.city,
+      country_code:
+        marketInput.countryCode,
+      currency_code:
+        marketInput.currencyCode,
       updated_at: new Date().toISOString(),
     };
 

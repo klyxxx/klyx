@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { isUserServiceApproved } from "@/lib/provider-skill-publication";
 import {
+  assertKlyxSameCurrency,
+  resolveKlyxMoneyContext,
+  resolveKlyxProfileMoney,
+  toKlyxMinorUnits,
+} from "@/lib/klyx-money";
+import {
   apiErrorStatus,
   getAuthenticatedProfile,
   requireAccountType,
@@ -33,6 +39,8 @@ type AcceptedQuoteRow = {
   client_profile_id: string;
   provider_profile_id: string;
   user_service_id: string;
+  country_code: string | null;
+  currency: string | null;
   requested_date: string | null;
   requested_time: string | null;
   duration_hours: number | null;
@@ -106,6 +114,15 @@ export async function POST(request: Request) {
       await getAuthenticatedProfile(request);
 
     requireAccountType(profile, "client");
+
+    // KLYX_BOOKING_CLIENT_MONEY_14_24
+    const clientMoney =
+      resolveKlyxProfileMoney({
+        countryCode:
+          profile.countryCode,
+        currencyCode:
+          profile.currencyCode,
+      });
 
     const body = (await request.json()) as {
       providerId?: string;
@@ -302,6 +319,52 @@ export async function POST(request: Request) {
       );
     }
 
+    // KLYX_BOOKING_PROVIDER_CURRENCY_GUARD_14_24
+    const {
+      data: providerMarket,
+      error: providerMarketError,
+    } = await supabaseAdmin
+      .from("profiles")
+      .select(
+        "country_code, currency_code"
+      )
+      .eq("id", providerId)
+      .maybeSingle();
+
+    if (providerMarketError) {
+      throw new Error(
+        providerMarketError.message
+      );
+    }
+
+    if (!providerMarket) {
+      return NextResponse.json(
+        {
+          error:
+            "Profil prestataire introuvable.",
+        },
+        { status: 404 }
+      );
+    }
+
+    const providerMoney =
+      resolveKlyxProfileMoney({
+        countryCode:
+          providerMarket.country_code,
+        currencyCode:
+          providerMarket.currency_code,
+      });
+
+    assertKlyxSameCurrency(
+      clientMoney.currencyCode,
+      providerMoney.currencyCode
+    );
+
+    // La reservation directe utilise le marche du client.
+    // Un devis accepte peut ensuite fournir son snapshot immuable.
+    let transactionMoney =
+      clientMoney;
+
     let acceptedQuote: AcceptedQuoteRow | null = null;
 
     if (quoteId) {
@@ -309,7 +372,7 @@ export async function POST(request: Request) {
         await supabaseAdmin
           .from("service_quotes")
           .select(
-            "id, client_profile_id, provider_profile_id, user_service_id, requested_date, requested_time, duration_hours, pricing_type, provider_price, status, expires_at"
+            "id, client_profile_id, provider_profile_id, user_service_id, country_code, currency, requested_date, requested_time, duration_hours, pricing_type, provider_price, status, expires_at"
           )
           .eq("id", quoteId)
           .eq("client_profile_id", profile.id)
@@ -327,6 +390,34 @@ export async function POST(request: Request) {
       }
 
       acceptedQuote = quote as AcceptedQuoteRow;
+
+      // KLYX_ACCEPTED_QUOTE_CURRENCY_14_24
+      if (
+        !acceptedQuote.country_code ||
+        !acceptedQuote.currency
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "Ce devis ancien ne contient pas encore de devise transactionnelle. Crée un nouveau devis.",
+          },
+          { status: 409 }
+        );
+      }
+
+      const quoteMoney =
+        resolveKlyxMoneyContext(
+          acceptedQuote.country_code,
+          acceptedQuote.currency
+        );
+
+      assertKlyxSameCurrency(
+        clientMoney.currencyCode,
+        quoteMoney.currencyCode
+      );
+
+      transactionMoney =
+        quoteMoney;
 
       if (acceptedQuote.status !== "accepted") {
         return NextResponse.json(
@@ -572,9 +663,15 @@ export async function POST(request: Request) {
           ? "fixed"
           : "hourly";
 
-      estimatedAmountCents = Math.round(
-        Number(acceptedQuote.provider_price) * 100
-      );
+      // KLYX_MINOR_UNITS_FROM_TRANSACTION_14_24
+      estimatedAmountCents =
+        toKlyxMinorUnits(
+          Number(
+            acceptedQuote.provider_price
+          ),
+          transactionMoney.countryCode,
+          transactionMoney.currencyCode
+        );
 
       unitPriceCents =
         pricingType === "fixed"
@@ -589,9 +686,12 @@ export async function POST(request: Request) {
           ? "fixed"
           : "hourly";
 
-      unitPriceCents = Math.round(
-        Number(serviceProfile.price) * 100
-      );
+      unitPriceCents =
+        toKlyxMinorUnits(
+          Number(serviceProfile.price),
+          transactionMoney.countryCode,
+          transactionMoney.currencyCode
+        );
 
       estimatedAmountCents =
         pricingType === "fixed"
@@ -637,7 +737,11 @@ export async function POST(request: Request) {
           estimated_amount_cents:
             estimatedAmountCents,
           amount_total: estimatedAmountCents,
-          currency: "EUR",
+          // KLYX_BOOKING_CURRENCY_SNAPSHOT_WRITE_14_24
+          country_code:
+            transactionMoney.countryCode,
+          currency:
+            transactionMoney.currencyCode,
           updated_at: new Date().toISOString(),
         })
         .select("id")

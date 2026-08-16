@@ -125,6 +125,24 @@ export default function ProviderAssistantPage() {
     void loadDrafts();
   }, []);
 
+  // KLYX_PROVIDER_ASSISTANT_CONTEXT_13_78
+  useEffect(() => {
+    const query =
+      new URLSearchParams(
+        window.location.search
+      );
+
+    const missionPrompt =
+      query
+        .get("prompt")
+        ?.trim()
+        .slice(0, 1000) ??
+      "";
+
+    if (missionPrompt.length > 0) {
+      setMessage(missionPrompt);
+    }
+  }, []);
   async function submit(
     event?: FormEvent,
     forcedMessage?: string
@@ -279,7 +297,29 @@ export default function ProviderAssistantPage() {
             ))}
           </div>
 
-          <form
+                    {message.includes("Mission :") && (
+            <div className="mt-5 rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4">
+              <div className="flex items-start gap-3">
+                <Sparkles
+                  size={18}
+                  className="mt-0.5 shrink-0 text-blue-600"
+                />
+
+                <div>
+                  <p className="font-black">
+                    Contexte de mission chargé
+                  </p>
+
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    Les informations de la mission sont préremplies.
+                    Vérifie ou modifie le texte puis utilise
+                    « Préparer » uniquement lorsque tu le décides.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+<form
             onSubmit={(event) => void submit(event)}
             className="mt-5"
           >

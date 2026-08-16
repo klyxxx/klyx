@@ -1,3 +1,4 @@
+// KLYX_PROVIDER_PAYMENTS_UI_CURRENCY_PHASE_5C
 "use client";
 
 import FinanceExportButton from "./FinanceExportButton";
@@ -82,7 +83,7 @@ const EMPTY_STATUS: StripeStatus = {
 };
 
 const EMPTY_SUMMARY: FinanceSummary = {
-  currency: "EUR",
+  currency: "",
   grossPaidCents: 0,
   platformFeeCents: 0,
   providerAmountCents: 0,
@@ -93,11 +94,34 @@ const EMPTY_SUMMARY: FinanceSummary = {
   successfulRefunds: 0,
 };
 
-function money(cents: number, currency = "EUR") {
-  return new Intl.NumberFormat("fr-BE", {
-    style: "currency",
-    currency: currency.toUpperCase(),
-  }).format(cents / 100);
+function money(
+  cents: number,
+  currency: string
+) {
+  const code =
+    currency
+      ?.trim()
+      .toUpperCase();
+
+  if (
+    !/^[A-Z]{3}$/.test(
+      code
+    )
+  ) {
+    return (cents / 100).toFixed(2);
+  }
+
+  return new Intl.NumberFormat(
+    "fr-BE",
+    {
+      style:
+        "currency",
+      currency:
+        code,
+    }
+  ).format(
+    cents / 100
+  );
 }
 
 function dateTime(value: string) {

@@ -511,7 +511,16 @@ export default function ProviderProfilePage() {
             </div>
           )}
         </section>
-        <PublicReviews providerId={profile.id} />
+        <PublicReviews
+          providerId={profile.id}
+          klyxScore={bestScore}
+          verified={
+            providerProfile.verification_status === "verified"
+          }
+          yearsExperience={Number(
+            providerProfile.years_experience ?? 0
+          )}
+        />
       </div>
     </main>
   );

@@ -1,3 +1,4 @@
+// KLYX_SKILL_QUALIFICATION_COUNTRY_PHASE_5G
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const SKILL_PROOF_TYPES = [
@@ -31,9 +32,23 @@ export async function getSkillQualificationRule(params: {
   countryCode?: string | null;
   serviceSlug: string;
 }): Promise<SkillQualificationRule> {
-  const countryCode = /^[A-Z]{2}$/.test((params.countryCode || "BE").toUpperCase())
-    ? (params.countryCode || "BE").toUpperCase()
-    : "BE";
+  const countryCode =
+    String(
+      params.countryCode ??
+      ""
+    )
+      .trim()
+      .toUpperCase();
+
+  if (
+    !/^[A-Z]{2}$/.test(
+      countryCode
+    )
+  ) {
+    throw new Error(
+      "KLYX_SKILL_COUNTRY_REQUIRED"
+    );
+  }
 
   const { data, error } = await supabaseAdmin
     .from("skill_qualification_rules")

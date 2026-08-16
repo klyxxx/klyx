@@ -1,3 +1,4 @@
+// KLYX_BOOKING_OVERVIEW_CURRENCY_INTEGRITY_PHASE_5G
 import {
   NextResponse,
 } from "next/server";
@@ -1039,8 +1040,7 @@ export async function GET(
           ),
 
         currency:
-          group.currency ||
-          "EUR",
+          String(group.currency ?? "").trim().toUpperCase(),
 
         dateFrom:
           first.booking_date,
@@ -1165,8 +1165,7 @@ export async function GET(
           booking.amount_total,
 
         currency:
-          booking.currency ||
-          "EUR",
+          String(booking.currency ?? "").trim().toUpperCase(),
 
         dateFrom:
           booking.booking_date,

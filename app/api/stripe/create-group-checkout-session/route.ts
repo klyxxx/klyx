@@ -345,6 +345,27 @@ export async function POST(
       );
     }
 
+    // KLYX_STRIPE_GROUP_CURRENCY_14_25
+    const groupCurrency =
+      String(
+        group.currency ??
+        ""
+      )
+        .trim()
+        .toUpperCase();
+
+    if (
+      !/^[A-Z]{3}$/.test(
+        groupCurrency
+      )
+    ) {
+      throw new Error(
+        "Devise du groupe invalide."
+      );
+    }
+
+    const checkoutCurrency =
+      groupCurrency.toLowerCase();
     const {
       data:
         userService,
@@ -575,7 +596,7 @@ export async function POST(
             quantity: 1,
             price_data: {
               currency:
-                "eur",
+                checkoutCurrency,
               unit_amount:
                 amountTotal,
               product_data: {

@@ -1,3 +1,4 @@
+// KLYX_SPLIT_PLAN_UI_CURRENCY_PHASE_5C
 "use client";
 
 import SplitBookingRecovery from "./SplitBookingRecovery";
@@ -17,7 +18,7 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock3,
-  Euro,
+  Banknote,
   LoaderCircle,
   RefreshCw,
   ShieldCheck,
@@ -99,6 +100,12 @@ type PreferredProvider = {
 
 type SlotMapResponse = {
   requestId?:
+    string;
+
+  countryCode?:
+    string;
+
+  currency?:
     string;
 
   slotCount?:
@@ -228,7 +235,10 @@ function formatDate(
 function formatBudget(
   value:
     number |
-    null
+    null,
+
+  currency:
+    string
 ): string {
   if (
     value ===
@@ -240,6 +250,19 @@ function formatBudget(
     return "Budget non défini";
   }
 
+  const code =
+    currency
+      ?.trim()
+      .toUpperCase();
+
+  if (
+    !/^[A-Z]{3}$/.test(
+      code
+    )
+  ) {
+    return value.toFixed(2);
+  }
+
   return new Intl.NumberFormat(
     "fr-BE",
     {
@@ -247,7 +270,7 @@ function formatBudget(
         "currency",
 
       currency:
-        "EUR",
+        code,
     }
   ).format(
     value
@@ -768,7 +791,7 @@ export default function SplitPlanReviewPage() {
                               </div>
 
                               <div className="flex items-start gap-3">
-                                <Euro
+                                <Banknote
                                   className="mt-0.5 shrink-0 text-violet-600"
                                   size={18}
                                 />
@@ -781,7 +804,8 @@ export default function SplitPlanReviewPage() {
                                   <p className="mt-1 text-sm font-black">
                                     {formatBudget(
                                       slot.budgetMax
-                                    )}
+                                    ,
+                          data?.currency ?? "")}
                                   </p>
                                 </div>
                               </div>
