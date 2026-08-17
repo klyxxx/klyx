@@ -700,14 +700,13 @@ export default function ProviderJobsPage() {
           Opportunites KLYX
         </p>
 
+        {/* KLYX_AI_FIRST_PROVIDER_JOBS_15_04 */}
         <h1 className="mt-2 text-3xl font-black sm:text-4xl">
-          Missions recommandees pour toi
+          Missions recommandees
         </h1>
 
         <p className="mt-3 max-w-3xl text-muted-foreground">
-          Les missions multi-creneaux apparaissent seulement
-          lorsque ton planning permet de couvrir tous les creneaux.
-          Une seule offre fixe ton prix pour la mission complete.
+          Tous les créneaux doivent être couverts. Une offre = mission complète.
         </p>
 
         <div className="mt-6 flex flex-wrap gap-2">
@@ -752,11 +751,7 @@ export default function ProviderJobsPage() {
                   Où en sont mes propositions ?
                 </h2>
 
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                  KLYX suit les offres que tu as déjà envoyées.
-                  Le client doit toujours accepter explicitement
-                  une offre avant qu’une réservation puisse continuer.
-                </p>
+
               </div>
 
               <span className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-black">
@@ -862,9 +857,8 @@ export default function ProviderJobsPage() {
                 })}
             </div>
 
-            <p className="mt-5 text-xs leading-5 text-muted-foreground">
-              Une offre envoyée ne crée pas automatiquement de réservation
-              et ne déclenche aucun paiement.
+            <p className="mt-5 text-xs text-muted-foreground">
+              Offre ≠ réservation ou paiement.
             </p>
           </section>
         )}
@@ -934,11 +928,8 @@ export default function ProviderJobsPage() {
                       Les opportunités à regarder en premier
                     </h2>
 
-                    <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                      KLYX résume les missions disponibles selon
-                      leur compatibilité, leur budget et tes offres
-                      déjà envoyées. Aucune offre n’est envoyée
-                      automatiquement.
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Missions compatibles et offres envoyées.
                     </p>
                   </div>
 
@@ -1393,11 +1384,7 @@ export default function ProviderJobsPage() {
                           </p>
                         </div>
 
-                        <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                          KLYX peut préparer une réponse à partir
-                          de cette mission. Rien n’est envoyé
-                          automatiquement au client.
-                        </p>
+
                       </div>
 
                       <a

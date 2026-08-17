@@ -322,14 +322,12 @@ export default function ProviderPaymentsPage() {
             Paiements prestataire
           </div>
 
+          {/* KLYX_AI_FIRST_PROVIDER_FINANCE_15_04 */}
           <h1 className="mt-5 text-3xl font-black sm:text-5xl">
             Mes finances KLYX
           </h1>
 
-          <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">
-            Paiements, commission KLYX, montant prestataire et
-            remboursements au même endroit.
-          </p>
+
         </section>
 
         {errorMessage && (
@@ -415,8 +413,7 @@ export default function ProviderPaymentsPage() {
                   </h2>
 
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Cette vue vient du journal financier KLYX.
-                    Stripe reste le processeur de paiement.
+                    Journal KLYX · paiements traités par Stripe.
                   </p>
                 </div>
 
