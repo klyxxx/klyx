@@ -96,7 +96,10 @@ function extractOutputText(payload: unknown): string {
 }
 
 export function isKlyxAiEnabled(): boolean {
-  return Boolean(process.env.OPENAI_API_KEY?.trim());
+  return (
+    process.env.KLYX_OPENAI_ENABLED === "1" &&
+    Boolean(process.env.OPENAI_API_KEY?.trim())
+  );
 }
 
 export async function generateKlyxAiReply(
@@ -113,7 +116,7 @@ export async function generateKlyxAiReply(
 
   const apiKey = process.env.OPENAI_API_KEY?.trim();
 
-  if (!apiKey) {
+  if (!apiKey || !isKlyxAiEnabled()) {
     return {
       mode: "fallback",
       text: fallbackReply(message),

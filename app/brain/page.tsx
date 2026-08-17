@@ -131,31 +131,159 @@ function detectTimeLocally(message: string): string | null {
   )}`;
 }
 
+// KLYX_ZERO_COST_READINESS_SYNC_12B_7B
 function mergeLocalUnderstanding(
   payload: BrainPayload | undefined,
   message: string
 ): BrainPayload | null {
-  if (!payload) return null;
+  if (!payload) {
+    return null;
+  }
 
-  // KLYX_MULTI_SLOT_BRAIN_UI_12_83
-  if (payload.schedule?.multiSlot) {
+  if (
+    payload.schedule?.multiSlot
+  ) {
     return payload;
   }
 
-  const detectedTime = payload.time ?? detectTimeLocally(message);
+  const detectedTime =
+    payload.time ??
+    detectTimeLocally(message);
+
+  const missing: string[] =
+    [];
+
+  if (!payload.serviceSlug) {
+    missing.push(
+      "service"
+    );
+  }
+
+  if (!payload.city) {
+    missing.push(
+      "ville"
+    );
+  }
+
+  if (!payload.date) {
+    missing.push(
+      "date"
+    );
+  }
+
+  if (!detectedTime) {
+    missing.push(
+      "heure"
+    );
+  }
+
+  const remainingCount =
+    missing.length;
+
+  const score =
+    Math.round(
+      (
+        (
+          4 -
+          remainingCount
+        ) /
+        4
+      ) *
+        100
+    );
+
+  const isComplete =
+    remainingCount === 0;
+
+  const label =
+    score === 100
+      ? "Demande complète"
+      : score >= 75
+        ? "Presque prête"
+        : score >= 50
+          ? "Demande en cours"
+          : "Je précise ton besoin";
+
+  const readiness =
+    payload.readiness
+      ? {
+          ...payload.readiness,
+
+          score,
+          label,
+          isComplete,
+          remainingCount,
+          missing:
+            [...missing],
+          nextMissing:
+            missing[0] ??
+            null,
+
+          requiresConfirmation:
+            isComplete,
+
+          confirmationState:
+            isComplete
+              ? "awaiting_user_confirmation" as const
+              : "not_ready" as const,
+
+          confirmationOptions:
+            isComplete
+              ? [
+                  {
+                    id:
+                      "confirm",
+                    action:
+                      "confirm_request",
+                    label:
+                      "Confirmer",
+                  },
+                  {
+                    id:
+                      "edit",
+                    action:
+                      "edit_request",
+                    label:
+                      "Modifier",
+                  },
+                ]
+              : [],
+
+          summary:
+            isComplete &&
+            payload.serviceSlug &&
+            payload.city &&
+            payload.date &&
+            detectedTime
+              ? {
+                  service:
+                    payload.serviceSlug,
+                  city:
+                    payload.city,
+                  date:
+                    payload.date,
+                  time:
+                    detectedTime,
+                }
+              : null,
+
+          automaticExecutionAllowed:
+            false,
+        }
+      : undefined;
 
   return {
     ...payload,
-    time: detectedTime,
-    ready: Boolean(
-      payload.serviceSlug &&
-        payload.city &&
-        payload.date &&
-        detectedTime
-    ),
+
+    time:
+      detectedTime,
+
+    ready:
+      isComplete,
+
+    readiness,
   };
 }
-
 function serviceLabel(slug: string | null) {
   const labels: Record<string, string> = {
     babysitting: "baby-sitting",
@@ -320,9 +448,16 @@ export default function BrainPage() {
 
           const aiResult = (await aiResponse.json()) as AiResponse;
 
-          if (aiResponse.ok && aiResult.reply) {
-            finalReply = aiResult.reply;
-            finalMode = aiResult.mode ?? "openai";
+          if (
+            aiResponse.ok &&
+            aiResult.reply &&
+            aiResult.mode === "openai"
+          ) {
+            finalReply =
+              aiResult.reply;
+
+            finalMode =
+              "openai";
           }
         } catch {
           finalMode = "structured";

@@ -433,6 +433,40 @@ function detectDate(text: string): string | null {
 }
 
 function detectTime(text: string): string | null {
+
+  // KLYX_ZERO_COST_EXPLICIT_TIME_12B_7B
+  const explicitTimeMatch =
+    text.match(
+      /\b(?:vers\s+|à\s+|a\s+)?([01]?\d|2[0-3])\s*(?:h|heure|heures|:)\s*([0-5]?\d)?\b/i
+    );
+
+  if (
+    explicitTimeMatch
+  ) {
+    const hours =
+      Number(
+        explicitTimeMatch[1]
+      );
+
+    const minutes =
+      Number(
+        explicitTimeMatch[2] ??
+          "0"
+      );
+
+    return (
+      String(hours).padStart(
+        2,
+        "0"
+      ) +
+      ":" +
+      String(minutes).padStart(
+        2,
+        "0"
+      )
+    );
+  }
+
   const value = normalize(text);
 
   // KLYX_NATURAL_TIME_12_46
