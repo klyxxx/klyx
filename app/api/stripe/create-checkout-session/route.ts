@@ -265,9 +265,10 @@ export async function POST(request: Request) {
     } = await supabaseAdmin
       .from("split_booking_payment_units")
       .select("id")
-      .contains(
+      .filter(
         "booking_ids",
-        [booking.id]
+        "cs",
+        JSON.stringify([booking.id])
       )
       .limit(1);
 
