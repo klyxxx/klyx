@@ -445,99 +445,7 @@ export default function BookingDetailsPage() {
   return (
     <main className="min-h-screen bg-background dark:bg-zinc-950 px-5 py-10 text-foreground dark:text-white">
       <div className="mx-auto max-w-6xl">
-        {/* KLYX_BOOKING_PAYMENT_HANDOFF_13_97 */}
-        <section className="mt-6 overflow-hidden rounded-3xl border border-border bg-card">
-          <div className="border-b border-border p-5 sm:p-6">
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
-              Parcours de la mission
-            </p>
-
-            <h2 className="mt-2 text-xl font-black sm:text-2xl">
-              Réservation, paiement, puis suivi.
-            </h2>
-
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              Chaque étape reste séparée. Une réservation acceptée n’est pas
-              automatiquement payée, et un paiement déjà validé ne peut pas
-              être relancé comme un nouveau paiement.
-            </p>
-          </div>
-
-          <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-4">
-            <BookingPaymentStep
-              number="1"
-              title="Réservation"
-              text="La mission existe et possède son propre statut."
-              done
-            />
-
-            <BookingPaymentStep
-              number="2"
-              title="Acceptation"
-              text="Le prestataire doit accepter avant l’étape paiement."
-              done={booking.status === "accepted" || booking.status === "completed"}
-            />
-
-            <BookingPaymentStep
-              number="3"
-              title="Paiement"
-              text="Le client ouvre lui-même le paiement sécurisé."
-              done={booking.payment_status === "paid"}
-            />
-
-            <BookingPaymentStep
-              number="4"
-              title="Suivi"
-              text="Une mission payée peut ensuite être suivie jusqu’à sa fin."
-              done={canTrack || booking.status === "completed"}
-            />
-          </div>
-
-          {/* KLYX_DOUBLE_PAYMENT_UI_GUARD_13_97 */}
-          <div className="border-t border-border p-4 sm:px-6">
-            {booking.payment_status === "paid" ? (
-              <div className="flex items-start gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] p-4">
-                <CheckCircle2
-                  size={18}
-                  className="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400"
-                />
-
-                <div>
-                  <p className="font-black text-emerald-700 dark:text-emerald-300">
-                    Paiement déjà enregistré
-                  </p>
-
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    KLYX ne te propose plus de repayer cette réservation.
-                    Le paiement existant reste associé à cette mission.
-                  </p>
-                </div>
-              </div>
-            ) : canPay ? (
-              <div className="flex items-start gap-3 rounded-2xl border border-violet-500/20 bg-violet-500/[0.05] p-4">
-                <CreditCard
-                  size={18}
-                  className="mt-0.5 shrink-0 text-violet-600 dark:text-violet-400"
-                />
-
-                <div>
-                  <p className="font-black">
-                    Paiement disponible
-                  </p>
-
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    Le paiement ne démarre que lorsque tu choisis explicitement
-                    de payer cette réservation.
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-border bg-background p-4 text-sm leading-6 text-muted-foreground">
-                Le paiement n’est pas disponible à cette étape du parcours.
-              </div>
-            )}
-          </div>
-        </section>
+        {/* KLYX_AI_FIRST_BOOKING_UI_15_01 */}
         {/* KLYX_BOOKING_NEXT_ACTION_13_69 */}
         <section className="mb-6 overflow-hidden rounded-[2rem] border border-violet-500/20 bg-[linear-gradient(135deg,rgba(124,58,237,0.12),rgba(76,29,149,0.04),transparent)]">
           <div className="p-6 sm:p-8">
@@ -694,18 +602,9 @@ export default function BookingDetailsPage() {
             </div>
 
             {canPay && (
-              <div className="mt-5 flex items-start gap-3 rounded-2xl border border-blue-500/20 bg-blue-500/10 p-4">
-                <CreditCard
-                  size={18}
-                  className="mt-0.5 shrink-0 text-blue-600"
-                />
-
-                <p className="text-sm leading-6 text-muted-foreground">
-                  Le paiement n’est jamais lancé automatiquement. Le bouton
-                  « Payer maintenant » ouvre le paiement sécurisé uniquement
-                  après ton action explicite.
-                </p>
-              </div>
+              <p className="mt-5 text-xs font-bold text-muted-foreground">
+                Paiement manuel uniquement · aucun débit automatique.
+              </p>
             )}
           </div>
         </section>
@@ -979,7 +878,7 @@ export default function BookingDetailsPage() {
             )}
           </aside>
         </div>
-      
+
         {/* KLYX_VERIFIED_REVIEW_CTA_13_70 */}
         {role === "client" && booking.status === "completed" && (
           <section className="mb-6 overflow-hidden rounded-3xl border border-amber-500/25 bg-amber-500/5">
@@ -994,8 +893,7 @@ export default function BookingDetailsPage() {
                 </h2>
 
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-                  La mission est terminée. Ton avis sera relié à cette
-                  réservation réelle et aidera les prochains clients KLYX.
+                  Partage ton expérience sur cette mission.
                 </p>
 
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -1018,8 +916,7 @@ export default function BookingDetailsPage() {
             </div>
 
             <div className="border-t border-amber-500/15 px-6 py-4 text-xs leading-5 text-muted-foreground sm:px-8">
-              L’avis est disponible uniquement après une mission terminée.
-              Aucun avis n’est créé automatiquement.
+              Avis disponible après mission terminée.
             </div>
           </section>
         )}
@@ -1043,47 +940,6 @@ function InfoItem({
         {icon} {label}
       </p>
       <p className="mt-2 font-semibold capitalize">{value}</p>
-    </div>
-  );
-}
-function BookingPaymentStep({
-  number,
-  title,
-  text,
-  done,
-}: {
-  number: string;
-  title: string;
-  text: string;
-  done: boolean;
-}) {
-  return (
-    <div className="bg-card p-5">
-      <div className="flex items-center gap-3">
-        <span
-          className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-black ${
-            done
-              ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-              : "border border-border bg-background text-muted-foreground"
-          }`}
-        >
-          {done ? (
-            <Check
-              size={16}
-            />
-          ) : (
-            number
-          )}
-        </span>
-
-        <p className="font-black">
-          {title}
-        </p>
-      </div>
-
-      <p className="mt-3 text-sm leading-6 text-muted-foreground">
-        {text}
-      </p>
     </div>
   );
 }

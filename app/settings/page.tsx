@@ -269,7 +269,7 @@ export default function SettingsPage() {
   return (
     <main className="klyx-page">
       <div className="mx-auto max-w-5xl">
-        <p className="klyx-eyebrow">Ton compte KLYX</p>
+        {/* KLYX_AI_FIRST_SETTINGS_15_03 */}
         <h1 className="mt-2 text-3xl font-black sm:text-5xl">Paramètres</h1>
 
         {message && (
@@ -319,7 +319,7 @@ export default function SettingsPage() {
                 href="/provider/payments"
                 className="inline-flex h-12 items-center rounded-2xl bg-violet-600 px-5 text-sm font-bold text-white"
               >
-                Ouvrir la configuration des paiements
+                Configurer les paiements
               </Link>
             </Section>
           )}
@@ -374,17 +374,17 @@ export default function SettingsPage() {
                   [
                     "bookings",
                     "Réservations",
-                    "Confirmations, changements de statut et rappels de mission.",
+                    "Réservations et rappels.",
                   ],
                   [
                     "messages",
                     "Messages",
-                    "Nouveaux messages liés à tes demandes et missions.",
+                    "Nouveaux messages.",
                   ],
                   [
                     "promotions",
                     "Nouveautés",
-                    "Nouvelles fonctions et informations importantes de KLYX.",
+                    "Nouveautés KLYX.",
                   ],
                 ] as const
               ).map(([key, label, description]) => {
@@ -628,5 +628,3 @@ function Button({
     </button>
   );
 }
-
-
