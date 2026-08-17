@@ -270,7 +270,8 @@ function SearchContent() {
             </p>
             <h1 className="mt-3 text-3xl font-bold sm:text-5xl">
               Trouver un prestataire
-            </h1>
+            </h1>
+
           </div>
 
                     {/* KLYX_SEARCH_ASSISTANT_BRIDGE_13_93 */}<Link
