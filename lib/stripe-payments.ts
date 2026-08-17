@@ -10,7 +10,6 @@ type BookingPaymentRow = {
   payment_status: string | null;
   amount_total: number | null;
   currency: string | null;
-  currency_code: string | null;
   payment_mode: string | null;
   application_fee_amount: number | null;
   stripe_checkout_session_id: string | null;
@@ -23,7 +22,7 @@ export type PaymentFailureDetails = {
 };
 
 const bookingSelection =
-  "id, parent_id, provider_id, babysitter_id, payment_status, amount_total, currency, currency_code, payment_mode, application_fee_amount, stripe_checkout_session_id, stripe_payment_intent_id";
+  "id, parent_id, provider_id, babysitter_id, payment_status, amount_total, currency, payment_mode, application_fee_amount, stripe_checkout_session_id, stripe_payment_intent_id";
 
 const FAILURE_MESSAGES: Record<string, string> = {
   insufficient_funds:
@@ -109,7 +108,6 @@ function bookingCurrencyCode(
   booking: BookingPaymentRow
 ): string {
   return normalizeKlyxPaymentCurrency(
-    booking.currency_code ??
     booking.currency
   );
 }
