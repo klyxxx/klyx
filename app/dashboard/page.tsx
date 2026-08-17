@@ -76,18 +76,7 @@ export default async function DashboardPage() {
                 : "Organise ton prochain besoin."}
             </h2>
 
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
-              {profile.accountType === "provider"
-                ? "Accède directement aux opportunités compatibles ou ouvre ton espace prestataire pour gérer ton activité."
-                : "Passe par l’assistant KLYX pour préparer ton besoin ou utilise la recherche manuelle si tu préfères comparer toi-même."}
-            </p>
-
-            {/* KLYX_DASHBOARD_CONTROL_REMINDER_14_04 */}
-            <p className="mt-4 text-xs leading-5 text-muted-foreground">
-              {profile.accountType === "provider"
-                ? "Aucune offre n’est envoyée automatiquement par KLYX."
-                : "KLYX ne publie, ne réserve et ne paie rien sans ton action explicite."}
-            </p>
+            {/* KLYX_AI_FIRST_DASHBOARD_15_02 */}
           </div>
 
           <div className="grid gap-3 bg-card p-6 lg:min-w-80">

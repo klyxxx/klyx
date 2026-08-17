@@ -270,11 +270,7 @@ function SearchContent() {
             </p>
             <h1 className="mt-3 text-3xl font-bold sm:text-5xl">
               Trouver un prestataire
-            </h1>
-            <p className="mt-3 max-w-2xl text-muted-foreground">
-              Compare les profils publiés selon la zone, le tarif, les horaires
-              et le score de confiance.
-            </p>
+            </h1>
           </div>
 
                     {/* KLYX_SEARCH_ASSISTANT_BRIDGE_13_93 */}<Link
@@ -285,64 +281,7 @@ function SearchContent() {
             Décrire mon besoin à KLYX
           </Link>
         </div>
-
-                {/* KLYX_SEARCH_TWO_PATHS_13_93 */}
-        <section className="mt-7 grid gap-4 md:grid-cols-2">
-          <div className="rounded-2xl border border-violet-500/20 bg-violet-500/[0.045] p-5">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-violet-600 dark:text-violet-400">
-              Parcours assisté
-            </p>
-
-            <h2 className="mt-2 text-lg font-black">
-              KLYX organise mon besoin
-            </h2>
-
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Décris simplement ce qu’il te faut. KLYX structure la demande,
-              prépare les solutions et attend ta confirmation avant publication.
-            </p>
-
-            <Link
-              href="/assistant/market"
-              className="mt-4 inline-flex items-center gap-2 text-sm font-black text-violet-600 dark:text-violet-400"
-            >
-              Utiliser l’assistant KLYX
-              <Search size={16} />
-            </Link>
-          </div>
-
-          <div className="rounded-2xl border border-border bg-card p-5">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">
-              Parcours manuel
-            </p>
-
-            <h2 className="mt-2 text-lg font-black">
-              Je compare moi-même
-            </h2>
-
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Choisis directement le service, la zone, la date,
-              les horaires, le budget et le mode de tarification.
-            </p>
-
-            <p className="mt-4 text-sm font-black text-foreground">
-              Les résultats restent triés selon les critères KLYX.
-            </p>
-          </div>
-        </section>
-
-        {/* KLYX_SEARCH_CONFIRMATION_REMINDER_13_93 */}
-        <div className="mt-4 flex items-start gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.045] p-4">
-          <ShieldCheck
-            size={18}
-            className="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400"
-          />
-
-          <p className="text-sm leading-6 text-muted-foreground">
-            Quel que soit le parcours choisi, KLYX ne sélectionne,
-            ne réserve et ne paie aucun prestataire sans ta confirmation.
-          </p>
-        </div>
+        {/* KLYX_AI_FIRST_SEARCH_15_02 */}
 <form
           onSubmit={submitSearch}
           className="mt-8 min-w-0 overflow-hidden rounded-3xl border border-border bg-card p-5 sm:p-6"
@@ -1136,10 +1075,3 @@ export default function SearchPage() {
     </Suspense>
   );
 }
-
-
-
-
-
-
-
