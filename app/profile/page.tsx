@@ -232,9 +232,7 @@ export default function ProfilePage() {
           <h1 className="mt-3 text-3xl font-bold sm:text-5xl">
             Mes informations
           </h1>
-          <p className="mt-3 text-muted-foreground dark:text-zinc-400">
-            Gère la photo et les informations personnelles du profil actuellement actif.
-          </p>
+                    {/* KLYX_AI_FIRST_PROFILE_15_03 */}
         </header>
 
         {errorMessage && (
@@ -272,9 +270,7 @@ export default function ProfilePage() {
 
             <div>
               <h2 className="text-xl font-bold">Photo de profil</h2>
-              <p className="mt-2 text-sm text-muted-foreground dark:text-zinc-400">
-                Une photo claire augmente la confiance des autres utilisateurs.
-              </p>
+
 
               <label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 font-semibold hover:bg-violet-700">
                 {uploading ? (
@@ -341,9 +337,7 @@ export default function ProfilePage() {
               </span>
               <div>
                 <p className="font-bold">Gérer ma fiche commerciale</p>
-                <p className="mt-1 text-sm text-violet-200/70">
-                  Services, tarifs, zones, horaires, galerie et documents
-                </p>
+
               </div>
             </div>
             <ChevronRight size={22} className="text-violet-300" />

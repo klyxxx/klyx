@@ -155,7 +155,7 @@ export default function MarketAssistantPage() {
           "assistant",
 
         content:
-          "Explique-moi simplement ce qu’il te faut. Je vais comprendre ton besoin, compléter les informations utiles avec toi puis te montrer exactement ce qui sera publié. Rien ne part sans ta confirmation.",
+          "Dis-moi ce qu’il te faut. Je m’occupe du reste avec toi.",
       },
     ]);
 
@@ -607,39 +607,17 @@ export default function MarketAssistantPage() {
           Retour à KLYX
         </Link>
 
-        <section className="mt-6 overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#17131f,#4c1d95_52%,#111827)] p-7 text-white sm:p-10">
+                <section className="mt-6 overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#17131f,#4c1d95_52%,#111827)] p-7 text-white sm:p-10">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white/70">
             <Sparkles size={14} />
 
             Organiser un service
           </div>
 
-          <div className="mt-5 grid gap-7 lg:grid-cols-[1fr_300px] lg:items-center">
-            <div>
-              <h1 className="max-w-3xl text-3xl font-black leading-tight sm:text-5xl">
-                Dis-moi ce qu’il faut faire.
-              </h1>
-
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-white/70 sm:text-base">
-                Pas besoin de chercher une catégorie ou de remplir un long formulaire. Décris ton problème normalement et KLYX construit la demande avec toi.
-              </p>
-            </div>
-
-            <div className="rounded-3xl border border-white/10 bg-black/20 p-5">
-              <p className="text-xs font-black uppercase tracking-[0.17em] text-white/45">
-                Toujours sous ton contrôle
-              </p>
-
-              <div className="mt-4 space-y-3">
-                <SafetyItem text="KLYX prépare." />
-                <SafetyItem text="Tu vérifies." />
-                <SafetyItem text="Tu confirmes." />
-                <SafetyItem text="Ensuite seulement, KLYX publie." />
-              </div>
-            </div>
-          </div>
+          <h1 className="mt-5 max-w-3xl text-3xl font-black leading-tight sm:text-5xl">
+            Dis-moi ce qu’il faut faire.
+          </h1>
         </section>
-
         {!conversationId && (
           <section className="mt-6">
             <div className="flex items-center gap-2">
@@ -675,60 +653,7 @@ export default function MarketAssistantPage() {
         )}
 
         <div className="mt-7 grid gap-6 lg:grid-cols-[minmax(0,1fr)_330px]">
-                  {/* KLYX_ASSISTED_NEED_JOURNEY_13_94 */}
-        <section className="mb-5 overflow-hidden rounded-3xl border border-border bg-card">
-          <div className="border-b border-border p-5 sm:p-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
-                  Ton parcours KLYX
-                </p>
-
-                <h2 className="mt-2 text-xl font-black sm:text-2xl">
-                  Du besoin à la comparaison, sans action cachée.
-                </h2>
-              </div>
-
-              <Link
-                href="/search"
-                className="inline-flex min-h-10 items-center justify-center rounded-xl border border-border bg-background px-4 py-2 text-sm font-black transition hover:bg-muted"
-              >
-                Comparer moi-même
-              </Link>
-            </div>
-          </div>
-
-          <div className="grid gap-px bg-border sm:grid-cols-2 lg:grid-cols-4">
-            <AssistantJourneyStep
-              number="1"
-              title="Décris"
-              text="Explique ton besoin avec tes propres mots."
-              active={!payload?.ready}
-            />
-
-            <AssistantJourneyStep
-              number="2"
-              title="Vérifie"
-              text="KLYX structure le service, la ville, la date et le budget."
-              active={Boolean(payload?.ready)}
-            />
-
-            <AssistantJourneyStep
-              number="3"
-              title="Confirme"
-              text="La publication attend toujours ton action explicite."
-              active={Boolean(payload?.ready)}
-            />
-
-            <AssistantJourneyStep
-              number="4"
-              title="Compare"
-              text="Après publication, examine les solutions et prestataires."
-              active={false}
-            />
-          </div>
-        </section>
-
+          {/* KLYX_AI_FIRST_ASSISTANT_15_02 */}
         {/* KLYX_ASSISTANT_CONTROL_STATE_13_94 */}
         <div className="mb-5 flex items-start gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.045] p-4">
           <CheckCircle2
@@ -738,8 +663,8 @@ export default function MarketAssistantPage() {
 
           <p className="text-sm leading-6 text-muted-foreground">
             {payload?.ready
-              ? "KLYX a suffisamment compris ton besoin. Vérifie maintenant les informations avant de décider de publier."
-              : "Rien n’est publié pendant la conversation. Continue à préciser ton besoin jusqu’à ce que KLYX soit prêt."}
+              ? "Besoin compris. Vérifie avant de publier."
+              : "Continue à préciser ton besoin."}
           </p>
         </div>
 <section className="klyx-card flex min-h-[570px] flex-col p-5 sm:p-7">

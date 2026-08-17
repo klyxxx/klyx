@@ -25,7 +25,7 @@ const clientSteps: ClientStep[] = [
   {
     title: "Complète ton profil",
     description:
-      "Ajoute tes informations principales pour que KLYX puisse personnaliser ton expérience.",
+      "Profil et préférences.",
     href: "/profile",
     button: "Compléter mon profil",
     icon: UserRound,
@@ -33,7 +33,7 @@ const clientSteps: ClientStep[] = [
   {
     title: "Explique ton premier besoin",
     description:
-      "Décris ton besoin. KLYX le structure, prépare la recherche et attend ta confirmation avant publication.",
+      "Décris ton besoin à KLYX.",
     href: "/assistant/market",
     button: "Parler à KLYX",
     icon: Sparkles,
@@ -41,7 +41,7 @@ const clientSteps: ClientStep[] = [
   {
     title: "Compare les prestataires",
     description:
-      "Recherche toi-même par service, ville, disponibilité, prix et niveau de confiance.",
+      "Compare les prestataires.",
     href: "/search",
     button: "Explorer les services",
     icon: Search,
@@ -117,8 +117,8 @@ export default async function OnboardingPage() {
 
             <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70 sm:text-base">
               {provider
-                ? "KLYX mesure maintenant les éléments essentiels réellement configurés dans ton espace prestataire."
-                : "Ton espace client est prêt. KLYX peut maintenant t’aider à trouver et organiser ton premier service."}
+                ? "Configure les éléments essentiels de ton activité."
+                : "Dis à KLYX ce dont tu as besoin."}
             </p>
 
             <div className="mt-7 flex flex-wrap gap-3">
@@ -139,6 +139,7 @@ export default async function OnboardingPage() {
         </section>
 
                 {/* KLYX_ROLE_NEXT_ACTION_14_03 */}
+        {/* KLYX_AI_FIRST_ONBOARDING_15_04 */}
         <section className="mt-8 overflow-hidden rounded-3xl border border-border bg-card">
           <div className="grid lg:grid-cols-[1fr_auto] lg:items-center">
             <div className="p-6 sm:p-8">
@@ -158,29 +159,10 @@ export default async function OnboardingPage() {
                   : "Organise ton premier besoin avec KLYX."}
               </h2>
 
-              <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
-                {provider
-                  ? "Complète les éléments essentiels de ton profil prestataire, puis consulte les opportunités compatibles avec tes services."
-                  : "Décris simplement ce dont tu as besoin. KLYX prépare la demande et attend toujours ta confirmation avant publication."}
-              </p>
+
 
               {/* KLYX_ROLE_SAFETY_CONTEXT_14_03 */}
-              <div className="mt-5 flex items-start gap-3 rounded-2xl border border-border bg-background p-4">
-                <BadgeCheck
-                  size={18}
-                  className={`mt-0.5 shrink-0 ${
-                    provider
-                      ? "text-blue-600 dark:text-blue-400"
-                      : "text-emerald-600 dark:text-emerald-400"
-                  }`}
-                />
 
-                <p className="text-sm leading-6 text-muted-foreground">
-                  {provider
-                    ? "Ton profil et tes services restent sous ton contrôle. KLYX ne répond à aucune mission automatiquement."
-                    : "KLYX peut comprendre et préparer ton besoin, mais ne publie, ne réserve et ne paie rien sans ton action explicite."}
-                </p>
-              </div>
             </div>
 
             <div className="border-t border-border p-6 lg:min-w-72 lg:border-l lg:border-t-0">
@@ -240,11 +222,7 @@ export default async function OnboardingPage() {
             {provider ? "Prépare ton activité" : "Commence en quelques étapes"}
           </h2>
 
-          <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
-            {provider
-              ? "La progression ci-dessous vient des données réelles de ton profil prestataire."
-              : "Chaque bouton ouvre une fonction KLYX déjà existante."}
-          </p>
+
 
           {provider ? (
             <>
@@ -266,10 +244,7 @@ export default async function OnboardingPage() {
                       Voir mes opportunités KLYX
                     </p>
 
-                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                      Découvre les missions compatibles avec ton profil,
-                      tes services et tes disponibilités.
-                    </p>
+
 
                     <span className="mt-3 inline-flex items-center gap-2 text-sm font-black text-blue-600 dark:text-blue-400">
                       Ouvrir les opportunités
@@ -292,10 +267,7 @@ export default async function OnboardingPage() {
                       Utiliser l’Assistant Prestataire
                     </p>
 
-                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                      Prépare une réponse, un devis ou une disponibilité
-                      avant toute action envers le client.
-                    </p>
+
 
                     <span className="mt-3 inline-flex items-center gap-2 text-sm font-black text-violet-600 dark:text-violet-400">
                       Ouvrir l’assistant
@@ -305,18 +277,7 @@ export default async function OnboardingPage() {
                 </Link>
               </div>
 
-              <div className="mt-5 flex items-start gap-3 rounded-2xl border border-border bg-card p-5">
-                <BadgeCheck
-                  size={18}
-                  className="mt-0.5 shrink-0 text-emerald-600"
-                />
 
-                <p className="text-sm leading-6 text-muted-foreground">
-                  KLYX peut t’aider à préparer ton activité,
-                  mais aucune offre ni mission n’est acceptée
-                  automatiquement à ta place.
-                </p>
-              </div>
             </>
           ) : (
             <div className="mt-6 grid gap-5 md:grid-cols-3">

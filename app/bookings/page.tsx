@@ -706,7 +706,7 @@ export default function BookingsPage() {
               href="/dashboard"
               className="text-sm text-muted-foreground transition hover:text-foreground"
             >
-              Retour au tableau de bord
+              Tableau de bord
             </Link>
 
             <p className="mt-6 text-sm font-black uppercase tracking-[0.2em] text-violet-600 dark:text-violet-400">
@@ -719,11 +719,7 @@ export default function BookingsPage() {
             <h1 className="mt-2 text-3xl font-black tracking-[-0.04em] sm:text-5xl">
               Mes reservations
             </h1>
-
-            <p className="mt-3 max-w-2xl text-muted-foreground">
-              Une mission multi-creneaux apparait maintenant comme
-              une seule reservation KLYX.
-            </p>
+            {/* KLYX_AI_FIRST_BOOKINGS_15_02 */}
           </div>
 
           <button

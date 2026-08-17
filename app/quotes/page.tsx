@@ -212,9 +212,7 @@ export default function QuotesPage() {
             Mes devis
           </h1>
 
-          <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">
-            Compare les estimations et les montants confirmés par les prestataires avant de réserver.
-          </p>
+                    {/* KLYX_AI_FIRST_QUOTES_15_03 */}
 
           <p className="mt-5 text-sm font-black text-violet-200">
             {activeCount} devis actif
@@ -400,9 +398,9 @@ export default function QuotesPage() {
           </section>
         )}
 
-        <div className="mt-8 rounded-2xl border border-blue-500/20 bg-blue-500/10 p-5 text-sm leading-6 text-muted-foreground">
-          Accepter un devis ne réserve rien et ne déclenche aucun paiement. Clique ensuite sur Préparer la réservation pour vérifier le créneau et envoyer toi-même la demande.
-        </div>
+        <p className="mt-6 text-xs font-semibold text-muted-foreground">
+          Accepter un devis ≠ réserver ou payer.
+        </p>
       </div>
     </main>
   );

@@ -211,7 +211,7 @@ export default function ProviderReadinessStatus() {
 
             <div>
               <p className="text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">
-                Statut de visibilité
+                Visibilité
               </p>
 
               <h2 className="mt-1 text-xl font-black sm:text-2xl">
@@ -221,14 +221,7 @@ export default function ProviderReadinessStatus() {
                     ? "Prêt à apparaître dans les recherches"
                     : "Configuration encore incomplète"}
               </h2>
-
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-                {mandatoryReady
-                  ? verified
-                    ? "Ton profil possède les éléments essentiels de visibilité et ton identité est vérifiée."
-                    : "Ton profil possède les éléments essentiels de visibilité. La vérification d’identité reste un niveau de confiance supplémentaire."
-                  : "KLYX garde ton espace prestataire accessible, mais certains éléments doivent encore être configurés avant une visibilité normale côté client."}
-              </p>
+              {/* KLYX_AI_FIRST_PROVIDER_READINESS_15_02 */}
             </div>
           </div>
 
@@ -320,4 +313,3 @@ export default function ProviderReadinessStatus() {
     </section>
   );
 }
-

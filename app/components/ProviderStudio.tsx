@@ -451,12 +451,11 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
               <StatusBadge published={studio.providerProfile.isPublished} />
             </div>
 
+            {/* KLYX_AI_FIRST_PROVIDER_STUDIO_15_03 */}
             <h1 className="mt-4 text-3xl font-bold sm:text-5xl">
-              Construis une fiche qui donne confiance
+              Mon activité
             </h1>
-            <p className="mt-4 max-w-2xl leading-7 text-foreground/80 dark:text-zinc-300">
-              Ajoute tes services, tarifs, zones, horaires, photos et documents. Une fois publiée, ta fiche apparaît dans la recherche KLYX.
-            </p>
+
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-black/25 p-5">
@@ -511,7 +510,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
             <SectionCard
               icon={<BriefcaseBusiness size={22} />}
               title="Identité commerciale"
-              description="Ces informations présentent ton activité à tous les clients."
+              description="Visible par les clients."
             >
               <div className="grid gap-5 sm:grid-cols-2">
                 <Field
@@ -563,7 +562,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
             <SectionCard
               icon={<BriefcaseBusiness size={22} />}
               title="Services proposés"
-              description="Active les métiers et services que tu souhaites réellement proposer sur KLYX."
+              description="Choisis tes services actifs."
             >
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {services.map((service) => (
@@ -642,7 +641,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
             <SectionCard
               icon={<ImagePlus size={22} />}
               title="Galerie photos"
-              description="Ajoute jusqu’à huit photos de tes réalisations ou de ton environnement de travail."
+              description="Jusqu’à 8 photos."
             >
               <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 px-6 py-10 text-center transition hover:border-violet-500 hover:bg-violet-500/5">
                 {uploadingGallery ? (
@@ -770,9 +769,9 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
           <aside className="space-y-5 xl:sticky xl:top-6 xl:self-start">
             <div className="rounded-3xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-6">
               <h2 className="text-lg font-bold">Publication</h2>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground dark:text-zinc-400">
-                Enregistrer conserve un brouillon privé. Publier rend les services actifs dans la recherche.
-              </p>
+                              <p className="mt-2 text-sm text-muted-foreground dark:text-zinc-400">
+                  Brouillon privé ou fiche publiée.
+                </p>
 
               <button
                 type="button"
@@ -1189,6 +1188,3 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-
-
-

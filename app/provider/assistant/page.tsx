@@ -262,15 +262,12 @@ export default function ProviderAssistantPage() {
             Assistant prestataire uniquement
           </div>
 
+          {/* KLYX_AI_FIRST_PROVIDER_ASSISTANT_15_04 */}
           <h1 className="mt-5 text-3xl font-black sm:text-5xl">
-            Organise ton activité avec KLYX
+            Assistant prestataire
           </h1>
 
-          <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">
-            Prépare tes disponibilités, devis et réponses
-            professionnelles. KLYX ne confirme aucune mission et
-            n’envoie aucun message sans ton action.
-          </p>
+
         </section>
 
         <section className="klyx-card mt-8 p-6 sm:p-8">
@@ -310,10 +307,8 @@ export default function ProviderAssistantPage() {
                     Contexte de mission chargé
                   </p>
 
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    Les informations de la mission sont préremplies.
-                    Vérifie ou modifie le texte puis utilise
-                    « Préparer » uniquement lorsque tu le décides.
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Contexte prêt. Modifie puis prépare.
                   </p>
                 </div>
               </div>
