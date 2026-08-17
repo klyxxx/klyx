@@ -68,12 +68,47 @@ export const DAY_LABELS = [
   "dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi",
 ] as const;
 
-export function serviceLabel(slug: string, fallback = "Service KLYX"): string {
-  const label = fallback.trim();
-  if (label && label !== "Service KLYX") return label;
+const KLYX_SERVICE_LABELS: Record<string, string> = {
+  babysitting: "Baby-sitting",
+  cleaning: "Ménage",
+  moving: "Déménagement",
+  handyman: "Bricolage",
+};
+
+export function serviceLabel(
+  slug: string,
+  fallback = "Service KLYX"
+): string {
+  const normalizedSlug =
+    slug.trim().toLowerCase();
+
+  const label =
+    fallback.trim();
+
+  if (
+    label &&
+    label !== "Service KLYX" &&
+    label.toLowerCase() !== normalizedSlug
+  ) {
+    return label;
+  }
+
+  const builtInLabel =
+    KLYX_SERVICE_LABELS[
+      normalizedSlug
+    ];
+
+  if (builtInLabel) {
+    return builtInLabel;
+  }
+
   return slug
     .replace(/[-_]+/g, " ")
-    .replace(/\b\p{L}/gu, (letter) => letter.toUpperCase());
+    .replace(
+      /\b\p{L}/gu,
+      (letter) =>
+        letter.toUpperCase()
+    );
 }
 
 export function normalizeLocation(value: string): string {
