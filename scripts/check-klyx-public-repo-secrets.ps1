@@ -301,6 +301,7 @@ foreach ($File in $TrackedFiles) {
 
     $Info =
         Get-Item `
+            -Force `
             -LiteralPath $FullPath
 
     if ($Info.Length -gt 2MB) {
@@ -310,6 +311,7 @@ foreach ($File in $TrackedFiles) {
     try {
         $Text =
             Get-Content `
+                -Force `
                 -LiteralPath $FullPath `
                 -Raw `
                 -ErrorAction Stop
