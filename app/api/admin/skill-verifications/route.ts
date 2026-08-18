@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import {
+  adminErrorPublicMessage,
   adminErrorStatus,
   requireKlyxAdmin,
 } from "@/lib/admin-auth";
+import { secureApiErrorResponse } from "@/lib/api-error";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function GET() {
+  const startedAt = Date.now();
+
   try {
     await requireKlyxAdmin();
 
@@ -120,14 +124,17 @@ export async function GET() {
       }),
     });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Impossible de charger les compétences.";
+    const status = adminErrorStatus(error);
 
-    return NextResponse.json(
-      { error: message },
-      { status: adminErrorStatus(error) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "admin_skill_verifications_read_failed",
+      route: "/api/admin/skill-verifications",
+      method: "GET",
+      status,
+      code: "KLYX_ADMIN_SKILL_VERIFICATIONS_READ_FAILED",
+      publicMessage: adminErrorPublicMessage(status),
+      startedAt,
+    });
   }
 }

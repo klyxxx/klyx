@@ -34,3 +34,11 @@ export function adminErrorStatus(error: unknown): number {
   if (message === "KLYX_ADMIN_FORBIDDEN") return 403;
   return 500;
 }
+
+export function adminErrorPublicMessage(
+  status: number
+): string | undefined {
+  if (status === 401) return "Non connecté.";
+  if (status === 403) return "Accès administrateur refusé.";
+  return undefined;
+}

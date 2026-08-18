@@ -10,6 +10,11 @@ import {
 const root = process.cwd();
 
 const criticalRoutePaths = [
+  "app/api/admin/skill-verifications/document/route.ts",
+  "app/api/admin/skill-verifications/route.ts",
+  "app/api/admin/sumsub/route.ts",
+  "app/api/admin/verifications/document/route.ts",
+  "app/api/admin/verifications/route.ts",
   "app/api/brain/respond/route.ts",
   "app/api/bookings/create/route.ts",
   "app/api/bookings/status/route.ts",
@@ -84,6 +89,57 @@ describe(
         expect(source)
           .not.toMatch(
             /detail:\s*error\s+instanceof\s+Error/
+          );
+      }
+    );
+
+    it(
+      "keeps admin authentication errors public while masking trust operation failures",
+      () => {
+        const adminAuth = read(
+          "lib/admin-auth.ts"
+        );
+        const adminTrustRoutes = [
+          "app/api/admin/skill-verifications/document/route.ts",
+          "app/api/admin/skill-verifications/route.ts",
+          "app/api/admin/sumsub/route.ts",
+          "app/api/admin/verifications/document/route.ts",
+          "app/api/admin/verifications/route.ts",
+        ];
+
+        expect(adminAuth)
+          .toContain(
+            "adminErrorPublicMessage"
+          );
+        expect(adminAuth)
+          .toContain(
+            'if (status === 401) return "Non connecté.";'
+          );
+        expect(adminAuth)
+          .toContain(
+            'if (status === 403) return "Accès administrateur refusé.";'
+          );
+
+        for (const relativePath of adminTrustRoutes) {
+          const source = read(relativePath);
+
+          expect(source)
+            .toContain(
+              "publicMessage: adminErrorPublicMessage(status)"
+            );
+        }
+
+        const verificationRoute = read(
+          "app/api/admin/verifications/route.ts"
+        );
+
+        expect(verificationRoute)
+          .toContain(
+            'event: "admin_verification_notification_failed"'
+          );
+        expect(verificationRoute)
+          .toContain(
+            "logServerError({"
           );
       }
     );

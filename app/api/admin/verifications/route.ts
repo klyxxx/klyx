@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
+  adminErrorPublicMessage,
   adminErrorStatus,
   requireKlyxAdmin,
 } from "@/lib/admin-auth";
+import { secureApiErrorResponse } from "@/lib/api-error";
 import {
   runVerificationPrecheck,
   type VerificationDocumentInput,
 } from "@/lib/provider-verification-precheck";
+import { logServerError } from "@/lib/server-log";
 
 type ReviewAction =
   | "under_review"
@@ -39,6 +42,8 @@ async function loadDocuments(profileId: string) {
 }
 
 export async function GET() {
+  const startedAt = Date.now();
+
   try {
     await requireKlyxAdmin();
 
@@ -78,19 +83,24 @@ export async function GET() {
 
     return NextResponse.json({ verifications: rows });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Impossible de charger les vérifications.";
+    const status = adminErrorStatus(error);
 
-    return NextResponse.json(
-      { error: message },
-      { status: adminErrorStatus(error) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "admin_verifications_read_failed",
+      route: "/api/admin/verifications",
+      method: "GET",
+      status,
+      code: "KLYX_ADMIN_VERIFICATIONS_READ_FAILED",
+      publicMessage: adminErrorPublicMessage(status),
+      startedAt,
+    });
   }
 }
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const admin = await requireKlyxAdmin();
 
@@ -264,10 +274,15 @@ export async function POST(request: Request) {
         });
 
     if (notificationError) {
-      console.error(
-        "Verification notification error:",
-        notificationError.message
-      );
+      logServerError({
+        error: notificationError,
+        event: "admin_verification_notification_failed",
+        route: "/api/admin/verifications",
+        method: "POST",
+        status: 500,
+        code: "KLYX_ADMIN_VERIFICATION_NOTIFICATION_FAILED",
+        durationMs: Math.max(0, Date.now() - startedAt),
+      });
     }
 
     return NextResponse.json({
@@ -275,14 +290,17 @@ export async function POST(request: Request) {
       precheck,
     });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Impossible de traiter le dossier.";
+    const status = adminErrorStatus(error);
 
-    return NextResponse.json(
-      { error: message },
-      { status: adminErrorStatus(error) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "admin_verification_decision_failed",
+      route: "/api/admin/verifications",
+      method: "POST",
+      status,
+      code: "KLYX_ADMIN_VERIFICATION_DECISION_FAILED",
+      publicMessage: adminErrorPublicMessage(status),
+      startedAt,
+    });
   }
 }
