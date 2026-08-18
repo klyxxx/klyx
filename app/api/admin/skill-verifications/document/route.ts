@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import {
+  adminErrorPublicMessage,
   adminErrorStatus,
   requireKlyxAdmin,
 } from "@/lib/admin-auth";
+import { secureApiErrorResponse } from "@/lib/api-error";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
+
   try {
     await requireKlyxAdmin();
 
@@ -54,14 +58,17 @@ export async function POST(request: Request) {
       expiresIn: 60,
     });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Ouverture impossible.";
+    const status = adminErrorStatus(error);
 
-    return NextResponse.json(
-      { error: message },
-      { status: adminErrorStatus(error) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "admin_skill_verification_document_open_failed",
+      route: "/api/admin/skill-verifications/document",
+      method: "POST",
+      status,
+      code: "KLYX_ADMIN_SKILL_VERIFICATION_DOCUMENT_OPEN_FAILED",
+      publicMessage: adminErrorPublicMessage(status),
+      startedAt,
+    });
   }
 }

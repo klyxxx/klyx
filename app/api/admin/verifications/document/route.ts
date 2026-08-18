@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
+  adminErrorPublicMessage,
   adminErrorStatus,
   requireKlyxAdmin,
 } from "@/lib/admin-auth";
+import { secureApiErrorResponse } from "@/lib/api-error";
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
+
   try {
     await requireKlyxAdmin();
 
@@ -49,14 +53,17 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ url: data.signedUrl });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Impossible d’ouvrir le document.";
+    const status = adminErrorStatus(error);
 
-    return NextResponse.json(
-      { error: message },
-      { status: adminErrorStatus(error) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "admin_verification_document_open_failed",
+      route: "/api/admin/verifications/document",
+      method: "POST",
+      status,
+      code: "KLYX_ADMIN_VERIFICATION_DOCUMENT_OPEN_FAILED",
+      publicMessage: adminErrorPublicMessage(status),
+      startedAt,
+    });
   }
 }
