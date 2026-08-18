@@ -9,6 +9,10 @@ import {
 } from "@/lib/api-auth";
 
 import {
+  secureApiErrorResponse,
+} from "@/lib/api-error";
+
+import {
   supabaseAdmin,
 } from "@/lib/supabase-admin";
 
@@ -624,6 +628,9 @@ function bookingIsHistory(
 export async function GET(
   request: Request
 ) {
+  const startedAt =
+    Date.now();
+
   try {
     const {
       profile,
@@ -1259,17 +1266,26 @@ export async function GET(
         ? error.message
         : "Impossible de charger les reservations.";
 
-    return NextResponse.json(
-      {
-        error:
-          message,
-      },
-      {
-        status:
-          apiErrorStatus(
-            message
-          ),
-      }
-    );
+    const status =
+      apiErrorStatus(
+        message
+      );
+
+    return secureApiErrorResponse({
+      error,
+      event:
+        "booking_overview_failed",
+      route:
+        "/api/bookings/overview",
+      method: "GET",
+      status,
+      code:
+        "booking_overview_failed",
+      publicMessage:
+        status < 500
+          ? message
+          : undefined,
+      startedAt,
+    });
   }
 }

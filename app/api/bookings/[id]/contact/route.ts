@@ -4,6 +4,9 @@ import {
   apiErrorStatus,
   getAuthenticatedProfile,
 } from "@/lib/api-auth";
+import {
+  secureApiErrorResponse,
+} from "@/lib/api-error";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 // KLYX_REVALIDATED_PHONE_CALL_API_12_74
@@ -382,6 +385,9 @@ export async function GET(
     params: Promise<{ id: string }>;
   }
 ) {
+  const startedAt =
+    Date.now();
+
   try {
     const { id: bookingId } =
       await context.params;
@@ -410,10 +416,27 @@ export async function GET(
         ? error.message
         : "Contact KLYX indisponible.";
 
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
-    );
+    const status =
+      apiErrorStatus(
+        message
+      );
+
+    return secureApiErrorResponse({
+      error,
+      event:
+        "booking_contact_read_failed",
+      route:
+        "/api/bookings/[id]/contact",
+      method: "GET",
+      status,
+      code:
+        "booking_contact_read_failed",
+      publicMessage:
+        status < 500
+          ? message
+          : undefined,
+      startedAt,
+    });
   }
 }
 
@@ -423,6 +446,9 @@ export async function POST(
     params: Promise<{ id: string }>;
   }
 ) {
+  const startedAt =
+    Date.now();
+
   try {
     const { id: bookingId } =
       await context.params;
@@ -461,10 +487,27 @@ export async function POST(
         ? error.message
         : "Revelation impossible.";
 
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
-    );
+    const status =
+      apiErrorStatus(
+        message
+      );
+
+    return secureApiErrorResponse({
+      error,
+      event:
+        "booking_contact_reveal_failed",
+      route:
+        "/api/bookings/[id]/contact",
+      method: "POST",
+      status,
+      code:
+        "booking_contact_reveal_failed",
+      publicMessage:
+        status < 500
+          ? message
+          : undefined,
+      startedAt,
+    });
   }
 }
 
@@ -474,6 +517,9 @@ export async function PUT(
     params: Promise<{ id: string }>;
   }
 ) {
+  const startedAt =
+    Date.now();
+
   try {
     const { id: bookingId } =
       await context.params;
@@ -504,9 +550,26 @@ export async function PUT(
         ? error.message
         : "Appel KLYX impossible.";
 
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
-    );
+    const status =
+      apiErrorStatus(
+        message
+      );
+
+    return secureApiErrorResponse({
+      error,
+      event:
+        "booking_contact_call_failed",
+      route:
+        "/api/bookings/[id]/contact",
+      method: "PUT",
+      status,
+      code:
+        "booking_contact_call_failed",
+      publicMessage:
+        status < 500
+          ? message
+          : undefined,
+      startedAt,
+    });
   }
 }

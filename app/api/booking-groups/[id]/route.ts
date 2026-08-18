@@ -4,6 +4,9 @@ import {
   apiErrorStatus,
   getAuthenticatedProfile,
 } from "@/lib/api-auth";
+import {
+  secureApiErrorResponse,
+} from "@/lib/api-error";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   rankProvidersForMultiSlots,
@@ -56,6 +59,9 @@ export async function GET(
     }>;
   }
 ) {
+  const startedAt =
+    Date.now();
+
   try {
     const {
       profile,
@@ -317,17 +323,27 @@ export async function GET(
         ? error.message
         : "Reservation groupee indisponible.";
 
-    return NextResponse.json(
-      {
-        error: message,
-      },
-      {
-        status:
-          apiErrorStatus(
-            message
-          ),
-      }
-    );
+    const status =
+      apiErrorStatus(
+        message
+      );
+
+    return secureApiErrorResponse({
+      error,
+      event:
+        "booking_group_read_failed",
+      route:
+        "/api/booking-groups/[id]",
+      method: "GET",
+      status,
+      code:
+        "booking_group_read_failed",
+      publicMessage:
+        status < 500
+          ? message
+          : undefined,
+      startedAt,
+    });
   }
 }
 
@@ -339,6 +355,9 @@ async function klyxBookingGroupBeforeProviderLiveRecovery13_07(
     }>;
   }
 ) {
+  const startedAt =
+    Date.now();
+
   try {
     const {
       profile,
@@ -681,17 +700,36 @@ async function klyxBookingGroupBeforeProviderLiveRecovery13_07(
         ? error.message
         : "Decision groupee impossible.";
 
-    return NextResponse.json(
-      {
-        error: message,
-      },
-      {
-        status:
-          apiErrorStatus(
-            message
-          ),
-      }
-    );
+    const recovery =
+      klyxProviderGroupRecoveryResponse13_07(
+        message
+      );
+
+    if (recovery) {
+      return recovery;
+    }
+
+    const status =
+      apiErrorStatus(
+        message
+      );
+
+    return secureApiErrorResponse({
+      error,
+      event:
+        "booking_group_decision_failed",
+      route:
+        "/api/booking-groups/[id]",
+      method: "PATCH",
+      status,
+      code:
+        "booking_group_decision_failed",
+      publicMessage:
+        status < 500
+          ? message
+          : undefined,
+      startedAt,
+    });
   }
 }
 
@@ -817,6 +855,9 @@ export async function PATCH(
   context:
     KlyxProviderGroupRouteContext13_07
 ) {
+  const startedAt =
+    Date.now();
+
   /*
     Le clone est cree AVANT le handler historique.
 
@@ -887,6 +928,17 @@ export async function PATCH(
       return recovery;
     }
 
-    throw error;
+    return secureApiErrorResponse({
+      error,
+      event:
+        "booking_group_recovery_failed",
+      route:
+        "/api/booking-groups/[id]",
+      method: "PATCH",
+      status: 500,
+      code:
+        "booking_group_recovery_failed",
+      startedAt,
+    });
   }
 }

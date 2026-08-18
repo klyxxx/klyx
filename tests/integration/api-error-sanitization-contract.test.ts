@@ -14,7 +14,12 @@ const criticalRoutePaths = [
   "app/api/bookings/create/route.ts",
   "app/api/bookings/status/route.ts",
   "app/api/bookings/tracking/route.ts",
+  "app/api/bookings/overview/route.ts",
+  "app/api/bookings/[id]/contact/route.ts",
+  "app/api/booking-groups/[id]/route.ts",
   "app/api/booking-groups/[id]/cancellation/route.ts",
+  "app/api/bookings/split-missions/route.ts",
+  "app/api/bookings/split-missions/[id]/acceptance/route.ts",
   "app/api/bookings/split-missions/[id]/checkout/route.ts",
   "app/api/bookings/split-missions/[id]/refund-status/route.ts",
   "app/api/bookings/split-missions/[id]/payment-plan/route.ts",
@@ -73,6 +78,28 @@ describe(
         expect(source)
           .not.toMatch(
             /detail:\s*error\s+instanceof\s+Error/
+          );
+      }
+    );
+
+    it(
+      "keeps provider group recovery before the secure fallback",
+      () => {
+        const source = read(
+          "app/api/booking-groups/[id]/route.ts"
+        );
+
+        expect(source)
+          .toContain(
+            "klyxProviderGroupRecoveryResponse13_07("
+          );
+        expect(source)
+          .toMatch(
+            /if\s*\(\s*recovery\s*\)\s*\{\s*return\s+recovery;/
+          );
+        expect(source)
+          .toContain(
+            '"booking_group_recovery_failed"'
           );
       }
     );
