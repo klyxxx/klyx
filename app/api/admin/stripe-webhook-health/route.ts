@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
 
 import {
+  adminErrorPublicMessage,
   adminErrorStatus,
   requireKlyxAdmin,
 } from "@/lib/admin-auth";
+import { secureApiErrorResponse } from "@/lib/api-error";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function GET() {
+  const startedAt = Date.now();
+
   try {
     await requireKlyxAdmin();
 
@@ -70,8 +74,7 @@ export async function GET() {
         ok: webhookEventsTableOk,
         detail: webhookEventsTableOk
           ? "public.stripe_webhook_events est accessible."
-          : webhookEventsError?.message ??
-            "public.stripe_webhook_events est inaccessible.",
+          : "public.stripe_webhook_events est inaccessible.",
       },
     ];
 
@@ -81,15 +84,20 @@ export async function GET() {
       checks,
     });
   } catch (error) {
-    return NextResponse.json(
-      {
+    const status = adminErrorStatus(error);
+
+    return secureApiErrorResponse({
+      error,
+      event: "admin_stripe_webhook_health_failed",
+      route: "/api/admin/stripe-webhook-health",
+      method: "GET",
+      status,
+      code: "KLYX_ADMIN_STRIPE_WEBHOOK_HEALTH_FAILED",
+      publicMessage: adminErrorPublicMessage(status),
+      startedAt,
+      details: {
         ready: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Diagnostic webhook Stripe impossible.",
       },
-      { status: adminErrorStatus(error) }
-    );
+    });
   }
 }

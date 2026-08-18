@@ -1,15 +1,20 @@
 import { NextResponse } from "next/server";
 
 import {
+  adminErrorPublicMessage,
   adminErrorStatus,
   requireKlyxAdmin,
 } from "@/lib/admin-auth";
+import { secureApiErrorResponse } from "@/lib/api-error";
+import {
+  logServerError,
+  logServerWarning,
+} from "@/lib/server-log";
 
 type OpenAiErrorPayload = {
   error?: {
     code?: unknown;
     type?: unknown;
-    message?: unknown;
   };
 };
 
@@ -105,6 +110,8 @@ function extractOutputText(
 }
 
 export async function GET() {
+  const startedAt = Date.now();
+
   try {
     await requireKlyxAdmin();
 
@@ -168,6 +175,16 @@ export async function GET() {
           }
         );
     } catch (error) {
+      logServerError({
+        error,
+        event: "admin_openai_health_network_failed",
+        route: "/api/admin/openai-health",
+        method: "GET",
+        status: 502,
+        code: "KLYX_ADMIN_OPENAI_HEALTH_NETWORK_FAILED",
+        durationMs: Math.max(0, Date.now() - startedAt),
+      });
+
       return NextResponse.json(
         {
           ready: false,
@@ -181,11 +198,7 @@ export async function GET() {
           errorCode:
             "OPENAI_REQUEST_FAILED",
           errorMessage:
-            error instanceof Error
-              ? safeString(
-                  error.message
-                )
-              : "Appel OpenAI impossible.",
+            "OpenAI n'est pas joignable depuis KLYX.",
         },
         {
           status: 200,
@@ -211,6 +224,15 @@ export async function GET() {
       const errorPayload =
         payload as OpenAiErrorPayload;
 
+      logServerWarning({
+        event: "admin_openai_health_upstream_rejected",
+        route: "/api/admin/openai-health",
+        method: "GET",
+        status: response.status,
+        code: "KLYX_ADMIN_OPENAI_HEALTH_UPSTREAM_REJECTED",
+        durationMs: Math.max(0, Date.now() - startedAt),
+      });
+
       return NextResponse.json(
         {
           ready: false,
@@ -229,10 +251,7 @@ export async function GET() {
                 ?.code
             ),
           errorMessage:
-            safeString(
-              errorPayload.error
-                ?.message
-            ),
+            "OpenAI a refusé la requête de diagnostic.",
         },
         {
           status: 200,
@@ -269,20 +288,20 @@ export async function GET() {
       }
     );
   } catch (error) {
-    return NextResponse.json(
-      {
+    const status = adminErrorStatus(error);
+
+    return secureApiErrorResponse({
+      error,
+      event: "admin_openai_health_failed",
+      route: "/api/admin/openai-health",
+      method: "GET",
+      status,
+      code: "KLYX_ADMIN_OPENAI_HEALTH_FAILED",
+      publicMessage: adminErrorPublicMessage(status),
+      startedAt,
+      details: {
         ready: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Diagnostic OpenAI impossible.",
       },
-      {
-        status:
-          adminErrorStatus(
-            error
-          ),
-      }
-    );
+    });
   }
 }

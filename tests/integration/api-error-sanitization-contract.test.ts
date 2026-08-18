@@ -10,8 +10,14 @@ import {
 const root = process.cwd();
 
 const criticalRoutePaths = [
+  "app/api/admin/access/route.ts",
+  "app/api/admin/disputes/route.ts",
+  "app/api/admin/openai-health/route.ts",
+  "app/api/admin/service-proposals/route.ts",
   "app/api/admin/skill-verifications/document/route.ts",
   "app/api/admin/skill-verifications/route.ts",
+  "app/api/admin/stripe-readiness/route.ts",
+  "app/api/admin/stripe-webhook-health/route.ts",
   "app/api/admin/sumsub/route.ts",
   "app/api/admin/verifications/document/route.ts",
   "app/api/admin/verifications/route.ts",
@@ -89,6 +95,39 @@ describe(
         expect(source)
           .not.toMatch(
             /detail:\s*error\s+instanceof\s+Error/
+          );
+      }
+    );
+
+    it(
+      "keeps admin diagnostics useful without exposing upstream messages",
+      () => {
+        const openAiHealth = read(
+          "app/api/admin/openai-health/route.ts"
+        );
+        const stripeWebhookHealth = read(
+          "app/api/admin/stripe-webhook-health/route.ts"
+        );
+
+        expect(openAiHealth)
+          .not.toContain(
+            "error.message"
+          );
+        expect(openAiHealth)
+          .not.toContain(
+            "errorPayload.error?.message"
+          );
+        expect(openAiHealth)
+          .toContain(
+            'event: "admin_openai_health_network_failed"'
+          );
+        expect(openAiHealth)
+          .toContain(
+            'event: "admin_openai_health_upstream_rejected"'
+          );
+        expect(stripeWebhookHealth)
+          .not.toContain(
+            "webhookEventsError?.message"
           );
       }
     );
