@@ -3,10 +3,10 @@ name: KLYX E2E
 on:
   workflow_dispatch:
 
+  # KLYX_CI_SINGLE_EVENT_PHASE_12A_10
   push:
     branches:
       - main
-      - "agent/**"
 
   pull_request:
     branches:
