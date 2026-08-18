@@ -8,6 +8,10 @@ import {
 } from "@/lib/api-auth";
 
 import {
+  secureApiErrorResponse,
+} from "@/lib/api-error";
+
+import {
   supabaseAdmin,
 } from "@/lib/supabase-admin";
 
@@ -83,6 +87,9 @@ export async function GET(
   context:
     RouteContext
 ) {
+  const startedAt =
+    Date.now();
+
   try {
     const {
       profile,
@@ -343,23 +350,21 @@ export async function GET(
   catch (
     error
   ) {
-    return NextResponse.json(
-      {
-        error:
-          "Impossible de lire l'état des remboursements de cette mission.",
-
-        detail:
-          error instanceof Error
-            ? error.message
-            : "SPLIT_REFUND_STATUS_FAILED",
-
+    return secureApiErrorResponse({
+      error,
+      event:
+        "split_refund_status_failed",
+      route:
+        "/api/bookings/split-missions/[id]/refund-status",
+      method: "GET",
+      status: 500,
+      code:
+        "split_refund_status_failed",
+      startedAt,
+      details: {
         automaticRefund:
           false,
       },
-      {
-        status:
-          500,
-      }
-    );
+    });
   }
 }

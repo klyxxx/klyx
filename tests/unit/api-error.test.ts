@@ -134,6 +134,57 @@ describe(
     );
 
     it(
+      "keeps safe workflow flags while masking a 5xx failure",
+      async () => {
+        vi.spyOn(
+          console,
+          "error"
+        ).mockImplementation(
+          () => undefined
+        );
+
+        const response =
+          secureApiErrorResponse({
+            error: new Error(
+              "sensitive payment failure"
+            ),
+            event:
+              "split_payment_failed",
+            route:
+              "/api/bookings/split-missions/test/payment-plan",
+            method: "GET",
+            code:
+              "split_payment_failed",
+            status: 500,
+            details: {
+              automaticPayment:
+                false,
+              explicitPaymentConfirmationRequired:
+                true,
+            },
+          });
+
+        const body =
+          (await response.json()) as {
+            error: string;
+            automaticPayment: boolean;
+            explicitPaymentConfirmationRequired: boolean;
+          };
+
+        expect(body.error)
+          .toBe(
+            INTERNAL_API_ERROR_MESSAGE
+          );
+        expect(
+          body.automaticPayment
+        ).toBe(false);
+        expect(
+          body.explicitPaymentConfirmationRequired
+        ).toBe(true);
+      }
+    );
+
+    it(
       "normalizes invalid statuses and codes",
       async () => {
         vi.spyOn(

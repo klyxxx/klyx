@@ -10,6 +10,10 @@ import {
 } from "@/lib/api-auth";
 
 import {
+  secureApiErrorResponse,
+} from "@/lib/api-error";
+
+import {
   supabaseAdmin,
 } from "@/lib/supabase-admin";
 
@@ -335,6 +339,9 @@ export async function GET(
   context:
     RouteContext
 ) {
+  const startedAt =
+    Date.now();
+
   try {
     const {
       profile,
@@ -987,41 +994,33 @@ export async function GET(
   catch (
     error
   ) {
-    return NextResponse.json(
-      {
-        error:
-          "Impossible de vérifier la disponibilité Stripe Connect.",
-
-        detail:
-          error instanceof Error
-            ? error.message
-            : "SPLIT_STRIPE_READINESS_FAILED",
-
+    return secureApiErrorResponse({
+      error,
+      event:
+        "split_stripe_readiness_failed",
+      route:
+        "/api/bookings/split-missions/[id]/stripe-readiness",
+      method: "GET",
+      status: 500,
+      code:
+        "split_stripe_readiness_failed",
+      startedAt,
+      details: {
         stripeReadinessComplete:
           false,
-
         allProvidersStripeReady:
           false,
-
         explicitPaymentConfirmationRequired:
           true,
-
         automaticPayment:
           false,
-
         paymentCreated:
           false,
-
         checkoutCreated:
           false,
-
         transferCreated:
           false,
       },
-      {
-        status:
-          500,
-      }
-    );
+    });
   }
 }

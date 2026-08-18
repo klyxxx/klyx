@@ -12,6 +12,10 @@ import {
 } from "@/lib/api-auth";
 
 import {
+  secureApiErrorResponse,
+} from "@/lib/api-error";
+
+import {
   supabaseAdmin,
 } from "@/lib/supabase-admin";
 
@@ -994,6 +998,9 @@ export async function GET(
   context:
     RouteContext
 ) {
+  const startedAt =
+    Date.now();
+
   try {
     const {
       profile,
@@ -1124,36 +1131,30 @@ export async function GET(
   catch (
     error
   ) {
-    return NextResponse.json(
-      {
-        error:
-          "Impossible de vérifier les prix de la mission.",
-
-        detail:
-          error instanceof Error
-            ? error.message
-            : "SPLIT_PRICE_RECONCILIATION_FAILED",
-
+    return secureApiErrorResponse({
+      error,
+      event:
+        "split_price_reconciliation_failed",
+      route:
+        "/api/bookings/split-missions/[id]/prices",
+      method: "GET",
+      status: 500,
+      code:
+        "split_price_reconciliation_failed",
+      startedAt,
+      details: {
         confirmed:
           false,
-
         explicitPriceConfirmationRequired:
           true,
-
         automaticBooking:
           false,
-
         automaticPayment:
           false,
-
         paymentCreated:
           false,
       },
-      {
-        status:
-          500,
-      }
-    );
+    });
   }
 }
 
@@ -1164,6 +1165,9 @@ export async function POST(
   context:
     RouteContext
 ) {
+  const startedAt =
+    Date.now();
+
   try {
     const {
       profile,
@@ -1462,32 +1466,27 @@ export async function POST(
   catch (
     error
   ) {
-    return NextResponse.json(
-      {
-        error:
-          "Impossible de confirmer les prix de cette mission.",
-
-        detail:
-          error instanceof Error
-            ? error.message
-            : "SPLIT_PRICE_CONFIRMATION_FAILED",
-
+    return secureApiErrorResponse({
+      error,
+      event:
+        "split_price_confirmation_failed",
+      route:
+        "/api/bookings/split-missions/[id]/prices",
+      method: "POST",
+      status: 500,
+      code:
+        "split_price_confirmation_failed",
+      startedAt,
+      details: {
         confirmed:
           false,
-
         automaticBooking:
           false,
-
         automaticPayment:
           false,
-
         paymentCreated:
           false,
       },
-      {
-        status:
-          500,
-      }
-    );
+    });
   }
 }

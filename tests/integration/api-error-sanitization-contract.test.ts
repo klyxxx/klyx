@@ -14,7 +14,13 @@ const criticalRoutePaths = [
   "app/api/bookings/create/route.ts",
   "app/api/bookings/status/route.ts",
   "app/api/bookings/tracking/route.ts",
+  "app/api/booking-groups/[id]/cancellation/route.ts",
   "app/api/bookings/split-missions/[id]/checkout/route.ts",
+  "app/api/bookings/split-missions/[id]/refund-status/route.ts",
+  "app/api/bookings/split-missions/[id]/payment-plan/route.ts",
+  "app/api/bookings/split-missions/[id]/prices/route.ts",
+  "app/api/bookings/split-missions/[id]/payment-confirmation/route.ts",
+  "app/api/bookings/split-missions/[id]/stripe-readiness/route.ts",
   "app/api/disputes/route.ts",
   "app/api/stripe/create-checkout-session/route.ts",
   "app/api/stripe/create-group-checkout-session/route.ts",
@@ -67,6 +73,36 @@ describe(
         expect(source)
           .not.toMatch(
             /detail:\s*error\s+instanceof\s+Error/
+          );
+      }
+    );
+
+    it(
+      "keeps cancellation business conflicts public without exposing 5xx failures",
+      () => {
+        const source = read(
+          "app/api/booking-groups/[id]/cancellation/route.ts"
+        );
+
+        expect(source)
+          .toContain(
+            '"KLYX_GROUP_CANCEL_SELF_APPROVAL"'
+          );
+        expect(source)
+          .toContain(
+            '"KLYX_GROUP_CANCEL_NOT_PENDING"'
+          );
+        expect(source)
+          .toContain(
+            '"KLYX_GROUP_CANCEL_PAYMENT_INTENT_MISSING"'
+          );
+        expect(source)
+          .toMatch(
+            /\?\s*409\s*:\s*apiErrorStatus/
+          );
+        expect(source)
+          .toMatch(
+            /publicMessage:\s*status\s*<\s*500/
           );
       }
     );

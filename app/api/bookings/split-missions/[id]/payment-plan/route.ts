@@ -8,6 +8,10 @@ import {
 } from "@/lib/api-auth";
 
 import {
+  secureApiErrorResponse,
+} from "@/lib/api-error";
+
+import {
   supabaseAdmin,
 } from "@/lib/supabase-admin";
 
@@ -378,6 +382,9 @@ export async function GET(
   context:
     RouteContext
 ) {
+  const startedAt =
+    Date.now();
+
   try {
     const {
       profile,
@@ -1019,35 +1026,29 @@ export async function GET(
   catch (
     error
   ) {
-    return NextResponse.json(
-      {
-        error:
-          "Impossible de préparer le contrat de paiement multi-prestataires.",
-
-        detail:
-          error instanceof Error
-            ? error.message
-            : "SPLIT_PAYMENT_PLAN_FAILED",
-
+    return secureApiErrorResponse({
+      error,
+      event:
+        "split_payment_plan_failed",
+      route:
+        "/api/bookings/split-missions/[id]/payment-plan",
+      method: "GET",
+      status: 500,
+      code:
+        "split_payment_plan_failed",
+      startedAt,
+      details: {
         paymentPlanReady:
           false,
-
         explicitPaymentConfirmationRequired:
           true,
-
         automaticPayment:
           false,
-
         paymentCreated:
           false,
-
         stripeCheckoutCreated:
           false,
       },
-      {
-        status:
-          500,
-      }
-    );
+    });
   }
 }
