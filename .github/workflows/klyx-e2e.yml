@@ -31,6 +31,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # KLYX_CURRENT_TREE_SECRET_SCAN_PHASE_12A_9
+      - name: Scan current repository for secrets
+        shell: pwsh
+        run: ./scripts/check-klyx-public-repo-secrets.ps1
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:

@@ -2,22 +2,16 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 # KLYX_PUBLIC_REPO_SECRET_SCAN_PHASE_12A_7
+# KLYX_CURRENT_TREE_CI_PORTABLE_PHASE_12A_9
 
-$Root = "C:\Users\fenjo\Documents\klyx"
-Set-Location $Root
-
-$ExpectedBranch =
-    "agent/klyx-repo-hygiene-20260816"
-
-$Branch =
+$Root =
     (
-        git branch --show-current
-    ).Trim()
+        Resolve-Path (
+            Join-Path $PSScriptRoot ".."
+        )
+    ).Path
 
-if ($Branch -ne $ExpectedBranch) {
-    throw "Wrong branch: $Branch"
-}
-
+Set-Location $Root
 $ReportRoot =
     Join-Path `
         $Root `
@@ -270,12 +264,6 @@ function Test-EmbeddedPostgresPassword {
     return $false
 }
 
-git fetch --all --prune
-
-if ($LASTEXITCODE -ne 0) {
-    throw "git fetch FAILED."
-}
-
 $TrackedFiles =
     @(
         git ls-files
@@ -313,6 +301,7 @@ foreach ($File in $TrackedFiles) {
 
     $Info =
         Get-Item `
+            -Force `
             -LiteralPath $FullPath
 
     if ($Info.Length -gt 2MB) {
@@ -322,6 +311,7 @@ foreach ($File in $TrackedFiles) {
     try {
         $Text =
             Get-Content `
+                -Force `
                 -LiteralPath $FullPath `
                 -Raw `
                 -ErrorAction Stop
