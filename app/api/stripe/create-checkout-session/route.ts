@@ -10,6 +10,11 @@ import {
   getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
+import {
+  logServerError,
+  logServerInfo,
+  logServerWarning,
+} from "@/lib/server-log";
 
 type BookingRow = {
   id: string;
@@ -216,7 +221,11 @@ async function resolveService(
   };
 }
 export async function POST(request: Request) {
+  // KLYX_SERVER_OBSERVABILITY_12B_8B
+  const startedAt = Date.now();
+
   assertStripeRuntimeReady();
+
   try {
     const stripeSecretKey = requiredEnv("STRIPE_SECRET_KEY");
     const stripe = new Stripe(stripeSecretKey);
@@ -231,6 +240,20 @@ export async function POST(request: Request) {
     const bookingId = body.bookingId?.trim();
 
     if (!bookingId) {
+      logServerWarning({
+        event:
+          "stripe_checkout_rejected",
+        route:
+          "/api/stripe/create-checkout-session",
+        method: "POST",
+        status: 400,
+        code:
+          "booking_required",
+        durationMs:
+          Date.now() -
+          startedAt,
+      });
+
       return NextResponse.json(
         { error: "Réservation manquante." },
         { status: 400 }
@@ -541,6 +564,20 @@ export async function POST(request: Request) {
       }
 
       if (existingSession.status === "open" && existingSession.url) {
+        logServerInfo({
+          event:
+            "stripe_checkout_reused",
+          route:
+            "/api/stripe/create-checkout-session",
+          method: "POST",
+          status: 200,
+          code:
+            paymentMode,
+          durationMs:
+            Date.now() -
+            startedAt,
+        });
+
         return NextResponse.json({
           url: existingSession.url,
           reused: true,
@@ -648,6 +685,20 @@ export async function POST(request: Request) {
       }
     }
 
+    logServerInfo({
+      event:
+        "stripe_checkout_created",
+      route:
+        "/api/stripe/create-checkout-session",
+      method: "POST",
+      status: 200,
+      code:
+        paymentMode,
+      durationMs:
+        Date.now() -
+        startedAt,
+    });
+
     return NextResponse.json({
       url: session.url,
       reused: false,
@@ -656,11 +707,6 @@ export async function POST(request: Request) {
       serviceSlug: service.slug,
     });
   } catch (error) {
-    console.error(
-      "Stripe universal checkout error:",
-      error
-    );
-
     const message =
       error instanceof Error
         ? error.message
@@ -670,6 +716,21 @@ export async function POST(request: Request) {
       message === "Réservation introuvable."
         ? 404
         : apiErrorStatus(message);
+
+    logServerError({
+      event:
+        "stripe_checkout_failed",
+      route:
+        "/api/stripe/create-checkout-session",
+      method: "POST",
+      status,
+      code:
+        "stripe_checkout_failed",
+      durationMs:
+        Date.now() -
+        startedAt,
+      error,
+    });
 
     return NextResponse.json(
       { error: message },
