@@ -9,6 +9,12 @@ import {
   apiErrorStatus,
   getAuthenticatedProfile,
 } from "@/lib/api-auth";
+import {
+  secureApiErrorResponse,
+} from "@/lib/api-error";
+import {
+  logServerError,
+} from "@/lib/server-log";
 
 type ServiceStatus =
   | "scheduled"
@@ -81,7 +87,17 @@ async function createNotification(params: {
   );
 
   if (error) {
-    console.error("Tracking notification error:", error.message);
+    logServerError({
+      event:
+        "tracking_notification_failed",
+      route:
+        "/api/bookings/tracking",
+      method: "POST",
+      status: 500,
+      code:
+        "tracking_notification_failed",
+      error,
+    });
   }
 }
 
@@ -104,6 +120,8 @@ async function addTrackingEvent(params: {
 }
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } = await getAuthenticatedProfile(request);
 
@@ -338,10 +356,18 @@ export async function POST(request: Request) {
           });
 
       if (statusEventError) {
-        console.error(
-          "Completion status event error:",
-          statusEventError.message
-        );
+        logServerError({
+          event:
+            "tracking_completion_event_failed",
+          route:
+            "/api/bookings/tracking",
+          method: "POST",
+          status: 500,
+          code:
+            "tracking_completion_event_failed",
+          error:
+            statusEventError,
+        });
       }
 
       const notifications = [
@@ -493,10 +519,24 @@ export async function POST(request: Request) {
       error instanceof Error
         ? error.message
         : "Impossible de mettre à jour le suivi.";
+    const status =
+      apiErrorStatus(message);
 
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event:
+        "booking_tracking_update_failed",
+      route:
+        "/api/bookings/tracking",
+      method: "POST",
+      code:
+        "booking_tracking_update_failed",
+      status,
+      publicMessage:
+        status < 500
+          ? message
+          : undefined,
+      startedAt,
+    });
   }
 }

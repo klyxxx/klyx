@@ -4,6 +4,12 @@ import {
   apiErrorStatus,
   getAuthenticatedProfile,
 } from "@/lib/api-auth";
+import {
+  secureApiErrorResponse,
+} from "@/lib/api-error";
+import {
+  logServerError,
+} from "@/lib/server-log";
 
 const REASONS = [
   "provider_absent",
@@ -40,6 +46,8 @@ function priorityFor(reason: Reason): "normal" | "high" | "urgent" {
 }
 
 export async function GET(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } = await getAuthenticatedProfile(request);
 
@@ -61,15 +69,31 @@ export async function GET(request: Request) {
       error instanceof Error
         ? error.message
         : "Impossible de charger les litiges.";
+    const status =
+      apiErrorStatus(message);
 
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event:
+        "disputes_load_failed",
+      route:
+        "/api/disputes",
+      method: "GET",
+      code:
+        "disputes_load_failed",
+      status,
+      publicMessage:
+        status < 500
+          ? message
+          : undefined,
+      startedAt,
+    });
   }
 }
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } = await getAuthenticatedProfile(request);
 
@@ -226,7 +250,17 @@ export async function POST(request: Request) {
       });
 
     if (eventError) {
-      console.error("Dispute event error:", eventError.message);
+      logServerError({
+        event:
+          "dispute_event_write_failed",
+        route:
+          "/api/disputes",
+        method: "POST",
+        status: 500,
+        code:
+          "dispute_event_write_failed",
+        error: eventError,
+      });
     }
 
     const { error: notificationError } =
@@ -245,10 +279,18 @@ export async function POST(request: Request) {
         });
 
     if (notificationError) {
-      console.error(
-        "Dispute notification error:",
-        notificationError.message
-      );
+      logServerError({
+        event:
+          "dispute_notification_failed",
+        route:
+          "/api/disputes",
+        method: "POST",
+        status: 500,
+        code:
+          "dispute_notification_failed",
+        error:
+          notificationError,
+      });
     }
 
     return NextResponse.json({
@@ -261,10 +303,24 @@ export async function POST(request: Request) {
       error instanceof Error
         ? error.message
         : "Impossible d’ouvrir le litige.";
+    const status =
+      apiErrorStatus(message);
 
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event:
+        "dispute_create_failed",
+      route:
+        "/api/disputes",
+      method: "POST",
+      code:
+        "dispute_create_failed",
+      status,
+      publicMessage:
+        status < 500
+          ? message
+          : undefined,
+      startedAt,
+    });
   }
 }

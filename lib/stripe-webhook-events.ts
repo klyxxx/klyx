@@ -1,4 +1,7 @@
 import type Stripe from "stripe";
+import {
+  logServerError,
+} from "@/lib/server-log";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 type StoredEvent = {
@@ -124,21 +127,42 @@ export async function markStripeWebhookProcessed(
 
 export async function markStripeWebhookFailed(
   eventId: string,
-  message: string
+  failureCode: string
 ): Promise<void> {
+  const safeFailureCode =
+    failureCode
+      .trim()
+      .toLowerCase()
+      .replace(
+        /[^a-z0-9_]/g,
+        "_"
+      )
+      .replace(/_+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 120) ||
+    "stripe_webhook_failed";
+
   const { error } = await supabaseAdmin
     .from("stripe_webhook_events")
     .update({
       status: "failed",
-      last_error: message.slice(0, 2000),
+      last_error:
+        safeFailureCode,
       updated_at: new Date().toISOString(),
     })
     .eq("stripe_event_id", eventId);
 
   if (error) {
-    console.error(
-      "Impossible de marquer le webhook Stripe en echec:",
-      error.message
-    );
+    logServerError({
+      event:
+        "stripe_webhook_failure_record_failed",
+      route:
+        "/api/stripe/webhook",
+      method: "POST",
+      status: 500,
+      code:
+        "stripe_webhook_failure_record_failed",
+      error,
+    });
   }
 }

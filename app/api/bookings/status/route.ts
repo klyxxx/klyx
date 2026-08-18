@@ -5,8 +5,14 @@ import {
   apiErrorStatus,
   getAuthenticatedProfile,
 } from "@/lib/api-auth";
+import {
+  secureApiErrorResponse,
+} from "@/lib/api-error";
 import { isPastBookingStart } from "@/lib/brussels-time";
 import { upsertFinancialLedgerEntry } from "@/lib/payment-ledger";
+import {
+  logServerError,
+} from "@/lib/server-log";
 
 type BookingStatus = "accepted" | "rejected" | "cancelled";
 
@@ -90,7 +96,17 @@ async function createNotification(params: {
   );
 
   if (error) {
-    console.error("Booking notification error:", error.message);
+    logServerError({
+      event:
+        "booking_notification_failed",
+      route:
+        "/api/bookings/status",
+      method: "POST",
+      status: 500,
+      code:
+        "booking_notification_failed",
+      error,
+    });
   }
 }
 
@@ -295,6 +311,8 @@ async function refundPaidBooking(params: {
 }
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } = await getAuthenticatedProfile(request);
 
@@ -544,7 +562,17 @@ export async function POST(request: Request) {
       });
 
     if (eventError) {
-      console.error("Booking event error:", eventError.message);
+      logServerError({
+        event:
+          "booking_event_write_failed",
+        route:
+          "/api/bookings/status",
+        method: "POST",
+        status: 500,
+        code:
+          "booking_event_write_failed",
+        error: eventError,
+      });
     }
 
     if (nextStatus === "accepted") {
@@ -636,8 +664,22 @@ export async function POST(request: Request) {
       : rawMessage;
     const status = conflict ? 409 : apiErrorStatus(message);
 
-    return NextResponse.json({ error: message }, { status });
+    return secureApiErrorResponse({
+      error,
+      event:
+        "booking_status_update_failed",
+      route:
+        "/api/bookings/status",
+      method: "POST",
+      code:
+        "booking_status_update_failed",
+      status,
+      publicMessage:
+        status < 500
+          ? message
+          : undefined,
+      startedAt,
+    });
   }
 }
-
 

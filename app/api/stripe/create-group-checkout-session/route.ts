@@ -13,6 +13,9 @@ import {
   requireAccountType,
 } from "@/lib/api-auth";
 import {
+  secureApiErrorResponse,
+} from "@/lib/api-error";
+import {
   calculateKlyxEconomics,
   getKlyxCommissionPercent,
 } from "@/lib/klyx-economics";
@@ -114,9 +117,12 @@ async function claim(
 export async function POST(
   request: Request
 ) {
-  assertStripeRuntimeReady();
+  const startedAt =
+    Date.now();
 
   try {
+    assertStripeRuntimeReady();
+
     const stripeKey =
       requiredEnv(
         "STRIPE_SECRET_KEY"
@@ -941,26 +947,30 @@ export async function POST(
         group.id,
     });
   } catch (error) {
-    console.error(
-      "KLYX group checkout error:",
-      error
-    );
-
     const message =
       error instanceof Error
         ? error.message
         : "Paiement groupe impossible.";
+    const status =
+      apiErrorStatus(
+        message
+      );
 
-    return NextResponse.json(
-      {
-        error: message,
-      },
-      {
-        status:
-          apiErrorStatus(
-            message
-          ),
-      }
-    );
+    return secureApiErrorResponse({
+      error,
+      event:
+        "stripe_group_checkout_failed",
+      route:
+        "/api/stripe/create-group-checkout-session",
+      method: "POST",
+      code:
+        "stripe_group_checkout_failed",
+      status,
+      publicMessage:
+        status < 500
+          ? message
+          : undefined,
+      startedAt,
+    });
   }
 }

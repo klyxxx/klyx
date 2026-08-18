@@ -16,6 +16,10 @@ import {
 } from "@/lib/api-auth";
 
 import {
+  secureApiErrorResponse,
+} from "@/lib/api-error";
+
+import {
   calculateKlyxEconomics,
   getKlyxCommissionPercent,
 } from "@/lib/klyx-economics";
@@ -861,6 +865,9 @@ export async function GET(
   context:
     RouteContext
 ) {
+  const startedAt =
+    Date.now();
+
   try {
     const {
       profile,
@@ -970,21 +977,18 @@ export async function GET(
   catch (
     error
   ) {
-    return NextResponse.json(
-      {
-        error:
-          "Impossible de lire les paiements de la mission.",
-
-        detail:
-          error instanceof Error
-            ? error.message
-            : "SPLIT_CHECKOUT_READ_FAILED",
-      },
-      {
-        status:
-          500,
-      }
-    );
+    return secureApiErrorResponse({
+      error,
+      event:
+        "split_checkout_read_failed",
+      route:
+        "/api/bookings/split-missions/[id]/checkout",
+      method: "GET",
+      code:
+        "split_checkout_read_failed",
+      status: 500,
+      startedAt,
+    });
   }
 }
 
@@ -996,9 +1000,12 @@ export async function POST(
   context:
     RouteContext
 ) {
-  assertStripeRuntimeReady();
+  const startedAt =
+    Date.now();
 
   try {
+    assertStripeRuntimeReady();
+
     const {
       user,
       profile,
@@ -2467,24 +2474,32 @@ export async function POST(
       error instanceof Error
         ? error.message
         : "Impossible de préparer les paiements.";
+    const status =
+      apiErrorStatus(
+        message
+      );
 
-    return NextResponse.json(
-      {
-        error:
-          message,
-
+    return secureApiErrorResponse({
+      error,
+      event:
+        "split_checkout_prepare_failed",
+      route:
+        "/api/bookings/split-missions/[id]/checkout",
+      method: "POST",
+      code:
+        "split_checkout_prepare_failed",
+      status,
+      publicMessage:
+        status < 500
+          ? message
+          : undefined,
+      startedAt,
+      details: {
         automaticPayment:
           false,
-
         moneyMovedAutomatically:
           false,
       },
-      {
-        status:
-          apiErrorStatus(
-            message
-          ),
-      }
-    );
+    });
   }
 }
