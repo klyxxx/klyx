@@ -8,6 +8,10 @@ import {
 } from "@/lib/api-auth";
 
 import {
+  secureApiErrorResponse,
+} from "@/lib/api-error";
+
+import {
   supabaseAdmin,
 } from "@/lib/supabase-admin";
 
@@ -225,6 +229,9 @@ export async function GET(
   context:
     RouteContext
 ) {
+  const startedAt =
+    Date.now();
+
   try {
     const {
       profile,
@@ -808,41 +815,33 @@ export async function GET(
   catch (
     error
   ) {
-    return NextResponse.json(
-      {
-        error:
-          "Impossible de calculer l'acceptation globale de la mission.",
-
-        detail:
-          error instanceof Error
-            ? error.message
-            : "SPLIT_PROVIDER_ACCEPTANCE_FAILED",
-
+    return secureApiErrorResponse({
+      error,
+      event:
+        "split_provider_acceptance_failed",
+      route:
+        "/api/bookings/split-missions/[id]/acceptance",
+      method: "GET",
+      status: 500,
+      code:
+        "split_provider_acceptance_failed",
+      startedAt,
+      details: {
         missionReadyForNextStep:
           false,
-
         rebuildRecommended:
           false,
-
         clientConfirmationRequiredBeforeRebuild:
           true,
-
         automaticProviderReplacement:
           false,
-
         automaticRebuild:
           false,
-
         automaticBooking:
           false,
-
         automaticPayment:
           false,
       },
-      {
-        status:
-          500,
-      }
-    );
+    });
   }
 }

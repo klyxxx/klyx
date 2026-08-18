@@ -8,6 +8,10 @@ import {
 } from "@/lib/api-auth";
 
 import {
+  secureApiErrorResponse,
+} from "@/lib/api-error";
+
+import {
   supabaseAdmin,
 } from "@/lib/supabase-admin";
 
@@ -562,6 +566,9 @@ export async function GET(
   request:
     Request
 ) {
+  const startedAt =
+    Date.now();
+
   try {
     const {
       profile,
@@ -1346,26 +1353,23 @@ export async function GET(
   catch (
     error
   ) {
-    return NextResponse.json(
-      {
-        error:
-          "Impossible de consolider les missions multi-prestataires.",
-
-        detail:
-          error instanceof Error
-            ? error.message
-            : "SPLIT_MISSION_OVERVIEW_FAILED",
-
+    return secureApiErrorResponse({
+      error,
+      event:
+        "split_mission_overview_failed",
+      route:
+        "/api/bookings/split-missions",
+      method: "GET",
+      status: 500,
+      code:
+        "split_mission_overview_failed",
+      startedAt,
+      details: {
         automaticBooking:
           false,
-
         automaticPayment:
           false,
       },
-      {
-        status:
-          500,
-      }
-    );
+    });
   }
 }
