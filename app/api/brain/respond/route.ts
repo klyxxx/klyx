@@ -19,6 +19,11 @@ import {
   requireAccountType,
 } from "@/lib/api-auth";
 import {
+  logServerError,
+  logServerInfo,
+  logServerWarning,
+} from "@/lib/server-log";
+import {
   buildMultiSlotReply,
   parseMultiSlotSchedule,
   type BrainMultiSlotSchedule,
@@ -1127,6 +1132,9 @@ async function touchConversation(
 }
 
 export async function POST(request: Request) {
+  // KLYX_SERVER_OBSERVABILITY_12B_8B
+  const startedAt = Date.now();
+
   try {
     const { profile } = await getAuthenticatedProfile(request);
     requireAccountType(profile, "client");
@@ -1139,6 +1147,20 @@ export async function POST(request: Request) {
     const message = body.message?.trim();
 
     if (!message) {
+      logServerWarning({
+        event:
+          "brain_request_rejected",
+        route:
+          "/api/brain/respond",
+        method: "POST",
+        status: 400,
+        code:
+          "message_required",
+        durationMs:
+          Date.now() -
+          startedAt,
+      });
+
       return NextResponse.json(
         { error: "Écris un message." },
         { status: 400 }
@@ -1248,14 +1270,28 @@ export async function POST(request: Request) {
 
     await touchConversation(conversationId);
 
+    logServerInfo({
+      event:
+        "brain_request_completed",
+      route:
+        "/api/brain/respond",
+      method: "POST",
+      status: 200,
+      code:
+        ready
+          ? "ready"
+          : "collecting",
+      durationMs:
+        Date.now() -
+        startedAt,
+    });
+
     return NextResponse.json({
       conversationId,
       reply,
       payload,
     });
   } catch (error) {
-    console.error("KLYX Brain error:", error);
-
     const message =
       error instanceof Error
         ? error.message
@@ -1265,6 +1301,21 @@ export async function POST(request: Request) {
       message === "Conversation introuvable."
         ? 404
         : apiErrorStatus(message);
+
+    logServerError({
+      event:
+        "brain_request_failed",
+      route:
+        "/api/brain/respond",
+      method: "POST",
+      status,
+      code:
+        "brain_request_failed",
+      durationMs:
+        Date.now() -
+        startedAt,
+      error,
+    });
 
     return NextResponse.json(
       { error: message },
