@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { requireKlyxFounder } from "@/lib/founder-auth";
+import { secureApiErrorResponse } from "@/lib/api-error";
+import {
+  founderErrorPublicMessage,
+  founderErrorStatus,
+  requireKlyxFounder,
+} from "@/lib/founder-auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 type DeleteBody = {
@@ -72,6 +77,8 @@ async function protectionReasons(
 }
 
 export async function DELETE(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const founder = await requireKlyxFounder();
 
@@ -159,13 +166,17 @@ export async function DELETE(request: Request) {
       );
 
     if (deleteError) {
-      return NextResponse.json(
-        {
-          error:
-            `Supabase a refusé la suppression : ${deleteError.message}`,
-        },
-        { status: 409 }
-      );
+      return secureApiErrorResponse({
+        error: deleteError,
+        event: "founder_account_cleanup_delete_failed",
+        route: "/api/founder/accounts-cleanup",
+        method: "DELETE",
+        status: 409,
+        code: "KLYX_FOUNDER_ACCOUNT_CLEANUP_DELETE_FAILED",
+        publicMessage:
+          "Supabase a refusé la suppression de ce compte.",
+        startedAt,
+      });
     }
 
     return NextResponse.json({
@@ -174,14 +185,17 @@ export async function DELETE(request: Request) {
       deletedEmail: target.email ?? null,
     });
   } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Suppression impossible.",
-      },
-      { status: 500 }
-    );
+    const status = founderErrorStatus(error);
+
+    return secureApiErrorResponse({
+      error,
+      event: "founder_account_cleanup_failed",
+      route: "/api/founder/accounts-cleanup",
+      method: "DELETE",
+      status,
+      code: "KLYX_FOUNDER_ACCOUNT_CLEANUP_FAILED",
+      publicMessage: founderErrorPublicMessage(status),
+      startedAt,
+    });
   }
 }

@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
-import { founderErrorStatus, requireKlyxFounder } from "@/lib/founder-auth";
+import { secureApiErrorResponse } from "@/lib/api-error";
+import {
+  founderErrorPublicMessage,
+  founderErrorStatus,
+  requireKlyxFounder,
+} from "@/lib/founder-auth";
 import { getActiveProfile, getOwnedProfiles } from "@/lib/active-profile";
 
 export async function GET() {
+  const startedAt = Date.now();
+
   try {
     const user = await requireKlyxFounder();
     const profiles = await getOwnedProfiles();
@@ -21,12 +28,20 @@ export async function GET() {
       },
     });
   } catch (error) {
-    return NextResponse.json(
-      {
+    const status = founderErrorStatus(error);
+
+    return secureApiErrorResponse({
+      error,
+      event: "founder_status_failed",
+      route: "/api/founder/status",
+      method: "GET",
+      status,
+      code: "KLYX_FOUNDER_STATUS_FAILED",
+      publicMessage: founderErrorPublicMessage(status),
+      startedAt,
+      details: {
         isFounder: false,
-        error: error instanceof Error ? error.message : "Accès Founder refusé.",
       },
-      { status: founderErrorStatus(error) }
-    );
+    });
   }
 }

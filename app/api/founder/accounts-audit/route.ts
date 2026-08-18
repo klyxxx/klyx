@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { requireKlyxFounder } from "@/lib/founder-auth";
+import { secureApiErrorResponse } from "@/lib/api-error";
+import {
+  founderErrorPublicMessage,
+  founderErrorStatus,
+  requireKlyxFounder,
+} from "@/lib/founder-auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 function founderIds(): Set<string> {
@@ -13,6 +18,8 @@ function founderIds(): Set<string> {
 }
 
 export async function GET() {
+  const startedAt = Date.now();
+
   try {
     const founder = await requireKlyxFounder();
 
@@ -109,14 +116,17 @@ export async function GET() {
         "11.3 est un audit de sécurité. Aucun compte Auth n’est supprimé automatiquement.",
     });
   } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Audit impossible.",
-      },
-      { status: 500 }
-    );
+    const status = founderErrorStatus(error);
+
+    return secureApiErrorResponse({
+      error,
+      event: "founder_accounts_audit_failed",
+      route: "/api/founder/accounts-audit",
+      method: "GET",
+      status,
+      code: "KLYX_FOUNDER_ACCOUNTS_AUDIT_FAILED",
+      publicMessage: founderErrorPublicMessage(status),
+      startedAt,
+    });
   }
 }

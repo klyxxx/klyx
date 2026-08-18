@@ -38,6 +38,11 @@ const criticalRoutePaths = [
   "app/api/bookings/split-missions/[id]/payment-confirmation/route.ts",
   "app/api/bookings/split-missions/[id]/stripe-readiness/route.ts",
   "app/api/disputes/route.ts",
+  "app/api/founder/accounts-audit/route.ts",
+  "app/api/founder/accounts-cleanup/route.ts",
+  "app/api/founder/status/route.ts",
+  "app/api/founder/test-center/route.ts",
+  "app/api/founder/transaction-readiness/route.ts",
   "app/api/provider/skill-requirements/route.ts",
   "app/api/provider/skills-verification/route.ts",
   "app/api/provider/sumsub/status/route.ts",
@@ -95,6 +100,49 @@ describe(
         expect(source)
           .not.toMatch(
             /detail:\s*error\s+instanceof\s+Error/
+          );
+      }
+    );
+
+    it(
+      "keeps Founder diagnostics actionable without exposing provider messages",
+      () => {
+        const founderAuth = read(
+          "lib/founder-auth.ts"
+        );
+        const cleanup = read(
+          "app/api/founder/accounts-cleanup/route.ts"
+        );
+        const testCenter = read(
+          "app/api/founder/test-center/route.ts"
+        );
+        const transactionReadiness = read(
+          "app/api/founder/transaction-readiness/route.ts"
+        );
+
+        expect(founderAuth)
+          .toContain(
+            "founderErrorPublicMessage"
+          );
+        expect(cleanup)
+          .not.toContain(
+            "deleteError.message"
+          );
+        expect(testCenter)
+          .not.toMatch(
+            /(?:adminError|servicesError|userServicesError|serviceProfilesError|securityAuditError|favoritesError|bookingsError|quotesError|stripeError)\.message/
+          );
+        expect(testCenter)
+          .toContain(
+            "logDiagnosticFailure("
+          );
+        expect(transactionReadiness)
+          .not.toMatch(
+            /(?:error|bookingsError|ledgerError)\.message/
+          );
+        expect(transactionReadiness)
+          .toContain(
+            'event: "founder_transaction_booking_audit_failed"'
           );
       }
     );
