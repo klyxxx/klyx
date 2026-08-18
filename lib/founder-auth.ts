@@ -57,3 +57,11 @@ export function founderErrorStatus(error: unknown): number {
 
   return 500;
 }
+
+export function founderErrorPublicMessage(
+  status: number
+): string | undefined {
+  if (status === 401) return "Non connecté.";
+  if (status === 403) return "Accès Founder refusé.";
+  return undefined;
+}

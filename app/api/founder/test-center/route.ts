@@ -2,7 +2,13 @@ import { NextResponse } from "next/server";
 
 import { getActiveProfile, getOwnedProfiles } from "@/lib/active-profile";
 import { requireKlyxAdmin } from "@/lib/admin-auth";
-import { requireKlyxFounder, founderErrorStatus } from "@/lib/founder-auth";
+import { secureApiErrorResponse } from "@/lib/api-error";
+import {
+  founderErrorPublicMessage,
+  founderErrorStatus,
+  requireKlyxFounder,
+} from "@/lib/founder-auth";
+import { logServerError } from "@/lib/server-log";
 import { inspectStripeRuntime } from "@/lib/stripe-runtime";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -47,7 +53,26 @@ function error(
   return { id, group, title, status: "error", detail, blocking };
 }
 
+function logDiagnosticFailure(
+  diagnosticError: unknown,
+  event: string,
+  code: string,
+  startedAt: number
+): void {
+  logServerError({
+    error: diagnosticError,
+    event,
+    route: "/api/founder/test-center",
+    method: "GET",
+    status: 500,
+    code,
+    durationMs: Math.max(0, Date.now() - startedAt),
+  });
+}
+
 export async function GET() {
+  const startedAt = Date.now();
+
   try {
     const founderUser = await requireKlyxFounder();
     const checks: Check[] = [];
@@ -74,14 +99,19 @@ export async function GET() {
         )
       );
     } catch (adminError) {
+      logDiagnosticFailure(
+        adminError,
+        "founder_test_center_admin_access_failed",
+        "KLYX_FOUNDER_TEST_CENTER_ADMIN_ACCESS_FAILED",
+        startedAt
+      );
+
       checks.push(
         error(
           "admin",
           "Accès",
           "Accès Admin",
-          adminError instanceof Error
-            ? adminError.message
-            : "Accès Admin refusé."
+          "Accès Admin refusé."
         )
       );
     }
@@ -150,12 +180,19 @@ export async function GET() {
       .order("name", { ascending: true });
 
     if (servicesError) {
+      logDiagnosticFailure(
+        servicesError,
+        "founder_test_center_services_failed",
+        "KLYX_FOUNDER_TEST_CENTER_SERVICES_FAILED",
+        startedAt
+      );
+
       checks.push(
         error(
           "services",
           "Catalogue",
           "Catalogue métiers",
-          servicesError.message
+          "Le catalogue métiers est inaccessible."
         )
       );
     } else {
@@ -186,12 +223,19 @@ export async function GET() {
         .in("user_id", providerProfileIds);
 
       if (userServicesError) {
+        logDiagnosticFailure(
+          userServicesError,
+          "founder_test_center_provider_services_failed",
+          "KLYX_FOUNDER_TEST_CENTER_PROVIDER_SERVICES_FAILED",
+          startedAt
+        );
+
         checks.push(
           error(
             "provider-services",
             "Prestataire",
             "Services prestataire",
-            userServicesError.message
+            "Les services prestataire sont inaccessibles."
           )
         );
       } else {
@@ -224,12 +268,19 @@ export async function GET() {
               .in("user_service_id", userServiceIds);
 
           if (serviceProfilesError) {
+            logDiagnosticFailure(
+              serviceProfilesError,
+              "founder_test_center_pricing_failed",
+              "KLYX_FOUNDER_TEST_CENTER_PRICING_FAILED",
+              startedAt
+            );
+
             checks.push(
               error(
                 "pricing",
                 "Prestataire",
                 "Tarifs séparés",
-                serviceProfilesError.message
+                "Les tarifs prestataire sont inaccessibles."
               )
             );
           } else {
@@ -334,12 +385,19 @@ export async function GET() {
       await supabaseAdmin.rpc("klyx_security_audit");
 
     if (securityAuditError) {
+      logDiagnosticFailure(
+        securityAuditError,
+        "founder_test_center_security_audit_failed",
+        "KLYX_FOUNDER_TEST_CENTER_SECURITY_AUDIT_FAILED",
+        startedAt
+      );
+
       checks.push(
         warning(
           "security-rls",
           "Sécurité",
           "Audit RLS Supabase",
-          `Audit indisponible : ${securityAuditError.message}. Exécute la migration 12.5 dans Supabase.`
+          "Audit indisponible. Vérifie que la migration de sécurité 12.5 est appliquée dans Supabase."
         )
       );
     } else {
@@ -419,7 +477,7 @@ export async function GET() {
             "favorites-table",
             "Client",
             "Favoris",
-            favoritesError.message
+            "La table favorites est inaccessible."
           )
         : ok(
             "favorites-table",
@@ -428,6 +486,15 @@ export async function GET() {
             "La table favorites est accessible et référence service_profile_id."
           )
     );
+
+    if (favoritesError) {
+      logDiagnosticFailure(
+        favoritesError,
+        "founder_test_center_favorites_failed",
+        "KLYX_FOUNDER_TEST_CENTER_FAVORITES_FAILED",
+        startedAt
+      );
+    }
 
     const { error: bookingsError } = await supabaseAdmin
       .from("bookings")
@@ -440,7 +507,7 @@ export async function GET() {
             "bookings",
             "Transactions",
             "Réservations",
-            bookingsError.message
+            "La table bookings est inaccessible."
           )
         : ok(
             "bookings",
@@ -449,6 +516,15 @@ export async function GET() {
             "La table bookings est accessible."
           )
     );
+
+    if (bookingsError) {
+      logDiagnosticFailure(
+        bookingsError,
+        "founder_test_center_bookings_failed",
+        "KLYX_FOUNDER_TEST_CENTER_BOOKINGS_FAILED",
+        startedAt
+      );
+    }
 
     const { error: quotesError } = await supabaseAdmin
       .from("service_quotes")
@@ -461,7 +537,7 @@ export async function GET() {
             "quotes",
             "Transactions",
             "Devis",
-            quotesError.message
+            "La table service_quotes est inaccessible."
           )
         : ok(
             "quotes",
@@ -470,6 +546,15 @@ export async function GET() {
             "La table service_quotes est accessible."
           )
     );
+
+    if (quotesError) {
+      logDiagnosticFailure(
+        quotesError,
+        "founder_test_center_quotes_failed",
+        "KLYX_FOUNDER_TEST_CENTER_QUOTES_FAILED",
+        startedAt
+      );
+    }
 
     try {
       const stripe = inspectStripeRuntime();
@@ -519,14 +604,19 @@ export async function GET() {
             )
       );
     } catch (stripeError) {
+      logDiagnosticFailure(
+        stripeError,
+        "founder_test_center_stripe_runtime_failed",
+        "KLYX_FOUNDER_TEST_CENTER_STRIPE_RUNTIME_FAILED",
+        startedAt
+      );
+
       checks.push(
         warning(
           "stripe-runtime",
           "Paiement",
           "Configuration Stripe",
-          stripeError instanceof Error
-            ? stripeError.message
-            : "Configuration Stripe illisible."
+          "Configuration Stripe illisible."
         )
       );
     }
@@ -671,15 +761,21 @@ export async function GET() {
       checks,
     });
   } catch (caught) {
-    const message =
-      caught instanceof Error
-        ? caught.message
-        : "Test Center indisponible.";
+    const status = founderErrorStatus(caught);
 
-    return NextResponse.json(
-      { error: message },
-      { status: founderErrorStatus(caught) }
-    );
+    return secureApiErrorResponse({
+      error: caught,
+      event: "founder_test_center_failed",
+      route: "/api/founder/test-center",
+      method: "GET",
+      status,
+      code: "KLYX_FOUNDER_TEST_CENTER_FAILED",
+      publicMessage: founderErrorPublicMessage(status),
+      startedAt,
+      details: {
+        ready: false,
+        version: "12.6",
+      },
+    });
   }
 }
-

@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 
 import {
+  founderErrorPublicMessage,
   founderErrorStatus,
   requireKlyxFounder,
 } from "@/lib/founder-auth";
+import { secureApiErrorResponse } from "@/lib/api-error";
+import { logServerError } from "@/lib/server-log";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 type Check = {
@@ -33,18 +36,36 @@ function envPresent(name: string): boolean {
 }
 
 async function tableAccessible(
-  table: string
+  table: string,
+  startedAt: number
 ): Promise<{ ok: boolean; detail: string }> {
   const { error } = await supabaseAdmin
     .from(table)
     .select("*", { count: "exact", head: true });
 
-  return error
-    ? { ok: false, detail: error.message }
-    : { ok: true, detail: `${table} accessible.` };
+  if (error) {
+    logServerError({
+      error,
+      event: `founder_transaction_table_${table}_unavailable`,
+      route: "/api/founder/transaction-readiness",
+      method: "GET",
+      status: 500,
+      code: `KLYX_FOUNDER_TRANSACTION_TABLE_${table}_UNAVAILABLE`,
+      durationMs: Math.max(0, Date.now() - startedAt),
+    });
+
+    return {
+      ok: false,
+      detail: `${table} inaccessible.`,
+    };
+  }
+
+  return { ok: true, detail: `${table} accessible.` };
 }
 
 export async function GET() {
+  const startedAt = Date.now();
+
   try {
     await requireKlyxFounder();
 
@@ -100,7 +121,7 @@ export async function GET() {
     const tableResults = await Promise.all(
       requiredTables.map(async (table) => ({
         table,
-        ...(await tableAccessible(table)),
+        ...(await tableAccessible(table, startedAt)),
       }))
     );
 
@@ -124,11 +145,21 @@ export async function GET() {
         .limit(250);
 
     if (bookingsError) {
+      logServerError({
+        error: bookingsError,
+        event: "founder_transaction_booking_audit_failed",
+        route: "/api/founder/transaction-readiness",
+        method: "GET",
+        status: 500,
+        code: "KLYX_FOUNDER_TRANSACTION_BOOKING_AUDIT_FAILED",
+        durationMs: Math.max(0, Date.now() - startedAt),
+      });
+
       checks.push({
         key: "booking_audit",
         label: "Audit réservations",
         ok: false,
-        detail: bookingsError.message,
+        detail: "Audit des réservations indisponible.",
         severity: "blocking",
       });
     } else {
@@ -227,11 +258,21 @@ export async function GET() {
         .limit(1000);
 
     if (ledgerError) {
+      logServerError({
+        error: ledgerError,
+        event: "founder_transaction_ledger_audit_failed",
+        route: "/api/founder/transaction-readiness",
+        method: "GET",
+        status: 500,
+        code: "KLYX_FOUNDER_TRANSACTION_LEDGER_AUDIT_FAILED",
+        durationMs: Math.max(0, Date.now() - startedAt),
+      });
+
       checks.push({
         key: "payment_ledger_audit",
         label: "Anti-double paiement ledger",
         ok: false,
-        detail: ledgerError.message,
+        detail: "Audit du ledger financier indisponible.",
         severity: "blocking",
       });
     } else {
@@ -291,15 +332,20 @@ export async function GET() {
       ],
     });
   } catch (error) {
-    return NextResponse.json(
-      {
+    const status = founderErrorStatus(error);
+
+    return secureApiErrorResponse({
+      error,
+      event: "founder_transaction_readiness_failed",
+      route: "/api/founder/transaction-readiness",
+      method: "GET",
+      status,
+      code: "KLYX_FOUNDER_TRANSACTION_READINESS_FAILED",
+      publicMessage: founderErrorPublicMessage(status),
+      startedAt,
+      details: {
         ready: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Audit transactionnel impossible.",
       },
-      { status: founderErrorStatus(error) }
-    );
+    });
   }
 }
