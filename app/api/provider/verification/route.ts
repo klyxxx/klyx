@@ -5,6 +5,7 @@ import {
   getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
+import { secureApiErrorResponse } from "@/lib/api-error";
 
 const DOCUMENT_TYPES = [
   "identity",
@@ -61,6 +62,8 @@ async function ensureVerification(profileId: string) {
 }
 
 export async function GET(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } = await getAuthenticatedProfile(request);
     requireAccountType(profile, "provider");
@@ -86,15 +89,24 @@ export async function GET(request: Request) {
       error instanceof Error
         ? error.message
         : "Impossible de charger la vérification.";
+    const status = apiErrorStatus(message);
 
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "provider_verification_read_failed",
+      route: "/api/provider/verification",
+      method: "GET",
+      status,
+      code: "KLYX_PROVIDER_VERIFICATION_READ_FAILED",
+      publicMessage: status < 500 ? message : undefined,
+      startedAt,
+    });
   }
 }
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } = await getAuthenticatedProfile(request);
     requireAccountType(profile, "provider");
@@ -239,15 +251,24 @@ export async function POST(request: Request) {
       error instanceof Error
         ? error.message
         : "Impossible d’enregistrer le document.";
+    const status = apiErrorStatus(message);
 
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "provider_verification_document_register_failed",
+      route: "/api/provider/verification",
+      method: "POST",
+      status,
+      code: "KLYX_PROVIDER_VERIFICATION_DOCUMENT_REGISTER_FAILED",
+      publicMessage: status < 500 ? message : undefined,
+      startedAt,
+    });
   }
 }
 
 export async function PATCH(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } = await getAuthenticatedProfile(request);
     requireAccountType(profile, "provider");
@@ -332,11 +353,17 @@ export async function PATCH(request: Request) {
       error instanceof Error
         ? error.message
         : "Impossible d’envoyer le dossier.";
+    const status = apiErrorStatus(message);
 
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "provider_verification_submit_failed",
+      route: "/api/provider/verification",
+      method: "PATCH",
+      status,
+      code: "KLYX_PROVIDER_VERIFICATION_SUBMIT_FAILED",
+      publicMessage: status < 500 ? message : undefined,
+      startedAt,
+    });
   }
 }
-

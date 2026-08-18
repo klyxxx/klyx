@@ -5,8 +5,11 @@ import {
   getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
+import { secureApiErrorResponse } from "@/lib/api-error";
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } = await getAuthenticatedProfile(request);
     requireAccountType(profile, "provider");
@@ -56,15 +59,24 @@ export async function POST(request: Request) {
       error instanceof Error
         ? error.message
         : "Impossible d’ouvrir le document.";
+    const status = apiErrorStatus(message);
 
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "provider_verification_document_open_failed",
+      route: "/api/provider/verification/document",
+      method: "POST",
+      status,
+      code: "KLYX_PROVIDER_VERIFICATION_DOCUMENT_OPEN_FAILED",
+      publicMessage: status < 500 ? message : undefined,
+      startedAt,
+    });
   }
 }
 
 export async function DELETE(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } = await getAuthenticatedProfile(request);
     requireAccountType(profile, "provider");
@@ -162,10 +174,17 @@ export async function DELETE(request: Request) {
       error instanceof Error
         ? error.message
         : "Impossible de supprimer le document.";
+    const status = apiErrorStatus(message);
 
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "provider_verification_document_delete_failed",
+      route: "/api/provider/verification/document",
+      method: "DELETE",
+      status,
+      code: "KLYX_PROVIDER_VERIFICATION_DOCUMENT_DELETE_FAILED",
+      publicMessage: status < 500 ? message : undefined,
+      startedAt,
+    });
   }
 }

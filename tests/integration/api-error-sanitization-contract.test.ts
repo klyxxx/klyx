@@ -27,6 +27,12 @@ const criticalRoutePaths = [
   "app/api/bookings/split-missions/[id]/payment-confirmation/route.ts",
   "app/api/bookings/split-missions/[id]/stripe-readiness/route.ts",
   "app/api/disputes/route.ts",
+  "app/api/provider/skill-requirements/route.ts",
+  "app/api/provider/skills-verification/route.ts",
+  "app/api/provider/sumsub/status/route.ts",
+  "app/api/provider/sumsub/token/route.ts",
+  "app/api/provider/verification/route.ts",
+  "app/api/provider/verification/document/route.ts",
   "app/api/stripe/create-checkout-session/route.ts",
   "app/api/stripe/create-group-checkout-session/route.ts",
   "app/api/stripe/connect/create-account/route.ts",
@@ -78,6 +84,36 @@ describe(
         expect(source)
           .not.toMatch(
             /detail:\s*error\s+instanceof\s+Error/
+          );
+      }
+    );
+
+    it(
+      "keeps provider skill validation messages public only as 4xx responses",
+      () => {
+        const source = read(
+          "app/api/provider/skills-verification/route.ts"
+        );
+
+        expect(source)
+          .toContain(
+            "skillVerificationErrorStatus"
+          );
+        expect(source)
+          .toContain(
+            'message === "Métier prestataire introuvable."'
+          );
+        expect(source)
+          .toContain(
+            "SKILL_BAD_REQUEST_MESSAGES.has(message)"
+          );
+        expect(source)
+          .toContain(
+            "SKILL_CONFLICT_MESSAGES.has(message)"
+          );
+        expect(source)
+          .toMatch(
+            /publicMessage:\s*status\s*<\s*500/
           );
       }
     );

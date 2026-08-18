@@ -6,6 +6,7 @@ import {
   getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
+import { secureApiErrorResponse } from "@/lib/api-error";
 import {
   evaluateSkillEvidence,
   getSkillQualificationRule,
@@ -13,6 +14,8 @@ import {
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function GET(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } =
       await getAuthenticatedProfile(request);
@@ -208,15 +211,17 @@ export async function GET(request: Request) {
       error instanceof Error
         ? error.message
         : "Chargement impossible.";
+    const status = apiErrorStatus(message);
 
-    return NextResponse.json(
-      {
-        error: message,
-      },
-      {
-        status:
-          apiErrorStatus(message),
-      }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "provider_skill_requirements_failed",
+      route: "/api/provider/skill-requirements",
+      method: "GET",
+      status,
+      code: "KLYX_PROVIDER_SKILL_REQUIREMENTS_FAILED",
+      publicMessage: status < 500 ? message : undefined,
+      startedAt,
+    });
   }
 }
