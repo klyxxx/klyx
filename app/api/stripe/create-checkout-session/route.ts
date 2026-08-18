@@ -11,10 +11,12 @@ import {
   requireAccountType,
 } from "@/lib/api-auth";
 import {
-  logServerError,
   logServerInfo,
   logServerWarning,
 } from "@/lib/server-log";
+import {
+  secureApiErrorResponse,
+} from "@/lib/api-error";
 
 type BookingRow = {
   id: string;
@@ -224,9 +226,9 @@ export async function POST(request: Request) {
   // KLYX_SERVER_OBSERVABILITY_12B_8B
   const startedAt = Date.now();
 
-  assertStripeRuntimeReady();
-
   try {
+    assertStripeRuntimeReady();
+
     const stripeSecretKey = requiredEnv("STRIPE_SECRET_KEY");
     const stripe = new Stripe(stripeSecretKey);
 
@@ -717,7 +719,8 @@ export async function POST(request: Request) {
         ? 404
         : apiErrorStatus(message);
 
-    logServerError({
+    return secureApiErrorResponse({
+      error,
       event:
         "stripe_checkout_failed",
       route:
@@ -726,15 +729,11 @@ export async function POST(request: Request) {
       status,
       code:
         "stripe_checkout_failed",
-      durationMs:
-        Date.now() -
-        startedAt,
-      error,
+      publicMessage:
+        status < 500
+          ? message
+          : undefined,
+      startedAt,
     });
-
-    return NextResponse.json(
-      { error: message },
-      { status }
-    );
   }
 }

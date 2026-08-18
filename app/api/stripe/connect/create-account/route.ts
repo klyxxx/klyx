@@ -8,6 +8,9 @@ import {
   getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
+import {
+  secureApiErrorResponse,
+} from "@/lib/api-error";
 
 function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();
@@ -34,8 +37,11 @@ function getAppOrigin(request: Request): string {
 }
 
 export async function POST(request: Request) {
-  assertStripeRuntimeReady();
+  const startedAt = Date.now();
+
   try {
+    assertStripeRuntimeReady();
+
     const stripe = new Stripe(requiredEnv("STRIPE_SECRET_KEY"));
     const { user, profile: activeProfile } =
       await getAuthenticatedProfile(request);
@@ -128,19 +134,28 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ url: accountLink.url });
   } catch (error) {
-    console.error("Stripe Connect account error:", error);
-
     const message =
       error instanceof Error
         ? error.message
         : "Impossible de démarrer Stripe Connect.";
+    const status =
+      apiErrorStatus(message);
 
-    return NextResponse.json(
-      {
-        error: message,
-      },
-      { status: apiErrorStatus(message) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event:
+        "stripe_connect_account_failed",
+      route:
+        "/api/stripe/connect/create-account",
+      method: "POST",
+      code:
+        "stripe_connect_account_failed",
+      status,
+      publicMessage:
+        status < 500
+          ? message
+          : undefined,
+      startedAt,
+    });
   }
 }
-

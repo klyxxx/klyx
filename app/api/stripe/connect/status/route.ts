@@ -7,6 +7,9 @@ import {
   getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
+import {
+  secureApiErrorResponse,
+} from "@/lib/api-error";
 
 function requiredEnv(name: string): string {
   const value = process.env[name];
@@ -19,8 +22,11 @@ function requiredEnv(name: string): string {
 }
 
 export async function GET(request: Request) {
-  assertStripeRuntimeReady();
+  const startedAt = Date.now();
+
   try {
+    assertStripeRuntimeReady();
+
     const stripe = new Stripe(requiredEnv("STRIPE_SECRET_KEY"));
     const { profile: activeProfile } =
       await getAuthenticatedProfile(request);
@@ -72,19 +78,28 @@ export async function GET(request: Request) {
       accountId: account.id,
     });
   } catch (error) {
-    console.error("Stripe Connect status error:", error);
-
     const message =
       error instanceof Error
         ? error.message
         : "Impossible de vérifier Stripe Connect.";
+    const status =
+      apiErrorStatus(message);
 
-    return NextResponse.json(
-      {
-        error: message,
-      },
-      { status: apiErrorStatus(message) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event:
+        "stripe_connect_status_failed",
+      route:
+        "/api/stripe/connect/status",
+      method: "GET",
+      code:
+        "stripe_connect_status_failed",
+      status,
+      publicMessage:
+        status < 500
+          ? message
+          : undefined,
+      startedAt,
+    });
   }
 }
-

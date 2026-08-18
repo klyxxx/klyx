@@ -2,6 +2,9 @@ import { handleSplitStripeWebhookEvent } from "@/lib/split-stripe-payments";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
+import {
+  secureApiErrorResponse,
+} from "@/lib/api-error";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   markBookingGroupFailedFromSession,
@@ -136,6 +139,8 @@ function isGroupIntent(
 export async function POST(
   request: Request
 ) {
+  const startedAt =
+    Date.now();
   let stripe: Stripe;
   let webhookSecret:
     string;
@@ -150,24 +155,18 @@ export async function POST(
     webhookSecret =
       config.webhookSecret;
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Configuration Stripe webhook incomplete.";
-
-    console.error(
-      "Stripe webhook configuration error:",
-      message
-    );
-
-    return NextResponse.json(
-      {
-        error: message,
-      },
-      {
-        status: 500,
-      }
-    );
+    return secureApiErrorResponse({
+      error,
+      event:
+        "stripe_webhook_configuration_failed",
+      route:
+        "/api/stripe/webhook",
+      method: "POST",
+      code:
+        "stripe_webhook_configuration_failed",
+      status: 500,
+      startedAt,
+    });
   }
 
   const signature =
@@ -201,24 +200,20 @@ export async function POST(
         webhookSecret
       );
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Signature Stripe invalide.";
-
-    console.error(
-      "Stripe webhook signature error:",
-      message
-    );
-
-    return NextResponse.json(
-      {
-        error: message,
-      },
-      {
-        status: 400,
-      }
-    );
+    return secureApiErrorResponse({
+      error,
+      event:
+        "stripe_webhook_signature_rejected",
+      route:
+        "/api/stripe/webhook",
+      method: "POST",
+      code:
+        "invalid_stripe_signature",
+      status: 400,
+      publicMessage:
+        "Signature Stripe invalide.",
+      startedAt,
+    });
   }
 
   let claimed =
@@ -474,36 +469,24 @@ export async function POST(
       }
     );
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Traitement du webhook impossible.";
-
-    console.error(
-      "Stripe webhook processing error:",
-      event.id,
-      event.type,
-      message
-    );
-
     if (claimed) {
       await markStripeWebhookFailed(
         event.id,
-        message
+        "stripe_webhook_processing_failed"
       );
     }
 
-    return NextResponse.json(
-      {
-        error: message,
-        eventId:
-          event.id,
-        eventType:
-          event.type,
-      },
-      {
-        status: 500,
-      }
-    );
+    return secureApiErrorResponse({
+      error,
+      event:
+        "stripe_webhook_processing_failed",
+      route:
+        "/api/stripe/webhook",
+      method: "POST",
+      code:
+        "stripe_webhook_processing_failed",
+      status: 500,
+      startedAt,
+    });
   }
 }

@@ -19,7 +19,9 @@ import {
   requireAccountType,
 } from "@/lib/api-auth";
 import {
-  logServerError,
+  secureApiErrorResponse,
+} from "@/lib/api-error";
+import {
   logServerInfo,
   logServerWarning,
 } from "@/lib/server-log";
@@ -1302,7 +1304,8 @@ export async function POST(request: Request) {
         ? 404
         : apiErrorStatus(message);
 
-    logServerError({
+    return secureApiErrorResponse({
+      error,
       event:
         "brain_request_failed",
       route:
@@ -1311,15 +1314,11 @@ export async function POST(request: Request) {
       status,
       code:
         "brain_request_failed",
-      durationMs:
-        Date.now() -
-        startedAt,
-      error,
+      publicMessage:
+        status < 500
+          ? message
+          : undefined,
+      startedAt,
     });
-
-    return NextResponse.json(
-      { error: message },
-      { status }
-    );
   }
 }

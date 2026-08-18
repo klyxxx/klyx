@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server";
 import {
+  secureApiErrorResponse,
+} from "@/lib/api-error";
+import {
+  logServerError,
+} from "@/lib/server-log";
+import {
   hashWebhookPayload,
   verifySumsubWebhook,
 } from "@/lib/sumsub";
@@ -83,11 +89,15 @@ function finalStatus(
 export async function POST(
   request: Request
 ) {
-  const rawBody =
-    await request.text();
+  const startedAt =
+    Date.now();
+  let rawBody: string;
+  let valid: boolean;
 
-  const valid =
-    verifySumsubWebhook({
+  try {
+    rawBody =
+      await request.text();
+    valid = verifySumsubWebhook({
       rawBody,
       digest:
         request.headers.get(
@@ -98,6 +108,20 @@ export async function POST(
           "x-payload-digest-alg"
         ),
     });
+  } catch (error) {
+    return secureApiErrorResponse({
+      error,
+      event:
+        "sumsub_webhook_configuration_failed",
+      route:
+        "/api/sumsub/webhook",
+      method: "POST",
+      code:
+        "sumsub_webhook_configuration_failed",
+      status: 500,
+      startedAt,
+    });
+  }
 
   if (!valid) {
     return NextResponse.json(
@@ -158,13 +182,19 @@ export async function POST(
   }
 
   if (insertEventError) {
-    return NextResponse.json(
-      {
-        error:
-          insertEventError.message,
-      },
-      { status: 500 }
-    );
+    return secureApiErrorResponse({
+      error:
+        insertEventError,
+      event:
+        "sumsub_webhook_claim_failed",
+      route:
+        "/api/sumsub/webhook",
+      method: "POST",
+      code:
+        "sumsub_webhook_claim_failed",
+      status: 500,
+      startedAt,
+    });
   }
 
   try {
@@ -291,10 +321,18 @@ export async function POST(
           });
 
       if (notificationError) {
-        console.error(
-          "Sumsub notification error:",
-          notificationError.message
-        );
+        logServerError({
+          event:
+            "sumsub_notification_failed",
+          route:
+            "/api/sumsub/webhook",
+          method: "POST",
+          status: 500,
+          code:
+            "sumsub_notification_failed",
+          error:
+            notificationError,
+        });
       }
     }
 
@@ -323,26 +361,29 @@ export async function POST(
       processed: true,
     });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Traitement impossible.";
-
     await supabaseAdmin
       .from("sumsub_webhook_events")
       .update({
         processed: false,
         last_error:
-          message.slice(0, 1000),
+          "sumsub_webhook_processing_failed",
       })
       .eq(
         "event_hash",
         eventHash
       );
 
-    return NextResponse.json(
-      { error: message },
-      { status: 500 }
-    );
+    return secureApiErrorResponse({
+      error,
+      event:
+        "sumsub_webhook_processing_failed",
+      route:
+        "/api/sumsub/webhook",
+      method: "POST",
+      code:
+        "sumsub_webhook_processing_failed",
+      status: 500,
+      startedAt,
+    });
   }
 }

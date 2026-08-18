@@ -13,11 +13,17 @@ import {
   requireAccountType,
 } from "@/lib/api-auth";
 import {
+  secureApiErrorResponse,
+} from "@/lib/api-error";
+import {
   isPastBookingStart,
   isValidCalendarDate,
   timeToMinutes,
   todayInBrussels,
 } from "@/lib/brussels-time";
+import {
+  logServerError,
+} from "@/lib/server-log";
 
 type PricingType = "hourly" | "fixed";
 
@@ -101,14 +107,23 @@ async function createNotification(params: {
     });
 
   if (error) {
-    console.error(
-      "Booking notification error:",
-      error.message
-    );
+    logServerError({
+      event:
+        "booking_notification_failed",
+      route:
+        "/api/bookings/create",
+      method: "POST",
+      status: 500,
+      code:
+        "booking_notification_failed",
+      error,
+    });
   }
 }
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } =
       await getAuthenticatedProfile(request);
@@ -765,10 +780,17 @@ export async function POST(request: Request) {
         });
 
     if (eventError) {
-      console.error(
-        "Booking event error:",
-        eventError.message
-      );
+      logServerError({
+        event:
+          "booking_event_write_failed",
+        route:
+          "/api/bookings/create",
+        method: "POST",
+        status: 500,
+        code:
+          "booking_event_write_failed",
+        error: eventError,
+      });
     }
 
     await createNotification({
@@ -793,13 +815,26 @@ export async function POST(request: Request) {
       error instanceof Error
         ? error.message
         : "Impossible de créer la réservation.";
+    const status =
+      apiErrorStatus(message);
 
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event:
+        "booking_create_failed",
+      route:
+        "/api/bookings/create",
+      method: "POST",
+      code:
+        "booking_create_failed",
+      status,
+      publicMessage:
+        status < 500
+          ? message
+          : undefined,
+      startedAt,
+    });
   }
 }
-
 
 
