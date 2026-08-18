@@ -10,6 +10,14 @@ import {
 } from "@/lib/api-auth";
 
 import {
+  secureApiErrorResponse,
+} from "@/lib/api-error";
+
+import {
+  logServerWarning,
+} from "@/lib/server-log";
+
+import {
   tryReconcileBookingGroupStripeRefund,
 } from "@/lib/stripe-group-refunds";
 
@@ -308,10 +316,16 @@ async function audit(
     });
 
   if (error) {
-    console.error(
-      "Group cancellation audit:",
-      error.message
-    );
+    logServerWarning({
+      event:
+        "booking_group_cancellation_audit_failed",
+      route:
+        "/api/booking-groups/[id]/cancellation",
+      method: "POST",
+      status: 500,
+      code:
+        "booking_group_cancellation_audit_failed",
+    });
   }
 }
 
@@ -365,10 +379,16 @@ async function notify(
     );
 
   if (error) {
-    console.error(
-      "Cancellation notification:",
-      error.message
-    );
+    logServerWarning({
+      event:
+        "booking_group_cancellation_notification_failed",
+      route:
+        "/api/booking-groups/[id]/cancellation",
+      method: "POST",
+      status: 500,
+      code:
+        "booking_group_cancellation_notification_failed",
+    });
   }
 }
 
@@ -391,6 +411,9 @@ export async function GET(
   request: Request,
   context: RouteContext
 ) {
+  const startedAt =
+    Date.now();
+
   try {
     const {
       profile,
@@ -440,17 +463,27 @@ export async function GET(
         ? error.message
         : "Chargement impossible.";
 
-    return NextResponse.json(
-      {
-        error: message,
-      },
-      {
-        status:
-          apiErrorStatus(
-            message
-          ),
-      }
-    );
+    const status =
+      apiErrorStatus(
+        message
+      );
+
+    return secureApiErrorResponse({
+      error,
+      event:
+        "booking_group_cancellation_read_failed",
+      route:
+        "/api/booking-groups/[id]/cancellation",
+      method: "GET",
+      status,
+      code:
+        "booking_group_cancellation_read_failed",
+      publicMessage:
+        status < 500
+          ? message
+          : undefined,
+      startedAt,
+    });
   }
 }
 
@@ -458,6 +491,9 @@ export async function POST(
   request: Request,
   context: RouteContext
 ) {
+  const startedAt =
+    Date.now();
+
   try {
     const {
       profile,
@@ -1144,16 +1180,36 @@ export async function POST(
             ? "Le paiement Stripe du groupe est introuvable."
             : raw;
 
-    return NextResponse.json(
-      {
-        error: message,
-      },
-      {
-        status:
-          apiErrorStatus(
-            message
-          ),
-      }
-    );
+    const status =
+      raw.includes(
+        "KLYX_GROUP_CANCEL_SELF_APPROVAL"
+      ) ||
+      raw.includes(
+        "KLYX_GROUP_CANCEL_NOT_PENDING"
+      ) ||
+      raw.includes(
+        "KLYX_GROUP_CANCEL_PAYMENT_INTENT_MISSING"
+      )
+        ? 409
+        : apiErrorStatus(
+            raw
+          );
+
+    return secureApiErrorResponse({
+      error,
+      event:
+        "booking_group_cancellation_update_failed",
+      route:
+        "/api/booking-groups/[id]/cancellation",
+      method: "POST",
+      status,
+      code:
+        "booking_group_cancellation_update_failed",
+      publicMessage:
+        status < 500
+          ? message
+          : undefined,
+      startedAt,
+    });
   }
 }

@@ -14,6 +14,10 @@ import {
 } from "@/lib/api-auth";
 
 import {
+  secureApiErrorResponse,
+} from "@/lib/api-error";
+
+import {
   supabaseAdmin,
 } from "@/lib/supabase-admin";
 
@@ -1287,6 +1291,9 @@ export async function GET(
   context:
     RouteContext
 ) {
+  const startedAt =
+    Date.now();
+
   try {
     const {
       profile,
@@ -1391,42 +1398,34 @@ export async function GET(
   catch (
     error
   ) {
-    return NextResponse.json(
-      {
-        error:
-          "Impossible de préparer la confirmation finale du paiement.",
-
-        detail:
-          error instanceof Error
-            ? error.message
-            : "SPLIT_PAYMENT_CONFIRMATION_FAILED",
-
+    return secureApiErrorResponse({
+      error,
+      event:
+        "split_payment_confirmation_read_failed",
+      route:
+        "/api/bookings/split-missions/[id]/payment-confirmation",
+      method: "GET",
+      status: 500,
+      code:
+        "split_payment_confirmation_read_failed",
+      startedAt,
+      details: {
         confirmed:
           false,
-
         explicitPaymentConfirmationRequired:
           true,
-
         automaticPayment:
           false,
-
         paymentIntentCreated:
           false,
-
         checkoutCreated:
           false,
-
         transferCreated:
           false,
-
         moneyMoved:
           false,
       },
-      {
-        status:
-          500,
-      }
-    );
+    });
   }
 }
 
@@ -1437,6 +1436,9 @@ export async function POST(
   context:
     RouteContext
 ) {
+  const startedAt =
+    Date.now();
+
   try {
     const {
       profile,
@@ -1673,38 +1675,31 @@ export async function POST(
   catch (
     error
   ) {
-    return NextResponse.json(
-      {
-        error:
-          "Impossible d'enregistrer la confirmation finale du paiement.",
-
-        detail:
-          error instanceof Error
-            ? error.message
-            : "SPLIT_PAYMENT_CONFIRMATION_WRITE_FAILED",
-
+    return secureApiErrorResponse({
+      error,
+      event:
+        "split_payment_confirmation_write_failed",
+      route:
+        "/api/bookings/split-missions/[id]/payment-confirmation",
+      method: "POST",
+      status: 500,
+      code:
+        "split_payment_confirmation_write_failed",
+      startedAt,
+      details: {
         confirmed:
           false,
-
         automaticPayment:
           false,
-
         paymentIntentCreated:
           false,
-
         checkoutCreated:
           false,
-
         transferCreated:
           false,
-
         moneyMoved:
           false,
       },
-      {
-        status:
-          500,
-      }
-    );
+    });
   }
 }
