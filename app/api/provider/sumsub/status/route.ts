@@ -4,10 +4,13 @@ import {
   getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
+import { secureApiErrorResponse } from "@/lib/api-error";
 import { sumsubConfigured } from "@/lib/sumsub";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function GET(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } =
       await getAuthenticatedProfile(request);
@@ -39,10 +42,17 @@ export async function GET(request: Request) {
       error instanceof Error
         ? error.message
         : "Chargement impossible.";
+    const status = apiErrorStatus(message);
 
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "provider_sumsub_status_failed",
+      route: "/api/provider/sumsub/status",
+      method: "GET",
+      status,
+      code: "KLYX_PROVIDER_SUMSUB_STATUS_FAILED",
+      publicMessage: status < 500 ? message : undefined,
+      startedAt,
+    });
   }
 }

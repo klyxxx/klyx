@@ -4,6 +4,7 @@ import {
   getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
+import { secureApiErrorResponse } from "@/lib/api-error";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   evaluateSkillEvidence,
@@ -26,6 +27,48 @@ const MIME_TYPES = new Set([
   "image/webp",
   "application/pdf",
 ]);
+
+const SKILL_BAD_REQUEST_MESSAGES = new Set([
+  "Métier manquant.",
+  "Type de preuve invalide.",
+  "Utilise un PDF, JPG, PNG ou WEBP.",
+  "Le fichier doit faire moins de 10 Mo.",
+  "Chemin de document invalide.",
+  "L'expérience doit être comprise entre 0 et 80 ans.",
+  "Explique en au moins 30 caractères pourquoi tu peux réaliser cette prestation.",
+]);
+
+const SKILL_CONFLICT_MESSAGES = new Set([
+  "Le fichier envoyé est introuvable.",
+  "Ce dossier est verrouillé pendant sa vérification.",
+  "Ta vérification d'identité doit être validée avant l'envoi de cette compétence.",
+]);
+
+function skillVerificationErrorStatus(
+  message: string
+): number {
+  const authStatus = apiErrorStatus(message);
+
+  if (authStatus !== 500) return authStatus;
+
+  if (message === "Métier prestataire introuvable.") {
+    return 404;
+  }
+
+  if (
+    SKILL_BAD_REQUEST_MESSAGES.has(message) ||
+    message.startsWith("KLYX demande au moins ") ||
+    message.startsWith("Preuves obligatoires manquantes :")
+  ) {
+    return 400;
+  }
+
+  if (SKILL_CONFLICT_MESSAGES.has(message)) {
+    return 409;
+  }
+
+  return 500;
+}
 
 async function requireProvider(request: Request) {
   const result = await getAuthenticatedProfile(request);
@@ -80,6 +123,8 @@ async function ensureVerification(
 }
 
 export async function GET(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } = await requireProvider(request);
 
@@ -200,15 +245,24 @@ export async function GET(request: Request) {
       error instanceof Error
         ? error.message
         : "Chargement impossible.";
+    const status = skillVerificationErrorStatus(message);
 
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "provider_skill_verification_read_failed",
+      route: "/api/provider/skills-verification",
+      method: "GET",
+      status,
+      code: "KLYX_PROVIDER_SKILL_VERIFICATION_READ_FAILED",
+      publicMessage: status < 500 ? message : undefined,
+      startedAt,
+    });
   }
 }
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } = await requireProvider(request);
 
@@ -348,15 +402,24 @@ export async function POST(request: Request) {
       error instanceof Error
         ? error.message
         : "Enregistrement impossible.";
+    const status = skillVerificationErrorStatus(message);
 
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "provider_skill_verification_document_register_failed",
+      route: "/api/provider/skills-verification",
+      method: "POST",
+      status,
+      code: "KLYX_PROVIDER_SKILL_VERIFICATION_DOCUMENT_REGISTER_FAILED",
+      publicMessage: status < 500 ? message : undefined,
+      startedAt,
+    });
   }
 }
 
 export async function PATCH(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } = await requireProvider(request);
 
@@ -527,12 +590,18 @@ export async function PATCH(request: Request) {
       error instanceof Error
         ? error.message
         : "Mise à jour impossible.";
+    const status = skillVerificationErrorStatus(message);
 
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "provider_skill_verification_update_failed",
+      route: "/api/provider/skills-verification",
+      method: "PATCH",
+      status,
+      code: "KLYX_PROVIDER_SKILL_VERIFICATION_UPDATE_FAILED",
+      publicMessage: status < 500 ? message : undefined,
+      startedAt,
+    });
   }
 }
-
 
