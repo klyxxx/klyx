@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { adminErrorStatus, requireKlyxAdmin } from "@/lib/admin-auth";
+import {
+  adminErrorPublicMessage,
+  adminErrorStatus,
+  requireKlyxAdmin,
+} from "@/lib/admin-auth";
+import { secureApiErrorResponse } from "@/lib/api-error";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 type ReviewBody = {
@@ -20,6 +25,8 @@ function slugify(value: string): string {
 }
 
 export async function GET() {
+  const startedAt = Date.now();
+
   try {
     await requireKlyxAdmin();
 
@@ -36,21 +43,22 @@ export async function GET() {
   } catch (error) {
     const status = adminErrorStatus(error);
 
-    return NextResponse.json(
-      {
-        error:
-          status === 401
-            ? "Non connecté."
-            : status === 403
-              ? "Accès administrateur refusé."
-              : "Impossible de charger les propositions.",
-      },
-      { status }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "admin_service_proposals_read_failed",
+      route: "/api/admin/service-proposals",
+      method: "GET",
+      status,
+      code: "KLYX_ADMIN_SERVICE_PROPOSALS_READ_FAILED",
+      publicMessage: adminErrorPublicMessage(status),
+      startedAt,
+    });
   }
 }
 
 export async function PATCH(request: Request) {
+  const startedAt = Date.now();
+
   try {
     await requireKlyxAdmin();
 
@@ -153,18 +161,15 @@ export async function PATCH(request: Request) {
   } catch (error) {
     const status = adminErrorStatus(error);
 
-    return NextResponse.json(
-      {
-        error:
-          status === 401
-            ? "Non connecté."
-            : status === 403
-              ? "Accès administrateur refusé."
-              : error instanceof Error
-                ? error.message
-                : "Impossible d’examiner cette proposition.",
-      },
-      { status }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "admin_service_proposal_review_failed",
+      route: "/api/admin/service-proposals",
+      method: "PATCH",
+      status,
+      code: "KLYX_ADMIN_SERVICE_PROPOSAL_REVIEW_FAILED",
+      publicMessage: adminErrorPublicMessage(status),
+      startedAt,
+    });
   }
 }

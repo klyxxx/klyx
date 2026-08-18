@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import {
+  adminErrorPublicMessage,
   adminErrorStatus,
   requireKlyxAdmin,
 } from "@/lib/admin-auth";
+import { secureApiErrorResponse } from "@/lib/api-error";
 import { inspectStripeRuntime } from "@/lib/stripe-runtime";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function GET() {
+  const startedAt = Date.now();
+
   try {
     await requireKlyxAdmin();
 
@@ -80,16 +84,20 @@ export async function GET() {
       connectChecks,
     });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Controle Stripe impossible.";
+    const status = adminErrorStatus(error);
 
-    return NextResponse.json(
-      { error: message },
-      {
-        status: adminErrorStatus(error),
-      }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "admin_stripe_readiness_failed",
+      route: "/api/admin/stripe-readiness",
+      method: "GET",
+      status,
+      code: "KLYX_ADMIN_STRIPE_READINESS_FAILED",
+      publicMessage: adminErrorPublicMessage(status),
+      startedAt,
+      details: {
+        ready: false,
+      },
+    });
   }
 }

@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
+  adminErrorPublicMessage,
   adminErrorStatus,
   requireKlyxAdmin,
 } from "@/lib/admin-auth";
+import { secureApiErrorResponse } from "@/lib/api-error";
+import { logServerError } from "@/lib/server-log";
 
 type DisputeStatus =
   | "open"
@@ -89,6 +92,8 @@ function notificationFor(
 }
 
 export async function GET() {
+  const startedAt = Date.now();
+
   try {
     await requireKlyxAdmin();
 
@@ -172,19 +177,24 @@ export async function GET() {
 
     return NextResponse.json({ disputes: rows });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Impossible de charger les litiges.";
+    const status = adminErrorStatus(error);
 
-    return NextResponse.json(
-      { error: message },
-      { status: adminErrorStatus(error) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "admin_disputes_read_failed",
+      route: "/api/admin/disputes",
+      method: "GET",
+      status,
+      code: "KLYX_ADMIN_DISPUTES_READ_FAILED",
+      publicMessage: adminErrorPublicMessage(status),
+      startedAt,
+    });
   }
 }
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const admin = await requireKlyxAdmin();
 
@@ -373,10 +383,15 @@ export async function POST(request: Request) {
           });
 
       if (notificationError) {
-        console.error(
-          "Dispute notification error:",
-          notificationError.message
-        );
+        logServerError({
+          error: notificationError,
+          event: "admin_dispute_notification_failed",
+          route: "/api/admin/disputes",
+          method: "POST",
+          status: 500,
+          code: "KLYX_ADMIN_DISPUTE_NOTIFICATION_FAILED",
+          durationMs: Math.max(0, Date.now() - startedAt),
+        });
       }
     }
 
@@ -384,14 +399,17 @@ export async function POST(request: Request) {
       message: "Le dossier a été mis à jour.",
     });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Impossible de modifier le litige.";
+    const status = adminErrorStatus(error);
 
-    return NextResponse.json(
-      { error: message },
-      { status: adminErrorStatus(error) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "admin_dispute_update_failed",
+      route: "/api/admin/disputes",
+      method: "POST",
+      status,
+      code: "KLYX_ADMIN_DISPUTE_UPDATE_FAILED",
+      publicMessage: adminErrorPublicMessage(status),
+      startedAt,
+    });
   }
 }
