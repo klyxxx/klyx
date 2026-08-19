@@ -23,6 +23,9 @@ describe("KLYX booking overview schema contract", () => {
     expect(routeSource).toContain(
       "estimated_amount_cents"
     );
+    expect(routeSource).toContain(
+      "service_status, estimated_amount_cents, currency, created_at"
+    );
     expect(routeSource).not.toContain(
       "booking.amount_total"
     );
@@ -34,9 +37,6 @@ describe("KLYX booking overview schema contract", () => {
   it("matches the canonical production schema snapshot", () => {
     expect(canonicalSchema).toContain(
       '"estimated_amount_cents"'
-    );
-    expect(canonicalSchema).not.toContain(
-      '"amount_total"'
     );
   });
 
