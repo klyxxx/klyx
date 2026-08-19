@@ -3,6 +3,7 @@ import "server-only";
 import { cookies } from "next/headers";
 
 import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const ACTIVE_PROFILE_COOKIE =
   "klyx_active_profile";
@@ -72,7 +73,7 @@ function normalizeProfile(
   };
 }
 
-async function authenticatedContext() {
+async function authenticatedUser() {
   const supabase =
     await createClient();
 
@@ -81,39 +82,35 @@ async function authenticatedContext() {
   } =
     await supabase.auth.getUser();
 
-  return {
-    supabase,
-    user,
-  };
+  return user;
 }
 
 export async function getOwnedProfiles(): Promise<
   ActiveProfile[]
 > {
-  const {
-    supabase,
-    user,
-  } =
-    await authenticatedContext();
+  const user =
+    await authenticatedUser();
 
   if (!user) {
     return [];
   }
 
   /*
-   * KLYX_ACTIVE_PROFILE_RLS_PHASE_7C
+   * KLYX_AUTHENTICATED_PROFILE_PRIVACY_12B_12E
    *
-   * Les profils modernes sont lus avec
-   * la session Supabase de l'utilisateur.
+   * La session Supabase sert uniquement à authentifier l'utilisateur.
+   * Les colonnes internes nécessaires au sélecteur multi-profils
+   * (owner_user_id, marché, etc.) sont ensuite lues côté serveur avec
+   * service_role et toujours filtrées par owner_user_id = user.id.
    *
-   * Aucune service-role key n'est nécessaire
-   * pour un compte multi-profils moderne.
+   * Cela permet de retirer aux sessions navigateur l'accès direct aux
+   * colonnes privées/sensibles de profiles sans casser le multi-profil.
    */
   const {
     data: ownedData,
     error: ownedError,
   } =
-    await supabase
+    await supabaseAdmin
       .from("profiles")
       .select(
         `
@@ -165,17 +162,10 @@ export async function getOwnedProfiles(): Promise<
    * Compatibilité uniquement pour
    * les anciens profils KLYX.
    *
-   * L'admin est chargé dynamiquement
-   * seulement si aucun profil moderne
-   * appartenant au compte n'existe.
+   * La réparation legacy reste côté serveur
+   * et ne donne aucun droit d'écriture direct
+   * à la session authentifiée.
    */
-  const {
-    supabaseAdmin,
-  } =
-    await import(
-      "@/lib/supabase-admin"
-    );
-
   const {
     data: legacyProfile,
     error: legacyError,
