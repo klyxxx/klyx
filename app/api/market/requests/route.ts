@@ -1,13 +1,23 @@
 // KLYX_MARKET_TRANSACTION_CURRENCY_API_PHASE_5C
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase-admin";
-import { notifyCompatibleProviders } from "@/lib/market-notifications";
-import { calculateClientOfferRanking } from "@/lib/client-offer-ranking";
+
+import { secureApiErrorResponse } from "@/lib/api-error";
 import {
   apiErrorStatus,
   getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
+import { calculateClientOfferRanking } from "@/lib/client-offer-ranking";
+import { notifyCompatibleProviders } from "@/lib/market-notifications";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+
+const SAFE_MARKET_AUTH_MESSAGES = new Set([
+  "Session manquante.",
+  "Session invalide.",
+  "Profil KLYX introuvable.",
+  "Cette action nécessite un profil prestataire.",
+  "Cette action nécessite un profil client.",
+]);
 
 function clean(value: unknown, max: number): string {
   return typeof value === "string"
@@ -15,7 +25,37 @@ function clean(value: unknown, max: number): string {
     : "";
 }
 
+function secureMarketRequestError(
+  error: unknown,
+  method: "GET" | "POST" | "PATCH",
+  event: string,
+  code: string,
+  startedAt: number
+) {
+  const message =
+    error instanceof Error
+      ? error.message
+      : "Opération marché impossible.";
+  const status = apiErrorStatus(message);
+
+  return secureApiErrorResponse({
+    error,
+    event,
+    route: "/api/market/requests",
+    method,
+    status,
+    code,
+    publicMessage:
+      status < 500 && SAFE_MARKET_AUTH_MESSAGES.has(message)
+        ? message
+        : undefined,
+    startedAt,
+  });
+}
+
 export async function GET(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } = await getAuthenticatedProfile(request);
 
@@ -29,7 +69,7 @@ export async function GET(request: Request) {
         .order("created_at", { ascending: false })
         .limit(50);
 
-      if (error) throw new Error(error.message);
+      if (error) throw error;
 
       const requestIds = (requests ?? []).map((item) => item.id);
       const serviceIds = [
@@ -63,24 +103,17 @@ export async function GET(request: Request) {
           : Promise.resolve({ data: [], error: null }),
       ]);
 
-      if (offerError) throw new Error(offerError.message);
-      if (serviceError) throw new Error(serviceError.message);
-      if (linkedQuoteError) throw new Error(linkedQuoteError.message);
+      if (offerError) throw offerError;
+      if (serviceError) throw serviceError;
+      if (linkedQuoteError) throw linkedQuoteError;
 
       const providerIds = [
         ...new Set(
-          (offers ?? []).map(
-            (offer) => offer.provider_profile_id
-          )
+          (offers ?? []).map((offer) => offer.provider_profile_id)
         ),
       ];
-
       const userServiceIds = [
-        ...new Set(
-          (offers ?? []).map(
-            (offer) => offer.user_service_id
-          )
-        ),
+        ...new Set((offers ?? []).map((offer) => offer.user_service_id)),
       ];
 
       const [
@@ -91,9 +124,7 @@ export async function GET(request: Request) {
         providerIds.length
           ? supabaseAdmin
               .from("profiles")
-              .select(
-                "id, first_name, last_name, avatar_url"
-              )
+              .select("id, first_name, last_name, avatar_url")
               .in("id", providerIds)
           : Promise.resolve({ data: [], error: null }),
         providerIds.length
@@ -114,36 +145,25 @@ export async function GET(request: Request) {
           : Promise.resolve({ data: [], error: null }),
       ]);
 
-      if (providerError) throw new Error(providerError.message);
-      if (providerProfileError) {
-        throw new Error(providerProfileError.message);
-      }
-      if (serviceProfileError) {
-        throw new Error(serviceProfileError.message);
-      }
+      if (providerError) throw providerError;
+      if (providerProfileError) throw providerProfileError;
+      if (serviceProfileError) throw serviceProfileError;
 
       const serviceMap = new Map(
         (services ?? []).map((item) => [item.id, item])
       );
-
       const providerMap = new Map(
         (providers ?? []).map((item) => [item.id, item])
       );
-
       const providerProfileMap = new Map(
-        (providerProfiles ?? []).map((item) => [
-          item.profile_id,
-          item,
-        ])
+        (providerProfiles ?? []).map((item) => [item.profile_id, item])
       );
-
       const serviceProfileMap = new Map(
         (serviceProfiles ?? []).map((item) => [
           item.user_service_id,
           item,
         ])
       );
-
       const quoteMap = new Map(
         (linkedQuotes ?? []).map((item) => [
           item.market_request_id,
@@ -155,87 +175,52 @@ export async function GET(request: Request) {
         role: "client",
         requests: (requests ?? []).map((item) => {
           const rankedOffers = (offers ?? [])
-            .filter(
-              (offer) => offer.request_id === item.id
-            )
+            .filter((offer) => offer.request_id === item.id)
             .map((offer) => {
               const provider =
-                providerMap.get(
-                  offer.provider_profile_id
-                ) ?? null;
-
+                providerMap.get(offer.provider_profile_id) ?? null;
               const providerProfile =
-                providerProfileMap.get(
-                  offer.provider_profile_id
-                ) ?? null;
-
+                providerProfileMap.get(offer.provider_profile_id) ?? null;
               const serviceProfile =
-                serviceProfileMap.get(
-                  offer.user_service_id
-                ) ?? null;
+                serviceProfileMap.get(offer.user_service_id) ?? null;
 
-              const ranking =
-                calculateClientOfferRanking({
-                  amount: Number(offer.amount),
-                  budgetMax:
-                    item.budget_max === null
-                      ? null
-                      : Number(item.budget_max),
-                  klyxScore: Number(
-                    serviceProfile?.klyx_score ?? 50
-                  ),
-                  rating: Number(
-                    serviceProfile?.rating ?? 0
-                  ),
-                  reviewCount: Number(
-                    serviceProfile?.review_count ?? 0
-                  ),
-                  yearsExperience: Number(
-                    providerProfile?.years_experience ?? 0
-                  ),
-                  isVerified:
-                    providerProfile?.verification_status ===
-                    "verified",
-                });
+              const ranking = calculateClientOfferRanking({
+                amount: Number(offer.amount),
+                budgetMax:
+                  item.budget_max === null
+                    ? null
+                    : Number(item.budget_max),
+                klyxScore: Number(serviceProfile?.klyx_score ?? 50),
+                rating: Number(serviceProfile?.rating ?? 0),
+                reviewCount: Number(serviceProfile?.review_count ?? 0),
+                yearsExperience: Number(
+                  providerProfile?.years_experience ?? 0
+                ),
+                isVerified:
+                  providerProfile?.verification_status === "verified",
+              });
 
               return {
                 ...offer,
                 provider,
                 providerStats: {
-                  klyxScore: Number(
-                    serviceProfile?.klyx_score ?? 50
-                  ),
-                  rating: Number(
-                    serviceProfile?.rating ?? 0
-                  ),
-                  reviewCount: Number(
-                    serviceProfile?.review_count ?? 0
-                  ),
+                  klyxScore: Number(serviceProfile?.klyx_score ?? 50),
+                  rating: Number(serviceProfile?.rating ?? 0),
+                  reviewCount: Number(serviceProfile?.review_count ?? 0),
                   yearsExperience: Number(
                     providerProfile?.years_experience ?? 0
                   ),
                   isVerified:
-                    providerProfile?.verification_status ===
-                    "verified",
+                    providerProfile?.verification_status === "verified",
                 },
                 ranking,
               };
             })
             .sort((first, second) => {
-              if (
-                first.ranking.score !==
-                second.ranking.score
-              ) {
-                return (
-                  second.ranking.score -
-                  first.ranking.score
-                );
+              if (first.ranking.score !== second.ranking.score) {
+                return second.ranking.score - first.ranking.score;
               }
-
-              return (
-                Number(first.amount) -
-                Number(second.amount)
-              );
+              return Number(first.amount) - Number(second.amount);
             })
             .map((offer, index) => ({
               ...offer,
@@ -245,25 +230,17 @@ export async function GET(request: Request) {
 
           if (rankedOffers.length > 0) {
             const cheapestAmount = Math.min(
-              ...rankedOffers.map((offer) =>
-                Number(offer.amount)
-              )
+              ...rankedOffers.map((offer) => Number(offer.amount))
             );
-
             for (const offer of rankedOffers) {
-              offer.isCheapest =
-                Number(offer.amount) ===
-                cheapestAmount;
+              offer.isCheapest = Number(offer.amount) === cheapestAmount;
             }
           }
 
           return {
             ...item,
-            service:
-              serviceMap.get(item.service_id) ??
-              null,
-            bookingQuote:
-              quoteMap.get(item.id) ?? null,
+            service: serviceMap.get(item.service_id) ?? null,
+            bookingQuote: quoteMap.get(item.id) ?? null,
             offers: rankedOffers,
           };
         }),
@@ -272,25 +249,19 @@ export async function GET(request: Request) {
 
     requireAccountType(profile, "provider");
 
-    const {
-      data: providerServices,
-      error: providerServiceError,
-    } = await supabaseAdmin
-      .from("user_services")
-      .select("id, service_id")
-      .eq("user_id", profile.id)
-      .eq("active", true)
-      .eq("provider_enabled", true);
+    const { data: providerServices, error: providerServiceError } =
+      await supabaseAdmin
+        .from("user_services")
+        .select("id, service_id")
+        .eq("user_id", profile.id)
+        .eq("active", true)
+        .eq("provider_enabled", true);
 
-    if (providerServiceError) {
-      throw new Error(providerServiceError.message);
-    }
+    if (providerServiceError) throw providerServiceError;
 
     const serviceIds = [
       ...new Set(
-        (providerServices ?? []).map(
-          (item) => item.service_id
-        )
+        (providerServices ?? []).map((item) => item.service_id)
       ),
     ];
 
@@ -301,22 +272,19 @@ export async function GET(request: Request) {
       });
     }
 
-    const { data: requests, error } =
-      await supabaseAdmin
-        .from("market_service_requests")
-        .select(
-          "id, client_profile_id, service_id, title, description, city, requested_date, requested_time, budget_max, country_code, currency, status, created_at"
-        )
-        .eq("status", "open")
-        .in("service_id", serviceIds)
-        .order("created_at", { ascending: false })
-        .limit(50);
+    const { data: requests, error } = await supabaseAdmin
+      .from("market_service_requests")
+      .select(
+        "id, client_profile_id, service_id, title, description, city, requested_date, requested_time, budget_max, country_code, currency, status, created_at"
+      )
+      .eq("status", "open")
+      .in("service_id", serviceIds)
+      .order("created_at", { ascending: false })
+      .limit(50);
 
-    if (error) throw new Error(error.message);
+    if (error) throw error;
 
-    const requestIds = (requests ?? []).map(
-      (item) => item.id
-    );
+    const requestIds = (requests ?? []).map((item) => item.id);
 
     const [
       { data: services, error: serviceError },
@@ -337,57 +305,43 @@ export async function GET(request: Request) {
         : Promise.resolve({ data: [], error: null }),
     ]);
 
-    if (serviceError) {
-      throw new Error(serviceError.message);
-    }
-    if (offerError) {
-      throw new Error(offerError.message);
-    }
+    if (serviceError) throw serviceError;
+    if (offerError) throw offerError;
 
     const serviceMap = new Map(
-      (services ?? []).map((item) => [
-        item.id,
-        item,
-      ])
+      (services ?? []).map((item) => [item.id, item])
     );
-
     const offerMap = new Map(
-      (offers ?? []).map((item) => [
-        item.request_id,
-        item,
-      ])
+      (offers ?? []).map((item) => [item.request_id, item])
     );
 
     return NextResponse.json({
       role: "provider",
       requests: (requests ?? []).map((item) => ({
         ...item,
-        service:
-          serviceMap.get(item.service_id) ??
-          null,
-        myOffer:
-          offerMap.get(item.id) ?? null,
+        service: serviceMap.get(item.service_id) ?? null,
+        myOffer: offerMap.get(item.id) ?? null,
       })),
     });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Impossible de charger les demandes.";
-
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
+    return secureMarketRequestError(
+      error,
+      "GET",
+      "market_requests_load_failed",
+      "KLYX_MARKET_REQUESTS_LOAD_FAILED",
+      startedAt
     );
   }
 }
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } = await getAuthenticatedProfile(request);
     requireAccountType(profile, "client");
 
-    const body = (await request.json()) as {
+    let body: {
       serviceSlug?: unknown;
       title?: unknown;
       description?: unknown;
@@ -396,6 +350,15 @@ export async function POST(request: Request) {
       requestedTime?: unknown;
       budgetMax?: unknown;
     };
+
+    try {
+      body = (await request.json()) as typeof body;
+    } catch {
+      return NextResponse.json(
+        { error: "Requête invalide." },
+        { status: 400 }
+      );
+    }
 
     const serviceSlug = clean(body.serviceSlug, 100);
     const title = clean(body.title, 120);
@@ -418,34 +381,20 @@ export async function POST(request: Request) {
         ? budgetRaw
         : null;
 
-    const marketCountry =
-      profile.countryCode
-        .trim()
-        .toUpperCase();
-
-    const marketCurrency =
-      profile.currencyCode
-        .trim()
-        .toUpperCase();
+    const marketCountry = profile.countryCode.trim().toUpperCase();
+    const marketCurrency = profile.currencyCode.trim().toUpperCase();
 
     if (
-      !/^[A-Z]{2}$/.test(
-        marketCountry
-      ) ||
-      !/^[A-Z]{3}$/.test(
-        marketCurrency
-      )
+      !/^[A-Z]{2}$/.test(marketCountry) ||
+      !/^[A-Z]{3}$/.test(marketCurrency)
     ) {
       return NextResponse.json(
         {
           error:
             "Configure ton pays et ta devise KLYX avant de publier une demande.",
-          code:
-            "KLYX_PROFILE_MARKET_REQUIRED",
+          code: "KLYX_PROFILE_MARKET_REQUIRED",
         },
-        {
-          status: 409,
-        }
+        { status: 409 }
       );
     }
 
@@ -464,14 +413,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: service, error: serviceError } =
-      await supabaseAdmin
-        .from("services")
-        .select("id, name, slug")
-        .eq("slug", serviceSlug)
-        .maybeSingle();
+    const { data: service, error: serviceError } = await supabaseAdmin
+      .from("services")
+      .select("id, name, slug")
+      .eq("slug", serviceSlug)
+      .maybeSingle();
 
-    if (serviceError) throw new Error(serviceError.message);
+    if (serviceError) throw serviceError;
 
     if (!service) {
       return NextResponse.json(
@@ -480,36 +428,32 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: created, error } =
-      await supabaseAdmin
-        .from("market_service_requests")
-        .insert({
-          client_profile_id: profile.id,
-          service_id: service.id,
-          title,
-          description,
-          city,
-          requested_date: requestedDate,
-          requested_time: requestedTime
-            ? `${requestedTime}:00`
-            : null,
-          budget_max: budgetMax,
-          country_code: marketCountry,
-          currency: marketCurrency,
-          status: "open",
-        })
-        .select(
-          "id, title, description, city, requested_date, requested_time, budget_max, country_code, currency, status, created_at"
-        )
-        .single();
+    const { data: created, error } = await supabaseAdmin
+      .from("market_service_requests")
+      .insert({
+        client_profile_id: profile.id,
+        service_id: service.id,
+        title,
+        description,
+        city,
+        requested_date: requestedDate,
+        requested_time: requestedTime ? `${requestedTime}:00` : null,
+        budget_max: budgetMax,
+        country_code: marketCountry,
+        currency: marketCurrency,
+        status: "open",
+      })
+      .select(
+        "id, title, description, city, requested_date, requested_time, budget_max, country_code, currency, status, created_at"
+      )
+      .single();
 
-    if (error) throw new Error(error.message);
+    if (error) throw error;
 
     await notifyCompatibleProviders({
       marketRequestId: created.id,
       serviceId: service.id,
-      serviceName:
-        service.name?.trim() || service.slug,
+      serviceName: service.name?.trim() || service.slug,
       city,
     });
 
@@ -519,27 +463,36 @@ export async function POST(request: Request) {
         "Demande publiée. Les prestataires compatibles peuvent maintenant proposer leur prix.",
     });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Impossible de publier la demande.";
-
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
+    return secureMarketRequestError(
+      error,
+      "POST",
+      "market_request_create_failed",
+      "KLYX_MARKET_REQUEST_CREATE_FAILED",
+      startedAt
     );
   }
 }
 
 export async function PATCH(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } = await getAuthenticatedProfile(request);
     requireAccountType(profile, "client");
 
-    const body = (await request.json()) as {
+    let body: {
       requestId?: unknown;
       action?: unknown;
     };
+
+    try {
+      body = (await request.json()) as typeof body;
+    } catch {
+      return NextResponse.json(
+        { error: "Requête invalide." },
+        { status: 400 }
+      );
+    }
 
     const requestId = clean(body.requestId, 80);
     const action = clean(body.action, 30);
@@ -551,17 +504,14 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const { data: existing, error: existingError } =
-      await supabaseAdmin
-        .from("market_service_requests")
-        .select("id, status")
-        .eq("id", requestId)
-        .eq("client_profile_id", profile.id)
-        .maybeSingle();
+    const { data: existing, error: existingError } = await supabaseAdmin
+      .from("market_service_requests")
+      .select("id, status")
+      .eq("id", requestId)
+      .eq("client_profile_id", profile.id)
+      .maybeSingle();
 
-    if (existingError) {
-      throw new Error(existingError.message);
-    }
+    if (existingError) throw existingError;
 
     if (!existing) {
       return NextResponse.json(
@@ -572,10 +522,7 @@ export async function PATCH(request: Request) {
 
     if (existing.status !== "open") {
       return NextResponse.json(
-        {
-          error:
-            "Cette demande ne peut plus être annulée.",
-        },
+        { error: "Cette demande ne peut plus être annulée." },
         { status: 409 }
       );
     }
@@ -589,20 +536,18 @@ export async function PATCH(request: Request) {
       .eq("id", requestId)
       .eq("client_profile_id", profile.id);
 
-    if (error) throw new Error(error.message);
+    if (error) throw error;
 
     return NextResponse.json({
       message: "Demande annulée.",
     });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Impossible de modifier la demande.";
-
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
+    return secureMarketRequestError(
+      error,
+      "PATCH",
+      "market_request_update_failed",
+      "KLYX_MARKET_REQUEST_UPDATE_FAILED",
+      startedAt
     );
   }
 }
