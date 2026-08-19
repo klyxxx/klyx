@@ -7,7 +7,7 @@ import {
   getActiveProfile,
   getOwnedProfiles,
 } from "@/lib/active-profile";
-
+import { secureApiErrorResponse } from "@/lib/api-error";
 import {
   createClient,
 } from "@/lib/supabase/server";
@@ -40,27 +40,29 @@ function setActiveProfileCookie(
 }
 
 export async function GET() {
-  const supabase =
-    await createClient();
-
-  const {
-    data: { user },
-  } =
-    await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json(
-      {
-        error:
-          "Non connecté.",
-      },
-      {
-        status: 401,
-      }
-    );
-  }
+  const startedAt = Date.now();
 
   try {
+    const supabase =
+      await createClient();
+
+    const {
+      data: { user },
+    } =
+      await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json(
+        {
+          error:
+            "Non connecté.",
+        },
+        {
+          status: 401,
+        }
+      );
+    }
+
     const profiles =
       await getOwnedProfiles();
 
@@ -91,10 +93,6 @@ export async function GET() {
           profiles[0].id,
       });
 
-    /*
-     * Répare aussi le cookie
-     * automatiquement.
-     */
     const resolvedProfileId =
       activeProfile?.id ??
       profiles[0].id;
@@ -106,87 +104,79 @@ export async function GET() {
 
     return response;
   } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Impossible de charger les profils.",
-      },
-      {
-        status: 500,
-      }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "profiles_active_load_failed",
+      route: "/api/profiles/active",
+      method: "GET",
+      status: 500,
+      code: "KLYX_PROFILES_ACTIVE_LOAD_FAILED",
+      startedAt,
+    });
   }
 }
 
 export async function POST(
   request: Request
 ) {
-  const supabase =
-    await createClient();
-
-  const {
-    data: { user },
-  } =
-    await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json(
-      {
-        error:
-          "Non connecté.",
-      },
-      {
-        status: 401,
-      }
-    );
-  }
-
-  let body: SelectProfileBody;
+  const startedAt = Date.now();
 
   try {
-    body =
-      (await request.json()) as SelectProfileBody;
-  } catch {
-    return NextResponse.json(
-      {
-        error:
-          "Requête invalide.",
-      },
-      {
-        status: 400,
-      }
-    );
-  }
+    const supabase =
+      await createClient();
 
-  const profileId =
-    typeof body.profileId ===
-      "string"
-      ? body.profileId.trim()
-      : "";
+    const {
+      data: { user },
+    } =
+      await supabase.auth.getUser();
 
-  if (!profileId) {
-    return NextResponse.json(
-      {
-        error:
-          "Identifiant de profil invalide.",
-      },
-      {
-        status: 400,
-      }
-    );
-  }
+    if (!user) {
+      return NextResponse.json(
+        {
+          error:
+            "Non connecté.",
+        },
+        {
+          status: 401,
+        }
+      );
+    }
 
-  try {
-    /*
-     * On charge les profils
-     * autorisés côté serveur.
-     *
-     * Cela fonctionne aussi
-     * après migration automatique
-     * d'un ancien profil.
-     */
+    let body: SelectProfileBody;
+
+    try {
+      body =
+        (await request.json()) as SelectProfileBody;
+    } catch {
+      return NextResponse.json(
+        {
+          error:
+            "Requête invalide.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    const profileId =
+      typeof body.profileId ===
+        "string"
+        ? body.profileId.trim()
+        : "";
+
+    if (!profileId) {
+      return NextResponse.json(
+        {
+          error:
+            "Identifiant de profil invalide.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
     const profiles =
       await getOwnedProfiles();
 
@@ -223,16 +213,14 @@ export async function POST(
 
     return response;
   } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Impossible de changer de profil.",
-      },
-      {
-        status: 500,
-      }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "profiles_active_switch_failed",
+      route: "/api/profiles/active",
+      method: "POST",
+      status: 500,
+      code: "KLYX_PROFILES_ACTIVE_SWITCH_FAILED",
+      startedAt,
+    });
   }
 }
