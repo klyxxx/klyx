@@ -10,6 +10,7 @@ import {
 const root = process.cwd();
 
 const criticalRoutePaths = [
+  "app/api/account/delete/route.ts",
   "app/api/admin/access/route.ts",
   "app/api/admin/disputes/route.ts",
   "app/api/admin/openai-health/route.ts",
@@ -43,6 +44,10 @@ const criticalRoutePaths = [
   "app/api/founder/status/route.ts",
   "app/api/founder/test-center/route.ts",
   "app/api/founder/transaction-readiness/route.ts",
+  "app/api/profile/avatar/route.ts",
+  "app/api/profile/me/route.ts",
+  "app/api/profile/mode/route.ts",
+  "app/api/profile/phone/route.ts",
   "app/api/provider/skill-requirements/route.ts",
   "app/api/provider/skills-verification/route.ts",
   "app/api/provider/sumsub/status/route.ts",
@@ -370,6 +375,50 @@ describe(
         expect(sumsubWebhook)
           .not.toContain(
             "message.slice(0, 1000)"
+          );
+      }
+    );
+
+    it(
+      "keeps account and profile business validation public while masking provider failures",
+      () => {
+        const accountDelete = read(
+          "app/api/account/delete/route.ts"
+        );
+        const profileAvatar = read(
+          "app/api/profile/avatar/route.ts"
+        );
+        const profileMe = read(
+          "app/api/profile/me/route.ts"
+        );
+        const profileMode = read(
+          "app/api/profile/mode/route.ts"
+        );
+        const profilePhone = read(
+          "app/api/profile/phone/route.ts"
+        );
+
+        expect(accountDelete)
+          .not.toContain("deleteError.message");
+        expect(accountDelete)
+          .not.toContain("profilesError.message");
+        expect(profileAvatar)
+          .not.toContain("uploadError.message");
+        expect(profileAvatar)
+          .not.toContain("updateError?.message");
+        expect(profileMe)
+          .not.toContain("error.message");
+        expect(profileMe)
+          .toContain(
+            '{ error: "L’âge doit être compris entre 18 et 100 ans." }'
+          );
+        expect(profileMode)
+          .toContain(
+            "publicMessage: status < 500 ? message : undefined"
+          );
+        expect(profilePhone)
+          .toContain(
+            "publicMessage: status < 500 ? message : undefined"
           );
       }
     );
