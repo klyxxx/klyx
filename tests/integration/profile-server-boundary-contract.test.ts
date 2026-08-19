@@ -15,6 +15,11 @@ const activeProfile = readFileSync(
   "utf8"
 );
 
+const profileManage = readFileSync(
+  join(process.cwd(), "app/api/profiles/manage/route.ts"),
+  "utf8"
+);
+
 describe("profile server boundary contract", () => {
   it("removes all direct authenticated profile writes", () => {
     expect(migration).toContain(
@@ -23,15 +28,9 @@ describe("profile server boundary contract", () => {
     expect(migration).toContain(
       "revoke all privileges on table public.profiles from authenticated;"
     );
-    expect(migration).not.toContain(
-      "grant update ("
-    );
-    expect(migration).not.toContain(
-      "grant insert"
-    );
-    expect(migration).not.toContain(
-      "grant delete"
-    );
+    expect(migration).not.toContain("grant update (");
+    expect(migration).not.toContain("grant insert");
+    expect(migration).not.toContain("grant delete");
   });
 
   it("restores only a non-sensitive authenticated read surface", () => {
@@ -70,14 +69,33 @@ describe("profile server boundary contract", () => {
     expect(activeProfile).toContain(
       "KLYX_AUTHENTICATED_PROFILE_PRIVACY_12B_12E"
     );
-    expect(activeProfile).toContain(
-      "await supabaseAdmin"
-    );
+    expect(activeProfile).toContain("await supabaseAdmin");
     expect(activeProfile).toContain(
       '"owner_user_id",\n        user.id'
     );
     expect(activeProfile).not.toContain(
       "KLYX_ACTIVE_PROFILE_RLS_PHASE_7C"
+    );
+  });
+
+  it("keeps profile management writes server-side while auth.uid RPCs keep the session", () => {
+    expect(profileManage).toContain(
+      "KLYX_PROFILE_SERVER_BOUNDARY_12B_12G"
+    );
+    expect(profileManage).toContain(
+      "const { data, error } = await supabaseAdmin\n      .from(\"profiles\")\n      .update(updatePayload)"
+    );
+    expect(profileManage).toContain(
+      "const { data: ownedProfiles, error: profilesError } = await supabaseAdmin\n      .from(\"profiles\")"
+    );
+    expect(profileManage).toContain(
+      'await supabase.rpc(\n      "klyx_create_profile"'
+    );
+    expect(profileManage).toContain(
+      'await supabase.rpc("klyx_delete_profile"'
+    );
+    expect(profileManage).not.toContain(
+      "const { data, error } = await supabase\n      .from(\"profiles\")\n      .update(updatePayload)"
     );
   });
 });
