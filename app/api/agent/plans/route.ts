@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+
+import { secureApiErrorResponse } from "@/lib/api-error";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   apiErrorStatus,
@@ -37,14 +39,14 @@ async function loadMemory(profileId: string) {
     ]);
 
   if (preferencesResult.error) {
-    throw new Error(preferencesResult.error.message);
+    throw preferencesResult.error;
   }
 
   if (
     profileResult.error &&
     profileResult.error.code !== "PGRST116"
   ) {
-    throw new Error(profileResult.error.message);
+    throw profileResult.error;
   }
 
   const preferences = preferencesResult.data;
@@ -66,7 +68,34 @@ async function loadMemory(profileId: string) {
   };
 }
 
+function secureAgentPlanError(
+  error: unknown,
+  method: "GET" | "POST" | "PATCH",
+  event: string,
+  code: string,
+  startedAt: number
+) {
+  const message =
+    error instanceof Error
+      ? error.message
+      : "Opération agent impossible.";
+  const status = apiErrorStatus(message);
+
+  return secureApiErrorResponse({
+    error,
+    event,
+    route: "/api/agent/plans",
+    method,
+    status,
+    code,
+    publicMessage: status < 500 ? message : undefined,
+    startedAt,
+  });
+}
+
 export async function GET(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } =
       await getAuthenticatedProfile(request);
@@ -82,25 +111,25 @@ export async function GET(request: Request) {
       .order("created_at", { ascending: false })
       .limit(20);
 
-    if (error) throw new Error(error.message);
+    if (error) throw error;
 
     return NextResponse.json({
       plans: data ?? [],
     });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Impossible de charger les plans.";
-
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
+    return secureAgentPlanError(
+      error,
+      "GET",
+      "agent_plans_load_failed",
+      "KLYX_AGENT_PLANS_LOAD_FAILED",
+      startedAt
     );
   }
 }
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } =
       await getAuthenticatedProfile(request);
@@ -155,7 +184,7 @@ export async function POST(request: Request) {
       )
       .single();
 
-    if (error) throw new Error(error.message);
+    if (error) throw error;
 
     return NextResponse.json({
       plan: {
@@ -165,19 +194,19 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Impossible de créer le plan.";
-
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
+    return secureAgentPlanError(
+      error,
+      "POST",
+      "agent_plan_create_failed",
+      "KLYX_AGENT_PLAN_CREATE_FAILED",
+      startedAt
     );
   }
 }
 
 export async function PATCH(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } =
       await getAuthenticatedProfile(request);
@@ -218,7 +247,7 @@ export async function PATCH(request: Request) {
       .eq("profile_id", profile.id)
       .maybeSingle();
 
-    if (error) throw new Error(error.message);
+    if (error) throw error;
 
     if (!plan) {
       return NextResponse.json(
@@ -238,7 +267,7 @@ export async function PATCH(request: Request) {
         .eq("profile_id", profile.id);
 
       if (cancelError) {
-        throw new Error(cancelError.message);
+        throw cancelError;
       }
 
       return NextResponse.json({
@@ -290,7 +319,7 @@ export async function PATCH(request: Request) {
       .eq("profile_id", profile.id);
 
     if (updateError) {
-      throw new Error(updateError.message);
+      throw updateError;
     }
 
     return NextResponse.json({
@@ -298,14 +327,12 @@ export async function PATCH(request: Request) {
       steps: nextSteps,
     });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Impossible de mettre à jour le plan.";
-
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
+    return secureAgentPlanError(
+      error,
+      "PATCH",
+      "agent_plan_update_failed",
+      "KLYX_AGENT_PLAN_UPDATE_FAILED",
+      startedAt
     );
   }
 }
