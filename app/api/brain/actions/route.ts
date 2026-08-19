@@ -3,14 +3,12 @@ import {
 } from "next/server";
 
 import {
-  apiErrorStatus,
   getAuthenticatedProfile,
 } from "@/lib/api-auth";
-
+import { secureApiErrorResponse } from "@/lib/api-error";
 import {
   getBrainActions,
 } from "@/lib/brain-actions";
-
 import {
   getGroupCancellationBrainActions,
 } from "@/lib/brain-group-cancellation-actions";
@@ -76,6 +74,8 @@ function normalizeActions(
 export async function GET(
   request: Request
 ) {
+  const startedAt = Date.now();
+
   try {
     const {
       profile,
@@ -185,25 +185,17 @@ export async function GET(
         true,
     });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Impossible de charger les actions KLYX.";
-
-    return NextResponse.json(
-      {
-        error:
-          message,
-
-        automaticExecutionAllowed:
-          false,
+    return secureApiErrorResponse({
+      error,
+      event: "brain_actions_load_failed",
+      route: "/api/brain/actions",
+      method: "GET",
+      status: 500,
+      code: "KLYX_BRAIN_ACTIONS_LOAD_FAILED",
+      startedAt,
+      details: {
+        automaticExecutionAllowed: false,
       },
-      {
-        status:
-          apiErrorStatus(
-            message
-          ),
-      }
-    );
+    });
   }
 }
