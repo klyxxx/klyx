@@ -18,7 +18,7 @@ permissions:
 jobs:
   browser-tests:
     name: Playwright browser verification
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 25
 
     env:
@@ -26,6 +26,7 @@ jobs:
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
       KLYX_E2E_EMAIL: ${{ secrets.KLYX_E2E_EMAIL }}
       KLYX_E2E_PASSWORD: ${{ secrets.KLYX_E2E_PASSWORD }}
+      KLYX_PLAYWRIGHT_SYSTEM_CHROME: "1"
 
     steps:
       - name: Checkout repository
@@ -75,8 +76,15 @@ jobs:
       - name: Development dependency security
         run: npm audit --audit-level=high
 
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Verify system Chrome
+        shell: bash
+        run: |
+          google-chrome --version
+
+      - name: Install Playwright FFmpeg
+        env:
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "120000"
+        run: npx playwright install ffmpeg
 
       - name: Unit and integration tests
         run: npm test
