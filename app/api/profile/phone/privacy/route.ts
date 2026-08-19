@@ -1,143 +1,51 @@
-import { NextResponse } from "next/server";
-
+import { secureApiErrorResponse } from "@/lib/api-error";
 import {
-  apiErrorStatus,
-  getAuthenticatedProfile,
-} from "@/lib/api-auth";
-import { supabaseAdmin } from "@/lib/supabase-admin";
+  GET as coreGet,
+  PUT as corePut,
+} from "./phone-privacy-route-core";
 
-// KLYX_PHONE_PRIVACY_API_12_75
+type Method = "GET" | "PUT";
 
-type Visibility =
-  | "private"
-  | "transaction_participants";
+async function secureResponse(
+  method: Method,
+  startedAt: number,
+  run: () => Promise<Response>
+) {
+  try {
+    const response = await run();
 
-type PrivacyBody = {
-  visibility?: Visibility;
-};
+    if (response.status < 500) {
+      return response;
+    }
 
-type PhonePrivacyRow = {
-  phone_number: string | null;
-  phone_verified_at: string | null;
-  phone_visibility: string | null;
-};
-
-function normalizeVisibility(
-  value: string | null
-): Visibility {
-  return value === "private"
-    ? "private"
-    : "transaction_participants";
+    return secureApiErrorResponse({
+      error: new Error("Phone privacy core returned an unexpected 5xx response."),
+      event: "profile_phone_privacy_request_failed",
+      route: "/api/profile/phone/privacy",
+      method,
+      status: 500,
+      code: "KLYX_PROFILE_PHONE_PRIVACY_REQUEST_FAILED",
+      startedAt,
+    });
+  } catch (error) {
+    return secureApiErrorResponse({
+      error,
+      event: "profile_phone_privacy_request_failed",
+      route: "/api/profile/phone/privacy",
+      method,
+      status: 500,
+      code: "KLYX_PROFILE_PHONE_PRIVACY_REQUEST_FAILED",
+      startedAt,
+    });
+  }
 }
 
 export async function GET(request: Request) {
-  try {
-    const { profile } =
-      await getAuthenticatedProfile(request);
-
-    const { data, error } =
-      await supabaseAdmin
-        .from("profiles")
-        .select(
-          "phone_number, phone_verified_at, phone_visibility"
-        )
-        .eq("id", profile.id)
-        .single();
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    const row = data as PhonePrivacyRow;
-
-    return NextResponse.json({
-      visibility:
-        normalizeVisibility(
-          row.phone_visibility
-        ),
-      hasPhone: Boolean(
-        row.phone_number?.trim()
-      ),
-      verified: Boolean(
-        row.phone_verified_at
-      ),
-    });
-  } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Confidentialite telephone indisponible.";
-
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
-    );
-  }
+  const startedAt = Date.now();
+  return secureResponse("GET", startedAt, () => coreGet(request));
 }
 
 export async function PUT(request: Request) {
-  try {
-    const { profile } =
-      await getAuthenticatedProfile(request);
-
-    const body =
-      (await request.json()) as PrivacyBody;
-
-    if (
-      body.visibility !== "private" &&
-      body.visibility !==
-        "transaction_participants"
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            "Option de confidentialite invalide.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const { data, error } =
-      await supabaseAdmin
-        .from("profiles")
-        .update({
-          phone_visibility:
-            body.visibility,
-        })
-        .eq("id", profile.id)
-        .select(
-          "phone_number, phone_verified_at, phone_visibility"
-        )
-        .single();
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    const row = data as PhonePrivacyRow;
-
-    return NextResponse.json({
-      saved: true,
-      visibility:
-        normalizeVisibility(
-          row.phone_visibility
-        ),
-      hasPhone: Boolean(
-        row.phone_number?.trim()
-      ),
-      verified: Boolean(
-        row.phone_verified_at
-      ),
-    });
-  } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Modification impossible.";
-
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
-    );
-  }
+  const startedAt = Date.now();
+  return secureResponse("PUT", startedAt, () => corePut(request));
 }
