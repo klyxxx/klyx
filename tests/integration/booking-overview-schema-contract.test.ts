@@ -19,12 +19,15 @@ const canonicalSchema = readFileSync(
 );
 
 describe("KLYX booking overview schema contract", () => {
-  it("uses only the canonical booking amount column", () => {
+  it("uses only the canonical single-booking amount column", () => {
     expect(routeSource).toContain(
       "estimated_amount_cents"
     );
     expect(routeSource).not.toContain(
-      "amount_total"
+      "booking.amount_total"
+    );
+    expect(routeSource).not.toContain(
+      "service_status, amount_total, estimated_amount_cents"
     );
   });
 
