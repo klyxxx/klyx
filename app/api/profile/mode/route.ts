@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase-admin";
+
+import { secureApiErrorResponse } from "@/lib/api-error";
 import {
   apiErrorStatus,
   getAuthenticatedProfile,
 } from "@/lib/api-auth";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 
 type AccountMode = "client" | "provider";
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } = await getAuthenticatedProfile(request);
 
@@ -33,9 +37,7 @@ export async function POST(request: Request) {
       .select("current_mode")
       .single();
 
-    if (error) {
-      throw new Error(error.message);
-    }
+    if (error) throw error;
 
     return NextResponse.json({
       currentMode: data.current_mode,
@@ -45,12 +47,17 @@ export async function POST(request: Request) {
       error instanceof Error
         ? error.message
         : "Impossible de changer de mode.";
-
     const status = apiErrorStatus(message);
 
-    return NextResponse.json(
-      { error: message },
-      { status }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "profile_mode_update_failed",
+      route: "/api/profile/mode",
+      method: "POST",
+      status,
+      code: "KLYX_PROFILE_MODE_UPDATE_FAILED",
+      publicMessage: status < 500 ? message : undefined,
+      startedAt,
+    });
   }
 }

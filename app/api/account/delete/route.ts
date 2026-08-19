@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+
+import { secureApiErrorResponse } from "@/lib/api-error";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function DELETE(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const supabase = await createClient();
     const {
@@ -28,7 +32,7 @@ export async function DELETE(request: Request) {
       .select("id, stripe_account_id")
       .eq("owner_user_id", user.id);
 
-    if (profilesError) throw new Error(profilesError.message);
+    if (profilesError) throw profilesError;
 
     const profileIds = (profiles ?? []).map((profile) => profile.id);
 
@@ -100,14 +104,18 @@ export async function DELETE(request: Request) {
 
         try {
           await stripe.accounts.del(profile.stripe_account_id);
-        } catch {
-          return NextResponse.json(
-            {
-              error:
-                "Stripe empêche encore la suppression de ce compte prestataire.",
-            },
-            { status: 409 }
-          );
+        } catch (stripeError) {
+          return secureApiErrorResponse({
+            error: stripeError,
+            event: "account_delete_stripe_disconnect_failed",
+            route: "/api/account/delete",
+            method: "DELETE",
+            status: 409,
+            code: "KLYX_ACCOUNT_DELETE_STRIPE_BLOCKED",
+            publicMessage:
+              "Stripe empêche encore la suppression de ce compte prestataire.",
+            startedAt,
+          });
         }
       }
     }
@@ -115,18 +123,18 @@ export async function DELETE(request: Request) {
     const { error: deleteError } =
       await supabaseAdmin.auth.admin.deleteUser(user.id);
 
-    if (deleteError) throw new Error(deleteError.message);
+    if (deleteError) throw deleteError;
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Impossible de supprimer le compte.",
-      },
-      { status: 500 }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "account_delete_failed",
+      route: "/api/account/delete",
+      method: "DELETE",
+      status: 500,
+      code: "KLYX_ACCOUNT_DELETE_FAILED",
+      startedAt,
+    });
   }
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getActiveProfile } from "@/lib/active-profile";
+import { secureApiErrorResponse } from "@/lib/api-error";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -33,6 +34,8 @@ async function getSessionUser() {
 }
 
 export async function GET() {
+  const startedAt = Date.now();
+
   try {
     const user = await getSessionUser();
 
@@ -63,7 +66,7 @@ export async function GET() {
       .eq("owner_user_id", user.id)
       .maybeSingle();
 
-    if (error) throw new Error(error.message);
+    if (error) throw error;
 
     if (!data) {
       return NextResponse.json(
@@ -84,19 +87,21 @@ export async function GET() {
       },
     });
   } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Impossible de charger le profil.",
-      },
-      { status: 500 }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "profile_read_failed",
+      route: "/api/profile/me",
+      method: "GET",
+      status: 500,
+      code: "KLYX_PROFILE_READ_FAILED",
+      startedAt,
+    });
   }
 }
 
 export async function PATCH(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const user = await getSessionUser();
 
@@ -135,7 +140,16 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const age = normalizeAge(body.age);
+    let age: number | null;
+
+    try {
+      age = normalizeAge(body.age);
+    } catch {
+      return NextResponse.json(
+        { error: "L’âge doit être compris entre 18 et 100 ans." },
+        { status: 400 }
+      );
+    }
 
     const { data, error } = await supabaseAdmin
       .from("profiles")
@@ -152,7 +166,7 @@ export async function PATCH(request: Request) {
       .select("id")
       .maybeSingle();
 
-    if (error) throw new Error(error.message);
+    if (error) throw error;
 
     if (!data) {
       return NextResponse.json(
@@ -163,14 +177,14 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Impossible d’enregistrer le profil.",
-      },
-      { status: 500 }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "profile_update_failed",
+      route: "/api/profile/me",
+      method: "PATCH",
+      status: 500,
+      code: "KLYX_PROFILE_UPDATE_FAILED",
+      startedAt,
+    });
   }
 }
