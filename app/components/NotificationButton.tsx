@@ -3,14 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Bell } from "lucide-react";
-import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
-
-type NotificationRow = {
-  id: string;
-  user_id: string;
-  read_at: string | null;
-};
 
 type NotificationButtonProps = {
   userId: string;
@@ -37,7 +30,7 @@ export default function NotificationButton({
       }
 
       const { count, error } = await supabase
-        .from("notifications")
+        .from("user_notifications")
         .select("id", {
           count: "exact",
           head: true,
@@ -54,7 +47,6 @@ export default function NotificationButton({
           "Impossible de charger les notifications :",
           error
         );
-
         setUnreadCount(0);
       } else {
         setUnreadCount(count ?? 0);
@@ -63,26 +55,20 @@ export default function NotificationButton({
       setLoading(false);
     }
 
-    loadUnreadCount();
+    void loadUnreadCount();
 
     const channel = supabase
-      .channel(`notifications-${userId}`)
+      .channel(`user-notifications-${userId}`)
       .on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
-          table: "notifications",
+          table: "user_notifications",
           filter: `user_id=eq.${userId}`,
         },
-        (
-          payload: RealtimePostgresChangesPayload<NotificationRow>
-        ) => {
-          const newNotification = payload.new as NotificationRow;
-
-          if (newNotification.read_at === null) {
-            setUnreadCount((currentCount) => currentCount + 1);
-          }
+        () => {
+          void loadUnreadCount();
         }
       )
       .on(
@@ -90,27 +76,11 @@ export default function NotificationButton({
         {
           event: "UPDATE",
           schema: "public",
-          table: "notifications",
+          table: "user_notifications",
           filter: `user_id=eq.${userId}`,
         },
-        (
-          payload: RealtimePostgresChangesPayload<NotificationRow>
-        ) => {
-          const oldNotification = payload.old as Partial<NotificationRow>;
-          const newNotification = payload.new as NotificationRow;
-
-          const oldReadAt = oldNotification.read_at ?? null;
-          const newReadAt = newNotification.read_at ?? null;
-
-          if (oldReadAt === null && newReadAt !== null) {
-            setUnreadCount((currentCount) =>
-              Math.max(0, currentCount - 1)
-            );
-          }
-
-          if (oldReadAt !== null && newReadAt === null) {
-            setUnreadCount((currentCount) => currentCount + 1);
-          }
+        () => {
+          void loadUnreadCount();
         }
       )
       .on(
@@ -118,27 +88,18 @@ export default function NotificationButton({
         {
           event: "DELETE",
           schema: "public",
-          table: "notifications",
+          table: "user_notifications",
           filter: `user_id=eq.${userId}`,
         },
-        (
-          payload: RealtimePostgresChangesPayload<NotificationRow>
-        ) => {
-          const deletedNotification =
-            payload.old as Partial<NotificationRow>;
-
-          if (deletedNotification.read_at === null) {
-            setUnreadCount((currentCount) =>
-              Math.max(0, currentCount - 1)
-            );
-          }
+        () => {
+          void loadUnreadCount();
         }
       )
       .subscribe();
 
     return () => {
       mounted = false;
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
   }, [userId]);
 
