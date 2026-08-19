@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase-admin";
+
+import { secureApiErrorResponse } from "@/lib/api-error";
 import {
   apiErrorStatus,
   getAuthenticatedProfile,
 } from "@/lib/api-auth";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 
 // KLYX_PHONE_API_12_67
 
@@ -42,6 +44,8 @@ function isValidInternationalPhone(
 }
 
 export async function GET(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } =
       await getAuthenticatedProfile(request);
@@ -55,9 +59,7 @@ export async function GET(request: Request) {
         .eq("id", profile.id)
         .single();
 
-    if (error) {
-      throw new Error(error.message);
-    }
+    if (error) throw error;
 
     const row = data as PhoneRow;
 
@@ -77,15 +79,24 @@ export async function GET(request: Request) {
       error instanceof Error
         ? error.message
         : "Telephone KLYX indisponible.";
+    const status = apiErrorStatus(message);
 
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "profile_phone_read_failed",
+      route: "/api/profile/phone",
+      method: "GET",
+      status,
+      code: "KLYX_PROFILE_PHONE_READ_FAILED",
+      publicMessage: status < 500 ? message : undefined,
+      startedAt,
+    });
   }
 }
 
 export async function PUT(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } =
       await getAuthenticatedProfile(request);
@@ -124,9 +135,7 @@ export async function PUT(request: Request) {
         )
         .single();
 
-    if (error) {
-      throw new Error(error.message);
-    }
+    if (error) throw error;
 
     const row = data as PhoneRow;
 
@@ -144,10 +153,17 @@ export async function PUT(request: Request) {
       error instanceof Error
         ? error.message
         : "Enregistrement du telephone impossible.";
+    const status = apiErrorStatus(message);
 
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "profile_phone_update_failed",
+      route: "/api/profile/phone",
+      method: "PUT",
+      status,
+      code: "KLYX_PROFILE_PHONE_UPDATE_FAILED",
+      publicMessage: status < 500 ? message : undefined,
+      startedAt,
+    });
   }
 }
