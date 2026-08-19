@@ -15,10 +15,14 @@ describe("KLYX review API error sanitization contract", () => {
 
     expect(source).toContain('from "@/lib/api-error"');
     expect(source).toContain("secureReviewError(");
-    expect(source).toContain('event: "review_load_failed"');
-    expect(source).toContain('event: "review_save_failed"');
+    expect(source).toContain('"review_load_failed"');
+    expect(source).toContain('"KLYX_REVIEW_LOAD_FAILED"');
+    expect(source).toContain('"review_save_failed"');
+    expect(source).toContain('"KLYX_REVIEW_SAVE_FAILED"');
     expect(source).toContain('"review_notification_failed"');
+    expect(source).toContain('"KLYX_REVIEW_NOTIFICATION_FAILED"');
     expect(source).toContain('"review_score_recalculation_failed"');
+    expect(source).toContain('"KLYX_REVIEW_SCORE_RECALCULATION_FAILED"');
     expect(source).not.toContain("console.error");
     expect(source).not.toContain("existingError.message");
     expect(source).not.toContain("providerResult.error.message");
@@ -39,10 +43,14 @@ describe("KLYX review API error sanitization contract", () => {
 
     expect(source).toContain('from "@/lib/api-error"');
     expect(source).toContain("secureGroupReviewError(");
-    expect(source).toContain('event: "group_review_load_failed"');
-    expect(source).toContain('event: "group_review_save_failed"');
+    expect(source).toContain('"group_review_load_failed"');
+    expect(source).toContain('"KLYX_GROUP_REVIEW_LOAD_FAILED"');
+    expect(source).toContain('"group_review_save_failed"');
+    expect(source).toContain('"KLYX_GROUP_REVIEW_SAVE_FAILED"');
     expect(source).toContain('"group_review_notification_failed"');
+    expect(source).toContain('"KLYX_GROUP_REVIEW_NOTIFICATION_FAILED"');
     expect(source).toContain('"group_review_score_recalculation_failed"');
+    expect(source).toContain('"KLYX_GROUP_REVIEW_SCORE_RECALCULATION_FAILED"');
     expect(source).not.toContain("console.error");
     expect(source).not.toContain("groupError.message");
     expect(source).not.toContain("childError.message");
