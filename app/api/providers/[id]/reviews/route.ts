@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
+// KLYX_PUBLIC_REVIEW_PRIVACY_12B_12B
+
 type ReviewRow = {
   id: string;
   booking_id: string;
@@ -24,9 +26,28 @@ type ProfileRow = {
   id: string;
   first_name: string | null;
   last_name: string | null;
-  full_name: string | null;
-  avatar_url: string | null;
 };
+
+function publicAuthorName(
+  profile: ProfileRow | undefined
+): string {
+  if (!profile) {
+    return "Client KLYX";
+  }
+
+  const firstName =
+    profile.first_name?.trim() || "Client";
+  const lastName =
+    profile.last_name?.trim() || "";
+  const lastInitial =
+    lastName.slice(0, 1).toUpperCase();
+
+  return lastInitial
+    ? `${firstName} ${lastInitial}.`
+    : firstName === "Client"
+      ? "Client KLYX"
+      : firstName;
+}
 
 export async function GET(
   _request: Request,
@@ -124,9 +145,7 @@ export async function GET(
     const { data: profilesData, error: profilesError } =
       await supabaseAdmin
         .from("profiles")
-        .select(
-          "id, first_name, last_name, full_name, avatar_url"
-        )
+        .select("id, first_name, last_name")
         .in("id", authorIds);
 
     if (profilesError) {
@@ -151,20 +170,13 @@ export async function GET(
       reviews: verifiedReviews.map((review) => {
         const author = profileMap.get(review.author_id);
 
-        const authorName =
-          author?.full_name?.trim() ||
-          `${author?.first_name ?? ""} ${
-            author?.last_name ?? ""
-          }`.trim() ||
-          "Client KLYX";
-
         return {
           id: review.id,
           rating: Number(review.rating),
           comment: review.comment ?? "",
           createdAt: review.created_at,
-          authorName,
-          authorAvatarUrl: author?.avatar_url ?? null,
+          authorName: publicAuthorName(author),
+          authorAvatarUrl: null,
           verified: true,
         };
       }),
