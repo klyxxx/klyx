@@ -10,16 +10,33 @@ const migrationPath = join(
 const migration = readFileSync(migrationPath, "utf8");
 
 describe("authenticated profile privacy contract", () => {
-  it("removes broad profile privileges from authenticated users", () => {
+  it("removes all residual table-wide profile privileges first", () => {
     expect(migration).toContain(
       "KLYX_AUTHENTICATED_PROFILE_PRIVACY_12B_12E"
     );
     expect(migration).toContain(
-      "revoke select on table public.profiles from authenticated;"
+      "revoke all privileges on table public.profiles from anon;"
     );
     expect(migration).toContain(
-      "revoke insert, update, delete on table public.profiles from authenticated;"
+      "revoke all privileges on table public.profiles from authenticated;"
     );
+  });
+
+  it("restores only the six public provider columns to anon", () => {
+    const anonSelectGrant = migration.match(
+      /grant select \(([\s\S]*?)\) on table public\.profiles to anon;/
+    )?.[1];
+
+    expect(anonSelectGrant).toBeTruthy();
+    expect(anonSelectGrant).toContain("id");
+    expect(anonSelectGrant).toContain("first_name");
+    expect(anonSelectGrant).toContain("last_name");
+    expect(anonSelectGrant).toContain("city");
+    expect(anonSelectGrant).toContain("avatar_url");
+    expect(anonSelectGrant).toContain("account_type");
+    expect(anonSelectGrant).not.toContain("phone_number");
+    expect(anonSelectGrant).not.toContain("stripe_account_id");
+    expect(anonSelectGrant).not.toContain("owner_user_id");
   });
 
   it("keeps phone and Stripe columns outside authenticated direct SELECT", () => {
