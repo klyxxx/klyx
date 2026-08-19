@@ -318,7 +318,7 @@ export async function PATCH(request: Request) {
   const startedAt = Date.now();
 
   try {
-    const { supabase, user } = await authenticatedUser();
+    const { user } = await authenticatedUser();
 
     if (!user) {
       return NextResponse.json({ error: "Non connecté." }, { status: 401 });
@@ -373,7 +373,10 @@ export async function PATCH(request: Request) {
       }
     }
 
-    const { data, error } = await supabase
+    // KLYX_PROFILE_SERVER_BOUNDARY_12B_12G
+    // Authentication comes from the user session; the owned profile write
+    // itself stays server-side so browser roles need no direct UPDATE grant.
+    const { data, error } = await supabaseAdmin
       .from("profiles")
       .update(updatePayload)
       .eq("id", body.profileId)
@@ -429,7 +432,7 @@ export async function DELETE(request: Request) {
       );
     }
 
-    const { data: ownedProfiles, error: profilesError } = await supabase
+    const { data: ownedProfiles, error: profilesError } = await supabaseAdmin
       .from("profiles")
       .select("id")
       .eq("owner_user_id", user.id)
