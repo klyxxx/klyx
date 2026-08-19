@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+
+import { secureApiErrorResponse } from "@/lib/api-error";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   apiErrorStatus,
@@ -266,6 +268,8 @@ function buildProjectPlan(description: string): ProjectPlan {
 }
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } = await getAuthenticatedProfile(request);
     requireAccountType(profile, "client");
@@ -307,7 +311,7 @@ export async function POST(request: Request) {
         .single();
 
     if (projectError) {
-      throw new Error(projectError.message);
+      throw projectError;
     }
 
     const { data: services, error: servicesError } =
@@ -332,7 +336,7 @@ export async function POST(request: Request) {
         );
 
     if (servicesError) {
-      throw new Error(servicesError.message);
+      throw servicesError;
     }
 
     return NextResponse.json({
@@ -340,23 +344,21 @@ export async function POST(request: Request) {
       services: services ?? [],
     });
   } catch (error) {
-    console.error(
-      "KLYX project planning error:",
-      error
-    );
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Impossible de créer le projet.";
+    const status = apiErrorStatus(message);
 
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Impossible de créer le projet.",
-      },
-      {
-        status: apiErrorStatus(
-          error instanceof Error ? error.message : "Erreur inconnue."
-        ),
-      }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "project_plan_create_failed",
+      route: "/api/projects/plan",
+      method: "POST",
+      status,
+      code: "KLYX_PROJECT_PLAN_CREATE_FAILED",
+      publicMessage: status < 500 ? message : undefined,
+      startedAt,
+    });
   }
 }
