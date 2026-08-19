@@ -75,7 +75,19 @@ jobs:
       - name: Development dependency security
         run: npm audit --audit-level=high
 
+      # KLYX_PLAYWRIGHT_BROWSER_CACHE_PHASE_12B_10
+      - name: Restore Playwright browser cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
       - name: Install Chromium
+        timeout-minutes: 6
+        env:
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "120000"
         run: npx playwright install --with-deps chromium
 
       - name: Unit and integration tests
