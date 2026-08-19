@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getActiveProfile } from "@/lib/active-profile";
+import { secureApiErrorResponse } from "@/lib/api-error";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -20,6 +21,8 @@ function extensionFor(type: string): string {
 }
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const supabase = await createClient();
     const {
@@ -79,7 +82,7 @@ export async function POST(request: Request) {
         upsert: true,
       });
 
-    if (uploadError) throw new Error(uploadError.message);
+    if (uploadError) throw uploadError;
 
     const {
       data: { publicUrl },
@@ -98,9 +101,7 @@ export async function POST(request: Request) {
 
     if (updateError || !data) {
       await supabaseAdmin.storage.from(AVATAR_BUCKET).remove([filePath]);
-      throw new Error(
-        updateError?.message ?? "Impossible d’associer la photo au profil."
-      );
+      throw updateError ?? new Error("Profile avatar update returned no row.");
     }
 
     return NextResponse.json({
@@ -108,14 +109,14 @@ export async function POST(request: Request) {
       avatarUrl: publicUrl,
     });
   } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Impossible d’envoyer la photo.",
-      },
-      { status: 500 }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "profile_avatar_upload_failed",
+      route: "/api/profile/avatar",
+      method: "POST",
+      status: 500,
+      code: "KLYX_PROFILE_AVATAR_UPLOAD_FAILED",
+      startedAt,
+    });
   }
 }
