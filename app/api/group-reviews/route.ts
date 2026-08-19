@@ -1,16 +1,14 @@
 import { NextResponse } from "next/server";
 
+import { secureApiErrorResponse } from "@/lib/api-error";
 import {
   apiErrorStatus,
   getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
-import {
-  recalculateProviderScores,
-} from "@/lib/provider-score";
-import {
-  supabaseAdmin,
-} from "@/lib/supabase-admin";
+import { recalculateProviderScores } from "@/lib/provider-score";
+import { logServerError } from "@/lib/server-log";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 
 // KLYX_GROUP_REVIEW_API_12_88
 
@@ -42,556 +40,297 @@ type ReviewRow = {
   comment: string | null;
 };
 
-async function loadContext(
-  groupId: string,
-  clientId: string
-) {
-  const {
-    data: groupData,
-    error: groupError,
-  } = await supabaseAdmin
-    .from(
-      "booking_groups"
-    )
+async function loadContext(groupId: string, clientId: string) {
+  const { data: groupData, error: groupError } = await supabaseAdmin
+    .from("booking_groups")
     .select(
       "id, market_request_id, client_profile_id, provider_profile_id, status, payment_status, total_amount_cents, slot_count"
     )
-    .eq(
-      "id",
-      groupId
-    )
-    .eq(
-      "client_profile_id",
-      clientId
-    )
+    .eq("id", groupId)
+    .eq("client_profile_id", clientId)
     .maybeSingle();
 
-  if (groupError) {
-    throw new Error(
-      groupError.message
-    );
-  }
+  if (groupError) throw groupError;
+  if (!groupData) throw new Error("Mission groupee introuvable.");
 
-  if (!groupData) {
-    throw new Error(
-      "Mission groupee introuvable."
-    );
-  }
+  const group = groupData as GroupRow;
 
-  const group =
-    groupData as GroupRow;
-
-  const {
-    data: childData,
-    error: childError,
-  } = await supabaseAdmin
+  const { data: childData, error: childError } = await supabaseAdmin
     .from("bookings")
-    .select(
-      "id, group_position, status, service_status"
-    )
-    .eq(
-      "booking_group_id",
-      group.id
-    )
-    .order(
-      "group_position",
-      {
-        ascending: true,
-      }
-    );
+    .select("id, group_position, status, service_status")
+    .eq("booking_group_id", group.id)
+    .order("group_position", { ascending: true });
 
-  if (childError) {
-    throw new Error(
-      childError.message
-    );
-  }
-
-  const children =
-    (
-      childData ??
-      []
-    ) as ChildRow[];
+  if (childError) throw childError;
 
   return {
     group,
-    children,
+    children: (childData ?? []) as ChildRow[],
   };
 }
 
-function childCompleted(
-  child: ChildRow
-) {
-  return (
-    child.status ===
-      "completed" ||
-    child.service_status ===
-      "completed"
-  );
+function childCompleted(child: ChildRow) {
+  return child.status === "completed" || child.service_status === "completed";
 }
 
-function verifyCompletedGroup(
-  group: GroupRow,
-  children: ChildRow[]
-) {
-  if (
-    group.status !==
-    "completed"
-  ) {
-    return (
-      "Tous les creneaux doivent etre termines avant de laisser un avis."
-    );
+function verifyCompletedGroup(group: GroupRow, children: ChildRow[]) {
+  if (group.status !== "completed") {
+    return "Tous les creneaux doivent etre termines avant de laisser un avis.";
   }
 
-  if (
-    group.payment_status !==
-    "paid"
-  ) {
-    return (
-      "La mission groupee doit etre payee avant de laisser un avis."
-    );
+  if (group.payment_status !== "paid") {
+    return "La mission groupee doit etre payee avant de laisser un avis.";
   }
 
-  if (
-    children.length !==
-      Number(
-        group.slot_count
-      ) ||
-    children.length < 2
-  ) {
-    return (
-      "Les creneaux de cette mission sont incomplets."
-    );
+  if (children.length !== Number(group.slot_count) || children.length < 2) {
+    return "Les creneaux de cette mission sont incomplets.";
   }
 
-  if (
-    !children.every(
-      childCompleted
-    )
-  ) {
-    return (
-      "Tous les creneaux doivent etre confirmes avant de laisser un avis."
-    );
+  if (!children.every(childCompleted)) {
+    return "Tous les creneaux doivent etre confirmes avant de laisser un avis.";
   }
 
   return null;
 }
 
-async function providerInfo(
-  providerId: string
-) {
-  const {
-    data,
-    error,
-  } = await supabaseAdmin
+async function providerInfo(providerId: string) {
+  const { data, error } = await supabaseAdmin
     .from("profiles")
-    .select(
-      "id, full_name, first_name, last_name, avatar_url"
-    )
-    .eq(
-      "id",
-      providerId
-    )
+    .select("id, full_name, first_name, last_name, avatar_url")
+    .eq("id", providerId)
     .maybeSingle();
 
-  if (error) {
-    throw new Error(
-      error.message
-    );
-  }
-
-  if (!data) {
-    throw new Error(
-      "Prestataire KLYX introuvable."
-    );
-  }
+  if (error) throw error;
+  if (!data) throw new Error("Prestataire KLYX introuvable.");
 
   const targetName =
-    data.full_name
-      ?.trim() ||
-    [
-      data.first_name,
-      data.last_name,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .trim() ||
+    data.full_name?.trim() ||
+    [data.first_name, data.last_name].filter(Boolean).join(" ").trim() ||
     "Prestataire KLYX";
 
   return {
     targetName,
-    avatarUrl:
-      data.avatar_url ??
-      null,
+    avatarUrl: data.avatar_url ?? null,
   };
 }
 
-export async function GET(
-  request: Request
+function groupReviewErrorStatus(error: unknown): number {
+  const message =
+    error instanceof Error
+      ? error.message
+      : "Impossible de traiter l avis groupe.";
+  const baseStatus = apiErrorStatus(message);
+
+  if (baseStatus < 500) return baseStatus;
+  if (message === "Mission groupee introuvable.") return 404;
+  if (message === "Prestataire KLYX introuvable.") return 404;
+
+  return 500;
+}
+
+function secureGroupReviewError(
+  error: unknown,
+  method: "GET" | "POST",
+  event: string,
+  code: string,
+  startedAt: number
 ) {
+  const message =
+    error instanceof Error
+      ? error.message
+      : "Impossible de traiter l avis groupe.";
+  const status = groupReviewErrorStatus(error);
+
+  return secureApiErrorResponse({
+    error,
+    event,
+    route: "/api/group-reviews",
+    method,
+    status,
+    code,
+    publicMessage: status < 500 ? message : undefined,
+    startedAt,
+  });
+}
+
+function logGroupReviewSideEffectFailure(
+  error: unknown,
+  event: string,
+  code: string,
+  startedAt: number
+) {
+  logServerError({
+    error,
+    event,
+    route: "/api/group-reviews",
+    method: "POST",
+    status: 500,
+    code,
+    durationMs: Math.max(0, Date.now() - startedAt),
+  });
+}
+
+export async function GET(request: Request) {
+  const startedAt = Date.now();
+
   try {
-    const {
-      profile,
-    } =
-      await getAuthenticatedProfile(
-        request
-      );
+    const { profile } = await getAuthenticatedProfile(request);
+    requireAccountType(profile, "client");
 
-    requireAccountType(
-      profile,
-      "client"
-    );
-
-    const url =
-      new URL(
-        request.url
-      );
-
-    const groupId =
-      url.searchParams
-        .get(
-          "groupId"
-        )
-        ?.trim() ??
-      "";
+    const url = new URL(request.url);
+    const groupId = url.searchParams.get("groupId")?.trim() ?? "";
 
     if (!groupId) {
       return NextResponse.json(
-        {
-          error:
-            "Mission groupee manquante.",
-        },
-        {
-          status: 400,
-        }
+        { error: "Mission groupee manquante." },
+        { status: 400 }
       );
     }
 
-    const {
-      group,
-      children,
-    } =
-      await loadContext(
-        groupId,
-        profile.id
-      );
-
-    const problem =
-      verifyCompletedGroup(
-        group,
-        children
-      );
+    const { group, children } = await loadContext(groupId, profile.id);
+    const problem = verifyCompletedGroup(group, children);
 
     if (problem) {
-      return NextResponse.json(
-        {
-          error:
-            problem,
-        },
-        {
-          status: 409,
-        }
-      );
+      return NextResponse.json({ error: problem }, { status: 409 });
     }
 
-    const [
-      provider,
-      reviewResult,
-    ] = await Promise.all([
-      providerInfo(
-        group.provider_profile_id
-      ),
-
+    const [provider, reviewResult] = await Promise.all([
+      providerInfo(group.provider_profile_id),
       supabaseAdmin
         .from("reviews")
         .select(
           "id, booking_id, booking_group_id, author_id, target_id, rating, comment"
         )
-        .eq(
-          "booking_group_id",
-          group.id
-        )
-        .eq(
-          "author_id",
-          profile.id
-        )
+        .eq("booking_group_id", group.id)
+        .eq("author_id", profile.id)
         .maybeSingle(),
     ]);
 
-    if (
-      reviewResult.error
-    ) {
-      throw new Error(
-        reviewResult
-          .error.message
-      );
-    }
+    if (reviewResult.error) throw reviewResult.error;
 
-    const review =
-      reviewResult.data;
+    const review = reviewResult.data;
 
     return NextResponse.json({
-      groupId:
-        group.id,
-
-      providerId:
-        group.provider_profile_id,
-
-      targetName:
-        provider.targetName,
-
-      avatarUrl:
-        provider.avatarUrl,
-
-      slotCount:
-        children.length,
-
-      totalAmountCents:
-        Number(
-          group.total_amount_cents
-        ),
-
-      review:
-        review
-          ? {
-              id:
-                review.id,
-
-              rating:
-                Number(
-                  review.rating
-                ),
-
-              comment:
-                review.comment ??
-                "",
-            }
-          : null,
+      groupId: group.id,
+      providerId: group.provider_profile_id,
+      targetName: provider.targetName,
+      avatarUrl: provider.avatarUrl,
+      slotCount: children.length,
+      totalAmountCents: Number(group.total_amount_cents),
+      review: review
+        ? {
+            id: review.id,
+            rating: Number(review.rating),
+            comment: review.comment ?? "",
+          }
+        : null,
     });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Impossible de charger l avis groupe.";
-
-    return NextResponse.json(
-      {
-        error: message,
-      },
-      {
-        status:
-          apiErrorStatus(
-            message
-          ),
-      }
+    return secureGroupReviewError(
+      error,
+      "GET",
+      "group_review_load_failed",
+      "KLYX_GROUP_REVIEW_LOAD_FAILED",
+      startedAt
     );
   }
 }
 
-export async function POST(
-  request: Request
-) {
+export async function POST(request: Request) {
+  const startedAt = Date.now();
+
   try {
-    const {
-      profile,
-    } =
-      await getAuthenticatedProfile(
-        request
+    const { profile } = await getAuthenticatedProfile(request);
+    requireAccountType(profile, "client");
+
+    let body: {
+      groupId?: string;
+      rating?: number;
+      comment?: string;
+    };
+
+    try {
+      body = (await request.json()) as typeof body;
+    } catch {
+      return NextResponse.json(
+        { error: "Requete invalide." },
+        { status: 400 }
       );
+    }
 
-    requireAccountType(
-      profile,
-      "client"
-    );
-
-    const body =
-      (await request.json()) as {
-        groupId?: string;
-        rating?: number;
-        comment?: string;
-      };
-
-    const groupId =
-      body.groupId
-        ?.trim() ??
-      "";
-
-    const rating =
-      Number(
-        body.rating
-      );
-
-    const comment =
-      body.comment
-        ?.trim()
-        .slice(
-          0,
-          1000
-        ) ||
-      null;
+    const groupId = body.groupId?.trim() ?? "";
+    const rating = Number(body.rating);
+    const comment = body.comment?.trim().slice(0, 1000) || null;
 
     if (!groupId) {
       return NextResponse.json(
-        {
-          error:
-            "Mission groupee manquante.",
-        },
-        {
-          status: 400,
-        }
+        { error: "Mission groupee manquante." },
+        { status: 400 }
       );
     }
 
-    if (
-      !Number.isInteger(
-        rating
-      ) ||
-      rating < 1 ||
-      rating > 5
-    ) {
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
       return NextResponse.json(
-        {
-          error:
-            "La note doit etre comprise entre 1 et 5.",
-        },
-        {
-          status: 400,
-        }
+        { error: "La note doit etre comprise entre 1 et 5." },
+        { status: 400 }
       );
     }
 
-    const {
-      group,
-      children,
-    } =
-      await loadContext(
-        groupId,
-        profile.id
-      );
-
-    const problem =
-      verifyCompletedGroup(
-        group,
-        children
-      );
+    const { group, children } = await loadContext(groupId, profile.id);
+    const problem = verifyCompletedGroup(group, children);
 
     if (problem) {
-      return NextResponse.json(
-        {
-          error:
-            problem,
-        },
-        {
-          status: 409,
-        }
-      );
+      return NextResponse.json({ error: problem }, { status: 409 });
     }
 
-    const canonicalBooking =
-      children[0];
+    const canonicalBooking = children[0];
 
     if (!canonicalBooking) {
-      throw new Error(
-        "Reservation principale introuvable."
-      );
+      throw new Error("Reservation principale introuvable.");
     }
 
-    const providerId =
-      group.provider_profile_id;
+    const providerId = group.provider_profile_id;
 
-    const {
-      data: existing,
-      error:
-        existingError,
-    } = await supabaseAdmin
+    const { data: existing, error: existingError } = await supabaseAdmin
       .from("reviews")
-      .select(
-        "id"
-      )
-      .eq(
-        "booking_group_id",
-        group.id
-      )
-      .eq(
-        "author_id",
-        profile.id
-      )
+      .select("id")
+      .eq("booking_group_id", group.id)
+      .eq("author_id", profile.id)
       .maybeSingle();
 
-    if (existingError) {
-      throw new Error(
-        existingError.message
-      );
-    }
+    if (existingError) throw existingError;
 
-    let review:
-      ReviewRow;
+    let review: ReviewRow;
 
     if (existing) {
-      const {
-        data,
-        error,
-      } = await supabaseAdmin
+      const { data, error } = await supabaseAdmin
         .from("reviews")
         .update({
-          booking_id:
-            canonicalBooking.id,
-
-          booking_group_id:
-            group.id,
-
-          target_id:
-            providerId,
-
+          booking_id: canonicalBooking.id,
+          booking_group_id: group.id,
+          target_id: providerId,
           rating,
-
           comment,
-
-          updated_at:
-            new Date()
-              .toISOString(),
+          updated_at: new Date().toISOString(),
         })
-        .eq(
-          "id",
-          existing.id
-        )
-        .eq(
-          "author_id",
-          profile.id
-        )
+        .eq("id", existing.id)
+        .eq("author_id", profile.id)
         .select(
           "id, booking_id, booking_group_id, author_id, target_id, rating, comment"
         )
         .single();
 
-      if (error) {
-        throw new Error(
-          error.message
-        );
-      }
-
-      review =
-        data as ReviewRow;
+      if (error) throw error;
+      review = data as ReviewRow;
     } else {
-      const {
-        data,
-        error,
-      } = await supabaseAdmin
+      const { data, error } = await supabaseAdmin
         .from("reviews")
         .insert({
-          booking_id:
-            canonicalBooking.id,
-
-          booking_group_id:
-            group.id,
-
-          author_id:
-            profile.id,
-
-          target_id:
-            providerId,
-
+          booking_id: canonicalBooking.id,
+          booking_group_id: group.id,
+          author_id: profile.id,
+          target_id: providerId,
           rating,
-
           comment,
         })
         .select(
@@ -599,132 +338,72 @@ export async function POST(
         )
         .single();
 
-      if (error) {
-        throw new Error(
-          error.message
-        );
-      }
-
-      review =
-        data as ReviewRow;
+      if (error) throw error;
+      review = data as ReviewRow;
     }
 
-    const {
-      error:
-        notificationError,
-    } = await supabaseAdmin
-      .from(
-        "user_notifications"
-      )
+    const { error: notificationError } = await supabaseAdmin
+      .from("user_notifications")
       .upsert(
         {
-          user_id:
-            providerId,
-
-          booking_id:
-            canonicalBooking.id,
-
-          market_request_id:
-            group.market_request_id,
-
-          type:
-            "system",
-
-          title:
-            "Nouvel avis groupe recu",
-
+          user_id: providerId,
+          booking_id: canonicalBooking.id,
+          market_request_id: group.market_request_id,
+          type: "system",
+          title: "Nouvel avis groupe recu",
           message:
             "Le client a evalue la mission complete de " +
-            String(
-              children.length
-            ) +
+            String(children.length) +
             " creneaux : " +
-            String(
-              rating
-            ) +
+            String(rating) +
             "/5.",
-
-          href:
-            "/providers/" +
-            providerId,
-
+          href: "/providers/" + providerId,
           deduplication_key:
-            "booking-group:" +
-            group.id +
-            ":review-provider",
+            "booking-group:" + group.id + ":review-provider",
         },
         {
-          onConflict:
-            "deduplication_key",
-
-          ignoreDuplicates:
-            true,
+          onConflict: "deduplication_key",
+          ignoreDuplicates: true,
         }
       );
 
-    if (
-      notificationError
-    ) {
-      console.error(
-        "Group review notification error:",
-        notificationError.message
+    if (notificationError) {
+      logGroupReviewSideEffectFailure(
+        notificationError,
+        "group_review_notification_failed",
+        "KLYX_GROUP_REVIEW_NOTIFICATION_FAILED",
+        startedAt
       );
     }
 
     try {
-      await recalculateProviderScores(
-        providerId
-      );
+      await recalculateProviderScores(providerId);
     } catch (scoreError) {
-      console.error(
-        "Group review score recalculation error:",
-        scoreError instanceof Error
-          ? scoreError.message
-          : scoreError
+      logGroupReviewSideEffectFailure(
+        scoreError,
+        "group_review_score_recalculation_failed",
+        "KLYX_GROUP_REVIEW_SCORE_RECALCULATION_FAILED",
+        startedAt
       );
     }
 
     return NextResponse.json({
-      groupId:
-        group.id,
-
+      groupId: group.id,
       providerId,
-
       review: {
-        id:
-          review.id,
-
-        rating:
-          Number(
-            review.rating
-          ),
-
-        comment:
-          review.comment ??
-          "",
+        id: review.id,
+        rating: Number(review.rating),
+        comment: review.comment ?? "",
       },
-
-      message:
-        existing
-          ? "Avis groupe modifie."
-          : "Avis groupe publie.",
+      message: existing ? "Avis groupe modifie." : "Avis groupe publie.",
     });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Impossible d enregistrer l avis groupe.";
-
-    return NextResponse.json(
-      {
-        error: message,
-      },
-      {
-        status:
-          apiErrorStatus(
-            message
-          ),
-      }
+    return secureGroupReviewError(
+      error,
+      "POST",
+      "group_review_save_failed",
+      "KLYX_GROUP_REVIEW_SAVE_FAILED",
+      startedAt
     );
   }
 }
