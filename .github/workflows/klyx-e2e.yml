@@ -18,7 +18,7 @@ permissions:
 jobs:
   browser-tests:
     name: Playwright browser verification
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 25
 
     env:
