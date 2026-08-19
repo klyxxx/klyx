@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { secureApiErrorResponse } from "@/lib/api-error";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 type ReviewRow = {
@@ -33,6 +34,8 @@ export async function GET(
     params: Promise<{ id: string }>;
   }
 ) {
+  const startedAt = Date.now();
+
   try {
     const { id: providerId } = await context.params;
 
@@ -49,11 +52,10 @@ export async function GET(
         .limit(50);
 
     if (reviewsError) {
-      throw new Error(reviewsError.message);
+      throw reviewsError;
     }
 
-    const reviews =
-      (reviewsData ?? []) as ReviewRow[];
+    const reviews = (reviewsData ?? []) as ReviewRow[];
 
     if (reviews.length === 0) {
       return NextResponse.json({
@@ -78,11 +80,10 @@ export async function GET(
         .in("id", bookingIds);
 
     if (bookingsError) {
-      throw new Error(bookingsError.message);
+      throw bookingsError;
     }
 
-    const bookings =
-      (bookingsData ?? []) as BookingRow[];
+    const bookings = (bookingsData ?? []) as BookingRow[];
 
     const validBookingIds = new Set(
       bookings
@@ -116,9 +117,7 @@ export async function GET(
 
     const authorIds = [
       ...new Set(
-        verifiedReviews.map(
-          (review) => review.author_id
-        )
+        verifiedReviews.map((review) => review.author_id)
       ),
     ];
 
@@ -131,7 +130,7 @@ export async function GET(
         .in("id", authorIds);
 
     if (profilesError) {
-      throw new Error(profilesError.message);
+      throw profilesError;
     }
 
     const profileMap = new Map(
@@ -142,19 +141,15 @@ export async function GET(
 
     const averageRating =
       verifiedReviews.reduce(
-        (sum, review) =>
-          sum + Number(review.rating),
+        (sum, review) => sum + Number(review.rating),
         0
       ) / verifiedReviews.length;
 
     return NextResponse.json({
-      averageRating: Number(
-        averageRating.toFixed(2)
-      ),
+      averageRating: Number(averageRating.toFixed(2)),
       reviewCount: verifiedReviews.length,
       reviews: verifiedReviews.map((review) => {
-        const author =
-          profileMap.get(review.author_id);
+        const author = profileMap.get(review.author_id);
 
         const authorName =
           author?.full_name?.trim() ||
@@ -169,21 +164,20 @@ export async function GET(
           comment: review.comment ?? "",
           createdAt: review.created_at,
           authorName,
-          authorAvatarUrl:
-            author?.avatar_url ?? null,
+          authorAvatarUrl: author?.avatar_url ?? null,
           verified: true,
         };
       }),
     });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Impossible de charger les avis.";
-
-    return NextResponse.json(
-      { error: message },
-      { status: 500 }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "provider_public_reviews_load_failed",
+      route: "/api/providers/[id]/reviews",
+      method: "GET",
+      status: 500,
+      code: "KLYX_PROVIDER_PUBLIC_REVIEWS_LOAD_FAILED",
+      startedAt,
+    });
   }
 }
