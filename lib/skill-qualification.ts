@@ -1,3 +1,5 @@
+import "server-only";
+
 // KLYX_SKILL_QUALIFICATION_COUNTRY_PHASE_5G
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
