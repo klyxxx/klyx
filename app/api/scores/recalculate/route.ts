@@ -5,9 +5,14 @@ import {
   getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
+import {
+  secureApiErrorResponse,
+} from "@/lib/api-error";
 import { recalculateProviderScores } from "@/lib/provider-score";
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } =
       await getAuthenticatedProfile(request);
@@ -32,10 +37,20 @@ export async function POST(request: Request) {
       error instanceof Error
         ? error.message
         : "Impossible de recalculer le KLYX Score.";
+    const status = apiErrorStatus(message);
 
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "provider_score_recalculate_failed",
+      route: "/api/scores/recalculate",
+      method: "POST",
+      code: "provider_score_recalculate_failed",
+      status,
+      publicMessage:
+        status < 500
+          ? message
+          : undefined,
+      startedAt,
+    });
   }
 }
