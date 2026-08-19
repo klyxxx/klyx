@@ -81,6 +81,11 @@ jobs:
         run: |
           google-chrome --version
 
+      - name: Install Playwright FFmpeg
+        env:
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "120000"
+        run: npx playwright install ffmpeg
+
       - name: Unit and integration tests
         run: npm test
 
