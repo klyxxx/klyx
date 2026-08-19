@@ -66,10 +66,6 @@ type BookingRow = {
     | string
     | null;
 
-  amount_total:
-    | number
-    | null;
-
   estimated_amount_cents:
     | number
     | null;
@@ -650,7 +646,7 @@ export async function GET(
         supabaseAdmin
           .from("bookings")
           .select(
-            "id, parent_id, provider_id, babysitter_id, service_id, booking_group_id, group_position, booking_date, start_time, end_time, status, payment_status, service_status, amount_total, estimated_amount_cents, currency, created_at"
+            "id, parent_id, provider_id, babysitter_id, service_id, booking_group_id, group_position, booking_date, start_time, end_time, status, payment_status, service_status, estimated_amount_cents, currency, created_at"
           )
           .or(
             "parent_id.eq." +
@@ -1168,8 +1164,7 @@ export async function GET(
           "unpaid",
 
         amountCents:
-          booking.estimated_amount_cents ??
-          booking.amount_total,
+          booking.estimated_amount_cents,
 
         currency:
           String(booking.currency ?? "").trim().toUpperCase(),
