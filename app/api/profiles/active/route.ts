@@ -85,24 +85,20 @@ export async function GET() {
     const activeProfile =
       await getActiveProfile();
 
-    const response =
-      NextResponse.json({
-        profiles,
-        activeProfileId:
-          activeProfile?.id ??
-          profiles[0].id,
-      });
-
-    const resolvedProfileId =
-      activeProfile?.id ??
-      profiles[0].id;
-
-    setActiveProfileCookie(
-      response,
-      resolvedProfileId
-    );
-
-    return response;
+    /*
+     * KLYX_ACTIVE_PROFILE_READ_ONLY_12B_10L
+     *
+     * GET reste strictement en lecture seule.
+     * Un GET démarré avant un changement de profil ne doit jamais
+     * pouvoir terminer après le POST et réécrire l'ancien cookie.
+     * Seul POST modifie ACTIVE_PROFILE_COOKIE.
+     */
+    return NextResponse.json({
+      profiles,
+      activeProfileId:
+        activeProfile?.id ??
+        profiles[0].id,
+    });
   } catch (error) {
     return secureApiErrorResponse({
       error,
