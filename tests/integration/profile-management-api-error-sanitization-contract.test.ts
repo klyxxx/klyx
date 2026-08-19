@@ -8,6 +8,7 @@ const root = process.cwd();
 function read(relativePath: string): string {
   return fs.readFileSync(path.join(root, relativePath), "utf8");
 }
+
 describe("KLYX profile management API error sanitization contract", () => {
   it("secures active profile load and switch failures", () => {
     const source = read("app/api/profiles/active/route.ts");
@@ -19,6 +20,22 @@ describe("KLYX profile management API error sanitization contract", () => {
     expect(source).not.toMatch(
       /error:\s*error\s+instanceof\s+Error/
     );
+  });
+
+  it("keeps active profile reads side-effect free so stale GETs cannot undo a switch", () => {
+    const source = read("app/api/profiles/active/route.ts");
+    const getStart = source.indexOf("export async function GET()");
+    const postStart = source.indexOf("export async function POST(");
+
+    expect(getStart).toBeGreaterThanOrEqual(0);
+    expect(postStart).toBeGreaterThan(getStart);
+
+    const getBlock = source.slice(getStart, postStart);
+    const postBlock = source.slice(postStart);
+
+    expect(getBlock).not.toContain("setActiveProfileCookie(");
+    expect(postBlock).toContain("setActiveProfileCookie(");
+    expect(source).toContain("KLYX_ACTIVE_PROFILE_READ_ONLY_12B_10L");
   });
 
   it("allows only explicit safe profile errors to remain public", () => {
