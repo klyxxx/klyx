@@ -12,6 +12,9 @@ const localBaseUrl =
 const baseURL =
   externalBaseUrl || localBaseUrl;
 
+const useSystemChrome =
+  process.env.KLYX_PLAYWRIGHT_SYSTEM_CHROME === "1";
+
 export default defineConfig({
   testDir: "./tests/e2e",
 
@@ -88,6 +91,10 @@ export default defineConfig({
         ...devices[
           "Desktop Chrome"
         ],
+
+        ...(useSystemChrome
+          ? { channel: "chrome" }
+          : {}),
       },
     },
   ],
