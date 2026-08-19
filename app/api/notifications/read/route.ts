@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase-admin";
+
+import { secureApiErrorResponse } from "@/lib/api-error";
 import {
   apiErrorStatus,
   getAuthenticatedProfile,
 } from "@/lib/api-auth";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } = await getAuthenticatedProfile(request);
 
@@ -24,7 +28,7 @@ export async function POST(request: Request) {
         .is("read_at", null);
 
       if (error) {
-        throw new Error(error.message);
+        throw error;
       }
 
       return NextResponse.json({
@@ -50,7 +54,7 @@ export async function POST(request: Request) {
       .eq("user_id", profile.id);
 
     if (error) {
-      throw new Error(error.message);
+      throw error;
     }
 
     return NextResponse.json({
@@ -60,13 +64,18 @@ export async function POST(request: Request) {
     const message =
       error instanceof Error
         ? error.message
-        : "Impossible de mettre à jour la notification.";
-
+        : "Erreur inconnue.";
     const status = apiErrorStatus(message);
 
-    return NextResponse.json(
-      { error: message },
-      { status }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "notification_read_update_failed",
+      route: "/api/notifications/read",
+      method: "POST",
+      status,
+      code: "KLYX_NOTIFICATION_READ_UPDATE_FAILED",
+      publicMessage: status < 500 ? message : undefined,
+      startedAt,
+    });
   }
 }

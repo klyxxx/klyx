@@ -1,11 +1,31 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase-admin";
+
+import { secureApiErrorResponse } from "@/lib/api-error";
 import {
   apiErrorStatus,
   getAuthenticatedProfile,
 } from "@/lib/api-auth";
+import { logServerError } from "@/lib/server-log";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+
+function publicMessageFor(error: unknown): {
+  message: string;
+  status: number;
+} {
+  const message =
+    error instanceof Error
+      ? error.message
+      : "Erreur inconnue.";
+
+  return {
+    message,
+    status: apiErrorStatus(message),
+  };
+}
 
 export async function GET(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } = await getAuthenticatedProfile(request);
 
@@ -18,7 +38,7 @@ export async function GET(request: Request) {
       .maybeSingle();
 
     if (queryError) {
-      throw new Error(queryError.message);
+      throw queryError;
     }
 
     return NextResponse.json({
@@ -33,23 +53,24 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Impossible de charger la mémoire KLYX.",
-      },
-      {
-        status: apiErrorStatus(
-          error instanceof Error ? error.message : "Erreur inconnue."
-        ),
-      }
-    );
+    const { message, status } = publicMessageFor(error);
+
+    return secureApiErrorResponse({
+      error,
+      event: "memory_preferences_read_failed",
+      route: "/api/memory/preferences",
+      method: "GET",
+      status,
+      code: "KLYX_MEMORY_PREFERENCES_READ_FAILED",
+      publicMessage: status < 500 ? message : undefined,
+      startedAt,
+    });
   }
 }
 
 export async function POST(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } = await getAuthenticatedProfile(request);
 
@@ -85,32 +106,45 @@ export async function POST(request: Request) {
       .single();
 
     if (upsertError) {
-      throw new Error(upsertError.message);
+      throw upsertError;
     }
 
-    await supabaseAdmin.from("user_memory_events").insert({
-      user_id: profile.id,
-      event_type: "preferences_updated",
-      event_key: "profile_preferences",
-      event_value: data,
-      confidence: 1,
-      source: "user",
-    });
+    const { error: eventError } = await supabaseAdmin
+      .from("user_memory_events")
+      .insert({
+        user_id: profile.id,
+        event_type: "preferences_updated",
+        event_key: "profile_preferences",
+        event_value: data,
+        confidence: 1,
+        source: "user",
+      });
+
+    if (eventError) {
+      logServerError({
+        error: eventError,
+        event: "memory_preferences_event_failed",
+        route: "/api/memory/preferences",
+        method: "POST",
+        status: 500,
+        code: "KLYX_MEMORY_PREFERENCES_EVENT_FAILED",
+        durationMs: Math.max(0, Date.now() - startedAt),
+      });
+    }
 
     return NextResponse.json({ preferences: data });
   } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Impossible d'enregistrer la mémoire KLYX.",
-      },
-      {
-        status: apiErrorStatus(
-          error instanceof Error ? error.message : "Erreur inconnue."
-        ),
-      }
-    );
+    const { message, status } = publicMessageFor(error);
+
+    return secureApiErrorResponse({
+      error,
+      event: "memory_preferences_write_failed",
+      route: "/api/memory/preferences",
+      method: "POST",
+      status,
+      code: "KLYX_MEMORY_PREFERENCES_WRITE_FAILED",
+      publicMessage: status < 500 ? message : undefined,
+      startedAt,
+    });
   }
 }

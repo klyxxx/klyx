@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase-admin";
+
+import { secureApiErrorResponse } from "@/lib/api-error";
 import {
   apiErrorStatus,
   getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
+import { logServerError } from "@/lib/server-log";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 
 const HOUSEHOLD_TYPES = [
   "apartment",
@@ -46,6 +49,21 @@ function cleanList(
   ].slice(0, maximumItems);
 }
 
+function publicMessageFor(error: unknown): {
+  message: string;
+  status: number;
+} {
+  const message =
+    error instanceof Error
+      ? error.message
+      : "Erreur inconnue.";
+
+  return {
+    message,
+    status: apiErrorStatus(message),
+  };
+}
+
 async function loadMemory(profileId: string) {
   const [preferencesResult, profileResult] =
     await Promise.all([
@@ -66,11 +84,11 @@ async function loadMemory(profileId: string) {
     ]);
 
   if (preferencesResult.error) {
-    throw new Error(preferencesResult.error.message);
+    throw preferencesResult.error;
   }
 
   if (profileResult.error) {
-    throw new Error(profileResult.error.message);
+    throw profileResult.error;
   }
 
   return {
@@ -100,6 +118,8 @@ async function loadMemory(profileId: string) {
 }
 
 export async function GET(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } =
       await getAuthenticatedProfile(request);
@@ -110,19 +130,24 @@ export async function GET(request: Request) {
       await loadMemory(profile.id)
     );
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Impossible de charger la mémoire.";
+    const { message, status } = publicMessageFor(error);
 
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "memory_profile_read_failed",
+      route: "/api/memory/profile",
+      method: "GET",
+      status,
+      code: "KLYX_MEMORY_PROFILE_READ_FAILED",
+      publicMessage: status < 500 ? message : undefined,
+      startedAt,
+    });
   }
 }
 
 export async function PATCH(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } =
       await getAuthenticatedProfile(request);
@@ -233,7 +258,7 @@ export async function PATCH(request: Request) {
         );
 
     if (preferencesError) {
-      throw new Error(preferencesError.message);
+      throw preferencesError;
     }
 
     const { error: profileError } =
@@ -284,7 +309,7 @@ export async function PATCH(request: Request) {
         );
 
     if (profileError) {
-      throw new Error(profileError.message);
+      throw profileError;
     }
 
     const { error: eventError } = await supabaseAdmin
@@ -302,10 +327,15 @@ export async function PATCH(request: Request) {
       });
 
     if (eventError) {
-      console.error(
-        "Memory event error:",
-        eventError.message
-      );
+      logServerError({
+        error: eventError,
+        event: "memory_profile_event_failed",
+        route: "/api/memory/profile",
+        method: "PATCH",
+        status: 500,
+        code: "KLYX_MEMORY_PROFILE_EVENT_FAILED",
+        durationMs: Math.max(0, Date.now() - startedAt),
+      });
     }
 
     return NextResponse.json({
@@ -313,19 +343,24 @@ export async function PATCH(request: Request) {
       ...(await loadMemory(profile.id)),
     });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Impossible d’enregistrer la mémoire.";
+    const { message, status } = publicMessageFor(error);
 
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "memory_profile_write_failed",
+      route: "/api/memory/profile",
+      method: "PATCH",
+      status,
+      code: "KLYX_MEMORY_PROFILE_WRITE_FAILED",
+      publicMessage: status < 500 ? message : undefined,
+      startedAt,
+    });
   }
 }
 
 export async function DELETE(request: Request) {
+  const startedAt = Date.now();
+
   try {
     const { profile } =
       await getAuthenticatedProfile(request);
@@ -371,7 +406,7 @@ export async function DELETE(request: Request) {
       preferencesUpdate,
     ]) {
       if (result.error) {
-        throw new Error(result.error.message);
+        throw result.error;
       }
     }
 
@@ -380,14 +415,17 @@ export async function DELETE(request: Request) {
         "La mémoire personnelle de ce profil a été supprimée.",
     });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Impossible de supprimer la mémoire.";
+    const { message, status } = publicMessageFor(error);
 
-    return NextResponse.json(
-      { error: message },
-      { status: apiErrorStatus(message) }
-    );
+    return secureApiErrorResponse({
+      error,
+      event: "memory_profile_delete_failed",
+      route: "/api/memory/profile",
+      method: "DELETE",
+      status,
+      code: "KLYX_MEMORY_PROFILE_DELETE_FAILED",
+      publicMessage: status < 500 ? message : undefined,
+      startedAt,
+    });
   }
 }
