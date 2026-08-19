@@ -15,9 +15,12 @@ describe("KLYX agent and AI API error sanitization contract", () => {
 
     expect(source).toContain('from "@/lib/api-error"');
     expect(source).toContain("secureApiErrorResponse({");
-    expect(source).toContain('event: "agent_plans_load_failed"');
-    expect(source).toContain('event: "agent_plan_create_failed"');
-    expect(source).toContain('event: "agent_plan_update_failed"');
+    expect(source).toContain('"agent_plans_load_failed"');
+    expect(source).toContain('"KLYX_AGENT_PLANS_LOAD_FAILED"');
+    expect(source).toContain('"agent_plan_create_failed"');
+    expect(source).toContain('"KLYX_AGENT_PLAN_CREATE_FAILED"');
+    expect(source).toContain('"agent_plan_update_failed"');
+    expect(source).toContain('"KLYX_AGENT_PLAN_UPDATE_FAILED"');
     expect(source).not.toContain("preferencesResult.error.message");
     expect(source).not.toContain("profileResult.error.message");
     expect(source).not.toContain("cancelError.message");
