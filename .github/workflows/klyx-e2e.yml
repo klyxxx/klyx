@@ -24,6 +24,7 @@ jobs:
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       KLYX_E2E_EMAIL: ${{ secrets.KLYX_E2E_EMAIL }}
       KLYX_E2E_PASSWORD: ${{ secrets.KLYX_E2E_PASSWORD }}
       KLYX_PLAYWRIGHT_SYSTEM_CHROME: "1"
@@ -53,6 +54,11 @@ jobs:
 
           if [ -z "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" ]; then
             echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY is missing"
+            exit 1
+          fi
+
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "SUPABASE_SERVICE_ROLE_KEY is missing"
             exit 1
           fi
 
