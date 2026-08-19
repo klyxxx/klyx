@@ -37,19 +37,24 @@ export async function DELETE(request: Request) {
     const profileIds = (profiles ?? []).map((profile) => profile.id);
 
     if (profileIds.length > 0) {
-      const [{ data: clientBookings }, { data: providerBookings }] =
-        await Promise.all([
-          supabaseAdmin
-            .from("bookings")
-            .select("id")
-            .in("parent_id", profileIds)
-            .in("status", ["pending", "accepted"]),
-          supabaseAdmin
-            .from("bookings")
-            .select("id")
-            .in("provider_id", profileIds)
-            .in("status", ["pending", "accepted"]),
-        ]);
+      const [
+        { data: clientBookings, error: clientBookingsError },
+        { data: providerBookings, error: providerBookingsError },
+      ] = await Promise.all([
+        supabaseAdmin
+          .from("bookings")
+          .select("id")
+          .in("parent_id", profileIds)
+          .in("status", ["pending", "accepted"]),
+        supabaseAdmin
+          .from("bookings")
+          .select("id")
+          .in("provider_id", profileIds)
+          .in("status", ["pending", "accepted"]),
+      ]);
+
+      if (clientBookingsError) throw clientBookingsError;
+      if (providerBookingsError) throw providerBookingsError;
 
       if (
         (clientBookings?.length ?? 0) > 0 ||
@@ -64,21 +69,26 @@ export async function DELETE(request: Request) {
         );
       }
 
-      const [{ data: paidClient }, { data: paidProvider }] =
-        await Promise.all([
-          supabaseAdmin
-            .from("bookings")
-            .select("id")
-            .in("parent_id", profileIds)
-            .eq("payment_status", "paid")
-            .limit(1),
-          supabaseAdmin
-            .from("bookings")
-            .select("id")
-            .in("provider_id", profileIds)
-            .eq("payment_status", "paid")
-            .limit(1),
-        ]);
+      const [
+        { data: paidClient, error: paidClientError },
+        { data: paidProvider, error: paidProviderError },
+      ] = await Promise.all([
+        supabaseAdmin
+          .from("bookings")
+          .select("id")
+          .in("parent_id", profileIds)
+          .eq("payment_status", "paid")
+          .limit(1),
+        supabaseAdmin
+          .from("bookings")
+          .select("id")
+          .in("provider_id", profileIds)
+          .eq("payment_status", "paid")
+          .limit(1),
+      ]);
+
+      if (paidClientError) throw paidClientError;
+      if (paidProviderError) throw paidProviderError;
 
       if (
         (paidClient?.length ?? 0) > 0 ||
