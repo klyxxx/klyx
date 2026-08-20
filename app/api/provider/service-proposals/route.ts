@@ -92,7 +92,7 @@ export async function GET() {
     );
   }
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("service_proposals")
     .select(
       "id, proposed_name, category, description, experience_details, status, admin_note, created_at, reviewed_at"
@@ -176,13 +176,20 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data: duplicate } = await supabase
+  const { data: duplicate, error: duplicateError } = await supabaseAdmin
     .from("service_proposals")
     .select("id")
     .eq("profile_id", profile.id)
     .eq("status", "pending")
     .ilike("proposed_name", proposedName)
     .maybeSingle();
+
+  if (duplicateError) {
+    return NextResponse.json(
+      { error: "Impossible de vérifier les propositions existantes." },
+      { status: 500 }
+    );
+  }
 
   if (duplicate) {
     return NextResponse.json(
@@ -214,7 +221,7 @@ export async function POST(request: Request) {
   const reviewedAt =
     moderation.decision === "pending" ? null : new Date().toISOString();
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from("service_proposals")
     .insert({
       profile_id: profile.id,
