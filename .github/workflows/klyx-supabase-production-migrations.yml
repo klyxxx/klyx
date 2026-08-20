@@ -26,6 +26,7 @@ jobs:
     timeout-minutes: 20
 
     env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -58,24 +59,43 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Validate production deployment secrets
+      - name: Select production deployment mode
         shell: bash
         run: |
           set -euo pipefail
 
+          if [ -n "${SUPABASE_DB_URL:-}" ]; then
+            case "$SUPABASE_DB_URL" in
+              postgres://*|postgresql://*) ;;
+              *)
+                echo "::error::SUPABASE_DB_URL must be a Postgres connection URL."
+                exit 1
+                ;;
+            esac
+
+            echo "SUPABASE_DEPLOY_MODE=db_url" >> "$GITHUB_ENV"
+            echo "Using direct database URL deployment mode."
+            exit 0
+          fi
+
           missing=0
           for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD NEXT_PUBLIC_SUPABASE_URL; do
             if [ -z "${!name:-}" ]; then
-              echo "::error::Missing required GitHub Actions secret: ${name}"
+              echo "::error::Missing required GitHub Actions secret for linked fallback mode: ${name}"
               missing=1
             fi
           done
 
           if [ "$missing" -ne 0 ]; then
+            echo "::error::Configure SUPABASE_DB_URL, or configure all linked-mode credentials above."
             exit 1
           fi
 
+          echo "SUPABASE_DEPLOY_MODE=linked" >> "$GITHUB_ENV"
+          echo "Using linked Supabase project deployment mode."
+
       - name: Derive production project ref
+        if: env.SUPABASE_DEPLOY_MODE == 'linked'
         shell: bash
         run: |
           set -euo pipefail
@@ -115,6 +135,7 @@ jobs:
           fi
 
       - name: Link production project
+        if: env.SUPABASE_DEPLOY_MODE == 'linked'
         shell: bash
         run: |
           set -euo pipefail
@@ -125,26 +146,47 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p migration-proof
-          supabase migration list --linked | tee migration-proof/before.txt
+
+          if [ "$SUPABASE_DEPLOY_MODE" = "db_url" ]; then
+            supabase migration list --db-url "$SUPABASE_DB_URL" | tee migration-proof/before.txt
+          else
+            supabase migration list --linked | tee migration-proof/before.txt
+          fi
 
       - name: Preview pending production migrations
         shell: bash
         run: |
           set -euo pipefail
-          supabase db push --linked --dry-run | tee migration-proof/dry-run-before.txt
+
+          if [ "$SUPABASE_DEPLOY_MODE" = "db_url" ]; then
+            supabase db push --db-url "$SUPABASE_DB_URL" --dry-run | tee migration-proof/dry-run-before.txt
+          else
+            supabase db push --linked --dry-run | tee migration-proof/dry-run-before.txt
+          fi
 
       - name: Apply pending production migrations
         shell: bash
         run: |
           set -euo pipefail
-          supabase db push --linked
+
+          if [ "$SUPABASE_DEPLOY_MODE" = "db_url" ]; then
+            supabase db push --db-url "$SUPABASE_DB_URL"
+          else
+            supabase db push --linked
+          fi
 
       - name: Verify production migration status
         shell: bash
         run: |
           set -euo pipefail
-          supabase migration list --linked | tee migration-proof/after.txt
-          supabase db push --linked --dry-run | tee migration-proof/dry-run-after.txt
+
+          if [ "$SUPABASE_DEPLOY_MODE" = "db_url" ]; then
+            supabase migration list --db-url "$SUPABASE_DB_URL" | tee migration-proof/after.txt
+            supabase db push --db-url "$SUPABASE_DB_URL" --dry-run | tee migration-proof/dry-run-after.txt
+          else
+            supabase migration list --linked | tee migration-proof/after.txt
+            supabase db push --linked --dry-run | tee migration-proof/dry-run-after.txt
+          fi
 
           if grep -Fqi "Would push these migrations" migration-proof/dry-run-after.txt; then
             echo "::error::Supabase still reports pending production migrations after db push."
@@ -154,6 +196,7 @@ jobs:
           printf '%s\n' \
             "commit=${GITHUB_SHA}" \
             "run=${GITHUB_RUN_ID}" \
+            "mode=${SUPABASE_DEPLOY_MODE}" \
             "verified_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             > migration-proof/proof.txt
 
