@@ -20,6 +20,9 @@ const workflow = readRepoFile(
 const runtime = readRepoFile(
   "scripts/golden-path-runtime.mjs"
 );
+const databaseUrl = readRepoFile(
+  "scripts/golden-path-database-url.mjs"
+);
 const bootstrap = readRepoFile(
   "scripts/golden-path-bootstrap.mjs"
 );
@@ -31,6 +34,7 @@ describe("KLYX golden path workflow safety", () => {
   it("keeps every golden-path Node script syntactically valid", () => {
     for (const file of [
       "scripts/golden-path-runtime.mjs",
+      "scripts/golden-path-database-url.mjs",
       "scripts/golden-path-bootstrap.mjs",
       "scripts/golden-path-preflight.mjs",
     ]) {
@@ -62,6 +66,12 @@ describe("KLYX golden path workflow safety", () => {
       "SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.KLYX_E2E_SUPABASE_SERVICE_ROLE_KEY }}"
     );
     expect(workflow).toContain(
+      "KLYX_E2E_SUPABASE_DB_URL: ${{ secrets.KLYX_E2E_SUPABASE_DB_URL }}"
+    );
+    expect(workflow).toContain(
+      "KLYX_E2E_SUPABASE_DB_PASSWORD: ${{ secrets.KLYX_E2E_SUPABASE_DB_PASSWORD }}"
+    );
+    expect(workflow).toContain(
       'if [ "$NEXT_PUBLIC_SUPABASE_URL" = "$KLYX_PRODUCTION_SUPABASE_URL" ]'
     );
     expect(workflow).toContain(
@@ -72,6 +82,25 @@ describe("KLYX golden path workflow safety", () => {
     );
     expect(runtime).toContain(
       "e2eUrl.hostname === productionUrl.hostname"
+    );
+
+    expect(databaseUrl).toContain(
+      'requiredGoldenPathEnv("KLYX_E2E_SUPABASE_DB_URL")'
+    );
+    expect(databaseUrl).toContain(
+      'requiredGoldenPathEnv("KLYX_E2E_SUPABASE_DB_PASSWORD")'
+    );
+    expect(databaseUrl).toContain(
+      'databaseHostname.endsWith(".pooler.supabase.com")'
+    );
+    expect(databaseUrl).toContain(
+      "databaseProjectRef !== e2eProjectRef"
+    );
+    expect(databaseUrl).toContain(
+      "e2eProjectRef === productionProjectRef"
+    );
+    expect(databaseUrl).toContain(
+      "databaseUrl.password = databasePassword"
     );
   });
 
@@ -86,6 +115,32 @@ describe("KLYX golden path workflow safety", () => {
     expect(runtime).toContain('startsWith("sk_test_")');
     expect(runtime).toContain('startsWith("pk_test_")');
     expect(runtime).toContain('startsWith("whsec_")');
+  });
+
+  it("syncs canonical migrations before account bootstrap", () => {
+    const migrationPush =
+      'supabase db push --db-url "$KLYX_E2E_EFFECTIVE_DB_URL"';
+    const bootstrapCommand =
+      "node scripts/golden-path-bootstrap.mjs";
+
+    expect(workflow).toContain(
+      "supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf"
+    );
+    expect(workflow).toContain("version: 2.111.0");
+    expect(workflow).toContain(
+      'supabase migration list --db-url "$KLYX_E2E_EFFECTIVE_DB_URL"'
+    );
+    expect(workflow).toContain(`${migrationPush} --dry-run`);
+    expect(workflow).toContain(migrationPush);
+    expect(workflow).toContain(
+      'grep -Fqi "Would push these migrations" golden-path-migration-proof/dry-run-after.txt'
+    );
+    expect(workflow.indexOf("Apply pending E2E migrations")).toBeLessThan(
+      workflow.indexOf(bootstrapCommand)
+    );
+    expect(workflow).not.toContain("supabase db reset");
+    expect(workflow).not.toContain("supabase migration repair");
+    expect(workflow).not.toContain("--linked");
   });
 
   it("uses separate golden-path credentials", () => {
