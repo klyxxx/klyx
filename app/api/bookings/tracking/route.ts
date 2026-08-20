@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { getBookingTrackingTimingError } from "@/lib/booking-tracking-time";
 import {
   syncBookingGroupLifecycle,
 } from "@/lib/booking-group-lifecycle";
@@ -35,6 +36,8 @@ type BookingRow = {
   provider_id: string | null;
   babysitter_id: string | null;
   booking_group_id: string | null;
+  booking_date: string;
+  start_time: string;
   status: string;
   payment_status: string | null;
   service_status: ServiceStatus | null;
@@ -146,7 +149,7 @@ export async function POST(request: Request) {
     const { data, error } = await supabaseAdmin
       .from("bookings")
       .select(
-        "id, parent_id, provider_id, babysitter_id, booking_group_id, status, payment_status, service_status, provider_finished_at, client_confirmed_at"
+        "id, parent_id, provider_id, babysitter_id, booking_group_id, booking_date, start_time, status, payment_status, service_status, provider_finished_at, client_confirmed_at"
       )
       .eq("id", bookingId)
       .maybeSingle();
@@ -186,6 +189,20 @@ export async function POST(request: Request) {
           error:
             "Le paiement doit être confirmé avant le suivi de la mission.",
         },
+        { status: 409 }
+      );
+    }
+
+    // KLYX_TRACKING_TEMPORAL_GUARD_2026
+    const timingError = getBookingTrackingTimingError({
+      bookingDate: booking.booking_date,
+      startTime: booking.start_time,
+      action,
+    });
+
+    if (timingError) {
+      return NextResponse.json(
+        { error: timingError },
         { status: 409 }
       );
     }
