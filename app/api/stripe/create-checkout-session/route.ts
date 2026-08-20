@@ -227,13 +227,13 @@ export async function POST(request: Request) {
   const startedAt = Date.now();
 
   try {
+    const { user, profile } = await getAuthenticatedProfile(request);
+    requireAccountType(profile, "client");
+
     assertStripeRuntimeReady();
 
     const stripeSecretKey = requiredEnv("STRIPE_SECRET_KEY");
     const stripe = new Stripe(stripeSecretKey);
-
-    const { user, profile } = await getAuthenticatedProfile(request);
-    requireAccountType(profile, "client");
 
     const body = (await request.json()) as {
       bookingId?: string;

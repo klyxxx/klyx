@@ -46,4 +46,18 @@ test.describe("KLYX anonymous private API security", () => {
     const response = await request.post("/api/stripe/connect/create-account");
     expect(response.status()).toBe(401);
   });
+
+  test("Stripe checkout creation authenticates before runtime configuration", async ({ request }) => {
+    const response = await request.post("/api/stripe/create-checkout-session", {
+      data: {},
+    });
+    expect(response.status()).toBe(401);
+  });
+
+  test("Stripe group checkout creation authenticates before runtime configuration", async ({ request }) => {
+    const response = await request.post("/api/stripe/create-group-checkout-session", {
+      data: {},
+    });
+    expect(response.status()).toBe(401);
+  });
 });
