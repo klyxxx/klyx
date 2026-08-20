@@ -29,6 +29,9 @@ const preflight = readRepoFile(
 const providerFixture = readRepoFile(
   "scripts/golden-path-provider-fixture.mjs"
 );
+const clientLifecycle = readRepoFile(
+  "scripts/golden-path-client-lifecycle.mjs"
+);
 
 describe("KLYX golden path workflow safety", () => {
   it("keeps every golden-path Node script syntactically valid", () => {
@@ -37,6 +40,7 @@ describe("KLYX golden path workflow safety", () => {
       "scripts/golden-path-bootstrap.mjs",
       "scripts/golden-path-preflight.mjs",
       "scripts/golden-path-provider-fixture.mjs",
+      "scripts/golden-path-client-lifecycle.mjs",
     ]) {
       expect(() =>
         execFileSync(process.execPath, ["--check", repoPath(file)], {
@@ -120,6 +124,7 @@ describe("KLYX golden path workflow safety", () => {
     expect(runtime).toContain('startsWith("sk_test_")');
     expect(runtime).toContain('startsWith("pk_test_")');
     expect(runtime).toContain('startsWith("whsec_")');
+    expect(clientLifecycle).not.toContain("create-checkout-session");
   });
 
   it("generates account and webhook credentials per run instead of storing them", () => {
@@ -240,7 +245,47 @@ describe("KLYX golden path workflow safety", () => {
     );
   });
 
-  it("always destroys the ephemeral local database after the run", () => {
+  it("runs the real quote-to-accepted-booking lifecycle through next start", () => {
+    const fixtureCommand =
+      "node scripts/golden-path-provider-fixture.mjs";
+    const lifecycleCommand =
+      "node scripts/golden-path-client-lifecycle.mjs";
+
+    expect(workflow).toContain("npm run start -- -p 3100");
+    expect(workflow).toContain(lifecycleCommand);
+    expect(workflow.indexOf(fixtureCommand)).toBeLessThan(
+      workflow.indexOf(lifecycleCommand)
+    );
+    expect(workflow.indexOf("Production build")).toBeLessThan(
+      workflow.indexOf("Start golden path production server")
+    );
+
+    expect(clientLifecycle).toContain("if (!localSupabase)");
+    expect(clientLifecycle).toContain(
+      'appOrigin !== "http://127.0.0.1:3100"'
+    );
+    expect(clientLifecycle).toContain('path: "/api/quotes"');
+    expect(clientLifecycle).toContain('action: "send"');
+    expect(clientLifecycle).toContain('action: "accept"');
+    expect(clientLifecycle).toContain(
+      'path: "/api/bookings/create"'
+    );
+    expect(clientLifecycle).toContain(
+      'path: "/api/bookings/status"'
+    );
+    expect(clientLifecycle).toContain('status: "accepted"');
+    expect(clientLifecycle).toContain("expectedStatuses: [409]");
+    expect(clientLifecycle).toContain(
+      'booking.payment_status !== "unpaid"'
+    );
+    expect(clientLifecycle).toContain(
+      'booking.currency !== "EUR"'
+    );
+  });
+
+  it("always stops the app and destroys the ephemeral local database", () => {
+    expect(workflow).toContain("Stop golden path production server");
+    expect(workflow).toContain("KLYX_GOLDEN_PATH_SERVER_PID");
     expect(workflow).toContain("Destroy ephemeral local Supabase");
     expect(workflow).toContain("if: always()");
     expect(workflow).toContain("supabase stop --no-backup || true");

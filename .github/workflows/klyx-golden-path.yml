@@ -212,11 +212,51 @@ jobs:
       - name: Production build
         run: npm run build
 
-      # Real Stripe Checkout is deliberately not invoked until the dedicated
-      # payment lifecycle spec is added. This harness stays secret-free for
-      # database, account and prepayment fixture verification.
-      - name: Golden path harness ready
-        run: echo "Ephemeral Supabase schema and bookable provider fixture verified without external test credentials."
+      - name: Start golden path production server
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          npm run start -- -p 3100 > golden-path-server.log 2>&1 &
+          server_pid=$!
+          echo "KLYX_GOLDEN_PATH_SERVER_PID=$server_pid" >> "$GITHUB_ENV"
+
+          for attempt in $(seq 1 40); do
+            if curl --fail --silent --show-error \
+              http://127.0.0.1:3100/login \
+              > /dev/null; then
+              echo "Golden path production server is ready."
+              exit 0
+            fi
+
+            if ! kill -0 "$server_pid" 2>/dev/null; then
+              echo "::error::Golden path production server exited early."
+              cat golden-path-server.log
+              exit 1
+            fi
+
+            sleep 1
+          done
+
+          echo "::error::Golden path production server did not become ready."
+          cat golden-path-server.log
+          exit 1
+
+      - name: Verify client quote and booking lifecycle
+        run: node scripts/golden-path-client-lifecycle.mjs
+
+      - name: Golden path prepayment lifecycle ready
+        run: >-
+          echo "Real quote request, provider send, client accept, booking creation and provider acceptance verified on ephemeral Supabase."
+
+      - name: Stop golden path production server
+        if: always()
+        shell: bash
+        run: |
+          if [ -n "${KLYX_GOLDEN_PATH_SERVER_PID:-}" ] && \
+             kill -0 "$KLYX_GOLDEN_PATH_SERVER_PID" 2>/dev/null; then
+            kill "$KLYX_GOLDEN_PATH_SERVER_PID" || true
+          fi
 
       - name: Upload local migration proof
         if: always()
