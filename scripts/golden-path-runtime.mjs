@@ -15,6 +15,20 @@ export function isSupabaseHost(hostname) {
   );
 }
 
+export function isLoopbackSupabaseUrl(url) {
+  const hostname = url.hostname.toLowerCase();
+  const loopback =
+    hostname === "127.0.0.1" ||
+    hostname === "localhost" ||
+    hostname === "[::1]";
+
+  return (
+    loopback &&
+    url.protocol === "http:" &&
+    url.port === "54321"
+  );
+}
+
 export function assertGoldenPathIsolation() {
   if (process.env.KLYX_GOLDEN_PATH_MUTATIONS_ENABLED !== "true") {
     throw new Error(
@@ -28,15 +42,36 @@ export function assertGoldenPathIsolation() {
   const productionUrl = new URL(
     requiredGoldenPathEnv("KLYX_PRODUCTION_SUPABASE_URL")
   );
+  const localSupabase =
+    process.env.KLYX_GOLDEN_PATH_LOCAL_SUPABASE === "true";
 
-  if (!isSupabaseHost(e2eUrl.hostname) || !isSupabaseHost(productionUrl.hostname)) {
-    throw new Error("Golden path Supabase URLs must be Supabase-hosted.");
+  if (!isSupabaseHost(productionUrl.hostname)) {
+    throw new Error(
+      "Golden path production comparison URL must target Supabase."
+    );
   }
 
-  if (
-    e2eUrl.origin === productionUrl.origin ||
-    e2eUrl.hostname === productionUrl.hostname
-  ) {
+  if (localSupabase) {
+    if (!isLoopbackSupabaseUrl(e2eUrl)) {
+      throw new Error(
+        "Golden path local Supabase must use the isolated loopback API URL on port 54321."
+      );
+    }
+  } else {
+    if (!isSupabaseHost(e2eUrl.hostname)) {
+      throw new Error(
+        "Golden path Supabase URL must target a Supabase-hosted project."
+      );
+    }
+
+    if (e2eUrl.hostname === productionUrl.hostname) {
+      throw new Error(
+        "Golden path Supabase must be isolated from the production project."
+      );
+    }
+  }
+
+  if (e2eUrl.origin === productionUrl.origin) {
     throw new Error(
       "Golden path Supabase must be isolated from the production project."
     );
@@ -71,6 +106,7 @@ export function assertGoldenPathIsolation() {
   return {
     e2eOrigin: e2eUrl.origin,
     productionOrigin: productionUrl.origin,
+    localSupabase,
   };
 }
 

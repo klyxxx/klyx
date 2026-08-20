@@ -54,33 +54,63 @@ describe("KLYX golden path workflow safety", () => {
     );
   });
 
-  it("uses dedicated E2E Supabase secrets and rejects production reuse", () => {
+  it("uses only an ephemeral loopback Supabase runtime", () => {
     expect(workflow).toContain(
-      "NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.KLYX_E2E_SUPABASE_URL }}"
+      'KLYX_GOLDEN_PATH_LOCAL_SUPABASE: "true"'
+    );
+    expect(workflow).toContain("supabase start");
+    expect(workflow).toContain("supabase status -o env");
+    expect(workflow).toContain(
+      "http://127.0.0.1:54321|http://localhost:54321"
     );
     expect(workflow).toContain(
-      "SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.KLYX_E2E_SUPABASE_SERVICE_ROLE_KEY }}"
+      "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
     );
     expect(workflow).toContain(
-      'if [ "$NEXT_PUBLIC_SUPABASE_URL" = "$KLYX_PRODUCTION_SUPABASE_URL" ]'
+      "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
     );
-    expect(workflow).toContain(
-      'if (e2e.hostname === production.hostname)'
+
+    expect(workflow).not.toContain(
+      "secrets.KLYX_E2E_SUPABASE_URL"
+    );
+    expect(workflow).not.toContain(
+      "secrets.KLYX_E2E_SUPABASE_DB_URL"
+    );
+    expect(workflow).not.toContain(
+      "secrets.KLYX_E2E_SUPABASE_DB_PASSWORD"
+    );
+    expect(workflow).not.toContain("supabase db push");
+    expect(workflow).not.toContain("--linked");
+
+    expect(runtime).toContain("isLoopbackSupabaseUrl");
+    expect(runtime).toContain('url.port === "54321"');
+    expect(runtime).toContain(
+      'process.env.KLYX_GOLDEN_PATH_LOCAL_SUPABASE === "true"'
     );
     expect(runtime).toContain(
-      'process.env.KLYX_GOLDEN_PATH_MUTATIONS_ENABLED !== "true"'
-    );
-    expect(runtime).toContain(
-      "e2eUrl.hostname === productionUrl.hostname"
+      "if (!isSupabaseHost(productionUrl.hostname))"
     );
   });
 
-  it("hard-locks payment proof to Stripe test mode", () => {
+  it("starts the minimum local services needed by KLYX auth and APIs", () => {
+    expect(workflow).toContain(
+      "-x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"
+    );
+    expect(workflow).not.toContain("-x gotrue");
+    expect(workflow).not.toContain("-x postgrest");
+    expect(workflow).not.toContain("-x kong");
+  });
+
+  it("hard-locks the only external payment credential to Stripe test mode", () => {
+    expect(workflow).toContain(
+      "STRIPE_SECRET_KEY: ${{ secrets.KLYX_E2E_STRIPE_SECRET_KEY }}"
+    );
+    expect(workflow).toContain(
+      'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_klyx_golden_path_local_only"'
+    );
     expect(workflow).toContain('KLYX_STRIPE_MODE: "test"');
     expect(workflow).toContain('KLYX_LIVE_PAYMENTS_ENABLED: "false"');
     expect(workflow).toContain("sk_test_*");
-    expect(workflow).toContain("pk_test_*");
-    expect(workflow).toContain("whsec_*");
     expect(workflow).not.toContain("sk_live_");
     expect(workflow).not.toContain("pk_live_");
     expect(runtime).toContain('startsWith("sk_test_")');
@@ -88,12 +118,39 @@ describe("KLYX golden path workflow safety", () => {
     expect(runtime).toContain('startsWith("whsec_")');
   });
 
-  it("uses separate golden-path credentials", () => {
+  it("generates account and webhook credentials per run instead of storing them", () => {
     expect(workflow).toContain(
-      "KLYX_E2E_EMAIL: ${{ secrets.KLYX_GOLDEN_PATH_EMAIL }}"
+      'golden_email="golden-path-${GITHUB_RUN_ID}@example.test"'
     );
     expect(workflow).toContain(
-      "KLYX_E2E_PASSWORD: ${{ secrets.KLYX_GOLDEN_PATH_PASSWORD }}"
+      'golden_password="$(openssl rand -base64 36'
+    );
+    expect(workflow).toContain(
+      'webhook_secret="whsec_$(openssl rand -hex 32)"'
+    );
+    expect(workflow).toContain("::add-mask::$golden_password");
+    expect(workflow).toContain("::add-mask::$webhook_secret");
+    expect(workflow).not.toContain(
+      "secrets.KLYX_GOLDEN_PATH_EMAIL"
+    );
+    expect(workflow).not.toContain(
+      "secrets.KLYX_GOLDEN_PATH_PASSWORD"
+    );
+    expect(workflow).not.toContain(
+      "secrets.KLYX_E2E_STRIPE_WEBHOOK_SECRET"
+    );
+  });
+
+  it("proves the latest canonical migration is applied locally", () => {
+    expect(workflow).toContain("supabase migration list --local");
+    expect(workflow).toContain(
+      "find supabase/migrations -maxdepth 1 -type f -name '*.sql'"
+    );
+    expect(workflow).toContain(
+      "Latest KLYX migration ${latest_version} is not applied in local Supabase."
+    );
+    expect(workflow).toContain(
+      "golden-path-migration-proof/proof.txt"
     );
   });
 
@@ -137,5 +194,11 @@ describe("KLYX golden path workflow safety", () => {
     expect(preflight).toContain(
       'candidate.slug === "cleaning"'
     );
+  });
+
+  it("always destroys the ephemeral local database after the run", () => {
+    expect(workflow).toContain("Destroy ephemeral local Supabase");
+    expect(workflow).toContain("if: always()");
+    expect(workflow).toContain("supabase stop --no-backup || true");
   });
 });
