@@ -6,6 +6,12 @@ import {
   requireAccountType,
 } from "@/lib/api-auth";
 import {
+  detectCatalogServiceCandidates,
+  mergeServiceCandidates,
+  normalizeCatalogText,
+  type CatalogServiceRecord,
+} from "@/lib/catalog-service-matcher";
+import {
   detectBudget,
   detectChildren,
   detectCity,
@@ -19,12 +25,23 @@ import {
   type UniversalRequestResult,
 } from "@/lib/universal-service-request";
 
-const SERVICE_LABELS: Record<string, string> = {
-  babysitting: "Baby-sitting",
-  cleaning: "Ménage",
-  moving: "Déménagement",
-  handyman: "Bricolage",
-};
+function isChildcareService(
+  service: CatalogServiceRecord | undefined
+): boolean {
+  if (!service) return false;
+
+  const normalized = normalizeCatalogText(
+    `${service.slug} ${service.name ?? ""}`
+  );
+
+  return [
+    "baby sitting",
+    "babysitting",
+    "garde enfant",
+    "garde d enfant",
+    "nounou",
+  ].some((term) => normalized.includes(term));
+}
 
 export async function POST(request: Request) {
   try {
@@ -58,23 +75,30 @@ export async function POST(request: Request) {
         ? body.selectedServiceSlug.trim()
         : "";
 
-    const [preferencesResult, memoryResult] =
-      await Promise.all([
-        supabaseAdmin
-          .from("user_preferences")
-          .select(
-            "default_city, default_budget, preferred_service_slugs, household_notes, scheduling_notes, ai_memory_enabled"
-          )
-          .eq("user_id", profile.id)
-          .maybeSingle(),
-        supabaseAdmin
-          .from("client_memory_profiles")
-          .select(
-            "children_count, memory_enabled"
-          )
-          .eq("profile_id", profile.id)
-          .maybeSingle(),
-      ]);
+    const [
+      preferencesResult,
+      memoryResult,
+      servicesResult,
+    ] = await Promise.all([
+      supabaseAdmin
+        .from("user_preferences")
+        .select(
+          "default_city, default_budget, preferred_service_slugs, household_notes, scheduling_notes, ai_memory_enabled"
+        )
+        .eq("user_id", profile.id)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("client_memory_profiles")
+        .select(
+          "children_count, memory_enabled"
+        )
+        .eq("profile_id", profile.id)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("services")
+        .select("slug, name")
+        .limit(1000),
+    ]);
 
     if (preferencesResult.error) {
       throw new Error(preferencesResult.error.message);
@@ -87,12 +111,46 @@ export async function POST(request: Request) {
       throw new Error(memoryResult.error.message);
     }
 
+    if (servicesResult.error) {
+      throw new Error(servicesResult.error.message);
+    }
+
+    const services = (
+      servicesResult.data ?? []
+    ).filter(
+      (service): service is CatalogServiceRecord =>
+        typeof service.slug === "string" &&
+        service.slug.trim().length > 0
+    );
+
+    const serviceBySlug = new Map(
+      services.map((service) => [service.slug, service])
+    );
+
     const preferences = preferencesResult.data;
     const clientMemory = memoryResult.data;
-    const candidates = detectServiceCandidates(text);
+
+    const catalogCandidates =
+      detectCatalogServiceCandidates(
+        text,
+        services,
+        5
+      );
+    const legacyCandidates =
+      detectServiceCandidates(text);
+    const candidates = mergeServiceCandidates(
+      services,
+      catalogCandidates,
+      legacyCandidates
+    );
+
+    const selectedService =
+      selectedServiceSlug
+        ? serviceBySlug.get(selectedServiceSlug)
+        : undefined;
 
     let serviceSlug =
-      selectedServiceSlug ||
+      selectedService?.slug ??
       (candidates[0]?.confidence >= 60
         ? candidates[0].slug
         : null);
@@ -101,10 +159,13 @@ export async function POST(request: Request) {
     let requestedTime = detectRequestedTime(text);
     let durationHours = detectDurationHours(text);
     let budgetMax = detectBudget(text);
-    let peopleCount =
-      serviceSlug === "babysitting"
-        ? detectChildren(text)
-        : null;
+    let peopleCount = isChildcareService(
+      serviceSlug
+        ? serviceBySlug.get(serviceSlug)
+        : undefined
+    )
+      ? detectChildren(text)
+      : null;
     let memoryUsed = false;
 
     const canUseMemory = Boolean(
@@ -116,10 +177,13 @@ export async function POST(request: Request) {
     if (canUseMemory) {
       memoryUsed = true;
 
+      const preferredServiceSlug =
+        preferences?.preferred_service_slugs?.find(
+          (slug: string) => serviceBySlug.has(slug)
+        ) ?? null;
+
       serviceSlug =
-        serviceSlug ??
-        preferences?.preferred_service_slugs?.[0] ??
-        null;
+        serviceSlug ?? preferredServiceSlug;
       city = city ?? preferences?.default_city ?? null;
       budgetMax =
         budgetMax ??
@@ -133,7 +197,11 @@ export async function POST(request: Request) {
         );
 
       if (
-        serviceSlug === "babysitting" &&
+        isChildcareService(
+          serviceSlug
+            ? serviceBySlug.get(serviceSlug)
+            : undefined
+        ) &&
         peopleCount == null
       ) {
         peopleCount =
@@ -146,10 +214,7 @@ export async function POST(request: Request) {
 
     if (
       serviceSlug &&
-      !Object.prototype.hasOwnProperty.call(
-        SERVICE_LABELS,
-        serviceSlug
-      )
+      !serviceBySlug.has(serviceSlug)
     ) {
       serviceSlug = null;
     }
@@ -163,11 +228,14 @@ export async function POST(request: Request) {
 
     const missingFields =
       missingFieldsForRequest(partial);
+    const matchedService = serviceSlug
+      ? serviceBySlug.get(serviceSlug)
+      : undefined;
 
     const parsed: UniversalRequestResult = {
       serviceSlug,
-      serviceLabel: serviceSlug
-        ? SERVICE_LABELS[serviceSlug] ?? serviceSlug
+      serviceLabel: matchedService
+        ? matchedService.name?.trim() || matchedService.slug
         : null,
       serviceCandidates: candidates,
       city,
