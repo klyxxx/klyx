@@ -1,49 +1,9 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-
-const protectedRoutes = [
-  "/accounts",
-  "/book",
-  "/bookings",
-  "/brain",
-  "/connect",
-  "/create-store",
-  "/dashboard",
-  "/favorites",
-  "/memory",
-  "/messages",
-  "/notifications",
-  "/payment",
-  "/profile",
-  "/projects",
-  "/request",
-  "/reviews",
-  "/scores",
-  "/settings",
-  "/tracking",
-];
-
-const authenticationRoutes = [
-  "/login",
-  "/signup",
-  "/reset-password",
-];
-
-function matchesRoute(pathname: string, route: string) {
-  return pathname === route || pathname.startsWith(`${route}/`);
-}
-
-function isProtectedRoute(pathname: string) {
-  return protectedRoutes.some((route) =>
-    matchesRoute(pathname, route)
-  );
-}
-
-function isAuthenticationRoute(pathname: string) {
-  return authenticationRoutes.some((route) =>
-    matchesRoute(pathname, route)
-  );
-}
+import {
+  isKlyxAuthenticationRoute,
+  isKlyxProtectedRoute,
+} from "@/lib/auth-routes";
 
 function redirectToLogin(request: NextRequest) {
   const redirectTarget = `${request.nextUrl.pathname}${request.nextUrl.search}`;
@@ -71,7 +31,7 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
-    if (isProtectedRoute(pathname)) {
+    if (isKlyxProtectedRoute(pathname)) {
       return redirectToLogin(request);
     }
 
@@ -112,11 +72,11 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user && isProtectedRoute(pathname)) {
+  if (!user && isKlyxProtectedRoute(pathname)) {
     return redirectToLogin(request);
   }
 
-  if (user && isAuthenticationRoute(pathname)) {
+  if (user && isKlyxAuthenticationRoute(pathname)) {
     const dashboardUrl = request.nextUrl.clone();
 
     dashboardUrl.pathname = "/dashboard";

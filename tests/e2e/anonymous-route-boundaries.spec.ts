@@ -1,29 +1,8 @@
 import { expect, test } from "@playwright/test";
-
-const protectedRoutes = [
-  "/accounts",
-  "/book",
-  "/bookings",
-  "/brain",
-  "/connect",
-  "/create-store",
-  "/dashboard",
-  "/favorites",
-  "/memory",
-  "/messages",
-  "/notifications",
-  "/payment",
-  "/profile",
-  "/projects",
-  "/request",
-  "/reviews",
-  "/scores",
-  "/settings",
-  "/tracking",
-] as const;
+import { KLYX_PROTECTED_ROUTES } from "../../lib/auth-routes";
 
 test.describe("KLYX anonymous protected route boundaries", () => {
-  for (const route of protectedRoutes) {
+  for (const route of KLYX_PROTECTED_ROUTES) {
     test(`${route} redirects anonymous visitors to login`, async ({ page }) => {
       await page.goto(route);
 
@@ -58,6 +37,20 @@ test.describe("KLYX anonymous protected route boundaries", () => {
       "/bookings/example-booking?tab=payment"
     );
     expect(url.searchParams.has("tab")).toBe(false);
+  });
+
+  test("public provider discovery is not captured by the provider dashboard boundary", async ({ page }) => {
+    const response = await page.goto("/providers");
+
+    expect(response?.status()).toBeLessThan(500);
+    expect(new URL(page.url()).pathname).toBe("/providers");
+  });
+
+  test("public recommendations remain outside the authenticated boundary", async ({ page }) => {
+    const response = await page.goto("/recommendations");
+
+    expect(response?.status()).toBeLessThan(500);
+    expect(new URL(page.url()).pathname).toBe("/recommendations");
   });
 
   test("public authentication page remains available anonymously", async ({ page }) => {
