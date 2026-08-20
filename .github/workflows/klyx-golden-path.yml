@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm_isolated_e2e:
-        description: "Confirm dedicated E2E Supabase + Stripe test mode"
+        description: "Confirm ephemeral local Supabase + Stripe test mode"
         required: true
         default: "false"
         type: choice
@@ -24,22 +24,17 @@ jobs:
   golden-path:
     name: Golden path isolated verification
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     env:
       KLYX_GOLDEN_PATH_MUTATIONS_ENABLED: ${{ inputs.confirm_isolated_e2e }}
+      KLYX_GOLDEN_PATH_LOCAL_SUPABASE: "true"
       KLYX_PRODUCTION_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-
-      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.KLYX_E2E_SUPABASE_URL }}
-      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.KLYX_E2E_SUPABASE_PUBLISHABLE_KEY }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.KLYX_E2E_SUPABASE_SERVICE_ROLE_KEY }}
-      KLYX_E2E_EMAIL: ${{ secrets.KLYX_GOLDEN_PATH_EMAIL }}
-      KLYX_E2E_PASSWORD: ${{ secrets.KLYX_GOLDEN_PATH_PASSWORD }}
+      SUPABASE_TELEMETRY_DISABLED: "1"
 
       KLYX_STRIPE_MODE: "test"
       STRIPE_SECRET_KEY: ${{ secrets.KLYX_E2E_STRIPE_SECRET_KEY }}
-      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.KLYX_E2E_STRIPE_PUBLISHABLE_KEY }}
-      STRIPE_WEBHOOK_SECRET: ${{ secrets.KLYX_E2E_STRIPE_WEBHOOK_SECRET }}
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_klyx_golden_path_local_only"
       KLYX_ALLOW_PLATFORM_ONLY_TEST_PAYMENTS: "true"
       KLYX_LIVE_PAYMENTS_ENABLED: "false"
       NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100"
@@ -55,7 +50,7 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Refuse unsafe golden path environment
+      - name: Refuse unsafe golden path trigger
         shell: bash
         run: |
           set -euo pipefail
@@ -65,59 +60,30 @@ jobs:
             exit 1
           fi
 
-          required=(
-            KLYX_PRODUCTION_SUPABASE_URL
-            NEXT_PUBLIC_SUPABASE_URL
-            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-            SUPABASE_SERVICE_ROLE_KEY
-            KLYX_E2E_EMAIL
-            KLYX_E2E_PASSWORD
-            STRIPE_SECRET_KEY
-            NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-            STRIPE_WEBHOOK_SECRET
-          )
-
-          for name in "${required[@]}"; do
-            if [ -z "${!name:-}" ]; then
-              echo "::error::$name is missing."
-              exit 1
-            fi
-          done
-
-          if [ "$NEXT_PUBLIC_SUPABASE_URL" = "$KLYX_PRODUCTION_SUPABASE_URL" ]; then
-            echo "::error::Golden path Supabase must be a dedicated non-production project."
+          if [ -z "${KLYX_PRODUCTION_SUPABASE_URL:-}" ]; then
+            echo "::error::NEXT_PUBLIC_SUPABASE_URL production comparison secret is missing."
             exit 1
           fi
 
           node <<'NODE'
-          const e2e = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL);
           const production = new URL(process.env.KLYX_PRODUCTION_SUPABASE_URL);
+          const hostname = production.hostname.toLowerCase();
+          const valid =
+            hostname.endsWith(".supabase.co") ||
+            hostname.endsWith(".supabase.com");
 
-          const isSupabaseHost = (hostname) =>
-            hostname.endsWith(".supabase.co") || hostname.endsWith(".supabase.com");
-
-          if (!isSupabaseHost(e2e.hostname) || !isSupabaseHost(production.hostname)) {
-            throw new Error("Supabase URLs must target Supabase-hosted projects.");
+          if (!valid) {
+            throw new Error("Production comparison URL must target Supabase.");
           }
 
-          if (e2e.hostname === production.hostname) {
-            throw new Error("Golden path E2E and production Supabase hosts must differ.");
+          if (["127.0.0.1", "localhost", "[::1]"].includes(hostname)) {
+            throw new Error("Production comparison URL must not be loopback.");
           }
           NODE
 
-          case "$STRIPE_SECRET_KEY" in
+          case "${STRIPE_SECRET_KEY:-}" in
             sk_test_*) ;;
-            *) echo "::error::Golden path requires a Stripe sk_test_ secret key."; exit 1 ;;
-          esac
-
-          case "$NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY" in
-            pk_test_*) ;;
-            *) echo "::error::Golden path requires a Stripe pk_test_ publishable key."; exit 1 ;;
-          esac
-
-          case "$STRIPE_WEBHOOK_SECRET" in
-            whsec_*) ;;
-            *) echo "::error::Golden path requires a Stripe whsec_ webhook secret."; exit 1 ;;
+            *) echo "::error::Configure KLYX_E2E_STRIPE_SECRET_KEY with a Stripe sk_test_ key."; exit 1 ;;
           esac
 
           if [ "$KLYX_STRIPE_MODE" != "test" ] || [ "$KLYX_LIVE_PAYMENTS_ENABLED" != "false" ]; then
@@ -127,6 +93,106 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
+        with:
+          version: 2.111.0
+
+      - name: Initialize local Supabase config
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f supabase/config.toml ]; then
+            supabase init
+          fi
+
+      - name: Start ephemeral local Supabase
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase start \
+            -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+
+      - name: Export ephemeral Supabase and test credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          eval "$(supabase status -o env)"
+
+          local_public_key="${ANON_KEY:-${PUBLISHABLE_KEY:-}}"
+
+          for name in API_URL SERVICE_ROLE_KEY; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Supabase local status did not provide ${name}."
+              exit 1
+            fi
+          done
+
+          if [ -z "$local_public_key" ]; then
+            echo "::error::Supabase local status did not provide ANON_KEY/PUBLISHABLE_KEY."
+            exit 1
+          fi
+
+          case "$API_URL" in
+            http://127.0.0.1:54321|http://localhost:54321) ;;
+            *) echo "::error::Refusing non-loopback Supabase API URL: ${API_URL}"; exit 1 ;;
+          esac
+
+          golden_email="golden-path-${GITHUB_RUN_ID}@example.test"
+          golden_password="$(openssl rand -base64 36 | tr -d '\n')"
+          webhook_secret="whsec_$(openssl rand -hex 32)"
+
+          echo "::add-mask::$local_public_key"
+          echo "::add-mask::$SERVICE_ROLE_KEY"
+          echo "::add-mask::$golden_password"
+          echo "::add-mask::$webhook_secret"
+
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
+            echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$local_public_key"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+            echo "KLYX_E2E_EMAIL=$golden_email"
+            echo "KLYX_E2E_PASSWORD=$golden_password"
+            echo "STRIPE_WEBHOOK_SECRET=$webhook_secret"
+          } >> "$GITHUB_ENV"
+
+          echo "Ephemeral local Supabase credentials prepared for this run only."
+
+      - name: Verify isolated runtime guards
+        run: >-
+          node --input-type=module -e
+          "import('./scripts/golden-path-runtime.mjs').then(({assertGoldenPathIsolation}) => assertGoldenPathIsolation())"
+
+      - name: Capture local migration proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p golden-path-migration-proof
+
+          supabase migration list --local \
+            | tee golden-path-migration-proof/migrations.txt
+
+          latest_file="$(find supabase/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort | tail -n 1)"
+          latest_version="${latest_file%%_*}"
+
+          if [ -z "$latest_version" ]; then
+            echo "::error::No KLYX migration was found."
+            exit 1
+          fi
+
+          if ! grep -Fq "$latest_version" golden-path-migration-proof/migrations.txt; then
+            echo "::error::Latest KLYX migration ${latest_version} is not applied in local Supabase."
+            exit 1
+          fi
+
+          printf '%s\n' \
+            "commit=${GITHUB_SHA}" \
+            "run=${GITHUB_RUN_ID}" \
+            "latest_migration=${latest_version}" \
+            "verified_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            > golden-path-migration-proof/proof.txt
 
       - name: Bootstrap dedicated golden path account
         run: node scripts/golden-path-bootstrap.mjs
@@ -143,8 +209,24 @@ jobs:
       - name: Production build
         run: npm run build
 
-      # The mutation golden-path spec is added only after the dedicated
-      # Supabase/Stripe test secrets above are configured. Until then,
-      # this workflow deliberately stops at the isolated account proof.
+      # The mutation golden-path browser spec is the next layer. The runtime
+      # below is already fully isolated and reproducible on every invocation.
       - name: Golden path harness ready
-        run: echo "Isolated Supabase + Stripe test runtime and dedicated account verified."
+        run: echo "Ephemeral Supabase schema, Stripe test runtime and dedicated account verified."
+
+      - name: Upload local migration proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: klyx-golden-path-local-proof-${{ github.run_id }}
+          path: golden-path-migration-proof/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Destroy ephemeral local Supabase
+        if: always()
+        shell: bash
+        run: |
+          if command -v supabase >/dev/null 2>&1; then
+            supabase stop --no-backup || true
+          fi
