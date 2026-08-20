@@ -1,0 +1,144 @@
+name: KLYX Golden Path
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_isolated_e2e:
+        description: "Confirm dedicated E2E Supabase + Stripe test mode"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+permissions:
+  contents: read
+
+# Mutation-heavy launch proof must never race with itself.
+concurrency:
+  group: klyx-golden-path-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  golden-path:
+    name: Golden path isolated verification
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+
+    env:
+      KLYX_GOLDEN_PATH_MUTATIONS_ENABLED: ${{ inputs.confirm_isolated_e2e }}
+      KLYX_PRODUCTION_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.KLYX_E2E_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.KLYX_E2E_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.KLYX_E2E_SUPABASE_SERVICE_ROLE_KEY }}
+      KLYX_E2E_EMAIL: ${{ secrets.KLYX_GOLDEN_PATH_EMAIL }}
+      KLYX_E2E_PASSWORD: ${{ secrets.KLYX_GOLDEN_PATH_PASSWORD }}
+
+      KLYX_STRIPE_MODE: "test"
+      STRIPE_SECRET_KEY: ${{ secrets.KLYX_E2E_STRIPE_SECRET_KEY }}
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.KLYX_E2E_STRIPE_PUBLISHABLE_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.KLYX_E2E_STRIPE_WEBHOOK_SECRET }}
+      KLYX_ALLOW_PLATFORM_ONLY_TEST_PAYMENTS: "true"
+      KLYX_LIVE_PAYMENTS_ENABLED: "false"
+      NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100"
+      KLYX_PLAYWRIGHT_SYSTEM_CHROME: "1"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Refuse unsafe golden path environment
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "$KLYX_GOLDEN_PATH_MUTATIONS_ENABLED" != "true" ]; then
+            echo "::error::Golden path mutations require explicit isolated-E2E confirmation."
+            exit 1
+          fi
+
+          required=(
+            KLYX_PRODUCTION_SUPABASE_URL
+            NEXT_PUBLIC_SUPABASE_URL
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+            SUPABASE_SERVICE_ROLE_KEY
+            KLYX_E2E_EMAIL
+            KLYX_E2E_PASSWORD
+            STRIPE_SECRET_KEY
+            NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+            STRIPE_WEBHOOK_SECRET
+          )
+
+          for name in "${required[@]}"; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::$name is missing."
+              exit 1
+            fi
+          done
+
+          if [ "$NEXT_PUBLIC_SUPABASE_URL" = "$KLYX_PRODUCTION_SUPABASE_URL" ]; then
+            echo "::error::Golden path Supabase must be a dedicated non-production project."
+            exit 1
+          fi
+
+          node <<'NODE'
+          const e2e = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL);
+          const production = new URL(process.env.KLYX_PRODUCTION_SUPABASE_URL);
+
+          const isSupabaseHost = (hostname) =>
+            hostname.endsWith(".supabase.co") || hostname.endsWith(".supabase.com");
+
+          if (!isSupabaseHost(e2e.hostname) || !isSupabaseHost(production.hostname)) {
+            throw new Error("Supabase URLs must target Supabase-hosted projects.");
+          }
+
+          if (e2e.hostname === production.hostname) {
+            throw new Error("Golden path E2E and production Supabase hosts must differ.");
+          }
+          NODE
+
+          case "$STRIPE_SECRET_KEY" in
+            sk_test_*) ;;
+            *) echo "::error::Golden path requires a Stripe sk_test_ secret key."; exit 1 ;;
+          esac
+
+          case "$NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY" in
+            pk_test_*) ;;
+            *) echo "::error::Golden path requires a Stripe pk_test_ publishable key."; exit 1 ;;
+          esac
+
+          case "$STRIPE_WEBHOOK_SECRET" in
+            whsec_*) ;;
+            *) echo "::error::Golden path requires a Stripe whsec_ webhook secret."; exit 1 ;;
+          esac
+
+          if [ "$KLYX_STRIPE_MODE" != "test" ] || [ "$KLYX_LIVE_PAYMENTS_ENABLED" != "false" ]; then
+            echo "::error::Golden path must run with live payments disabled."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify test suite
+        run: npm test
+
+      - name: TypeScript
+        run: npx tsc --noEmit --pretty false
+
+      - name: Production build
+        run: npm run build
+
+      # The mutation golden-path spec is added only after the dedicated
+      # Supabase/Stripe test secrets above are configured. Until then,
+      # this workflow deliberately stops at the isolation/runtime proof.
+      - name: Golden path harness ready
+        run: echo "Isolated Supabase + Stripe test runtime verified."
