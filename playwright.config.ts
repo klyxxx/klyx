@@ -15,6 +15,10 @@ const baseURL =
 const useSystemChrome =
   process.env.KLYX_PLAYWRIGHT_SYSTEM_CHROME === "1";
 
+const localServerCommand = process.env.CI
+  ? "npm run start -- --hostname 127.0.0.1 --port 3100"
+  : "npm run dev -- --hostname 127.0.0.1 --port 3100";
+
 export default defineConfig({
   testDir: "./tests/e2e",
 
@@ -63,8 +67,11 @@ export default defineConfig({
   webServer: externalBaseUrl
     ? undefined
     : {
+        // CI already validates `npm run build` before Playwright.
+        // Reuse that exact production build instead of recompiling
+        // routes through `next dev`; local E2E keeps the dev server.
         command:
-          "npm run dev -- --hostname 127.0.0.1 --port 3100",
+          localServerCommand,
 
         url:
           localBaseUrl,
