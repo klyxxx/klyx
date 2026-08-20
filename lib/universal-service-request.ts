@@ -293,16 +293,8 @@ export function detectRequestedTime(
   ).padStart(2, "0")}:00`;
 }
 
-export function detectDurationHours(
-  text: string
-): number | null {
-  const match = normalize(text).match(
-    /(?:pendant|pour|environ)?\s*(\d+(?:[.,]\d+)?)\s*(?:h|heure|heures)\b/
-  );
-
-  if (!match) return null;
-
-  const value = Number(match[1].replace(",", "."));
+function validDurationHours(raw: string): number | null {
+  const value = Number(raw.replace(",", "."));
 
   if (
     !Number.isFinite(value) ||
@@ -313,6 +305,56 @@ export function detectDurationHours(
   }
 
   return value;
+}
+
+export function detectDurationHours(
+  text: string
+): number | null {
+  const normalized = normalize(text);
+
+  const contextualDuration = normalized.match(
+    /\b(?:pendant|pour|environ)\s*(\d+(?:[.,]\d+)?)\s*(?:h|heure|heures)\b/
+  );
+
+  if (contextualDuration) {
+    return validDurationHours(contextualDuration[1]);
+  }
+
+  const range = normalized.match(
+    /\bde\s+(\d{1,2})\s*h(?:\s*(\d{1,2}))?\s+a\s+(\d{1,2})\s*h(?:\s*(\d{1,2}))?\b/
+  );
+
+  if (range) {
+    const startMinutes =
+      Number(range[1]) * 60 + Number(range[2] ?? 0);
+    const endMinutes =
+      Number(range[3]) * 60 + Number(range[4] ?? 0);
+    const rangeHours = (endMinutes - startMinutes) / 60;
+
+    if (rangeHours > 0 && rangeHours <= 24) {
+      return rangeHours;
+    }
+  }
+
+  const candidates = [
+    ...normalized.matchAll(
+      /\b(\d+(?:[.,]\d+)?)\s*(?:h|heure|heures)\b/g
+    ),
+  ];
+
+  for (const candidate of candidates) {
+    const index = candidate.index ?? 0;
+    const prefix = normalized.slice(0, index).trimEnd();
+
+    if (/(?:^|\s)(?:a|vers)\s*$/.test(prefix)) {
+      continue;
+    }
+
+    const duration = validDurationHours(candidate[1]);
+    if (duration !== null) return duration;
+  }
+
+  return null;
 }
 
 export function detectBudget(
