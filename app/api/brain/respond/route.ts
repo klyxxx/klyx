@@ -25,6 +25,7 @@ import {
   parseMultiSlotSchedule,
   type BrainMultiSlotSchedule,
 } from "@/lib/brain-multi-slot";
+import { detectLocation } from "@/lib/location-intent";
 
 // KLYX_SERVER_OBSERVABILITY_12B_8B
 import {
@@ -93,62 +94,6 @@ type PreferencesRow = {
   ai_memory_enabled: boolean | null;
   scheduling_notes: string | null;
 };
-
-type CityRule = {
-  city: string;
-  aliases: string[];
-};
-
-const CITY_RULES: CityRule[] = [
-  {
-    city: "Bruxelles",
-    aliases: ["bruxelles", "brussel", "bxl", "bx", "bruxel"],
-  },
-  {
-    city: "Anderlecht",
-    aliases: ["anderlecht"],
-  },
-  {
-    city: "Schaerbeek",
-    aliases: ["schaerbeek", "schaarbeek"],
-  },
-  {
-    city: "Ixelles",
-    aliases: ["ixelles", "elsene"],
-  },
-  {
-    city: "Uccle",
-    aliases: ["uccle", "ukkel"],
-  },
-  {
-    city: "Etterbeek",
-    aliases: ["etterbeek"],
-  },
-  {
-    city: "Forest",
-    aliases: ["forest", "vorst"],
-  },
-  {
-    city: "Saint-Gilles",
-    aliases: ["saint gilles", "sint gillis"],
-  },
-  {
-    city: "Jette",
-    aliases: ["jette"],
-  },
-  {
-    city: "Evere",
-    aliases: ["evere"],
-  },
-  {
-    city: "Molenbeek-Saint-Jean",
-    aliases: [
-      "molenbeek",
-      "molenbeek saint jean",
-      "sint jans molenbeek",
-    ],
-  },
-];
 
 function normalize(value: string): string {
   return value
@@ -235,18 +180,6 @@ function approximatelyContains(
   }
 
   return false;
-}
-
-function detectCity(text: string): string | null {
-  for (const rule of CITY_RULES) {
-    const matches = rule.aliases.some((alias) =>
-      approximatelyContains(text, alias)
-    );
-
-    if (matches) return rule.city;
-  }
-
-  return null;
 }
 
 function toLocalIsoDate(date: Date): string {
@@ -499,7 +432,7 @@ function mergeContext(
       previousSlug: previous.serviceSlug,
       services,
     }),
-    city: detectCity(currentMessage) ?? previous.city,
+    city: detectLocation(currentMessage) ?? previous.city,
     date: detectDate(currentMessage) ?? previous.date,
     time: detectTime(currentMessage) ?? previous.time,
     budget:
