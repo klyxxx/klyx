@@ -21,19 +21,12 @@ describe("legacy stores server-only contract", () => {
     );
   });
 
-  it("closes all historical direct-browser store policies", () => {
+  it("closes the historical direct-browser store policy", () => {
     const source = readFileSync(join(process.cwd(), migrationPath), "utf8");
     const baseline = readFileSync(join(process.cwd(), baselinePath), "utf8");
 
-    for (const policy of [
-      "stores delete own",
-      "stores insert own",
-      "stores update own",
-      "stores select public",
-    ]) {
-      expect(baseline).toContain(`CREATE POLICY \"${policy}\"`);
-      expect(source).toContain(`drop policy if exists \"${policy}\"`);
-    }
+    expect(baseline).toContain('CREATE POLICY "klyx_stores_all"');
+    expect(source).toContain('drop policy if exists "klyx_stores_all"');
 
     expect(baseline).toContain(
       'GRANT ALL ON TABLE "public"."stores" TO "anon";'
