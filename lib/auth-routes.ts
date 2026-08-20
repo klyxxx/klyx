@@ -23,6 +23,7 @@ export const KLYX_PROTECTED_ROUTES = [
   "/projects",
   "/provider",
   "/quotes",
+  "/recommendations",
   "/request",
   "/requests",
   "/reviews",
