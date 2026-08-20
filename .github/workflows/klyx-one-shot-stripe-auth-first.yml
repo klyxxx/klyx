@@ -1,0 +1,162 @@
+name: KLYX One-shot Stripe Auth First
+
+on:
+  push:
+    branches:
+      - security/stripe-checkout-auth-first
+    paths:
+      - ".github/workflows/klyx-one-shot-stripe-auth-first.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  transform:
+    name: Apply exact Stripe auth-first transform
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Apply verified replacements
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              p = Path(path)
+              text = p.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected exactly one target block, found {count}")
+              p.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          checkout_path = "app/api/stripe/create-checkout-session/route.ts"
+          checkout_old = '''  try {
+            assertStripeRuntimeReady();
+
+            const stripeSecretKey = requiredEnv("STRIPE_SECRET_KEY");
+            const stripe = new Stripe(stripeSecretKey);
+
+            const { user, profile } = await getAuthenticatedProfile(request);
+            requireAccountType(profile, "client");
+
+            const body = (await request.json()) as {
+          '''
+          checkout_new = '''  try {
+            const { user, profile } = await getAuthenticatedProfile(request);
+            requireAccountType(profile, "client");
+
+            assertStripeRuntimeReady();
+
+            const stripeSecretKey = requiredEnv("STRIPE_SECRET_KEY");
+            const stripe = new Stripe(stripeSecretKey);
+
+            const body = (await request.json()) as {
+          '''
+          replace_once(checkout_path, checkout_old, checkout_new)
+
+          group_path = "app/api/stripe/create-group-checkout-session/route.ts"
+          group_old = '''  try {
+            assertStripeRuntimeReady();
+
+            const stripeKey =
+              requiredEnv(
+                "STRIPE_SECRET_KEY"
+              );
+
+            const stripe =
+              new Stripe(
+                stripeKey
+              );
+
+            const {
+              user,
+              profile,
+            } =
+              await getAuthenticatedProfile(
+                request
+              );
+
+            requireAccountType(
+              profile,
+              "client"
+            );
+
+            const body =
+          '''
+          group_new = '''  try {
+            const {
+              user,
+              profile,
+            } =
+              await getAuthenticatedProfile(
+                request
+              );
+
+            requireAccountType(
+              profile,
+              "client"
+            );
+
+            assertStripeRuntimeReady();
+
+            const stripeKey =
+              requiredEnv(
+                "STRIPE_SECRET_KEY"
+              );
+
+            const stripe =
+              new Stripe(
+                stripeKey
+              );
+
+            const body =
+          '''
+          replace_once(group_path, group_old, group_new)
+
+          test_path = Path("tests/e2e/anonymous-api-security.spec.ts")
+          tests = test_path.read_text(encoding="utf-8")
+          if "Stripe checkout creation authenticates before runtime configuration" in tests:
+              raise SystemExit("anonymous Stripe checkout tests already exist")
+          closing = "\n});\n"
+          if not tests.endswith(closing):
+              raise SystemExit("anonymous API security spec has an unexpected ending")
+          additions = '''
+
+            test("Stripe checkout creation authenticates before runtime configuration", async ({ request }) => {
+              const response = await request.post("/api/stripe/create-checkout-session", {
+                data: {},
+              });
+              expect(response.status()).toBe(401);
+            });
+
+            test("Stripe group checkout creation authenticates before runtime configuration", async ({ request }) => {
+              const response = await request.post("/api/stripe/create-group-checkout-session", {
+                data: {},
+              });
+              expect(response.status()).toBe(401);
+            });'''
+          test_path.write_text(tests[:-len(closing)] + additions + closing, encoding="utf-8")
+          PY
+
+      - name: Commit transformed files
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            app/api/stripe/create-checkout-session/route.ts \
+            app/api/stripe/create-group-checkout-session/route.ts \
+            tests/e2e/anonymous-api-security.spec.ts
+          if git diff --cached --quiet; then
+            echo "::error::The verified transform produced no changes."
+            exit 1
+          fi
+          git commit -m "security: authenticate checkout APIs before Stripe runtime"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
