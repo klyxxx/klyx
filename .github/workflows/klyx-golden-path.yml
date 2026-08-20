@@ -245,9 +245,12 @@ jobs:
       - name: Verify client quote and booking lifecycle
         run: node scripts/golden-path-client-lifecycle.mjs
 
-      - name: Golden path prepayment lifecycle ready
+      - name: Verify signed webhook, mission and review lifecycle
+        run: node scripts/golden-path-service-lifecycle.mjs
+
+      - name: Golden path local lifecycle ready
         run: >-
-          echo "Real quote request, provider send, client accept, booking creation and provider acceptance verified on ephemeral Supabase."
+          echo "Quote, booking, signed local Stripe webhook, idempotency, payment ledger, mission completion and review verified on ephemeral Supabase."
 
       - name: Stop golden path production server
         if: always()
