@@ -1,9 +1,13 @@
 name: KLYX One-shot Stripe Auth First
 
 on:
-  push:
+  pull_request:
     branches:
-      - security/stripe-checkout-auth-first
+      - main
+    types:
+      - opened
+      - synchronize
+      - reopened
     paths:
       - ".github/workflows/klyx-one-shot-stripe-auth-first.yml"
 
@@ -13,12 +17,15 @@ permissions:
 jobs:
   transform:
     name: Apply exact Stripe auth-first transform
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-22.04
     timeout-minutes: 5
 
     steps:
-      - name: Checkout branch
+      - name: Checkout PR branch
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.head_ref }}
 
       - name: Apply verified replacements
         shell: bash
@@ -146,6 +153,8 @@ jobs:
 
       - name: Commit transformed files
         shell: bash
+        env:
+          PR_BRANCH: ${{ github.head_ref }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -159,4 +168,4 @@ jobs:
             exit 1
           fi
           git commit -m "security: authenticate checkout APIs before Stripe runtime"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+          git push origin "HEAD:${PR_BRANCH}"
