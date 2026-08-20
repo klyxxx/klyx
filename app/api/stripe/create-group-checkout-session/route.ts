@@ -121,18 +121,6 @@ export async function POST(
     Date.now();
 
   try {
-    assertStripeRuntimeReady();
-
-    const stripeKey =
-      requiredEnv(
-        "STRIPE_SECRET_KEY"
-      );
-
-    const stripe =
-      new Stripe(
-        stripeKey
-      );
-
     const {
       user,
       profile,
@@ -145,6 +133,18 @@ export async function POST(
       profile,
       "client"
     );
+
+    assertStripeRuntimeReady();
+
+    const stripeKey =
+      requiredEnv(
+        "STRIPE_SECRET_KEY"
+      );
+
+    const stripe =
+      new Stripe(
+        stripeKey
+      );
 
     const body =
       (await request.json()) as {
