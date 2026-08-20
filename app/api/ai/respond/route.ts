@@ -12,7 +12,25 @@ type RequestBody = {
   message?: unknown;
 };
 
+async function getAuthenticatedUser() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  return user;
+}
+
 export async function GET() {
+  const user = await getAuthenticatedUser();
+
+  if (!user) {
+    return NextResponse.json(
+      { error: "Non connecté." },
+      { status: 401 }
+    );
+  }
+
   return NextResponse.json({
     enabled: isKlyxAiEnabled(),
     mode: isKlyxAiEnabled() ? "openai" : "fallback",
@@ -23,11 +41,7 @@ export async function POST(request: Request) {
   const startedAt = Date.now();
 
   try {
-    const supabase = await createClient();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getAuthenticatedUser();
 
     if (!user) {
       return NextResponse.json(

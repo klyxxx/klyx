@@ -1,5 +1,5 @@
 // KLYX_STRIPE_CONNECT_COUNTRY_PHASE_5G
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { assertStripeRuntimeReady } from "@/lib/stripe-runtime";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -8,9 +8,7 @@ import {
   getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
-import {
-  secureApiErrorResponse,
-} from "@/lib/api-error";
+import { secureApiErrorResponse } from "@/lib/api-error";
 
 function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();
@@ -40,33 +38,23 @@ export async function POST(request: Request) {
   const startedAt = Date.now();
 
   try {
-    assertStripeRuntimeReady();
-
-    const stripe = new Stripe(requiredEnv("STRIPE_SECRET_KEY"));
     const { user, profile: activeProfile } =
       await getAuthenticatedProfile(request);
     requireAccountType(activeProfile, "provider");
 
-    const accountCountry =
-      activeProfile.countryCode
-        .trim()
-        .toUpperCase();
+    assertStripeRuntimeReady();
+    const stripe = new Stripe(requiredEnv("STRIPE_SECRET_KEY"));
 
-    if (
-      !/^[A-Z]{2}$/.test(
-        accountCountry
-      )
-    ) {
+    const accountCountry = activeProfile.countryCode.trim().toUpperCase();
+
+    if (!/^[A-Z]{2}$/.test(accountCountry)) {
       return NextResponse.json(
         {
           error:
             "Configure ton pays KLYX avant de créer ton compte de paiement.",
-          code:
-            "KLYX_STRIPE_COUNTRY_REQUIRED",
+          code: "KLYX_STRIPE_COUNTRY_REQUIRED",
         },
-        {
-          status: 409,
-        }
+        { status: 409 }
       );
     }
 
@@ -138,23 +126,16 @@ export async function POST(request: Request) {
       error instanceof Error
         ? error.message
         : "Impossible de démarrer Stripe Connect.";
-    const status =
-      apiErrorStatus(message);
+    const status = apiErrorStatus(message);
 
     return secureApiErrorResponse({
       error,
-      event:
-        "stripe_connect_account_failed",
-      route:
-        "/api/stripe/connect/create-account",
+      event: "stripe_connect_account_failed",
+      route: "/api/stripe/connect/create-account",
       method: "POST",
-      code:
-        "stripe_connect_account_failed",
+      code: "stripe_connect_account_failed",
       status,
-      publicMessage:
-        status < 500
-          ? message
-          : undefined,
+      publicMessage: status < 500 ? message : undefined,
       startedAt,
     });
   }
