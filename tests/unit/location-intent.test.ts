@@ -11,6 +11,31 @@ describe("KLYX shared location extraction", () => {
     expect(
       detectLocation("Prestation à Schaerbeek samedi matin.")
     ).toBe("Schaerbeek");
+
+    expect(
+      detectLocation("Mission à Molenbeek-Saint-Jean demain.")
+    ).toBe("Molenbeek-Saint-Jean");
+  });
+
+  it("preserves historical Belgian aliases", () => {
+    expect(detectLocation("Besoin d'aide à BXL demain.")).toBe(
+      "Bruxelles"
+    );
+    expect(detectLocation("Intervention à Brussel vendredi.")).toBe(
+      "Bruxelles"
+    );
+    expect(detectLocation("Mission à Schaarbeek samedi.")).toBe(
+      "Schaerbeek"
+    );
+    expect(detectLocation("Service à Elsene demain.")).toBe(
+      "Ixelles"
+    );
+    expect(detectLocation("Prestation à Ukkel mardi.")).toBe(
+      "Uccle"
+    );
+    expect(detectLocation("Travail à Vorst mercredi.")).toBe(
+      "Forest"
+    );
   });
 
   it("extracts explicit cities beyond Belgium", () => {
@@ -45,6 +70,10 @@ describe("KLYX shared location extraction", () => {
     expect(
       detectLocation("Intervention dans la ville de Paris mardi.")
     ).toBe("Paris");
+
+    expect(
+      detectLocation("Je cherche un prestataire à côté de Douala demain.")
+    ).toBe("Douala");
   });
 
   it("stops before time, date and budget qualifiers", () => {
@@ -57,9 +86,12 @@ describe("KLYX shared location extraction", () => {
     ).toBe("Douala");
   });
 
-  it("does not confuse times or generic places with a city", () => {
+  it("does not confuse times, generic places or substrings with a city", () => {
     expect(detectLocation("Je veux venir à 10h demain.")).toBeNull();
     expect(detectLocation("Je veux une prestation à domicile.")).toBeNull();
     expect(detectLocation("Il a besoin d'un plombier demain.")).toBeNull();
+    expect(
+      detectLocation("Monsieur cherche un plombier demain.")
+    ).toBeNull();
   });
 });
