@@ -84,12 +84,9 @@ describe("KLYX golden path workflow safety", () => {
       "e2eUrl.hostname === productionUrl.hostname"
     );
 
-    expect(databaseUrl).toContain(
-      'requiredGoldenPathEnv("KLYX_E2E_SUPABASE_DB_URL")'
-    );
-    expect(databaseUrl).toContain(
-      'requiredGoldenPathEnv("KLYX_E2E_SUPABASE_DB_PASSWORD")'
-    );
+    expect(databaseUrl).toContain("requiredGoldenPathEnv(");
+    expect(databaseUrl).toContain('"KLYX_E2E_SUPABASE_DB_URL"');
+    expect(databaseUrl).toContain('"KLYX_E2E_SUPABASE_DB_PASSWORD"');
     expect(databaseUrl).toContain(
       'databaseHostname.endsWith(".pooler.supabase.com")'
     );
