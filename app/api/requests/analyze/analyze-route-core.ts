@@ -179,7 +179,7 @@ export async function POST(request: Request) {
 
       const preferredServiceSlug =
         preferences?.preferred_service_slugs?.find(
-          (slug) => serviceBySlug.has(slug)
+          (slug: string) => serviceBySlug.has(slug)
         ) ?? null;
 
       serviceSlug =
