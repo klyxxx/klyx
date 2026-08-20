@@ -77,7 +77,10 @@ describe("review table server boundary contract", () => {
       'import { supabaseAdmin } from "@/lib/supabase-admin";'
     );
     expect(route).toContain('.from("reviews")');
-    expect(route).toContain('is_published", true');
+    expect(route).toContain('booking.status === "completed"');
+    expect(route).toContain("bookingProviderId === providerId");
+    expect(route).toContain("publicAuthorName");
+    expect(route).toContain("authorAvatarUrl: null");
     expect(component).toContain(`/api/providers/${providerId}/reviews`);
     expect(component).not.toContain('.from("reviews")');
   });
@@ -91,7 +94,7 @@ describe("review table server boundary contract", () => {
     expect(reviewPage).not.toContain('.from("reviews")');
 
     expect(groupPage).toContain('/api/group-reviews?groupId=');
-    expect(groupPage).toContain('fetch("/api/group-reviews"');
+    expect(groupPage).toContain('"/api/group-reviews",');
     expect(groupPage).not.toContain('.from("reviews")');
   });
 });
