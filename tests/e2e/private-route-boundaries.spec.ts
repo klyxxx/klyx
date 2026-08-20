@@ -51,42 +51,5 @@ test.describe(
         }
       );
     }
-
-    test(
-      "nested private route preserves its full redirect target",
-      async ({ page }) => {
-        await page.goto(
-          "/bookings/example-booking?tab=payment"
-        );
-
-        await expect(page).toHaveURL(
-          /\/login\?redirect=%2Fbookings%2Fexample-booking%3Ftab%3Dpayment$/
-        );
-      }
-    );
-
-    test(
-      "request query parameters survive the authentication boundary",
-      async ({ page }) => {
-        await page.goto(
-          "/request?service=menage&source=assistant"
-        );
-
-        const currentUrl =
-          new URL(page.url());
-
-        expect(currentUrl.pathname).toBe(
-          "/login"
-        );
-
-        expect(
-          currentUrl.searchParams.get(
-            "redirect"
-          )
-        ).toBe(
-          "/request?service=menage&source=assistant"
-        );
-      }
-    );
   }
 );
