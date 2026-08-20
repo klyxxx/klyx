@@ -81,7 +81,7 @@ describe("review table server boundary contract", () => {
     expect(route).toContain("bookingProviderId === providerId");
     expect(route).toContain("publicAuthorName");
     expect(route).toContain("authorAvatarUrl: null");
-    expect(component).toContain(`/api/providers/${providerId}/reviews`);
+    expect(component).toContain('/api/providers/${providerId}/reviews');
     expect(component).not.toContain('.from("reviews")');
   });
 
