@@ -25,6 +25,8 @@ import {
   parseMultiSlotSchedule,
   type BrainMultiSlotSchedule,
 } from "@/lib/brain-multi-slot";
+
+// KLYX_SERVER_OBSERVABILITY_12B_8B
 import {
   logServerInfo,
   logServerWarning,
@@ -336,6 +338,7 @@ function detectDate(text: string): string | null {
 }
 
 function detectTime(text: string): string | null {
+  // KLYX_ZERO_COST_EXPLICIT_TIME_12B_7B
   const explicitTimeMatch = text.match(
     /\b(?:vers\s+|à\s+|a\s+)?([01]?\d|2[0-3])\s*(?:h|heure|heures|:)\s*([0-5]?\d)?\b/i
   );
