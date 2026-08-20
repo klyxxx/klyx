@@ -78,6 +78,34 @@ function stripeSignature(payload, webhookSecret, timestamp) {
   return `t=${timestamp},v1=${digest}`;
 }
 
+function brusselsDateOffset(days) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Brussels",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+
+  const anchor = new Date(
+    Date.UTC(
+      Number(values.year),
+      Number(values.month) - 1,
+      Number(values.day) + days,
+      12,
+      0,
+      0
+    )
+  );
+
+  return anchor.toISOString().slice(0, 10);
+}
+
 async function main() {
   const { e2eOrigin, localSupabase } = assertGoldenPathIsolation();
 
@@ -357,6 +385,48 @@ async function main() {
     if (!notificationKeys.has(key)) {
       throw new Error(`Missing payment notification ${key}.`);
     }
+  }
+
+  // KLYX_GOLDEN_PATH_TEMPORAL_GUARD_PROBE
+  const prematureTracking = await requestJson({
+    appOrigin,
+    accessToken,
+    profileId: provider.id,
+    path: "/api/bookings/tracking",
+    method: "POST",
+    expectedStatuses: [409],
+    body: {
+      bookingId: booking.id,
+      action: "en_route",
+      note: "Golden path premature tracking probe.",
+    },
+  });
+
+  if (
+    typeof prematureTracking.payload?.error !== "string" ||
+    !prematureTracking.payload.error.includes("jour prévu")
+  ) {
+    throw new Error(
+      "Future booking tracking was not blocked by the temporal guard."
+    );
+  }
+
+  const historicalDate = brusselsDateOffset(-1);
+  const { error: timeFixtureError } = await admin
+    .from("bookings")
+    .update({
+      booking_date: historicalDate,
+      start_time: "10:00",
+      end_time: "12:00",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", booking.id)
+    .eq("payment_status", "paid");
+
+  if (timeFixtureError) {
+    throw new Error(
+      `Unable to move the ephemeral booking into the service window: ${timeFixtureError.message}`
+    );
   }
 
   for (const action of ["en_route", "arrived", "in_progress"]) {
