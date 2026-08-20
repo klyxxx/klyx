@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { assertStripeRuntimeReady } from "@/lib/stripe-runtime";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -7,9 +7,7 @@ import {
   getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
-import {
-  secureApiErrorResponse,
-} from "@/lib/api-error";
+import { secureApiErrorResponse } from "@/lib/api-error";
 
 function requiredEnv(name: string): string {
   const value = process.env[name];
@@ -25,12 +23,12 @@ export async function GET(request: Request) {
   const startedAt = Date.now();
 
   try {
-    assertStripeRuntimeReady();
-
-    const stripe = new Stripe(requiredEnv("STRIPE_SECRET_KEY"));
     const { profile: activeProfile } =
       await getAuthenticatedProfile(request);
     requireAccountType(activeProfile, "provider");
+
+    assertStripeRuntimeReady();
+    const stripe = new Stripe(requiredEnv("STRIPE_SECRET_KEY"));
 
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
@@ -82,23 +80,16 @@ export async function GET(request: Request) {
       error instanceof Error
         ? error.message
         : "Impossible de vérifier Stripe Connect.";
-    const status =
-      apiErrorStatus(message);
+    const status = apiErrorStatus(message);
 
     return secureApiErrorResponse({
       error,
-      event:
-        "stripe_connect_status_failed",
-      route:
-        "/api/stripe/connect/status",
+      event: "stripe_connect_status_failed",
+      route: "/api/stripe/connect/status",
       method: "GET",
-      code:
-        "stripe_connect_status_failed",
+      code: "stripe_connect_status_failed",
       status,
-      publicMessage:
-        status < 500
-          ? message
-          : undefined,
+      publicMessage: status < 500 ? message : undefined,
       startedAt,
     });
   }

@@ -26,4 +26,24 @@ test.describe("KLYX anonymous private API security", () => {
 
     expect(response.status()).toBe(401);
   });
+
+  test("AI runtime status is private", async ({ request }) => {
+    const response = await request.get("/api/ai/respond");
+    expect(response.status()).toBe(401);
+  });
+
+  test("authenticated coverage API rejects anonymous requests", async ({ request }) => {
+    const response = await request.get("/api/search/coverage");
+    expect(response.status()).toBe(401);
+  });
+
+  test("Stripe Connect status authenticates before runtime configuration", async ({ request }) => {
+    const response = await request.get("/api/stripe/connect/status");
+    expect(response.status()).toBe(401);
+  });
+
+  test("Stripe Connect account creation authenticates before runtime configuration", async ({ request }) => {
+    const response = await request.post("/api/stripe/connect/create-account");
+    expect(response.status()).toBe(401);
+  });
 });
