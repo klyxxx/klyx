@@ -28,7 +28,7 @@ jobs:
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-      SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
 
     steps:
       - name: Publish pending production migration status
@@ -64,7 +64,7 @@ jobs:
           set -euo pipefail
 
           missing=0
-          for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_ID; do
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD NEXT_PUBLIC_SUPABASE_URL; do
             if [ -z "${!name:-}" ]; then
               echo "::error::Missing required GitHub Actions secret: ${name}"
               missing=1
@@ -74,6 +74,32 @@ jobs:
           if [ "$missing" -ne 0 ]; then
             exit 1
           fi
+
+      - name: Derive production project ref
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          project_ref="$(node - <<'NODE'
+          const raw = process.env.NEXT_PUBLIC_SUPABASE_URL;
+          const hostname = new URL(raw).hostname;
+          const ref = hostname.split(".")[0] ?? "";
+
+          if (!/^[a-z0-9]{20}$/.test(ref)) {
+            process.exit(2);
+          }
+
+          process.stdout.write(ref);
+          NODE
+          )"
+
+          if [ -z "$project_ref" ]; then
+            echo "::error::Unable to derive Supabase project ref from NEXT_PUBLIC_SUPABASE_URL"
+            exit 1
+          fi
+
+          echo "SUPABASE_PROJECT_ID=$project_ref" >> "$GITHUB_ENV"
+          echo "Supabase production project ref derived from the configured public URL."
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
@@ -98,13 +124,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          supabase migration list --linked
+          mkdir -p migration-proof
+          supabase migration list --linked | tee migration-proof/before.txt
 
       - name: Preview pending production migrations
         shell: bash
         run: |
           set -euo pipefail
-          supabase db push --linked --dry-run
+          supabase db push --linked --dry-run | tee migration-proof/dry-run-before.txt
 
       - name: Apply pending production migrations
         shell: bash
@@ -116,8 +143,28 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          supabase migration list --linked
-          supabase db push --linked --dry-run
+          supabase migration list --linked | tee migration-proof/after.txt
+          supabase db push --linked --dry-run | tee migration-proof/dry-run-after.txt
+
+          if grep -Eqi "would apply|pending migration|push.*migration" migration-proof/dry-run-after.txt; then
+            echo "::error::Supabase still reports pending production migrations after db push."
+            exit 1
+          fi
+
+          printf '%s\n' \
+            "commit=${GITHUB_SHA}" \
+            "run=${GITHUB_RUN_ID}" \
+            "verified_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            > migration-proof/proof.txt
+
+      - name: Upload production migration proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: klyx-supabase-production-proof-${{ github.run_id }}
+          path: migration-proof/
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Publish final production migration status
         if: always()
