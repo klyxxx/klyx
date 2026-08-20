@@ -41,6 +41,7 @@ describe("KLYX golden path workflow safety", () => {
       "scripts/golden-path-preflight.mjs",
       "scripts/golden-path-provider-fixture.mjs",
       "scripts/golden-path-client-lifecycle.mjs",
+      "scripts/golden-path-service-lifecycle.mjs",
     ]) {
       expect(() =>
         execFileSync(process.execPath, ["--check", repoPath(file)], {
@@ -50,12 +51,28 @@ describe("KLYX golden path workflow safety", () => {
     }
   });
 
-  it("is manual-only and requires explicit mutation confirmation", () => {
+  it("runs manually or after filtered main changes and still requires mutation confirmation", () => {
     expect(workflow).toContain("workflow_dispatch:");
-    expect(workflow).not.toContain("pull_request:");
-    expect(workflow).not.toContain("push:");
+    expect(workflow).toContain("push:");
+    expect(workflow).toContain("      - main");
     expect(workflow).toContain(
-      "KLYX_GOLDEN_PATH_MUTATIONS_ENABLED: ${{ inputs.confirm_isolated_e2e }}"
+      '      - ".github/workflows/klyx-golden-path.yml"'
+    );
+    expect(workflow).toContain(
+      '      - "supabase/migrations/**"'
+    );
+    expect(workflow).toContain(
+      '      - "app/api/bookings/**"'
+    );
+    expect(workflow).toContain(
+      '      - "app/api/stripe/webhook/**"'
+    );
+    expect(workflow).toContain(
+      '      - "lib/booking-tracking-time.ts"'
+    );
+    expect(workflow).not.toContain("pull_request:");
+    expect(workflow).toContain(
+      "KLYX_GOLDEN_PATH_MUTATIONS_ENABLED: ${{ github.event_name == 'push' && 'true' || inputs.confirm_isolated_e2e }}"
     );
     expect(workflow).toContain(
       'if [ "$KLYX_GOLDEN_PATH_MUTATIONS_ENABLED" != "true" ]'
@@ -109,7 +126,7 @@ describe("KLYX golden path workflow safety", () => {
     expect(workflow).not.toContain("-x kong");
   });
 
-  it("keeps the prepayment harness test-shaped and secret free", () => {
+  it("keeps the local payment harness test-shaped and secret free", () => {
     expect(workflow).toContain(
       'STRIPE_SECRET_KEY: "sk_test_klyx_golden_path_local_only"'
     );

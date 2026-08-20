@@ -12,6 +12,23 @@ on:
           - "false"
           - "true"
 
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/klyx-golden-path.yml"
+      - "scripts/golden-path-*.mjs"
+      - "supabase/migrations/**"
+      - "app/api/bookings/**"
+      - "app/api/quotes/**"
+      - "app/api/reviews/**"
+      - "app/api/stripe/webhook/**"
+      - "lib/booking-tracking-time.ts"
+      - "lib/stripe-payments.ts"
+      - "lib/stripe-webhook-events.ts"
+      - "lib/payment-ledger.ts"
+      - "lib/api-auth.ts"
+
 permissions:
   contents: read
 
@@ -27,7 +44,7 @@ jobs:
     timeout-minutes: 45
 
     env:
-      KLYX_GOLDEN_PATH_MUTATIONS_ENABLED: ${{ inputs.confirm_isolated_e2e }}
+      KLYX_GOLDEN_PATH_MUTATIONS_ENABLED: ${{ github.event_name == 'push' && 'true' || inputs.confirm_isolated_e2e }}
       KLYX_GOLDEN_PATH_LOCAL_SUPABASE: "true"
       KLYX_PRODUCTION_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       SUPABASE_TELEMETRY_DISABLED: "1"
@@ -245,9 +262,12 @@ jobs:
       - name: Verify client quote and booking lifecycle
         run: node scripts/golden-path-client-lifecycle.mjs
 
-      - name: Golden path prepayment lifecycle ready
+      - name: Verify signed webhook, mission and review lifecycle
+        run: node scripts/golden-path-service-lifecycle.mjs
+
+      - name: Golden path local lifecycle ready
         run: >-
-          echo "Real quote request, provider send, client accept, booking creation and provider acceptance verified on ephemeral Supabase."
+          echo "Quote, booking, signed local Stripe webhook, idempotency, payment ledger, mission completion and review verified on ephemeral Supabase."
 
       - name: Stop golden path production server
         if: always()
