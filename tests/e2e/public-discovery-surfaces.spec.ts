@@ -19,9 +19,8 @@ test.describe("KLYX public discovery surfaces", () => {
     ] as const) {
       const response = await page.goto(route, { waitUntil: "domcontentloaded" });
 
-      if (response) {
-        expect(response.status(), `${route} returned a server error`).toBeLessThan(500);
-      }
+      expect(response, `${route} did not return a document response`).toBeTruthy();
+      expect(response!.status(), `${route} returned an HTTP error`).toBeLessThan(400);
 
       const current = new URL(page.url());
       expect(current.pathname, `${route} unexpectedly required login`).not.toBe("/login");
