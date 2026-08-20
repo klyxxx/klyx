@@ -105,16 +105,16 @@ describe("KLYX golden path workflow safety", () => {
     expect(workflow).not.toContain("-x kong");
   });
 
-  it("hard-locks the only external payment credential to Stripe test mode", () => {
+  it("keeps the prepayment harness test-shaped and secret free", () => {
     expect(workflow).toContain(
-      "STRIPE_SECRET_KEY: ${{ secrets.KLYX_E2E_STRIPE_SECRET_KEY }}"
+      'STRIPE_SECRET_KEY: "sk_test_klyx_golden_path_local_only"'
     );
     expect(workflow).toContain(
       'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_klyx_golden_path_local_only"'
     );
     expect(workflow).toContain('KLYX_STRIPE_MODE: "test"');
     expect(workflow).toContain('KLYX_LIVE_PAYMENTS_ENABLED: "false"');
-    expect(workflow).toContain("sk_test_*");
+    expect(workflow).not.toContain("secrets.KLYX_E2E_STRIPE_SECRET_KEY");
     expect(workflow).not.toContain("sk_live_");
     expect(workflow).not.toContain("pk_live_");
     expect(runtime).toContain('startsWith("sk_test_")');
