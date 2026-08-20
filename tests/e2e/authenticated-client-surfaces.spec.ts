@@ -1,4 +1,4 @@
-import { test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import {
   activateKlyxE2EProfile,
   clearSensitivePassword,
@@ -44,6 +44,32 @@ test.describe("KLYX authenticated client surfaces", () => {
       "/trust",
     ] as const) {
       await expectHealthyPrivateRoute(page, route);
+    }
+  });
+
+  test("client read APIs return authenticated data contracts", async ({ page }) => {
+    test.setTimeout(120_000);
+    await loginKlyxE2E(page);
+    await activateKlyxE2EProfile(page, "client");
+
+    const results = await page.evaluate(async () => {
+      const routes = [
+        "/api/bookings/overview",
+        "/api/search/coverage",
+      ] as const;
+
+      return Promise.all(
+        routes.map(async (route) => {
+          const response = await fetch(route, { cache: "no-store" });
+          const body = await response.json().catch(() => null);
+          return { route, status: response.status, body };
+        })
+      );
+    });
+
+    for (const result of results) {
+      expect(result.status, `${result.route} failed: ${JSON.stringify(result.body)}`).toBe(200);
+      expect(result.body, `${result.route} returned no JSON body`).toBeTruthy();
     }
   });
 });
