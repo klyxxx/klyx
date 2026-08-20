@@ -261,8 +261,8 @@ export function detectLocation(text: string): string | null {
   const explicitPatterns = [
     /\b(?:ville|commune)\s+de\s+([^,;.!?]+)/iu,
     /\b(?:près|pres|proche)\s+de\s+([^,;.!?]+)/iu,
-    /\b(?:à|a)\s+c[oô]té\s+de\s+([^,;.!?]+)/iu,
-    /\b(?:à|a)\s+([^,;.!?]+)/iu,
+    /(?:^|[\s,(])(?:à|a)\s+c[oô]té\s+de\s+([^,;.!?]+)/iu,
+    /(?:^|[\s,(])(?:à|a)\s+([^,;.!?]+)/iu,
     /\b(?:sur|vers)\s+([^,;.!?]+)/iu,
   ];
 
