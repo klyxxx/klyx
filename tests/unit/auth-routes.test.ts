@@ -37,6 +37,7 @@ describe("KLYX route classification", () => {
       "/requests",
       "/reviews",
       "/scores",
+      "/search",
       "/security",
       "/settings",
       "/tracking",
@@ -53,11 +54,11 @@ describe("KLYX route classification", () => {
     expect(isKlyxProtectedRoute("/founder/cleanup")).toBe(true);
     expect(isKlyxProtectedRoute("/coverage")).toBe(true);
     expect(isKlyxProtectedRoute("/recommendations")).toBe(true);
+    expect(isKlyxProtectedRoute("/search")).toBe(true);
   });
 
-  it("does not confuse public discovery and support routes with private prefixes", () => {
+  it("does not confuse public provider discovery and support routes with private prefixes", () => {
     expect(isKlyxProtectedRoute("/providers")).toBe(false);
-    expect(isKlyxProtectedRoute("/search")).toBe(false);
     expect(isKlyxProtectedRoute("/support")).toBe(false);
     expect(isKlyxProtectedRoute("/delete-account")).toBe(false);
   });
