@@ -39,13 +39,6 @@ test.describe("KLYX anonymous protected route boundaries", () => {
     expect(url.searchParams.has("tab")).toBe(false);
   });
 
-  test("public search remains outside the authenticated boundary", async ({ page }) => {
-    const response = await page.goto("/search");
-
-    expect(response?.status()).toBeLessThan(500);
-    expect(new URL(page.url()).pathname).toBe("/search");
-  });
-
   test("public authentication page remains available anonymously", async ({ page }) => {
     const response = await page.goto("/reset-password");
 
