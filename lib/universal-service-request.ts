@@ -206,15 +206,15 @@ export function detectRequestedDay(
     return isoDateLocal(now);
   }
 
-  if (normalized.includes("demain")) {
-    const date = new Date(now);
-    date.setDate(date.getDate() + 1);
-    return isoDateLocal(date);
-  }
-
   if (normalized.includes("apres demain")) {
     const date = new Date(now);
     date.setDate(date.getDate() + 2);
+    return isoDateLocal(date);
+  }
+
+  if (normalized.includes("demain")) {
+    const date = new Date(now);
+    date.setDate(date.getDate() + 1);
     return isoDateLocal(date);
   }
 
