@@ -1,35 +1,37 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase-admin";
-import {
-  runKlyxLlmShadow,
-} from "@/lib/brain/llm/shadow";
 
-import {
-  sanitizeKlyxShadowForClient,
-} from "@/lib/brain/shadow/shadow-sanitizer";
-
-import type {
-  KlyxPublicShadowStatus,
-} from "@/lib/brain/shadow/shadow-public";
-
-// KLYX_SHADOW_ISOLATION_13_56
 import {
   apiErrorStatus,
   getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
+import { secureApiErrorResponse } from "@/lib/api-error";
 import {
-  secureApiErrorResponse,
-} from "@/lib/api-error";
+  brainServiceLabel,
+  resolveBrainPreferredServiceSlug,
+  resolveBrainServiceSlug,
+  type BrainServiceCatalogRecord,
+} from "@/lib/brain-service-catalog";
+import {
+  runKlyxLlmShadow,
+} from "@/lib/brain/llm/shadow";
+import type {
+  KlyxPublicShadowStatus,
+} from "@/lib/brain/shadow/shadow-public";
+import {
+  sanitizeKlyxShadowForClient,
+} from "@/lib/brain/shadow/shadow-sanitizer";
+import {
+  parseMultiSlotSchedule,
+  type BrainMultiSlotSchedule,
+} from "@/lib/brain-multi-slot";
+
+// KLYX_SERVER_OBSERVABILITY_12B_8B
 import {
   logServerInfo,
   logServerWarning,
 } from "@/lib/server-log";
-import {
-  buildMultiSlotReply,
-  parseMultiSlotSchedule,
-  type BrainMultiSlotSchedule,
-} from "@/lib/brain-multi-slot";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 
 type BrainContext = {
   serviceSlug: string | null;
@@ -67,14 +69,12 @@ type BrainReadinessPayload = {
   } | null;
   automaticExecutionAllowed: false;
 };
+
 type BrainPayload = BrainContext & {
   missing: string[];
   ready: boolean;
   readiness: BrainReadinessPayload;
   schedule: BrainMultiSlotSchedule | null;
-
-
-  // KLYX_LLM_SHADOW_13_55
   llmShadow?: KlyxPublicShadowStatus;
 };
 
@@ -94,175 +94,10 @@ type PreferencesRow = {
   scheduling_notes: string | null;
 };
 
-type ServiceRule = {
-  slug: string;
-  label: string;
-  expressions: string[];
-};
-
 type CityRule = {
   city: string;
   aliases: string[];
 };
-
-function normalize(value: string): string {
-  return value
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .replace(/['’`-]/g, " ")
-    .replace(/[^a-z0-9€\s:/.-]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function levenshtein(a: string, b: string): number {
-  const rows = a.length + 1;
-  const columns = b.length + 1;
-
-  const matrix = Array.from({ length: rows }, () =>
-    Array<number>(columns).fill(0)
-  );
-
-  for (let row = 0; row < rows; row += 1) {
-    matrix[row][0] = row;
-  }
-
-  for (let column = 0; column < columns; column += 1) {
-    matrix[0][column] = column;
-  }
-
-  for (let row = 1; row < rows; row += 1) {
-    for (let column = 1; column < columns; column += 1) {
-      const cost = a[row - 1] === b[column - 1] ? 0 : 1;
-
-      matrix[row][column] = Math.min(
-        matrix[row - 1][column] + 1,
-        matrix[row][column - 1] + 1,
-        matrix[row - 1][column - 1] + cost
-      );
-    }
-  }
-
-  return matrix[a.length][b.length];
-}
-
-function approximatelyContains(
-  text: string,
-  expression: string
-): boolean {
-  const normalizedText = normalize(text);
-  const normalizedExpression = normalize(expression);
-
-  if (!normalizedExpression) {
-    return false;
-  }
-
-  if (normalizedText.includes(normalizedExpression)) {
-    return true;
-  }
-
-  const textWords = normalizedText.split(" ");
-  const expressionWords = normalizedExpression.split(" ");
-
-  if (expressionWords.length === 1) {
-    const maximumDistance =
-      normalizedExpression.length <= 5 ? 1 : 2;
-
-    return textWords.some(
-      (word) =>
-        levenshtein(word, normalizedExpression) <=
-        maximumDistance
-    );
-  }
-
-  for (
-    let index = 0;
-    index <= textWords.length - expressionWords.length;
-    index += 1
-  ) {
-    const candidate = textWords
-      .slice(index, index + expressionWords.length)
-      .join(" ");
-
-    const maximumDistance =
-      normalizedExpression.length <= 10 ? 2 : 3;
-
-    if (
-      levenshtein(candidate, normalizedExpression) <=
-      maximumDistance
-    ) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-const SERVICE_RULES: ServiceRule[] = [
-  {
-    slug: "babysitting",
-    label: "baby-sitting",
-    expressions: [
-      "baby sitter",
-      "babysitter",
-      "baby-sitter",
-      "babysiter",
-      "garde enfant",
-      "garde d enfant",
-      "garder mon enfant",
-      "garder mes enfants",
-      "garde mes enfants",
-      "garde mon enfant",
-      "nounou",
-      "gardienne enfant",
-    ],
-  },
-  {
-    slug: "cleaning",
-    label: "ménage",
-    expressions: [
-      "menage",
-      "ménage",
-      "nettoyage",
-      "nettoyer",
-      "femme de menage",
-      "homme de menage",
-      "nettoyage maison",
-      "nettoyage appartement",
-    ],
-  },
-  {
-    slug: "moving",
-    label: "déménagement",
-    expressions: [
-      "demenagement",
-      "déménagement",
-      "demenager",
-      "déménager",
-      "demenageur",
-      "déménageur",
-      "transport meubles",
-      "changer de maison",
-      "changer appartement",
-    ],
-  },
-  {
-    slug: "handyman",
-    label: "bricolage",
-    expressions: [
-      "bricolage",
-      "bricoleur",
-      "reparation",
-      "réparation",
-      "reparer",
-      "réparer",
-      "monter meuble",
-      "petits travaux",
-      "homme a tout faire",
-    ],
-  },
-];
 
 const CITY_RULES: CityRule[] = [
   {
@@ -315,18 +150,91 @@ const CITY_RULES: CityRule[] = [
   },
 ];
 
-function detectService(text: string): string | null {
-  for (const rule of SERVICE_RULES) {
-    const matches = rule.expressions.some((expression) =>
-      approximatelyContains(text, expression)
-    );
+function normalize(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/['’`-]/g, " ")
+    .replace(/[^a-z0-9€\s:/.-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-    if (matches) {
-      return rule.slug;
+function levenshtein(a: string, b: string): number {
+  const rows = a.length + 1;
+  const columns = b.length + 1;
+  const matrix = Array.from({ length: rows }, () =>
+    Array<number>(columns).fill(0)
+  );
+
+  for (let row = 0; row < rows; row += 1) {
+    matrix[row][0] = row;
+  }
+
+  for (let column = 0; column < columns; column += 1) {
+    matrix[0][column] = column;
+  }
+
+  for (let row = 1; row < rows; row += 1) {
+    for (let column = 1; column < columns; column += 1) {
+      const cost = a[row - 1] === b[column - 1] ? 0 : 1;
+
+      matrix[row][column] = Math.min(
+        matrix[row - 1][column] + 1,
+        matrix[row][column - 1] + 1,
+        matrix[row - 1][column - 1] + cost
+      );
     }
   }
 
-  return null;
+  return matrix[a.length][b.length];
+}
+
+function approximatelyContains(
+  text: string,
+  expression: string
+): boolean {
+  const normalizedText = normalize(text);
+  const normalizedExpression = normalize(expression);
+
+  if (!normalizedExpression) return false;
+  if (normalizedText.includes(normalizedExpression)) return true;
+
+  const textWords = normalizedText.split(" ");
+  const expressionWords = normalizedExpression.split(" ");
+
+  if (expressionWords.length === 1) {
+    const maximumDistance =
+      normalizedExpression.length <= 5 ? 1 : 2;
+
+    return textWords.some(
+      (word) =>
+        levenshtein(word, normalizedExpression) <=
+        maximumDistance
+    );
+  }
+
+  for (
+    let index = 0;
+    index <= textWords.length - expressionWords.length;
+    index += 1
+  ) {
+    const candidate = textWords
+      .slice(index, index + expressionWords.length)
+      .join(" ");
+    const maximumDistance =
+      normalizedExpression.length <= 10 ? 2 : 3;
+
+    if (
+      levenshtein(candidate, normalizedExpression) <=
+      maximumDistance
+    ) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function detectCity(text: string): string | null {
@@ -335,9 +243,7 @@ function detectCity(text: string): string | null {
       approximatelyContains(text, alias)
     );
 
-    if (matches) {
-      return rule.city;
-    }
+    if (matches) return rule.city;
   }
 
   return null;
@@ -381,7 +287,6 @@ function detectDate(text: string): string | null {
     return toLocalIsoDate(date);
   }
 
-  // KLYX_WEEKDAY_12_45
   const weekdayRules = [
     { day: 1, aliases: ["lundi"] },
     { day: 2, aliases: ["mardi"] },
@@ -402,35 +307,28 @@ function detectDate(text: string): string | null {
       const currentDay = date.getDay();
       let daysAhead = (rule.day - currentDay + 7) % 7;
 
-      if (daysAhead === 0) {
-        daysAhead = 7;
-      }
+      if (daysAhead === 0) daysAhead = 7;
 
       date.setDate(date.getDate() + daysAhead);
       return toLocalIsoDate(date);
     }
   }
+
   const numericMatch = text.match(
     /\b(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2,4}))?\b/
   );
 
-  if (!numericMatch) {
-    return null;
-  }
+  if (!numericMatch) return null;
 
   const day = Number(numericMatch[1]);
   const month = Number(numericMatch[2]);
-
   let year = numericMatch[3]
     ? Number(numericMatch[3])
     : now.getFullYear();
 
-  if (year < 100) {
-    year += 2000;
-  }
+  if (year < 100) year += 2000;
 
   const date = new Date(year, month - 1, day);
-
   const valid =
     date.getFullYear() === year &&
     date.getMonth() === month - 1 &&
@@ -440,43 +338,21 @@ function detectDate(text: string): string | null {
 }
 
 function detectTime(text: string): string | null {
-
   // KLYX_ZERO_COST_EXPLICIT_TIME_12B_7B
-  const explicitTimeMatch =
-    text.match(
-      /\b(?:vers\s+|à\s+|a\s+)?([01]?\d|2[0-3])\s*(?:h|heure|heures|:)\s*([0-5]?\d)?\b/i
-    );
+  const explicitTimeMatch = text.match(
+    /\b(?:vers\s+|à\s+|a\s+)?([01]?\d|2[0-3])\s*(?:h|heure|heures|:)\s*([0-5]?\d)?\b/i
+  );
 
-  if (
-    explicitTimeMatch
-  ) {
-    const hours =
-      Number(
-        explicitTimeMatch[1]
-      );
+  if (explicitTimeMatch) {
+    const hours = Number(explicitTimeMatch[1]);
+    const minutes = Number(explicitTimeMatch[2] ?? "0");
 
-    const minutes =
-      Number(
-        explicitTimeMatch[2] ??
-          "0"
-      );
-
-    return (
-      String(hours).padStart(
-        2,
-        "0"
-      ) +
-      ":" +
-      String(minutes).padStart(
-        2,
-        "0"
-      )
-    );
+    return `${String(hours).padStart(2, "0")}:${String(
+      minutes
+    ).padStart(2, "0")}`;
   }
 
   const value = normalize(text);
-
-  // KLYX_NATURAL_TIME_12_46
   const naturalTimes = [
     {
       expressions: ["midi", "a midi", "vers midi"],
@@ -523,13 +399,12 @@ function detectTime(text: string): string | null {
       return naturalTime.time;
     }
   }
+
   const match = value.match(
     /\b(?:vers\s+|a\s+)?(\d{1,2})(?:\s*(?:h|heure|heures|:)\s*(\d{1,2}))?\b/
   );
 
-  if (!match) {
-    return null;
-  }
+  if (!match) return null;
 
   const hours = Number(match[1]);
   const minutes = Number(match[2] ?? "0");
@@ -549,9 +424,7 @@ function detectTime(text: string): string | null {
 }
 
 function detectBudget(text: string): number | null {
-  // KLYX_NATURAL_BUDGET_12_47
   const normalizedBudgetText = normalize(text);
-
   const budgetPatterns = [
     /(?:budget|maximum|max|jusqu a|pas plus de)\s*(?:de|est|a|:)?\s*(\d+(?:[.,]\d{1,2})?)\s*(?:€|euros?|eur)?/i,
     /(\d+(?:[.,]\d{1,2})?)\s*(?:€|euros?|eur)\s*(?:max|maximum)/i,
@@ -564,30 +437,24 @@ function detectBudget(text: string): number | null {
 
     const amount = Number(match[1].replace(",", "."));
 
-    if (Number.isFinite(amount) && amount > 0 && amount <= 1000000) {
+    if (
+      Number.isFinite(amount) &&
+      amount > 0 &&
+      amount <= 1000000
+    ) {
       return Math.round(amount * 100) / 100;
     }
   }
-  const value = normalize(text);
 
+  const value = normalize(text);
   const match = value.match(
     /(?:budget|maximum|max|jusqu a|jusqua)?\s*(\d+(?:[.,]\d{1,2})?)\s*(?:€|euro|euros)\b/
   );
 
-  if (!match) {
-    return null;
-  }
+  if (!match) return null;
 
   const amount = Number(match[1].replace(",", "."));
-
   return Number.isFinite(amount) ? amount : null;
-}
-
-function serviceLabel(slug: string | null): string {
-  return (
-    SERVICE_RULES.find((rule) => rule.slug === slug)?.label ??
-    "service"
-  );
 }
 
 function wantsMemory(text: string): boolean {
@@ -602,13 +469,36 @@ function wantsMemory(text: string): boolean {
   );
 }
 
+async function loadServiceCatalog(): Promise<
+  BrainServiceCatalogRecord[]
+> {
+  const { data, error } = await supabaseAdmin
+    .from("services")
+    .select("slug, name")
+    .limit(1000);
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).filter(
+    (service): service is BrainServiceCatalogRecord =>
+      typeof service.slug === "string" &&
+      service.slug.trim().length > 0 &&
+      (service.name == null ||
+        typeof service.name === "string")
+  );
+}
+
 function mergeContext(
   previous: BrainContext,
-  currentMessage: string
+  currentMessage: string,
+  services: readonly BrainServiceCatalogRecord[]
 ): BrainContext {
   return {
-    serviceSlug:
-      detectService(currentMessage) ?? previous.serviceSlug,
+    serviceSlug: resolveBrainServiceSlug({
+      text: currentMessage,
+      previousSlug: previous.serviceSlug,
+      services,
+    }),
     city: detectCity(currentMessage) ?? previous.city,
     date: detectDate(currentMessage) ?? previous.date,
     time: detectTime(currentMessage) ?? previous.time,
@@ -631,13 +521,9 @@ async function createConversation(
     .select("id")
     .single();
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  if (error) throw new Error(error.message);
 
-  const conversation = data as ConversationRow;
-
-  return conversation.id;
+  return (data as ConversationRow).id;
 }
 
 async function verifyConversationOwnership(
@@ -651,13 +537,8 @@ async function verifyConversationOwnership(
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  if (!data) {
-    throw new Error("Conversation introuvable.");
-  }
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("Conversation introuvable.");
 }
 
 async function resolveConversationId(
@@ -689,9 +570,7 @@ async function getPreviousContext(
     .limit(1)
     .maybeSingle();
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  if (error) throw new Error(error.message);
 
   const row = data as MessagePayloadRow | null;
   const payload = row?.payload ?? null;
@@ -712,11 +591,10 @@ async function getPreviousContext(
 async function applyUserMemory(
   userId: string,
   message: string,
-  context: BrainContext
+  context: BrainContext,
+  services: readonly BrainServiceCatalogRecord[]
 ): Promise<BrainContext> {
-  if (!wantsMemory(message)) {
-    return context;
-  }
+  if (!wantsMemory(message)) return context;
 
   const { data, error } = await supabaseAdmin
     .from("user_preferences")
@@ -726,22 +604,20 @@ async function applyUserMemory(
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  if (error) throw new Error(error.message);
 
   const preferences = data as PreferencesRow | null;
 
-  if (!preferences?.ai_memory_enabled) {
-    return context;
-  }
+  if (!preferences?.ai_memory_enabled) return context;
 
   return {
     ...context,
     serviceSlug:
       context.serviceSlug ??
-      preferences.preferred_service_slugs?.[0] ??
-      null,
+      resolveBrainPreferredServiceSlug(
+        preferences.preferred_service_slugs,
+        services
+      ),
     city:
       context.city ??
       preferences.default_city ??
@@ -763,52 +639,39 @@ function buildMissingFields(
 ): string[] {
   const missing: string[] = [];
 
-  if (!context.serviceSlug) {
-    missing.push("service");
-  }
-
-  if (!context.city) {
-    missing.push("ville");
-  }
-
-  if (!context.date) {
-    missing.push("date");
-  }
-
-  if (!context.time) {
-    missing.push("heure");
-  }
+  if (!context.serviceSlug) missing.push("service");
+  if (!context.city) missing.push("ville");
+  if (!context.date) missing.push("date");
+  if (!context.time) missing.push("heure");
 
   return missing;
 }
 
-function knownContextSummary(context: BrainContext): string {
+function knownContextSummary(
+  context: BrainContext,
+  services: readonly BrainServiceCatalogRecord[]
+): string {
   const parts: string[] = [];
 
   if (context.serviceSlug) {
-    parts.push(serviceLabel(context.serviceSlug));
+    parts.push(
+      brainServiceLabel(context.serviceSlug, services)
+    );
   }
 
-  if (context.city) {
-    parts.push(`à ${context.city}`);
-  }
-
-  if (context.date) {
-    parts.push(`le ${context.date}`);
-  }
-
-  if (context.time) {
-    parts.push(`à ${context.time}`);
-  }
+  if (context.city) parts.push(`à ${context.city}`);
+  if (context.date) parts.push(`le ${context.date}`);
+  if (context.time) parts.push(`à ${context.time}`);
 
   if (context.budget != null) {
-    parts.push(`budget max ${context.budget.toFixed(2)} €`);
+    parts.push(
+      `budget max ${context.budget.toFixed(2)} €`
+    );
   }
 
   return parts.join(", ");
 }
 
-// KLYX_RESPONSE_METADATA_12_61
 function buildReadinessPayload(
   context: BrainContext,
   missing: string[]
@@ -817,7 +680,6 @@ function buildReadinessPayload(
   const score = Math.round(
     ((4 - remainingCount) / 4) * 100
   );
-
   const label =
     score === 100
       ? "Demande complète"
@@ -826,10 +688,8 @@ function buildReadinessPayload(
         : score >= 50
           ? "Demande en cours"
           : "Je précise ton besoin";
-
   const isComplete = score === 100;
   const nextMissing = missing[0] ?? null;
-
   const summary =
     isComplete &&
     context.serviceSlug &&
@@ -876,22 +736,15 @@ function buildReadinessPayload(
     automaticExecutionAllowed: false,
   };
 }
+
 function buildReply(
   context: BrainContext,
-  missing: string[]
+  missing: string[],
+  services: readonly BrainServiceCatalogRecord[]
 ): string {
-  // KLYX_COMPLETENESS_12_49
-  const completionParts: string[] = [];
-
-  if (context.serviceSlug) completionParts.push("service");
-  if (context.city) completionParts.push("ville");
-  if (context.date) completionParts.push("date");
-  if (context.time) completionParts.push("heure");
-
   const completionScore = Math.round(
-    (completionParts.length / 4) * 100
+    ((4 - missing.length) / 4) * 100
   );
-
   const completionLabel =
     completionScore === 100
       ? "Demande complète"
@@ -900,144 +753,14 @@ function buildReply(
         : completionScore >= 50
           ? "Demande en cours"
           : "Je précise ton besoin";
-  // KLYX_READINESS_12_50
-  const missingCompletionParts: string[] = [];
-
-  if (!context.serviceSlug) missingCompletionParts.push("service");
-  if (!context.city) missingCompletionParts.push("ville");
-  if (!context.date) missingCompletionParts.push("date");
-  if (!context.time) missingCompletionParts.push("heure");
-
-  const isRequestComplete = completionScore === 100;
-  const nextMissingPart = missingCompletionParts[0] ?? null;
-
-    // KLYX_GUIDED_COMPLETION_12_51
-  const nextCompletionQuestion =
-    nextMissingPart === "service"
-      ? "Quel service te faut-il ? Tu peux aussi simplement décrire le problème."
-      : nextMissingPart === "ville"
-        ? "Dans quelle ville as-tu besoin du service ?"
-        : nextMissingPart === "date"
-          ? "Pour quelle date souhaites-tu ce service ?"
-          : nextMissingPart === "heure"
-            ? "À quelle heure souhaites-tu ce service ?"
-            : null;
-// KLYX_PROGRESS_FEEDBACK_12_52
-const remainingCompletionCount = missingCompletionParts.length;
-
-const completionStatusText = isRequestComplete
-  ? `${completionLabel} (${completionScore} %)`
-  : `${completionLabel} (${completionScore} %) - ${remainingCompletionCount} information${remainingCompletionCount > 1 ? "s" : ""} restante${remainingCompletionCount > 1 ? "s" : ""}`;
-// KLYX_REQUEST_SUMMARY_12_53
-const completionRequestSummary = isRequestComplete
-  ? {
-      service: context.serviceSlug,
-      city: context.city,
-      date: context.date,
-      time: context.time,
-    }
-  : null;
-
-const completionConfirmationText = isRequestComplete
-  ? `Service: ${context.serviceSlug} | Ville: ${context.city} | Date: ${context.date} | Heure: ${context.time}`
-  : null;
-// KLYX_CONFIRMATION_GATE_12_54
-const requiresUserConfirmation = isRequestComplete;
-
-const completionNextStep = isRequestComplete
-  ? "confirm_request"
-  : "collect_missing_information";
-
-const automaticExecutionAllowed = false;
-// KLYX_CONFIRMATION_PROMPT_12_55
-const completionConfirmationPrompt = isRequestComplete
-  ? "Ta demande est complète. Vérifie le résumé puis confirme avant toute publication, réservation ou paiement."
-  : null;
-// KLYX_CONFIRMATION_CHOICES_12_56
-const completionConfirmationState = isRequestComplete
-  ? "awaiting_user_confirmation"
-  : "not_ready";
-
-const completionConfirmationOptions = isRequestComplete
-  ? [
-      {
-        id: "confirm",
-        action: "confirm_request",
-        label: "Confirmer",
-      },
-      {
-        id: "edit",
-        action: "edit_request",
-        label: "Modifier",
-      },
-    ]
-  : [];
-// KLYX_CONFIRMATION_POLICY_12_57
-const confirmationProtectedActions = [
-  "market_publish",
-  "booking_create",
-  "payment_create",
-] as const;
-
-const confirmationSafeActions = [
-  "edit_request",
-] as const;
-
-const completionConfirmationPolicy = {
-  required: requiresUserConfirmation,
-  protectedActions: confirmationProtectedActions,
-  safeActions: confirmationSafeActions,
-  automaticExecutionAllowed,
-} as const;
-// KLYX_ACTION_ELIGIBILITY_12_58
-const completionActionEligibility = {
-  editRequest: true,
-  marketPublish: false,
-  bookingCreate: false,
-  paymentCreate: false,
-  blockedReason: isRequestComplete
-    ? "awaiting_user_confirmation"
-    : "request_incomplete",
-} as const;
-// KLYX_POST_CONFIRMATION_12_59
-const completionPostConfirmation = isRequestComplete
-  ? {
-      nextState: "ready_for_market_publish",
-      unlocks: ["market_publish"],
-      remainsProtected: [
-        "booking_create",
-        "payment_create",
-      ],
-      requiresExplicitConfirmation: true,
-      automaticExecutionAllowed: false,
-    }
-  : null;
-const requestReadiness = {
-    score: completionScore,
-    label: completionLabel,
-    isComplete: isRequestComplete,
-    missing: missingCompletionParts,
-    nextMissing: nextMissingPart,
-    question: nextCompletionQuestion,
-  remainingCount: remainingCompletionCount,
-  statusText: completionStatusText,
-  summary: completionRequestSummary,
-  confirmationText: completionConfirmationText,
-  requiresConfirmation: requiresUserConfirmation,
-  nextStep: completionNextStep,
-  automaticExecutionAllowed,
-  confirmationPrompt: completionConfirmationPrompt,
-  confirmationState: completionConfirmationState,
-  confirmationOptions: completionConfirmationOptions,
-  confirmationPolicy: completionConfirmationPolicy,
-  actionEligibility: completionActionEligibility,
-  postConfirmation: completionPostConfirmation,
-  };
-
-  void requestReadiness;
-  // KLYX_AMBIGUITY_12_48
-  const firstMissing = missing[0] ?? null;
-
+  const completionStatusText =
+    missing.length === 0
+      ? `${completionLabel} (${completionScore} %)`
+      : `${completionLabel} (${completionScore} %) - ${
+          missing.length
+        } information${
+          missing.length > 1 ? "s" : ""
+        } restante${missing.length > 1 ? "s" : ""}`;
   const guidedQuestions: Record<string, string> = {
     service:
       "De quel service as-tu besoin ? Décris simplement le travail à faire, même si tu ne connais pas le nom exact du métier.",
@@ -1048,56 +771,33 @@ const requestReadiness = {
     heure:
       "À quel moment souhaites-tu la prestation ? Par exemple : 10h30, midi, le matin, l’après-midi ou le soir.",
   };
+  const firstMissing = missing[0] ?? null;
 
-  if (firstMissing && guidedQuestions[firstMissing]) {
-    const summary =
-      typeof knownContextSummary === "function"
-        ? knownContextSummary(context)
-        : "";
-
-    return summary
-      ? `J’ai déjà compris : ${summary}. ${guidedQuestions[firstMissing]}`
-      : guidedQuestions[firstMissing];
-  }
-  if (missing.length > 0) {
-    const questions: Record<string, string> = {
-      service:
-        "Quel service souhaites-tu ? Tu peux écrire par exemple : baby-sitting, ménage, déménagement ou bricolage.",
-      ville:
-        "Dans quelle ville dois-je chercher le prestataire ?",
-      date:
-        "Pour quelle date souhaites-tu la prestation ? Tu peux répondre par exemple : demain ou 15/09/2026.",
-      heure:
-        "À quelle heure souhaites-tu que la prestation commence ?",
-    };
-
-    const summary = knownContextSummary(context);
-
-    const prefix = summary
-      ? `J’ai déjà compris : ${summary}. `
-      : "";
-
-        // KLYX_VISIBLE_READINESS_12_60
-    const guidedQuestion =
-      nextCompletionQuestion ??
-      questions[missing[0]] ??
+  if (firstMissing) {
+    const summary = knownContextSummary(context, services);
+    const question =
+      guidedQuestions[firstMissing] ??
       "Peux-tu préciser ta demande ?";
 
-    return `${completionStatusText}\n\n${guidedQuestion}`;
+    return summary
+      ? `${completionStatusText}\n\nJ’ai déjà compris : ${summary}. ${question}`
+      : `${completionStatusText}\n\n${question}`;
   }
 
-  const budgetText =
-    context.budget != null
-      ? `, avec un budget maximum de ${context.budget.toFixed(2)} €`
-      : "";
+  const service = brainServiceLabel(
+    context.serviceSlug,
+    services
+  );
+  const confirmationText =
+    `Service: ${service} | Ville: ${context.city} | ` +
+    `Date: ${context.date} | Heure: ${context.time}`;
 
-    return `${completionStatusText}\n\n${
-    completionConfirmationText ?? "Demande prête."
-  }\n\n${
-    completionConfirmationPrompt ??
-    "Vérifie la demande puis confirme avant de continuer."
-  }`;
+  return (
+    `${completionStatusText}\n\n${confirmationText}\n\n` +
+    "Ta demande est complète. Vérifie le résumé puis confirme avant toute publication, réservation ou paiement."
+  );
 }
+
 async function insertBrainMessage(params: {
   conversationId: string;
   role: "user" | "assistant";
@@ -1113,9 +813,7 @@ async function insertBrainMessage(params: {
       payload: params.payload ?? {},
     });
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  if (error) throw new Error(error.message);
 }
 
 async function touchConversation(
@@ -1128,13 +826,10 @@ async function touchConversation(
     })
     .eq("id", conversationId);
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  if (error) throw new Error(error.message);
 }
 
 export async function POST(request: Request) {
-  // KLYX_SERVER_OBSERVABILITY_12B_8B
   const startedAt = Date.now();
 
   try {
@@ -1145,22 +840,16 @@ export async function POST(request: Request) {
       conversationId?: string;
       message?: string;
     };
-
     const message = body.message?.trim();
 
     if (!message) {
       logServerWarning({
-        event:
-          "brain_request_rejected",
-        route:
-          "/api/brain/respond",
+        event: "brain_request_rejected",
+        route: "/api/brain/respond",
         method: "POST",
         status: 400,
-        code:
-          "message_required",
-        durationMs:
-          Date.now() -
-          startedAt,
+        code: "message_required",
+        durationMs: Date.now() - startedAt,
       });
 
       return NextResponse.json(
@@ -1169,67 +858,52 @@ export async function POST(request: Request) {
       );
     }
 
-    const conversationId = await resolveConversationId(
-      profile.id,
-      body.conversationId,
-      message
-    );
-
+    const [conversationId, services] = await Promise.all([
+      resolveConversationId(
+        profile.id,
+        body.conversationId,
+        message
+      ),
+      loadServiceCatalog(),
+    ]);
     const previousContext =
       await getPreviousContext(conversationId);
-
     const mergedContext = mergeContext(
       previousContext,
-      message
+      message,
+      services
     );
-
     const memoryContext = await applyUserMemory(
       profile.id,
       message,
-      mergedContext
+      mergedContext,
+      services
     );
-
-    // KLYX_MULTI_SLOT_INTEGRATION_12_82
-    const schedule = parseMultiSlotSchedule(
-      message,
-      {
-        fallbackBudget:
-          memoryContext.budget,
-      }
-    );
-
-    const context: BrainContext =
-      schedule
-        ? {
-            ...memoryContext,
-            date:
-              schedule.slots[0]?.date ??
-              memoryContext.date,
-            time:
-              schedule.slots[0]?.startTime ??
-              memoryContext.time,
-            budget:
-              schedule.slots[0]?.budget ??
-              memoryContext.budget,
-          }
-        : memoryContext;
+    const schedule = parseMultiSlotSchedule(message, {
+      fallbackBudget: memoryContext.budget,
+    });
+    const context: BrainContext = schedule
+      ? {
+          ...memoryContext,
+          date:
+            schedule.slots[0]?.date ??
+            memoryContext.date,
+          time:
+            schedule.slots[0]?.startTime ??
+            memoryContext.time,
+          budget:
+            schedule.slots[0]?.budget ??
+            memoryContext.budget,
+        }
+      : memoryContext;
     const missing = buildMissingFields(context);
     const ready = missing.length === 0;
-
-    // Deterministic Brain remains authoritative.
-    const reply = buildReply(
-      context,
-      missing
-    );
-
+    const reply = buildReply(context, missing, services);
     const readiness = buildReadinessPayload(
       context,
       missing
     );
 
-    // KLYX_LLM_SHADOW_13_55
-    // Internal comparison only.
-    // LLM output never replaces the user-visible deterministic reply.
     const llmShadow = await runKlyxLlmShadow({
       message,
       deterministicReply: reply,
@@ -1242,12 +916,10 @@ export async function POST(request: Request) {
         memoryUsed: context.memoryUsed,
       },
     });
-
     const publicLlmShadow = sanitizeKlyxShadowForClient(
       llmShadow,
       process.env.KLYX_LLM_SHADOW_ENABLED === "1"
     );
-
     const payload: BrainPayload = {
       ...context,
       missing,
@@ -1262,30 +934,21 @@ export async function POST(request: Request) {
       role: "user",
       content: message,
     });
-
     await insertBrainMessage({
       conversationId,
       role: "assistant",
       content: reply,
       payload,
     });
-
     await touchConversation(conversationId);
 
     logServerInfo({
-      event:
-        "brain_request_completed",
-      route:
-        "/api/brain/respond",
+      event: "brain_request_completed",
+      route: "/api/brain/respond",
       method: "POST",
       status: 200,
-      code:
-        ready
-          ? "ready"
-          : "collecting",
-      durationMs:
-        Date.now() -
-        startedAt,
+      code: ready ? "ready" : "collecting",
+      durationMs: Date.now() - startedAt,
     });
 
     return NextResponse.json({
@@ -1298,7 +961,6 @@ export async function POST(request: Request) {
       error instanceof Error
         ? error.message
         : "KLYX Brain est indisponible.";
-
     const status =
       message === "Conversation introuvable."
         ? 404
@@ -1306,18 +968,13 @@ export async function POST(request: Request) {
 
     return secureApiErrorResponse({
       error,
-      event:
-        "brain_request_failed",
-      route:
-        "/api/brain/respond",
+      event: "brain_request_failed",
+      route: "/api/brain/respond",
       method: "POST",
       status,
-      code:
-        "brain_request_failed",
+      code: "brain_request_failed",
       publicMessage:
-        status < 500
-          ? message
-          : undefined,
+        status < 500 ? message : undefined,
       startedAt,
     });
   }
