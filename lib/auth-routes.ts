@@ -28,6 +28,7 @@ export const KLYX_PROTECTED_ROUTES = [
   "/requests",
   "/reviews",
   "/scores",
+  "/search",
   "/security",
   "/settings",
   "/tracking",
