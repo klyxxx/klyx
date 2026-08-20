@@ -34,120 +34,95 @@ jobs:
           python - <<'PY'
           from pathlib import Path
 
-          def replace_once(path: str, old: str, new: str) -> None:
+          def swap_adjacent_once(path: str, first: str, second: str) -> None:
               p = Path(path)
               text = p.read_text(encoding="utf-8")
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f"{path}: expected exactly one target block, found {count}")
-              p.write_text(text.replace(old, new, 1), encoding="utf-8")
+              pair = first + second
+              if text.count(first) != 1:
+                  raise SystemExit(f"{path}: first block count is {text.count(first)}, expected 1")
+              if text.count(second) != 1:
+                  raise SystemExit(f"{path}: second block count is {text.count(second)}, expected 1")
+              if text.count(pair) != 1:
+                  raise SystemExit(f"{path}: expected auth and runtime blocks to be adjacent in the unsafe order")
+              p.write_text(text.replace(pair, second + first, 1), encoding="utf-8")
 
-          checkout_path = "app/api/stripe/create-checkout-session/route.ts"
-          checkout_old = '''  try {
-            assertStripeRuntimeReady();
+          checkout_stripe = (
+              "    assertStripeRuntimeReady();\n"
+              "\n"
+              "    const stripeSecretKey = requiredEnv(\"STRIPE_SECRET_KEY\");\n"
+              "    const stripe = new Stripe(stripeSecretKey);\n"
+              "\n"
+          )
+          checkout_auth = (
+              "    const { user, profile } = await getAuthenticatedProfile(request);\n"
+              "    requireAccountType(profile, \"client\");\n"
+              "\n"
+          )
+          swap_adjacent_once(
+              "app/api/stripe/create-checkout-session/route.ts",
+              checkout_stripe,
+              checkout_auth,
+          )
 
-            const stripeSecretKey = requiredEnv("STRIPE_SECRET_KEY");
-            const stripe = new Stripe(stripeSecretKey);
-
-            const { user, profile } = await getAuthenticatedProfile(request);
-            requireAccountType(profile, "client");
-
-            const body = (await request.json()) as {
-          '''
-          checkout_new = '''  try {
-            const { user, profile } = await getAuthenticatedProfile(request);
-            requireAccountType(profile, "client");
-
-            assertStripeRuntimeReady();
-
-            const stripeSecretKey = requiredEnv("STRIPE_SECRET_KEY");
-            const stripe = new Stripe(stripeSecretKey);
-
-            const body = (await request.json()) as {
-          '''
-          replace_once(checkout_path, checkout_old, checkout_new)
-
-          group_path = "app/api/stripe/create-group-checkout-session/route.ts"
-          group_old = '''  try {
-            assertStripeRuntimeReady();
-
-            const stripeKey =
-              requiredEnv(
-                "STRIPE_SECRET_KEY"
-              );
-
-            const stripe =
-              new Stripe(
-                stripeKey
-              );
-
-            const {
-              user,
-              profile,
-            } =
-              await getAuthenticatedProfile(
-                request
-              );
-
-            requireAccountType(
-              profile,
-              "client"
-            );
-
-            const body =
-          '''
-          group_new = '''  try {
-            const {
-              user,
-              profile,
-            } =
-              await getAuthenticatedProfile(
-                request
-              );
-
-            requireAccountType(
-              profile,
-              "client"
-            );
-
-            assertStripeRuntimeReady();
-
-            const stripeKey =
-              requiredEnv(
-                "STRIPE_SECRET_KEY"
-              );
-
-            const stripe =
-              new Stripe(
-                stripeKey
-              );
-
-            const body =
-          '''
-          replace_once(group_path, group_old, group_new)
+          group_stripe = (
+              "    assertStripeRuntimeReady();\n"
+              "\n"
+              "    const stripeKey =\n"
+              "      requiredEnv(\n"
+              "        \"STRIPE_SECRET_KEY\"\n"
+              "      );\n"
+              "\n"
+              "    const stripe =\n"
+              "      new Stripe(\n"
+              "        stripeKey\n"
+              "      );\n"
+              "\n"
+          )
+          group_auth = (
+              "    const {\n"
+              "      user,\n"
+              "      profile,\n"
+              "    } =\n"
+              "      await getAuthenticatedProfile(\n"
+              "        request\n"
+              "      );\n"
+              "\n"
+              "    requireAccountType(\n"
+              "      profile,\n"
+              "      \"client\"\n"
+              "    );\n"
+              "\n"
+          )
+          swap_adjacent_once(
+              "app/api/stripe/create-group-checkout-session/route.ts",
+              group_stripe,
+              group_auth,
+          )
 
           test_path = Path("tests/e2e/anonymous-api-security.spec.ts")
           tests = test_path.read_text(encoding="utf-8")
-          if "Stripe checkout creation authenticates before runtime configuration" in tests:
+          marker = "Stripe checkout creation authenticates before runtime configuration"
+          if marker in tests:
               raise SystemExit("anonymous Stripe checkout tests already exist")
           closing = "\n});\n"
           if not tests.endswith(closing):
               raise SystemExit("anonymous API security spec has an unexpected ending")
-          additions = '''
-
-            test("Stripe checkout creation authenticates before runtime configuration", async ({ request }) => {
-              const response = await request.post("/api/stripe/create-checkout-session", {
-                data: {},
-              });
-              expect(response.status()).toBe(401);
-            });
-
-            test("Stripe group checkout creation authenticates before runtime configuration", async ({ request }) => {
-              const response = await request.post("/api/stripe/create-group-checkout-session", {
-                data: {},
-              });
-              expect(response.status()).toBe(401);
-            });'''
+          additions = (
+              "\n\n"
+              "  test(\"Stripe checkout creation authenticates before runtime configuration\", async ({ request }) => {\n"
+              "    const response = await request.post(\"/api/stripe/create-checkout-session\", {\n"
+              "      data: {},\n"
+              "    });\n"
+              "    expect(response.status()).toBe(401);\n"
+              "  });\n"
+              "\n"
+              "  test(\"Stripe group checkout creation authenticates before runtime configuration\", async ({ request }) => {\n"
+              "    const response = await request.post(\"/api/stripe/create-group-checkout-session\", {\n"
+              "      data: {},\n"
+              "    });\n"
+              "    expect(response.status()).toBe(401);\n"
+              "  });"
+          )
           test_path.write_text(tests[:-len(closing)] + additions + closing, encoding="utf-8")
           PY
 
