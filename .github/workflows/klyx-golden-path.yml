@@ -12,6 +12,23 @@ on:
           - "false"
           - "true"
 
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/klyx-golden-path.yml"
+      - "scripts/golden-path-*.mjs"
+      - "supabase/migrations/**"
+      - "app/api/bookings/**"
+      - "app/api/quotes/**"
+      - "app/api/reviews/**"
+      - "app/api/stripe/webhook/**"
+      - "lib/booking-tracking-time.ts"
+      - "lib/stripe-payments.ts"
+      - "lib/stripe-webhook-events.ts"
+      - "lib/payment-ledger.ts"
+      - "lib/api-auth.ts"
+
 permissions:
   contents: read
 
@@ -27,7 +44,7 @@ jobs:
     timeout-minutes: 45
 
     env:
-      KLYX_GOLDEN_PATH_MUTATIONS_ENABLED: ${{ inputs.confirm_isolated_e2e }}
+      KLYX_GOLDEN_PATH_MUTATIONS_ENABLED: ${{ github.event_name == 'push' && 'true' || inputs.confirm_isolated_e2e }}
       KLYX_GOLDEN_PATH_LOCAL_SUPABASE: "true"
       KLYX_PRODUCTION_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       SUPABASE_TELEMETRY_DISABLED: "1"
