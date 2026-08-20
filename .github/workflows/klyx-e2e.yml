@@ -15,6 +15,13 @@ on:
 permissions:
   contents: read
 
+# The authenticated E2E suite uses one dedicated KLYX account and
+# changes its active profile. Serialize all runs so two PRs cannot
+# race on that shared mutable test state.
+concurrency:
+  group: klyx-e2e-${{ github.repository }}
+  cancel-in-progress: false
+
 jobs:
   browser-tests:
     name: Playwright browser verification
