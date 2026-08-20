@@ -1,25 +1,94 @@
-const KNOWN_LOCATIONS = [
-  "Bruxelles",
-  "Anderlecht",
-  "Schaerbeek",
-  "Ixelles",
-  "Uccle",
-  "Etterbeek",
-  "Forest",
-  "Saint-Gilles",
-  "Jette",
-  "Evere",
-  "Woluwe-Saint-Pierre",
-  "Woluwe-Saint-Lambert",
-  "Molenbeek-Saint-Jean",
-  "Louvain",
-  "Anvers",
-  "Gand",
-  "Liège",
-  "Namur",
-  "Charleroi",
-  "Mons",
-] as const;
+type KnownLocationRule = {
+  location: string;
+  aliases: string[];
+};
+
+const KNOWN_LOCATION_RULES: KnownLocationRule[] = [
+  {
+    location: "Bruxelles",
+    aliases: ["bruxelles", "brussel", "bxl", "bx", "bruxel"],
+  },
+  {
+    location: "Anderlecht",
+    aliases: ["anderlecht"],
+  },
+  {
+    location: "Schaerbeek",
+    aliases: ["schaerbeek", "schaarbeek"],
+  },
+  {
+    location: "Ixelles",
+    aliases: ["ixelles", "elsene"],
+  },
+  {
+    location: "Uccle",
+    aliases: ["uccle", "ukkel"],
+  },
+  {
+    location: "Etterbeek",
+    aliases: ["etterbeek"],
+  },
+  {
+    location: "Forest",
+    aliases: ["forest", "vorst"],
+  },
+  {
+    location: "Saint-Gilles",
+    aliases: ["saint gilles", "sint gillis"],
+  },
+  {
+    location: "Jette",
+    aliases: ["jette"],
+  },
+  {
+    location: "Evere",
+    aliases: ["evere"],
+  },
+  {
+    location: "Woluwe-Saint-Pierre",
+    aliases: ["woluwe saint pierre", "sint pieters woluwe"],
+  },
+  {
+    location: "Woluwe-Saint-Lambert",
+    aliases: ["woluwe saint lambert", "sint lambrechts woluwe"],
+  },
+  {
+    location: "Molenbeek-Saint-Jean",
+    aliases: [
+      "molenbeek",
+      "molenbeek saint jean",
+      "sint jans molenbeek",
+    ],
+  },
+  {
+    location: "Louvain",
+    aliases: ["louvain", "leuven"],
+  },
+  {
+    location: "Anvers",
+    aliases: ["anvers", "antwerpen"],
+  },
+  {
+    location: "Gand",
+    aliases: ["gand", "gent"],
+  },
+  {
+    location: "Liège",
+    aliases: ["liege"],
+  },
+  {
+    location: "Namur",
+    aliases: ["namur"],
+  },
+  {
+    location: "Charleroi",
+    aliases: ["charleroi"],
+  },
+  {
+    location: "Mons",
+    aliases: ["mons", "bergen"],
+  },
+];
 
 const LOCATION_STOP_WORDS = new Set([
   "aujourd hui",
@@ -52,11 +121,9 @@ const NON_LOCATION_STARTS = new Set([
   "faire",
   "nettoyer",
   "reparer",
-  "réparer",
   "garder",
   "payer",
   "reserver",
-  "réserver",
   "domicile",
   "maison",
   "appartement",
@@ -65,7 +132,6 @@ const NON_LOCATION_STARTS = new Set([
   "midi",
   "soir",
   "soiree",
-  "soirée",
   "un",
   "une",
 ]);
@@ -81,6 +147,25 @@ function normalizeLocationText(value: string): string {
     .trim();
 }
 
+function normalizedPhrase(value: string): string {
+  return normalizeLocationText(value)
+    .replace(/-/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function containsWholePhrase(
+  text: string,
+  phrase: string
+): boolean {
+  const haystack = ` ${normalizedPhrase(text)} `;
+  const needle = normalizedPhrase(phrase);
+
+  return Boolean(
+    needle && haystack.includes(` ${needle} `)
+  );
+}
+
 function titleCaseLocation(value: string): string {
   return value
     .trim()
@@ -90,7 +175,8 @@ function titleCaseLocation(value: string): string {
         .split("-")
         .map((part) =>
           part
-            ? part[0].toLocaleUpperCase("fr") + part.slice(1).toLocaleLowerCase("fr")
+            ? part[0].toLocaleUpperCase("fr") +
+              part.slice(1).toLocaleLowerCase("fr")
             : part
         )
         .join("-")
@@ -135,7 +221,9 @@ function cleanCandidate(raw: string): string | null {
 
     if (
       kept.length > 0 &&
-      ["a", "à", "vers", "pour", "pendant"].includes(normalizedWord)
+      ["a", "vers", "pour", "pendant"].includes(
+        normalizedWord
+      )
     ) {
       break;
     }
@@ -160,17 +248,20 @@ function cleanCandidate(raw: string): string | null {
 }
 
 export function detectLocation(text: string): string | null {
-  const normalizedText = normalizeLocationText(text);
-
-  for (const location of KNOWN_LOCATIONS) {
-    if (normalizedText.includes(normalizeLocationText(location))) {
-      return location;
+  for (const rule of KNOWN_LOCATION_RULES) {
+    if (
+      rule.aliases.some((alias) =>
+        containsWholePhrase(text, alias)
+      )
+    ) {
+      return rule.location;
     }
   }
 
   const explicitPatterns = [
     /\b(?:ville|commune)\s+de\s+([^,;.!?]+)/iu,
     /\b(?:près|pres|proche)\s+de\s+([^,;.!?]+)/iu,
+    /\b(?:à|a)\s+c[oô]té\s+de\s+([^,;.!?]+)/iu,
     /\b(?:à|a)\s+([^,;.!?]+)/iu,
     /\b(?:sur|vers)\s+([^,;.!?]+)/iu,
   ];
