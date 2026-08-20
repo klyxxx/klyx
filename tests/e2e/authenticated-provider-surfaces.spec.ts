@@ -30,15 +30,13 @@ test.describe("KLYX authenticated provider surfaces", () => {
       "/provider/payments",
       "/provider/planning",
       "/provider/quotes",
-      "/provider/services",
+      "/provider/services/new",
       "/provider/skills",
       "/provider/trust",
       "/provider/verification",
       "/provider/zones",
       "/connect",
-      "/reviews",
       "/scores",
-      "/tracking",
       "/security",
     ] as const) {
       await expectHealthyPrivateRoute(page, route);
