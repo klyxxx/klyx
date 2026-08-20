@@ -47,29 +47,30 @@ test.describe("KLYX authenticated client surfaces", () => {
     }
   });
 
-  test("client read APIs return authenticated data contracts", async ({ page }) => {
+  test("client pages complete their authenticated API reads", async ({ page }) => {
     test.setTimeout(120_000);
     await loginKlyxE2E(page);
     await activateKlyxE2EProfile(page, "client");
 
-    const results = await page.evaluate(async () => {
-      const routes = [
-        "/api/bookings/overview",
-        "/api/search/coverage",
-      ] as const;
+    const bookingsResponsePromise = page.waitForResponse((response) =>
+      response.request().method() === "GET" &&
+      new URL(response.url()).pathname === "/api/bookings/overview"
+    );
+    await page.goto("/bookings");
+    const bookingsResponse = await bookingsResponsePromise;
+    expect(bookingsResponse.status()).toBe(200);
+    expect(await bookingsResponse.json()).toBeTruthy();
 
-      return Promise.all(
-        routes.map(async (route) => {
-          const response = await fetch(route, { cache: "no-store" });
-          const body = await response.json().catch(() => null);
-          return { route, status: response.status, body };
-        })
-      );
-    });
+    const coverageResponsePromise = page.waitForResponse((response) =>
+      response.request().method() === "GET" &&
+      new URL(response.url()).pathname === "/api/search/coverage"
+    );
+    await page.goto("/coverage");
+    const coverageResponse = await coverageResponsePromise;
+    expect(coverageResponse.status()).toBe(200);
 
-    for (const result of results) {
-      expect(result.status, `${result.route} failed: ${JSON.stringify(result.body)}`).toBe(200);
-      expect(result.body, `${result.route} returned no JSON body`).toBeTruthy();
-    }
+    const coverageBody = await coverageResponse.json();
+    expect(Array.isArray(coverageBody?.services)).toBe(true);
+    expect(Array.isArray(coverageBody?.providers)).toBe(true);
   });
 });
