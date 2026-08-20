@@ -200,6 +200,9 @@ jobs:
       - name: Verify dedicated golden path account
         run: node scripts/golden-path-preflight.mjs
 
+      - name: Prepare bookable provider fixture
+        run: node scripts/golden-path-provider-fixture.mjs
+
       - name: Verify test suite
         run: npm test
 
@@ -212,7 +215,7 @@ jobs:
       # The mutation golden-path browser spec is the next layer. The runtime
       # below is already fully isolated and reproducible on every invocation.
       - name: Golden path harness ready
-        run: echo "Ephemeral Supabase schema, Stripe test runtime and dedicated account verified."
+        run: echo "Ephemeral Supabase schema, Stripe test runtime and bookable provider fixture verified."
 
       - name: Upload local migration proof
         if: always()
