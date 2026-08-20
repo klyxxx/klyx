@@ -33,6 +33,8 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.KLYX_E2E_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.KLYX_E2E_SUPABASE_PUBLISHABLE_KEY }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.KLYX_E2E_SUPABASE_SERVICE_ROLE_KEY }}
+      KLYX_E2E_SUPABASE_DB_URL: ${{ secrets.KLYX_E2E_SUPABASE_DB_URL }}
+      KLYX_E2E_SUPABASE_DB_PASSWORD: ${{ secrets.KLYX_E2E_SUPABASE_DB_PASSWORD }}
       KLYX_E2E_EMAIL: ${{ secrets.KLYX_GOLDEN_PATH_EMAIL }}
       KLYX_E2E_PASSWORD: ${{ secrets.KLYX_GOLDEN_PATH_PASSWORD }}
 
@@ -70,6 +72,8 @@ jobs:
             NEXT_PUBLIC_SUPABASE_URL
             NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
             SUPABASE_SERVICE_ROLE_KEY
+            KLYX_E2E_SUPABASE_DB_URL
+            KLYX_E2E_SUPABASE_DB_PASSWORD
             KLYX_E2E_EMAIL
             KLYX_E2E_PASSWORD
             STRIPE_SECRET_KEY
@@ -125,6 +129,70 @@ jobs:
             exit 1
           fi
 
+      - name: Resolve isolated E2E database target
+        shell: bash
+        run: |
+          set -euo pipefail
+          effective_db_url="$(node scripts/golden-path-database-url.mjs)"
+          echo "::add-mask::$effective_db_url"
+          echo "KLYX_E2E_EFFECTIVE_DB_URL=$effective_db_url" >> "$GITHUB_ENV"
+          echo "Validated isolated Supabase E2E database target."
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
+        with:
+          version: 2.111.0
+
+      - name: Initialize ephemeral Supabase config
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f supabase/config.toml ]; then
+            supabase init
+          fi
+
+      - name: Show E2E migration status before sync
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p golden-path-migration-proof
+          supabase migration list --db-url "$KLYX_E2E_EFFECTIVE_DB_URL" \
+            | tee golden-path-migration-proof/before.txt
+
+      - name: Preview pending E2E migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db push --db-url "$KLYX_E2E_EFFECTIVE_DB_URL" --dry-run \
+            | tee golden-path-migration-proof/dry-run-before.txt
+
+      - name: Apply pending E2E migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db push --db-url "$KLYX_E2E_EFFECTIVE_DB_URL"
+
+      - name: Verify E2E migration sync
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          supabase migration list --db-url "$KLYX_E2E_EFFECTIVE_DB_URL" \
+            | tee golden-path-migration-proof/after.txt
+          supabase db push --db-url "$KLYX_E2E_EFFECTIVE_DB_URL" --dry-run \
+            | tee golden-path-migration-proof/dry-run-after.txt
+
+          if grep -Fqi "Would push these migrations" golden-path-migration-proof/dry-run-after.txt; then
+            echo "::error::Supabase still reports pending E2E migrations after db push."
+            exit 1
+          fi
+
+          printf '%s\n' \
+            "commit=${GITHUB_SHA}" \
+            "run=${GITHUB_RUN_ID}" \
+            "verified_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            > golden-path-migration-proof/proof.txt
+
       - name: Install dependencies
         run: npm ci
 
@@ -145,6 +213,15 @@ jobs:
 
       # The mutation golden-path spec is added only after the dedicated
       # Supabase/Stripe test secrets above are configured. Until then,
-      # this workflow deliberately stops at the isolated account proof.
+      # this workflow stops after schema, runtime and account proof.
       - name: Golden path harness ready
-        run: echo "Isolated Supabase + Stripe test runtime and dedicated account verified."
+        run: echo "Isolated Supabase schema, Stripe test runtime and dedicated account verified."
+
+      - name: Upload E2E migration proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: klyx-golden-path-migration-proof-${{ github.run_id }}
+          path: golden-path-migration-proof/
+          if-no-files-found: ignore
+          retention-days: 14
