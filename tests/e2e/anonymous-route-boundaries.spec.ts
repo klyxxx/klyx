@@ -1,29 +1,8 @@
 import { expect, test } from "@playwright/test";
-
-const protectedRoutes = [
-  "/accounts",
-  "/book",
-  "/bookings",
-  "/brain",
-  "/connect",
-  "/create-store",
-  "/dashboard",
-  "/favorites",
-  "/memory",
-  "/messages",
-  "/notifications",
-  "/payment",
-  "/profile",
-  "/projects",
-  "/request",
-  "/reviews",
-  "/scores",
-  "/settings",
-  "/tracking",
-] as const;
+import { KLYX_PROTECTED_ROUTES } from "../../lib/auth-routes";
 
 test.describe("KLYX anonymous protected route boundaries", () => {
-  for (const route of protectedRoutes) {
+  for (const route of KLYX_PROTECTED_ROUTES) {
     test(`${route} redirects anonymous visitors to login`, async ({ page }) => {
       await page.goto(route);
 
