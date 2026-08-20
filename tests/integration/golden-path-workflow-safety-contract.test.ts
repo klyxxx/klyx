@@ -13,6 +13,16 @@ const workflow = fs
   )
   .replace(/\r\n/g, "\n");
 
+const preflight = fs
+  .readFileSync(
+    path.join(
+      process.cwd(),
+      "scripts/golden-path-preflight.mjs"
+    ),
+    "utf8"
+  )
+  .replace(/\r\n/g, "\n");
+
 describe("KLYX golden path workflow safety", () => {
   it("is manual-only and requires explicit mutation confirmation", () => {
     expect(workflow).toContain("workflow_dispatch:");
@@ -57,6 +67,33 @@ describe("KLYX golden path workflow safety", () => {
     );
     expect(workflow).toContain(
       "KLYX_E2E_PASSWORD: ${{ secrets.KLYX_GOLDEN_PATH_PASSWORD }}"
+    );
+  });
+
+  it("runs a fail-closed account and catalog preflight before launch proof", () => {
+    expect(workflow).toContain(
+      "node scripts/golden-path-preflight.mjs"
+    );
+    expect(preflight).toContain(
+      'process.env.KLYX_GOLDEN_PATH_MUTATIONS_ENABLED !== "true"'
+    );
+    expect(preflight).toContain(
+      '.eq("owner_user_id", user.id)'
+    );
+    expect(preflight).toContain(
+      'profile.account_type === "client"'
+    );
+    expect(preflight).toContain(
+      'profile.account_type === "provider"'
+    );
+    expect(preflight).toContain(
+      'profile.country_code !== "BE"'
+    );
+    expect(preflight).toContain(
+      'profile.currency_code !== "EUR"'
+    );
+    expect(preflight).toContain(
+      'candidate.slug === "cleaning"'
     );
   });
 });
