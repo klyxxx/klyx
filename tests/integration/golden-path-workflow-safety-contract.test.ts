@@ -1,11 +1,16 @@
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+function repoPath(file: string) {
+  return path.join(process.cwd(), file);
+}
+
 function readRepoFile(file: string) {
   return fs
-    .readFileSync(path.join(process.cwd(), file), "utf8")
+    .readFileSync(repoPath(file), "utf8")
     .replace(/\r\n/g, "\n");
 }
 
@@ -23,6 +28,20 @@ const preflight = readRepoFile(
 );
 
 describe("KLYX golden path workflow safety", () => {
+  it("keeps every golden-path Node script syntactically valid", () => {
+    for (const file of [
+      "scripts/golden-path-runtime.mjs",
+      "scripts/golden-path-bootstrap.mjs",
+      "scripts/golden-path-preflight.mjs",
+    ]) {
+      expect(() =>
+        execFileSync(process.execPath, ["--check", repoPath(file)], {
+          stdio: "pipe",
+        })
+      ).not.toThrow();
+    }
+  });
+
   it("is manual-only and requires explicit mutation confirmation", () => {
     expect(workflow).toContain("workflow_dispatch:");
     expect(workflow).not.toContain("pull_request:");
