@@ -33,7 +33,7 @@ jobs:
       SUPABASE_TELEMETRY_DISABLED: "1"
 
       KLYX_STRIPE_MODE: "test"
-      STRIPE_SECRET_KEY: ${{ secrets.KLYX_E2E_STRIPE_SECRET_KEY }}
+      STRIPE_SECRET_KEY: "sk_test_klyx_golden_path_local_only"
       NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_klyx_golden_path_local_only"
       KLYX_ALLOW_PLATFORM_ONLY_TEST_PAYMENTS: "true"
       KLYX_LIVE_PAYMENTS_ENABLED: "false"
@@ -83,7 +83,7 @@ jobs:
 
           case "${STRIPE_SECRET_KEY:-}" in
             sk_test_*) ;;
-            *) echo "::error::Configure KLYX_E2E_STRIPE_SECRET_KEY with a Stripe sk_test_ key."; exit 1 ;;
+            *) echo "::error::Golden path requires a test-only Stripe-shaped runtime key."; exit 1 ;;
           esac
 
           if [ "$KLYX_STRIPE_MODE" != "test" ] || [ "$KLYX_LIVE_PAYMENTS_ENABLED" != "false" ]; then
@@ -212,10 +212,11 @@ jobs:
       - name: Production build
         run: npm run build
 
-      # The mutation golden-path browser spec is the next layer. The runtime
-      # below is already fully isolated and reproducible on every invocation.
+      # Real Stripe Checkout is deliberately not invoked until the dedicated
+      # payment lifecycle spec is added. This harness stays secret-free for
+      # database, account and prepayment fixture verification.
       - name: Golden path harness ready
-        run: echo "Ephemeral Supabase schema, Stripe test runtime and bookable provider fixture verified."
+        run: echo "Ephemeral Supabase schema and bookable provider fixture verified without external test credentials."
 
       - name: Upload local migration proof
         if: always()
