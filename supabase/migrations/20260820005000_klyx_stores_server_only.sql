@@ -11,15 +11,10 @@ revoke all privileges on table public.stores
 grant all privileges on table public.stores
   to service_role;
 
--- Historical direct browser policies are obsolete and exposed contact data
--- such as phone/email through the public SELECT policy.
-drop policy if exists "stores delete own"
-  on public.stores;
-drop policy if exists "stores insert own"
-  on public.stores;
-drop policy if exists "stores update own"
-  on public.stores;
-drop policy if exists "stores select public"
+-- The historical browser policy allowed the active profile owner to perform
+-- every table operation. No supported KLYX flow uses direct store access now,
+-- so fail closed at RLS as well as at the grant layer.
+drop policy if exists "klyx_stores_all"
   on public.stores;
 
 commit;
