@@ -1,3 +1,5 @@
+import { detectLocation } from "@/lib/location-intent";
+
 export type ServiceCandidate = {
   slug: string;
   label: string;
@@ -108,29 +110,6 @@ const SERVICE_RULES: ServiceRule[] = [
   },
 ];
 
-const CITIES = [
-  "Bruxelles",
-  "Anderlecht",
-  "Schaerbeek",
-  "Ixelles",
-  "Uccle",
-  "Etterbeek",
-  "Forest",
-  "Saint-Gilles",
-  "Jette",
-  "Evere",
-  "Woluwe-Saint-Pierre",
-  "Woluwe-Saint-Lambert",
-  "Molenbeek-Saint-Jean",
-  "Louvain",
-  "Anvers",
-  "Gand",
-  "Liège",
-  "Namur",
-  "Charleroi",
-  "Mons",
-];
-
 const WEEKDAYS = [
   "dimanche",
   "lundi",
@@ -214,13 +193,7 @@ export function detectServiceCandidates(
 }
 
 export function detectCity(text: string): string | null {
-  const normalized = normalize(text);
-
-  return (
-    CITIES.find((city) =>
-      normalized.includes(normalize(city))
-    ) ?? null
-  );
+  return detectLocation(text);
 }
 
 export function detectRequestedDay(
