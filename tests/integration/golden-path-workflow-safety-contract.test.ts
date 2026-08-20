@@ -84,6 +84,8 @@ describe("KLYX golden path workflow safety", () => {
       "e2eUrl.hostname === productionUrl.hostname"
     );
 
+    // Keep these checks formatting-safe: the implementation intentionally
+    // wraps requiredGoldenPathEnv(...) across multiple lines when needed.
     expect(databaseUrl).toContain("requiredGoldenPathEnv(");
     expect(databaseUrl).toContain('"KLYX_E2E_SUPABASE_DB_URL"');
     expect(databaseUrl).toContain('"KLYX_E2E_SUPABASE_DB_PASSWORD"');
