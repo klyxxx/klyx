@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 
 const migrationPath =
   "supabase/migrations/20260820024500_klyx_user_preferences_server_only.sql";
+const priorHardeningPath =
+  "supabase/migrations/20260819185500_klyx_client_memory_table_privileges.sql";
 const baselinePath =
   "supabase/migrations/20260814000000_klyx_canonical_baseline.sql";
 const memoryProfileRoutePath = "app/api/memory/profile/route.ts";
@@ -14,10 +16,12 @@ const memoryPagePath = "app/memory/page.tsx";
 const requestPagePath = "app/request/page.tsx";
 
 describe("user preferences server boundary contract", () => {
-  it("removes every browser table privilege", () => {
-    const source = readFileSync(join(process.cwd(), migrationPath), "utf8");
+  it("keeps the existing server-only table privilege boundary", () => {
+    const source = readFileSync(
+      join(process.cwd(), priorHardeningPath),
+      "utf8"
+    );
 
-    expect(source).toContain("KLYX_USER_PREFERENCES_SERVER_ONLY_12B_13Q");
     expect(source).toContain(
       "revoke all privileges on table public.user_preferences\n  from public, anon, authenticated;"
     );
@@ -26,15 +30,18 @@ describe("user preferences server boundary contract", () => {
     );
   });
 
-  it("removes the obsolete direct browser RLS policy", () => {
+  it("removes the dormant direct browser RLS policy", () => {
     const source = readFileSync(join(process.cwd(), migrationPath), "utf8");
 
+    expect(source).toContain(
+      "KLYX_USER_PREFERENCES_POLICY_LOCKDOWN_12B_13Q"
+    );
     expect(source).toContain(
       'drop policy if exists "klyx_user_preferences_all"\n  on public.user_preferences;'
     );
   });
 
-  it("covers the historical broad browser grants", () => {
+  it("covers the historical broad grants and browser policy", () => {
     const baseline = readFileSync(join(process.cwd(), baselinePath), "utf8");
 
     expect(baseline).toContain(
