@@ -19,20 +19,20 @@ test.describe("KLYX authenticated client surfaces", () => {
     await clearSensitivePassword(page);
   });
 
-  test("client core, assistant and trust surfaces stay healthy", async ({ page }) => {
+  test("client core, discovery, assistant and trust surfaces stay healthy", async ({ page }) => {
     test.setTimeout(240_000);
     await loginKlyxE2E(page);
     await activateKlyxE2EProfile(page, "client");
 
     for (const route of [
       "/dashboard",
+      "/search",
       "/coverage",
       "/requests",
       "/quotes",
       "/bookings",
-      "/booking-groups",
       "/favorites",
-      "/projects",
+      "/projects/new",
       "/memory",
       "/assistant",
       "/agent",
