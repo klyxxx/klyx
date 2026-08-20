@@ -26,6 +26,9 @@ const bootstrap = readRepoFile(
 const preflight = readRepoFile(
   "scripts/golden-path-preflight.mjs"
 );
+const providerFixture = readRepoFile(
+  "scripts/golden-path-provider-fixture.mjs"
+);
 
 describe("KLYX golden path workflow safety", () => {
   it("keeps every golden-path Node script syntactically valid", () => {
@@ -33,6 +36,7 @@ describe("KLYX golden path workflow safety", () => {
       "scripts/golden-path-runtime.mjs",
       "scripts/golden-path-bootstrap.mjs",
       "scripts/golden-path-preflight.mjs",
+      "scripts/golden-path-provider-fixture.mjs",
     ]) {
       expect(() =>
         execFileSync(process.execPath, ["--check", repoPath(file)], {
@@ -193,6 +197,46 @@ describe("KLYX golden path workflow safety", () => {
     );
     expect(preflight).toContain(
       'candidate.slug === "cleaning"'
+    );
+  });
+
+  it("prepares a bookable provider only after isolation and account proof", () => {
+    const preflightCommand =
+      "node scripts/golden-path-preflight.mjs";
+    const fixtureCommand =
+      "node scripts/golden-path-provider-fixture.mjs";
+
+    expect(workflow).toContain(fixtureCommand);
+    expect(workflow.indexOf(preflightCommand)).toBeLessThan(
+      workflow.indexOf(fixtureCommand)
+    );
+
+    expect(providerFixture).toContain(
+      "if (!localSupabase)"
+    );
+    expect(providerFixture).toContain(
+      'is_published: true'
+    );
+    expect(providerFixture).toContain(
+      'provider_enabled: true'
+    );
+    expect(providerFixture).toContain(
+      'available: true'
+    );
+    expect(providerFixture).toContain(
+      'status: "approved"'
+    );
+    expect(providerFixture).toContain(
+      '.from("provider_service_zones")'
+    );
+    expect(providerFixture).toContain(
+      '.from("availability_slots")'
+    );
+    expect(providerFixture).toContain(
+      'country_code: "BE"'
+    );
+    expect(providerFixture).toContain(
+      'city: "Bruxelles"'
     );
   });
 
