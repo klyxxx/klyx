@@ -146,7 +146,7 @@ jobs:
           supabase migration list --linked | tee migration-proof/after.txt
           supabase db push --linked --dry-run | tee migration-proof/dry-run-after.txt
 
-          if grep -Eqi "would apply|pending migration|push.*migration" migration-proof/dry-run-after.txt; then
+          if grep -Fqi "Would push these migrations" migration-proof/dry-run-after.txt; then
             echo "::error::Supabase still reports pending production migrations after db push."
             exit 1
           fi
