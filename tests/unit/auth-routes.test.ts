@@ -18,6 +18,7 @@ describe("KLYX route classification", () => {
       "/bookings",
       "/brain",
       "/connect",
+      "/coverage",
       "/create-store",
       "/dashboard",
       "/favorites",
@@ -49,6 +50,7 @@ describe("KLYX route classification", () => {
     expect(isKlyxProtectedRoute("/booking-groups/example")).toBe(true);
     expect(isKlyxProtectedRoute("/admin/disputes")).toBe(true);
     expect(isKlyxProtectedRoute("/founder/cleanup")).toBe(true);
+    expect(isKlyxProtectedRoute("/coverage")).toBe(true);
   });
 
   it("does not confuse public discovery and support routes with private prefixes", () => {

@@ -9,6 +9,7 @@ export const KLYX_PROTECTED_ROUTES = [
   "/bookings",
   "/brain",
   "/connect",
+  "/coverage",
   "/create-store",
   "/dashboard",
   "/favorites",
