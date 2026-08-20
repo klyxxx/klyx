@@ -43,20 +43,40 @@ test.describe("KLYX authenticated provider surfaces", () => {
     }
   });
 
-  test("provider jobs API returns an authenticated read contract", async ({ page }) => {
+  test("provider jobs page completes its authenticated API read", async ({ page }) => {
     test.setTimeout(120_000);
     await loginKlyxE2E(page);
     await activateKlyxE2EProfile(page, "provider");
 
-    const result = await page.evaluate(async () => {
-      const response = await fetch("/api/provider/jobs", { cache: "no-store" });
-      const body = await response.json().catch(() => null);
-      return { status: response.status, body };
+    const jobsResponsePromise = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        url.pathname === "/api/provider/jobs" &&
+        response.request().method() === "GET"
+      );
     });
 
-    expect(result.status, `provider jobs failed: ${JSON.stringify(result.body)}`).toBe(200);
-    expect(result.body).toBeTruthy();
-    expect(result.body?.role).toBe("provider");
-    expect(Array.isArray(result.body?.requests)).toBe(true);
+    const documentResponse = await page.goto("/provider/jobs", {
+      waitUntil: "domcontentloaded",
+    });
+
+    expect(documentResponse, "provider jobs page returned no document response").toBeTruthy();
+    expect(
+      documentResponse!.status(),
+      "provider jobs page returned an HTTP error"
+    ).toBeLessThan(400);
+
+    const jobsResponse = await jobsResponsePromise;
+    const jobsBody = (await jobsResponse.json().catch(() => null)) as
+      | { role?: string; requests?: unknown[]; error?: string }
+      | null;
+
+    expect(
+      jobsResponse.status(),
+      `provider jobs API failed: ${JSON.stringify(jobsBody)}`
+    ).toBe(200);
+    expect(jobsBody).toBeTruthy();
+    expect(jobsBody?.role).toBe("provider");
+    expect(Array.isArray(jobsBody?.requests)).toBe(true);
   });
 });
