@@ -65,16 +65,57 @@ jobs:
           set -euo pipefail
 
           if [ -n "${SUPABASE_DB_URL:-}" ]; then
-            case "$SUPABASE_DB_URL" in
-              postgres://*|postgresql://*) ;;
-              *)
-                echo "::error::SUPABASE_DB_URL must be a Postgres connection URL."
-                exit 1
-                ;;
-            esac
+            effective_db_url="$(node <<'NODE'
+          const raw = process.env.SUPABASE_DB_URL ?? "";
+          const password = process.env.SUPABASE_DB_PASSWORD ?? "";
 
+          let url;
+          try {
+            url = new URL(raw);
+          } catch {
+            console.error("SUPABASE_DB_URL is not a valid URL.");
+            process.exit(2);
+          }
+
+          if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") {
+            console.error("SUPABASE_DB_URL must be a Postgres connection URL.");
+            process.exit(2);
+          }
+
+          const hostname = url.hostname.toLowerCase();
+          const isSupabaseHost =
+            hostname.endsWith(".supabase.co") ||
+            hostname.endsWith(".pooler.supabase.com");
+
+          if (!isSupabaseHost) {
+            console.error("SUPABASE_DB_URL must target a Supabase database host.");
+            process.exit(3);
+          }
+
+          if (password) {
+            url.password = password;
+          }
+
+          if (!url.password) {
+            console.error(
+              "SUPABASE_DB_URL must contain a database password or SUPABASE_DB_PASSWORD must be configured."
+            );
+            process.exit(4);
+          }
+
+          process.stdout.write(url.toString());
+          NODE
+            )"
+
+            echo "::add-mask::$effective_db_url"
+            echo "SUPABASE_EFFECTIVE_DB_URL=$effective_db_url" >> "$GITHUB_ENV"
             echo "SUPABASE_DEPLOY_MODE=db_url" >> "$GITHUB_ENV"
-            echo "Using direct database URL deployment mode."
+
+            if [ -n "${SUPABASE_DB_PASSWORD:-}" ]; then
+              echo "Using database URL mode with the separate database password secret."
+            else
+              echo "Using database URL mode with credentials embedded in SUPABASE_DB_URL."
+            fi
             exit 0
           fi
 
@@ -148,7 +189,7 @@ jobs:
           mkdir -p migration-proof
 
           if [ "$SUPABASE_DEPLOY_MODE" = "db_url" ]; then
-            supabase migration list --db-url "$SUPABASE_DB_URL" | tee migration-proof/before.txt
+            supabase migration list --db-url "$SUPABASE_EFFECTIVE_DB_URL" | tee migration-proof/before.txt
           else
             supabase migration list --linked | tee migration-proof/before.txt
           fi
@@ -159,7 +200,7 @@ jobs:
           set -euo pipefail
 
           if [ "$SUPABASE_DEPLOY_MODE" = "db_url" ]; then
-            supabase db push --db-url "$SUPABASE_DB_URL" --dry-run | tee migration-proof/dry-run-before.txt
+            supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run | tee migration-proof/dry-run-before.txt
           else
             supabase db push --linked --dry-run | tee migration-proof/dry-run-before.txt
           fi
@@ -170,7 +211,7 @@ jobs:
           set -euo pipefail
 
           if [ "$SUPABASE_DEPLOY_MODE" = "db_url" ]; then
-            supabase db push --db-url "$SUPABASE_DB_URL"
+            supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL"
           else
             supabase db push --linked
           fi
@@ -181,8 +222,8 @@ jobs:
           set -euo pipefail
 
           if [ "$SUPABASE_DEPLOY_MODE" = "db_url" ]; then
-            supabase migration list --db-url "$SUPABASE_DB_URL" | tee migration-proof/after.txt
-            supabase db push --db-url "$SUPABASE_DB_URL" --dry-run | tee migration-proof/dry-run-after.txt
+            supabase migration list --db-url "$SUPABASE_EFFECTIVE_DB_URL" | tee migration-proof/after.txt
+            supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run | tee migration-proof/dry-run-after.txt
           else
             supabase migration list --linked | tee migration-proof/after.txt
             supabase db push --linked --dry-run | tee migration-proof/dry-run-after.txt
