@@ -45,6 +45,17 @@ function isAuthenticationRoute(pathname: string) {
   );
 }
 
+function redirectToLogin(request: NextRequest) {
+  const redirectTarget = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+  const loginUrl = request.nextUrl.clone();
+
+  loginUrl.pathname = "/login";
+  loginUrl.search = "";
+  loginUrl.searchParams.set("redirect", redirectTarget);
+
+  return NextResponse.redirect(loginUrl);
+}
+
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({
     request: {
@@ -52,6 +63,7 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
+  const pathname = request.nextUrl.pathname;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
   const supabaseKey =
@@ -59,6 +71,10 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
+    if (isProtectedRoute(pathname)) {
+      return redirectToLogin(request);
+    }
+
     return response;
   }
 
@@ -96,18 +112,8 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const pathname = request.nextUrl.pathname;
-
   if (!user && isProtectedRoute(pathname)) {
-    const loginUrl = request.nextUrl.clone();
-
-    loginUrl.pathname = "/login";
-    loginUrl.searchParams.set(
-      "redirect",
-      `${pathname}${request.nextUrl.search}`
-    );
-
-    return NextResponse.redirect(loginUrl);
+    return redirectToLogin(request);
   }
 
   if (user && isAuthenticationRoute(pathname)) {
