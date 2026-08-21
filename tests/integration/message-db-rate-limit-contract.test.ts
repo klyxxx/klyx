@@ -13,6 +13,7 @@ const migration = readRepoFile(
   "supabase/migrations/20260821231000_klyx_message_insert_abuse_guard.sql"
 );
 const page = readRepoFile("app/messages/[bookingId]/page.tsx");
+const rootPage = readRepoFile("app/messages/page.tsx");
 const golden = readRepoFile("scripts/golden-path-message-rate-limit.mjs");
 const workflow = readRepoFile(".github/workflows/klyx-golden-path.yml");
 
@@ -54,6 +55,17 @@ describe("KLYX direct-message database abuse guard", () => {
       "grant execute on function public.klyx_enforce_message_insert_policy()"
     );
     expect(migration).toContain("to service_role");
+  });
+
+  it("maps database failures to safe message-composer errors", () => {
+    for (const source of [page, rootPage]) {
+      expect(source).toContain('error.message.includes("KLYX_MESSAGE_RATE_LIMITED")');
+      expect(source).toContain(
+        "Trop de messages envoyés. Réessaie dans une minute."
+      );
+      expect(source).toContain("Impossible d'envoyer le message.");
+      expect(source).not.toContain("throw new Error(error.message);");
+    }
   });
 
   it("proves the real direct Supabase path in the isolated Golden lifecycle", () => {
