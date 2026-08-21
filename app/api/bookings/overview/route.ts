@@ -62,6 +62,10 @@ type BookingRow = {
     | string
     | null;
 
+  refund_status:
+    | string
+    | null;
+
   service_status:
     | string
     | null;
@@ -474,6 +478,45 @@ function bookingStatus(
   booking: BookingRow
 ) {
   if (
+    booking.refund_status ===
+    "failed"
+  ) {
+    return {
+      status:
+        "refund_failed",
+
+      label:
+        "Remboursement a verifier",
+    };
+  }
+
+  if (
+    booking.refund_status ===
+    "processing"
+  ) {
+    return {
+      status:
+        "refund_processing",
+
+      label:
+        "Remboursement en cours",
+    };
+  }
+
+  if (
+    booking.payment_status ===
+    "refunded"
+  ) {
+    return {
+      status:
+        "refunded",
+
+      label:
+        "Remboursee",
+    };
+  }
+
+  if (
     booking.status ===
     "accepted" &&
     booking.payment_status !==
@@ -582,6 +625,13 @@ function bookingNeedsAction(
     );
 
   if (
+    booking.refund_status ===
+    "failed"
+  ) {
+    return true;
+  }
+
+  if (
     role ===
       "provider"
   ) {
@@ -593,7 +643,9 @@ function bookingNeedsAction(
     booking.status ===
       "accepted" &&
     booking.payment_status !==
-      "paid"
+      "paid" &&
+    booking.payment_status !==
+      "refunded"
   );
 }
 
@@ -616,12 +668,16 @@ function groupIsHistory(
 function bookingIsHistory(
   booking: BookingRow
 ) {
-  return [
-    "completed",
-    "cancelled",
-    "rejected",
-  ].includes(
-    booking.status
+  return (
+    [
+      "completed",
+      "cancelled",
+      "rejected",
+    ].includes(
+      booking.status
+    ) ||
+    booking.payment_status ===
+      "refunded"
   );
 }
 
@@ -650,7 +706,7 @@ export async function GET(
         supabaseAdmin
           .from("bookings")
           .select(
-            "id, parent_id, provider_id, babysitter_id, service_id, booking_group_id, group_position, booking_date, start_time, end_time, status, payment_status, service_status, amount_total, estimated_amount_cents, currency, created_at"
+            "id, parent_id, provider_id, babysitter_id, service_id, booking_group_id, group_position, booking_date, start_time, end_time, status, payment_status, refund_status, service_status, amount_total, estimated_amount_cents, currency, created_at"
           )
           .or(
             "parent_id.eq." +
@@ -1203,6 +1259,7 @@ export async function GET(
           false,
 
         refundStatus:
+          booking.refund_status ??
           "not_required",
 
         createdAt:

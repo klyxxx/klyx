@@ -397,6 +397,10 @@ export async function markBookingPaidFromSession(
     );
   }
 
+  if (booking.payment_status === "refunded") {
+    return;
+  }
+
   if (booking.payment_status === "paid") {
     await notifyPaymentSucceeded(booking);
     return;
@@ -462,6 +466,7 @@ export async function markBookingPaidFromSession(
     })
     .eq("id", booking.id)
     .neq("payment_status", "paid")
+    .neq("payment_status", "refunded")
     .select(bookingSelection)
     .maybeSingle();
 
@@ -560,7 +565,8 @@ export async function recordBookingPaymentFailure(
       payment_failed_at: now,
     })
     .eq("id", booking.id)
-    .neq("payment_status", "paid");
+    .neq("payment_status", "paid")
+    .neq("payment_status", "refunded");
 
   if (error) {
     throw new Error(error.message);
@@ -615,7 +621,8 @@ export async function markBookingFailedFromSession(
   );
 
   if (
-    booking.payment_status === "paid"
+    booking.payment_status === "paid" ||
+    booking.payment_status === "refunded"
   ) {
     return;
   }
@@ -626,7 +633,7 @@ export async function markBookingFailedFromSession(
   const now =
     new Date().toISOString();
 
-  const { error } = await supabaseAdmin
+  const { data: updatedBooking, error } = await supabaseAdmin
     .from("bookings")
     .update({
       payment_status: "failed",
@@ -646,10 +653,17 @@ export async function markBookingFailedFromSession(
       "stripe_checkout_session_id",
       session.id
     )
-    .neq("payment_status", "paid");
+    .neq("payment_status", "paid")
+    .neq("payment_status", "refunded")
+    .select("id")
+    .maybeSingle();
 
   if (error) {
     throw new Error(error.message);
+  }
+
+  if (!updatedBooking) {
+    return;
   }
 
   await upsertFinancialLedgerEntry({
