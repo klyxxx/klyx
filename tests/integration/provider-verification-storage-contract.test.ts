@@ -46,12 +46,19 @@ describe("KLYX provider verification Storage boundary", () => {
     expect(api).toContain("sizeBytes > 10 * 1024 * 1024");
   });
 
-  it("binds Storage paths to an owned provider profile", () => {
-    expect(migration).toContain("profile.id::text = (storage.foldername(name))[1]");
-    expect(migration).toContain("profile.owner_user_id = (select auth.uid())");
+  it("binds Storage paths to an owned provider profile without reopening profile SELECT", () => {
+    expect(migration).toContain("klyx_owns_provider_verification_path");
+    expect(migration).toContain("security definer");
+    expect(migration).toContain(
+      "profile.id::text = (storage.foldername(p_name))[1]"
+    );
+    expect(migration).toContain("profile.owner_user_id = auth.uid()");
     expect(migration).toContain("profile.account_type = 'provider'");
     expect(migration).toContain(
-      "array_length(storage.foldername(name), 1) = 2"
+      "array_length(storage.foldername(p_name), 1) = 2"
+    );
+    expect(migration).toContain(
+      "public.klyx_owns_provider_verification_path(name)"
     );
 
     for (const folder of [
@@ -67,6 +74,17 @@ describe("KLYX provider verification Storage boundary", () => {
     for (const extension of ["pdf", "jpg", "jpeg", "png", "webp"]) {
       expect(migration).toContain(`'${extension}'`);
     }
+  });
+
+  it("keeps helper execution minimal and browser profile reads closed", () => {
+    expect(migration).toContain(
+      "revoke all on function public.klyx_owns_provider_verification_path(text)"
+    );
+    expect(migration).toContain(
+      "grant execute on function public.klyx_owns_provider_verification_path(text)"
+    );
+    expect(migration).toContain("to authenticated, service_role");
+    expect(migration).not.toContain("grant select on table public.profiles");
   });
 
   it("keeps legacy permissive policies unable to widen this bucket", () => {
@@ -97,7 +115,7 @@ describe("KLYX provider verification Storage boundary", () => {
   });
 
   it("keeps registered document deletion server-authoritative", () => {
-    expect(page).toContain('fetch(\n        "/api/provider/verification/document"');
+    expect(page).toContain('"/api/provider/verification/document"');
     expect(page).toContain('method: "DELETE"');
     expect(documentApi).toContain('document.status === "approved"');
     expect(documentApi).toContain("supabaseAdmin.storage");
