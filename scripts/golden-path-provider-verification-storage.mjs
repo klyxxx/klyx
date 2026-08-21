@@ -93,7 +93,7 @@ async function main() {
   const clientReadPath = `${client.id}/identity/client-read-${suffix}.pdf`;
   const invalidFolderPath = `${provider.id}/secret/secret-${suffix}.pdf`;
   const invalidExtensionPath = `${provider.id}/identity/invalid-${suffix}.exe`;
-  const invalidMimePath = `${provider.id}/identity/invalid-${suffix}.txt`;
+  const invalidMimePath = `${provider.id}/identity/invalid-mime-${suffix}.pdf`;
   const oversizedPath = `${provider.id}/identity/oversized-${suffix}.pdf`;
   const validPdf = Buffer.from(
     "%PDF-1.4\n% KLYX ephemeral provider verification proof\n%%EOF\n",
