@@ -48,4 +48,18 @@ describe("KLYX golden path critical trigger coverage", () => {
       expect(workflow).toContain(criticalPath);
     }
   });
+
+  it("reruns the full golden path when rate limiting or Stripe entry points change", () => {
+    for (const criticalPath of [
+      '      - "proxy.ts"',
+      '      - "app/api/ai/respond/**"',
+      '      - "app/api/stripe/create-checkout-session/**"',
+      '      - "app/api/stripe/create-group-checkout-session/**"',
+      '      - "app/api/stripe/connect/**"',
+      '      - "lib/api-rate-limit.ts"',
+      '      - "lib/supabase/middleware.ts"',
+    ]) {
+      expect(workflow).toContain(criticalPath);
+    }
+  });
 });
