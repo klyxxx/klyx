@@ -3,6 +3,7 @@
 import {
   FormEvent,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import Link from "next/link";
@@ -17,6 +18,10 @@ import {
   UserRound,
 } from "lucide-react";
 
+import AuthTurnstile, {
+  AUTH_TURNSTILE_ENABLED,
+  type AuthTurnstileHandle,
+} from "@/app/components/AuthTurnstile";
 import KlyxLogo from "@/app/ui/KlyxLogo";
 import { createClient } from "@/lib/supabase/client";
 
@@ -26,7 +31,11 @@ type AccountType =
 
 export default function SignupPage() {
   const router = useRouter();
+  const captchaRef =
+    useRef<AuthTurnstileHandle | null>(null);
 
+  const [captchaToken, setCaptchaToken] =
+    useState("");
   const [name, setName] =
     useState("");
   const [email, setEmail] =
@@ -123,6 +132,11 @@ export default function SignupPage() {
     };
   }, [router]);
 
+  function resetCaptcha() {
+    captchaRef.current?.reset();
+    setCaptchaToken("");
+  }
+
   async function handleSignup(
     event: FormEvent<HTMLFormElement>
   ) {
@@ -143,6 +157,16 @@ export default function SignupPage() {
     ) {
       setErrorMessage(
         "Renseigne ton nom, ton e-mail et un mot de passe d’au moins 8 caractères."
+      );
+      return;
+    }
+
+    if (
+      AUTH_TURNSTILE_ENABLED &&
+      !captchaToken
+    ) {
+      setErrorMessage(
+        "Valide d’abord la vérification anti-robot."
       );
       return;
     }
@@ -172,10 +196,24 @@ export default function SignupPage() {
               account_type:
                 accountType,
             },
+            captchaToken:
+              AUTH_TURNSTILE_ENABLED
+                ? captchaToken
+                : undefined,
           },
         });
 
       if (error) {
+        if (
+          error.message
+            .toLowerCase()
+            .includes("captcha")
+        ) {
+          throw new Error(
+            "La vérification anti-robot a expiré ou a échoué. Réessaie."
+          );
+        }
+
         throw error;
       }
 
@@ -197,6 +235,7 @@ export default function SignupPage() {
           : "Impossible de créer le compte."
       );
     } finally {
+      resetCaptcha();
       setLoading(false);
     }
   }
@@ -349,7 +388,7 @@ export default function SignupPage() {
               </button>
             </div>
 
-                        {/* KLYX_SIGNUP_ROLE_CONTINUITY_14_02 */}
+            {/* KLYX_SIGNUP_ROLE_CONTINUITY_14_02 */}
             <div className="mt-5 rounded-2xl border border-violet-500/20 bg-violet-500/[0.07] p-4">
               <div className="flex items-start gap-3">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-500/15 text-violet-300">
@@ -392,7 +431,8 @@ export default function SignupPage() {
                 Tu pourras ensuite gérer plusieurs profils KLYX depuis une même connexion.
               </p>
             </div>
-<form
+
+            <form
               onSubmit={
                 handleSignup
               }
@@ -493,6 +533,14 @@ export default function SignupPage() {
                   )}
                 </button>
               </div>
+
+              <AuthTurnstile
+                ref={captchaRef}
+                action="signup"
+                onTokenChange={
+                  setCaptchaToken
+                }
+              />
 
               {errorMessage && (
                 <p className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
