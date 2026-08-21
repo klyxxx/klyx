@@ -6,6 +6,24 @@ import {
   requiredGoldenPathEnv,
 } from "./golden-path-runtime.mjs";
 
+const CLEANING_SERVICE_SLUGS = [
+  "menage-a-domicile",
+  "cleaning",
+  "menage",
+  "ménage",
+];
+
+function preferredCleaningService(services) {
+  for (const slug of CLEANING_SERVICE_SLUGS) {
+    const service = services.find((candidate) => candidate.slug === slug);
+    if (service) {
+      return service;
+    }
+  }
+
+  return undefined;
+}
+
 async function main() {
   const { e2eOrigin } = assertGoldenPathIsolation();
   const serviceRole = requiredGoldenPathEnv("SUPABASE_SERVICE_ROLE_KEY");
@@ -77,12 +95,7 @@ async function main() {
     );
   }
 
-  const service = (services ?? []).find(
-    (candidate) =>
-      candidate.slug === "cleaning" ||
-      candidate.slug === "menage" ||
-      candidate.slug === "ménage"
-  );
+  const service = preferredCleaningService(services ?? []);
 
   if (!service) {
     throw new Error(

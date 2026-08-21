@@ -217,8 +217,14 @@ describe("KLYX golden path workflow safety", () => {
     expect(preflight).toContain(
       'profile.currency_code !== "EUR"'
     );
+    expect(preflight).toContain('"menage-a-domicile"');
+    expect(preflight).toContain('"cleaning"');
     expect(preflight).toContain(
-      'candidate.slug === "cleaning"'
+      "for (const slug of CLEANING_SERVICE_SLUGS)"
+    );
+    expect(preflight).toContain("candidate.slug === slug");
+    expect(preflight.indexOf('"menage-a-domicile"')).toBeLessThan(
+      preflight.indexOf('"cleaning"')
     );
   });
 
