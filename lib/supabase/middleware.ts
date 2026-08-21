@@ -24,8 +24,24 @@ function redirectToLogin(request: NextRequest) {
   return NextResponse.redirect(loginUrl);
 }
 
-function stripeRateLimitPolicy(request: NextRequest): ApiRateLimitPolicy | null {
+function authenticatedApiRateLimitPolicy(
+  request: NextRequest
+): ApiRateLimitPolicy | null {
   const pathname = request.nextUrl.pathname;
+
+  if (
+    request.method === "POST" &&
+    pathname === "/api/quotes"
+  ) {
+    return API_RATE_LIMIT_POLICIES.quoteCreate;
+  }
+
+  if (
+    request.method === "PATCH" &&
+    pathname === "/api/quotes"
+  ) {
+    return API_RATE_LIMIT_POLICIES.quoteMutation;
+  }
 
   if (
     request.method === "POST" &&
@@ -123,7 +139,7 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (user) {
-    const policy = stripeRateLimitPolicy(request);
+    const policy = authenticatedApiRateLimitPolicy(request);
 
     if (policy) {
       try {
