@@ -1,0 +1,166 @@
+name: KLYX Provider Storage Golden
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/klyx-provider-storage-golden.yml"
+      - "scripts/golden-path-provider-verification-storage.mjs"
+      - "scripts/golden-path-bootstrap.mjs"
+      - "scripts/golden-path-runtime.mjs"
+      - "supabase/migrations/**"
+      - "tests/integration/provider-verification-storage-contract.test.ts"
+      - "app/provider/verification/**"
+      - "app/api/provider/verification/**"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/klyx-provider-storage-golden.yml"
+      - "scripts/golden-path-provider-verification-storage.mjs"
+      - "scripts/golden-path-bootstrap.mjs"
+      - "scripts/golden-path-runtime.mjs"
+      - "supabase/migrations/**"
+      - "tests/integration/provider-verification-storage-contract.test.ts"
+      - "app/provider/verification/**"
+      - "app/api/provider/verification/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: klyx-provider-storage-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  provider-storage-golden:
+    name: Provider verification Storage verification
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      KLYX_GOLDEN_PATH_MUTATIONS_ENABLED: "true"
+      KLYX_GOLDEN_PATH_LOCAL_SUPABASE: "true"
+      KLYX_PRODUCTION_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      STRIPE_SECRET_KEY: sk_test_klyx_provider_storage_golden
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_klyx_provider_storage_golden
+      STRIPE_WEBHOOK_SECRET: whsec_klyx_provider_storage_golden
+      KLYX_STRIPE_MODE: test
+      KLYX_LIVE_PAYMENTS_ENABLED: "false"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Validate isolated target
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${KLYX_PRODUCTION_SUPABASE_URL:-}" ]; then
+            echo "::error::Production Supabase comparison URL is missing."
+            exit 1
+          fi
+
+          node <<'NODE'
+          const production = new URL(process.env.KLYX_PRODUCTION_SUPABASE_URL);
+          const hostname = production.hostname.toLowerCase();
+          const valid =
+            hostname.endsWith(".supabase.co") ||
+            hostname.endsWith(".supabase.com");
+
+          if (!valid || ["127.0.0.1", "localhost", "[::1]"].includes(hostname)) {
+            throw new Error("Production comparison URL must identify hosted Supabase.");
+          }
+          NODE
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
+        with:
+          version: 2.111.0
+
+      - name: Initialize local Supabase config
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f supabase/config.toml ]; then
+            supabase init
+          fi
+
+      - name: Start ephemeral Supabase with Storage API
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase start \
+            -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+
+      - name: Export ephemeral credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          eval "$(supabase status -o env)"
+          local_public_key="${ANON_KEY:-${PUBLISHABLE_KEY:-}}"
+
+          for name in API_URL SERVICE_ROLE_KEY; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Supabase local status did not provide ${name}."
+              exit 1
+            fi
+          done
+
+          if [ -z "$local_public_key" ]; then
+            echo "::error::Supabase local status did not provide ANON_KEY/PUBLISHABLE_KEY."
+            exit 1
+          fi
+
+          case "$API_URL" in
+            http://127.0.0.1:54321|http://localhost:54321) ;;
+            *) echo "::error::Refusing non-loopback Supabase API URL: ${API_URL}"; exit 1 ;;
+          esac
+
+          golden_email="provider-storage-${GITHUB_RUN_ID}@example.test"
+          golden_password="$(openssl rand -base64 36 | tr -d '\n')"
+
+          echo "::add-mask::$local_public_key"
+          echo "::add-mask::$SERVICE_ROLE_KEY"
+          echo "::add-mask::$golden_password"
+
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
+            echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$local_public_key"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+            echo "KLYX_E2E_EMAIL=$golden_email"
+            echo "KLYX_E2E_PASSWORD=$golden_password"
+          } >> "$GITHUB_ENV"
+
+      - name: Bootstrap isolated KLYX profiles
+        run: node scripts/golden-path-bootstrap.mjs
+
+      - name: Verify provider verification Storage boundary
+        run: node scripts/golden-path-provider-verification-storage.mjs
+
+      - name: Verify provider Storage contract
+        run: >-
+          npx vitest run
+          tests/integration/provider-verification-storage-contract.test.ts
+
+      - name: Destroy ephemeral Supabase
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          supabase stop --no-backup
