@@ -23,6 +23,7 @@ on:
       - "app/api/quotes/**"
       - "app/api/reviews/**"
       - "app/api/stripe/webhook/**"
+      - "app/api/provider/finance/**"
       - "lib/booking-tracking-time.ts"
       - "lib/stripe-payments.ts"
       - "lib/stripe-webhook-events.ts"
@@ -268,9 +269,12 @@ jobs:
       - name: Verify signed webhook, mission and review lifecycle
         run: node scripts/golden-path-service-lifecycle.mjs
 
+      - name: Verify provider finance visibility and reconciliation
+        run: node scripts/golden-path-provider-finance.mjs
+
       - name: Golden path local lifecycle ready
         run: >-
-          echo "Intent analysis, exact provider search, quote, booking, signed local Stripe webhook, idempotency, payment ledger, mission completion and review verified on ephemeral Supabase."
+          echo "Intent analysis, exact provider search, quote, booking, signed local Stripe webhook, idempotency, payment ledger, mission completion, review and provider finance reconciliation verified on ephemeral Supabase."
 
       - name: Stop golden path production server
         if: always()
