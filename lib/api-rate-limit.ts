@@ -1,5 +1,7 @@
-import "server-only";
-
+// Server-only module: this helper reaches the service-role Supabase client and
+// must only be imported by server routes/middleware. The boundary is enforced
+// by the admin client/RPC privileges and integration contracts rather than the
+// optional `server-only` package so Vitest can import middleware directly.
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 
@@ -33,6 +35,26 @@ export const API_RATE_LIMIT_POLICIES = {
   brainRespond: {
     action: "brain_respond",
     limit: 20,
+    windowSeconds: 60,
+  },
+  stripeCheckoutCreate: {
+    action: "stripe_checkout_create",
+    limit: 8,
+    windowSeconds: 60,
+  },
+  stripeGroupCheckoutCreate: {
+    action: "stripe_group_checkout_create",
+    limit: 6,
+    windowSeconds: 60,
+  },
+  stripeConnectOnboarding: {
+    action: "stripe_connect_onboarding",
+    limit: 6,
+    windowSeconds: 300,
+  },
+  stripeConnectStatus: {
+    action: "stripe_connect_status",
+    limit: 30,
     windowSeconds: 60,
   },
 } as const satisfies Record<string, ApiRateLimitPolicy>;
