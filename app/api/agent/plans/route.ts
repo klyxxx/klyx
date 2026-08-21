@@ -59,6 +59,14 @@ async function loadMemory(profileId: string) {
   }
 
   const preferences = preferencesResult.data;
+  const preferredServiceSlugs = Array.isArray(
+    preferences?.preferred_service_slugs
+  )
+    ? preferences.preferred_service_slugs.filter(
+        (slug: unknown): slug is string =>
+          typeof slug === "string" && slug.trim().length > 0
+      )
+    : [];
 
   return {
     enabled: Boolean(
@@ -70,8 +78,7 @@ async function loadMemory(profileId: string) {
       preferences?.default_budget == null
         ? null
         : Number(preferences.default_budget),
-    preferredServiceSlugs:
-      preferences?.preferred_service_slugs ?? [],
+    preferredServiceSlugs,
     preferredTimeText:
       preferences?.scheduling_notes ?? null,
   };
