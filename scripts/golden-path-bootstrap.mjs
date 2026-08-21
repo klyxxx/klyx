@@ -8,6 +8,12 @@ import {
 
 const PROFILE_SELECT =
   "id, owner_user_id, account_type, country_code, currency_code, city";
+const CLEANING_SERVICE_SLUGS = new Set([
+  "menage-a-domicile",
+  "cleaning",
+  "menage",
+  "ménage",
+]);
 
 async function createOwnedProfile({
   userClient,
@@ -131,11 +137,8 @@ async function main() {
     );
   }
 
-  const service = (services ?? []).find(
-    (candidate) =>
-      candidate.slug === "cleaning" ||
-      candidate.slug === "menage" ||
-      candidate.slug === "ménage"
+  const service = (services ?? []).find((candidate) =>
+    CLEANING_SERVICE_SLUGS.has(candidate.slug)
   );
 
   if (!service) {
