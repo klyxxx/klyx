@@ -46,20 +46,21 @@ describe("KLYX provider verification Storage boundary", () => {
     expect(api).toContain("sizeBytes > 10 * 1024 * 1024");
   });
 
-  it("binds Storage paths to an owned provider profile without reopening profile SELECT", () => {
+  it("binds Storage paths to canonical provider ownership helpers", () => {
     expect(migration).toContain("klyx_owns_provider_verification_path");
-    expect(migration).toContain("security definer");
+    expect(migration).toContain("security invoker");
+    expect(migration).toContain("public.klyx_owns_profile(v_profile_id)");
     expect(migration).toContain(
-      "profile.id::text = (storage.foldername(p_name))[1]"
+      "public.klyx_profile_has_type(v_profile_id, 'provider')"
     );
-    expect(migration).toContain("profile.owner_user_id = auth.uid()");
-    expect(migration).toContain("profile.account_type = 'provider'");
     expect(migration).toContain(
-      "array_length(storage.foldername(p_name), 1) = 2"
+      "array_length(v_folders, 1) <> 2"
     );
+    expect(migration).toContain("invalid_text_representation");
     expect(migration).toContain(
       "public.klyx_owns_provider_verification_path(name)"
     );
+    expect(migration).not.toContain("from public.profiles as profile");
 
     for (const folder of [
       "identity",
@@ -85,6 +86,10 @@ describe("KLYX provider verification Storage boundary", () => {
     );
     expect(migration).toContain("to authenticated, service_role");
     expect(migration).not.toContain("grant select on table public.profiles");
+    expect(migration).toContain(
+      "alter function public.klyx_can_cleanup_provider_verification_object(text)"
+    );
+    expect(migration).toContain("owner to postgres");
   });
 
   it("keeps legacy permissive policies unable to widen this bucket", () => {
@@ -145,6 +150,17 @@ describe("KLYX provider verification Storage boundary", () => {
     expect(golden).toContain(
       'const invalidExtensionPath = `${provider.id}/identity/invalid-${suffix}.exe`;'
     );
+  });
+
+  it("proves client-folder rejection with a distinct object path", () => {
+    expect(golden).toContain(
+      'const clientInsertPath = `${client.id}/identity/client-insert-${suffix}.pdf`;'
+    );
+    expect(golden).toContain(
+      'const clientReadPath = `${client.id}/identity/client-read-${suffix}.pdf`;'
+    );
+    expect(golden).toContain(".upload(clientInsertPath, validPdf");
+    expect(golden).toContain(".download(clientReadPath)");
   });
 
   it("proves the real authenticated Storage API boundary on ephemeral Supabase", () => {
