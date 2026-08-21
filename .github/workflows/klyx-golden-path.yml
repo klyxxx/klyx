@@ -25,12 +25,17 @@ on:
       - "app/api/quotes/**"
       - "app/api/reviews/**"
       - "app/api/stripe/webhook/**"
+      - "app/api/provider/studio/**"
+      - "app/api/provider/zones/**"
       - "app/api/provider/finance/**"
       - "lib/universal-service-request.ts"
       - "lib/location-intent.ts"
       - "lib/catalog-service-matcher.ts"
       - "lib/provider-search.ts"
+      - "lib/provider-studio.ts"
       - "lib/provider-skill-publication.ts"
+      - "lib/active-profile.ts"
+      - "lib/supabase/server.ts"
       - "lib/booking-tracking-time.ts"
       - "lib/stripe-payments.ts"
       - "lib/split-stripe-payments.ts"
@@ -51,12 +56,17 @@ on:
       - "app/api/quotes/**"
       - "app/api/reviews/**"
       - "app/api/stripe/webhook/**"
+      - "app/api/provider/studio/**"
+      - "app/api/provider/zones/**"
       - "app/api/provider/finance/**"
       - "lib/universal-service-request.ts"
       - "lib/location-intent.ts"
       - "lib/catalog-service-matcher.ts"
       - "lib/provider-search.ts"
+      - "lib/provider-studio.ts"
       - "lib/provider-skill-publication.ts"
+      - "lib/active-profile.ts"
+      - "lib/supabase/server.ts"
       - "lib/booking-tracking-time.ts"
       - "lib/stripe-payments.ts"
       - "lib/split-stripe-payments.ts"
@@ -295,6 +305,9 @@ jobs:
           cat golden-path-server.log
           exit 1
 
+      - name: Verify provider onboarding service, pricing and zone
+        run: node scripts/golden-path-provider-onboarding.mjs
+
       - name: Verify client intent and exact provider search
         run: node scripts/golden-path-intent-search.mjs
 
@@ -315,7 +328,7 @@ jobs:
 
       - name: Golden path local lifecycle ready
         run: >-
-          echo "Intent analysis, exact provider search, quote, booking, signed local Stripe webhook, idempotency, payment ledger, mission completion, review, provider finance reconciliation, refunded terminal state and split payment/refund reconciliation verified on ephemeral Supabase."
+          echo "Provider studio/zone onboarding, intent analysis, exact provider search, quote, booking, signed local Stripe webhook, idempotency, payment ledger, mission completion, review, provider finance reconciliation, refunded terminal state and split payment/refund reconciliation verified on ephemeral Supabase."
 
       - name: Stop golden path production server
         if: always()
