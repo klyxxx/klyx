@@ -21,6 +21,8 @@ on:
       - "supabase/migrations/**"
       - "proxy.ts"
       - "app/messages/**"
+      - "app/agent/**"
+      - "app/api/agent/**"
       - "app/api/ai/respond/**"
       - "app/api/requests/analyze/**"
       - "app/api/search/providers/**"
@@ -34,6 +36,7 @@ on:
       - "app/api/provider/studio/**"
       - "app/api/provider/zones/**"
       - "app/api/provider/finance/**"
+      - "lib/client-agent.ts"
       - "lib/api-rate-limit.ts"
       - "lib/supabase/middleware.ts"
       - "lib/universal-service-request.ts"
@@ -60,6 +63,8 @@ on:
       - "supabase/migrations/**"
       - "proxy.ts"
       - "app/messages/**"
+      - "app/agent/**"
+      - "app/api/agent/**"
       - "app/api/ai/respond/**"
       - "app/api/requests/analyze/**"
       - "app/api/search/providers/**"
@@ -73,6 +78,7 @@ on:
       - "app/api/provider/studio/**"
       - "app/api/provider/zones/**"
       - "app/api/provider/finance/**"
+      - "lib/client-agent.ts"
       - "lib/api-rate-limit.ts"
       - "lib/supabase/middleware.ts"
       - "lib/universal-service-request.ts"
@@ -324,6 +330,9 @@ jobs:
       - name: Verify provider onboarding service, pricing and zone
         run: node scripts/golden-path-provider-onboarding.mjs
 
+      - name: Verify agent search, exact choice and confirmation boundary
+        run: node scripts/golden-path-agent-orchestration.mjs
+
       - name: Verify client intent and exact provider search
         run: node scripts/golden-path-intent-search.mjs
 
@@ -347,7 +356,7 @@ jobs:
 
       - name: Golden path local lifecycle ready
         run: >-
-          echo "Provider studio/zone onboarding, intent analysis, exact provider search, quote, booking, direct-message DB abuse guard, signed local Stripe webhook, idempotency, payment ledger, mission completion, review, provider finance reconciliation, refunded terminal state and split payment/refund reconciliation verified on ephemeral Supabase."
+          echo "Provider studio/zone onboarding, agent search/choice orchestration with booking confirmation boundary, intent analysis, exact provider search, quote, booking, direct-message DB abuse guard, signed local Stripe webhook, idempotency, payment ledger, mission completion, review, provider finance reconciliation, refunded terminal state and split payment/refund reconciliation verified on ephemeral Supabase."
 
       - name: Stop golden path production server
         if: always()
