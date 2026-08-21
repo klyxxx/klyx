@@ -120,10 +120,19 @@ function scoreService(
 
   if (informativeMatches === 0) return 0;
 
+  const exactInformativeMatches = informativeTokens.filter(
+    (token) => textTokens.includes(token)
+  ).length;
+
   const ratio =
     informativeMatches / informativeTokens.length;
 
   let score = 55 + Math.round(ratio * 35);
+
+  // Prefer the exact profession/service word over a merely related stem.
+  // Example: "ménage" should rank "Ménage à domicile" above
+  // "Aide ménagère", while both remain valid semantic candidates.
+  score += Math.min(6, exactInformativeMatches * 4);
 
   const actionMatches = serviceTokens.filter(
     (token) =>
