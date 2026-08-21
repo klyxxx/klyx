@@ -68,11 +68,13 @@ describe("KLYX direct-message database abuse guard", () => {
     }
   });
 
-  it("proves the real direct Supabase path in the isolated Golden lifecycle", () => {
+  it("proves direct Supabase enforcement and notification continuity in Golden", () => {
     expect(golden).toContain('from("messages")');
     expect(golden).toContain("MESSAGE_LIMIT = 30");
     expect(golden).toContain("KLYX_MESSAGE_RATE_LIMITED");
     expect(golden).toContain("newMessagesForcedUnread: true");
+    expect(golden).toContain("messageNotificationsVerified: MESSAGE_LIMIT");
+    expect(golden).toContain('from("notifications")');
     expect(golden).toContain("directSupabaseClientProtected: true");
     expect(workflow).toContain(
       "node scripts/golden-path-message-rate-limit.mjs"
