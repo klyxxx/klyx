@@ -3,6 +3,7 @@
 import {
   FormEvent,
   useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -23,6 +24,10 @@ import {
   UsersRound,
 } from "lucide-react";
 
+import AuthTurnstile, {
+  AUTH_TURNSTILE_ENABLED,
+  type AuthTurnstileHandle,
+} from "@/app/components/AuthTurnstile";
 import {
   createClient,
 } from "@/lib/supabase/client";
@@ -34,6 +39,15 @@ import KlyxLogo from "@/app/ui/KlyxLogo";
 export default function LoginPage() {
   const router =
     useRouter();
+
+  const captchaRef =
+    useRef<AuthTurnstileHandle | null>(null);
+
+  const [
+    captchaToken,
+    setCaptchaToken,
+  ] =
+    useState("");
 
   const [
     email,
@@ -121,6 +135,26 @@ export default function LoginPage() {
     router,
   ]);
 
+  function requireCaptcha() {
+    if (
+      AUTH_TURNSTILE_ENABLED &&
+      !captchaToken
+    ) {
+      setErrorMessage(
+        "Valide d’abord la vérification anti-robot."
+      );
+      setSuccessMessage("");
+      return false;
+    }
+
+    return true;
+  }
+
+  function resetCaptcha() {
+    captchaRef.current?.reset();
+    setCaptchaToken("");
+  }
+
   async function handleLogin(
     event:
       FormEvent<HTMLFormElement>
@@ -145,6 +179,10 @@ export default function LoginPage() {
       return;
     }
 
+    if (!requireCaptcha()) {
+      return;
+    }
+
     setLoading(true);
     setErrorMessage("");
     setSuccessMessage("");
@@ -161,11 +199,28 @@ export default function LoginPage() {
             normalizedEmail,
 
           password,
+
+          options:
+            AUTH_TURNSTILE_ENABLED
+              ? {
+                  captchaToken,
+                }
+              : undefined,
         });
 
       if (error) {
         const message =
           error.message.toLowerCase();
+
+        if (
+          message.includes(
+            "captcha"
+          )
+        ) {
+          throw new Error(
+            "La vérification anti-robot a expiré ou a échoué. Réessaie."
+          );
+        }
 
         if (
           message.includes(
@@ -209,6 +264,7 @@ export default function LoginPage() {
           : "Impossible de se connecter."
       );
     } finally {
+      resetCaptcha();
       setLoading(false);
     }
   }
@@ -231,6 +287,10 @@ export default function LoginPage() {
       return;
     }
 
+    if (!requireCaptcha()) {
+      return;
+    }
+
     setLoading(true);
     setErrorMessage("");
     setSuccessMessage("");
@@ -247,10 +307,24 @@ export default function LoginPage() {
           {
             redirectTo:
               `${window.location.origin}/reset-password`,
+            captchaToken:
+              AUTH_TURNSTILE_ENABLED
+                ? captchaToken
+                : undefined,
           }
         );
 
       if (error) {
+        if (
+          error.message
+            .toLowerCase()
+            .includes("captcha")
+        ) {
+          throw new Error(
+            "La vérification anti-robot a expiré ou a échoué. Réessaie."
+          );
+        }
+
         throw error;
       }
 
@@ -266,6 +340,7 @@ export default function LoginPage() {
           : "Impossible d’envoyer l’e-mail."
       );
     } finally {
+      resetCaptcha();
       setLoading(false);
     }
   }
@@ -466,6 +541,14 @@ export default function LoginPage() {
                 </button>
               </div>
             </label>
+
+            <AuthTurnstile
+              ref={captchaRef}
+              action="login"
+              onTokenChange={
+                setCaptchaToken
+              }
+            />
 
             <div className="flex justify-end">
               <button
