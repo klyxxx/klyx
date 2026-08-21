@@ -33,6 +33,7 @@ on:
       - "lib/provider-skill-publication.ts"
       - "lib/booking-tracking-time.ts"
       - "lib/stripe-payments.ts"
+      - "lib/split-stripe-payments.ts"
       - "lib/stripe-webhook-events.ts"
       - "lib/payment-ledger.ts"
       - "lib/api-auth.ts"
@@ -58,6 +59,7 @@ on:
       - "lib/provider-skill-publication.ts"
       - "lib/booking-tracking-time.ts"
       - "lib/stripe-payments.ts"
+      - "lib/split-stripe-payments.ts"
       - "lib/stripe-webhook-events.ts"
       - "lib/payment-ledger.ts"
       - "lib/api-auth.ts"
@@ -308,9 +310,12 @@ jobs:
       - name: Verify refunded payment terminal state
         run: node scripts/golden-path-refund-terminal-state.mjs
 
+      - name: Verify split payment and refund reconciliation
+        run: node scripts/golden-path-split-refund.mjs
+
       - name: Golden path local lifecycle ready
         run: >-
-          echo "Intent analysis, exact provider search, quote, booking, signed local Stripe webhook, idempotency, payment ledger, mission completion, review, provider finance reconciliation and refunded terminal state verified on ephemeral Supabase."
+          echo "Intent analysis, exact provider search, quote, booking, signed local Stripe webhook, idempotency, payment ledger, mission completion, review, provider finance reconciliation, refunded terminal state and split payment/refund reconciliation verified on ephemeral Supabase."
 
       - name: Stop golden path production server
         if: always()
