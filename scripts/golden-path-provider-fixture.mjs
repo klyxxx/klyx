@@ -6,15 +6,22 @@ import {
   requiredGoldenPathEnv,
 } from "./golden-path-runtime.mjs";
 
-const CLEANING_SERVICE_SLUGS = new Set([
+const CLEANING_SERVICE_SLUGS = [
   "menage-a-domicile",
   "cleaning",
   "menage",
   "ménage",
-]);
+];
 
 function cleaningService(services) {
-  return services.find((service) => CLEANING_SERVICE_SLUGS.has(service.slug));
+  for (const slug of CLEANING_SERVICE_SLUGS) {
+    const service = services.find((candidate) => candidate.slug === slug);
+    if (service) {
+      return service;
+    }
+  }
+
+  return undefined;
 }
 
 async function main() {
