@@ -120,6 +120,10 @@ async function main() {
   const now = new Date().toISOString();
   const localRefundId = `re_test_klyx_local_${randomUUID().replaceAll("-", "")}`;
 
+  // This mirrors the existing refund writers: they persist refund proof while
+  // payment_status is still paid. The canonical paid-booking guard must promote
+  // the same atomic UPDATE to refunded without allowing amount/currency/Stripe
+  // payment identity changes.
   const { data: promoted, error: promoteError } = await admin
     .from("bookings")
     .update({
@@ -156,14 +160,22 @@ async function main() {
     .eq("id", booking.id)
     .select("id, payment_status");
 
-  if (latePaymentError) {
+  const lateMutationBlockedByGuard =
+    Boolean(latePaymentError?.message?.includes("KLYX_BOOKING_ALREADY_REFUNDED"));
+
+  if (
+    !lateMutationBlockedByGuard &&
+    ((latePaymentRows ?? []).length !== 0 || latePaymentError)
+  ) {
     throw new Error(
-      `Late payment mutation probe failed unexpectedly: ${latePaymentError.message}`
+      `Late payment mutation probe failed unexpectedly: ${
+        latePaymentError?.message ?? JSON.stringify(latePaymentRows)
+      }`
     );
   }
 
-  if ((latePaymentRows ?? []).length !== 0) {
-    throw new Error("A refunded booking accepted a late payment-state mutation.");
+  if (!lateMutationBlockedByGuard) {
+    throw new Error("A refunded booking did not reject a late payment-state mutation.");
   }
 
   const { data: terminalBooking, error: terminalError } = await admin
@@ -219,6 +231,7 @@ async function main() {
       refundStatus: terminalBooking.refund_status,
       refundedAmountCents: Number(terminalBooking.refunded_amount_cents),
       latePaymentMutationBlocked: true,
+      lateMutationGuard: "KLYX_BOOKING_ALREADY_REFUNDED",
       overviewStatus: card.status,
       realStripeNetworkUsed: false,
       ephemeralSupabaseOnly: true,
