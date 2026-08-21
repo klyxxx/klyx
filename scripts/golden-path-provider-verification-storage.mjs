@@ -88,6 +88,7 @@ async function main() {
 
   const suffix = `${Date.now()}-${process.pid}`;
   const validPath = `${provider.id}/identity/golden-${suffix}.pdf`;
+  const cleanupPath = `${provider.id}/address/cleanup-${suffix}.pdf`;
   const clientInsertPath = `${client.id}/identity/client-insert-${suffix}.pdf`;
   const clientReadPath = `${client.id}/identity/client-read-${suffix}.pdf`;
   const invalidFolderPath = `${provider.id}/secret/secret-${suffix}.pdf`;
@@ -101,6 +102,7 @@ async function main() {
 
   const cleanupPaths = [
     validPath,
+    cleanupPath,
     clientInsertPath,
     clientReadPath,
     invalidFolderPath,
@@ -108,6 +110,7 @@ async function main() {
     invalidMimePath,
     oversizedPath,
   ];
+  let registeredDocumentId = null;
 
   try {
     const { error: seededClientObjectError } = await admin.storage
@@ -238,19 +241,66 @@ async function main() {
       "Provider verification oversized upload"
     );
 
-    const { error: removeError } = await userClient.storage
-      .from(BUCKET)
-      .remove([validPath]);
+    const { data: registeredDocument, error: registerError } = await admin
+      .from("provider_verification_documents")
+      .insert({
+        profile_id: provider.id,
+        document_type: "identity",
+        storage_path: validPath,
+        original_name: `golden-${suffix}.pdf`,
+        mime_type: "application/pdf",
+        size_bytes: validPdf.length,
+        status: "uploaded",
+      })
+      .select("id")
+      .single();
 
-    if (removeError) {
+    if (registerError || !registeredDocument?.id) {
       throw new Error(
-        `Provider could not delete own verification object: ${removeError.message}`
+        `Unable to register provider verification proof object: ${
+          registerError?.message ?? "missing document id"
+        }`
+      );
+    }
+    registeredDocumentId = registeredDocument.id;
+
+    await expectStorageError(
+      userClient.storage.from(BUCKET).remove([validPath]),
+      "Direct deletion of a registered provider verification object"
+    );
+
+    const { data: stillReadable, error: stillReadableError } =
+      await userClient.storage.from(BUCKET).download(validPath);
+    if (stillReadableError || !stillReadable) {
+      throw new Error(
+        "Registered provider verification object disappeared after rejected direct deletion."
+      );
+    }
+
+    const { error: cleanupUploadError } = await userClient.storage
+      .from(BUCKET)
+      .upload(cleanupPath, validPdf, {
+        contentType: "application/pdf",
+        upsert: false,
+      });
+    if (cleanupUploadError) {
+      throw new Error(
+        `Unable to create unregistered cleanup proof object: ${cleanupUploadError.message}`
+      );
+    }
+
+    const { error: cleanupDeleteError } = await userClient.storage
+      .from(BUCKET)
+      .remove([cleanupPath]);
+    if (cleanupDeleteError) {
+      throw new Error(
+        `Unregistered provider upload cleanup was blocked: ${cleanupDeleteError.message}`
       );
     }
 
     await expectStorageError(
-      userClient.storage.from(BUCKET).download(validPath),
-      "Deleted provider verification object read"
+      userClient.storage.from(BUCKET).download(cleanupPath),
+      "Deleted unregistered provider verification object read"
     );
 
     process.stdout.write(
@@ -272,11 +322,19 @@ async function main() {
         invalidExtensionRejected: true,
         invalidMimeRejected: true,
         oversizedUploadRejected: true,
-        ownUploadReadDeleteVerified: true,
+        ownUploadReadVerified: true,
+        registeredDirectDeleteRejected: true,
+        unregisteredCleanupVerified: true,
         localSupabaseOnly: true,
       })}\n`
     );
   } finally {
+    if (registeredDocumentId) {
+      await admin
+        .from("provider_verification_documents")
+        .delete()
+        .eq("id", registeredDocumentId);
+    }
     await admin.storage.from(BUCKET).remove(cleanupPaths);
     await userClient.auth.signOut();
   }
