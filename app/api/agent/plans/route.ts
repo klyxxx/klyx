@@ -8,9 +8,15 @@ import {
   requireAccountType,
 } from "@/lib/api-auth";
 import {
+  detectCatalogServiceCandidates,
+  mergeServiceCandidates,
+  type CatalogServiceRecord,
+} from "@/lib/catalog-service-matcher";
+import {
   buildClientAgentPlan,
   type AgentStep,
 } from "@/lib/client-agent";
+import { detectServiceCandidates } from "@/lib/universal-service-request";
 
 const PLAN_SELECT =
   "id, title, raw_request, service_slug, city, requested_day, requested_time, duration_hours, budget_max, plan_status, steps, memory_used, selected_provider_id, selected_user_service_id, search_snapshot, execution_status, execution_revision, next_action, next_action_href, last_execution_code, last_execution_at, created_at, updated_at, completed_at";
@@ -69,6 +75,21 @@ async function loadMemory(profileId: string) {
     preferredTimeText:
       preferences?.scheduling_notes ?? null,
   };
+}
+
+async function loadCanonicalServices(): Promise<CatalogServiceRecord[]> {
+  const { data, error } = await supabaseAdmin
+    .from("services")
+    .select("slug, name")
+    .limit(1000);
+
+  if (error) throw error;
+
+  return (data ?? []).filter(
+    (service): service is CatalogServiceRecord =>
+      typeof service.slug === "string" &&
+      service.slug.trim().length > 0
+  );
 }
 
 function secureAgentPlanError(
@@ -144,8 +165,29 @@ export async function POST(request: Request) {
       );
     }
 
-    const memory = await loadMemory(profile.id);
-    const plan = buildClientAgentPlan({ request: rawRequest, memory });
+    const [memory, services] = await Promise.all([
+      loadMemory(profile.id),
+      loadCanonicalServices(),
+    ]);
+    const serviceCandidates = mergeServiceCandidates(
+      services,
+      detectCatalogServiceCandidates(rawRequest, services, 5),
+      detectServiceCandidates(rawRequest)
+    );
+    const canonicalServiceSlugs = new Set(
+      services.map((service) => service.slug)
+    );
+    const canonicalMemory = {
+      ...memory,
+      preferredServiceSlugs: memory.preferredServiceSlugs.filter((slug) =>
+        canonicalServiceSlugs.has(slug)
+      ),
+    };
+    const plan = buildClientAgentPlan({
+      request: rawRequest,
+      memory: canonicalMemory,
+      serviceCandidates,
+    });
     const nextAction = plan.readyForSearch ? "search" : "complete";
     const nextActionHref = plan.readyForSearch ? null : "/request";
 
