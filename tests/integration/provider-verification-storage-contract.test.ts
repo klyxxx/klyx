@@ -148,10 +148,13 @@ describe("KLYX provider verification Storage boundary", () => {
     expect(golden).toContain("invalidMimeRejected: true");
     expect(golden).toContain("oversizedUploadRejected: true");
     expect(golden).toContain("ownUploadReadVerified: true");
-    expect(golden).toContain("registeredDirectDeleteRejected: true");
+    expect(golden).toContain("registeredDirectDeleteBlocked: true");
     expect(golden).toContain("unregisteredCleanupVerified: true");
     expect(golden).toContain("localSupabaseOnly: true");
     expect(golden).toContain('.from("provider_verification_documents")');
+    expect(golden).toContain(
+      "Registered provider verification object disappeared after direct browser deletion attempt."
+    );
 
     expect(workflow).toContain("Start ephemeral Supabase with Storage API");
     expect(workflow).not.toContain(
