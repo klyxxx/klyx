@@ -191,29 +191,29 @@ export function buildClientAgentPlan(
     },
     {
       id: "search",
-      title: "Comparer les prestataires",
+      title: "Rechercher les prestataires",
       description:
         readyForSearch
-          ? "KLYX peut ouvrir une recherche déjà filtrée."
+          ? "KLYX peut lancer lui-même la recherche avec les critères du plan."
           : "Cette étape sera disponible après avoir complété la demande.",
       status: readyForSearch ? "ready" : "pending",
-      actionHref: searchHref,
-      requiresConfirmation: true,
+      actionHref: null,
+      requiresConfirmation: false,
     },
     {
       id: "choose",
-      title: "Choisir le prestataire",
+      title: "Choisir le meilleur match",
       description:
-        "Tu compares les profils, prix, avis et explications du matching.",
+        "KLYX sélectionne automatiquement le meilleur match exact et s’arrête si seuls des résultats approximatifs existent.",
       status: "pending",
       actionHref: null,
-      requiresConfirmation: true,
+      requiresConfirmation: false,
     },
     {
       id: "book",
       title: "Confirmer la réservation",
       description:
-        "La date, l’heure et la prestation doivent être confirmées manuellement.",
+        "La date, l’heure, le prestataire et la prestation doivent être confirmés par toi.",
       status: "pending",
       actionHref: null,
       requiresConfirmation: true,
