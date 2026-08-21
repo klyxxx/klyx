@@ -35,29 +35,46 @@ set
   file_size_limit = excluded.file_size_limit,
   allowed_mime_types = excluded.allowed_mime_types;
 
--- Authenticated roles intentionally cannot SELECT the profiles table directly
--- after KLYX privilege hardening. Storage RLS therefore resolves only the
--- minimum ownership predicate through this SECURITY DEFINER helper instead of
--- reopening profile-table reads to the browser.
+-- Storage must not need direct SELECT privileges on public.profiles. KLYX
+-- already has two canonical postgres-owned SECURITY DEFINER authorization
+-- helpers for exactly this purpose: klyx_owns_profile + klyx_profile_has_type.
+-- This wrapper only parses the object path safely and delegates to them.
 create or replace function public.klyx_owns_provider_verification_path(
   p_name text
 )
 returns boolean
-language sql
+language plpgsql
 stable
-security definer
+security invoker
 set search_path = public, pg_temp
 as $$
-  select
-    auth.uid() is not null
-    and array_length(storage.foldername(p_name), 1) = 2
-    and exists (
-      select 1
-      from public.profiles as profile
-      where profile.id::text = (storage.foldername(p_name))[1]
-        and profile.owner_user_id = auth.uid()
-        and profile.account_type = 'provider'
-    );
+declare
+  v_folders text[];
+  v_profile_id uuid;
+begin
+  if auth.uid() is null then
+    return false;
+  end if;
+
+  v_folders := storage.foldername(p_name);
+
+  if array_length(v_folders, 1) <> 2 then
+    return false;
+  end if;
+
+  if v_folders[1] !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' then
+    return false;
+  end if;
+
+  v_profile_id := v_folders[1]::uuid;
+
+  return
+    public.klyx_owns_profile(v_profile_id)
+    and public.klyx_profile_has_type(v_profile_id, 'provider');
+exception
+  when invalid_text_representation then
+    return false;
+end;
 $$;
 
 revoke all on function public.klyx_owns_provider_verification_path(text)
@@ -66,7 +83,7 @@ grant execute on function public.klyx_owns_provider_verification_path(text)
   to authenticated, service_role;
 
 comment on function public.klyx_owns_provider_verification_path(text) is
-  'Minimal Storage RLS helper: true only when the authenticated account owns the provider profile named by the first object-path folder.';
+  'Minimal Storage RLS wrapper: true only when the authenticated account owns the provider profile named by the first object-path folder.';
 
 -- Browser cleanup is allowed only for a just-uploaded object that has not yet
 -- become part of the authoritative KLYX verification dossier. Once the server
@@ -89,6 +106,12 @@ as $$
       where document.storage_path = p_name
     );
 $$;
+
+-- The migration execution role is not a stable authorization principal across
+-- local/hosted Supabase. Pin the SECURITY DEFINER helper to postgres explicitly
+-- so the server-only metadata lookup cannot inherit a privilege-starved owner.
+alter function public.klyx_can_cleanup_provider_verification_object(text)
+  owner to postgres;
 
 revoke all on function public.klyx_can_cleanup_provider_verification_object(text)
   from public, anon;
