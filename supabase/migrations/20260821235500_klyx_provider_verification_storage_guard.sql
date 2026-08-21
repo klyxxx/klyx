@@ -35,6 +35,51 @@ set
   file_size_limit = excluded.file_size_limit,
   allowed_mime_types = excluded.allowed_mime_types;
 
+-- Browser cleanup is allowed only for a just-uploaded object that has not yet
+-- become part of the authoritative KLYX verification dossier. Once the server
+-- has registered storage_path, deletion must go through the KLYX server API so
+-- Storage, document metadata and verification status change together.
+create or replace function public.klyx_can_cleanup_provider_verification_object(
+  p_name text
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select
+    auth.uid() is not null
+    and array_length(storage.foldername(p_name), 1) = 2
+    and (storage.foldername(p_name))[2] in (
+      'identity',
+      'address',
+      'business',
+      'insurance',
+      'professional_certificate'
+    )
+    and exists (
+      select 1
+      from public.profiles as profile
+      where profile.id::text = (storage.foldername(p_name))[1]
+        and profile.owner_user_id = auth.uid()
+        and profile.account_type = 'provider'
+    )
+    and not exists (
+      select 1
+      from public.provider_verification_documents as document
+      where document.storage_path = p_name
+    );
+$$;
+
+revoke all on function public.klyx_can_cleanup_provider_verification_object(text)
+  from public, anon;
+grant execute on function public.klyx_can_cleanup_provider_verification_object(text)
+  to authenticated, service_role;
+
+comment on function public.klyx_can_cleanup_provider_verification_object(text) is
+  'Allows authenticated cleanup only for an owned provider verification object that is not registered in the KLYX verification dossier.';
+
 -- Named permissive policies provide the intended access when no historical
 -- dashboard policy exists. Matching restrictive policies make the same rules
 -- an AND-condition if a broader permissive policy was created previously.
@@ -122,9 +167,9 @@ with check (
   )
 );
 
--- SELECT is required by the Storage API to return uploaded object metadata and
--- by the current browser cleanup path. It is limited to the uploader's own
--- provider-profile folder in this private bucket.
+-- SELECT is needed for direct authenticated upload/read behavior and the
+-- browser's failed-registration cleanup. The bucket remains private, and only
+-- the uploader's owned provider-profile folder is visible to that user.
 create policy klyx_provider_verification_select
 on storage.objects
 as permissive
@@ -161,6 +206,9 @@ using (
   )
 );
 
+-- DELETE remains available only as cleanup for an upload that the server has
+-- not registered. Registered dossier objects cannot be removed directly from
+-- a modified browser; the service-role-backed KLYX DELETE API is authoritative.
 create policy klyx_provider_verification_delete
 on storage.objects
 as permissive
@@ -169,13 +217,7 @@ to authenticated
 using (
   bucket_id = 'provider-verification'
   and owner_id = (select auth.uid()::text)
-  and exists (
-    select 1
-    from public.profiles as profile
-    where profile.id::text = (storage.foldername(name))[1]
-      and profile.owner_user_id = (select auth.uid())
-      and profile.account_type = 'provider'
-  )
+  and public.klyx_can_cleanup_provider_verification_object(name)
 );
 
 create policy klyx_provider_verification_delete_guard
@@ -187,13 +229,7 @@ using (
   bucket_id <> 'provider-verification'
   or (
     owner_id = (select auth.uid()::text)
-    and exists (
-      select 1
-      from public.profiles as profile
-      where profile.id::text = (storage.foldername(name))[1]
-        and profile.owner_user_id = (select auth.uid())
-        and profile.account_type = 'provider'
-    )
+    and public.klyx_can_cleanup_provider_verification_object(name)
   )
 );
 
