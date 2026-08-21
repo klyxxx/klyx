@@ -165,7 +165,7 @@ async function main() {
 
     const notificationKeys = createdMessageIds.map((id) => `message:${id}`);
     const { data: notifications, error: notificationError } = await admin
-      .from("notifications")
+      .from("user_notifications")
       .select("deduplication_key")
       .in("deduplication_key", notificationKeys);
 
@@ -234,7 +234,7 @@ async function main() {
   } finally {
     if (createdMessageIds.length > 0) {
       await admin
-        .from("notifications")
+        .from("user_notifications")
         .delete()
         .in(
           "deduplication_key",
