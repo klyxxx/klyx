@@ -35,6 +35,39 @@ set
   file_size_limit = excluded.file_size_limit,
   allowed_mime_types = excluded.allowed_mime_types;
 
+-- Authenticated roles intentionally cannot SELECT the profiles table directly
+-- after KLYX privilege hardening. Storage RLS therefore resolves only the
+-- minimum ownership predicate through this SECURITY DEFINER helper instead of
+-- reopening profile-table reads to the browser.
+create or replace function public.klyx_owns_provider_verification_path(
+  p_name text
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select
+    auth.uid() is not null
+    and array_length(storage.foldername(p_name), 1) = 2
+    and exists (
+      select 1
+      from public.profiles as profile
+      where profile.id::text = (storage.foldername(p_name))[1]
+        and profile.owner_user_id = auth.uid()
+        and profile.account_type = 'provider'
+    );
+$$;
+
+revoke all on function public.klyx_owns_provider_verification_path(text)
+  from public, anon;
+grant execute on function public.klyx_owns_provider_verification_path(text)
+  to authenticated, service_role;
+
+comment on function public.klyx_owns_provider_verification_path(text) is
+  'Minimal Storage RLS helper: true only when the authenticated account owns the provider profile named by the first object-path folder.';
+
 -- Browser cleanup is allowed only for a just-uploaded object that has not yet
 -- become part of the authoritative KLYX verification dossier. Once the server
 -- has registered storage_path, deletion must go through the KLYX server API so
@@ -49,22 +82,7 @@ security definer
 set search_path = public, pg_temp
 as $$
   select
-    auth.uid() is not null
-    and array_length(storage.foldername(p_name), 1) = 2
-    and (storage.foldername(p_name))[2] in (
-      'identity',
-      'address',
-      'business',
-      'insurance',
-      'professional_certificate'
-    )
-    and exists (
-      select 1
-      from public.profiles as profile
-      where profile.id::text = (storage.foldername(p_name))[1]
-        and profile.owner_user_id = auth.uid()
-        and profile.account_type = 'provider'
-    )
+    public.klyx_owns_provider_verification_path(p_name)
     and not exists (
       select 1
       from public.provider_verification_documents as document
@@ -109,7 +127,7 @@ to authenticated
 with check (
   bucket_id = 'provider-verification'
   and owner_id = (select auth.uid()::text)
-  and array_length(storage.foldername(name), 1) = 2
+  and public.klyx_owns_provider_verification_path(name)
   and (storage.foldername(name))[2] in (
     'identity',
     'address',
@@ -124,13 +142,6 @@ with check (
     'png',
     'webp'
   )
-  and exists (
-    select 1
-    from public.profiles as profile
-    where profile.id::text = (storage.foldername(name))[1]
-      and profile.owner_user_id = (select auth.uid())
-      and profile.account_type = 'provider'
-  )
 );
 
 create policy klyx_provider_verification_insert_guard
@@ -142,7 +153,7 @@ with check (
   bucket_id <> 'provider-verification'
   or (
     owner_id = (select auth.uid()::text)
-    and array_length(storage.foldername(name), 1) = 2
+    and public.klyx_owns_provider_verification_path(name)
     and (storage.foldername(name))[2] in (
       'identity',
       'address',
@@ -156,13 +167,6 @@ with check (
       'jpeg',
       'png',
       'webp'
-    )
-    and exists (
-      select 1
-      from public.profiles as profile
-      where profile.id::text = (storage.foldername(name))[1]
-        and profile.owner_user_id = (select auth.uid())
-        and profile.account_type = 'provider'
     )
   )
 );
@@ -178,13 +182,7 @@ to authenticated
 using (
   bucket_id = 'provider-verification'
   and owner_id = (select auth.uid()::text)
-  and exists (
-    select 1
-    from public.profiles as profile
-    where profile.id::text = (storage.foldername(name))[1]
-      and profile.owner_user_id = (select auth.uid())
-      and profile.account_type = 'provider'
-  )
+  and public.klyx_owns_provider_verification_path(name)
 );
 
 create policy klyx_provider_verification_select_guard
@@ -196,13 +194,7 @@ using (
   bucket_id <> 'provider-verification'
   or (
     owner_id = (select auth.uid()::text)
-    and exists (
-      select 1
-      from public.profiles as profile
-      where profile.id::text = (storage.foldername(name))[1]
-        and profile.owner_user_id = (select auth.uid())
-        and profile.account_type = 'provider'
-    )
+    and public.klyx_owns_provider_verification_path(name)
   )
 );
 
