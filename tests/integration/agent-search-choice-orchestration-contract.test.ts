@@ -46,6 +46,18 @@ describe("KLYX reversible agent search/choice orchestration", () => {
     expect(executeRoute).toContain("reused: true");
   });
 
+  it("resolves the plan service through the canonical Supabase catalog", () => {
+    expect(plansRoute).toContain('.from("services")');
+    expect(plansRoute).toContain('select("slug, name")');
+    expect(plansRoute).toContain("detectCatalogServiceCandidates");
+    expect(plansRoute).toContain("mergeServiceCandidates");
+    expect(plansRoute).toContain("canonicalServiceSlugs.has(slug)");
+    expect(plansRoute).toContain("serviceCandidates,");
+    expect(agent).toContain("serviceCandidates?: ServiceCandidate[]");
+    expect(agent).not.toContain("const SERVICE_LABELS");
+    expect(agent).not.toContain("!SERVICE_LABELS[serviceSlug]");
+  });
+
   it("uses the canonical provider search and only auto-selects an exact match", () => {
     expect(executeRoute).toContain(
       'GET as providerSearchCore'
