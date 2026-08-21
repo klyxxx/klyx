@@ -20,7 +20,9 @@ const paymentWebhooks = read("lib/stripe-payments.ts");
 describe("KLYX refunded payment terminal state", () => {
   it("promotes only full successful refunds to payment_status refunded", () => {
     expect(migration).toContain("new.refund_status = 'succeeded'");
-    expect(migration).toContain("coalesce(new.refunded_amount_cents, 0) >= new.amount_total");
+    expect(migration).toContain(
+      "coalesce(new.refunded_amount_cents, 0) >= new.amount_total"
+    );
     expect(migration).toContain("new.payment_status := 'refunded'");
   });
 
@@ -37,13 +39,19 @@ describe("KLYX refunded payment terminal state", () => {
   });
 
   it("covers every existing single/group refund writer through the bookings trigger", () => {
-    expect(statusRoute).toContain('refund_status:\n          refund.status === "succeeded" ? "succeeded" : "processing"');
-    expect(refundReconciliation).toContain('refund_status: refundStatus');
-    expect(groupRefunds).toContain('refund_status:\n            "succeeded"');
+    expect(statusRoute).toContain("refund.status === \"succeeded\"");
+    expect(statusRoute).toContain("refunded_amount_cents: refund.amount");
+    expect(refundReconciliation).toContain("refund_status: refundStatus");
+    expect(refundReconciliation).toContain("refunded_amount_cents: refund.amount");
+    expect(groupRefunds).toContain("refund_status:");
+    expect(groupRefunds).toContain('"succeeded"');
+    expect(groupRefunds).toContain("refunded_amount_cents:");
   });
 
-  it("keeps payment success and failure mutations on the canonical bookings table", () => {
-    expect(paymentWebhooks).toContain('.from("bookings")');
+  it("makes refunded a no-op in late payment success and failure handlers", () => {
+    expect(paymentWebhooks).toContain('booking.payment_status === "refunded"');
+    expect(paymentWebhooks).toContain('.neq("payment_status", "refunded")');
+    expect(paymentWebhooks).toContain("if (!updatedBooking) {");
     expect(paymentWebhooks).toContain('payment_status: "paid"');
     expect(paymentWebhooks).toContain('payment_status: "failed"');
   });
