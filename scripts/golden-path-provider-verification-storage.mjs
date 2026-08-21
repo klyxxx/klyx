@@ -264,18 +264,20 @@ async function main() {
     }
     registeredDocumentId = registeredDocument.id;
 
-    await expectStorageError(
-      userClient.storage.from(BUCKET).remove([validPath]),
-      "Direct deletion of a registered provider verification object"
-    );
+    await userClient.storage.from(BUCKET).remove([validPath]);
 
     const { data: stillReadable, error: stillReadableError } =
       await userClient.storage.from(BUCKET).download(validPath);
     if (stillReadableError || !stillReadable) {
       throw new Error(
-        "Registered provider verification object disappeared after rejected direct deletion."
+        "Registered provider verification object disappeared after direct browser deletion attempt."
       );
     }
+    const stillReadableBytes = Buffer.from(await stillReadable.arrayBuffer());
+    expect(
+      stillReadableBytes.equals(validPdf),
+      "Registered provider verification bytes changed after direct deletion attempt."
+    );
 
     const { error: cleanupUploadError } = await userClient.storage
       .from(BUCKET)
@@ -323,7 +325,7 @@ async function main() {
         invalidMimeRejected: true,
         oversizedUploadRejected: true,
         ownUploadReadVerified: true,
-        registeredDirectDeleteRejected: true,
+        registeredDirectDeleteBlocked: true,
         unregisteredCleanupVerified: true,
         localSupabaseOnly: true,
       })}\n`
