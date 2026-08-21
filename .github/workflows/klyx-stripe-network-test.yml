@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   stripe-network-checkout:
-    name: Stripe test Checkout and refund network proof
+    name: Stripe test Connect, Checkout and refund network proof
     runs-on: ubuntu-22.04
     timeout-minutes: 45
 
@@ -211,6 +211,9 @@ jobs:
           echo "::error::Isolated KLYX server did not become ready."
           cat stripe-network-server.log
           exit 1
+
+      - name: Verify real Stripe test Connect account lifecycle
+        run: node scripts/golden-path-stripe-connect-network.mjs
 
       - name: Prepare accepted unpaid booking through KLYX APIs
         run: node scripts/golden-path-client-lifecycle.mjs
