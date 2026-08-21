@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
+import { NextResponse } from "next/server";
 
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -19,6 +20,11 @@ export type ApiRateLimitResult = {
 };
 
 export const API_RATE_LIMIT_POLICIES = {
+  aiRespond: {
+    action: "ai_respond",
+    limit: 12,
+    windowSeconds: 60,
+  },
   requestAnalysis: {
     action: "request_analysis",
     limit: 30,
@@ -39,9 +45,9 @@ type RateLimitRpcRow = {
   window_started_at?: unknown;
 };
 
-function profileKeyHash(profileId: string): string {
+function subjectKeyHash(subjectId: string): string {
   return createHash("sha256")
-    .update(`profile:${profileId}`, "utf8")
+    .update(`klyx-rate-limit:${subjectId}`, "utf8")
     .digest("hex");
 }
 
@@ -55,18 +61,18 @@ function integer(value: unknown, label: string): number {
   return parsed;
 }
 
-export async function consumeProfileRateLimit(
-  profileId: string,
+export async function consumeApiRateLimit(
+  subjectId: string,
   policy: ApiRateLimitPolicy
 ): Promise<ApiRateLimitResult> {
-  if (!profileId.trim()) {
-    throw new Error("KLYX rate limiter requires an authenticated profile.");
+  if (!subjectId.trim()) {
+    throw new Error("KLYX rate limiter requires an authenticated subject.");
   }
 
   const { data, error } = await supabaseAdmin.rpc(
     "klyx_consume_api_rate_limit",
     {
-      p_key_hash: profileKeyHash(profileId),
+      p_key_hash: subjectKeyHash(subjectId),
       p_action: policy.action,
       p_limit: policy.limit,
       p_window_seconds: policy.windowSeconds,
@@ -123,4 +129,21 @@ export function rateLimitResponseHeaders(
   }
 
   return headers;
+}
+
+export function apiRateLimitExceededResponse(
+  policy: ApiRateLimitPolicy,
+  result: ApiRateLimitResult
+): NextResponse {
+  return NextResponse.json(
+    {
+      error: "Trop de requêtes. Réessaie dans quelques instants.",
+      code: "KLYX_RATE_LIMITED",
+      retryAfterSeconds: Math.max(result.retryAfterSeconds, 1),
+    },
+    {
+      status: 429,
+      headers: rateLimitResponseHeaders(policy, result),
+    }
+  );
 }
