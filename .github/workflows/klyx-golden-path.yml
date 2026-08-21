@@ -23,6 +23,8 @@ on:
       - "app/api/quotes/**"
       - "app/api/reviews/**"
       - "app/api/stripe/webhook/**"
+      - "app/api/requests/analyze/**"
+      - "app/api/search/providers/**"
       - "lib/booking-tracking-time.ts"
       - "lib/stripe-payments.ts"
       - "lib/stripe-webhook-events.ts"
@@ -259,6 +261,9 @@ jobs:
           cat golden-path-server.log
           exit 1
 
+      - name: Verify natural-language intent and exact provider search
+        run: node scripts/golden-path-intent-search.mjs
+
       - name: Verify client quote and booking lifecycle
         run: node scripts/golden-path-client-lifecycle.mjs
 
@@ -267,7 +272,7 @@ jobs:
 
       - name: Golden path local lifecycle ready
         run: >-
-          echo "Quote, booking, signed local Stripe webhook, idempotency, payment ledger, mission completion and review verified on ephemeral Supabase."
+          echo "Intent analysis, exact provider search, quote, booking, signed local Stripe webhook, idempotency, payment ledger, mission completion and review verified on ephemeral Supabase."
 
       - name: Stop golden path production server
         if: always()
