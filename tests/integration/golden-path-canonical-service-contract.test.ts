@@ -13,6 +13,7 @@ function readRepoFile(file: string) {
 }
 
 const bootstrap = readRepoFile("scripts/golden-path-bootstrap.mjs");
+const preflight = readRepoFile("scripts/golden-path-preflight.mjs");
 const providerFixture = readRepoFile("scripts/golden-path-provider-fixture.mjs");
 const intentSearch = readRepoFile("scripts/golden-path-intent-search.mjs");
 const universalCatalog = readRepoFile(
@@ -21,9 +22,13 @@ const universalCatalog = readRepoFile(
 
 const goldenScripts = [
   "scripts/golden-path-bootstrap.mjs",
+  "scripts/golden-path-preflight.mjs",
   "scripts/golden-path-provider-fixture.mjs",
   "scripts/golden-path-intent-search.mjs",
 ];
+
+const cleaningFixtureSources = [bootstrap, preflight, providerFixture, intentSearch];
+const serviceSelectionSources = [bootstrap, preflight, providerFixture];
 
 describe("KLYX canonical service golden-path fixture", () => {
   it("keeps the affected golden-path scripts syntactically valid", () => {
@@ -39,13 +44,13 @@ describe("KLYX canonical service golden-path fixture", () => {
   it("uses the canonical home-cleaning slug seeded by the universal catalog", () => {
     expect(universalCatalog).toContain("'Ménage à domicile', 'menage-a-domicile'");
 
-    for (const source of [bootstrap, providerFixture, intentSearch]) {
+    for (const source of cleaningFixtureSources) {
       expect(source).toContain('"menage-a-domicile"');
     }
   });
 
   it("prefers the canonical slug before legacy aliases during fixture selection", () => {
-    for (const source of [bootstrap, providerFixture]) {
+    for (const source of serviceSelectionSources) {
       expect(source.indexOf('"menage-a-domicile"')).toBeGreaterThanOrEqual(0);
       expect(source.indexOf('"cleaning"')).toBeGreaterThanOrEqual(0);
       expect(source.indexOf('"menage-a-domicile"')).toBeLessThan(
@@ -57,7 +62,7 @@ describe("KLYX canonical service golden-path fixture", () => {
   });
 
   it("keeps legacy aliases only as compatibility fallbacks", () => {
-    for (const source of [bootstrap, providerFixture, intentSearch]) {
+    for (const source of cleaningFixtureSources) {
       expect(source).toContain('"cleaning"');
       expect(source).toContain('"menage"');
       expect(source).toContain('"ménage"');
