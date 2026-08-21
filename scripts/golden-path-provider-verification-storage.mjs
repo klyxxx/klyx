@@ -88,7 +88,8 @@ async function main() {
 
   const suffix = `${Date.now()}-${process.pid}`;
   const validPath = `${provider.id}/identity/golden-${suffix}.pdf`;
-  const clientPath = `${client.id}/identity/client-${suffix}.pdf`;
+  const clientInsertPath = `${client.id}/identity/client-insert-${suffix}.pdf`;
+  const clientReadPath = `${client.id}/identity/client-read-${suffix}.pdf`;
   const invalidFolderPath = `${provider.id}/secret/secret-${suffix}.pdf`;
   const invalidExtensionPath = `${provider.id}/identity/invalid-${suffix}.exe`;
   const invalidMimePath = `${provider.id}/identity/invalid-${suffix}.txt`;
@@ -100,7 +101,8 @@ async function main() {
 
   const cleanupPaths = [
     validPath,
-    clientPath,
+    clientInsertPath,
+    clientReadPath,
     invalidFolderPath,
     invalidExtensionPath,
     invalidMimePath,
@@ -110,7 +112,7 @@ async function main() {
   try {
     const { error: seededClientObjectError } = await admin.storage
       .from(BUCKET)
-      .upload(clientPath, validPdf, {
+      .upload(clientReadPath, validPdf, {
         contentType: "application/pdf",
         upsert: false,
       });
@@ -130,7 +132,7 @@ async function main() {
     );
 
     await expectStorageError(
-      userClient.storage.from(BUCKET).upload(clientPath, validPdf, {
+      userClient.storage.from(BUCKET).upload(clientInsertPath, validPdf, {
         contentType: "application/pdf",
         upsert: false,
       }),
@@ -138,7 +140,7 @@ async function main() {
     );
 
     await expectStorageError(
-      userClient.storage.from(BUCKET).download(clientPath),
+      userClient.storage.from(BUCKET).download(clientReadPath),
       "Cross-profile provider verification read"
     );
 
