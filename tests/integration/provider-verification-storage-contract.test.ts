@@ -53,9 +53,7 @@ describe("KLYX provider verification Storage boundary", () => {
     expect(migration).toContain(
       "public.klyx_profile_has_type(v_profile_id, 'provider')"
     );
-    expect(migration).toContain(
-      "array_length(v_folders, 1) <> 2"
-    );
+    expect(migration).toContain("array_length(v_folders, 1) <> 2");
     expect(migration).toContain("invalid_text_representation");
     expect(migration).toContain(
       "public.klyx_owns_provider_verification_path(name)"
@@ -109,9 +107,7 @@ describe("KLYX provider verification Storage boundary", () => {
     expect(page).toContain("upsert: false");
     expect(page).toContain(".remove([path])");
     expect(migration).toContain("klyx_provider_verification_update_guard");
-    expect(migration).toContain(
-      "klyx_can_cleanup_provider_verification_object"
-    );
+    expect(migration).toContain("klyx_can_cleanup_provider_verification_object");
     expect(migration).toContain(
       "from public.provider_verification_documents as document"
     );
@@ -183,9 +179,7 @@ describe("KLYX provider verification Storage boundary", () => {
     );
 
     expect(workflow).toContain("Start ephemeral Supabase with Storage API");
-    expect(workflow).not.toContain(
-      "-x realtime,storage-api,imgproxy"
-    );
+    expect(workflow).not.toContain("-x realtime,storage-api,imgproxy");
     expect(workflow).toContain("node scripts/golden-path-bootstrap.mjs");
     expect(workflow).toContain(
       "node scripts/golden-path-provider-verification-storage.mjs"
