@@ -137,6 +137,16 @@ describe("KLYX provider verification Storage boundary", () => {
     expect(migration).toContain("to authenticated, service_role");
   });
 
+  it("keeps the MIME rejection proof independent from extension rejection", () => {
+    expect(golden).toContain(
+      'const invalidMimePath = `${provider.id}/identity/invalid-mime-${suffix}.pdf`;'
+    );
+    expect(golden).toContain('contentType: "text/plain"');
+    expect(golden).toContain(
+      'const invalidExtensionPath = `${provider.id}/identity/invalid-${suffix}.exe`;'
+    );
+  });
+
   it("proves the real authenticated Storage API boundary on ephemeral Supabase", () => {
     expect(golden).toContain('const BUCKET = "provider-verification"');
     expect(golden).toContain("anonymousUploadRejected: true");
