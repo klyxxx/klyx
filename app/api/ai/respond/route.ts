@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 
 import { getActiveProfile } from "@/lib/active-profile";
+import {
+  API_RATE_LIMIT_POLICIES,
+  apiRateLimitExceededResponse,
+  consumeApiRateLimit,
+  rateLimitResponseHeaders,
+} from "@/lib/api-rate-limit";
 import { secureApiErrorResponse } from "@/lib/api-error";
 import {
   generateKlyxAiReply,
@@ -79,6 +85,15 @@ export async function POST(request: Request) {
     }
 
     const profile = await getActiveProfile();
+    const policy = API_RATE_LIMIT_POLICIES.aiRespond;
+    const rateLimit = await consumeApiRateLimit(
+      profile?.id ?? user.id,
+      policy
+    );
+
+    if (!rateLimit.allowed) {
+      return apiRateLimitExceededResponse(policy, rateLimit);
+    }
 
     const reply = await generateKlyxAiReply({
       message,
@@ -87,10 +102,15 @@ export async function POST(request: Request) {
       accountType: profile?.accountType,
     });
 
-    return NextResponse.json({
-      reply: reply.text,
-      mode: reply.mode,
-    });
+    return NextResponse.json(
+      {
+        reply: reply.text,
+        mode: reply.mode,
+      },
+      {
+        headers: rateLimitResponseHeaders(policy, rateLimit),
+      }
+    );
   } catch (error) {
     return secureApiErrorResponse({
       error,
