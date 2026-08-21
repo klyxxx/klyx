@@ -91,8 +91,8 @@ begin
     end,
     updated_at = v_now
   returning
-    api_rate_limits.request_count,
-    api_rate_limits.window_started_at
+    limits.request_count,
+    limits.window_started_at
   into
     v_count,
     v_window_started_at;
