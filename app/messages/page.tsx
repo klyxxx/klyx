@@ -263,7 +263,11 @@ export default function ConversationPage() {
       });
 
       if (error) {
-        throw new Error(error.message);
+        throw new Error(
+          error.message.includes("KLYX_MESSAGE_RATE_LIMITED")
+            ? "Trop de messages envoyés. Réessaie dans une minute."
+            : "Impossible d'envoyer le message."
+        );
       }
 
       setDraft("");
