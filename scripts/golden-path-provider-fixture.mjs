@@ -6,13 +6,15 @@ import {
   requiredGoldenPathEnv,
 } from "./golden-path-runtime.mjs";
 
+const CLEANING_SERVICE_SLUGS = new Set([
+  "menage-a-domicile",
+  "cleaning",
+  "menage",
+  "ménage",
+]);
+
 function cleaningService(services) {
-  return services.find(
-    (service) =>
-      service.slug === "cleaning" ||
-      service.slug === "menage" ||
-      service.slug === "ménage"
-  );
+  return services.find((service) => CLEANING_SERVICE_SLUGS.has(service.slug));
 }
 
 async function main() {
@@ -261,7 +263,7 @@ async function main() {
       .eq("profile_id", provider.id);
 
     if (error) {
-      throw new Error(`Unable to update provider zone fixture: ${error.message}`);
+      throw new Error(`Unable to update provider zone: ${error.message}`);
     }
   } else {
     const { error } = await admin
@@ -269,7 +271,7 @@ async function main() {
       .insert(zonePayload);
 
     if (error) {
-      throw new Error(`Unable to create provider zone fixture: ${error.message}`);
+      throw new Error(`Unable to create provider zone: ${error.message}`);
     }
   }
 
