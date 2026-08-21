@@ -163,6 +163,30 @@ async function main() {
       throw new Error("New direct messages must be forced to unread state.");
     }
 
+    const notificationKeys = createdMessageIds.map((id) => `message:${id}`);
+    const { data: notifications, error: notificationError } = await admin
+      .from("notifications")
+      .select("deduplication_key")
+      .in("deduplication_key", notificationKeys);
+
+    if (
+      notificationError ||
+      !notifications ||
+      notifications.length !== MESSAGE_LIMIT ||
+      notificationKeys.some(
+        (key) =>
+          !notifications.some(
+            (notification) => notification.deduplication_key === key
+          )
+      )
+    ) {
+      throw new Error(
+        `Golden message notifications are incomplete: ${
+          notificationError?.message ?? String(notifications?.length ?? 0)
+        }`
+      );
+    }
+
     await expectRejectedInsert(
       userClient.from("messages").insert({
         booking_id: booking.id,
@@ -202,6 +226,7 @@ async function main() {
         overLimitRejected: true,
         invalidContentRejected: true,
         newMessagesForcedUnread: true,
+        messageNotificationsVerified: MESSAGE_LIMIT,
         directSupabaseClientProtected: true,
         localSupabaseOnly: true,
       })}\n`
