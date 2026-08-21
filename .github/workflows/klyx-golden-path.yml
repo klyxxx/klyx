@@ -20,6 +20,7 @@ on:
       - "scripts/golden-path-*.mjs"
       - "supabase/migrations/**"
       - "proxy.ts"
+      - "app/messages/**"
       - "app/api/ai/respond/**"
       - "app/api/requests/analyze/**"
       - "app/api/search/providers/**"
@@ -58,6 +59,7 @@ on:
       - "scripts/golden-path-*.mjs"
       - "supabase/migrations/**"
       - "proxy.ts"
+      - "app/messages/**"
       - "app/api/ai/respond/**"
       - "app/api/requests/analyze/**"
       - "app/api/search/providers/**"
@@ -328,6 +330,9 @@ jobs:
       - name: Verify client quote and booking lifecycle
         run: node scripts/golden-path-client-lifecycle.mjs
 
+      - name: Verify direct-message database abuse guard
+        run: node scripts/golden-path-message-rate-limit.mjs
+
       - name: Verify signed webhook, mission and review lifecycle
         run: node scripts/golden-path-service-lifecycle.mjs
 
@@ -342,7 +347,7 @@ jobs:
 
       - name: Golden path local lifecycle ready
         run: >-
-          echo "Provider studio/zone onboarding, intent analysis, exact provider search, quote, booking, signed local Stripe webhook, idempotency, payment ledger, mission completion, review, provider finance reconciliation, refunded terminal state and split payment/refund reconciliation verified on ephemeral Supabase."
+          echo "Provider studio/zone onboarding, intent analysis, exact provider search, quote, booking, direct-message DB abuse guard, signed local Stripe webhook, idempotency, payment ledger, mission completion, review, provider finance reconciliation, refunded terminal state and split payment/refund reconciliation verified on ephemeral Supabase."
 
       - name: Stop golden path production server
         if: always()
