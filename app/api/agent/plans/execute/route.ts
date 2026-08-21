@@ -19,6 +19,8 @@ const ROUTE = "/api/agent/plans/execute";
 type PlanRow = {
   id: string;
   profile_id: string;
+  title: string;
+  raw_request: string;
   service_slug: string | null;
   city: string | null;
   requested_day: string | null;
@@ -27,6 +29,7 @@ type PlanRow = {
   budget_max: number | null;
   plan_status: string;
   steps: AgentStep[] | null;
+  memory_used: boolean;
   execution_status: string;
   execution_revision: number;
   selected_provider_id: string | null;
@@ -36,6 +39,9 @@ type PlanRow = {
   next_action_href: string | null;
   last_execution_code: string | null;
   last_execution_at: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
 };
 
 type ClaimRow = {
@@ -44,7 +50,7 @@ type ClaimRow = {
 };
 
 function planSelect() {
-  return "id, profile_id, service_slug, city, requested_day, requested_time, duration_hours, budget_max, plan_status, steps, execution_status, execution_revision, selected_provider_id, selected_user_service_id, search_snapshot, next_action, next_action_href, last_execution_code, last_execution_at";
+  return "id, profile_id, title, raw_request, service_slug, city, requested_day, requested_time, duration_hours, budget_max, plan_status, steps, memory_used, execution_status, execution_revision, selected_provider_id, selected_user_service_id, search_snapshot, next_action, next_action_href, last_execution_code, last_execution_at, created_at, updated_at, completed_at";
 }
 
 function safeExecutionError(error: unknown, startedAt: number) {
@@ -200,8 +206,17 @@ async function loadPlan(planId: string, profileId: string): Promise<PlanRow | nu
 function responsePlan(plan: PlanRow) {
   return {
     id: plan.id,
+    title: plan.title,
+    raw_request: plan.raw_request,
+    service_slug: plan.service_slug,
+    city: plan.city,
+    requested_day: plan.requested_day,
+    requested_time: plan.requested_time,
+    duration_hours: plan.duration_hours,
+    budget_max: plan.budget_max,
     plan_status: plan.plan_status,
     steps: normalizeSteps(plan.steps),
+    memory_used: plan.memory_used,
     execution_status: plan.execution_status,
     execution_revision: plan.execution_revision,
     selected_provider_id: plan.selected_provider_id,
@@ -211,6 +226,9 @@ function responsePlan(plan: PlanRow) {
     next_action_href: plan.next_action_href,
     last_execution_code: plan.last_execution_code,
     last_execution_at: plan.last_execution_at,
+    created_at: plan.created_at,
+    updated_at: plan.updated_at,
+    completed_at: plan.completed_at,
   };
 }
 
