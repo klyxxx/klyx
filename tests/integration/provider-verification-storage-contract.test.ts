@@ -14,6 +14,9 @@ const migration = readRepoFile(
 );
 const page = readRepoFile("app/provider/verification/page.tsx");
 const api = readRepoFile("app/api/provider/verification/route.ts");
+const documentApi = readRepoFile(
+  "app/api/provider/verification/document/route.ts"
+);
 const golden = readRepoFile(
   "scripts/golden-path-provider-verification-storage.mjs"
 );
@@ -77,11 +80,43 @@ describe("KLYX provider verification Storage boundary", () => {
     );
   });
 
-  it("preserves direct browser upload while preventing overwrite", () => {
+  it("preserves direct upload and failed-registration cleanup without allowing dossier deletion", () => {
     expect(page).toContain('.from("provider-verification")');
     expect(page).toContain(".upload(path, file");
     expect(page).toContain("upsert: false");
+    expect(page).toContain(".remove([path])");
     expect(migration).toContain("klyx_provider_verification_update_guard");
+    expect(migration).toContain(
+      "klyx_can_cleanup_provider_verification_object"
+    );
+    expect(migration).toContain(
+      "from public.provider_verification_documents as document"
+    );
+    expect(migration).toContain("where document.storage_path = p_name");
+    expect(migration).toContain("and not exists (");
+  });
+
+  it("keeps registered document deletion server-authoritative", () => {
+    expect(page).toContain('fetch(\n        "/api/provider/verification/document"');
+    expect(page).toContain('method: "DELETE"');
+    expect(documentApi).toContain('document.status === "approved"');
+    expect(documentApi).toContain("supabaseAdmin.storage");
+    expect(documentApi).toContain('.from("provider-verification")');
+    expect(documentApi).toContain(".remove([document.storage_path])");
+    expect(documentApi).toContain('.from("provider_verification_documents")');
+    expect(documentApi).toContain(".delete()");
+    expect(documentApi).toContain('status: "incomplete"');
+  });
+
+  it("does not expose the cleanup predicate anonymously", () => {
+    expect(migration).toContain(
+      "revoke all on function public.klyx_can_cleanup_provider_verification_object(text)"
+    );
+    expect(migration).toContain("from public, anon");
+    expect(migration).toContain(
+      "grant execute on function public.klyx_can_cleanup_provider_verification_object(text)"
+    );
+    expect(migration).toContain("to authenticated, service_role");
   });
 
   it("proves the real authenticated Storage API boundary on ephemeral Supabase", () => {
@@ -94,8 +129,11 @@ describe("KLYX provider verification Storage boundary", () => {
     expect(golden).toContain("invalidExtensionRejected: true");
     expect(golden).toContain("invalidMimeRejected: true");
     expect(golden).toContain("oversizedUploadRejected: true");
-    expect(golden).toContain("ownUploadReadDeleteVerified: true");
+    expect(golden).toContain("ownUploadReadVerified: true");
+    expect(golden).toContain("registeredDirectDeleteRejected: true");
+    expect(golden).toContain("unregisteredCleanupVerified: true");
     expect(golden).toContain("localSupabaseOnly: true");
+    expect(golden).toContain('.from("provider_verification_documents")');
 
     expect(workflow).toContain("Start ephemeral Supabase with Storage API");
     expect(workflow).not.toContain(
