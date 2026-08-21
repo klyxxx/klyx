@@ -37,6 +37,16 @@ export const API_RATE_LIMIT_POLICIES = {
     limit: 20,
     windowSeconds: 60,
   },
+  quoteCreate: {
+    action: "quote_create",
+    limit: 10,
+    windowSeconds: 60,
+  },
+  quoteMutation: {
+    action: "quote_mutation",
+    limit: 20,
+    windowSeconds: 60,
+  },
   stripeCheckoutCreate: {
     action: "stripe_checkout_create",
     limit: 8,
