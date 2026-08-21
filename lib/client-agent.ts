@@ -7,6 +7,7 @@ import {
   detectServiceCandidates,
   missingFieldsForRequest,
   wantsMemory,
+  type ServiceCandidate,
 } from "@/lib/universal-service-request";
 
 export type AgentStepStatus =
@@ -31,6 +32,7 @@ export type AgentStep = {
 
 export type AgentPlanInput = {
   request: string;
+  serviceCandidates?: ServiceCandidate[];
   memory?: {
     enabled: boolean;
     defaultCity: string | null;
@@ -54,13 +56,6 @@ export type AgentPlanResult = {
   readyForSearch: boolean;
   searchHref: string | null;
   steps: AgentStep[];
-};
-
-const SERVICE_LABELS: Record<string, string> = {
-  babysitting: "Baby-sitting",
-  cleaning: "Ménage",
-  moving: "Déménagement",
-  handyman: "Bricolage",
 };
 
 function buildSearchHref(
@@ -92,11 +87,16 @@ export function buildClientAgentPlan(
   input: AgentPlanInput
 ): AgentPlanResult {
   const request = input.request.trim();
-  const candidates = detectServiceCandidates(request);
+  const candidates =
+    input.serviceCandidates ?? detectServiceCandidates(request);
 
   let serviceSlug =
     candidates[0]?.confidence >= 60
       ? candidates[0].slug
+      : null;
+  let serviceLabel =
+    candidates[0]?.confidence >= 60
+      ? candidates[0].label
       : null;
   let city = detectCity(request);
   let requestedDay = detectRequestedDay(request);
@@ -127,9 +127,12 @@ export function buildClientAgentPlan(
 
   if (
     serviceSlug &&
-    !SERVICE_LABELS[serviceSlug]
+    !serviceLabel
   ) {
-    serviceSlug = null;
+    const candidate = candidates.find(
+      (item) => item.slug === serviceSlug
+    );
+    serviceLabel = candidate?.label ?? serviceSlug;
   }
 
   const missingFields = missingFieldsForRequest({
@@ -157,10 +160,6 @@ export function buildClientAgentPlan(
           request
         )
       : null;
-
-  const serviceLabel = serviceSlug
-    ? SERVICE_LABELS[serviceSlug]
-    : null;
 
   const steps: AgentStep[] = [
     {
@@ -194,20 +193,20 @@ export function buildClientAgentPlan(
       title: "Comparer les prestataires",
       description:
         readyForSearch
-          ? "KLYX peut ouvrir une recherche déjà filtrée."
+          ? "KLYX peut rechercher automatiquement les prestataires compatibles."
           : "Cette étape sera disponible après avoir complété la demande.",
       status: readyForSearch ? "ready" : "pending",
       actionHref: searchHref,
-      requiresConfirmation: true,
+      requiresConfirmation: false,
     },
     {
       id: "choose",
       title: "Choisir le prestataire",
       description:
-        "Tu compares les profils, prix, avis et explications du matching.",
+        "KLYX peut sélectionner le meilleur match exact. S’il n’y en a pas, tu gardes le choix parmi les alternatives.",
       status: "pending",
       actionHref: null,
-      requiresConfirmation: true,
+      requiresConfirmation: false,
     },
     {
       id: "book",
