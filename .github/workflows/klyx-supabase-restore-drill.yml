@@ -150,10 +150,12 @@ jobs:
           fi
 
           local_host="$(node -e 'const u=new URL(process.argv[1]); process.stdout.write(u.hostname)' "$DB_URL")"
-          case "$local_host" in
-            127.0.0.1|localhost|::1|[::1]) ;;
-            *) echo "::error::Refusing non-loopback restore target: ${local_host}"; exit 1 ;;
-          esac
+          if [ "$local_host" != "127.0.0.1" ] && \
+             [ "$local_host" != "localhost" ] && \
+             [ "$local_host" != "[::1]" ]; then
+            echo "::error::Refusing non-loopback restore target: ${local_host}"
+            exit 1
+          fi
 
           echo "::add-mask::$DB_URL"
           echo "KLYX_RESTORE_DRILL_TARGET_DB_URL=$DB_URL" >> "$GITHUB_ENV"
@@ -167,7 +169,7 @@ jobs:
           chmod 700 "$fingerprint_dir"
           echo "KLYX_RESTORE_DRILL_FINGERPRINT_DIR=$fingerprint_dir" >> "$GITHUB_ENV"
 
-          for table in profiles services bookings financial_ledger booking_groups service_quotes; do
+          for table in profiles services bookings booking_financial_ledger booking_groups service_quotes; do
             psql \
               --no-psqlrc \
               --tuples-only \
@@ -218,6 +220,7 @@ jobs:
             <<'SQL'
           drop schema if exists public cascade;
           create schema public authorization postgres;
+          alter default privileges in schema public revoke all on tables from anon, authenticated;
           SQL
 
           absent="$(psql --no-psqlrc --tuples-only --no-align --dbname "$KLYX_RESTORE_DRILL_TARGET_DB_URL" --command "select to_regclass('public.bookings') is null;")"
@@ -248,7 +251,7 @@ jobs:
           set -euo pipefail
           mkdir -p restore-proof
 
-          for table in profiles services bookings financial_ledger booking_groups service_quotes; do
+          for table in profiles services bookings booking_financial_ledger booking_groups service_quotes; do
             target_count="$(psql \
               --no-psqlrc \
               --tuples-only \
