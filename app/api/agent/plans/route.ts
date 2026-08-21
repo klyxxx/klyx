@@ -15,6 +15,15 @@ import {
 const PLAN_SELECT =
   "id, title, raw_request, service_slug, city, requested_day, requested_time, duration_hours, budget_max, plan_status, steps, memory_used, selected_provider_id, selected_user_service_id, search_snapshot, execution_status, execution_revision, next_action, next_action_href, last_execution_code, last_execution_at, created_at, updated_at, completed_at";
 
+const AGENT_STEP_IDS = [
+  "understand",
+  "complete",
+  "search",
+  "choose",
+  "book",
+  "pay",
+] as const;
+
 async function loadMemory(profileId: string) {
   const [preferencesResult, profileResult] =
     await Promise.all([
@@ -237,6 +246,14 @@ export async function PATCH(request: Request) {
       if (cancelError) throw cancelError;
 
       return NextResponse.json({ message: "Plan annulé." });
+    }
+
+    if (
+      !AGENT_STEP_IDS.includes(
+        stepId as (typeof AGENT_STEP_IDS)[number]
+      )
+    ) {
+      return NextResponse.json({ error: "Étape invalide." }, { status: 400 });
     }
 
     // Search, provider choice, booking and payment must reflect real KLYX
