@@ -1,5 +1,7 @@
-import "server-only";
-
+// Server-only module: this helper reaches the service-role Supabase client and
+// must only be imported by server routes/middleware. The boundary is enforced
+// by the admin client/RPC privileges and integration contracts rather than the
+// optional `server-only` package so Vitest can import middleware directly.
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 
