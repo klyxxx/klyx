@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  statuses: write
 
 concurrency:
   group: klyx-stripe-connect-one-shot-${{ github.repository }}
@@ -33,6 +34,21 @@ jobs:
       NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100"
 
     steps:
+      - name: Publish pending Connect proof status
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error \
+            -X POST \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            -d "{\"state\":\"pending\",\"context\":\"KLYX Stripe Connect TEST proof\",\"description\":\"Isolated Stripe Connect TEST proof running\",\"target_url\":\"https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}" \
+            > /dev/null
+
       - name: Checkout proof branch
         uses: actions/checkout@v4
 
@@ -210,3 +226,28 @@ jobs:
           if command -v supabase >/dev/null 2>&1; then
             supabase stop --no-backup || true
           fi
+
+      - name: Publish final Connect proof status
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          JOB_STATUS: ${{ job.status }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          state="failure"
+          description="Stripe Connect TEST proof failed"
+
+          if [ "$JOB_STATUS" = "success" ]; then
+            state="success"
+            description="Stripe Connect TEST proof passed and account was cleaned"
+          fi
+
+          curl --fail --silent --show-error \
+            -X POST \
+            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            -d "{\"state\":\"${state}\",\"context\":\"KLYX Stripe Connect TEST proof\",\"description\":\"${description}\",\"target_url\":\"https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}\"}" \
+            > /dev/null
