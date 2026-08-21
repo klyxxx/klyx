@@ -6,6 +6,12 @@ import {
 } from "./golden-path-runtime.mjs";
 
 const ACTIVE_PROFILE_COOKIE = "klyx_active_profile";
+const CLEANING_SERVICE_SLUGS = new Set([
+  "menage-a-domicile",
+  "cleaning",
+  "menage",
+  "ménage",
+]);
 
 function futureBrusselsDate(daysAhead = 14) {
   const parts = new Intl.DateTimeFormat("en-GB", {
@@ -46,7 +52,7 @@ function serviceSlugFromRelation(relation) {
 }
 
 function isCleaningSlug(slug) {
-  return ["cleaning", "menage", "ménage"].includes(slug);
+  return CLEANING_SERVICE_SLUGS.has(slug);
 }
 
 async function requestJson({
