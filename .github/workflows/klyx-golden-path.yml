@@ -12,6 +12,31 @@ on:
           - "false"
           - "true"
 
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/klyx-golden-path.yml"
+      - "scripts/golden-path-*.mjs"
+      - "supabase/migrations/**"
+      - "app/api/requests/analyze/**"
+      - "app/api/search/providers/**"
+      - "app/api/bookings/**"
+      - "app/api/quotes/**"
+      - "app/api/reviews/**"
+      - "app/api/stripe/webhook/**"
+      - "app/api/provider/finance/**"
+      - "lib/universal-service-request.ts"
+      - "lib/location-intent.ts"
+      - "lib/catalog-service-matcher.ts"
+      - "lib/provider-search.ts"
+      - "lib/provider-skill-publication.ts"
+      - "lib/booking-tracking-time.ts"
+      - "lib/stripe-payments.ts"
+      - "lib/stripe-webhook-events.ts"
+      - "lib/payment-ledger.ts"
+      - "lib/api-auth.ts"
+
   push:
     branches:
       - main
@@ -48,11 +73,12 @@ concurrency:
 jobs:
   golden-path:
     name: Golden path isolated verification
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-22.04
     timeout-minutes: 45
 
     env:
-      KLYX_GOLDEN_PATH_MUTATIONS_ENABLED: ${{ github.event_name == 'push' && 'true' || inputs.confirm_isolated_e2e }}
+      KLYX_GOLDEN_PATH_MUTATIONS_ENABLED: ${{ github.event_name != 'workflow_dispatch' && 'true' || inputs.confirm_isolated_e2e }}
       KLYX_GOLDEN_PATH_LOCAL_SUPABASE: "true"
       KLYX_PRODUCTION_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       SUPABASE_TELEMETRY_DISABLED: "1"

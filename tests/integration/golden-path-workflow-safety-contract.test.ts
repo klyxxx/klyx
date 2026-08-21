@@ -51,8 +51,9 @@ describe("KLYX golden path workflow safety", () => {
     }
   });
 
-  it("runs manually or after filtered main changes and still requires mutation confirmation", () => {
+  it("runs on internal PRs, filtered main pushes, or confirmed manual dispatches", () => {
     expect(workflow).toContain("workflow_dispatch:");
+    expect(workflow).toContain("pull_request:");
     expect(workflow).toContain("push:");
     expect(workflow).toContain("      - main");
     expect(workflow).toContain(
@@ -70,9 +71,11 @@ describe("KLYX golden path workflow safety", () => {
     expect(workflow).toContain(
       '      - "lib/booking-tracking-time.ts"'
     );
-    expect(workflow).not.toContain("pull_request:");
     expect(workflow).toContain(
-      "KLYX_GOLDEN_PATH_MUTATIONS_ENABLED: ${{ github.event_name == 'push' && 'true' || inputs.confirm_isolated_e2e }}"
+      "github.event.pull_request.head.repo.full_name == github.repository"
+    );
+    expect(workflow).toContain(
+      "KLYX_GOLDEN_PATH_MUTATIONS_ENABLED: ${{ github.event_name != 'workflow_dispatch' && 'true' || inputs.confirm_isolated_e2e }}"
     );
     expect(workflow).toContain(
       'if [ "$KLYX_GOLDEN_PATH_MUTATIONS_ENABLED" != "true" ]'

@@ -21,9 +21,29 @@ begin;
 -- Les profils créés avant l'introduction des marchés KLYX
 -- étaient implicitement dans le marché Belgique / EUR.
 --
+-- Sur une reconstruction fraîche, le baseline 13.36 précède cette phase
+-- et ne possède pas encore ces deux colonnes. La migration doit donc les
+-- créer avant tout backfill afin de rester rejouable depuis zéro.
+--
 -- On ne touche qu'aux profils dont LES DEUX valeurs sont nulles.
 -- Les profils déjà configurés ne sont jamais modifiés.
 -- ============================================================
+
+alter table public.profiles
+  add column if not exists country_code text;
+
+alter table public.profiles
+  add column if not exists currency_code text;
+
+comment on column
+  public.profiles.country_code
+is
+  'ISO 3166-1 alpha-2 country code for the active KLYX market.';
+
+comment on column
+  public.profiles.currency_code
+is
+  'ISO 4217 currency code for the active KLYX market.';
 
 update public.profiles
 set

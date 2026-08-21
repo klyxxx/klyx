@@ -57,6 +57,11 @@ describe("KLYX provider finance golden path", () => {
     expect(lifecycle).toContain("payoutClaimed: false");
   });
 
+  it("uses canonical ledger payment mode instead of requiring a Checkout booking snapshot", () => {
+    expect(lifecycle).toContain('transaction.paymentMode !== "platform_test_only"');
+    expect(lifecycle).not.toContain("completedBooking.payment_mode");
+  });
+
   it("requires the commercial finance transaction to reference the completed booking", () => {
     expect(lifecycle).toContain('status", "completed"');
     expect(lifecycle).toContain('payment_status", "paid"');

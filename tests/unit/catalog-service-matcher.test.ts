@@ -25,6 +25,11 @@ const SERVICES = [
     name: "Installation de robinetterie",
   },
   { slug: "baby-sitting", name: "Baby-sitting" },
+  { slug: "aide-menagere", name: "Aide ménagère" },
+  {
+    slug: "menage-a-domicile",
+    name: "Ménage à domicile",
+  },
 ] as const;
 
 describe("catalog service matcher", () => {
@@ -74,6 +79,28 @@ describe("catalog service matcher", () => {
     expect(candidates.some((candidate) =>
       candidate.slug === "installation-robinetterie"
     )).toBe(true);
+  });
+
+  it("prefers an exact service word over a related profession form", () => {
+    const candidates = detectCatalogServiceCandidates(
+      "J'ai besoin d'un ménage à Bruxelles",
+      SERVICES
+    );
+
+    expect(candidates[0]?.slug).toBe("menage-a-domicile");
+
+    const homeCleaning = candidates.find(
+      (candidate) => candidate.slug === "menage-a-domicile"
+    );
+    const householdHelp = candidates.find(
+      (candidate) => candidate.slug === "aide-menagere"
+    );
+
+    expect(homeCleaning).toBeDefined();
+    expect(householdHelp).toBeDefined();
+    expect(homeCleaning!.confidence).toBeGreaterThan(
+      householdHelp!.confidence
+    );
   });
 
   it("does not treat a generic action as a confident profession", () => {

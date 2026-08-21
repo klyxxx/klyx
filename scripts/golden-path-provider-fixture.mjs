@@ -119,7 +119,6 @@ async function main() {
     .update({
       active: true,
       provider_enabled: true,
-      updated_at: now,
     })
     .eq("id", userService.id)
     .eq("user_id", provider.id);

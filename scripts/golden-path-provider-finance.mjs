@@ -98,7 +98,7 @@ async function main() {
   const { data: completedBooking, error: bookingError } = await admin
     .from("bookings")
     .select(
-      "id, provider_id, status, payment_status, service_status, amount_total, currency, payment_mode"
+      "id, provider_id, status, payment_status, service_status, amount_total, currency"
     )
     .eq("provider_id", provider.id)
     .eq("status", "completed")
@@ -118,8 +118,7 @@ async function main() {
   if (
     completedBooking.service_status !== "completed" ||
     Number(completedBooking.amount_total) !== 7000 ||
-    completedBooking.currency !== "EUR" ||
-    completedBooking.payment_mode !== "platform_test_only"
+    completedBooking.currency !== "EUR"
   ) {
     throw new Error("Completed golden-path booking is not finance-ready.");
   }
