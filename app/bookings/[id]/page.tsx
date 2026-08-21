@@ -34,6 +34,7 @@ type BookingRow = {
   message: string | null;
   status: string;
   payment_status: string | null;
+  refund_status: string | null;
   service_status: string | null;
   pricing_type_snapshot: string | null;
   unit_price_cents: number | null;
@@ -214,7 +215,7 @@ export default function BookingDetailsPage() {
         supabase
           .from("bookings")
           .select(
-            "id, parent_id, provider_id, babysitter_id, service_id, booking_date, start_time, end_time, message, status, payment_status, service_status, pricing_type_snapshot, unit_price_cents, estimated_amount_cents, amount_total, currency, payment_failure_message, provider_response, cancellation_reason, cancelled_by, created_at, accepted_at, rejected_at, cancelled_at, completed_at"
+            "id, parent_id, provider_id, babysitter_id, service_id, booking_date, start_time, end_time, message, status, payment_status, refund_status, service_status, pricing_type_snapshot, unit_price_cents, estimated_amount_cents, amount_total, currency, payment_failure_message, provider_response, cancellation_reason, cancelled_by, created_at, accepted_at, rejected_at, cancelled_at, completed_at"
           )
           .eq("id", bookingId)
           .maybeSingle(),
@@ -427,20 +428,27 @@ export default function BookingDetailsPage() {
   const canPay =
     role === "client" &&
     booking.status === "accepted" &&
-    booking.payment_status !== "paid";
+    booking.payment_status !== "paid" &&
+    booking.payment_status !== "refunded";
   const canTrack =
     booking.status === "accepted" && booking.payment_status === "paid";
   const otherName = formatName(otherProfile ?? undefined);
   const paymentLabel =
-    booking.payment_status === "paid"
-      ? role === "provider"
-        ? "Paiement reçu avec succès"
-        : "Paiement effectué avec succès"
-      : booking.payment_failure_message && role === "client"
-        ? "Paiement refusé"
-        : role === "provider"
-          ? "En attente du paiement du client"
-          : "À payer";
+    booking.payment_status === "refunded" || booking.refund_status === "succeeded"
+      ? "Remboursement confirmé"
+      : booking.refund_status === "processing"
+        ? "Remboursement en cours"
+        : booking.refund_status === "failed"
+          ? "Remboursement à vérifier"
+          : booking.payment_status === "paid"
+            ? role === "provider"
+              ? "Paiement reçu avec succès"
+              : "Paiement effectué avec succès"
+            : booking.payment_failure_message && role === "client"
+              ? "Paiement refusé"
+              : role === "provider"
+                ? "En attente du paiement du client"
+                : "À payer";
 
   return (
     <main className="min-h-screen bg-background dark:bg-zinc-950 px-5 py-10 text-foreground dark:text-white">
@@ -493,7 +501,13 @@ export default function BookingDetailsPage() {
                         : booking.status === "completed"
                           ? "La prestation est terminée. L’évaluation devient la prochaine étape."
                           : booking.status === "cancelled"
-                            ? "Le parcours de cette réservation est arrêté."
+                            ? booking.payment_status === "refunded" || booking.refund_status === "succeeded"
+                              ? "La réservation est annulée et le remboursement est confirmé."
+                              : booking.refund_status === "processing"
+                                ? "La réservation est annulée. Le remboursement est en cours de traitement."
+                                : booking.refund_status === "failed"
+                                  ? "La réservation est annulée, mais le remboursement nécessite une vérification."
+                                  : "Le parcours de cette réservation est arrêté."
                             : booking.status === "rejected"
                               ? "Cette demande ne poursuivra pas le parcours."
                               : "KLYX affiche ici l’état actuel et la prochaine action utile."}
@@ -595,7 +609,7 @@ export default function BookingDetailsPage() {
               )}
 
               {canTrack && (
-                <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-emerald-700 dark:text-emerald-300">
+                <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300">
                   Prestation prête
                 </span>
               )}
@@ -738,6 +752,7 @@ export default function BookingDetailsPage() {
 
               {role === "client" &&
                 booking.payment_status !== "paid" &&
+                booking.payment_status !== "refunded" &&
                 booking.payment_failure_message && (
                   <div className="mt-4 rounded-2xl border border-red-500/30 bg-red-500/10 p-5">
                     <p className="text-sm font-semibold text-red-300">

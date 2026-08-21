@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   stripe-network-checkout:
-    name: Stripe test Checkout network proof
+    name: Stripe test Checkout and refund network proof
     runs-on: ubuntu-22.04
     timeout-minutes: 45
 
@@ -217,6 +217,9 @@ jobs:
 
       - name: Verify real Stripe test Checkout network session
         run: node scripts/golden-path-stripe-network-checkout.mjs
+
+      - name: Verify real Stripe test payment and refund network objects
+        run: node scripts/golden-path-stripe-network-refund.mjs
 
       - name: Upload Stripe network proof
         if: always()

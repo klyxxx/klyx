@@ -305,9 +305,12 @@ jobs:
       - name: Verify provider finance visibility and reconciliation
         run: node scripts/golden-path-provider-finance.mjs
 
+      - name: Verify refunded payment terminal state
+        run: node scripts/golden-path-refund-terminal-state.mjs
+
       - name: Golden path local lifecycle ready
         run: >-
-          echo "Intent analysis, exact provider search, quote, booking, signed local Stripe webhook, idempotency, payment ledger, mission completion, review and provider finance reconciliation verified on ephemeral Supabase."
+          echo "Intent analysis, exact provider search, quote, booking, signed local Stripe webhook, idempotency, payment ledger, mission completion, review, provider finance reconciliation and refunded terminal state verified on ephemeral Supabase."
 
       - name: Stop golden path production server
         if: always()
