@@ -1,0 +1,311 @@
+name: KLYX Supabase Restore Drill
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_production_read:
+        description: "Confirm read-only production dump and ephemeral local restore"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: klyx-supabase-restore-drill-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  restore-drill:
+    name: Verify production public-data restore on ephemeral Supabase
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Refuse unsafe restore drill trigger
+        shell: bash
+        env:
+          CONFIRM_PRODUCTION_READ: ${{ inputs.confirm_production_read }}
+        run: |
+          set -euo pipefail
+
+          if [ "$CONFIRM_PRODUCTION_READ" != "true" ]; then
+            echo "::error::Restore drill requires explicit confirmation."
+            exit 1
+          fi
+
+          if [ -z "${SUPABASE_DB_URL:-}" ]; then
+            echo "::error::SUPABASE_DB_URL is required for the read-only logical dump."
+            exit 1
+          fi
+
+          effective_db_url="$(node <<'NODE'
+          const raw = process.env.SUPABASE_DB_URL ?? "";
+          const password = process.env.SUPABASE_DB_PASSWORD ?? "";
+
+          let url;
+          try {
+            url = new URL(raw);
+          } catch {
+            console.error("SUPABASE_DB_URL is not a valid URL.");
+            process.exit(2);
+          }
+
+          if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") {
+            console.error("SUPABASE_DB_URL must be a Postgres connection URL.");
+            process.exit(2);
+          }
+
+          const hostname = url.hostname.toLowerCase();
+          const isSupabaseHost =
+            hostname.endsWith(".supabase.co") ||
+            hostname.endsWith(".pooler.supabase.com");
+
+          if (!isSupabaseHost) {
+            console.error("SUPABASE_DB_URL must target a Supabase database host.");
+            process.exit(3);
+          }
+
+          if (["127.0.0.1", "localhost", "[::1]"].includes(hostname)) {
+            console.error("Production source database must not be loopback.");
+            process.exit(3);
+          }
+
+          if (password) {
+            url.password = password;
+          }
+
+          if (!url.password) {
+            console.error(
+              "SUPABASE_DB_URL must contain a password or SUPABASE_DB_PASSWORD must be configured."
+            );
+            process.exit(4);
+          }
+
+          process.stdout.write(url.toString());
+          NODE
+          )"
+
+          echo "::add-mask::$effective_db_url"
+          echo "KLYX_RESTORE_DRILL_SOURCE_DB_URL=$effective_db_url" >> "$GITHUB_ENV"
+
+          if [ -n "${NEXT_PUBLIC_SUPABASE_URL:-}" ]; then
+            node <<'NODE'
+          const raw = process.env.NEXT_PUBLIC_SUPABASE_URL;
+          const hostname = new URL(raw).hostname.toLowerCase();
+          const valid =
+            hostname.endsWith(".supabase.co") ||
+            hostname.endsWith(".supabase.com");
+
+          if (!valid || ["127.0.0.1", "localhost", "[::1]"].includes(hostname)) {
+            throw new Error("NEXT_PUBLIC_SUPABASE_URL must identify production Supabase.");
+          }
+          NODE
+          fi
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
+        with:
+          version: 2.111.0
+
+      - name: Verify PostgreSQL client
+        shell: bash
+        run: psql --version
+
+      - name: Initialize local Supabase config
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f supabase/config.toml ]; then
+            supabase init
+          fi
+
+      - name: Start ephemeral restore target
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase start \
+            -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+
+          eval "$(supabase status -o env)"
+
+          if [ -z "${DB_URL:-}" ]; then
+            echo "::error::Supabase local status did not provide DB_URL."
+            exit 1
+          fi
+
+          local_host="$(node -e 'const u=new URL(process.argv[1]); process.stdout.write(u.hostname)' "$DB_URL")"
+          if [ "$local_host" != "127.0.0.1" ] && \
+             [ "$local_host" != "localhost" ] && \
+             [ "$local_host" != "[::1]" ]; then
+            echo "::error::Refusing non-loopback restore target: ${local_host}"
+            exit 1
+          fi
+
+          echo "::add-mask::$DB_URL"
+          echo "KLYX_RESTORE_DRILL_TARGET_DB_URL=$DB_URL" >> "$GITHUB_ENV"
+
+      - name: Capture source critical-table fingerprints
+        shell: bash
+        run: |
+          set -euo pipefail
+          fingerprint_dir="${RUNNER_TEMP}/klyx-db-fingerprints"
+          mkdir -p "$fingerprint_dir"
+          chmod 700 "$fingerprint_dir"
+          echo "KLYX_RESTORE_DRILL_FINGERPRINT_DIR=$fingerprint_dir" >> "$GITHUB_ENV"
+
+          for table in profiles services bookings booking_financial_ledger booking_groups service_quotes; do
+            psql \
+              --no-psqlrc \
+              --tuples-only \
+              --no-align \
+              --set ON_ERROR_STOP=1 \
+              --dbname "$KLYX_RESTORE_DRILL_SOURCE_DB_URL" \
+              --command "select count(*) from public.${table};" \
+              > "$fingerprint_dir/source-${table}.txt"
+          done
+
+      - name: Create production logical dumps
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          dump_dir="${RUNNER_TEMP}/klyx-db-restore-drill"
+          mkdir -p "$dump_dir"
+          echo "KLYX_RESTORE_DRILL_DUMP_DIR=$dump_dir" >> "$GITHUB_ENV"
+
+          supabase db dump \
+            --db-url "$KLYX_RESTORE_DRILL_SOURCE_DB_URL" \
+            -f "$dump_dir/roles.sql" \
+            --role-only
+
+          supabase db dump \
+            --db-url "$KLYX_RESTORE_DRILL_SOURCE_DB_URL" \
+            -f "$dump_dir/schema.sql"
+
+          supabase db dump \
+            --db-url "$KLYX_RESTORE_DRILL_SOURCE_DB_URL" \
+            -f "$dump_dir/data.sql" \
+            --use-copy \
+            --data-only \
+            -x "storage.buckets_vectors" \
+            -x "storage.vector_indexes"
+
+          test -s "$dump_dir/schema.sql"
+          test -s "$dump_dir/data.sql"
+
+      - name: Clear only public schema on ephemeral target
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql \
+            --no-psqlrc \
+            --set ON_ERROR_STOP=1 \
+            --dbname "$KLYX_RESTORE_DRILL_TARGET_DB_URL" \
+            <<'SQL'
+          drop schema if exists public cascade;
+          create schema public authorization postgres;
+          alter default privileges in schema public revoke all on tables from anon, authenticated;
+          SQL
+
+          absent="$(psql --no-psqlrc --tuples-only --no-align --dbname "$KLYX_RESTORE_DRILL_TARGET_DB_URL" --command "select to_regclass('public.bookings') is null;")"
+          if [ "$absent" != "t" ]; then
+            echo "::error::Ephemeral public schema was not cleared before restore."
+            exit 1
+          fi
+
+      - name: Restore into ephemeral local database
+        shell: bash
+        run: |
+          set -euo pipefail
+          dump_dir="$KLYX_RESTORE_DRILL_DUMP_DIR"
+
+          psql \
+            --no-psqlrc \
+            --single-transaction \
+            --variable ON_ERROR_STOP=1 \
+            --file "$dump_dir/roles.sql" \
+            --file "$dump_dir/schema.sql" \
+            --command 'SET session_replication_role = replica' \
+            --file "$dump_dir/data.sql" \
+            --dbname "$KLYX_RESTORE_DRILL_TARGET_DB_URL"
+
+      - name: Verify restored KLYX public data
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p restore-proof
+
+          for table in profiles services bookings booking_financial_ledger booking_groups service_quotes; do
+            target_count="$(psql \
+              --no-psqlrc \
+              --tuples-only \
+              --no-align \
+              --set ON_ERROR_STOP=1 \
+              --dbname "$KLYX_RESTORE_DRILL_TARGET_DB_URL" \
+              --command "select count(*) from public.${table};")"
+
+            source_count="$(cat "$KLYX_RESTORE_DRILL_FINGERPRINT_DIR/source-${table}.txt")"
+
+            if [ "$target_count" != "$source_count" ]; then
+              echo "::error::Restored row-count fingerprint mismatch for ${table}."
+              exit 1
+            fi
+          done
+
+          printf '%s\n' \
+            "commit=${GITHUB_SHA}" \
+            "run=${GITHUB_RUN_ID}" \
+            "scope=public_schema_roles_schema_data" \
+            "source=production_read_only_dump" \
+            "target=ephemeral_loopback_supabase" \
+            "critical_table_fingerprints_match=true" \
+            "sensitive_dump_uploaded=false" \
+            "auth_storage_objects_claimed=false" \
+            "verified_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            > restore-proof/proof.txt
+
+      - name: Upload sanitized restore proof
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: klyx-supabase-restore-proof-${{ github.run_id }}
+          path: restore-proof/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Destroy sensitive restore material
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in \
+            "${KLYX_RESTORE_DRILL_DUMP_DIR:-}" \
+            "${KLYX_RESTORE_DRILL_FINGERPRINT_DIR:-}"; do
+            if [ -n "$path" ] && [ -d "$path" ]; then
+              rm -rf -- "$path"
+            fi
+          done
+
+      - name: Destroy ephemeral restore target
+        if: always()
+        shell: bash
+        run: |
+          if command -v supabase >/dev/null 2>&1; then
+            supabase stop --no-backup || true
+          fi
