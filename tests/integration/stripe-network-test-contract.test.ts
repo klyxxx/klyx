@@ -120,8 +120,9 @@ describe("KLYX Stripe network proof", () => {
   });
 
   it("proves KLYX reuses one Connect account instead of duplicating it", () => {
-    expect(connectProof.match(/path: "/api\/stripe\/connect\/create-account"/g))
-      .toHaveLength(2);
+    expect(
+      connectProof.split('path: "/api/stripe/connect/create-account"').length - 1
+    ).toBe(2);
     expect(connectProof).toContain(
       'afterSecondCreate.stripe_account_id !== accountId'
     );
