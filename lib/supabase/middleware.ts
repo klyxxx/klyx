@@ -1,5 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+
+import {
+  API_RATE_LIMIT_POLICIES,
+  apiRateLimitExceededResponse,
+  consumeApiRateLimit,
+  rateLimitResponseHeaders,
+  type ApiRateLimitPolicy,
+} from "@/lib/api-rate-limit";
 import {
   isKlyxAuthenticationRoute,
   isKlyxProtectedRoute,
@@ -14,6 +22,48 @@ function redirectToLogin(request: NextRequest) {
   loginUrl.searchParams.set("redirect", redirectTarget);
 
   return NextResponse.redirect(loginUrl);
+}
+
+function stripeRateLimitPolicy(request: NextRequest): ApiRateLimitPolicy | null {
+  const pathname = request.nextUrl.pathname;
+
+  if (
+    request.method === "POST" &&
+    pathname === "/api/stripe/create-checkout-session"
+  ) {
+    return API_RATE_LIMIT_POLICIES.stripeCheckoutCreate;
+  }
+
+  if (
+    request.method === "POST" &&
+    pathname === "/api/stripe/create-group-checkout-session"
+  ) {
+    return API_RATE_LIMIT_POLICIES.stripeGroupCheckoutCreate;
+  }
+
+  if (
+    request.method === "POST" &&
+    pathname === "/api/stripe/connect/create-account"
+  ) {
+    return API_RATE_LIMIT_POLICIES.stripeConnectOnboarding;
+  }
+
+  if (
+    request.method === "GET" &&
+    pathname === "/api/stripe/connect/status"
+  ) {
+    return API_RATE_LIMIT_POLICIES.stripeConnectStatus;
+  }
+
+  return null;
+}
+
+function copyResponseCookies(source: NextResponse, target: NextResponse) {
+  for (const cookie of source.cookies.getAll()) {
+    target.cookies.set(cookie);
+  }
+
+  return target;
 }
 
 export async function updateSession(request: NextRequest) {
@@ -71,6 +121,44 @@ export async function updateSession(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  if (user) {
+    const policy = stripeRateLimitPolicy(request);
+
+    if (policy) {
+      try {
+        const rateLimit = await consumeApiRateLimit(user.id, policy);
+
+        if (!rateLimit.allowed) {
+          return copyResponseCookies(
+            response,
+            apiRateLimitExceededResponse(policy, rateLimit)
+          );
+        }
+
+        for (const [name, value] of Object.entries(
+          rateLimitResponseHeaders(policy, rateLimit)
+        )) {
+          response.headers.set(name, value);
+        }
+      } catch {
+        const unavailable = NextResponse.json(
+          {
+            error: "Protection anti-abus temporairement indisponible.",
+            code: "KLYX_RATE_LIMIT_UNAVAILABLE",
+          },
+          {
+            status: 503,
+            headers: {
+              "Retry-After": "5",
+            },
+          }
+        );
+
+        return copyResponseCookies(response, unavailable);
+      }
+    }
+  }
 
   if (!user && isKlyxProtectedRoute(pathname)) {
     return redirectToLogin(request);
