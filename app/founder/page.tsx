@@ -1,7 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, BriefcaseBusiness, Crown, LoaderCircle, ShieldCheck, UserRound } from "lucide-react";
+import {
+  ArrowRight,
+  BarChart3,
+  BriefcaseBusiness,
+  Crown,
+  LoaderCircle,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -72,7 +80,11 @@ export default function FounderPage() {
   }
 
   if (loading) {
-    return <main className="grid min-h-screen place-items-center bg-background"><LoaderCircle className="animate-spin" size={38} /></main>;
+    return (
+      <main className="grid min-h-screen place-items-center bg-background">
+        <LoaderCircle className="animate-spin" size={38} />
+      </main>
+    );
   }
 
   if (!status?.isFounder) {
@@ -94,12 +106,20 @@ export default function FounderPage() {
     <main className="min-h-screen bg-background px-5 py-8 text-foreground sm:px-8">
       <div className="mx-auto max-w-6xl">
         <section className="rounded-[2rem] bg-[linear-gradient(135deg,#17131f,#35165e_52%,#111827)] p-8 text-white">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em]"><Crown size={15} /> Founder Access</div>
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em]">
+            <Crown size={15} /> Founder Access
+          </div>
           <h1 className="mt-5 text-4xl font-black">Console Founder KLYX</h1>
-          <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">Une seule connexion pour tester KLYX comme client, prestataire et administrateur.</p>
+          <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">
+            Une seule connexion pour tester KLYX comme client, prestataire et administrateur.
+          </p>
         </section>
 
-        {error && <div className="mt-5 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-600">{error}</div>}
+        {error && (
+          <div className="mt-5 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-600">
+            {error}
+          </div>
+        )}
 
         <section className="mt-8 grid gap-5 lg:grid-cols-3">
           <ModeCard
@@ -127,21 +147,47 @@ export default function FounderPage() {
           <article className="rounded-3xl border border-border bg-card p-6 shadow-sm">
             <ShieldCheck className="text-violet-600" size={24} />
             <h2 className="mt-5 text-xl font-black">Super Admin</h2>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">Centre Admin, vérifications, compétences, litiges, finance et contrôle du lancement.</p>
-            <Link href="/admin" className="mt-6 inline-flex h-11 items-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-black text-white">Ouvrir Admin <ArrowRight size={16} /></Link>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">
+              Centre Admin, vérifications, compétences, litiges, finance et contrôle du lancement.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-2">
+              <Link
+                href="/admin"
+                className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-black text-white"
+              >
+                Ouvrir Admin <ArrowRight size={16} />
+              </Link>
+              <Link
+                href="/founder/analytics"
+                className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-border px-4 text-sm font-black"
+              >
+                <BarChart3 size={16} /> Analytics produit
+              </Link>
+            </div>
           </article>
         </section>
 
         <section className="mt-8 rounded-3xl border border-amber-500/20 bg-amber-500/10 p-6">
           <h2 className="font-black">Sumsub : mode attente</h2>
-          <p className="mt-2 text-sm text-muted-foreground">Le compte Founder peut tester KLYX, mais aucune identité non vérifiée n’est présentée publiquement comme vérifiée.</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Le compte Founder peut tester KLYX, mais aucune identité non vérifiée n’est présentée publiquement comme vérifiée.
+          </p>
         </section>
       </div>
     </main>
   );
 }
 
-function ModeCard({ icon, title, description, active, loading, action, href, label }: {
+function ModeCard({
+  icon,
+  title,
+  description,
+  active,
+  loading,
+  action,
+  href,
+  label,
+}: {
   icon: React.ReactNode;
   title: string;
   description: string;
@@ -156,16 +202,34 @@ function ModeCard({ icon, title, description, active, loading, action, href, lab
       <div className="text-violet-600">{icon}</div>
       <div className="mt-5 flex items-center gap-2">
         <h2 className="text-xl font-black">{title}</h2>
-        {active && <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-black text-emerald-600">ACTIF</span>}
+        {active && (
+          <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-black text-emerald-600">
+            ACTIF
+          </span>
+        )}
       </div>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">{description}</p>
       {action ? (
-        <button type="button" onClick={action} disabled={loading} className="mt-6 inline-flex h-11 items-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-black text-white disabled:opacity-60">
-          {loading ? <LoaderCircle className="animate-spin" size={16} /> : <ArrowRight size={16} />}
+        <button
+          type="button"
+          onClick={action}
+          disabled={loading}
+          className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-black text-white disabled:opacity-60"
+        >
+          {loading ? (
+            <LoaderCircle className="animate-spin" size={16} />
+          ) : (
+            <ArrowRight size={16} />
+          )}
           {label}
         </button>
       ) : (
-        <Link href={href} className="mt-6 inline-flex h-11 items-center gap-2 rounded-xl border border-border px-4 text-sm font-black">{label} <ArrowRight size={16} /></Link>
+        <Link
+          href={href}
+          className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl border border-border px-4 text-sm font-black"
+        >
+          {label} <ArrowRight size={16} />
+        </Link>
       )}
     </article>
   );
