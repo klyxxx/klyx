@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import fs from "node:fs";
-import { createServer, type Server } from "node:http";
+import { createServer, type RequestListener, type Server } from "node:http";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -63,7 +63,7 @@ function runSentinel(extraEnv: Record<string, string>) {
 }
 
 async function startLocalServer(
-  handler: Parameters<typeof createServer>[0]
+  handler: RequestListener
 ): Promise<{ server: Server; origin: string }> {
   const server = createServer(handler);
   server.listen(0, "127.0.0.1");
