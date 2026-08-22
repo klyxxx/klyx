@@ -1,0 +1,246 @@
+name: KLYX Performance Certification
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "Isolated k6 profile"
+        required: true
+        default: "smoke"
+        type: choice
+        options:
+          - smoke
+          - load
+          - stress
+          - spike
+          - soak
+      confirm_isolated_target:
+        description: "Confirm ephemeral local Supabase + loopback KLYX target"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/klyx-performance.yml"
+      - "performance/**"
+      - "scripts/performance/**"
+      - "app/**"
+      - "lib/**"
+      - "supabase/migrations/**"
+      - "package.json"
+      - "package-lock.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: klyx-performance-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  performance-certification:
+    name: k6 + ApacheBench isolated certification
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+
+    env:
+      KLYX_PERF_PROFILE: ${{ github.event_name == 'pull_request' && 'ci' || inputs.profile }}
+      KLYX_PERF_BASE_URL: "http://127.0.0.1:3100"
+      KLYX_GOLDEN_PATH_MUTATIONS_ENABLED: "true"
+      KLYX_GOLDEN_PATH_LOCAL_SUPABASE: "true"
+      KLYX_PRODUCTION_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_TELEMETRY_DISABLED: "1"
+      KLYX_STRIPE_MODE: "test"
+      STRIPE_SECRET_KEY: "sk_test_klyx_performance_local_only"
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_klyx_performance_local_only"
+      KLYX_ALLOW_PLATFORM_ONLY_TEST_PAYMENTS: "true"
+      KLYX_LIVE_PAYMENTS_ENABLED: "false"
+      NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100"
+
+    steps:
+      - name: Refuse unsafe manual trigger
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.confirm_isolated_target != 'true' }}
+        run: |
+          echo "::error::Manual performance tests require explicit isolated-target confirmation."
+          exit 1
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf
+        with:
+          version: 2.111.0
+
+      - name: Initialize local Supabase config
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f supabase/config.toml ]; then
+            supabase init
+          fi
+
+      - name: Start ephemeral local Supabase
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase start \
+            -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+
+      - name: Export isolated credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(supabase status -o env)"
+
+          public_key="${ANON_KEY:-${PUBLISHABLE_KEY:-}}"
+          for name in API_URL SERVICE_ROLE_KEY; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Supabase local status did not provide ${name}."
+              exit 1
+            fi
+          done
+          if [ -z "$public_key" ]; then
+            echo "::error::Supabase local status did not provide ANON_KEY/PUBLISHABLE_KEY."
+            exit 1
+          fi
+
+          case "$API_URL" in
+            http://127.0.0.1:54321|http://localhost:54321) ;;
+            *) echo "::error::Refusing non-loopback Supabase URL: ${API_URL}"; exit 1 ;;
+          esac
+
+          perf_email="performance-${GITHUB_RUN_ID}@example.test"
+          perf_password="$(openssl rand -base64 36 | tr -d '\n')"
+
+          echo "::add-mask::$public_key"
+          echo "::add-mask::$SERVICE_ROLE_KEY"
+          echo "::add-mask::$perf_password"
+
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
+            echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$public_key"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+            echo "KLYX_E2E_EMAIL=$perf_email"
+            echo "KLYX_E2E_PASSWORD=$perf_password"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify isolated runtime
+        run: >-
+          node --input-type=module -e
+          "import('./scripts/golden-path-runtime.mjs').then(({assertGoldenPathIsolation}) => assertGoldenPathIsolation())"
+
+      - name: Bootstrap dedicated performance account
+        run: node scripts/golden-path-bootstrap.mjs
+
+      - name: Prepare read-only provider fixture
+        run: node scripts/golden-path-provider-fixture.mjs
+
+      - name: Unit and integration tests
+        run: npm test
+
+      - name: TypeScript
+        run: npx tsc --noEmit --pretty false
+
+      - name: Production build
+        run: npm run build
+
+      - name: Start isolated KLYX production server
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- -p 3100 > performance-server.log 2>&1 &
+          server_pid=$!
+          echo "KLYX_PERFORMANCE_SERVER_PID=$server_pid" >> "$GITHUB_ENV"
+
+          for attempt in $(seq 1 40); do
+            if curl --fail --silent --show-error http://127.0.0.1:3100/login > /dev/null; then
+              echo "KLYX performance server is ready."
+              exit 0
+            fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then
+              cat performance-server.log
+              exit 1
+            fi
+            sleep 1
+          done
+
+          cat performance-server.log
+          exit 1
+
+      - name: Setup Grafana k6
+        uses: grafana/setup-k6-action@v1
+        with:
+          k6-version: "2.1.0"
+
+      - name: Run k6 certification profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p performance-results
+          k6 run \
+            --summary-mode=full \
+            --summary-export=performance-results/k6-summary.json \
+            -e KLYX_PERF_PROFILE="$KLYX_PERF_PROFILE" \
+            -e KLYX_PERF_BASE_URL="$KLYX_PERF_BASE_URL" \
+            -e NEXT_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" \
+            -e NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" \
+            -e KLYX_E2E_EMAIL="$KLYX_E2E_EMAIL" \
+            -e KLYX_E2E_PASSWORD="$KLYX_E2E_PASSWORD" \
+            performance/k6/klyx-readonly.js
+
+      - name: Install ApacheBench
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y apache2-utils
+
+      - name: Run ApacheBench quick diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          ab -n 200 -c 10 -s 15 -k http://127.0.0.1:3100/login \
+            | tee performance-results/apachebench.txt
+
+      - name: Upload performance certificate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: klyx-performance-${{ github.run_id }}-${{ env.KLYX_PERF_PROFILE }}
+          path: |
+            performance-results/
+            performance-server.log
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Stop performance server
+        if: always()
+        shell: bash
+        run: |
+          if [ -n "${KLYX_PERFORMANCE_SERVER_PID:-}" ] && \
+             kill -0 "$KLYX_PERFORMANCE_SERVER_PID" 2>/dev/null; then
+            kill "$KLYX_PERFORMANCE_SERVER_PID" || true
+          fi
+
+      - name: Destroy ephemeral Supabase
+        if: always()
+        shell: bash
+        run: |
+          if command -v supabase >/dev/null 2>&1; then
+            supabase stop --no-backup || true
+          fi
