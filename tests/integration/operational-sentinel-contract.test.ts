@@ -25,6 +25,7 @@ const runbook = readRepoFile(
 );
 const recoveryGuide = readRepoFile("docs/KLYX_RECOVERY_GUIDE.md");
 const packageJson = readRepoFile("package.json");
+const proxySource = readRepoFile("proxy.ts");
 
 function runSentinel(extraEnv: Record<string, string>) {
   return new Promise<{
@@ -85,7 +86,7 @@ async function closeServer(server: Server) {
 }
 
 describe("KLYX operational sentinel contract", () => {
-  it("exposes a minimal no-store liveness response with no dependency details", async () => {
+  it("exposes a minimal no-store liveness response independent from session middleware", async () => {
     const response = GET();
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toContain("no-store");
@@ -101,6 +102,14 @@ describe("KLYX operational sentinel contract", () => {
 
     const source = readRepoFile("app/api/health/route.ts");
     expect(source).not.toMatch(/supabase|stripe|database|secret|process\.env/i);
+
+    const bypassIndex = proxySource.indexOf(
+      'request.nextUrl.pathname === "/api/health"'
+    );
+    const sessionIndex = proxySource.indexOf("return updateSession(request);");
+    expect(bypassIndex).toBeGreaterThanOrEqual(0);
+    expect(proxySource).toContain("return NextResponse.next();");
+    expect(sessionIndex).toBeGreaterThan(bypassIndex);
   });
 
   it("performs only the allowlisted GET liveness and homepage requests", async () => {
