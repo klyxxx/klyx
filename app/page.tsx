@@ -232,7 +232,7 @@ export default function HomePage() {
           <JourneyStep
             number="03"
             title="Tu confirmes"
-            text="KLYX recommande, mais le choix du prestataire et la réservation restent sous ton contrôle."
+            text="KLYX peut comparer et retenir une recommandation. Tu confirmes explicitement avant toute réservation."
           />
 
           <JourneyStep
@@ -254,9 +254,8 @@ export default function HomePage() {
             </p>
 
             <p className="mt-2 max-w-4xl text-sm leading-6 text-white/50">
-              Aucune publication de demande, sélection de prestataire,
-              réservation ou paiement n’est effectué automatiquement
-              sans une confirmation explicite de ta part.
+              KLYX peut rechercher, comparer et préparer une recommandation.
+              Publication de demande, réservation, paiement, annulation et remboursement restent soumis à une action explicite de ta part.
             </p>
           </div>
         </div>
@@ -334,8 +333,8 @@ export default function HomePage() {
                 </h3>
 
                 <p className="mt-3 max-w-lg text-sm leading-7 text-white/50">
-                  Décris ton besoin, compare les prestataires,
-                  confirme ton choix puis suis ta réservation
+                  Décris ton besoin, laisse KLYX comparer les prestataires,
+                  confirme la réservation puis suis ta mission
                   jusqu’à la prestation terminée.
                 </p>
 
