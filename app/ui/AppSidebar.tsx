@@ -39,13 +39,17 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
-import KlyxLogo from "@/app/ui/KlyxLogo";
 import AssistantPriorityBadge from "@/app/components/AssistantPriorityBadge";
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import KlyxLogo from "@/app/ui/KlyxLogo";
+import {
+  translateKlyxNavigationLabel,
+} from "@/lib/klyx-i18n";
 import {
   searchKlyxNavigation,
   type KlyxNavItem,
 } from "@/lib/klyx-navigation";
+import { createClient } from "@/lib/supabase/client";
 
 type AccountType = "client" | "provider";
 
@@ -134,6 +138,7 @@ export default function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement>(null);
+  const { locale, t } = useKlyxLocale();
 
   const [mobileOpen, setMobileOpen] =
     useState(false);
@@ -262,9 +267,10 @@ export default function AppSidebar() {
         searchKlyxNavigation(
           query,
           accountType,
-          isAdmin
+          isAdmin,
+          locale
         ),
-      [query, accountType, isAdmin]
+      [query, accountType, isAdmin, locale]
     );
 
   if (hideSidebar) return null;
@@ -304,18 +310,18 @@ export default function AppSidebar() {
 
         <p className="mt-4 max-w-[13rem] text-xs leading-5 text-muted-foreground dark:text-white/45">
           {accountType === "provider"
-            ? "Ton activité professionnelle KLYX."
+            ? t("sidebar.providerTagline")
             : accountType === "client"
-              ? "Tous tes services du quotidien."
-              : "Chargement du profil..."}
+              ? t("sidebar.clientTagline")
+              : t("sidebar.loadingProfile")}
         </p>
 
         <div className="mt-4 flex flex-wrap gap-2">
           <span className="inline-flex rounded-full border border-border bg-muted/60 px-3 py-1.5 dark:border-white/10 dark:bg-white/5 text-[11px] font-black uppercase tracking-[0.16em] text-muted-foreground dark:text-white/60">
             {accountType === "provider"
-              ? "Compte prestataire"
+              ? t("sidebar.providerAccount")
               : accountType === "client"
-                ? "Compte client"
+                ? t("sidebar.clientAccount")
                 : "KLYX"}
           </span>
 
@@ -344,7 +350,7 @@ export default function AppSidebar() {
             onChange={(event) =>
               setQuery(event.target.value)
             }
-            placeholder="Rechercher dans KLYX"
+            placeholder={t("sidebar.searchPlaceholder")}
             className="h-11 w-full rounded-xl border border-border bg-background pl-9 pr-12 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-violet-400/40 dark:border-white/10 dark:bg-white/[0.055] dark:text-white dark:placeholder:text-white/35"
           />
 
@@ -357,7 +363,7 @@ export default function AppSidebar() {
           <div className="mt-2 max-h-72 overflow-y-auto rounded-xl border border-border bg-card p-1.5 shadow-2xl dark:border-white/10 dark:bg-[#0f0e14]">
             {searchResults.length === 0 ? (
               <p className="px-3 py-3 text-xs text-muted-foreground dark:text-white/40">
-                Aucun résultat.
+                {t("sidebar.noResults")}
               </p>
             ) : (
               searchResults.map((item) => (
@@ -375,10 +381,10 @@ export default function AppSidebar() {
                   />
                   <span>
                     <span className="block text-sm font-bold text-foreground dark:text-white">
-                      {item.title}
+                      {translateKlyxNavigationLabel(locale, item.title)}
                     </span>
                     <span className="mt-0.5 block text-[11px] text-muted-foreground dark:text-white/40">
-                      {item.group}
+                      {translateKlyxNavigationLabel(locale, item.group)}
                     </span>
                   </span>
                 </button>
@@ -428,7 +434,9 @@ export default function AppSidebar() {
                 <Icon size={17} />
               </span>
 
-                            <span>{item.title}</span>
+              <span>
+                {translateKlyxNavigationLabel(locale, item.title)}
+              </span>
 
               {item.href === "/assistant" && (
                 <AssistantPriorityBadge />
@@ -463,7 +471,7 @@ export default function AppSidebar() {
             <span className="grid h-8 w-8 place-items-center rounded-xl bg-violet-500/15">
               <ShieldCheck size={17} />
             </span>
-            <span>Centre Admin KLYX</span>
+            <span>{t("sidebar.adminCenter")}</span>
           </Link>
         )}
       </nav>
@@ -478,8 +486,8 @@ export default function AppSidebar() {
           >
             <LogOut size={18} />
             {loggingOut
-              ? "Déconnexion..."
-              : "Se déconnecter"}
+              ? t("sidebar.loggingOut")
+              : t("sidebar.logout")}
           </button>
         </div>
       </div>
@@ -497,7 +505,7 @@ export default function AppSidebar() {
             setMobileOpen(true)
           }
           className="grid h-11 w-11 place-items-center rounded-2xl border border-border bg-card text-foreground dark:border-white/10 dark:bg-white/5 dark:text-white"
-          aria-label="Ouvrir le menu"
+          aria-label={t("sidebar.openMenu")}
         >
           <Menu size={22} />
         </button>
@@ -518,7 +526,7 @@ export default function AppSidebar() {
         <div className="fixed inset-0 z-50 lg:hidden">
           <button
             type="button"
-            aria-label="Fermer le menu"
+            aria-label={t("sidebar.closeMenu")}
             onClick={() =>
               setMobileOpen(false)
             }
@@ -532,7 +540,7 @@ export default function AppSidebar() {
                 setMobileOpen(false)
               }
               className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-xl bg-muted text-foreground dark:bg-white/7 dark:text-white"
-              aria-label="Fermer"
+              aria-label={t("sidebar.closeMenu")}
             >
               <X size={20} />
             </button>
@@ -544,4 +552,3 @@ export default function AppSidebar() {
     </>
   );
 }
-
