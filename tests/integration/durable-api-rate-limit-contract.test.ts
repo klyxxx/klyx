@@ -21,6 +21,9 @@ const analyzeRoute = readRepoFile("app/api/requests/analyze/route.ts");
 const photoRoute = readRepoFile(
   "app/api/requests/photo/photo-route-core.ts"
 );
+const quoteDraftRoute = readRepoFile(
+  "app/api/provider/quotes/draft/quote-draft-route-core.ts"
+);
 const preflight = readRepoFile("scripts/golden-path-preflight.mjs");
 
 describe("KLYX durable API rate limiting", () => {
@@ -78,8 +81,8 @@ describe("KLYX durable API rate limiting", () => {
     expect(helper).not.toContain("x-forwarded-for");
   });
 
-  it("limits external AI, universal analysis and photo analysis routes", () => {
-    for (const route of [aiRoute, analyzeRoute, photoRoute]) {
+  it("limits external AI, universal analysis, photo analysis and quote draft routes", () => {
+    for (const route of [aiRoute, analyzeRoute, photoRoute, quoteDraftRoute]) {
       expect(route).toContain("consumeApiRateLimit");
       expect(route).toContain("apiRateLimitExceededResponse");
     }
@@ -87,8 +90,11 @@ describe("KLYX durable API rate limiting", () => {
     expect(aiRoute).toContain("API_RATE_LIMIT_POLICIES.aiRespond");
     expect(analyzeRoute).toContain("API_RATE_LIMIT_POLICIES.requestAnalysis");
     expect(photoRoute).toContain("API_RATE_LIMIT_POLICIES.photoAnalysis");
+    expect(quoteDraftRoute).toContain("API_RATE_LIMIT_POLICIES.quoteDraft");
     expect(helper).toContain('action: "photo_analysis"');
+    expect(helper).toContain('action: "quote_draft"');
     expect(helper).toContain("limit: 6");
+    expect(helper).toContain("limit: 12");
   });
 
   it("proves allow, block, bounded counting and browser-role denial in Golden", () => {
