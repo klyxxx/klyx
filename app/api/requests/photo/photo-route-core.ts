@@ -23,6 +23,7 @@ import {
 import {
   analyzePhotoVisualContent,
   isPhotoVisionEnabled,
+  PHOTO_VISION_MIN_RELIABLE_CONFIDENCE,
   type PhotoVisionResult,
 } from "@/lib/photo-vision-analysis";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -35,8 +36,52 @@ const ALLOWED_TYPES = [
 
 type AllowedMimeType = (typeof ALLOWED_TYPES)[number];
 
+type PhotoAnalysisResult = PhotoServiceAnalysis & {
+  analysisMode: "description_assisted" | "vision_ai";
+  visionConfidence: number | null;
+  visionContributed: boolean;
+};
+
 function isAllowedMimeType(value: string): value is AllowedMimeType {
   return (ALLOWED_TYPES as readonly string[]).includes(value);
+}
+
+function hasExpectedImageSignature(
+  bytes: Uint8Array,
+  mimeType: AllowedMimeType
+): boolean {
+  if (mimeType === "image/jpeg") {
+    return (
+      bytes.length >= 3 &&
+      bytes[0] === 0xff &&
+      bytes[1] === 0xd8 &&
+      bytes[2] === 0xff
+    );
+  }
+
+  if (mimeType === "image/png") {
+    const signature = [
+      0x89,
+      0x50,
+      0x4e,
+      0x47,
+      0x0d,
+      0x0a,
+      0x1a,
+      0x0a,
+    ];
+
+    return (
+      bytes.length >= signature.length &&
+      signature.every((value, index) => bytes[index] === value)
+    );
+  }
+
+  return (
+    bytes.length >= 12 &&
+    String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" &&
+    String.fromCharCode(...bytes.slice(8, 12)) === "WEBP"
+  );
 }
 
 async function loadCanonicalServices(): Promise<CatalogServiceRecord[]> {
@@ -73,11 +118,8 @@ function buildAnalysis(params: {
   description: string;
   services: readonly CatalogServiceRecord[];
   vision: PhotoVisionResult;
-}): PhotoServiceAnalysis & {
-  analysisMode: "description_assisted" | "vision_ai";
-  visionSummary: string | null;
-  visionConfidence: number | null;
-} {
+  visionRequested: boolean;
+}): PhotoAnalysisResult {
   const descriptionAnalysis = analyzePhotoDescription(params.description);
   const textCatalogCandidates = detectCatalogServiceCandidates(
     params.description,
@@ -85,10 +127,18 @@ function buildAnalysis(params: {
     3
   );
   const evidence = params.vision.evidence;
-  const visualText = evidence
-    ? [evidence.visualSummary, ...evidence.serviceHints].join(" ")
+  const reliableVisualEvidence =
+    evidence &&
+    evidence.confidence >= PHOTO_VISION_MIN_RELIABLE_CONFIDENCE
+      ? evidence
+      : null;
+  const visualText = reliableVisualEvidence
+    ? [
+        reliableVisualEvidence.visualSummary,
+        ...reliableVisualEvidence.serviceHints,
+      ].join(" ")
     : "";
-  const visualCatalogCandidates = evidence
+  const visualCatalogCandidates = reliableVisualEvidence
     ? detectCatalogServiceCandidates(
         visualText,
         params.services,
@@ -97,48 +147,74 @@ function buildAnalysis(params: {
         ...candidate,
         confidence: Math.min(
           candidate.confidence,
-          Math.max(60, evidence.confidence)
+          reliableVisualEvidence.confidence
         ),
         reason:
-          "Le contenu visuel de la photo correspond à ce métier dans le catalogue KLYX.",
+          "Les indices visuels fiables de la photo correspondent à ce métier dans le catalogue KLYX.",
       }))
     : [];
-  const combinedLegacyAnalysis = evidence
-    ? analyzePhotoDescription(
-        `${params.description} ${visualText}`
-      )
-    : descriptionAnalysis;
   const candidates = mergeServiceCandidates(
     params.services,
     textCatalogCandidates,
     visualCatalogCandidates,
-    descriptionAnalysis.candidates,
-    combinedLegacyAnalysis.candidates
+    descriptionAnalysis.candidates
   );
   const best = candidates[0] ?? null;
   const analysisMode = params.vision.used
     ? "vision_ai"
     : "description_assisted";
+  const visionContributed = visualCatalogCandidates.length > 0;
+  const visionConfidence = evidence?.confidence ?? null;
+
+  let summary: string;
+
+  if (params.vision.used && visionContributed) {
+    summary = best
+      ? `KLYX a réellement analysé la photo et ta description. Le besoin semble correspondre à un service de ${best.label.toLowerCase()}.`
+      : "KLYX a réellement analysé la photo, mais le service doit encore être précisé.";
+  } else if (
+    params.vision.used &&
+    visionConfidence != null &&
+    visionConfidence < PHOTO_VISION_MIN_RELIABLE_CONFIDENCE
+  ) {
+    summary = best
+      ? `KLYX a analysé la photo, mais les indices visuels sont trop incertains pour influencer le métier proposé. La suggestion ${best.label.toLowerCase()} repose sur ta description.`
+      : "KLYX a analysé la photo, mais les indices visuels sont trop incertains pour choisir un métier. Précise ta description.";
+  } else if (params.vision.used) {
+    summary = best
+      ? `KLYX a analysé la photo, mais aucun indice visuel fiable ne correspond encore au catalogue. La suggestion ${best.label.toLowerCase()} repose sur ta description.`
+      : "KLYX a analysé la photo, mais aucun métier du catalogue ne peut être proposé avec assez de confiance.";
+  } else if (best) {
+    summary = `Ta description semble correspondre à un service de ${best.label.toLowerCase()}.`;
+  } else {
+    summary = descriptionAnalysis.summary;
+  }
+
+  let limitations: string;
+
+  if (params.vision.used) {
+    limitations =
+      "Vision réelle utilisée. KLYX analyse uniquement les éléments utiles au service. Ce résultat reste une aide au choix du métier, jamais un diagnostic technique : vérifie le service avant de lancer la recherche.";
+  } else if (!params.visionRequested) {
+    limitations =
+      "Tu n’as pas autorisé l’analyse visuelle IA pour cette photo. KLYX a utilisé uniquement ta description écrite.";
+  } else if (params.vision.enabled) {
+    limitations =
+      "Tu as autorisé la vision, mais le moteur visuel était indisponible pour cette photo. KLYX a utilisé uniquement ta description écrite comme solution de repli.";
+  } else {
+    limitations =
+      "Tu as autorisé la vision, mais elle n’est pas activée sur cet environnement KLYX. L’analyse repose uniquement sur ta description écrite.";
+  }
 
   return {
     serviceSlug: best?.slug ?? null,
     serviceLabel: best?.label ?? null,
     candidates,
-    summary: params.vision.used
-      ? best
-        ? `La photo et ta description semblent correspondre à un service de ${best.label.toLowerCase()}.`
-        : "KLYX a analysé la photo et ta description, mais le service doit encore être précisé."
-      : best
-        ? `Ta description semble correspondre à un service de ${best.label.toLowerCase()}.`
-        : descriptionAnalysis.summary,
-    limitations: params.vision.used
-      ? "KLYX a réellement analysé le contenu visuel de la photo. Cette analyse reste une aide au choix du métier, pas un diagnostic technique : vérifie le service avant de lancer la recherche."
-      : params.vision.enabled
-        ? "L’analyse visuelle IA était indisponible pour cette photo. KLYX a utilisé uniquement ta description écrite comme solution de repli."
-        : "L’analyse visuelle IA est désactivée. KLYX utilise uniquement ta description écrite tant que la vision n’est pas activée.",
+    summary,
+    limitations,
     analysisMode,
-    visionSummary: evidence?.visualSummary ?? null,
-    visionConfidence: evidence?.confidence ?? null,
+    visionConfidence,
+    visionContributed,
   };
 }
 
@@ -167,6 +243,7 @@ export async function POST(request: Request) {
       width?: unknown;
       height?: unknown;
       description?: unknown;
+      useVision?: unknown;
     };
 
     const storagePath =
@@ -190,6 +267,7 @@ export async function POST(request: Request) {
       typeof body.description === "string"
         ? body.description.trim().slice(0, 1500)
         : "";
+    const visionRequested = body.useVision === true;
 
     if (
       !storagePath.startsWith(`${profile.id}/`) ||
@@ -283,10 +361,14 @@ export async function POST(request: Request) {
     const visionEnabled = isPhotoVisionEnabled();
     let vision = visionFallback(
       visionEnabled,
-      visionEnabled ? "vision_not_attempted" : "vision_disabled"
+      visionRequested
+        ? visionEnabled
+          ? "vision_not_attempted"
+          : "vision_disabled"
+        : "vision_not_requested"
     );
 
-    if (visionEnabled) {
+    if (visionRequested && visionEnabled) {
       const { data: imageBlob, error: downloadError } =
         await supabaseAdmin.storage
           .from("client-service-photos")
@@ -301,6 +383,20 @@ export async function POST(request: Request) {
         const imageBytes = new Uint8Array(
           await imageBlob.arrayBuffer()
         );
+
+        if (!hasExpectedImageSignature(imageBytes, mimeType)) {
+          return NextResponse.json(
+            {
+              error:
+                "Le contenu du fichier ne correspond pas au format image annoncé.",
+            },
+            {
+              status: 400,
+              headers: rateLimitResponseHeaders(policy, rateLimit),
+            }
+          );
+        }
+
         vision = await analyzePhotoVisualContent({
           bytes: imageBytes,
           mimeType,
@@ -313,6 +409,7 @@ export async function POST(request: Request) {
       description,
       services,
       vision,
+      visionRequested,
     });
 
     const { data, error } = await supabaseAdmin
@@ -342,7 +439,8 @@ export async function POST(request: Request) {
         analysis_payload: {
           ...analysis,
           vision: {
-            enabled: vision.enabled,
+            requested: visionRequested,
+            available: visionEnabled,
             used: vision.used,
             provider: vision.provider,
             model: vision.model,
@@ -361,6 +459,8 @@ export async function POST(request: Request) {
         requestId: data.id,
         analysis,
         analysisMode: analysis.analysisMode,
+        visionRequested,
+        visionAvailable: visionEnabled,
         visionUsed: vision.used,
       },
       {
