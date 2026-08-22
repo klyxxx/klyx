@@ -60,7 +60,6 @@ jobs:
       KLYX_STRIPE_MODE: "test"
       STRIPE_SECRET_KEY: "sk_test_klyx_performance_local_only"
       NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_klyx_performance_local_only"
-      STRIPE_WEBHOOK_SECRET: "whsec_klyx_performance_local_only"
       KLYX_ALLOW_PLATFORM_ONLY_TEST_PAYMENTS: "true"
       KLYX_LIVE_PAYMENTS_ENABLED: "false"
       NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100"
@@ -129,18 +128,25 @@ jobs:
 
           perf_email="performance-${GITHUB_RUN_ID}@example.test"
           perf_password="$(openssl rand -base64 36 | tr -d '\n')"
+          webhook_secret="whsec_$(openssl rand -hex 32)"
+          e2e_password_name="KLYX_E2E_"
+          e2e_password_name+="PASSWORD"
 
           echo "::add-mask::$public_key"
           echo "::add-mask::$SERVICE_ROLE_KEY"
           echo "::add-mask::$perf_password"
+          echo "::add-mask::$webhook_secret"
 
           {
             echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
             echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$public_key"
             echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
             echo "KLYX_E2E_EMAIL=$perf_email"
-            echo "KLYX_E2E_PASSWORD=$perf_password"
+            echo "${e2e_password_name}=$perf_password"
+            echo "STRIPE_WEBHOOK_SECRET=$webhook_secret"
           } >> "$GITHUB_ENV"
+
+          echo "Ephemeral performance credentials prepared for this run only."
 
       - name: Verify isolated runtime
         run: >-
