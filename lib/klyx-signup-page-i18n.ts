@@ -1,0 +1,187 @@
+import type { KlyxLocale } from "./klyx-i18n";
+
+export const KLYX_SIGNUP_PAGE_TRANSLATED_LOCALES = ["fr", "en", "nl", "de"] as const;
+type KlyxSignupPageLocale = (typeof KLYX_SIGNUP_PAGE_TRANSLATED_LOCALES)[number];
+
+export type KlyxSignupMessageKey =
+  | "invalidForm" | "captchaRequired" | "captchaFailed" | "signupFailed"
+  | "accountCreated" | "checkingSession" | "joinKlyx" | "headline" | "description"
+  | "benefitFree" | "benefitRoles" | "benefitSecure" | "createSpace" | "beta"
+  | "startTitle" | "startSubtitle" | "client" | "clientSubtitle" | "provider"
+  | "providerSubtitle" | "selectedProfile" | "joinAsProvider" | "joinAsClient"
+  | "providerNext" | "clientNext" | "profileContinuity" | "namePlaceholder"
+  | "emailPlaceholder" | "passwordPlaceholder" | "hidePassword" | "showPassword"
+  | "creating" | "createProvider" | "createClient" | "alreadyRegistered" | "signIn";
+
+const SIGNUP_MESSAGES: Record<KlyxSignupPageLocale, Record<KlyxSignupMessageKey, string>> = {
+  fr: {
+    invalidForm: "Renseigne ton nom, ton e-mail et un mot de passe d’au moins 8 caractères.",
+    captchaRequired: "Valide d’abord la vérification anti-robot.",
+    captchaFailed: "La vérification anti-robot a expiré ou a échoué. Réessaie.",
+    signupFailed: "Impossible de créer le compte.",
+    accountCreated: "Compte créé. Consulte ton e-mail pour confirmer ton inscription.",
+    checkingSession: "Vérification de la session",
+    joinKlyx: "Rejoindre KLYX",
+    headline: "Un compte. Tous vos services.",
+    description: "Choisissez votre espace, puis commencez à réserver ou proposer des services.",
+    benefitFree: "Inscription gratuite",
+    benefitRoles: "Compte client ou prestataire",
+    benefitSecure: "Gestion sécurisée de vos services",
+    createSpace: "Créer votre espace",
+    beta: "Beta",
+    startTitle: "Commencer avec KLYX",
+    startSubtitle: "Cela ne prend que quelques instants.",
+    client: "Client",
+    clientSubtitle: "Je cherche un service",
+    provider: "Prestataire",
+    providerSubtitle: "Je propose mes services",
+    selectedProfile: "Profil sélectionné",
+    joinAsProvider: "Je rejoins KLYX comme prestataire",
+    joinAsClient: "Je rejoins KLYX comme client",
+    providerNext: "Après ton inscription, KLYX te guidera pour préparer ton profil, tes services et ton activité.",
+    clientNext: "Après ton inscription, KLYX te guidera vers ton espace client pour organiser ton premier besoin.",
+    profileContinuity: "Ton choix de profil est conservé pendant la création du compte. Tu pourras ensuite gérer plusieurs profils KLYX depuis une même connexion.",
+    namePlaceholder: "Nom complet",
+    emailPlaceholder: "Adresse e-mail",
+    passwordPlaceholder: "Mot de passe — 8 caractères minimum",
+    hidePassword: "Masquer le mot de passe",
+    showPassword: "Afficher le mot de passe",
+    creating: "Création...",
+    createProvider: "Créer mon espace prestataire",
+    createClient: "Créer mon compte client",
+    alreadyRegistered: "Déjà inscrit ?",
+    signIn: "Se connecter",
+  },
+  en: {
+    invalidForm: "Enter your name, email address and a password of at least 8 characters.",
+    captchaRequired: "Complete the anti-bot verification first.",
+    captchaFailed: "The anti-bot verification expired or failed. Try again.",
+    signupFailed: "Unable to create the account.",
+    accountCreated: "Account created. Check your email to confirm your registration.",
+    checkingSession: "Checking session",
+    joinKlyx: "Join KLYX",
+    headline: "One account. All your services.",
+    description: "Choose your space, then start booking or offering services.",
+    benefitFree: "Free registration",
+    benefitRoles: "Client or provider account",
+    benefitSecure: "Secure service management",
+    createSpace: "Create your space",
+    beta: "Beta",
+    startTitle: "Get started with KLYX",
+    startSubtitle: "It only takes a few moments.",
+    client: "Client",
+    clientSubtitle: "I am looking for a service",
+    provider: "Provider",
+    providerSubtitle: "I offer my services",
+    selectedProfile: "Selected profile",
+    joinAsProvider: "I’m joining KLYX as a provider",
+    joinAsClient: "I’m joining KLYX as a client",
+    providerNext: "After registration, KLYX will guide you through setting up your profile, services and activity.",
+    clientNext: "After registration, KLYX will guide you to your client space to organize your first need.",
+    profileContinuity: "Your profile choice is kept while your account is created. You can then manage several KLYX profiles from the same sign-in.",
+    namePlaceholder: "Full name",
+    emailPlaceholder: "Email address",
+    passwordPlaceholder: "Password — 8 characters minimum",
+    hidePassword: "Hide password",
+    showPassword: "Show password",
+    creating: "Creating...",
+    createProvider: "Create my provider space",
+    createClient: "Create my client account",
+    alreadyRegistered: "Already registered?",
+    signIn: "Sign in",
+  },
+  nl: {
+    invalidForm: "Vul je naam, e-mailadres en een wachtwoord van minstens 8 tekens in.",
+    captchaRequired: "Voltooi eerst de anti-robotcontrole.",
+    captchaFailed: "De anti-robotcontrole is verlopen of mislukt. Probeer opnieuw.",
+    signupFailed: "Het account kon niet worden aangemaakt.",
+    accountCreated: "Account aangemaakt. Controleer je e-mail om je registratie te bevestigen.",
+    checkingSession: "Sessie controleren",
+    joinKlyx: "Word lid van KLYX",
+    headline: "Eén account. Al je diensten.",
+    description: "Kies je omgeving en begin daarna diensten te boeken of aan te bieden.",
+    benefitFree: "Gratis registratie",
+    benefitRoles: "Klant- of dienstverleneraccount",
+    benefitSecure: "Veilig beheer van je diensten",
+    createSpace: "Maak je omgeving",
+    beta: "Beta",
+    startTitle: "Start met KLYX",
+    startSubtitle: "Het duurt maar enkele ogenblikken.",
+    client: "Klant",
+    clientSubtitle: "Ik zoek een dienst",
+    provider: "Dienstverlener",
+    providerSubtitle: "Ik bied mijn diensten aan",
+    selectedProfile: "Geselecteerd profiel",
+    joinAsProvider: "Ik word dienstverlener op KLYX",
+    joinAsClient: "Ik word klant op KLYX",
+    providerNext: "Na je registratie helpt KLYX je om je profiel, diensten en activiteit voor te bereiden.",
+    clientNext: "Na je registratie leidt KLYX je naar je klantomgeving om je eerste behoefte te organiseren.",
+    profileContinuity: "Je profielkeuze blijft behouden tijdens het aanmaken van je account. Daarna kun je meerdere KLYX-profielen beheren vanuit één aanmelding.",
+    namePlaceholder: "Volledige naam",
+    emailPlaceholder: "E-mailadres",
+    passwordPlaceholder: "Wachtwoord — minstens 8 tekens",
+    hidePassword: "Wachtwoord verbergen",
+    showPassword: "Wachtwoord tonen",
+    creating: "Aanmaken...",
+    createProvider: "Mijn dienstverlenersruimte aanmaken",
+    createClient: "Mijn klantaccount aanmaken",
+    alreadyRegistered: "Al geregistreerd?",
+    signIn: "Aanmelden",
+  },
+  de: {
+    invalidForm: "Gib deinen Namen, deine E-Mail-Adresse und ein Passwort mit mindestens 8 Zeichen ein.",
+    captchaRequired: "Schließe zuerst die Anti-Bot-Prüfung ab.",
+    captchaFailed: "Die Anti-Bot-Prüfung ist abgelaufen oder fehlgeschlagen. Versuche es erneut.",
+    signupFailed: "Das Konto konnte nicht erstellt werden.",
+    accountCreated: "Konto erstellt. Prüfe deine E-Mails, um die Registrierung zu bestätigen.",
+    checkingSession: "Sitzung wird geprüft",
+    joinKlyx: "KLYX beitreten",
+    headline: "Ein Konto. Alle deine Dienstleistungen.",
+    description: "Wähle deinen Bereich und beginne anschließend, Dienstleistungen zu buchen oder anzubieten.",
+    benefitFree: "Kostenlose Registrierung",
+    benefitRoles: "Kunden- oder Anbieterkonto",
+    benefitSecure: "Sichere Verwaltung deiner Dienstleistungen",
+    createSpace: "Deinen Bereich erstellen",
+    beta: "Beta",
+    startTitle: "Mit KLYX starten",
+    startSubtitle: "Es dauert nur wenige Augenblicke.",
+    client: "Kunde",
+    clientSubtitle: "Ich suche eine Dienstleistung",
+    provider: "Anbieter",
+    providerSubtitle: "Ich biete meine Dienste an",
+    selectedProfile: "Ausgewähltes Profil",
+    joinAsProvider: "Ich trete KLYX als Anbieter bei",
+    joinAsClient: "Ich trete KLYX als Kunde bei",
+    providerNext: "Nach der Registrierung führt KLYX dich durch die Einrichtung deines Profils, deiner Dienstleistungen und deiner Tätigkeit.",
+    clientNext: "Nach der Registrierung führt KLYX dich zu deinem Kundenbereich, um deinen ersten Bedarf zu organisieren.",
+    profileContinuity: "Deine Profilwahl bleibt beim Erstellen des Kontos erhalten. Danach kannst du mehrere KLYX-Profile über dieselbe Anmeldung verwalten.",
+    namePlaceholder: "Vollständiger Name",
+    emailPlaceholder: "E-Mail-Adresse",
+    passwordPlaceholder: "Passwort — mindestens 8 Zeichen",
+    hidePassword: "Passwort ausblenden",
+    showPassword: "Passwort anzeigen",
+    creating: "Wird erstellt...",
+    createProvider: "Meinen Anbieterbereich erstellen",
+    createClient: "Mein Kundenkonto erstellen",
+    alreadyRegistered: "Bereits registriert?",
+    signIn: "Anmelden",
+  },
+};
+
+export function resolveKlyxSignupPageLocale(locale: KlyxLocale): KlyxSignupPageLocale {
+  return (KLYX_SIGNUP_PAGE_TRANSLATED_LOCALES as readonly string[]).includes(locale)
+    ? (locale as KlyxSignupPageLocale)
+    : "fr";
+}
+
+export function hasKlyxSignupPageTranslation(locale: KlyxLocale) {
+  return (KLYX_SIGNUP_PAGE_TRANSLATED_LOCALES as readonly string[]).includes(locale);
+}
+
+export function translateKlyxSignup(locale: KlyxLocale, key: KlyxSignupMessageKey) {
+  return SIGNUP_MESSAGES[resolveKlyxSignupPageLocale(locale)][key];
+}
+
+export function getKlyxSignupDictionary(locale: KlyxLocale) {
+  return SIGNUP_MESSAGES[resolveKlyxSignupPageLocale(locale)];
+}
