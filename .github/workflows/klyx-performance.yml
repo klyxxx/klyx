@@ -209,7 +209,6 @@ jobs:
             -e NEXT_PUBLIC_SUPABASE_URL="$NEXT_PUBLIC_SUPABASE_URL" \
             -e NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY" \
             -e KLYX_E2E_EMAIL="$KLYX_E2E_EMAIL" \
-            -e KLYX_E2E_PASSWORD="$KLYX_E2E_PASSWORD" \
             performance/k6/klyx-readonly.js
 
       - name: Install ApacheBench
