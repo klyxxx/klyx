@@ -2,7 +2,7 @@
 
 ## Current translated shell locales
 
-KLYX has a real translated global-shell foundation for 28 selectable locales:
+KLYX has a real translated global-shell foundation for 36 selectable locales:
 
 ### Batch 1
 - `fr` — Français (default/fallback)
@@ -38,13 +38,23 @@ KLYX has a real translated global-shell foundation for 28 selectable locales:
 - `no` — Norsk
 - `fi` — Suomi
 
+### Batch 4 — Central Europe and Balkans
+- `cs` — Čeština
+- `sk` — Slovenčina
+- `hu` — Magyar
+- `ro` — Română
+- `el` — Ελληνικά
+- `bg` — Български
+- `hr` — Hrvatski
+- `sr` — Српски
+
 Only locales whose global shell strings and navigation labels are actually present are exposed in the KLYX language selector. Do not add a selectable locale that silently falls back to another language.
 
 The user preference reuses the existing `klyx_language` browser-storage key. The locale provider also mirrors the current locale into a non-secret `klyx_locale` cookie so a future server-rendered locale layer can use the same preference without inventing a second setting.
 
 ## What this foundation does
 
-- normalizes supported browser locale variants such as `fr-BE`, `en-US`, `de-CH`, `es-MX`, `pt-BR`, `ar-MA`, `ru-RU`, `hi-IN`, `ur-PK`, `he-IL`, `fa-IR`, `id-ID`, `sv-SE`, `da-DK`, `no-NO`, `fi-FI`, `zh-CN` and `zh-TW`;
+- normalizes supported browser locale variants such as `fr-BE`, `en-US`, `de-CH`, `es-MX`, `pt-BR`, `ar-MA`, `ru-RU`, `hi-IN`, `ur-PK`, `he-IL`, `fa-IR`, `id-ID`, `sv-SE`, `fi-FI`, `cs-CZ`, `sk-SK`, `hu-HU`, `ro-RO`, `el-GR`, `bg-BG`, `hr-HR`, `sr-RS`, `zh-CN` and `zh-TW`;
 - supports legacy browser aliases where applicable (`iw` → `he`, `in` → `id`);
 - falls back safely to French for unsupported locales;
 - detects the first supported browser language when no saved preference exists;

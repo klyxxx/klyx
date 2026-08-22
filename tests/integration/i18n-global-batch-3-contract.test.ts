@@ -49,15 +49,14 @@ describe("KLYX global language batch 3 contract", () => {
   });
 
   it("requires runtime normalization, translated search and pack completeness tests", () => {
-    expect(unitTests).toContain('normalizeKlyxLocale("sv-SE")');
-    expect(unitTests).toContain('normalizeKlyxLocale("fi-FI")');
+    expect(unitTests).toContain('["sv-SE", "sv"]');
+    expect(unitTests).toContain('["fi-FI", "fi"]');
     expect(unitTests).toContain("requires every batch-3 locale");
     expect(unitTests).toContain('["inställningar", "sv"]');
     expect(unitTests).toContain('["asetukset", "fi"]');
   });
 
-  it("documents 28 shell locales without claiming full-site translation", () => {
-    expect(documentation).toContain("28 selectable locales");
+  it("keeps the Nordic batch documented without claiming full-site translation", () => {
     expect(documentation).toContain("### Batch 3 — Nordics");
     expect(documentation).toContain("not** full-site internationalization");
     expect(documentation).toContain("Most page-level copy");
