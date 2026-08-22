@@ -1,3 +1,8 @@
+import {
+  translateKlyxNavigationLabel,
+  type KlyxLocale,
+} from "./klyx-i18n";
+
 export type KlyxNavRole =
   | "all"
   | "client"
@@ -265,7 +270,8 @@ export function normalizeKlyxSearch(value: string): string {
 export function searchKlyxNavigation(
   query: string,
   accountType: "client" | "provider" | null,
-  isAdmin: boolean
+  isAdmin: boolean,
+  locale: KlyxLocale = "fr"
 ): KlyxNavItem[] {
   const normalized = normalizeKlyxSearch(query);
 
@@ -283,6 +289,8 @@ export function searchKlyxNavigation(
       [
         item.title,
         item.group,
+        translateKlyxNavigationLabel(locale, item.title),
+        translateKlyxNavigationLabel(locale, item.group),
         item.href,
         ...item.keywords,
       ].join(" ")
