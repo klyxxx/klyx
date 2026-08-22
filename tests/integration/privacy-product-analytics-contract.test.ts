@@ -82,13 +82,15 @@ describe("KLYX privacy-safe product analytics contract", () => {
     expect(founderApi).toContain("storesSearchText: false");
     expect(founderApi).toContain("storesLocation: false");
     expect(founderApi).toContain("storesIpAddress: false");
+    expect(founderApi).toContain("ratios de volumes");
   });
 
   it("labels the dashboard as aggregate analytics without a third-party browser tracker", () => {
     expect(founderHome).toContain('href="/founder/analytics"');
     expect(founderPage).toContain("Analytics privées");
     expect(founderPage).toContain("Privacy by design");
-    expect(founderPage).toContain("ratios de volumes");
+    expect(founderPage).toContain("Lecture correcte des ratios");
+    expect(founderPage).toContain("data.interpretation");
 
     const newAnalyticsCode = [recorder, searchRoute, founderApi, founderPage].join("\n");
     expect(newAnalyticsCode).not.toMatch(
