@@ -13,6 +13,7 @@ import {
   ChevronUp,
   LoaderCircle,
   MapPin,
+  ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -189,7 +190,9 @@ export default function MatchExplanation({
             </p>
 
             <p className="mt-1 text-xs text-muted-foreground">
-              Voir pourquoi KLYX propose ce profil
+              {provider.qualificationLevel === "regulated"
+                ? "Dossier métier réglementé approuvé · Voir les contrôles"
+                : "Dossier métier approuvé · Voir les contrôles"}
             </p>
           </div>
         </div>
@@ -209,6 +212,37 @@ export default function MatchExplanation({
 
       {expanded && (
         <div className="border-t border-violet-500/15 p-4">
+          <div className="mb-4 rounded-xl border border-cyan-500/20 bg-cyan-500/[0.07] p-3">
+            <div className="flex items-start gap-2">
+              <ShieldCheck
+                className="mt-0.5 shrink-0 text-cyan-600 dark:text-cyan-400"
+                size={16}
+              />
+
+              <div>
+                <p className="text-xs font-black">
+                  Contrôle de qualification métier
+                </p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  {provider.qualificationLabel}
+                </p>
+
+                {provider.officialRegistrationLabel && (
+                  <p className="mt-2 text-xs font-semibold text-cyan-800 dark:text-cyan-200">
+                    Exigence réglementaire configurée :{" "}
+                    {provider.officialRegistrationLabel}
+                  </p>
+                )}
+
+                <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
+                  KLYX a approuvé le dossier transmis pour cette compétence.
+                  Ce contrôle KLYX ne remplace pas une autorisation, un agrément
+                  ou un registre officiel lorsqu’un organisme public en exige un.
+                </p>
+              </div>
+            </div>
+          </div>
+
           {loadingCoverage && (
             <div className="mb-4 flex items-center gap-2 rounded-xl bg-background/70 p-3 text-xs text-muted-foreground">
               <LoaderCircle

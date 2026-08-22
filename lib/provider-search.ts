@@ -12,6 +12,11 @@ export type PublicServiceOption = {
   label: string;
 };
 
+export type ProviderQualificationLevel =
+  | "self_declared"
+  | "evidence_required"
+  | "regulated";
+
 export type ProviderSearchItem = {
   profileId: string;
   userServiceId: string;
@@ -35,6 +40,10 @@ export type ProviderSearchItem = {
   reviewCount: number;
   yearsExperience: number;
   isVerified: boolean;
+  qualificationLevel: ProviderQualificationLevel;
+  qualificationApproved: boolean;
+  qualificationLabel: string;
+  officialRegistrationLabel: string | null;
   availabilitySummary: string;
   isExactMatch: boolean;
 };
