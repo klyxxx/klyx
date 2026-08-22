@@ -13,7 +13,7 @@ describe("KLYX first-profile market contract", () => {
   it("requires an explicit canonical KLYX market before profile creation", () => {
     const source = read("app/onboarding/FirstProfileSetup.tsx");
 
-    expect(source).toContain('KLYX_SUPPORTED_MARKETS');
+    expect(source).toContain("KLYX_SUPPORTED_MARKETS");
     expect(source).toMatch(/countryCode[\s\S]*useState\(\s*["']["']\s*\)/);
     expect(source).toMatch(/if\s*\(\s*!countryCode\s*\)/);
     expect(source).toContain("KLYX_FIRST_PROFILE_MARKET_REQUIRED_16_01");
@@ -30,13 +30,16 @@ describe("KLYX first-profile market contract", () => {
     expect(api).toContain("currency_code: marketInput.currencyCode");
   });
 
-  it("preserves the first-profile role lock and provider-only service selection", () => {
+  it("preserves the first-profile role lock, provider-only service and no-automatic-action boundary", () => {
     const source = read("app/onboarding/FirstProfileSetup.tsx");
+    const i18n = read("lib/klyx-first-profile-i18n.ts");
 
     expect(source).toContain("KLYX_FIRST_PROFILE_ROLE_LOCK_14_05");
     expect(source).toMatch(/roleChoiceUnlocked[\s\S]*useState\(\s*false\s*\)/);
     expect(source).toMatch(/if\s*\(\s*accountType\s*===\s*["']client["']\s*\)[\s\S]*setServiceId\(\s*["']["']\s*\)/);
     expect(source).toMatch(/serviceId\s*:\s*accountType\s*===\s*["']provider["']\s*\?\s*serviceId\s*:\s*null/);
-    expect(source).toContain("La création de ce profil ne déclenche aucune réservation");
+    expect(source).toContain('t("noAutomaticAction")');
+    expect(i18n).toContain("noAutomaticAction:");
+    expect(i18n).toMatch(/noAutomaticAction:\s*["'][^"']*réservation[^"']*paiement[^"']*["']/);
   });
 });
