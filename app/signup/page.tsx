@@ -22,7 +22,12 @@ import AuthTurnstile, {
   AUTH_TURNSTILE_ENABLED,
   type AuthTurnstileHandle,
 } from "@/app/components/AuthTurnstile";
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import KlyxLogo from "@/app/ui/KlyxLogo";
+import {
+  translateKlyxSignup,
+  type KlyxSignupMessageKey,
+} from "@/lib/klyx-signup-page-i18n";
 import { createClient } from "@/lib/supabase/client";
 
 type AccountType =
@@ -31,6 +36,9 @@ type AccountType =
 
 export default function SignupPage() {
   const router = useRouter();
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxSignupMessageKey) =>
+    translateKlyxSignup(locale, key);
   const captchaRef =
     useRef<AuthTurnstileHandle | null>(null);
 
@@ -156,7 +164,7 @@ export default function SignupPage() {
       password.length < 8
     ) {
       setErrorMessage(
-        "Renseigne ton nom, ton e-mail et un mot de passe d’au moins 8 caractères."
+        t("invalidForm")
       );
       return;
     }
@@ -166,7 +174,7 @@ export default function SignupPage() {
       !captchaToken
     ) {
       setErrorMessage(
-        "Valide d’abord la vérification anti-robot."
+        t("captchaRequired")
       );
       return;
     }
@@ -210,7 +218,7 @@ export default function SignupPage() {
             .includes("captcha")
         ) {
           throw new Error(
-            "La vérification anti-robot a expiré ou a échoué. Réessaie."
+            t("captchaFailed")
           );
         }
 
@@ -226,13 +234,13 @@ export default function SignupPage() {
       }
 
       setMessage(
-        "Compte créé. Consulte ton e-mail pour confirmer ton inscription."
+        t("accountCreated")
       );
     } catch (error) {
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : "Impossible de créer le compte."
+          : t("signupFailed")
       );
     } finally {
       resetCaptcha();
@@ -245,7 +253,7 @@ export default function SignupPage() {
       <main className="dark grid min-h-screen place-items-center bg-background dark:bg-zinc-950 text-foreground dark:text-white">
         <div
           className="h-10 w-10 animate-spin rounded-full border-2 border-white/20 border-t-violet-500"
-          aria-label="Vérification de la session"
+          aria-label={t("checkingSession")}
         />
       </main>
     );
@@ -263,24 +271,23 @@ export default function SignupPage() {
             <div className="relative flex h-full flex-col justify-between">
               <div>
                 <p className="klyx-eyebrow">
-                  Rejoindre KLYX
+                  {t("joinKlyx")}
                 </p>
 
                 <h1 className="mt-4 text-5xl font-black leading-[1.02] tracking-[-0.055em]">
-                  Un compte. Tous vos services.
+                  {t("headline")}
                 </h1>
 
                 <p className="mt-5 max-w-sm leading-7 text-white/55">
-                  Choisissez votre espace, puis commencez à réserver
-                  ou proposer des services.
+                  {t("description")}
                 </p>
               </div>
 
               <div className="space-y-4 text-sm text-white/65">
                 {[
-                  "Inscription gratuite",
-                  "Compte client ou prestataire",
-                  "Gestion sécurisée de vos services",
+                  t("benefitFree"),
+                  t("benefitRoles"),
+                  t("benefitSecure"),
                 ].map(
                   (item) => (
                     <div
@@ -304,20 +311,20 @@ export default function SignupPage() {
           <section className="p-6 sm:p-10 lg:p-12">
             <div className="flex flex-wrap items-center gap-2">
               <p className="klyx-eyebrow">
-                Créer votre espace
+                {t("createSpace")}
               </p>
 
               <span className="rounded-full border border-violet-300/15 bg-violet-300/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] text-violet-200">
-                Beta
+                {t("beta")}
               </span>
             </div>
 
             <h2 className="mt-3 text-4xl font-black tracking-[-0.05em]">
-              Commencer avec KLYX
+              {t("startTitle")}
             </h2>
 
             <p className="mt-3 text-white/50">
-              Cela ne prend que quelques instants.
+              {t("startSubtitle")}
             </p>
 
             <div className="mt-8 grid grid-cols-2 gap-3">
@@ -346,11 +353,11 @@ export default function SignupPage() {
                 />
 
                 <p className="mt-3 font-bold">
-                  Client
+                  {t("client")}
                 </p>
 
                 <p className="mt-1 text-xs text-white/45">
-                  Je cherche un service
+                  {t("clientSubtitle")}
                 </p>
               </button>
 
@@ -379,11 +386,11 @@ export default function SignupPage() {
                 />
 
                 <p className="mt-3 font-bold">
-                  Prestataire
+                  {t("provider")}
                 </p>
 
                 <p className="mt-1 text-xs text-white/45">
-                  Je propose mes services
+                  {t("providerSubtitle")}
                 </p>
               </button>
             </div>
@@ -401,19 +408,19 @@ export default function SignupPage() {
 
                 <div>
                   <p className="text-xs font-black uppercase tracking-[0.16em] text-violet-300">
-                    Profil sélectionné
+                    {t("selectedProfile")}
                   </p>
 
                   <p className="mt-1 font-black">
                     {accountType === "provider"
-                      ? "Je rejoins KLYX comme prestataire"
-                      : "Je rejoins KLYX comme client"}
+                      ? t("joinAsProvider")
+                      : t("joinAsClient")}
                   </p>
 
                   <p className="mt-2 text-sm leading-6 text-white/50">
                     {accountType === "provider"
-                      ? "Après ton inscription, KLYX te guidera pour préparer ton profil, tes services et ton activité."
-                      : "Après ton inscription, KLYX te guidera vers ton espace client pour organiser ton premier besoin."}
+                      ? t("providerNext")
+                      : t("clientNext")}
                   </p>
                 </div>
               </div>
@@ -427,8 +434,7 @@ export default function SignupPage() {
               />
 
               <p className="text-sm leading-6 text-white/45">
-                Ton choix de profil est conservé pendant la création du compte.
-                Tu pourras ensuite gérer plusieurs profils KLYX depuis une même connexion.
+                {t("profileContinuity")}
               </p>
             </div>
 
@@ -455,7 +461,7 @@ export default function SignupPage() {
                     )
                   }
                   className="h-14 w-full rounded-2xl border border-white/10 bg-white/[0.055] pl-12 pr-4 outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-500/10"
-                  placeholder="Nom complet"
+                  placeholder={t("namePlaceholder")}
                   autoComplete="name"
                 />
               </div>
@@ -477,7 +483,7 @@ export default function SignupPage() {
                     )
                   }
                   className="h-14 w-full rounded-2xl border border-white/10 bg-white/[0.055] pl-12 pr-4 outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-500/10"
-                  placeholder="Adresse e-mail"
+                  placeholder={t("emailPlaceholder")}
                   autoComplete="email"
                 />
               </div>
@@ -503,7 +509,7 @@ export default function SignupPage() {
                     )
                   }
                   className="h-14 w-full rounded-2xl border border-white/10 bg-white/[0.055] pl-12 pr-12 outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-500/10"
-                  placeholder="Mot de passe — 8 caractères minimum"
+                  placeholder={t("passwordPlaceholder")}
                   autoComplete="new-password"
                 />
 
@@ -518,8 +524,8 @@ export default function SignupPage() {
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40"
                   aria-label={
                     showPassword
-                      ? "Masquer le mot de passe"
-                      : "Afficher le mot de passe"
+                      ? t("hidePassword")
+                      : t("showPassword")
                   }
                 >
                   {showPassword ? (
@@ -560,21 +566,21 @@ export default function SignupPage() {
                 className="klyx-button w-full !min-h-14"
               >
                 {loading
-                  ? "Création..."
+                  ? t("creating")
                   : accountType ===
                       "provider"
-                    ? "Créer mon espace prestataire"
-                    : "Créer mon compte client"}
+                    ? t("createProvider")
+                    : t("createClient")}
               </button>
             </form>
 
             <p className="mt-7 text-center text-sm text-white/45">
-              Déjà inscrit ?{" "}
+              {t("alreadyRegistered")}{" "}
               <Link
                 href="/login"
                 className="font-bold text-foreground dark:text-white hover:text-violet-300"
               >
-                Se connecter
+                {t("signIn")}
               </Link>
             </p>
           </section>
