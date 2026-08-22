@@ -9,10 +9,16 @@ import {
   KLYX_BATCH_2_NAVIGATION_TRANSLATIONS,
   KLYX_BATCH_2_UI_MESSAGES,
 } from "./klyx-i18n-batch-2";
+import {
+  KLYX_BATCH_3_LANGUAGE_OPTIONS,
+  KLYX_BATCH_3_NAVIGATION_TRANSLATIONS,
+  KLYX_BATCH_3_UI_MESSAGES,
+} from "./klyx-i18n-batch-3";
 
 export const KLYX_LANGUAGE_OPTIONS = [
   ...KLYX_BATCH_1_LANGUAGE_OPTIONS,
   ...KLYX_BATCH_2_LANGUAGE_OPTIONS,
+  ...KLYX_BATCH_3_LANGUAGE_OPTIONS,
 ] as const;
 
 export const KLYX_LOCALES = KLYX_LANGUAGE_OPTIONS.map(
@@ -47,11 +53,13 @@ type UiMessages = Record<KlyxUiMessageKey, string>;
 const UI_MESSAGES = {
   ...KLYX_BATCH_1_UI_MESSAGES,
   ...KLYX_BATCH_2_UI_MESSAGES,
+  ...KLYX_BATCH_3_UI_MESSAGES,
 } as Record<KlyxLocale, UiMessages>;
 
 const NAVIGATION_TRANSLATIONS = {
   ...KLYX_BATCH_1_NAVIGATION_TRANSLATIONS,
   ...KLYX_BATCH_2_NAVIGATION_TRANSLATIONS,
+  ...KLYX_BATCH_3_NAVIGATION_TRANSLATIONS,
 } as Partial<Record<KlyxLocale, Record<string, string>>>;
 
 const LOCALE_VALUE_SET = new Set<string>(
