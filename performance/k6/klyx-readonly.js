@@ -103,8 +103,13 @@ export const options = {
 };
 
 function assertSafeTarget() {
-  const target = new URL(BASE_URL);
-  const loopback = ["127.0.0.1", "localhost", "::1"].includes(target.hostname);
+  const match = /^(https?):\/\/(\[[^\]]+\]|[^/:]+)(?::\d+)?(?:\/|$)/i.exec(BASE_URL);
+  if (!match) {
+    throw new Error("KLYX performance target must use HTTP or HTTPS.");
+  }
+
+  const hostname = match[2].replace(/^\[|\]$/g, "").toLowerCase();
+  const loopback = ["127.0.0.1", "localhost", "::1"].includes(hostname);
   const remoteSmokeAllowed =
     PROFILE === "smoke" && __ENV.KLYX_PERF_ALLOW_REMOTE_READ_ONLY === "true";
 
@@ -112,10 +117,6 @@ function assertSafeTarget() {
     throw new Error(
       `KLYX performance guard refused ${BASE_URL}. Non-loopback load/stress/spike/soak targets are forbidden.`
     );
-  }
-
-  if (target.protocol !== "http:" && target.protocol !== "https:") {
-    throw new Error("KLYX performance target must use HTTP or HTTPS.");
   }
 }
 
