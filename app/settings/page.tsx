@@ -22,6 +22,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import { useTheme } from "@/app/components/ThemeProvider";
 import KlyxSelect from "@/app/components/KlyxSelect";
 import {
@@ -42,6 +43,7 @@ const LANGUAGE_KEY = "klyx_language";
 export default function SettingsPage() {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const { setLocale } = useKlyxLocale();
 
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
@@ -289,7 +291,6 @@ export default function SettingsPage() {
           {/* KLYX_PHONE_PRIVACY_SETTINGS_12_75 */}
           <PhonePrivacyControls />
           {/* KLYX_PHONE_ACCESS_HISTORY_SETTINGS_12_76 */}
-          <PhoneAccessHistory />
           <Section icon={<Sun />} title="Apparence">
             <div className="grid gap-3 sm:grid-cols-3">
               {(["light", "dark", "system"] as const).map((value) => (
@@ -439,7 +440,7 @@ export default function SettingsPage() {
               value={language}
               onChange={(value) => {
                 setLanguage(value);
-                localStorage.setItem(LANGUAGE_KEY, value);
+                setLocale(value);
               }}
               options={[
                 { value: "fr", label: "Français" },
