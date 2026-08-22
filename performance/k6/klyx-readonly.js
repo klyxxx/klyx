@@ -209,6 +209,7 @@ export default function (data) {
       "time=10%3A00",
       "duration=2",
       "sort=recommended",
+      "analytics=0",
     ].join("&");
 
     const response = http.get(`${BASE_URL}/api/search/providers?${params}`, {
