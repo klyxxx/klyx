@@ -24,6 +24,7 @@ const runbook = readRepoFile(
   "docs/operations/KLYX_INCIDENT_RUNBOOK.md"
 );
 const recoveryGuide = readRepoFile("docs/KLYX_RECOVERY_GUIDE.md");
+const packageJson = readRepoFile("package.json");
 
 function runSentinel(extraEnv: Record<string, string>) {
   return new Promise<{
@@ -170,16 +171,20 @@ describe("KLYX operational sentinel contract", () => {
     }
   });
 
-  it("keeps the scheduled workflow opt-in and read-only", () => {
+  it("keeps the scheduled workflow opt-in, Node-aligned and read-only", () => {
     expect(workflow).toContain("name: KLYX Operational Sentinel");
     expect(workflow).toContain('cron: "17,47 * * * *"');
     expect(workflow).toContain("permissions:\n  contents: read");
     expect(workflow).toContain("KLYX_OPERATIONAL_SENTINEL_ENABLED");
     expect(workflow).toContain("KLYX_PRODUCTION_URL");
-    expect(workflow).toContain("node scripts/operations/check-public-production.mjs");
+    expect(workflow).toContain("node-version: 22");
+    expect(workflow).toContain("run: npm run ops:smoke");
     expect(workflow).toContain("Method: GET only");
     expect(workflow).toContain("Mutations: none");
     expect(workflow).not.toMatch(/secrets\./);
+
+    expect(packageJson).toContain('"ops:smoke": "node scripts/operations/check-public-production.mjs"');
+    expect(packageJson).toContain('"node": "22.x"');
 
     expect(sentinel).toContain('const ALLOWED_PATHS = ["/api/health", "/"]');
     expect(sentinel).toContain('method: "GET"');
