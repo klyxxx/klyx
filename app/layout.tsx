@@ -3,6 +3,8 @@ import { Geist, Geist_Mono, Inter } from "next/font/google";
 
 import ActiveProfileSync from "@/app/components/ActiveProfileSync";
 import FounderAccessBar from "@/app/components/FounderAccessBar";
+import KlyxLocaleProvider from "@/app/components/KlyxLocaleProvider";
+import KlyxSkipLink from "@/app/components/KlyxSkipLink";
 import PwaRegistrar from "@/app/components/PwaRegistrar";
 import ThemeProvider from "@/app/components/ThemeProvider";
 import AppSidebar from "@/app/ui/AppSidebar";
@@ -177,34 +179,31 @@ export default function RootLayout({
       </head>
 
       <body className="min-h-full bg-background text-foreground">
-        <a
-          href="#klyx-main-content"
-          className="klyx-skip-link"
-        >
-          Aller au contenu principal
-        </a>
+        <KlyxLocaleProvider>
+          <KlyxSkipLink />
 
-        <PwaRegistrar />
-        <ActiveProfileSync />
-        <AppVisualBackground />
+          <PwaRegistrar />
+          <ActiveProfileSync />
+          <AppVisualBackground />
 
-        <ThemeProvider>
-          <TooltipProvider>
-            <div className="klyx-app-shell min-h-screen lg:flex">
-              <AppSidebar />
+          <ThemeProvider>
+            <TooltipProvider>
+              <div className="klyx-app-shell min-h-screen lg:flex">
+                <AppSidebar />
 
-              <div className="klyx-app-content min-w-0 flex-1">
-                <FounderAccessBar />
-                <div
-                  id="klyx-main-content"
-                  tabIndex={-1}
-                >
-                  {children}
+                <div className="klyx-app-content min-w-0 flex-1">
+                  <FounderAccessBar />
+                  <div
+                    id="klyx-main-content"
+                    tabIndex={-1}
+                  >
+                    {children}
+                  </div>
                 </div>
               </div>
-            </div>
-          </TooltipProvider>
-        </ThemeProvider>
+            </TooltipProvider>
+          </ThemeProvider>
+        </KlyxLocaleProvider>
       </body>
     </html>
   );
