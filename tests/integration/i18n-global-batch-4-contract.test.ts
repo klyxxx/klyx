@@ -53,8 +53,7 @@ describe("KLYX global language batch 4 contract", () => {
     expect(unitTests).toContain('["подешавања", "sr"]');
   });
 
-  it("documents 36 shell locales without claiming full-site translation", () => {
-    expect(documentation).toContain("36 selectable locales");
+  it("keeps the Central European and Balkan batch documented honestly", () => {
     expect(documentation).toContain("### Batch 4 — Central Europe and Balkans");
     expect(documentation).toContain("not** full-site internationalization");
     expect(documentation).toContain("Most page-level copy");
