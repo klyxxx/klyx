@@ -21,13 +21,17 @@ describe("KLYX request analysis API error sanitization contract", () => {
     expect(source).not.toContain("{ error: message }");
   });
 
-  it("preserves the existing universal request analysis logic unchanged in the core", () => {
+  it("preserves universal request analysis while delegating memory audit to the shared server boundary", () => {
     const source = read("app/api/requests/analyze/analyze-route-core.ts");
+    const memory = read("lib/client-memory-context.ts");
 
     expect(source).toContain("detectServiceCandidates");
     expect(source).toContain("missingFieldsForRequest");
     expect(source).toContain('from("service_requests")');
-    expect(source).toContain('from("user_memory_events")');
+    expect(source).toContain('from "@/lib/client-memory-context"');
+    expect(source).toContain("recordClientMemoryUsage");
+    expect(memory).toContain('from("user_memory_events")');
+    expect(memory).toContain('event_type: "memory_used"');
   });
 
   it("keeps photo POST and DELETE behind secure 5xx boundaries", () => {
