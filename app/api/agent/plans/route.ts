@@ -16,6 +16,10 @@ import {
   buildClientAgentPlan,
   type AgentStep,
 } from "@/lib/client-agent";
+import {
+  loadClientMemoryContext,
+  recordClientMemoryUsage,
+} from "@/lib/client-memory-context";
 import { detectServiceCandidates } from "@/lib/universal-service-request";
 
 const PLAN_SELECT =
@@ -29,53 +33,6 @@ const AGENT_STEP_IDS = [
   "book",
   "pay",
 ] as const;
-
-async function loadMemory(profileId: string) {
-  const [preferencesResult, profileResult] =
-    await Promise.all([
-      supabaseAdmin
-        .from("user_preferences")
-        .select(
-          "default_city, default_budget, preferred_service_slugs, scheduling_notes, ai_memory_enabled"
-        )
-        .eq("user_id", profileId)
-        .maybeSingle(),
-      supabaseAdmin
-        .from("client_memory_profiles")
-        .select("memory_enabled")
-        .eq("profile_id", profileId)
-        .maybeSingle(),
-    ]);
-
-  if (preferencesResult.error) {
-    throw preferencesResult.error;
-  }
-
-  if (
-    profileResult.error &&
-    profileResult.error.code !== "PGRST116"
-  ) {
-    throw profileResult.error;
-  }
-
-  const preferences = preferencesResult.data;
-
-  return {
-    enabled: Boolean(
-      preferences?.ai_memory_enabled &&
-        (profileResult.data?.memory_enabled ?? true)
-    ),
-    defaultCity: preferences?.default_city ?? null,
-    defaultBudget:
-      preferences?.default_budget == null
-        ? null
-        : Number(preferences.default_budget),
-    preferredServiceSlugs:
-      preferences?.preferred_service_slugs ?? [],
-    preferredTimeText:
-      preferences?.scheduling_notes ?? null,
-  };
-}
 
 async function loadCanonicalServices(): Promise<CatalogServiceRecord[]> {
   const { data, error } = await supabaseAdmin
@@ -166,7 +123,7 @@ export async function POST(request: Request) {
     }
 
     const [memory, services] = await Promise.all([
-      loadMemory(profile.id),
+      loadClientMemoryContext(profile.id),
       loadCanonicalServices(),
     ]);
     const serviceCandidates = mergeServiceCandidates(
@@ -177,14 +134,14 @@ export async function POST(request: Request) {
     const canonicalServiceSlugs = new Set(
       services.map((service) => service.slug)
     );
-    const rememberedServiceSlugs = Array.isArray(memory.preferredServiceSlugs)
-      ? (memory.preferredServiceSlugs as string[])
-      : [];
     const canonicalMemory = {
-      ...memory,
-      preferredServiceSlugs: rememberedServiceSlugs.filter((slug: string) =>
+      enabled: memory.enabled,
+      defaultCity: memory.defaultCity,
+      defaultBudget: memory.defaultBudget,
+      preferredServiceSlugs: memory.preferredServiceSlugs.filter((slug) =>
         canonicalServiceSlugs.has(slug)
       ),
+      preferredTimeText: memory.schedulingNotes,
     };
     const plan = buildClientAgentPlan({
       request: rawRequest,
@@ -218,11 +175,24 @@ export async function POST(request: Request) {
 
     if (error) throw error;
 
+    if (plan.memoryUsed) {
+      await recordClientMemoryUsage({
+        profileId: profile.id,
+        surface: "agent",
+        usedFields: plan.memoryFields,
+        referenceId: data.id,
+      });
+    }
+
     return NextResponse.json({
       plan: {
         ...data,
         searchHref: plan.searchHref,
         missingFields: plan.missingFields,
+        memoryFields: plan.memoryFields,
+        memoryMessage: plan.memoryUsed
+          ? "KLYX a complété ce plan avec les habitudes autorisées de ta mémoire."
+          : null,
       },
     });
   } catch (error) {
