@@ -203,7 +203,7 @@ async function main() {
   const intentText =
     `J'ai besoin d'un ménage à Bruxelles à 10h le ${frenchDate(requestedDate)}, budget 100 €.`;
 
-  const analysis = await requestJson({
+  const initialAnalysis = await requestJson({
     appOrigin,
     accessToken,
     profileId: client.id,
@@ -212,15 +212,99 @@ async function main() {
     body: { text: intentText },
   });
 
-  const requestId = analysis?.requestId;
-  const parsed = analysis?.parsed;
+  const initialRequestId = initialAnalysis?.requestId;
+  const initialParsed = initialAnalysis?.parsed;
+
+  if (
+    typeof initialRequestId !== "string" ||
+    !initialRequestId ||
+    !initialParsed
+  ) {
+    throw new Error(
+      "KLYX ambiguity analysis did not return a persisted request."
+    );
+  }
+
+  const clarificationCandidates = Array.isArray(
+    initialParsed.clarificationCandidates
+  )
+    ? initialParsed.clarificationCandidates
+    : [];
+  const expectedCandidate = clarificationCandidates.find(
+    (candidate) => candidate?.slug === expectedServiceSlug
+  );
+
+  if (
+    initialParsed.serviceAmbiguous !== true ||
+    initialParsed.readyForSearch !== false ||
+    initialParsed.serviceSlug !== null ||
+    !expectedCandidate ||
+    !Array.isArray(initialParsed.missingFields) ||
+    !initialParsed.missingFields.includes("le type de service")
+  ) {
+    throw new Error(
+      `KLYX did not preserve the explicit service-ambiguity boundary: ${JSON.stringify({
+        serviceAmbiguous: initialParsed.serviceAmbiguous,
+        readyForSearch: initialParsed.readyForSearch,
+        serviceSlug: initialParsed.serviceSlug,
+        clarificationCandidates: clarificationCandidates.map(
+          (candidate) => candidate?.slug ?? null
+        ),
+        missingFields: initialParsed.missingFields,
+      })}`
+    );
+  }
+
+  const { data: ambiguousRequest, error: ambiguousRequestError } = await admin
+    .from("service_requests")
+    .select(
+      "id, user_id, raw_text, detected_service_slug, city, requested_day, requested_time, budget_max, status, parsed_payload"
+    )
+    .eq("id", initialRequestId)
+    .single();
+
+  if (ambiguousRequestError) {
+    throw new Error(
+      `Unable to verify ambiguous service request: ${ambiguousRequestError.message}`
+    );
+  }
+
+  if (
+    ambiguousRequest.user_id !== client.id ||
+    ambiguousRequest.raw_text !== intentText ||
+    ambiguousRequest.detected_service_slug !== null ||
+    ambiguousRequest.status !== "analyzed" ||
+    ambiguousRequest.parsed_payload?.serviceAmbiguous !== true
+  ) {
+    throw new Error(
+      "Ambiguous service request was not persisted fail-closed."
+    );
+  }
+
+  const clarifiedAnalysis = await requestJson({
+    appOrigin,
+    accessToken,
+    profileId: client.id,
+    path: "/api/requests/analyze",
+    method: "POST",
+    body: {
+      text: intentText,
+      selectedServiceSlug: expectedServiceSlug,
+    },
+  });
+
+  const requestId = clarifiedAnalysis?.requestId;
+  const parsed = clarifiedAnalysis?.parsed;
 
   if (typeof requestId !== "string" || !requestId || !parsed) {
-    throw new Error("KLYX request analysis did not return a persisted request.");
+    throw new Error(
+      "KLYX clarified request analysis did not return a persisted request."
+    );
   }
 
   if (
     parsed.readyForSearch !== true ||
+    parsed.serviceAmbiguous !== false ||
     parsed.serviceSlug !== expectedServiceSlug ||
     String(parsed.city ?? "").toLowerCase() !== "bruxelles" ||
     parsed.requestedDay !== requestedDate ||
@@ -230,7 +314,8 @@ async function main() {
     parsed.missingFields.length !== 0
   ) {
     throw new Error(
-      `KLYX intent analysis is not search-ready: ${JSON.stringify({
+      `KLYX clarified intent analysis is not search-ready: ${JSON.stringify({
+        serviceAmbiguous: parsed.serviceAmbiguous,
         serviceSlug: parsed.serviceSlug,
         city: parsed.city,
         requestedDay: parsed.requestedDay,
@@ -244,7 +329,7 @@ async function main() {
   const { data: persistedRequest, error: requestError } = await admin
     .from("service_requests")
     .select(
-      "id, user_id, raw_text, detected_service_slug, city, requested_day, requested_time, budget_max, status"
+      "id, user_id, raw_text, detected_service_slug, city, requested_day, requested_time, budget_max, status, parsed_payload"
     )
     .eq("id", requestId)
     .single();
@@ -264,9 +349,10 @@ async function main() {
     String(persistedRequest.requested_time ?? "").slice(0, 5) !==
       requestedTime ||
     Number(persistedRequest.budget_max) !== 100 ||
-    persistedRequest.status !== "ready"
+    persistedRequest.status !== "ready" ||
+    persistedRequest.parsed_payload?.serviceAmbiguous !== false
   ) {
-    throw new Error("Persisted service request does not match KLYX analysis.");
+    throw new Error("Persisted clarified request does not match KLYX analysis.");
   }
 
   const searchParams = new URLSearchParams({
@@ -313,9 +399,35 @@ async function main() {
     matchedProvider.serviceSlug !== expectedServiceSlug ||
     String(matchedProvider.city ?? "").toLowerCase() !== "bruxelles" ||
     matchedProvider.pricingType !== "hourly" ||
-    Number(matchedProvider.price) !== 35
+    Number(matchedProvider.price) !== 35 ||
+    matchedProvider.qualificationApproved !== true ||
+    ![
+      "self_declared",
+      "evidence_required",
+      "regulated",
+    ].includes(matchedProvider.qualificationLevel) ||
+    typeof matchedProvider.qualificationLabel !== "string" ||
+    matchedProvider.qualificationLabel.trim().length === 0
   ) {
-    throw new Error("Golden-path provider match has unexpected search data.");
+    throw new Error(
+      "Golden-path provider match has unexpected search or qualification data."
+    );
+  }
+
+  for (const privateField of [
+    "provider_statement",
+    "review_note",
+    "reviewed_by",
+    "storage_path",
+    "source_url",
+    "required_proof_types",
+    "accepted_proof_types",
+  ]) {
+    if (Object.prototype.hasOwnProperty.call(matchedProvider, privateField)) {
+      throw new Error(
+        `Public provider search leaked private qualification field: ${privateField}`
+      );
+    }
   }
 
   await userClient.auth.signOut();
@@ -323,6 +435,8 @@ async function main() {
   process.stdout.write(
     `${JSON.stringify({
       ready: true,
+      ambiguityClarificationVerified: true,
+      initialRequestId,
       requestId,
       serviceSlug: parsed.serviceSlug,
       city: parsed.city,
@@ -331,6 +445,8 @@ async function main() {
       providerProfileId: matchedProvider.profileId,
       userServiceId: matchedProvider.userServiceId,
       exactCount: Number(search.exactCount),
+      qualificationApproved: matchedProvider.qualificationApproved,
+      qualificationLevel: matchedProvider.qualificationLevel,
     })}\n`
   );
 }
