@@ -227,7 +227,7 @@ export default function FounderAnalyticsPage() {
                   </p>
                 </div>
                 <p className="text-xs font-bold text-muted-foreground">
-                  Vert = au moins un résultat
+                  Hauteur = volume quotidien
                 </p>
               </div>
 
