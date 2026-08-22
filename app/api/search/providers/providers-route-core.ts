@@ -11,6 +11,7 @@ import {
 } from "@/lib/provider-search";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getApprovedUserServiceIds } from "@/lib/provider-skill-publication";
+import { loadPublicProviderQualifications } from "@/lib/provider-public-qualification";
 
 const SORT_VALUES: ProviderSearchSort[] = [
   "recommended",
@@ -71,6 +72,7 @@ type AvailabilityRow = {
 type ProviderZoneRow = {
   profile_id: string;
   user_service_id: string;
+  country_code: string;
   is_active: boolean;
 };
 
@@ -257,6 +259,7 @@ function compareCandidates(
       return second.reviewCount - first.reviewCount;
     }
   }
+
   if (sort === "experience_desc") {
     if (first.yearsExperience !== second.yearsExperience) {
       return second.yearsExperience - first.yearsExperience;
@@ -393,7 +396,7 @@ async function loadCandidates(filters: Filters): Promise<Candidate[]> {
         .eq("is_active", true),
       supabaseAdmin
         .from("provider_service_zones")
-        .select("profile_id, user_service_id, is_active")
+        .select("profile_id, user_service_id, country_code, is_active")
         .in("profile_id", profileIds)
         .in("user_service_id", userServiceIds)
         .eq("is_active", true),
@@ -421,6 +424,21 @@ async function loadCandidates(filters: Filters): Promise<Candidate[]> {
       .map((zone) => zone.user_service_id)
   );
 
+  const qualifications = await loadPublicProviderQualifications({
+    userServices: userServices.map((userService) => ({
+      id: userService.id,
+      serviceId: userService.service_id,
+    })),
+    services: services.map((service) => ({
+      id: service.id,
+      slug: service.slug,
+    })),
+    zones: zones.map((zone) => ({
+      userServiceId: zone.user_service_id,
+      countryCode: zone.country_code,
+    })),
+  });
+
   const serviceById = new Map(services.map((service) => [service.id, service]));
   const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
   const providerProfileById = new Map(
@@ -443,8 +461,17 @@ async function loadCandidates(filters: Filters): Promise<Candidate[]> {
       const profile = profileById.get(userService.user_id);
       const providerProfile = providerProfileById.get(userService.user_id);
       const serviceProfile = serviceProfileById.get(userService.id);
+      const qualification = qualifications.get(userService.id);
 
-      if (!service || !profile || !providerProfile || !serviceProfile) return null;
+      if (
+        !service ||
+        !profile ||
+        !providerProfile ||
+        !serviceProfile ||
+        !qualification
+      ) {
+        return null;
+      }
 
       if (!readyUserServiceIds.has(userService.id)) return null;
 
@@ -473,6 +500,10 @@ async function loadCandidates(filters: Filters): Promise<Candidate[]> {
         reviewCount: Number(serviceProfile.review_count ?? 0),
         yearsExperience: Number(providerProfile.years_experience ?? 0),
         isVerified: providerProfile.verification_status === "verified",
+        qualificationLevel: qualification.level,
+        qualificationApproved: qualification.approved,
+        qualificationLabel: qualification.label,
+        officialRegistrationLabel: qualification.officialRegistrationLabel,
         slots: slotsByUserService.get(userService.id) ?? [],
       };
     })
@@ -539,7 +570,3 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-
-
-
-
