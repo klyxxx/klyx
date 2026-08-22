@@ -118,6 +118,7 @@ export async function loadPublicProviderQualifications(params: {
       zonesByUserService.get(userService.id) ?? [];
 
     let selectedRule: RuleRow | null = null;
+    let selectedLevel: ProviderQualificationLevel | null = null;
 
     if (service) {
       for (const countryCode of countryCodesForService) {
@@ -125,22 +126,35 @@ export async function loadPublicProviderQualifications(params: {
           `${countryCode}|${service.slug}`
         );
 
-        if (!rule) continue;
+        // Same fail-closed default as getSkillQualificationRule(): every active
+        // country without a configured rule counts as evidence_required. This
+        // matters for multi-country providers: a self-declared country must not
+        // weaken another active country whose rule has not been configured yet.
+        const candidateLevel: ProviderQualificationLevel =
+          rule?.rule_level ?? "evidence_required";
+        const candidatePriority = RULE_PRIORITY[candidateLevel];
+        const selectedPriority = selectedLevel
+          ? RULE_PRIORITY[selectedLevel]
+          : 0;
+        const candidateNeedsOfficialRegistration =
+          rule?.official_registration_required === true;
+        const selectedNeedsOfficialRegistration =
+          selectedRule?.official_registration_required === true;
 
         if (
-          !selectedRule ||
-          RULE_PRIORITY[rule.rule_level] >
-            RULE_PRIORITY[selectedRule.rule_level]
+          candidatePriority > selectedPriority ||
+          (candidatePriority === selectedPriority &&
+            candidateNeedsOfficialRegistration &&
+            !selectedNeedsOfficialRegistration)
         ) {
-          selectedRule = rule;
+          selectedLevel = candidateLevel;
+          selectedRule = rule ?? null;
         }
       }
     }
 
-    // Same fail-closed default as getSkillQualificationRule(): when no
-    // country/service rule is configured, KLYX still requires evidence.
     const level: ProviderQualificationLevel =
-      selectedRule?.rule_level ?? "evidence_required";
+      selectedLevel ?? "evidence_required";
 
     result.set(userService.id, {
       level,
