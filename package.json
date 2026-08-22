@@ -19,7 +19,8 @@
     "perf:k6:stress": "k6 run -e KLYX_PERF_PROFILE=stress performance/k6/klyx-readonly.js",
     "perf:k6:spike": "k6 run -e KLYX_PERF_PROFILE=spike performance/k6/klyx-readonly.js",
     "perf:k6:soak": "k6 run -e KLYX_PERF_PROFILE=soak performance/k6/klyx-readonly.js",
-    "perf:ab": "powershell -ExecutionPolicy Bypass -File scripts/performance/ab-local.ps1"
+    "perf:ab": "powershell -ExecutionPolicy Bypass -File scripts/performance/ab-local.ps1",
+    "ops:smoke": "node scripts/operations/check-public-production.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

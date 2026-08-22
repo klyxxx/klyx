@@ -1,5 +1,15 @@
 # KLYX Recovery Guide
 
+## Production incident
+
+For a production outage, security/privacy incident, Supabase/Auth failure, payment/webhook anomaly or data-integrity concern, use:
+
+`docs/operations/KLYX_INCIDENT_RUNBOOK.md`
+
+This recovery guide is primarily for local/project recovery. Do not use local recovery shortcuts as a production incident procedure.
+
+---
+
 ## If a new ChatGPT conversation is required
 
 Give the new conversation these files first:
@@ -114,13 +124,15 @@ supabase db pull
 
 ## KLYX safety invariants
 
-automaticExecutionAllowed = false
+KLYX may automatically execute reversible/non-transactional agent steps such as understanding a need, searching providers and choosing a candidate.
 
-Explicit confirmation required before:
+Explicit client action remains required before an engaging transaction such as:
 
-- market publication
-- provider selection
-- booking
+- publishing a marketplace request
+- creating/confirming a booking
 - payment
+- cancellation/refund or another irreversible financial action
 
-LLM infrastructure cannot silently execute transactions.
+Booking and payment remain separate boundaries: confirming a booking must never silently trigger payment.
+
+Agent actions and authorizations must remain durable, auditable and idempotent. LLM infrastructure cannot silently bypass these transaction boundaries.
