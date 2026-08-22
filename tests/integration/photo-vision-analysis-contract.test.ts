@@ -12,6 +12,7 @@ function read(file: string) {
 const vision = read("lib/photo-vision-analysis.ts");
 const route = read("app/api/requests/photo/photo-route-core.ts");
 const page = read("app/request/photo/page.tsx");
+const compactPage = page.replace(/\s+/g, " ");
 const rateLimit = read("lib/api-rate-limit.ts");
 const baseline = read(
   "supabase/migrations/20260814000000_klyx_canonical_baseline.sql"
@@ -114,7 +115,9 @@ describe("KLYX real photo vision", () => {
     expect(page).toContain("Vision KLYX");
     expect(page).toContain("Analyse de la description");
     expect(page).toContain("Compatibilité KLYX");
-    expect(page).toContain("elle ne publie, ne réserve et ne paie rien automatiquement");
+    expect(compactPage).toContain(
+      "elle ne publie, ne réserve et ne paie rien automatiquement."
+    );
     expect(page).not.toContain("La future analyse visuelle réelle sera activée");
   });
 });
