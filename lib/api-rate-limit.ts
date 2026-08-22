@@ -47,6 +47,11 @@ export const API_RATE_LIMIT_POLICIES = {
     limit: 10,
     windowSeconds: 60,
   },
+  quoteDraft: {
+    action: "quote_draft",
+    limit: 12,
+    windowSeconds: 60,
+  },
   quoteMutation: {
     action: "quote_mutation",
     limit: 20,

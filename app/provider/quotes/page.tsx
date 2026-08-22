@@ -6,9 +6,11 @@ import {
   useState,
 } from "react";
 import {
+  AlertTriangle,
   FileText,
   LoaderCircle,
   Send,
+  Sparkles,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -34,6 +36,18 @@ type Quote = {
   client: QuoteProfile | null;
 };
 
+type SmartQuoteDraft = {
+  providerPrice: number | null;
+  providerMessage: string;
+  explanation: string;
+  assumptions: string[];
+  warnings: string[];
+  confidence: "high" | "medium" | "low";
+  riskLevel: "review_required";
+  requiresConfirmation: true;
+  source: "quote_snapshot";
+};
+
 function clientName(
   profile: QuoteProfile | null
 ): string {
@@ -46,15 +60,27 @@ function clientName(
   );
 }
 
+function confidenceLabel(
+  confidence: SmartQuoteDraft["confidence"]
+): string {
+  if (confidence === "high") return "Calcul fiable";
+  if (confidence === "medium") return "À vérifier";
+  return "Informations insuffisantes";
+}
+
 export default function ProviderQuotesPage() {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
+  const [draftBusyId, setDraftBusyId] = useState("");
   const [prices, setPrices] = useState<
     Record<string, string>
   >({});
   const [messages, setMessages] = useState<
     Record<string, string>
+  >({});
+  const [smartDrafts, setSmartDrafts] = useState<
+    Record<string, SmartQuoteDraft>
   >({});
   const [errorMessage, setErrorMessage] =
     useState("");
@@ -135,6 +161,70 @@ export default function ProviderQuotesPage() {
   useEffect(() => {
     void load();
   }, []);
+
+  async function prepareSmartDraft(quoteId: string) {
+    if (draftBusyId || busyId) return;
+
+    setDraftBusyId(quoteId);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      const accessToken = await token();
+      const response = await fetch(
+        "/api/provider/quotes/draft",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ quoteId }),
+        }
+      );
+      const body = (await response.json()) as {
+        draft?: SmartQuoteDraft;
+        message?: string;
+        error?: string;
+      };
+
+      if (!response.ok || !body.draft) {
+        throw new Error(
+          body.error || "Brouillon KLYX indisponible."
+        );
+      }
+
+      const draft = body.draft;
+      setSmartDrafts((current) => ({
+        ...current,
+        [quoteId]: draft,
+      }));
+
+      if (draft.providerPrice !== null) {
+        setPrices((current) => ({
+          ...current,
+          [quoteId]: String(draft.providerPrice),
+        }));
+      }
+
+      setMessages((current) => ({
+        ...current,
+        [quoteId]: draft.providerMessage,
+      }));
+      setSuccessMessage(
+        body.message ||
+          "Brouillon KLYX préparé. Vérifie-le avant l’envoi."
+      );
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Brouillon KLYX indisponible."
+      );
+    } finally {
+      setDraftBusyId("");
+    }
+  }
 
   async function sendQuote(
     event: FormEvent,
@@ -223,9 +313,9 @@ export default function ProviderQuotesPage() {
           </h1>
 
           <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">
-            Vérifie la demande du client, ajuste le montant,
-            puis envoie ton devis. Rien n’est réservé
-            automatiquement.
+            KLYX peut préparer un prix et un message à partir
+            du tarif enregistré. Tu gardes toujours le contrôle :
+            vérifie, modifie puis envoie toi-même le devis.
           </p>
         </section>
 
@@ -260,7 +350,10 @@ export default function ProviderQuotesPage() {
           </section>
         ) : (
           <section className="mt-8 grid gap-5">
-            {quotes.map((quote) => (
+            {quotes.map((quote) => {
+              const smartDraft = smartDrafts[quote.id];
+
+              return (
               <article
                 key={quote.id}
                 className="klyx-card p-6"
@@ -326,6 +419,75 @@ export default function ProviderQuotesPage() {
                     }
                     className="mt-6 grid gap-4"
                   >
+                    <button
+                      type="button"
+                      disabled={
+                        draftBusyId === quote.id ||
+                        busyId === quote.id
+                      }
+                      onClick={() =>
+                        void prepareSmartDraft(quote.id)
+                      }
+                      className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-cyan-500/30 bg-cyan-500/10 px-5 text-sm font-black text-cyan-800 transition hover:bg-cyan-500/15 disabled:opacity-50 dark:text-cyan-200"
+                    >
+                      {draftBusyId === quote.id ? (
+                        <LoaderCircle
+                          className="animate-spin"
+                          size={18}
+                        />
+                      ) : (
+                        <Sparkles size={18} />
+                      )}
+                      Préparer avec KLYX
+                    </button>
+
+                    {smartDraft && (
+                      <div className="rounded-2xl border border-cyan-500/25 bg-cyan-500/10 p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="text-sm font-black">
+                            Brouillon intelligent KLYX
+                          </p>
+                          <span className="rounded-full border border-cyan-500/20 bg-background/70 px-3 py-1 text-[10px] font-black uppercase tracking-wide">
+                            {confidenceLabel(smartDraft.confidence)}
+                          </span>
+                        </div>
+
+                        <p className="mt-3 text-xs leading-6 text-muted-foreground">
+                          {smartDraft.explanation}
+                        </p>
+
+                        {smartDraft.assumptions.length > 0 && (
+                          <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+                            {smartDraft.assumptions.map((assumption) => (
+                              <p key={assumption}>• {assumption}</p>
+                            ))}
+                          </div>
+                        )}
+
+                        {smartDraft.warnings.length > 0 && (
+                          <div className="mt-3 space-y-2 border-t border-cyan-500/15 pt-3">
+                            {smartDraft.warnings.map((warning) => (
+                              <p
+                                key={warning}
+                                className="flex items-start gap-2 text-xs leading-5 text-amber-700 dark:text-amber-300"
+                              >
+                                <AlertTriangle
+                                  className="mt-0.5 shrink-0"
+                                  size={14}
+                                />
+                                {warning}
+                              </p>
+                            ))}
+                          </div>
+                        )}
+
+                        <p className="mt-3 text-[11px] font-black text-cyan-800 dark:text-cyan-200">
+                          Risque engageant : approbation prestataire obligatoire.
+                          Rien n’a été envoyé au client.
+                        </p>
+                      </div>
+                    )}
+
                     <label>
                       <span className="mb-2 block text-sm font-black">
                         Ton prix final
@@ -350,7 +512,7 @@ export default function ProviderQuotesPage() {
 
                     <label>
                       <span className="mb-2 block text-sm font-black">
-                        Message facultatif
+                        Message au client
                       </span>
                       <textarea
                         rows={4}
@@ -372,10 +534,16 @@ export default function ProviderQuotesPage() {
                       />
                     </label>
 
+                    <div className="rounded-2xl border border-border bg-background/60 p-4 text-xs leading-5 text-muted-foreground">
+                      Le prix et le message restent entièrement modifiables.
+                      Seul le bouton ci-dessous envoie réellement le devis au client.
+                    </div>
+
                     <button
                       type="submit"
                       disabled={
-                        busyId === quote.id
+                        busyId === quote.id ||
+                        draftBusyId === quote.id
                       }
                       className="klyx-button w-full"
                     >
@@ -387,7 +555,7 @@ export default function ProviderQuotesPage() {
                       ) : (
                         <Send size={18} />
                       )}
-                      Envoyer le devis
+                      Vérifier et envoyer le devis
                     </button>
                   </form>
                 )}
@@ -412,7 +580,8 @@ export default function ProviderQuotesPage() {
                   </div>
                 )}
               </article>
-            ))}
+              );
+            })}
           </section>
         )}
       </div>
