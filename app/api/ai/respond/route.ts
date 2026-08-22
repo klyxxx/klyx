@@ -9,6 +9,12 @@ import {
 } from "@/lib/api-rate-limit";
 import { secureApiErrorResponse } from "@/lib/api-error";
 import {
+  buildClientMemorySummary,
+  canUseClientMemory,
+  loadClientMemoryContext,
+  recordClientMemoryUsage,
+} from "@/lib/client-memory-context";
+import {
   generateKlyxAiReply,
   isKlyxAiEnabled,
 } from "@/lib/klyx-ai";
@@ -95,17 +101,56 @@ export async function POST(request: Request) {
       return apiRateLimitExceededResponse(policy, rateLimit);
     }
 
+    let requestedMemorySummary: string[] = [];
+    let requestedMemoryFields: string[] = [];
+
+    if (profile?.accountType === "client") {
+      const memory = await loadClientMemoryContext(profile.id);
+
+      if (canUseClientMemory(message, memory)) {
+        requestedMemorySummary = buildClientMemorySummary(memory);
+        requestedMemoryFields = [
+          memory.defaultCity ? "default_city" : null,
+          memory.defaultBudget != null ? "default_budget" : null,
+          memory.preferredServiceSlugs.length > 0
+            ? "preferred_service_slugs"
+            : null,
+          memory.schedulingNotes ? "scheduling_notes" : null,
+          memory.childrenCount > 0 ? "children_count" : null,
+          memory.petTypes.length > 0 ? "pet_types" : null,
+          memory.preferredLanguages.length > 0
+            ? "preferred_languages"
+            : null,
+        ].filter((field): field is string => Boolean(field));
+      }
+    }
+
     const reply = await generateKlyxAiReply({
       message,
       firstName: profile?.firstName,
       city: profile?.city,
       accountType: profile?.accountType,
+      memorySummary: requestedMemorySummary,
     });
+    const memoryUsed =
+      reply.mode === "openai" && requestedMemorySummary.length > 0;
+
+    if (memoryUsed && profile?.accountType === "client") {
+      await recordClientMemoryUsage({
+        profileId: profile.id,
+        surface: "assistant",
+        usedFields: requestedMemoryFields,
+      });
+    }
 
     return NextResponse.json(
       {
         reply: reply.text,
         mode: reply.mode,
+        memoryUsed,
+        memoryMessage: memoryUsed
+          ? "KLYX a utilisé uniquement les habitudes autorisées de ta mémoire pour cette réponse."
+          : null,
       },
       {
         headers: rateLimitResponseHeaders(policy, rateLimit),

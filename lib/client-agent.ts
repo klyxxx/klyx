@@ -52,6 +52,7 @@ export type AgentPlanResult = {
   durationHours: number | null;
   budgetMax: number | null;
   memoryUsed: boolean;
+  memoryFields: string[];
   missingFields: string[];
   readyForSearch: boolean;
   searchHref: string | null;
@@ -99,30 +100,41 @@ export function buildClientAgentPlan(
       ? candidates[0].label
       : null;
   let city = detectCity(request);
-  let requestedDay = detectRequestedDay(request);
+  const requestedDay = detectRequestedDay(request);
   let requestedTime = detectRequestedTime(request);
   const durationHours = detectDurationHours(request);
   let budgetMax = detectBudget(request);
-  let memoryUsed = false;
+  const memoryFields: string[] = [];
 
   if (
     wantsMemory(request) &&
     input.memory?.enabled
   ) {
-    memoryUsed = true;
+    if (!serviceSlug && input.memory.preferredServiceSlugs[0]) {
+      serviceSlug = input.memory.preferredServiceSlugs[0];
+      memoryFields.push("preferred_service_slugs");
+    }
 
-    serviceSlug =
-      serviceSlug ??
-      input.memory.preferredServiceSlugs[0] ??
-      null;
-    city = city ?? input.memory.defaultCity;
-    budgetMax =
-      budgetMax ?? input.memory.defaultBudget;
-    requestedTime =
-      requestedTime ??
-      detectRequestedTime(
+    if (!city && input.memory.defaultCity) {
+      city = input.memory.defaultCity;
+      memoryFields.push("default_city");
+    }
+
+    if (budgetMax == null && input.memory.defaultBudget != null) {
+      budgetMax = input.memory.defaultBudget;
+      memoryFields.push("default_budget");
+    }
+
+    if (!requestedTime) {
+      const rememberedTime = detectRequestedTime(
         input.memory.preferredTimeText ?? ""
       );
+
+      if (rememberedTime) {
+        requestedTime = rememberedTime;
+        memoryFields.push("scheduling_notes");
+      }
+    }
   }
 
   if (
@@ -239,7 +251,8 @@ export function buildClientAgentPlan(
     requestedTime,
     durationHours,
     budgetMax,
-    memoryUsed,
+    memoryUsed: memoryFields.length > 0,
+    memoryFields,
     missingFields,
     readyForSearch,
     searchHref,
