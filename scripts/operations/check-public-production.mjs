@@ -58,7 +58,7 @@ async function fetchSameOrigin(target, pathname) {
   try {
     response = await fetch(url, {
       method: "GET",
-      redirect: "follow",
+      redirect: "manual",
       signal: AbortSignal.timeout(TIMEOUT_MS),
       headers: {
         Accept: pathname === "/api/health" ? "application/json" : "text/html,*/*;q=0.8",
@@ -72,9 +72,13 @@ async function fetchSameOrigin(target, pathname) {
     );
   }
 
+  if (response.status >= 300 && response.status < 400) {
+    fail(`${pathname} returned a redirect; configure the canonical deployment origin directly.`);
+  }
+
   const finalUrl = new URL(response.url);
   if (finalUrl.origin !== target.origin) {
-    fail(`${pathname} redirected outside the configured production origin.`);
+    fail(`${pathname} escaped the configured production origin.`);
   }
 
   if (!response.ok) {
