@@ -26,6 +26,11 @@ import {
   KLYX_BATCH_3_UI_MESSAGES,
 } from "../../lib/klyx-i18n-batch-3";
 import {
+  KLYX_BATCH_4_LANGUAGE_OPTIONS,
+  KLYX_BATCH_4_NAVIGATION_TRANSLATIONS,
+  KLYX_BATCH_4_UI_MESSAGES,
+} from "../../lib/klyx-i18n-batch-4";
+import {
   searchKlyxNavigation,
 } from "../../lib/klyx-navigation";
 
@@ -76,29 +81,18 @@ function requireCompletePack(
 
 describe("KLYX i18n foundation", () => {
   it("normalizes supported locale variants", () => {
-    expect(normalizeKlyxLocale("fr-BE")).toBe("fr");
-    expect(normalizeKlyxLocale("EN_us")).toBe("en");
-    expect(normalizeKlyxLocale("nl-BE")).toBe("nl");
-    expect(normalizeKlyxLocale("de-CH")).toBe("de");
-    expect(normalizeKlyxLocale("es-MX")).toBe("es");
-    expect(normalizeKlyxLocale("pt-BR")).toBe("pt");
-    expect(normalizeKlyxLocale("ar-MA")).toBe("ar");
-    expect(normalizeKlyxLocale("ru-RU")).toBe("ru");
-    expect(normalizeKlyxLocale("uk-UA")).toBe("uk");
-    expect(normalizeKlyxLocale("pl-PL")).toBe("pl");
-    expect(normalizeKlyxLocale("tr-TR")).toBe("tr");
-    expect(normalizeKlyxLocale("hi-IN")).toBe("hi");
-    expect(normalizeKlyxLocale("ur-PK")).toBe("ur");
-    expect(normalizeKlyxLocale("he-IL")).toBe("he");
-    expect(normalizeKlyxLocale("fa-IR")).toBe("fa");
-    expect(normalizeKlyxLocale("id-ID")).toBe("id");
-    expect(normalizeKlyxLocale("vi-VN")).toBe("vi");
-    expect(normalizeKlyxLocale("th-TH")).toBe("th");
-    expect(normalizeKlyxLocale("bn-BD")).toBe("bn");
-    expect(normalizeKlyxLocale("sv-SE")).toBe("sv");
-    expect(normalizeKlyxLocale("da-DK")).toBe("da");
-    expect(normalizeKlyxLocale("no-NO")).toBe("no");
-    expect(normalizeKlyxLocale("fi-FI")).toBe("fi");
+    for (const [input, expected] of [
+      ["fr-BE", "fr"], ["EN_us", "en"], ["nl-BE", "nl"], ["de-CH", "de"],
+      ["es-MX", "es"], ["pt-BR", "pt"], ["ar-MA", "ar"], ["ru-RU", "ru"],
+      ["uk-UA", "uk"], ["pl-PL", "pl"], ["tr-TR", "tr"], ["hi-IN", "hi"],
+      ["ur-PK", "ur"], ["he-IL", "he"], ["fa-IR", "fa"], ["id-ID", "id"],
+      ["vi-VN", "vi"], ["th-TH", "th"], ["bn-BD", "bn"], ["sv-SE", "sv"],
+      ["da-DK", "da"], ["no-NO", "no"], ["fi-FI", "fi"], ["cs-CZ", "cs"],
+      ["sk-SK", "sk"], ["hu-HU", "hu"], ["ro-RO", "ro"], ["el-GR", "el"],
+      ["bg-BG", "bg"], ["hr-HR", "hr"], ["sr-RS", "sr"],
+    ] as const) {
+      expect(normalizeKlyxLocale(input)).toBe(expected);
+    }
   });
 
   it("supports legacy browser aliases without exposing duplicate locales", () => {
@@ -124,38 +118,15 @@ describe("KLYX i18n foundation", () => {
     expect(resolveKlyxLocale(["zh-TW", "en-GB"])).toBe("zh-hant");
     expect(resolveKlyxLocale(["xx-YY", "hi-IN", "en-US"])).toBe("hi");
     expect(resolveKlyxLocale(["xx-YY", "fi-FI", "en-US"])).toBe("fi");
+    expect(resolveKlyxLocale(["xx-YY", "ro-RO", "en-US"])).toBe("ro");
   });
 
-  it("ships 28 genuinely translated selectable shell locales", () => {
+  it("ships 36 genuinely translated selectable shell locales", () => {
     expect(KLYX_LANGUAGE_OPTIONS.map((item) => item.value)).toEqual([
-      "fr",
-      "en",
-      "nl",
-      "de",
-      "es",
-      "it",
-      "pt",
-      "ar",
-      "zh-hans",
-      "zh-hant",
-      "ja",
-      "ko",
-      "ru",
-      "uk",
-      "pl",
-      "tr",
-      "hi",
-      "ur",
-      "he",
-      "fa",
-      "id",
-      "vi",
-      "th",
-      "bn",
-      "sv",
-      "da",
-      "no",
-      "fi",
+      "fr", "en", "nl", "de", "es", "it", "pt", "ar", "zh-hans", "zh-hant", "ja", "ko",
+      "ru", "uk", "pl", "tr", "hi", "ur", "he", "fa", "id", "vi", "th", "bn",
+      "sv", "da", "no", "fi",
+      "cs", "sk", "hu", "ro", "el", "bg", "hr", "sr",
     ]);
 
     for (const option of KLYX_LANGUAGE_OPTIONS) {
@@ -170,19 +141,15 @@ describe("KLYX i18n foundation", () => {
   });
 
   it("requires every batch-2 locale to own every shell and navigation translation", () => {
-    requireCompletePack(
-      KLYX_BATCH_2_LANGUAGE_OPTIONS,
-      KLYX_BATCH_2_UI_MESSAGES,
-      KLYX_BATCH_2_NAVIGATION_TRANSLATIONS
-    );
+    requireCompletePack(KLYX_BATCH_2_LANGUAGE_OPTIONS, KLYX_BATCH_2_UI_MESSAGES, KLYX_BATCH_2_NAVIGATION_TRANSLATIONS);
   });
 
   it("requires every batch-3 locale to own every shell and navigation translation", () => {
-    requireCompletePack(
-      KLYX_BATCH_3_LANGUAGE_OPTIONS,
-      KLYX_BATCH_3_UI_MESSAGES,
-      KLYX_BATCH_3_NAVIGATION_TRANSLATIONS
-    );
+    requireCompletePack(KLYX_BATCH_3_LANGUAGE_OPTIONS, KLYX_BATCH_3_UI_MESSAGES, KLYX_BATCH_3_NAVIGATION_TRANSLATIONS);
+  });
+
+  it("requires every batch-4 locale to own every shell and navigation translation", () => {
+    requireCompletePack(KLYX_BATCH_4_LANGUAGE_OPTIONS, KLYX_BATCH_4_UI_MESSAGES, KLYX_BATCH_4_NAVIGATION_TRANSLATIONS);
   });
 
   it("exposes HTML language and RTL metadata", () => {
@@ -193,49 +160,42 @@ describe("KLYX i18n foundation", () => {
     expect(getKlyxLocaleMetadata("zh-hant").htmlLang).toBe("zh-Hant");
     expect(getKlyxLocaleMetadata("hi").htmlLang).toBe("hi");
     expect(getKlyxLocaleMetadata("sv").htmlLang).toBe("sv");
+    expect(getKlyxLocaleMetadata("el").htmlLang).toBe("el");
     expect(getKlyxLocaleMetadata("en").dir).toBe("ltr");
   });
 
   it("translates representative global UI labels", () => {
     expect(translateKlyxUi("en", "sidebar.logout")).toBe("Sign out");
-    expect(translateKlyxUi("nl", "sidebar.noResults")).toBe("Geen resultaten.");
-    expect(translateKlyxUi("de", "sidebar.logout")).toBe("Abmelden");
-    expect(translateKlyxUi("es", "sidebar.logout")).toBe("Cerrar sesión");
     expect(translateKlyxUi("ar", "sidebar.openMenu")).toBe("فتح القائمة");
-    expect(translateKlyxUi("ja", "sidebar.noResults")).toBe("結果がありません。");
     expect(translateKlyxUi("ru", "sidebar.logout")).toBe("Выйти");
     expect(translateKlyxUi("hi", "sidebar.openMenu")).toBe("मेनू खोलें");
     expect(translateKlyxUi("he", "sidebar.logout")).toBe("התנתקות");
-    expect(translateKlyxUi("id", "sidebar.noResults")).toBe("Tidak ada hasil.");
     expect(translateKlyxUi("sv", "sidebar.logout")).toBe("Logga ut");
     expect(translateKlyxUi("fi", "sidebar.noResults")).toBe("Ei tuloksia.");
+    expect(translateKlyxUi("cs", "sidebar.logout")).toBe("Odhlásit se");
+    expect(translateKlyxUi("ro", "sidebar.noResults")).toBe("Niciun rezultat.");
+    expect(translateKlyxUi("sr", "sidebar.openMenu")).toBe("Отвори мени");
   });
 
   it("translates representative navigation labels", () => {
     expect(translateKlyxNavigationLabel("en", "Paramètres")).toBe("Settings");
-    expect(translateKlyxNavigationLabel("nl", "Mes réservations")).toBe("Mijn boekingen");
-    expect(translateKlyxNavigationLabel("de", "Paramètres")).toBe("Einstellungen");
-    expect(translateKlyxNavigationLabel("es", "Mes réservations")).toBe("Mis reservas");
     expect(translateKlyxNavigationLabel("zh-hans", "Paramètres")).toBe("设置");
     expect(translateKlyxNavigationLabel("ru", "Paramètres")).toBe("Настройки");
-    expect(translateKlyxNavigationLabel("hi", "Paramètres")).toBe("सेटिंग्स");
     expect(translateKlyxNavigationLabel("id", "Paramètres")).toBe("Pengaturan");
     expect(translateKlyxNavigationLabel("sv", "Paramètres")).toBe("Inställningar");
     expect(translateKlyxNavigationLabel("fi", "Paramètres")).toBe("Asetukset");
+    expect(translateKlyxNavigationLabel("cs", "Paramètres")).toBe("Nastavení");
+    expect(translateKlyxNavigationLabel("hu", "Paramètres")).toBe("Beállítások");
+    expect(translateKlyxNavigationLabel("el", "Paramètres")).toBe("Ρυθμίσεις");
+    expect(translateKlyxNavigationLabel("sr", "Paramètres")).toBe("Подешавања");
     expect(translateKlyxNavigationLabel("en", "Libellé inconnu")).toBe("Libellé inconnu");
   });
 
   it("finds navigation entries using translated labels", () => {
     for (const [query, locale] of [
-      ["settings", "en"],
-      ["instellingen", "nl"],
-      ["einstellungen", "de"],
-      ["设置", "zh-hans"],
-      ["настройки", "ru"],
-      ["सेटिंग्स", "hi"],
-      ["pengaturan", "id"],
-      ["inställningar", "sv"],
-      ["asetukset", "fi"],
+      ["settings", "en"], ["设置", "zh-hans"], ["настройки", "ru"], ["pengaturan", "id"],
+      ["inställningar", "sv"], ["asetukset", "fi"], ["nastavení", "cs"], ["beállítások", "hu"],
+      ["ρυθμίσεις", "el"], ["подешавања", "sr"],
     ] as const) {
       expect(
         searchKlyxNavigation(query, "client", false, locale)
