@@ -21,6 +21,11 @@ import {
   KLYX_BATCH_2_UI_MESSAGES,
 } from "../../lib/klyx-i18n-batch-2";
 import {
+  KLYX_BATCH_3_LANGUAGE_OPTIONS,
+  KLYX_BATCH_3_NAVIGATION_TRANSLATIONS,
+  KLYX_BATCH_3_UI_MESSAGES,
+} from "../../lib/klyx-i18n-batch-3";
+import {
   searchKlyxNavigation,
 } from "../../lib/klyx-navigation";
 
@@ -39,6 +44,35 @@ const REQUIRED_UI_KEYS = [
   "sidebar.openMenu",
   "sidebar.closeMenu",
 ] as const;
+
+function requireCompletePack(
+  options: readonly { value: string }[],
+  uiMessages: Record<string, Record<string, string>>,
+  navigationTranslations: Record<string, Record<string, string>>
+) {
+  const requiredNavigationLabels = Object.keys(
+    KLYX_EN_NAVIGATION_TRANSLATIONS
+  );
+
+  for (const option of options) {
+    const ui = uiMessages[option.value];
+    const navigation = navigationTranslations[option.value];
+
+    expect(ui).toBeDefined();
+    expect(navigation).toBeDefined();
+
+    for (const key of REQUIRED_UI_KEYS) {
+      expect(ui[key]?.trim()).toBeTruthy();
+    }
+
+    for (const sourceLabel of requiredNavigationLabels) {
+      expect(
+        navigation[sourceLabel]?.trim(),
+        `${option.value} is missing navigation label: ${sourceLabel}`
+      ).toBeTruthy();
+    }
+  }
+}
 
 describe("KLYX i18n foundation", () => {
   it("normalizes supported locale variants", () => {
@@ -61,6 +95,10 @@ describe("KLYX i18n foundation", () => {
     expect(normalizeKlyxLocale("vi-VN")).toBe("vi");
     expect(normalizeKlyxLocale("th-TH")).toBe("th");
     expect(normalizeKlyxLocale("bn-BD")).toBe("bn");
+    expect(normalizeKlyxLocale("sv-SE")).toBe("sv");
+    expect(normalizeKlyxLocale("da-DK")).toBe("da");
+    expect(normalizeKlyxLocale("no-NO")).toBe("no");
+    expect(normalizeKlyxLocale("fi-FI")).toBe("fi");
   });
 
   it("supports legacy browser aliases without exposing duplicate locales", () => {
@@ -85,9 +123,10 @@ describe("KLYX i18n foundation", () => {
     expect(resolveKlyxLocale(["xx-YY", "ja-JP"])).toBe("ja");
     expect(resolveKlyxLocale(["zh-TW", "en-GB"])).toBe("zh-hant");
     expect(resolveKlyxLocale(["xx-YY", "hi-IN", "en-US"])).toBe("hi");
+    expect(resolveKlyxLocale(["xx-YY", "fi-FI", "en-US"])).toBe("fi");
   });
 
-  it("ships 24 genuinely translated selectable shell locales", () => {
+  it("ships 28 genuinely translated selectable shell locales", () => {
     expect(KLYX_LANGUAGE_OPTIONS.map((item) => item.value)).toEqual([
       "fr",
       "en",
@@ -113,6 +152,10 @@ describe("KLYX i18n foundation", () => {
       "vi",
       "th",
       "bn",
+      "sv",
+      "da",
+      "no",
+      "fi",
     ]);
 
     for (const option of KLYX_LANGUAGE_OPTIONS) {
@@ -127,28 +170,19 @@ describe("KLYX i18n foundation", () => {
   });
 
   it("requires every batch-2 locale to own every shell and navigation translation", () => {
-    const requiredNavigationLabels = Object.keys(
-      KLYX_EN_NAVIGATION_TRANSLATIONS
+    requireCompletePack(
+      KLYX_BATCH_2_LANGUAGE_OPTIONS,
+      KLYX_BATCH_2_UI_MESSAGES,
+      KLYX_BATCH_2_NAVIGATION_TRANSLATIONS
     );
+  });
 
-    for (const option of KLYX_BATCH_2_LANGUAGE_OPTIONS) {
-      const ui = KLYX_BATCH_2_UI_MESSAGES[option.value];
-      const navigation = KLYX_BATCH_2_NAVIGATION_TRANSLATIONS[option.value];
-
-      expect(ui).toBeDefined();
-      expect(navigation).toBeDefined();
-
-      for (const key of REQUIRED_UI_KEYS) {
-        expect(ui[key]?.trim()).toBeTruthy();
-      }
-
-      for (const sourceLabel of requiredNavigationLabels) {
-        expect(
-          navigation[sourceLabel]?.trim(),
-          `${option.value} is missing navigation label: ${sourceLabel}`
-        ).toBeTruthy();
-      }
-    }
+  it("requires every batch-3 locale to own every shell and navigation translation", () => {
+    requireCompletePack(
+      KLYX_BATCH_3_LANGUAGE_OPTIONS,
+      KLYX_BATCH_3_UI_MESSAGES,
+      KLYX_BATCH_3_NAVIGATION_TRANSLATIONS
+    );
   });
 
   it("exposes HTML language and RTL metadata", () => {
@@ -158,6 +192,7 @@ describe("KLYX i18n foundation", () => {
 
     expect(getKlyxLocaleMetadata("zh-hant").htmlLang).toBe("zh-Hant");
     expect(getKlyxLocaleMetadata("hi").htmlLang).toBe("hi");
+    expect(getKlyxLocaleMetadata("sv").htmlLang).toBe("sv");
     expect(getKlyxLocaleMetadata("en").dir).toBe("ltr");
   });
 
@@ -172,6 +207,8 @@ describe("KLYX i18n foundation", () => {
     expect(translateKlyxUi("hi", "sidebar.openMenu")).toBe("मेनू खोलें");
     expect(translateKlyxUi("he", "sidebar.logout")).toBe("התנתקות");
     expect(translateKlyxUi("id", "sidebar.noResults")).toBe("Tidak ada hasil.");
+    expect(translateKlyxUi("sv", "sidebar.logout")).toBe("Logga ut");
+    expect(translateKlyxUi("fi", "sidebar.noResults")).toBe("Ei tuloksia.");
   });
 
   it("translates representative navigation labels", () => {
@@ -183,6 +220,8 @@ describe("KLYX i18n foundation", () => {
     expect(translateKlyxNavigationLabel("ru", "Paramètres")).toBe("Настройки");
     expect(translateKlyxNavigationLabel("hi", "Paramètres")).toBe("सेटिंग्स");
     expect(translateKlyxNavigationLabel("id", "Paramètres")).toBe("Pengaturan");
+    expect(translateKlyxNavigationLabel("sv", "Paramètres")).toBe("Inställningar");
+    expect(translateKlyxNavigationLabel("fi", "Paramètres")).toBe("Asetukset");
     expect(translateKlyxNavigationLabel("en", "Libellé inconnu")).toBe("Libellé inconnu");
   });
 
@@ -195,6 +234,8 @@ describe("KLYX i18n foundation", () => {
       ["настройки", "ru"],
       ["सेटिंग्स", "hi"],
       ["pengaturan", "id"],
+      ["inställningar", "sv"],
+      ["asetukset", "fi"],
     ] as const) {
       expect(
         searchKlyxNavigation(query, "client", false, locale)
