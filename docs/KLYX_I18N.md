@@ -1,36 +1,57 @@
 # KLYX internationalization
 
-## Current supported UI locales
+## Current translated shell locales
 
-KLYX now has an internal locale foundation for:
+KLYX now has a real translated global-shell foundation for:
 
 - `fr` — Français (default/fallback)
 - `en` — English
 - `nl` — Nederlands
+- `de` — Deutsch
+- `es` — Español
+- `it` — Italiano
+- `pt` — Português, including regional browser aliases such as `pt-BR` and `pt-PT`
+- `ar` — العربية, with RTL document direction
+- `zh-hans` — 简体中文, including `zh-CN` / `zh-SG`
+- `zh-hant` — 繁體中文, including `zh-TW` / `zh-HK` / `zh-MO`
+- `ja` — 日本語
+- `ko` — 한국어
+
+Only locales whose global shell strings and navigation labels are actually present are exposed in the KLYX language selector. Do not add a selectable locale that silently falls back to another language.
 
 The user preference reuses the existing `klyx_language` browser-storage key. The locale provider also mirrors the current locale into a non-secret `klyx_locale` cookie so a future server-rendered locale layer can use the same preference without inventing a second setting.
 
 ## What this foundation does
 
-- normalizes browser locale variants such as `fr-BE`, `en-US` and `nl-BE`;
+- normalizes supported browser locale variants such as `fr-BE`, `en-US`, `de-CH`, `es-MX`, `pt-BR`, `ar-MA`, `zh-CN` and `zh-TW`;
 - falls back safely to French for unsupported locales;
 - detects the first supported browser language when no saved preference exists;
-- updates `document.documentElement.lang` after hydration;
+- updates both `document.documentElement.lang` and `document.documentElement.dir` after hydration;
 - persists the explicit user selection;
 - synchronizes the preference across tabs through the browser `storage` event;
 - translates the global skip link;
-- translates the authenticated client/provider navigation shell in French, English and Dutch;
-- lets navigation search match translated English/Dutch labels while retaining the existing French keywords.
+- translates the authenticated client/provider/admin navigation shell in every selectable locale;
+- lets navigation search match translated labels while retaining the existing French keywords;
+- keeps route paths, service slugs, database enums and transaction identifiers language-neutral.
 
 ## What is not complete yet
 
-This first tranche is **not** full-site internationalization. Most page-level copy, validation errors, transactional screens, legal pages, e-mails/notifications and metadata remain French until migrated deliberately.
+This tranche is **not** full-site internationalization. Most page-level copy, validation errors, transactional screens, legal pages, e-mails/notifications and server-rendered metadata remain French until migrated deliberately.
 
-Do not mark KLYX “fully internationalized” merely because the shell changes language.
+Do not mark KLYX “fully internationalized” merely because the shell changes language. A locale is not considered full-product ready until the relevant client, provider, legal and transactional surfaces have been translated and reviewed.
 
-## Rollout rule
+## Global-language rollout rule
 
-Migrate page families in bounded PRs. Each migrated surface should:
+KLYX should continue adding languages in verified batches rather than exposing fake options. Each new selectable locale must have, at minimum:
+
+1. native language label and canonical BCP-47/HTML language metadata;
+2. correct text direction (`ltr` or `rtl`);
+3. all global shell messages translated;
+4. all global navigation labels and groups translated;
+5. regional browser aliases where needed;
+6. normalization, search and accessibility tests.
+
+Then migrate page families in bounded PRs. Each migrated surface should:
 
 1. use shared typed translation keys or a documented translation helper;
 2. preserve French as the fallback;
