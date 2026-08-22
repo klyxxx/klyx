@@ -9,6 +9,7 @@ import {
   detectCatalogServiceCandidates,
   mergeServiceCandidates,
   normalizeCatalogText,
+  resolveCatalogServiceDecision,
   type CatalogServiceRecord,
 } from "@/lib/catalog-service-matcher";
 import {
@@ -26,8 +27,16 @@ import {
   detectServiceCandidates,
   missingFieldsForRequest,
   urgencyFromText,
+  type ServiceCandidate,
   type UniversalRequestResult,
 } from "@/lib/universal-service-request";
+
+type AnalyzedUniversalRequest = UniversalRequestResult & {
+  serviceAmbiguous: boolean;
+  serviceConfidenceGap: number | null;
+  clarificationCandidates: ServiceCandidate[];
+  serviceClarificationMessage: string | null;
+};
 
 function isChildcareService(
   service: CatalogServiceRecord | undefined
@@ -45,6 +54,19 @@ function isChildcareService(
     "garde d enfant",
     "nounou",
   ].some((term) => normalized.includes(term));
+}
+
+function clarificationMessage(
+  candidates: readonly ServiceCandidate[]
+): string | null {
+  const labels = candidates
+    .slice(0, 3)
+    .map((candidate) => candidate.label.trim())
+    .filter(Boolean);
+
+  if (labels.length < 2) return null;
+
+  return `KLYX hésite entre ${labels.join(" et ")}. Choisis le métier qui correspond le mieux avant la recherche.`;
 }
 
 export async function POST(request: Request) {
@@ -116,17 +138,22 @@ export async function POST(request: Request) {
       catalogCandidates,
       legacyCandidates
     );
+    const decision = resolveCatalogServiceDecision(candidates);
 
     const selectedService =
       selectedServiceSlug
         ? serviceBySlug.get(selectedServiceSlug)
         : undefined;
+    const serviceAmbiguous =
+      !selectedService && decision.ambiguous;
+    const clarificationCandidates = serviceAmbiguous
+      ? decision.clarificationCandidates
+      : [];
 
     let serviceSlug =
       selectedService?.slug ??
-      (candidates[0]?.confidence >= 60
-        ? candidates[0].slug
-        : null);
+      decision.selected?.slug ??
+      null;
     let city = detectCity(text);
     const requestedDay = detectRequestedDay(text);
     let requestedTime = detectRequestedTime(text);
@@ -147,7 +174,14 @@ export async function POST(request: Request) {
           serviceBySlug.has(slug)
         ) ?? null;
 
-      if (!serviceSlug && preferredServiceSlug) {
+      // Memory can fill an absent service only when the current request itself
+      // is not ambiguous. A remembered habit must never silently break a tie
+      // between two plausible current intents.
+      if (
+        !serviceSlug &&
+        !serviceAmbiguous &&
+        preferredServiceSlug
+      ) {
         serviceSlug = preferredServiceSlug;
         memoryFields.push("preferred_service_slugs");
       }
@@ -218,12 +252,18 @@ export async function POST(request: Request) {
       : undefined;
     const memoryUsed = memoryFields.length > 0;
 
-    const parsed: UniversalRequestResult = {
+    const parsed: AnalyzedUniversalRequest = {
       serviceSlug,
       serviceLabel: matchedService
         ? matchedService.name?.trim() || matchedService.slug
         : null,
       serviceCandidates: candidates,
+      serviceAmbiguous,
+      serviceConfidenceGap: decision.confidenceGap,
+      clarificationCandidates,
+      serviceClarificationMessage: serviceAmbiguous
+        ? clarificationMessage(clarificationCandidates)
+        : null,
       city,
       requestedDay,
       requestedTime,
@@ -236,7 +276,8 @@ export async function POST(request: Request) {
         ? "KLYX a complété uniquement les informations autorisées dans ta mémoire."
         : null,
       missingFields,
-      readyForSearch: missingFields.length === 0,
+      readyForSearch:
+        !serviceAmbiguous && missingFields.length === 0,
     };
 
     const { data: serviceRequest, error } =
