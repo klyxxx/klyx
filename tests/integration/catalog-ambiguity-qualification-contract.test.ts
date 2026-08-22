@@ -25,6 +25,7 @@ describe("catalog ambiguity and provider qualification contract", () => {
   it("uses a bounded controlled synonym dictionary instead of a free-form fuzzy classifier", () => {
     expect(matcher).toContain("CONTROLLED_SERVICE_SYNONYMS");
     expect(matcher).toContain("controlledSynonymScore");
+    expect(matcher).toContain("controlledRequestTermMatches");
     expect(matcher).toContain("serviceTerms");
     expect(matcher).toContain("requestTerms");
     expect(matcher).toContain("synonyme contrôlé KLYX");
@@ -52,13 +53,16 @@ describe("catalog ambiguity and provider qualification contract", () => {
     expect(analyzer).toContain("memoryFields.push(\"preferred_service_slugs\")");
   });
 
-  it("keeps provider qualification server-side and based on active service countries", () => {
+  it("keeps provider qualification server-side and fail-closed across active countries", () => {
     expect(qualification).toContain('import "server-only"');
     expect(qualification).toContain('.from("skill_qualification_rules")');
     expect(qualification).toContain('.eq("enabled", true)');
     expect(qualification).toContain("RULE_PRIORITY");
     expect(qualification).toContain("regulated: 3");
-    expect(qualification).toContain('selectedRule?.rule_level ?? "evidence_required"');
+    expect(qualification).toContain('rule?.rule_level ?? "evidence_required"');
+    expect(qualification).toContain("candidatePriority > selectedPriority");
+    expect(qualification).toContain("candidateNeedsOfficialRegistration");
+    expect(qualification).toContain('selectedLevel ?? "evidence_required"');
 
     expect(providerSearch).toContain("getApprovedUserServiceIds");
     expect(providerSearch).toContain("approvedUserServiceIds.has(item.id)");
