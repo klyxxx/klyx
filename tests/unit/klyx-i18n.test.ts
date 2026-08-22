@@ -247,7 +247,7 @@ describe("KLYX i18n foundation", () => {
       ["settings", "en"], ["设置", "zh-hans"], ["настройки", "ru"], ["inställningar", "sv"],
       ["asetukset", "fi"], ["nastavení", "cs"], ["подешавања", "sr"], ["nustatymai", "lt"],
       ["iestatījumi", "lv"], ["seaded", "et"], ["nastavitve", "sl"], ["tetapan", "ms"],
-      ["mipangilio", "sw"], ["პარამეტრები", "ka"], ["параметрлер", "kk"], ["sozlamalar", "uz"],
+      ["mipangilio", "sw"], ["პარամეტრები", "ka"], ["параметрлер", "kk"], ["sozlamalar", "uz"],
       ["அமைப்புகள்", "ta"], ["సెట్టింగ్‌లు", "te"], ["सेटिंग्ज", "mr"], ["सेटिङहरू", "ne"],
     ] as const) {
       expect(
