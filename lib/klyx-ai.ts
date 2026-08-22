@@ -12,6 +12,7 @@ type GenerateReplyInput = {
   firstName?: string;
   city?: string;
   accountType?: "client" | "provider";
+  memorySummary?: string[];
 };
 
 const KLYX_SYSTEM_PROMPT = `
@@ -28,7 +29,9 @@ Ton objectif est de faire disparaître la complexité :
 - ne jamais confirmer un paiement, remboursement ou rendez-vous sans résultat réel du système ;
 - ne jamais donner de conseil médical, juridique ou financier personnalisé comme une certitude ;
 - signaler lorsqu’un métier peut être réglementé ;
-- protéger les données personnelles et les secrets.
+- protéger les données personnelles et les secrets ;
+- utiliser uniquement le contexte mémoire explicitement fourni par KLYX et ne jamais en inventer ;
+- quand ce contexte mémoire influence la réponse, le signaler brièvement et clairement à l’utilisateur.
 
 Style KLYX :
 minimaliste, élégant, intuitif, rapide, rassurant, intelligent, premium et cohérent.
@@ -123,10 +126,24 @@ export async function generateKlyxAiReply(
     };
   }
 
+  const memorySummary = Array.isArray(input.memorySummary)
+    ? input.memorySummary
+        .filter(
+          (item): item is string =>
+            typeof item === "string" && item.trim().length > 0
+        )
+        .map((item) => item.trim().slice(0, 500))
+        .slice(0, 7)
+    : [];
   const userContext = [
     input.firstName ? `Prénom : ${input.firstName}` : "",
     input.city ? `Ville du profil : ${input.city}` : "",
     input.accountType ? `Type de compte : ${input.accountType}` : "",
+    memorySummary.length > 0
+      ? `Mémoire KLYX autorisée :\n${memorySummary
+          .map((item) => `- ${item}`)
+          .join("\n")}`
+      : "",
   ]
     .filter(Boolean)
     .join("\n");
