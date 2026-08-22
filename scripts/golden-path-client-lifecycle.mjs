@@ -214,6 +214,108 @@ async function main() {
 
   const quoteId = requireId(quoteCreate.payload?.quote?.id, "quoteId");
 
+  const { count: messagesBeforeDraft, error: messagesBeforeDraftError } =
+    await admin.from("messages").select("id", { count: "exact", head: true });
+
+  if (messagesBeforeDraftError) {
+    throw new Error(
+      `Unable to count messages before smart quote draft: ${messagesBeforeDraftError.message}`
+    );
+  }
+
+  const smartDraftResponse = await requestJson({
+    appOrigin,
+    accessToken,
+    profileId: provider.id,
+    path: "/api/provider/quotes/draft",
+    method: "POST",
+    body: { quoteId },
+  });
+
+  const smartDraft = smartDraftResponse.payload?.draft;
+
+  if (
+    !smartDraft ||
+    smartDraft.providerPrice !== 70 ||
+    smartDraft.requiresConfirmation !== true ||
+    smartDraft.riskLevel !== "review_required" ||
+    smartDraft.source !== "quote_snapshot"
+  ) {
+    throw new Error("Smart quote draft did not preserve the provider review boundary.");
+  }
+
+  const { data: quoteAfterDraft, error: quoteAfterDraftError } = await admin
+    .from("service_quotes")
+    .select("status, provider_price, provider_message")
+    .eq("id", quoteId)
+    .single();
+
+  if (quoteAfterDraftError) {
+    throw new Error(
+      `Unable to verify quote after smart draft: ${quoteAfterDraftError.message}`
+    );
+  }
+
+  if (
+    quoteAfterDraft.status !== "requested" ||
+    quoteAfterDraft.provider_price !== null ||
+    quoteAfterDraft.provider_message !== null
+  ) {
+    throw new Error("Smart quote draft mutated the canonical quote before provider send.");
+  }
+
+  const { count: bookingsAfterDraft, error: bookingsAfterDraftError } = await admin
+    .from("bookings")
+    .select("id", { count: "exact", head: true })
+    .eq("quote_id", quoteId);
+
+  if (bookingsAfterDraftError) {
+    throw new Error(
+      `Unable to verify booking isolation after smart draft: ${bookingsAfterDraftError.message}`
+    );
+  }
+
+  if ((bookingsAfterDraft ?? 0) !== 0) {
+    throw new Error("Smart quote draft created a booking before explicit quote acceptance.");
+  }
+
+  const { count: messagesAfterDraft, error: messagesAfterDraftError } =
+    await admin.from("messages").select("id", { count: "exact", head: true });
+
+  if (messagesAfterDraftError) {
+    throw new Error(
+      `Unable to count messages after smart quote draft: ${messagesAfterDraftError.message}`
+    );
+  }
+
+  if (messagesAfterDraft !== messagesBeforeDraft) {
+    throw new Error("Smart quote draft created a message before explicit provider send.");
+  }
+
+  const { data: storedDraft, error: storedDraftError } = await admin
+    .from("provider_assistant_drafts")
+    .select("id, draft_type, status, payload")
+    .eq("profile_id", provider.id)
+    .eq("draft_type", "quote")
+    .eq("status", "draft")
+    .contains("payload", { quoteId })
+    .maybeSingle();
+
+  if (storedDraftError || !storedDraft) {
+    throw new Error(
+      `Unable to verify private smart quote draft: ${
+        storedDraftError?.message ?? "missing draft"
+      }`
+    );
+  }
+
+  if (
+    storedDraft.payload?.requiresConfirmation !== true ||
+    storedDraft.payload?.riskLevel !== "review_required"
+  ) {
+    throw new Error("Stored smart quote draft lost its explicit review requirement.");
+  }
+
   await requestJson({
     appOrigin,
     accessToken,
@@ -384,6 +486,7 @@ async function main() {
 
   process.stdout.write(
     `${JSON.stringify({
+      smartQuoteDraftVerified: true,
       readyForPayment: true,
       quoteStatus: quote.status,
       bookingStatus: booking.status,
