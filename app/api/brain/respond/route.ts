@@ -25,6 +25,11 @@ import {
   parseMultiSlotSchedule,
   type BrainMultiSlotSchedule,
 } from "@/lib/brain-multi-slot";
+import {
+  canUseClientMemory,
+  loadClientMemoryContext,
+  recordClientMemoryUsage,
+} from "@/lib/client-memory-context";
 import { detectLocation } from "@/lib/location-intent";
 
 // KLYX_SERVER_OBSERVABILITY_12B_8B
@@ -41,6 +46,11 @@ type BrainContext = {
   time: string | null;
   budget: number | null;
   memoryUsed: boolean;
+};
+
+type AppliedBrainMemory = {
+  context: BrainContext;
+  memoryFields: string[];
 };
 
 type BrainReadinessPayload = {
@@ -85,14 +95,6 @@ type ConversationRow = {
 
 type MessagePayloadRow = {
   payload: Partial<BrainPayload> | null;
-};
-
-type PreferencesRow = {
-  default_city: string | null;
-  default_budget: number | null;
-  preferred_service_slugs: string[] | null;
-  ai_memory_enabled: boolean | null;
-  scheduling_notes: string | null;
 };
 
 function normalize(value: string): string {
@@ -390,18 +392,6 @@ function detectBudget(text: string): number | null {
   return Number.isFinite(amount) ? amount : null;
 }
 
-function wantsMemory(text: string): boolean {
-  return [
-    "comme d habitude",
-    "comme dhabitude",
-    "pareil que la derniere fois",
-    "la meme chose",
-    "comme avant",
-  ].some((expression) =>
-    approximatelyContains(text, expression)
-  );
-}
-
 async function loadServiceCatalog(): Promise<
   BrainServiceCatalogRecord[]
 > {
@@ -526,44 +516,63 @@ async function applyUserMemory(
   message: string,
   context: BrainContext,
   services: readonly BrainServiceCatalogRecord[]
-): Promise<BrainContext> {
-  if (!wantsMemory(message)) return context;
+): Promise<AppliedBrainMemory> {
+  const memory = await loadClientMemoryContext(userId);
 
-  const { data, error } = await supabaseAdmin
-    .from("user_preferences")
-    .select(
-      "default_city, default_budget, preferred_service_slugs, ai_memory_enabled, scheduling_notes"
-    )
-    .eq("user_id", userId)
-    .maybeSingle();
+  if (!canUseClientMemory(message, memory)) {
+    return {
+      context,
+      memoryFields: [],
+    };
+  }
 
-  if (error) throw new Error(error.message);
+  const memoryFields: string[] = [];
+  let serviceSlug = context.serviceSlug;
+  let city = context.city;
+  let time = context.time;
+  let budget = context.budget;
 
-  const preferences = data as PreferencesRow | null;
+  if (!serviceSlug) {
+    const rememberedService = resolveBrainPreferredServiceSlug(
+      memory.preferredServiceSlugs,
+      services
+    );
 
-  if (!preferences?.ai_memory_enabled) return context;
+    if (rememberedService) {
+      serviceSlug = rememberedService;
+      memoryFields.push("preferred_service_slugs");
+    }
+  }
+
+  if (!city && memory.defaultCity) {
+    city = memory.defaultCity;
+    memoryFields.push("default_city");
+  }
+
+  if (!time && memory.schedulingNotes) {
+    const rememberedTime = detectTime(memory.schedulingNotes);
+
+    if (rememberedTime) {
+      time = rememberedTime;
+      memoryFields.push("scheduling_notes");
+    }
+  }
+
+  if (budget == null && memory.defaultBudget != null) {
+    budget = memory.defaultBudget;
+    memoryFields.push("default_budget");
+  }
 
   return {
-    ...context,
-    serviceSlug:
-      context.serviceSlug ??
-      resolveBrainPreferredServiceSlug(
-        preferences.preferred_service_slugs,
-        services
-      ),
-    city:
-      context.city ??
-      preferences.default_city ??
-      null,
-    time:
-      context.time ??
-      detectTime(preferences.scheduling_notes ?? ""),
-    budget:
-      context.budget ??
-      (preferences.default_budget != null
-        ? Number(preferences.default_budget)
-        : null),
-    memoryUsed: true,
+    context: {
+      ...context,
+      serviceSlug,
+      city,
+      time,
+      budget,
+      memoryUsed: context.memoryUsed || memoryFields.length > 0,
+    },
+    memoryFields,
   };
 }
 
@@ -673,8 +682,12 @@ function buildReadinessPayload(
 function buildReply(
   context: BrainContext,
   missing: string[],
-  services: readonly BrainServiceCatalogRecord[]
+  services: readonly BrainServiceCatalogRecord[],
+  memoryApplied: boolean
 ): string {
+  const memoryNotice = memoryApplied
+    ? "J’ai utilisé uniquement les habitudes que tu m’as autorisé à mémoriser pour compléter cette demande.\n\n"
+    : "";
   const completionScore = Math.round(
     ((4 - missing.length) / 4) * 100
   );
@@ -711,10 +724,11 @@ function buildReply(
     const question =
       guidedQuestions[firstMissing] ??
       "Peux-tu préciser ta demande ?";
-
-    return summary
+    const response = summary
       ? `${completionStatusText}\n\nJ’ai déjà compris : ${summary}. ${question}`
       : `${completionStatusText}\n\n${question}`;
+
+    return `${memoryNotice}${response}`;
   }
 
   const service = brainServiceLabel(
@@ -726,6 +740,7 @@ function buildReply(
     `Date: ${context.date} | Heure: ${context.time}`;
 
   return (
+    memoryNotice +
     `${completionStatusText}\n\n${confirmationText}\n\n` +
     "Ta demande est complète. Vérifie le résumé puis confirme avant toute publication, réservation ou paiement."
   );
@@ -806,12 +821,14 @@ export async function POST(request: Request) {
       message,
       services
     );
-    const memoryContext = await applyUserMemory(
+    const memoryApplication = await applyUserMemory(
       profile.id,
       message,
       mergedContext,
       services
     );
+    const memoryContext = memoryApplication.context;
+    const memoryApplied = memoryApplication.memoryFields.length > 0;
     const schedule = parseMultiSlotSchedule(message, {
       fallbackBudget: memoryContext.budget,
     });
@@ -831,7 +848,12 @@ export async function POST(request: Request) {
       : memoryContext;
     const missing = buildMissingFields(context);
     const ready = missing.length === 0;
-    const reply = buildReply(context, missing, services);
+    const reply = buildReply(
+      context,
+      missing,
+      services,
+      memoryApplied
+    );
     const readiness = buildReadinessPayload(
       context,
       missing
@@ -875,6 +897,15 @@ export async function POST(request: Request) {
     });
     await touchConversation(conversationId);
 
+    if (memoryApplied) {
+      await recordClientMemoryUsage({
+        profileId: profile.id,
+        surface: "brain",
+        usedFields: memoryApplication.memoryFields,
+        referenceId: conversationId,
+      });
+    }
+
     logServerInfo({
       event: "brain_request_completed",
       route: "/api/brain/respond",
@@ -888,6 +919,11 @@ export async function POST(request: Request) {
       conversationId,
       reply,
       payload,
+      memoryUsed: memoryApplied,
+      memoryFields: memoryApplication.memoryFields,
+      memoryMessage: memoryApplied
+        ? "KLYX a utilisé les habitudes autorisées de ta mémoire pour compléter cette demande."
+        : null,
     });
   } catch (error) {
     const message =

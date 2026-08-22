@@ -18,6 +18,7 @@ const clientAgent = read("lib/client-agent.ts");
 const assistant = read("app/api/ai/respond/route.ts");
 const aiProvider = read("lib/klyx-ai.ts");
 const brainMemory = read("app/api/brain/memory-context/route.ts");
+const brainResponder = read("app/api/brain/respond/route.ts");
 const memoryProfile = read("app/api/memory/profile/route.ts");
 
 describe("KLYX transversal client memory", () => {
@@ -38,10 +39,13 @@ describe("KLYX transversal client memory", () => {
     expect(sharedMemory).not.toContain("access_notes");
   });
 
-  it("uses the same policy in request analysis, Brain context, assistant and agent", () => {
+  it("uses the same policy in request analysis, Brain, assistant and agent", () => {
     expect(requestAnalysis).toContain("loadClientMemoryContext");
     expect(requestAnalysis).toContain("canUseClientMemory(text, memory)");
     expect(brainMemory).toContain("loadClientMemoryContext");
+    expect(brainResponder).toContain("loadClientMemoryContext");
+    expect(brainResponder).toContain("canUseClientMemory(message, memory)");
+    expect(brainResponder).not.toContain('.from("user_preferences")');
     expect(assistant).toContain("loadClientMemoryContext");
     expect(assistant).toContain("canUseClientMemory(message, memory)");
     expect(agentPlans).toContain("loadClientMemoryContext");
@@ -54,8 +58,14 @@ describe("KLYX transversal client memory", () => {
     expect(clientAgent).toContain('memoryFields.push("scheduling_notes")');
     expect(clientAgent).toContain("memoryUsed: memoryFields.length > 0");
     expect(requestAnalysis).toContain("const memoryUsed = memoryFields.length > 0");
+    expect(brainResponder).toContain('memoryFields.push("preferred_service_slugs")');
+    expect(brainResponder).toContain('memoryFields.push("default_city")');
+    expect(brainResponder).toContain('memoryFields.push("scheduling_notes")');
+    expect(brainResponder).toContain('memoryFields.push("default_budget")');
+    expect(brainResponder).toContain("const memoryApplied = memoryApplication.memoryFields.length > 0");
     expect(agentPlans).toContain("memoryMessage:");
     expect(assistant).toContain("memoryMessage:");
+    expect(brainResponder).toContain("memoryMessage:");
   });
 
   it("audits memory usage without copying memory values into the audit event", () => {
@@ -64,8 +74,19 @@ describe("KLYX transversal client memory", () => {
     expect(sharedMemory).toContain("used_fields: usedFields");
     expect(sharedMemory).not.toContain("event_value: memory");
     expect(requestAnalysis).toContain('surface: "request_analysis"');
+    expect(brainResponder).toContain('surface: "brain"');
     expect(agentPlans).toContain('surface: "agent"');
     expect(assistant).toContain('surface: "assistant"');
+  });
+
+  it("makes Brain memory influence explicit to the client", () => {
+    expect(brainResponder).toContain(
+      "J’ai utilisé uniquement les habitudes que tu m’as autorisé à mémoriser"
+    );
+    expect(brainResponder).toContain(
+      "KLYX a utilisé les habitudes autorisées de ta mémoire pour compléter cette demande."
+    );
+    expect(brainResponder).toContain("memoryFields: memoryApplication.memoryFields");
   });
 
   it("only exposes authorized memory to OpenAI when the user explicitly asks for it", () => {
