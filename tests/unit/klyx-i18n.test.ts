@@ -194,8 +194,8 @@ describe("KLYX i18n foundation", () => {
   it("finds navigation entries using translated labels", () => {
     for (const [query, locale] of [
       ["settings", "en"], ["设置", "zh-hans"], ["настройки", "ru"], ["inställningar", "sv"],
-      ["nastavení", "cs"], ["подешавања", "sr"], ["nustatymai", "lt"], ["iestatījumi", "lv"],
-      ["seaded", "et"], ["nastavitve", "sl"],
+      ["asetukset", "fi"], ["nastavení", "cs"], ["подешавања", "sr"], ["nustatymai", "lt"],
+      ["iestatījumi", "lv"], ["seaded", "et"], ["nastavitve", "sl"],
     ] as const) {
       expect(
         searchKlyxNavigation(query, "client", false, locale)
