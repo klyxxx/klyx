@@ -213,6 +213,37 @@ function hasRelatedToken(
   );
 }
 
+function controlledRequestTermMatches(
+  normalizedText: string,
+  term: string
+): boolean {
+  const normalizedTerm = normalizeCatalogText(term);
+  if (!normalizedTerm) return false;
+
+  if (normalizedText.includes(normalizedTerm)) {
+    return true;
+  }
+
+  const requestTokens = tokens(normalizedTerm);
+  if (requestTokens.length < 2) return false;
+
+  const textTokens = tokens(normalizedText);
+  let cursor = 0;
+
+  for (const requestToken of requestTokens) {
+    const nextIndex = textTokens.findIndex(
+      (textToken, index) =>
+        index >= cursor &&
+        tokensAreRelated(requestToken, textToken)
+    );
+
+    if (nextIndex < 0) return false;
+    cursor = nextIndex + 1;
+  }
+
+  return true;
+}
+
 function controlledSynonymScore(
   normalizedText: string,
   normalizedService: string
@@ -227,7 +258,7 @@ function controlledSynonymScore(
     if (!serviceMatches) continue;
 
     const matchingTerms = group.requestTerms.filter((term) =>
-      normalizedText.includes(normalizeCatalogText(term))
+      controlledRequestTermMatches(normalizedText, term)
     ).length;
 
     if (matchingTerms > 0) {
