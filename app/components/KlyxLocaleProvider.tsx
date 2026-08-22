@@ -13,6 +13,7 @@ import {
   KLYX_DEFAULT_LOCALE,
   KLYX_LANGUAGE_COOKIE_KEY,
   KLYX_LANGUAGE_STORAGE_KEY,
+  getKlyxLocaleMetadata,
   normalizeKlyxLocale,
   resolveKlyxLocale,
   translateKlyxUi,
@@ -29,6 +30,14 @@ type KlyxLocaleContextValue = {
 const KlyxLocaleContext =
   createContext<KlyxLocaleContextValue | null>(null);
 
+function applyDocumentLocale(locale: KlyxLocale) {
+  const metadata = getKlyxLocaleMetadata(locale);
+
+  document.documentElement.lang = metadata.htmlLang;
+  document.documentElement.dir = metadata.dir;
+  document.documentElement.dataset.klyxLocale = locale;
+}
+
 function writeLocalePreference(locale: KlyxLocale) {
   localStorage.setItem(
     KLYX_LANGUAGE_STORAGE_KEY,
@@ -36,8 +45,7 @@ function writeLocalePreference(locale: KlyxLocale) {
   );
 
   document.cookie = `${KLYX_LANGUAGE_COOKIE_KEY}=${locale}; Path=/; Max-Age=31536000; SameSite=Lax`;
-  document.documentElement.lang = locale;
-  document.documentElement.dataset.klyxLocale = locale;
+  applyDocumentLocale(locale);
 }
 
 export default function KlyxLocaleProvider({
@@ -79,8 +87,7 @@ export default function KlyxLocaleProvider({
       );
 
       setLocaleState(next);
-      document.documentElement.lang = next;
-      document.documentElement.dataset.klyxLocale = next;
+      applyDocumentLocale(next);
     }
 
     window.addEventListener("storage", onStorage);
