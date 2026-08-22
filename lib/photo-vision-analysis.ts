@@ -1,4 +1,7 @@
-import "server-only";
+// Server-only helper: this module sends private client image bytes to the
+// configured OpenAI vision model. It must only be imported by authenticated
+// server routes. KLYX intentionally avoids a runtime `server-only` dependency
+// here so the repository's Vitest contracts can inspect the module directly.
 
 export type PhotoVisualEvidence = {
   visualSummary: string;
@@ -23,6 +26,10 @@ type AnalyzePhotoVisionInput = {
 
 const MAX_VISION_BYTES = 10 * 1024 * 1024;
 const DEFAULT_VISION_MODEL = "gpt-5-mini";
+
+// Visual evidence below this threshold may still be displayed as an
+// inconclusive analysis, but it cannot influence the service candidate list.
+export const PHOTO_VISION_MIN_RELIABLE_CONFIDENCE = 60;
 
 const VISION_SCHEMA = {
   type: "object",
@@ -191,6 +198,7 @@ export async function analyzePhotoVisualContent(
           "N'identifie jamais une personne et n'infère jamais identité, origine, religion, santé, handicap, orientation sexuelle, opinion politique, situation financière ou autre caractéristique personnelle sensible.",
           "Si une personne, un document, une plaque ou une information personnelle est visible, ignore son identité et concentre-toi uniquement sur le besoin de service non sensible.",
           "Ne prétends jamais qu'un diagnostic technique est certain. Utilise des formulations observables et prudentes.",
+          "Calibre confidence avec prudence : moins de 60 signifie que les indices visuels ne sont pas assez fiables pour influencer le métier proposé.",
           "serviceHints doit contenir de courts termes français utiles pour retrouver un métier ou service dans un catalogue, par exemple plomberie, électricité, ménage, déménagement, montage meuble, jardinage.",
         ].join(" "),
         input: [
