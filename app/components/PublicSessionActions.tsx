@@ -10,7 +10,9 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import { createClient } from "@/lib/supabase/client";
+import { translateKlyxPublicEntry } from "@/lib/klyx-page-i18n";
 
 type Props = {
   compact?: boolean;
@@ -19,6 +21,10 @@ type Props = {
 export default function PublicSessionActions({
   compact = false,
 }: Props) {
+  const { locale } = useKlyxLocale();
+  const t = (key: Parameters<typeof translateKlyxPublicEntry>[1]) =>
+    translateKlyxPublicEntry(locale, key);
+
   const [loading, setLoading] = useState(true);
   const [connected, setConnected] = useState(false);
 
@@ -73,7 +79,7 @@ export default function PublicSessionActions({
             className="animate-spin"
           />
 
-          Session...
+          {t("sessionLoading")}
         </div>
       </div>
     );
@@ -97,7 +103,7 @@ export default function PublicSessionActions({
               : "min-h-14 px-6 text-base"
           }`}
         >
-          Ouvrir KLYX
+          {t("openKlyx")}
           <ArrowRight size={17} />
         </Link>
 
@@ -110,7 +116,7 @@ export default function PublicSessionActions({
           }`}
         >
           <UsersRound size={17} />
-          Mes profils
+          {t("myProfiles")}
         </Link>
       </div>
     );
@@ -123,7 +129,7 @@ export default function PublicSessionActions({
           href="/login"
           className="inline-flex h-11 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-bold text-white transition hover:bg-white/7"
         >
-          Connexion
+          {t("login")}
         </Link>
 
         {/* KLYX_PUBLIC_COMPACT_ENTRY_14_01 */}
@@ -131,7 +137,7 @@ export default function PublicSessionActions({
           href="/signup?type=client"
           className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-black text-white transition hover:bg-violet-500"
         >
-          Commencer
+          {t("start")}
           <ArrowRight size={16} />
         </Link>
       </div>
@@ -152,11 +158,11 @@ export default function PublicSessionActions({
 
           <span className="min-w-0 flex-1">
             <span className="block text-xs font-black uppercase tracking-[0.12em] text-white/65">
-              Client
+              {t("client")}
             </span>
 
             <span className="mt-1 block font-black">
-              J’ai besoin d’un service
+              {t("clientNeedService")}
             </span>
           </span>
 
@@ -176,11 +182,11 @@ export default function PublicSessionActions({
 
           <span className="min-w-0 flex-1">
             <span className="block text-xs font-black uppercase tracking-[0.12em] text-white/45">
-              Prestataire
+              {t("provider")}
             </span>
 
             <span className="mt-1 block font-black">
-              Je veux proposer mes services
+              {t("providerOfferServices")}
             </span>
           </span>
 
@@ -194,14 +200,14 @@ export default function PublicSessionActions({
       {/* KLYX_EXISTING_ACCOUNT_ENTRY_14_01 */}
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-white/48">
         <span>
-          Tu as déjà un compte ?
+          {t("alreadyAccount")}
         </span>
 
         <Link
           href="/login"
           className="font-black text-white/80 transition hover:text-white"
         >
-          Se connecter
+          {t("signIn")}
         </Link>
       </div>
     </div>
