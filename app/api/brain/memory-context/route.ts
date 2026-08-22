@@ -1,26 +1,18 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   apiErrorStatus,
   getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
+import { loadClientMemoryContext } from "@/lib/client-memory-context";
 
 const SERVICE_LABELS: Record<string, string> = {
   babysitting: "baby-sitting",
   cleaning: "ménage",
   moving: "déménagement",
   handyman: "bricolage",
+  "menage-a-domicile": "ménage",
 };
-
-function cleanArray(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter(
-        (item): item is string =>
-          typeof item === "string" && item.trim().length > 0
-      )
-    : [];
-}
 
 export async function GET(request: Request) {
   try {
@@ -29,41 +21,9 @@ export async function GET(request: Request) {
 
     requireAccountType(profile, "client");
 
-    const [preferencesResult, memoryResult] =
-      await Promise.all([
-        supabaseAdmin
-          .from("user_preferences")
-          .select(
-            "default_city, default_budget, preferred_service_slugs, scheduling_notes, ai_memory_enabled"
-          )
-          .eq("user_id", profile.id)
-          .maybeSingle(),
-        supabaseAdmin
-          .from("client_memory_profiles")
-          .select(
-            "household_type, children_count, pet_types, preferred_languages, cleaning_notes, babysitting_notes, moving_notes, handyman_notes, memory_enabled"
-          )
-          .eq("profile_id", profile.id)
-          .maybeSingle(),
-      ]);
+    const memory = await loadClientMemoryContext(profile.id);
 
-    if (preferencesResult.error) {
-      throw new Error(preferencesResult.error.message);
-    }
-
-    if (memoryResult.error) {
-      throw new Error(memoryResult.error.message);
-    }
-
-    const preferences = preferencesResult.data;
-    const memory = memoryResult.data;
-
-    const enabled = Boolean(
-      preferences?.ai_memory_enabled &&
-        (memory?.memory_enabled ?? true)
-    );
-
-    if (!enabled) {
+    if (!memory.enabled) {
       return NextResponse.json({
         enabled: false,
         available: false,
@@ -72,75 +32,63 @@ export async function GET(request: Request) {
       });
     }
 
-    const serviceSlugs = cleanArray(
-      preferences?.preferred_service_slugs
-    );
-
     const summary: {
       key: string;
       label: string;
       value: string;
     }[] = [];
 
-    if (preferences?.default_city) {
+    if (memory.defaultCity) {
       summary.push({
         key: "city",
         label: "Ville habituelle",
-        value: preferences.default_city,
+        value: memory.defaultCity,
       });
     }
 
-    if (preferences?.default_budget != null) {
+    if (memory.defaultBudget != null) {
       summary.push({
         key: "budget",
         label: "Budget habituel",
-        value: `${Number(
-          preferences.default_budget
-        )} € maximum`,
+        value: `${memory.defaultBudget} € maximum`,
       });
     }
 
-    if (serviceSlugs.length > 0) {
+    if (memory.preferredServiceSlugs.length > 0) {
       summary.push({
         key: "services",
         label: "Services préférés",
-        value: serviceSlugs
+        value: memory.preferredServiceSlugs
           .map((slug) => SERVICE_LABELS[slug] ?? slug)
           .join(", "),
       });
     }
 
-    if ((memory?.children_count ?? 0) > 0) {
+    if (memory.childrenCount > 0) {
       summary.push({
         key: "children",
         label: "Foyer",
-        value: `${memory?.children_count} enfant(s)`,
+        value: `${memory.childrenCount} enfant(s)`,
       });
     }
 
-    const pets = cleanArray(memory?.pet_types);
-
-    if (pets.length > 0) {
+    if (memory.petTypes.length > 0) {
       summary.push({
         key: "pets",
         label: "Animaux",
-        value: pets.join(", "),
+        value: memory.petTypes.join(", "),
       });
     }
 
-    const languages = cleanArray(
-      memory?.preferred_languages
-    );
-
-    if (languages.length > 0) {
+    if (memory.preferredLanguages.length > 0) {
       summary.push({
         key: "languages",
         label: "Langues préférées",
-        value: languages.join(", "),
+        value: memory.preferredLanguages.join(", "),
       });
     }
 
-    const quickRequests = serviceSlugs
+    const quickRequests = memory.preferredServiceSlugs
       .slice(0, 4)
       .map((slug) => ({
         serviceSlug: slug,
@@ -152,11 +100,11 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       enabled: true,
-      available: summary.length > 0,
+      available: memory.available,
       summary,
       quickRequests,
       privacyNotice:
-        "KLYX utilise ces habitudes uniquement pour préparer la demande. Le prestataire ne reçoit pas toute ta mémoire.",
+        "KLYX utilise ces habitudes uniquement quand tu le demandes. Le prestataire ne reçoit pas toute ta mémoire.",
     });
   } catch (error) {
     const message =
