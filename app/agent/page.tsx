@@ -266,6 +266,51 @@ export default function AgentPage() {
     }
   }
 
+  async function confirmBooking(planId: string) {
+    setBusyId(`${planId}:book`);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      const accessToken = await token();
+      const response = await fetch("/api/agent/plans/confirm-booking", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ planId }),
+      });
+      const body = (await response.json()) as {
+        bookingId?: string;
+        href?: string;
+        reused?: boolean;
+        requiresConfirmation?: string | null;
+        error?: string;
+      };
+
+      if (!response.ok || !body.bookingId) {
+        throw new Error(body.error || "La réservation n’a pas pu être confirmée.");
+      }
+
+      setCurrentPlan(null);
+      setSuccessMessage(
+        body.reused
+          ? "Cette réservation était déjà confirmée. Aucun doublon n’a été créé."
+          : "Réservation confirmée. Le prestataire doit maintenant l’accepter avant tout paiement."
+      );
+      await loadPlans();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "La réservation n’a pas pu être confirmée."
+      );
+    } finally {
+      setBusyId("");
+    }
+  }
+
   return (
     <main className="klyx-page">
       <div className="mx-auto max-w-6xl">
@@ -279,8 +324,9 @@ export default function AgentPage() {
           </h1>
           <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">
             Décris ton objectif. KLYX comprend le besoin, recherche les
-            prestataires et peut choisir le meilleur match exact. Il ne réserve
-            et ne paie jamais sans ta confirmation.
+            prestataires et peut choisir le meilleur match exact. Une réservation
+            n’est créée qu’après ta confirmation explicite et le paiement reste
+            toujours une action séparée.
           </p>
         </section>
 
@@ -345,6 +391,7 @@ export default function AgentPage() {
             busyId={busyId}
             onProcess={processPlan}
             onExecute={executePlan}
+            onConfirmBooking={confirmBooking}
           />
         )}
 
@@ -370,6 +417,7 @@ export default function AgentPage() {
                   busyId={busyId}
                   onProcess={processPlan}
                   onExecute={executePlan}
+                  onConfirmBooking={confirmBooking}
                   compact
                 />
               ))}
@@ -386,7 +434,8 @@ export default function AgentPage() {
             KLYX peut exécuter automatiquement les actions réversibles de
             recherche et de recommandation. Choisir un résultat approximatif,
             réserver, annuler une mission ou payer exige toujours ton action
-            explicite.
+            explicite. Une confirmation de réservation ne déclenche jamais un
+            paiement Stripe.
           </p>
         </div>
       </div>
@@ -399,6 +448,7 @@ function PlanCard({
   busyId,
   onProcess,
   onExecute,
+  onConfirmBooking,
   compact = false,
 }: {
   plan: AgentPlan;
@@ -409,6 +459,7 @@ function PlanCard({
     stepId?: string
   ) => Promise<void>;
   onExecute: (planId: string) => Promise<void>;
+  onConfirmBooking: (planId: string) => Promise<void>;
   compact?: boolean;
 }) {
   const snapshot = Array.isArray(plan.search_snapshot) ? plan.search_snapshot : [];
@@ -416,6 +467,7 @@ function PlanCard({
     snapshot.find((provider) => provider.profileId === plan.selected_provider_id) ??
     null;
   const executeBusy = busyId === `${plan.id}:execute`;
+  const bookingBusy = busyId === `${plan.id}:book`;
 
   return (
     <article className="klyx-card mt-6 p-6 sm:p-8">
@@ -498,10 +550,26 @@ function PlanCard({
         </Link>
       )}
 
-      {plan.next_action === "book" && plan.next_action_href && (
+      {plan.next_action === "book" && (
+        <button
+          type="button"
+          disabled={bookingBusy}
+          onClick={() => void onConfirmBooking(plan.id)}
+          className="klyx-button mt-5"
+        >
+          {bookingBusy ? (
+            <LoaderCircle className="animate-spin" size={18} />
+          ) : (
+            <CheckCircle2 size={18} />
+          )}
+          Confirmer et envoyer la réservation
+        </button>
+      )}
+
+      {plan.next_action === "pay" && plan.next_action_href && (
         <Link href={plan.next_action_href} className="klyx-button mt-5 inline-flex">
           <ArrowRight size={18} />
-          Confirmer la réservation
+          Ouvrir la réservation
         </Link>
       )}
 
@@ -539,7 +607,7 @@ function PlanCard({
                     {step.description}
                   </p>
 
-                  {ready && step.actionHref && (
+                  {ready && step.actionHref && step.id !== "book" && step.id !== "pay" && (
                     <Link
                       href={step.actionHref}
                       className="mt-3 inline-flex items-center gap-2 text-sm font-black text-violet-600 dark:text-violet-400"

@@ -75,6 +75,7 @@ async function main() {
   if (bookingsBeforeError) throw new Error(bookingsBeforeError.message);
 
   let planId = null;
+  let bookingId = null;
 
   try {
     const createResponse = await fetch(`${appOrigin}/api/agent/plans`, {
@@ -195,6 +196,141 @@ async function main() {
       "Agent search/choice execution must not create a booking before confirmation."
     );
 
+    const confirmResponse = await fetch(
+      `${appOrigin}/api/agent/plans/confirm-booking`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ planId }),
+      }
+    );
+    const confirmed = await jsonResponse(
+      confirmResponse,
+      "POST /api/agent/plans/confirm-booking"
+    );
+
+    bookingId = confirmed.bookingId;
+    expect(Boolean(bookingId), "Confirmed agent booking did not return a booking id.");
+    expect(confirmed.reused === false, "First booking confirmation must create once.");
+    expect(
+      confirmed.requiresConfirmation === "pay",
+      "Agent must stop again before payment."
+    );
+    expect(
+      confirmed.href === `/bookings/${bookingId}`,
+      "Confirmed booking must continue through the canonical booking page."
+    );
+
+    const { data: booked, error: bookedError } = await admin
+      .from("bookings")
+      .select(
+        "id, parent_id, provider_id, user_service_id, status, payment_status, agent_plan_id"
+      )
+      .eq("id", bookingId)
+      .maybeSingle();
+    if (bookedError) throw new Error(bookedError.message);
+
+    expect(Boolean(booked), "Confirmed agent booking was not persisted.");
+    expect(booked.parent_id === client.id, "Agent booking belongs to the wrong client.");
+    expect(booked.provider_id === provider.id, "Agent booking uses the wrong provider.");
+    expect(
+      booked.user_service_id === executed.plan.selected_user_service_id,
+      "Agent booking uses the wrong provider service."
+    );
+    expect(booked.status === "pending", "Agent booking must start pending provider acceptance.");
+    expect(booked.payment_status === "unpaid", "Agent booking must remain unpaid.");
+    expect(booked.agent_plan_id === planId, "Agent booking is not linked to its plan.");
+
+    const { data: persistedPlan, error: persistedPlanError } = await admin
+      .from("client_agent_plans")
+      .select("booking_id, next_action, next_action_href, execution_status, execution_revision, steps")
+      .eq("id", planId)
+      .maybeSingle();
+    if (persistedPlanError) throw new Error(persistedPlanError.message);
+
+    expect(persistedPlan?.booking_id === bookingId, "Agent plan did not persist its booking id.");
+    expect(
+      persistedPlan?.next_action === "pay" &&
+        persistedPlan?.next_action_href === `/bookings/${bookingId}`,
+      "Agent plan did not persist the payment confirmation boundary."
+    );
+    expect(
+      persistedPlan?.execution_status === "waiting_confirmation",
+      "Agent must wait for explicit payment action after booking."
+    );
+    expect(
+      Number(persistedPlan?.execution_revision) === 2,
+      "Booking confirmation must use the next durable execution revision."
+    );
+
+    const confirmedSteps = Array.isArray(persistedPlan?.steps)
+      ? persistedPlan.steps
+      : [];
+    const confirmedStep = (id) =>
+      confirmedSteps.find((candidate) => candidate.id === id);
+    expect(
+      confirmedStep("book")?.status === "completed",
+      "Confirmed booking step was not completed."
+    );
+    expect(
+      confirmedStep("pay")?.status === "ready" &&
+        confirmedStep("pay")?.requiresConfirmation === true,
+      "Payment must be ready but explicitly user-confirmed."
+    );
+
+    const confirmRetryResponse = await fetch(
+      `${appOrigin}/api/agent/plans/confirm-booking`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ planId }),
+      }
+    );
+    const confirmRetry = await jsonResponse(
+      confirmRetryResponse,
+      "retry POST /api/agent/plans/confirm-booking"
+    );
+    expect(confirmRetry.reused === true, "Booking confirmation retry must reuse the booking.");
+    expect(
+      confirmRetry.bookingId === bookingId,
+      "Booking confirmation retry changed the booking."
+    );
+
+    const { count: bookingsAfterConfirmation, error: bookingsAfterConfirmationError } =
+      await admin
+        .from("bookings")
+        .select("id", { count: "exact", head: true })
+        .eq("parent_id", client.id);
+    if (bookingsAfterConfirmationError) {
+      throw new Error(bookingsAfterConfirmationError.message);
+    }
+    expect(
+      Number(bookingsAfterConfirmation ?? 0) === Number(bookingsBefore ?? 0) + 1,
+      "Explicit agent booking confirmation must create exactly one booking."
+    );
+
+    const { data: finalEvents, error: finalEventsError } = await admin
+      .from("client_agent_plan_events")
+      .select("event_type, execution_revision, step_id")
+      .eq("plan_id", planId)
+      .order("created_at", { ascending: true });
+    if (finalEventsError) throw new Error(finalEventsError.message);
+
+    const finalEventTypes = (finalEvents ?? []).map((event) => event.event_type);
+    expect(
+      finalEventTypes.filter((eventType) => eventType === "booking_confirmation_granted")
+        .length === 1,
+      "Agent journal must record exactly one explicit booking confirmation."
+    );
+    expect(
+      finalEventTypes.filter((eventType) => eventType === "booking_created").length === 1,
+      "Agent journal must record exactly one booking creation."
+    );
+    expect(
+      !finalEventTypes.includes("execution_failed"),
+      "Successful agent booking orchestration must not journal a failure."
+    );
+
     process.stdout.write(
       `${JSON.stringify({
         agentSearchChoiceVerified: true,
@@ -205,11 +341,18 @@ async function main() {
         journalEvents: eventTypes,
         bookingConfirmationRequired: true,
         bookingCreatedAutomatically: false,
+        bookingCreatedAfterExplicitConfirmation: true,
+        bookingId,
+        bookingConfirmationRetryReused: true,
         paymentTriggeredAutomatically: false,
+        paymentConfirmationRequired: true,
         localSupabaseOnly: true,
       })}\n`
     );
   } finally {
+    if (bookingId) {
+      await admin.from("bookings").delete().eq("id", bookingId);
+    }
     if (planId) {
       await admin.from("client_agent_plans").delete().eq("id", planId);
     }
