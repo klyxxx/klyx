@@ -203,5 +203,9 @@ describe("KLYX operational sentinel contract", () => {
     expect(runbook).toContain("do not manually mark a booking `paid` or `refunded`");
     expect(runbook).toContain("A failed scheduled workflow is an operational alert in GitHub Actions");
     expect(recoveryGuide).toContain("docs/operations/KLYX_INCIDENT_RUNBOOK.md");
+    expect(recoveryGuide).toContain("searching providers and choosing a candidate");
+    expect(recoveryGuide).toContain("Booking and payment remain separate boundaries");
+    expect(recoveryGuide).not.toContain("automaticExecutionAllowed = false");
+    expect(recoveryGuide).not.toContain("- provider selection");
   });
 });
