@@ -5,6 +5,16 @@ export type CatalogServiceRecord = {
   name: string | null;
 };
 
+export type CatalogServiceDecision = {
+  selected: ServiceCandidate | null;
+  ambiguous: boolean;
+  confidenceGap: number | null;
+  clarificationCandidates: ServiceCandidate[];
+};
+
+export const CATALOG_SERVICE_MIN_CONFIDENCE = 60;
+export const CATALOG_SERVICE_MIN_DECISION_GAP = 12;
+
 const GENERIC_SERVICE_TOKENS = new Set([
   "aide",
   "autre",
@@ -38,6 +48,127 @@ const STOP_TOKENS = new Set([
   "les",
   "par",
 ]);
+
+type ControlledSynonymGroup = {
+  serviceTerms: readonly string[];
+  requestTerms: readonly string[];
+};
+
+// Deliberately small, reviewable and language-specific. These groups are not a
+// free-form fuzzy classifier: a service must itself contain a controlled
+// service term before a request synonym can improve its score.
+export const CONTROLLED_SERVICE_SYNONYMS: readonly ControlledSynonymGroup[] = [
+  {
+    serviceTerms: ["baby sitting", "babysitter", "garde enfant", "nounou"],
+    requestTerms: [
+      "baby sitter",
+      "babysitter",
+      "nounou",
+      "garder mon enfant",
+      "garder mes enfants",
+      "garde d enfant",
+      "garde enfants",
+    ],
+  },
+  {
+    serviceTerms: ["menage", "nettoyage", "aide menagere"],
+    requestTerms: [
+      "menage",
+      "nettoyer",
+      "nettoyage",
+      "femme de menage",
+      "aide menagere",
+      "faire le propre",
+    ],
+  },
+  {
+    serviceTerms: ["demenagement", "demenageur"],
+    requestTerms: [
+      "demenager",
+      "demenagement",
+      "demenageur",
+      "porter des cartons",
+      "transport de meubles",
+      "camion de demenagement",
+    ],
+  },
+  {
+    serviceTerms: ["bricolage", "bricoleur", "handyman", "montage meuble"],
+    requestTerms: [
+      "bricolage",
+      "bricoleur",
+      "handyman",
+      "monter un meuble",
+      "monter des meubles",
+      "fixer une etagere",
+      "petite reparation",
+    ],
+  },
+  {
+    serviceTerms: ["plomberie", "plombier"],
+    requestTerms: [
+      "plombier",
+      "plomberie",
+      "fuite d eau",
+      "robinet fuit",
+      "robinet qui fuit",
+      "evier bouche",
+      "canalisation bouchee",
+    ],
+  },
+  {
+    serviceTerms: ["electricite", "electricien"],
+    requestTerms: [
+      "electricien",
+      "electricite",
+      "prise electrique",
+      "court circuit",
+      "tableau electrique",
+      "cablage electrique",
+    ],
+  },
+  {
+    serviceTerms: ["serrurerie", "serrurier"],
+    requestTerms: [
+      "serrurier",
+      "serrure bloquee",
+      "porte bloquee",
+      "cle cassee",
+      "cle perdue",
+    ],
+  },
+  {
+    serviceTerms: ["jardinage", "jardinier"],
+    requestTerms: [
+      "jardinier",
+      "jardinage",
+      "tondre la pelouse",
+      "tonte pelouse",
+      "tailler une haie",
+      "entretien jardin",
+    ],
+  },
+  {
+    serviceTerms: ["peinture", "peintre"],
+    requestTerms: [
+      "peintre",
+      "peindre un mur",
+      "peindre les murs",
+      "repeindre",
+      "peinture murale",
+    ],
+  },
+  {
+    serviceTerms: ["chauffage", "chauffagiste"],
+    requestTerms: [
+      "chauffagiste",
+      "chauffage en panne",
+      "radiateur froid",
+      "chaudiere en panne",
+      "entretien chaudiere",
+    ],
+  },
+] as const;
 
 export function normalizeCatalogText(value: string): string {
   return value
@@ -82,6 +213,31 @@ function hasRelatedToken(
   );
 }
 
+function controlledSynonymScore(
+  normalizedText: string,
+  normalizedService: string
+): number {
+  let best = 0;
+
+  for (const group of CONTROLLED_SERVICE_SYNONYMS) {
+    const serviceMatches = group.serviceTerms.some((term) =>
+      normalizedService.includes(normalizeCatalogText(term))
+    );
+
+    if (!serviceMatches) continue;
+
+    const matchingTerms = group.requestTerms.filter((term) =>
+      normalizedText.includes(normalizeCatalogText(term))
+    ).length;
+
+    if (matchingTerms > 0) {
+      best = Math.max(best, Math.min(94, 82 + (matchingTerms - 1) * 4));
+    }
+  }
+
+  return best;
+}
+
 function scoreService(
   normalizedText: string,
   textTokens: readonly string[],
@@ -90,6 +246,7 @@ function scoreService(
   const label = service.name?.trim() || service.slug;
   const normalizedLabel = normalizeCatalogText(label);
   const normalizedSlug = normalizeCatalogText(service.slug);
+  const normalizedService = `${normalizedLabel} ${normalizedSlug}`.trim();
 
   if (!normalizedLabel) return 0;
 
@@ -101,6 +258,10 @@ function scoreService(
     return 100;
   }
 
+  const synonymScore = controlledSynonymScore(
+    normalizedText,
+    normalizedService
+  );
   const serviceTokens = tokens(label);
   const informativeTokens = serviceTokens.filter(
     (token) => !GENERIC_SERVICE_TOKENS.has(token)
@@ -111,17 +272,20 @@ function scoreService(
       hasRelatedToken(token, textTokens)
     ).length;
 
-    return genericMatches > 0 ? 65 : 0;
+    return Math.max(
+      synonymScore,
+      genericMatches > 0 ? 65 : 0
+    );
   }
 
-  const informativeMatches = informativeTokens.filter(
-    (token) => hasRelatedToken(token, textTokens)
+  const informativeMatches = informativeTokens.filter((token) =>
+    hasRelatedToken(token, textTokens)
   ).length;
 
-  if (informativeMatches === 0) return 0;
+  if (informativeMatches === 0) return synonymScore;
 
-  const exactInformativeMatches = informativeTokens.filter(
-    (token) => textTokens.includes(token)
+  const exactInformativeMatches = informativeTokens.filter((token) =>
+    textTokens.includes(token)
   ).length;
 
   const ratio =
@@ -130,8 +294,6 @@ function scoreService(
   let score = 55 + Math.round(ratio * 35);
 
   // Prefer the exact profession/service word over a merely related stem.
-  // Example: "ménage" should rank "Ménage à domicile" above
-  // "Aide ménagère", while both remain valid semantic candidates.
   score += Math.min(6, exactInformativeMatches * 4);
 
   const actionMatches = serviceTokens.filter(
@@ -149,7 +311,7 @@ function scoreService(
     score += 3;
   }
 
-  return Math.min(99, score);
+  return Math.max(synonymScore, Math.min(99, score));
 }
 
 export function detectCatalogServiceCandidates(
@@ -180,10 +342,18 @@ export function detectCatalogServiceCandidates(
         reason:
           confidence === 100
             ? "Le métier est explicitement mentionné dans la demande."
-            : "Le besoin correspond au catalogue de métiers KLYX.",
+            : controlledSynonymScore(
+                  normalizedText,
+                  `${normalizeCatalogText(service.name?.trim() || service.slug)} ${normalizeCatalogText(service.slug)}`
+                ) >= confidence
+              ? "Un synonyme contrôlé KLYX correspond à ce métier."
+              : "Le besoin correspond au catalogue de métiers KLYX.",
       } satisfies ServiceCandidate;
     })
-    .filter((candidate) => candidate.confidence >= 60)
+    .filter(
+      (candidate) =>
+        candidate.confidence >= CATALOG_SERVICE_MIN_CONFIDENCE
+    )
     .sort((first, second) => {
       if (second.confidence !== first.confidence) {
         return second.confidence - first.confidence;
@@ -233,4 +403,43 @@ export function mergeServiceCandidates(
       return first.label.localeCompare(second.label, "fr");
     })
     .slice(0, 3);
+}
+
+export function resolveCatalogServiceDecision(
+  candidates: readonly ServiceCandidate[]
+): CatalogServiceDecision {
+  const top = candidates[0] ?? null;
+  const second = candidates[1] ?? null;
+
+  if (!top || top.confidence < CATALOG_SERVICE_MIN_CONFIDENCE) {
+    return {
+      selected: null,
+      ambiguous: false,
+      confidenceGap: null,
+      clarificationCandidates: [],
+    };
+  }
+
+  if (!second) {
+    return {
+      selected: top,
+      ambiguous: false,
+      confidenceGap: null,
+      clarificationCandidates: [],
+    };
+  }
+
+  const confidenceGap = top.confidence - second.confidence;
+  const ambiguous =
+    second.confidence >= CATALOG_SERVICE_MIN_CONFIDENCE &&
+    confidenceGap < CATALOG_SERVICE_MIN_DECISION_GAP;
+
+  return {
+    selected: ambiguous ? null : top,
+    ambiguous,
+    confidenceGap,
+    clarificationCandidates: ambiguous
+      ? [top, second, ...candidates.slice(2)].slice(0, 3)
+      : [],
+  };
 }
