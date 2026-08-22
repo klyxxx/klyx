@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CATALOG_SERVICE_MIN_DECISION_GAP,
   detectCatalogServiceCandidates,
   mergeServiceCandidates,
+  resolveCatalogServiceDecision,
 } from "@/lib/catalog-service-matcher";
 
 const SERVICES = [
   { slug: "plombier", name: "Plombier" },
   { slug: "electricien", name: "Électricien" },
+  { slug: "serrurier", name: "Serrurier" },
   {
     slug: "installation-chaudiere",
     name: "Installation chaudière",
@@ -54,6 +57,19 @@ describe("catalog service matcher", () => {
 
     expect(candidates[0]?.slug).toBe("electricien");
     expect(candidates[0]?.confidence).toBe(100);
+  });
+
+  it("uses controlled request synonyms without free-form profession invention", () => {
+    const candidates = detectCatalogServiceCandidates(
+      "Ma clé est perdue et ma porte est bloquée",
+      SERVICES
+    );
+
+    expect(candidates[0]).toMatchObject({
+      slug: "serrurier",
+    });
+    expect(candidates[0]!.confidence).toBeGreaterThanOrEqual(82);
+    expect(candidates[0]?.reason).toContain("synonyme contrôlé");
   });
 
   it("uses action words to rank close catalog services", () => {
@@ -139,5 +155,52 @@ describe("catalog service matcher", () => {
         reason: "catalog",
       },
     ]);
+  });
+
+  it("refuses to auto-select when two plausible services are too close", () => {
+    const candidates = [
+      {
+        slug: "plombier",
+        label: "Plombier",
+        confidence: 78,
+        reason: "test",
+      },
+      {
+        slug: "installation-robinetterie",
+        label: "Installation de robinetterie",
+        confidence: 72,
+        reason: "test",
+      },
+    ];
+
+    const decision = resolveCatalogServiceDecision(candidates);
+
+    expect(CATALOG_SERVICE_MIN_DECISION_GAP).toBe(12);
+    expect(decision.selected).toBeNull();
+    expect(decision.ambiguous).toBe(true);
+    expect(decision.confidenceGap).toBe(6);
+    expect(decision.clarificationCandidates).toEqual(candidates);
+  });
+
+  it("auto-selects only when the leading service has a clear confidence gap", () => {
+    const top = {
+      slug: "electricien",
+      label: "Électricien",
+      confidence: 90,
+      reason: "test",
+    };
+    const decision = resolveCatalogServiceDecision([
+      top,
+      {
+        slug: "plombier",
+        label: "Plombier",
+        confidence: 70,
+        reason: "test",
+      },
+    ]);
+
+    expect(decision.selected).toEqual(top);
+    expect(decision.ambiguous).toBe(false);
+    expect(decision.confidenceGap).toBe(20);
   });
 });
