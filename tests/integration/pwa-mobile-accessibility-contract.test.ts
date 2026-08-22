@@ -10,6 +10,7 @@ function readRepoFile(file: string) {
 }
 
 const layout = readRepoFile("app/layout.tsx");
+const skipLink = readRepoFile("app/components/KlyxSkipLink.tsx");
 const manifest = readRepoFile("app/manifest.ts");
 const registrar = readRepoFile("app/components/PwaRegistrar.tsx");
 const serviceWorker = readRepoFile("public/sw.js");
@@ -48,9 +49,10 @@ describe("KLYX PWA and mobile accessibility contract", () => {
     );
   });
 
-  it("provides a first-focus skip link and a stable focusable content target", () => {
-    expect(layout).toContain('href="#klyx-main-content"');
-    expect(layout).toContain("Aller au contenu principal");
+  it("provides a first-focus localized skip link and a stable focusable content target", () => {
+    expect(layout).toContain("<KlyxSkipLink />");
+    expect(skipLink).toContain('href="#klyx-main-content"');
+    expect(skipLink).toContain('t("skipToMain")');
     expect(layout).toContain('id="klyx-main-content"');
     expect(layout).toContain("tabIndex={-1}");
     expect(accessibility).toContain(".klyx-skip-link:focus-visible");
