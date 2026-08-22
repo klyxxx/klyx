@@ -22,19 +22,36 @@ const settings = read("app/settings/page.tsx");
 const documentation = read("docs/KLYX_I18N.md");
 
 describe("KLYX i18n foundation shell contract", () => {
-  it("supports the existing French English Dutch language choices", () => {
-    expect(i18n).toContain('"fr"');
-    expect(i18n).toContain('"en"');
-    expect(i18n).toContain('"nl"');
+  it("ships a multilingual translated shell catalog with regional aliases", () => {
+    for (const locale of [
+      "fr",
+      "en",
+      "nl",
+      "de",
+      "es",
+      "it",
+      "pt",
+      "ar",
+      "zh-hans",
+      "zh-hant",
+      "ja",
+      "ko",
+    ]) {
+      expect(i18n).toContain(`value: "${locale}"`);
+    }
+
     expect(i18n).toContain('KLYX_DEFAULT_LOCALE: KlyxLocale =\n  "fr"');
+    expect(i18n).toContain('normalized === "zh-tw"');
+    expect(i18n).toContain('normalized === "zh-cn"');
   });
 
-  it("reuses and persists the existing language preference", () => {
+  it("reuses and persists the language preference and document direction", () => {
     expect(i18n).toContain('"klyx_language"');
     expect(provider).toContain("localStorage.getItem(");
     expect(provider).toContain("localStorage.setItem(");
     expect(provider).toContain("document.cookie");
-    expect(provider).toContain("document.documentElement.lang = locale");
+    expect(provider).toContain("document.documentElement.lang = metadata.htmlLang");
+    expect(provider).toContain("document.documentElement.dir = metadata.dir");
     expect(provider).toContain('window.addEventListener("storage", onStorage)');
   });
 
@@ -46,12 +63,12 @@ describe("KLYX i18n foundation shell contract", () => {
     expect(sidebar).toContain('t("sidebar.searchPlaceholder")');
   });
 
-  it("makes the existing settings selector apply locale immediately", () => {
-    expect(settings).toContain("const { setLocale } = useKlyxLocale();");
-    expect(settings).toContain("setLocale(value);");
-    expect(settings).toContain('{ value: "fr", label: "Français" }');
-    expect(settings).toContain('{ value: "en", label: "English" }');
-    expect(settings).toContain('{ value: "nl", label: "Nederlands" }');
+  it("makes the settings selector use the canonical locale catalog immediately", () => {
+    expect(settings).toContain("const { locale, setLocale } = useKlyxLocale();");
+    expect(settings).toContain("value={locale}");
+    expect(settings).toContain("onChange={setLocale}");
+    expect(settings).toContain("KLYX_LANGUAGE_OPTIONS.map");
+    expect(settings).not.toContain('const LANGUAGE_KEY = "klyx_language"');
   });
 
   it("keeps the rollout honest about incomplete page-level translation", () => {
