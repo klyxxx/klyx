@@ -1,5 +1,15 @@
 # KLYX Recovery Guide
 
+## Production incident
+
+For a production outage, security/privacy incident, Supabase/Auth failure, payment/webhook anomaly or data-integrity concern, use:
+
+`docs/operations/KLYX_INCIDENT_RUNBOOK.md`
+
+This recovery guide is primarily for local/project recovery. Do not use local recovery shortcuts as a production incident procedure.
+
+---
+
 ## If a new ChatGPT conversation is required
 
 Give the new conversation these files first:
