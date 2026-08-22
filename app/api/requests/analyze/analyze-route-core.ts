@@ -12,6 +12,11 @@ import {
   type CatalogServiceRecord,
 } from "@/lib/catalog-service-matcher";
 import {
+  canUseClientMemory,
+  loadClientMemoryContext,
+  recordClientMemoryUsage,
+} from "@/lib/client-memory-context";
+import {
   detectBudget,
   detectChildren,
   detectCity,
@@ -21,7 +26,6 @@ import {
   detectServiceCandidates,
   missingFieldsForRequest,
   urgencyFromText,
-  wantsMemory,
   type UniversalRequestResult,
 } from "@/lib/universal-service-request";
 
@@ -75,41 +79,13 @@ export async function POST(request: Request) {
         ? body.selectedServiceSlug.trim()
         : "";
 
-    const [
-      preferencesResult,
-      memoryResult,
-      servicesResult,
-    ] = await Promise.all([
-      supabaseAdmin
-        .from("user_preferences")
-        .select(
-          "default_city, default_budget, preferred_service_slugs, household_notes, scheduling_notes, ai_memory_enabled"
-        )
-        .eq("user_id", profile.id)
-        .maybeSingle(),
-      supabaseAdmin
-        .from("client_memory_profiles")
-        .select(
-          "children_count, memory_enabled"
-        )
-        .eq("profile_id", profile.id)
-        .maybeSingle(),
+    const [memory, servicesResult] = await Promise.all([
+      loadClientMemoryContext(profile.id),
       supabaseAdmin
         .from("services")
         .select("slug, name")
         .limit(1000),
     ]);
-
-    if (preferencesResult.error) {
-      throw new Error(preferencesResult.error.message);
-    }
-
-    if (
-      memoryResult.error &&
-      memoryResult.error.code !== "PGRST116"
-    ) {
-      throw new Error(memoryResult.error.message);
-    }
 
     if (servicesResult.error) {
       throw new Error(servicesResult.error.message);
@@ -126,9 +102,6 @@ export async function POST(request: Request) {
     const serviceBySlug = new Map(
       services.map((service) => [service.slug, service])
     );
-
-    const preferences = preferencesResult.data;
-    const clientMemory = memoryResult.data;
 
     const catalogCandidates =
       detectCatalogServiceCandidates(
@@ -155,9 +128,9 @@ export async function POST(request: Request) {
         ? candidates[0].slug
         : null);
     let city = detectCity(text);
-    let requestedDay = detectRequestedDay(text);
+    const requestedDay = detectRequestedDay(text);
     let requestedTime = detectRequestedTime(text);
-    let durationHours = detectDurationHours(text);
+    const durationHours = detectDurationHours(text);
     let budgetMax = detectBudget(text);
     let peopleCount = isChildcareService(
       serviceSlug
@@ -166,35 +139,39 @@ export async function POST(request: Request) {
     )
       ? detectChildren(text)
       : null;
-    let memoryUsed = false;
+    const memoryFields: string[] = [];
 
-    const canUseMemory = Boolean(
-      wantsMemory(text) &&
-        preferences?.ai_memory_enabled &&
-        (clientMemory?.memory_enabled ?? true)
-    );
-
-    if (canUseMemory) {
-      memoryUsed = true;
-
+    if (canUseClientMemory(text, memory)) {
       const preferredServiceSlug =
-        preferences?.preferred_service_slugs?.find(
-          (slug: string) => serviceBySlug.has(slug)
+        memory.preferredServiceSlugs.find((slug) =>
+          serviceBySlug.has(slug)
         ) ?? null;
 
-      serviceSlug =
-        serviceSlug ?? preferredServiceSlug;
-      city = city ?? preferences?.default_city ?? null;
-      budgetMax =
-        budgetMax ??
-        (preferences?.default_budget != null
-          ? Number(preferences.default_budget)
-          : null);
-      requestedTime =
-        requestedTime ??
-        detectRequestedTime(
-          preferences?.scheduling_notes ?? ""
+      if (!serviceSlug && preferredServiceSlug) {
+        serviceSlug = preferredServiceSlug;
+        memoryFields.push("preferred_service_slugs");
+      }
+
+      if (!city && memory.defaultCity) {
+        city = memory.defaultCity;
+        memoryFields.push("default_city");
+      }
+
+      if (budgetMax == null && memory.defaultBudget != null) {
+        budgetMax = memory.defaultBudget;
+        memoryFields.push("default_budget");
+      }
+
+      if (!requestedTime) {
+        const rememberedTime = detectRequestedTime(
+          memory.schedulingNotes ?? ""
         );
+
+        if (rememberedTime) {
+          requestedTime = rememberedTime;
+          memoryFields.push("scheduling_notes");
+        }
+      }
 
       if (
         isChildcareService(
@@ -204,11 +181,19 @@ export async function POST(request: Request) {
         ) &&
         peopleCount == null
       ) {
-        peopleCount =
-          clientMemory?.children_count ??
-          detectChildren(
-            preferences?.household_notes ?? ""
+        if (memory.childrenCount > 0) {
+          peopleCount = memory.childrenCount;
+          memoryFields.push("children_count");
+        } else {
+          const rememberedChildren = detectChildren(
+            memory.householdNotes ?? ""
           );
+
+          if (rememberedChildren != null) {
+            peopleCount = rememberedChildren;
+            memoryFields.push("household_notes");
+          }
+        }
       }
     }
 
@@ -231,6 +216,7 @@ export async function POST(request: Request) {
     const matchedService = serviceSlug
       ? serviceBySlug.get(serviceSlug)
       : undefined;
+    const memoryUsed = memoryFields.length > 0;
 
     const parsed: UniversalRequestResult = {
       serviceSlug,
@@ -266,7 +252,10 @@ export async function POST(request: Request) {
           budget_max: parsed.budgetMax,
           people_count: parsed.peopleCount,
           urgency: parsed.urgency,
-          parsed_payload: parsed,
+          parsed_payload: {
+            ...parsed,
+            memoryFields,
+          },
           status: parsed.readyForSearch
             ? "ready"
             : "analyzed",
@@ -277,37 +266,20 @@ export async function POST(request: Request) {
     if (error) throw new Error(error.message);
 
     if (memoryUsed) {
-      const { error: memoryEventError } =
-        await supabaseAdmin
-          .from("user_memory_events")
-          .insert({
-            user_id: profile.id,
-            event_type: "memory_used",
-            event_key: "universal_service_request",
-            event_value: {
-              request_id: serviceRequest.id,
-              used_fields: {
-                service: parsed.serviceSlug,
-                city: parsed.city,
-                budget: parsed.budgetMax,
-                time: parsed.requestedTime,
-              },
-            },
-            confidence: 1,
-            source: "system",
-          });
-
-      if (memoryEventError) {
-        console.error(
-          "Memory event error:",
-          memoryEventError.message
-        );
-      }
+      await recordClientMemoryUsage({
+        profileId: profile.id,
+        surface: "request_analysis",
+        usedFields: memoryFields,
+        referenceId: serviceRequest.id,
+      });
     }
 
     return NextResponse.json({
       requestId: serviceRequest.id,
-      parsed,
+      parsed: {
+        ...parsed,
+        memoryFields,
+      },
     });
   } catch (error) {
     const message =
