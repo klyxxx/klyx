@@ -209,7 +209,7 @@ describe("KLYX operational sentinel contract", () => {
     expect(runbook).toContain("must not be described as completed until a real manual run has succeeded");
     expect(runbook).toContain("does not claim full managed Auth/Storage object recovery");
     expect(runbook).toContain("KLYX Stripe Network Test");
-    expect(runbook).toContain("do not manually mark a booking `paid` or `refunded`");
+    expect(runbook).toContain("Do not manually mark a booking `paid` or `refunded` in the database.");
     expect(runbook).toContain("A failed scheduled workflow is an operational alert in GitHub Actions");
     expect(recoveryGuide).toContain("docs/operations/KLYX_INCIDENT_RUNBOOK.md");
     expect(recoveryGuide).toContain("searching providers and choosing a candidate");
