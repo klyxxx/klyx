@@ -15,6 +15,7 @@ function read(relativePath: string) {
 }
 
 const i18n = read("lib/klyx-i18n.ts");
+const foundationPack = read("lib/klyx-i18n-batch-1.ts");
 const provider = read("app/components/KlyxLocaleProvider.tsx");
 const layout = read("app/layout.tsx");
 const sidebar = read("app/ui/AppSidebar.tsx");
@@ -37,10 +38,12 @@ describe("KLYX i18n foundation shell contract", () => {
       "ja",
       "ko",
     ]) {
-      expect(i18n).toContain(`value: "${locale}"`);
+      expect(foundationPack).toContain(`value: "${locale}"`);
     }
 
-    expect(i18n).toContain('KLYX_DEFAULT_LOCALE: KlyxLocale =\n  "fr"');
+    expect(i18n).toMatch(
+      /KLYX_DEFAULT_LOCALE:\s*KlyxLocale\s*=\s*"fr"/
+    );
     expect(i18n).toContain('normalized === "zh-tw"');
     expect(i18n).toContain('normalized === "zh-cn"');
   });

@@ -2,20 +2,35 @@
 
 ## Current translated shell locales
 
-KLYX now has a real translated global-shell foundation for:
+KLYX has a real translated global-shell foundation for 24 selectable locales:
 
+### Batch 1
 - `fr` — Français (default/fallback)
 - `en` — English
 - `nl` — Nederlands
 - `de` — Deutsch
 - `es` — Español
 - `it` — Italiano
-- `pt` — Português, including regional browser aliases such as `pt-BR` and `pt-PT`
-- `ar` — العربية, with RTL document direction
+- `pt` — Português, including `pt-BR` / `pt-PT`
+- `ar` — العربية (RTL)
 - `zh-hans` — 简体中文, including `zh-CN` / `zh-SG`
 - `zh-hant` — 繁體中文, including `zh-TW` / `zh-HK` / `zh-MO`
 - `ja` — 日本語
 - `ko` — 한국어
+
+### Batch 2
+- `ru` — Русский
+- `uk` — Українська
+- `pl` — Polski
+- `tr` — Türkçe
+- `hi` — हिन्दी
+- `ur` — اردو (RTL)
+- `he` — עברית (RTL), including legacy browser alias `iw`
+- `fa` — فارسی (RTL)
+- `id` — Bahasa Indonesia, including legacy browser alias `in`
+- `vi` — Tiếng Việt
+- `th` — ไทย
+- `bn` — বাংলা
 
 Only locales whose global shell strings and navigation labels are actually present are exposed in the KLYX language selector. Do not add a selectable locale that silently falls back to another language.
 
@@ -23,7 +38,8 @@ The user preference reuses the existing `klyx_language` browser-storage key. The
 
 ## What this foundation does
 
-- normalizes supported browser locale variants such as `fr-BE`, `en-US`, `de-CH`, `es-MX`, `pt-BR`, `ar-MA`, `zh-CN` and `zh-TW`;
+- normalizes supported browser locale variants such as `fr-BE`, `en-US`, `de-CH`, `es-MX`, `pt-BR`, `ar-MA`, `ru-RU`, `hi-IN`, `ur-PK`, `he-IL`, `fa-IR`, `id-ID`, `zh-CN` and `zh-TW`;
+- supports legacy browser aliases where applicable (`iw` → `he`, `in` → `id`);
 - falls back safely to French for unsupported locales;
 - detects the first supported browser language when no saved preference exists;
 - updates both `document.documentElement.lang` and `document.documentElement.dir` after hydration;
@@ -32,7 +48,8 @@ The user preference reuses the existing `klyx_language` browser-storage key. The
 - translates the global skip link;
 - translates the authenticated client/provider/admin navigation shell in every selectable locale;
 - lets navigation search match translated labels while retaining the existing French keywords;
-- keeps route paths, service slugs, database enums and transaction identifiers language-neutral.
+- keeps route paths, service slugs, database enums and transaction identifiers language-neutral;
+- tests batch completeness so a selectable locale cannot silently ship with missing shell/navigation strings.
 
 ## What is not complete yet
 
@@ -48,8 +65,9 @@ KLYX should continue adding languages in verified batches rather than exposing f
 2. correct text direction (`ltr` or `rtl`);
 3. all global shell messages translated;
 4. all global navigation labels and groups translated;
-5. regional browser aliases where needed;
-6. normalization, search and accessibility tests.
+5. regional/legacy browser aliases where needed;
+6. normalization, search and accessibility tests;
+7. a completeness test proving all canonical shell/navigation keys exist.
 
 Then migrate page families in bounded PRs. Each migrated surface should:
 
