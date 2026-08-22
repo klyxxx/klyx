@@ -12,6 +12,7 @@ const memoryProfileRoutePath = "app/api/memory/profile/route.ts";
 const memoryPreferencesRoutePath = "app/api/memory/preferences/route.ts";
 const requestAnalyzeRoutePath =
   "app/api/requests/analyze/analyze-route-core.ts";
+const sharedMemoryPath = "lib/client-memory-context.ts";
 const memoryPagePath = "app/memory/page.tsx";
 const requestPagePath = "app/request/page.tsx";
 
@@ -55,11 +56,11 @@ describe("user preferences server boundary contract", () => {
     );
   });
 
-  it("keeps every active preferences database flow on supabaseAdmin", () => {
+  it("keeps every active preferences database flow behind supabaseAdmin", () => {
     for (const path of [
       memoryProfileRoutePath,
       memoryPreferencesRoutePath,
-      requestAnalyzeRoutePath,
+      sharedMemoryPath,
     ]) {
       const route = readFileSync(join(process.cwd(), path), "utf8");
 
@@ -69,6 +70,19 @@ describe("user preferences server boundary contract", () => {
       expect(route).toContain('.from("user_preferences")');
       expect(route).not.toContain('import { supabase } from "@/lib/supabase";');
     }
+
+    const requestAnalysis = readFileSync(
+      join(process.cwd(), requestAnalyzeRoutePath),
+      "utf8"
+    );
+
+    expect(requestAnalysis).toContain(
+      'from "@/lib/client-memory-context"'
+    );
+    expect(requestAnalysis).not.toContain('.from("user_preferences")');
+    expect(requestAnalysis).not.toContain(
+      'import { supabase } from "@/lib/supabase";'
+    );
   });
 
   it("keeps browser memory and request UIs behind authenticated APIs", () => {
