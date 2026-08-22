@@ -25,6 +25,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import { useTheme } from "@/app/components/ThemeProvider";
 import KlyxSelect from "@/app/components/KlyxSelect";
+import { KLYX_LANGUAGE_OPTIONS } from "@/lib/klyx-i18n";
 import {
   getProfilesState,
   switchAccount,
@@ -38,12 +39,11 @@ type NotificationSettings = {
 };
 
 const NOTIFICATIONS_KEY = "klyx_notification_settings";
-const LANGUAGE_KEY = "klyx_language";
 
 export default function SettingsPage() {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
-  const { setLocale } = useKlyxLocale();
+  const { locale, setLocale } = useKlyxLocale();
 
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
@@ -63,7 +63,6 @@ export default function SettingsPage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
-  const [language, setLanguage] = useState("fr");
   const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>([]);
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -105,9 +104,6 @@ export default function SettingsPage() {
         setEmail(user.email ?? "");
         setNewEmail(user.email ?? "");
         setSavedAccounts(state.profiles);
-
-        const savedLanguage = localStorage.getItem(LANGUAGE_KEY);
-        if (savedLanguage) setLanguage(savedLanguage);
 
         const savedNotifications = localStorage.getItem(NOTIFICATIONS_KEY);
         if (savedNotifications) {
@@ -368,7 +364,7 @@ export default function SettingsPage() {
             </div>
           </Section>
 
-                    <Section icon={<Bell />} title="Notifications">
+          <Section icon={<Bell />} title="Notifications">
             <div className="space-y-3">
               {(
                 [
@@ -423,11 +419,11 @@ export default function SettingsPage() {
                       }`}
                     >
                       <span
-  aria-hidden="true"
-  className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow-sm transition-all duration-200 ${
-    enabled ? "right-1" : "left-1"
-  }`}
-/>
+                        aria-hidden="true"
+                        className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow-sm transition-all duration-200 ${
+                          enabled ? "right-1" : "left-1"
+                        }`}
+                      />
                     </button>
                   </div>
                 );
@@ -437,16 +433,12 @@ export default function SettingsPage() {
 
           <Section icon={<Languages />} title="Langue">
             <KlyxSelect
-              value={language}
-              onChange={(value) => {
-                setLanguage(value);
-                setLocale(value);
-              }}
-              options={[
-                { value: "fr", label: "Français" },
-                { value: "en", label: "English" },
-                { value: "nl", label: "Nederlands" },
-              ]}
+              value={locale}
+              onChange={setLocale}
+              options={KLYX_LANGUAGE_OPTIONS.map(({ value, label }) => ({
+                value,
+                label,
+              }))}
               ariaLabel="Langue"
             />
           </Section>
@@ -485,7 +477,7 @@ export default function SettingsPage() {
             </div>
           </Section>
 
-                    <Section icon={<ShieldAlert />} title="Confidentialité et assistance">
+          <Section icon={<ShieldAlert />} title="Confidentialité et assistance">
             <div className="grid gap-3 sm:grid-cols-2">
               <Link
                 href="/privacy"
@@ -513,7 +505,8 @@ export default function SettingsPage() {
               </Link>
             </div>
           </Section>
-<section className="rounded-3xl border border-border bg-card p-6">
+
+          <section className="rounded-3xl border border-border bg-card p-6">
             <button
               type="button"
               onClick={() => void logout()}
