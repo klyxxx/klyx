@@ -22,9 +22,11 @@ on:
       - "proxy.ts"
       - "app/messages/**"
       - "app/agent/**"
+      - "app/request/photo/**"
       - "app/api/agent/**"
       - "app/api/ai/respond/**"
       - "app/api/requests/analyze/**"
+      - "app/api/requests/photo/**"
       - "app/api/search/providers/**"
       - "app/api/bookings/**"
       - "app/api/quotes/**"
@@ -38,6 +40,8 @@ on:
       - "app/api/provider/finance/**"
       - "lib/client-agent.ts"
       - "lib/api-rate-limit.ts"
+      - "lib/photo-service-analysis.ts"
+      - "lib/photo-vision-analysis.ts"
       - "lib/supabase/middleware.ts"
       - "lib/universal-service-request.ts"
       - "lib/location-intent.ts"
@@ -64,9 +68,11 @@ on:
       - "proxy.ts"
       - "app/messages/**"
       - "app/agent/**"
+      - "app/request/photo/**"
       - "app/api/agent/**"
       - "app/api/ai/respond/**"
       - "app/api/requests/analyze/**"
+      - "app/api/requests/photo/**"
       - "app/api/search/providers/**"
       - "app/api/bookings/**"
       - "app/api/quotes/**"
@@ -80,6 +86,8 @@ on:
       - "app/api/provider/finance/**"
       - "lib/client-agent.ts"
       - "lib/api-rate-limit.ts"
+      - "lib/photo-service-analysis.ts"
+      - "lib/photo-vision-analysis.ts"
       - "lib/supabase/middleware.ts"
       - "lib/universal-service-request.ts"
       - "lib/location-intent.ts"
@@ -116,6 +124,7 @@ jobs:
       KLYX_GOLDEN_PATH_LOCAL_SUPABASE: "true"
       KLYX_PRODUCTION_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       SUPABASE_TELEMETRY_DISABLED: "1"
+      KLYX_VISION_ENABLED: "0"
 
       KLYX_STRIPE_MODE: "test"
       STRIPE_SECRET_KEY: "sk_test_klyx_golden_path_local_only"
@@ -176,6 +185,11 @@ jobs:
             exit 1
           fi
 
+          if [ "${KLYX_VISION_ENABLED:-0}" = "1" ]; then
+            echo "::error::Golden path must not call external photo vision."
+            exit 1
+          fi
+
       - name: Install dependencies
         run: npm ci
 
@@ -197,7 +211,7 @@ jobs:
         run: |
           set -euo pipefail
           supabase start \
-            -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+            -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
 
       - name: Export ephemeral Supabase and test credentials
         shell: bash
@@ -327,6 +341,9 @@ jobs:
           cat golden-path-server.log
           exit 1
 
+      - name: Verify private photo upload, analysis and deletion lifecycle
+        run: node scripts/golden-path-photo-lifecycle.mjs
+
       - name: Verify provider onboarding service, pricing and zone
         run: node scripts/golden-path-provider-onboarding.mjs
 
@@ -356,7 +373,7 @@ jobs:
 
       - name: Golden path local lifecycle ready
         run: >-
-          echo "Provider studio/zone onboarding, agent search/choice orchestration with booking confirmation boundary, intent analysis, exact provider search, quote, booking, direct-message DB abuse guard, signed local Stripe webhook, idempotency, payment ledger, mission completion, review, provider finance reconciliation, refunded terminal state and split payment/refund reconciliation verified on ephemeral Supabase."
+          echo "Private photo upload/analysis/deletion, provider studio/zone onboarding, agent search/choice orchestration with booking confirmation boundary, intent analysis, exact provider search, quote, booking, direct-message DB abuse guard, signed local Stripe webhook, idempotency, payment ledger, mission completion, review, provider finance reconciliation, refunded terminal state and split payment/refund reconciliation verified on ephemeral Supabase."
 
       - name: Stop golden path production server
         if: always()

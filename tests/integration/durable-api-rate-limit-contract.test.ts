@@ -18,6 +18,9 @@ const migration = readRepoFile(
 const helper = readRepoFile("lib/api-rate-limit.ts");
 const aiRoute = readRepoFile("app/api/ai/respond/route.ts");
 const analyzeRoute = readRepoFile("app/api/requests/analyze/route.ts");
+const photoRoute = readRepoFile(
+  "app/api/requests/photo/photo-route-core.ts"
+);
 const preflight = readRepoFile("scripts/golden-path-preflight.mjs");
 
 describe("KLYX durable API rate limiting", () => {
@@ -75,14 +78,17 @@ describe("KLYX durable API rate limiting", () => {
     expect(helper).not.toContain("x-forwarded-for");
   });
 
-  it("limits the external AI response and universal request analysis routes", () => {
-    for (const route of [aiRoute, analyzeRoute]) {
+  it("limits external AI, universal analysis and photo analysis routes", () => {
+    for (const route of [aiRoute, analyzeRoute, photoRoute]) {
       expect(route).toContain("consumeApiRateLimit");
       expect(route).toContain("apiRateLimitExceededResponse");
     }
 
     expect(aiRoute).toContain("API_RATE_LIMIT_POLICIES.aiRespond");
     expect(analyzeRoute).toContain("API_RATE_LIMIT_POLICIES.requestAnalysis");
+    expect(photoRoute).toContain("API_RATE_LIMIT_POLICIES.photoAnalysis");
+    expect(helper).toContain('action: "photo_analysis"');
+    expect(helper).toContain("limit: 6");
   });
 
   it("proves allow, block, bounded counting and browser-role denial in Golden", () => {

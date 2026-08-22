@@ -13,10 +13,12 @@ import {
   ArrowRight,
   Camera,
   CheckCircle2,
+  Eye,
   ImageIcon,
   LoaderCircle,
   LockKeyhole,
   Search,
+  ShieldCheck,
   Trash2,
   Upload,
 } from "lucide-react";
@@ -36,6 +38,9 @@ type Analysis = {
   candidates: Candidate[];
   summary: string;
   limitations: string;
+  analysisMode: "description_assisted" | "vision_ai";
+  visionConfidence: number | null;
+  visionContributed: boolean;
 };
 
 function safeFileName(name: string): string {
@@ -79,6 +84,7 @@ export default function PhotoRequestPage() {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [description, setDescription] = useState("");
+  const [useVision, setUseVision] = useState(false);
   const [analysis, setAnalysis] =
     useState<Analysis | null>(null);
   const [requestId, setRequestId] = useState("");
@@ -219,6 +225,7 @@ export default function PhotoRequestPage() {
             width: dimensions.width,
             height: dimensions.height,
             description,
+            useVision,
           }),
         }
       );
@@ -354,8 +361,10 @@ export default function PhotoRequestPage() {
           </h1>
 
           <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">
-            Ajoute une photo privée et décris ce que tu vois.
-            KLYX préparera une catégorie avant la recherche.
+            Ajoute une photo privée et décris brièvement le
+            besoin. Tu peux ensuite autoriser KLYX à analyser
+            réellement le contenu visuel pour proposer le métier
+            le plus pertinent.
           </p>
         </section>
 
@@ -371,7 +380,8 @@ export default function PhotoRequestPage() {
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
               Évite les visages, documents d’identité,
               plaques d’immatriculation et informations
-              personnelles visibles.
+              personnelles visibles. L’analyse visuelle est
+              optionnelle et doit être autorisée pour chaque photo.
             </p>
           </div>
         </div>
@@ -431,7 +441,7 @@ export default function PhotoRequestPage() {
 
           <label className="mt-6 block">
             <span className="mb-2 block text-sm font-black">
-              Décris le problème visible
+              Décris brièvement le besoin
             </span>
 
             <textarea
@@ -446,6 +456,31 @@ export default function PhotoRequestPage() {
               className="klyx-input resize-none"
               placeholder="Ex. Le robinet de la cuisine fuit sous l’évier."
             />
+          </label>
+
+          <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-2xl border border-violet-500/20 bg-violet-500/5 p-5">
+            <input
+              type="checkbox"
+              checked={useVision}
+              onChange={(event) => {
+                setUseVision(event.target.checked);
+                setAnalysis(null);
+              }}
+              className="mt-1 h-4 w-4 accent-violet-600"
+            />
+            <span className="min-w-0">
+              <span className="flex items-center gap-2 font-black">
+                <Eye size={18} className="text-violet-600" />
+                Autoriser l’analyse visuelle IA de cette photo
+              </span>
+              <span className="mt-2 block text-sm leading-6 text-muted-foreground">
+                Si tu coches cette option, KLYX peut transmettre
+                cette photo privée au moteur IA configuré pour
+                identifier uniquement le type de service utile.
+                Si la vision est indisponible, ta description sert
+                automatiquement de solution de repli.
+              </span>
+            </span>
           </label>
 
           {errorMessage && (
@@ -468,12 +503,18 @@ export default function PhotoRequestPage() {
                 className="animate-spin"
                 size={19}
               />
+            ) : useVision ? (
+              <Eye size={19} />
             ) : (
               <Search size={19} />
             )}
             {uploading
-              ? "KLYX prépare la demande..."
-              : "Analyser ma description"}
+              ? useVision
+                ? "KLYX analyse la photo..."
+                : "KLYX analyse la description..."
+              : useVision
+                ? "Analyser la photo avec KLYX"
+                : "Analyser ma description"}
           </button>
         </form>
 
@@ -481,12 +522,18 @@ export default function PhotoRequestPage() {
           <section className="klyx-card mt-8 p-6 sm:p-8">
             <div className="flex gap-4">
               <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-emerald-500/10 text-emerald-600">
-                <CheckCircle2 size={23} />
+                {analysis.analysisMode === "vision_ai" ? (
+                  <Eye size={23} />
+                ) : (
+                  <CheckCircle2 size={23} />
+                )}
               </span>
 
               <div>
                 <p className="klyx-eyebrow">
-                  Résultat assisté
+                  {analysis.analysisMode === "vision_ai"
+                    ? "Vision KLYX"
+                    : "Analyse de la description"}
                 </p>
                 <h2 className="mt-2 text-2xl font-black">
                   {analysis.serviceLabel ??
@@ -497,6 +544,27 @@ export default function PhotoRequestPage() {
                 </p>
               </div>
             </div>
+
+            {analysis.analysisMode === "vision_ai" &&
+              analysis.visionConfidence != null && (
+                <div className="mt-5 flex gap-3 rounded-2xl border border-violet-500/20 bg-violet-500/5 p-4">
+                  <ShieldCheck
+                    className="mt-0.5 shrink-0 text-violet-600"
+                    size={19}
+                  />
+                  <div className="text-sm leading-6 text-muted-foreground">
+                    <p className="font-black text-foreground">
+                      Confiance des indices visuels :{" "}
+                      {analysis.visionConfidence} %
+                    </p>
+                    <p className="mt-1">
+                      {analysis.visionContributed
+                        ? "Les indices visuels ont contribué au classement des métiers proposés."
+                        : "Les indices visuels n’étaient pas assez fiables pour modifier le classement des métiers."}
+                    </p>
+                  </div>
+                </div>
+              )}
 
             <div className="mt-5 rounded-2xl border border-blue-500/20 bg-blue-500/10 p-4 text-sm text-muted-foreground">
               {analysis.limitations}
@@ -518,7 +586,7 @@ export default function PhotoRequestPage() {
                         {candidate.label}
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Compatibilité textuelle :{" "}
+                        Compatibilité KLYX :{" "}
                         {candidate.confidence} %
                       </p>
                       <p className="mt-2 text-xs text-muted-foreground">
@@ -549,9 +617,10 @@ export default function PhotoRequestPage() {
             size={15}
           />
           <p>
-            La future analyse visuelle réelle sera activée
-            uniquement lorsque KLYX disposera du budget et des
-            protections nécessaires.
+            La vision n’est utilisée que lorsque tu l’autorises
+            pour cette photo et que l’environnement KLYX l’a
+            activée. L’analyse classe un besoin de service : elle
+            ne publie, ne réserve et ne paie rien automatiquement.
           </p>
         </div>
       </div>

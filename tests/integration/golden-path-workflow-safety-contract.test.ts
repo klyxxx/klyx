@@ -40,6 +40,7 @@ describe("KLYX golden path workflow safety", () => {
       "scripts/golden-path-bootstrap.mjs",
       "scripts/golden-path-preflight.mjs",
       "scripts/golden-path-provider-fixture.mjs",
+      "scripts/golden-path-photo-lifecycle.mjs",
       "scripts/golden-path-client-lifecycle.mjs",
       "scripts/golden-path-service-lifecycle.mjs",
     ]) {
@@ -120,13 +121,17 @@ describe("KLYX golden path workflow safety", () => {
     );
   });
 
-  it("starts the minimum local services needed by KLYX auth and APIs", () => {
+  it("starts only local services needed by KLYX auth, APIs and private photo storage", () => {
     expect(workflow).toContain(
-      "-x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"
+      "-x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"
     );
+    expect(workflow).not.toContain("-x realtime,storage-api");
     expect(workflow).not.toContain("-x gotrue");
     expect(workflow).not.toContain("-x postgrest");
     expect(workflow).not.toContain("-x kong");
+    expect(workflow).toContain(
+      "Verify private photo upload, analysis and deletion lifecycle"
+    );
   });
 
   it("keeps the local payment harness test-shaped and secret free", () => {

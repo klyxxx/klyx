@@ -32,6 +32,11 @@ export const API_RATE_LIMIT_POLICIES = {
     limit: 30,
     windowSeconds: 60,
   },
+  photoAnalysis: {
+    action: "photo_analysis",
+    limit: 6,
+    windowSeconds: 60,
+  },
   brainRespond: {
     action: "brain_respond",
     limit: 20,
