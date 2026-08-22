@@ -16,10 +16,18 @@ import {
 } from "lucide-react";
 
 import KlyxSelect from "@/app/components/KlyxSelect";
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import {
+  resolveKlyxFirstProfileLocale,
+  translateKlyxFirstProfile,
+  translateKlyxFirstProfileApiError,
+  type KlyxFirstProfileMessageKey,
+} from "@/lib/klyx-first-profile-i18n";
 import { KLYX_SUPPORTED_MARKETS } from "@/lib/klyx-supported-markets";
 
 // KLYX_FIRST_PROFILE_HANDOFF_13_87
 // KLYX_FIRST_PROFILE_MARKET_REQUIRED_16_01
+// KLYX_FIRST_PROFILE_I18N_16_02
 
 type AccountType = "client" | "provider";
 
@@ -37,13 +45,8 @@ type Props = {
 function splitName(fullName: string) {
   const parts = fullName.trim().split(/\s+/).filter(Boolean);
 
-  if (parts.length === 0) {
-    return { firstName: "", lastName: "" };
-  }
-
-  if (parts.length === 1) {
-    return { firstName: parts[0], lastName: "" };
-  }
+  if (parts.length === 0) return { firstName: "", lastName: "" };
+  if (parts.length === 1) return { firstName: parts[0], lastName: "" };
 
   return {
     firstName: parts[0],
@@ -56,6 +59,10 @@ export default function FirstProfileSetup({
   initialAccountType,
 }: Props) {
   const router = useRouter();
+  const { locale } = useKlyxLocale();
+  const pageLocale = resolveKlyxFirstProfileLocale(locale);
+  const t = (key: KlyxFirstProfileMessageKey) =>
+    translateKlyxFirstProfile(locale, key);
   const initialName = useMemo(() => splitName(initialFullName), [initialFullName]);
 
   const [firstName, setFirstName] = useState(initialName.firstName);
@@ -72,16 +79,25 @@ export default function FirstProfileSetup({
   // KLYX_FIRST_PROFILE_ROLE_LOCK_14_05
   const [roleChoiceUnlocked, setRoleChoiceUnlocked] = useState(false);
 
-  const marketOptions = useMemo(
-    () =>
-      [...KLYX_SUPPORTED_MARKETS]
-        .sort((left, right) => left.countryName.localeCompare(right.countryName, "fr"))
-        .map((market) => ({
+  const marketOptions = useMemo(() => {
+    let displayNames: Intl.DisplayNames | null = null;
+
+    try {
+      displayNames = new Intl.DisplayNames([pageLocale], { type: "region" });
+    } catch {
+      displayNames = null;
+    }
+
+    return [...KLYX_SUPPORTED_MARKETS]
+      .map((market) => {
+        const localizedName = displayNames?.of(market.countryCode);
+        return {
           value: market.countryCode,
-          label: `${market.countryName} · ${market.currencyCode}`,
-        })),
-    []
-  );
+          label: `${localizedName && localizedName !== market.countryCode ? localizedName : market.countryName} · ${market.currencyCode}`,
+        };
+      })
+      .sort((left, right) => left.label.localeCompare(right.label, pageLocale));
+  }, [pageLocale]);
 
   useEffect(() => {
     let cancelled = false;
@@ -98,24 +114,25 @@ export default function FirstProfileSetup({
         };
 
         if (!response.ok) {
-          throw new Error(body.error || "Impossible de charger les services.");
+          if (!cancelled) {
+            setErrorMessage(
+              translateKlyxFirstProfileApiError(
+                locale,
+                body.error,
+                "servicesLoadFailed"
+              )
+            );
+          }
+          return;
         }
 
         if (!cancelled) {
           setServices(Array.isArray(body.services) ? body.services : []);
         }
-      } catch (error) {
-        if (!cancelled) {
-          setErrorMessage(
-            error instanceof Error
-              ? error.message
-              : "Impossible de charger les services."
-          );
-        }
+      } catch {
+        if (!cancelled) setErrorMessage(t("servicesLoadFailed"));
       } finally {
-        if (!cancelled) {
-          setLoadingServices(false);
-        }
+        if (!cancelled) setLoadingServices(false);
       }
     }
 
@@ -124,12 +141,10 @@ export default function FirstProfileSetup({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [locale]);
 
   useEffect(() => {
-    if (accountType === "client") {
-      setServiceId("");
-    }
+    if (accountType === "client") setServiceId("");
   }, [accountType]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -140,17 +155,17 @@ export default function FirstProfileSetup({
     const cleanCity = city.trim();
 
     if (!cleanFirstName || !cleanLastName || !cleanCity) {
-      setErrorMessage("Prénom, nom et ville sont obligatoires.");
+      setErrorMessage(t("identityRequired"));
       return;
     }
 
     if (!countryCode) {
-      setErrorMessage("Choisis ton pays ou territoire KLYX.");
+      setErrorMessage(t("marketRequired"));
       return;
     }
 
     if (accountType === "provider" && !serviceId) {
-      setErrorMessage("Choisis ton premier métier.");
+      setErrorMessage(t("serviceRequired"));
       return;
     }
 
@@ -160,9 +175,7 @@ export default function FirstProfileSetup({
     try {
       const response = await fetch("/api/profiles/manage", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           firstName: cleanFirstName,
           lastName: cleanLastName,
@@ -179,7 +192,14 @@ export default function FirstProfileSetup({
       };
 
       if (!response.ok || !body.profileId) {
-        throw new Error(body.error || "Impossible de créer le profil KLYX.");
+        setErrorMessage(
+          translateKlyxFirstProfileApiError(
+            locale,
+            body.error,
+            "profileCreateFailed"
+          )
+        );
+        return;
       }
 
       /*
@@ -188,12 +208,8 @@ export default function FirstProfileSetup({
        * et affiche le parcours adapté.
        */
       router.refresh();
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Impossible de créer le profil KLYX."
-      );
+    } catch {
+      setErrorMessage(t("profileCreateFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -219,22 +235,19 @@ export default function FirstProfileSetup({
 
           <div className="relative z-10 max-w-3xl">
             <p className="text-xs font-black uppercase tracking-[0.18em] text-white/60">
-              Première configuration
+              {t("firstSetup")}
             </p>
             <h1 className="mt-4 text-3xl font-black tracking-[-0.05em] sm:text-5xl">
-              Créons ton premier profil KLYX
+              {t("title")}
             </h1>
             <p className="mt-4 text-sm leading-7 text-white/70 sm:text-base">
-              Ton compte est connecté. Configure maintenant ton premier espace
-              avant d’accéder au parcours KLYX adapté.
+              {t("intro")}
             </p>
 
             {/* KLYX_INITIAL_ROLE_CONTEXT_13_87 */}
             <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-sm font-black text-white/80">
               {provider ? <BriefcaseBusiness size={16} /> : <UserRound size={16} />}
-              {provider
-                ? "Espace prestataire sélectionné"
-                : "Espace client sélectionné"}
+              {provider ? t("providerSelected") : t("clientSelected")}
             </div>
           </div>
         </section>
@@ -244,7 +257,7 @@ export default function FirstProfileSetup({
             <label>
               <span className="mb-2 flex items-center gap-2 text-sm font-black">
                 <UserRound size={17} />
-                Prénom
+                {t("firstName")}
               </span>
               <input
                 value={firstName}
@@ -252,14 +265,14 @@ export default function FirstProfileSetup({
                 maxLength={60}
                 autoComplete="given-name"
                 className="klyx-input"
-                placeholder="Prénom"
+                placeholder={t("firstName")}
               />
             </label>
 
             <label>
               <span className="mb-2 flex items-center gap-2 text-sm font-black">
                 <UserRound size={17} />
-                Nom
+                {t("lastName")}
               </span>
               <input
                 value={lastName}
@@ -267,7 +280,7 @@ export default function FirstProfileSetup({
                 maxLength={60}
                 autoComplete="family-name"
                 className="klyx-input"
-                placeholder="Nom"
+                placeholder={t("lastName")}
               />
             </label>
           </div>
@@ -276,7 +289,7 @@ export default function FirstProfileSetup({
             <label>
               <span className="mb-2 flex items-center gap-2 text-sm font-black">
                 <MapPin size={17} />
-                Ville
+                {t("city")}
               </span>
               <input
                 value={city}
@@ -284,32 +297,32 @@ export default function FirstProfileSetup({
                 maxLength={100}
                 autoComplete="address-level2"
                 className="klyx-input"
-                placeholder="Ex. Bruxelles"
+                placeholder={t("cityPlaceholder")}
               />
             </label>
 
             <div>
               <span className="mb-2 flex items-center gap-2 text-sm font-black">
                 <Globe2 size={17} />
-                Pays ou territoire
+                {t("market")}
               </span>
               <KlyxSelect
                 value={countryCode}
                 onChange={setCountryCode}
-                placeholder="Choisir un marché KLYX"
+                placeholder={t("marketPlaceholder")}
                 options={marketOptions}
-                ariaLabel="Pays ou territoire KLYX"
+                ariaLabel={t("market")}
               />
               <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                KLYX utilise ce choix pour associer le bon marché et la bonne devise.
+                {t("marketHint")}
               </p>
             </div>
           </div>
 
           <div className="mt-6">
-            <p className="text-sm font-black">Quel espace veux-tu créer ?</p>
+            <p className="text-sm font-black">{t("spaceQuestion")}</p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              Le choix détermine le premier parcours affiché après création.
+              {t("spaceHint")}
             </p>
 
             {/* KLYX_FIRST_PROFILE_ROLE_CONFIRMATION_14_05 */}
@@ -317,15 +330,13 @@ export default function FirstProfileSetup({
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">
-                    Type de premier profil
+                    {t("profileType")}
                   </p>
                   <p className="mt-1 font-black">
-                    {accountType === "provider" ? "Prestataire" : "Client"}
+                    {provider ? t("provider") : t("client")}
                   </p>
                   <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    {roleChoiceUnlocked
-                      ? "Le choix est déverrouillé. Sélectionne volontairement le profil que tu veux créer."
-                      : "Ce choix vient de ton inscription. Il reste verrouillé pour éviter un changement accidentel."}
+                    {roleChoiceUnlocked ? t("roleUnlocked") : t("roleLocked")}
                   </p>
                 </div>
 
@@ -334,9 +345,7 @@ export default function FirstProfileSetup({
                   onClick={() => setRoleChoiceUnlocked((value) => !value)}
                   className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-border bg-card px-4 text-sm font-black transition hover:bg-muted"
                 >
-                  {roleChoiceUnlocked
-                    ? "Verrouiller le choix"
-                    : "Changer le type de profil"}
+                  {roleChoiceUnlocked ? t("lockChoice") : t("changeProfileType")}
                 </button>
               </div>
             </div>
@@ -363,9 +372,9 @@ export default function FirstProfileSetup({
                       : "text-muted-foreground"
                   }
                 />
-                <p className="mt-3 font-black">Client</p>
+                <p className="mt-3 font-black">{t("client")}</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Je cherche et réserve des services.
+                  {t("clientDescription")}
                 </p>
               </button>
 
@@ -390,9 +399,9 @@ export default function FirstProfileSetup({
                       : "text-muted-foreground"
                   }
                 />
-                <p className="mt-3 font-black">Prestataire</p>
+                <p className="mt-3 font-black">{t("provider")}</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Je propose mes compétences aux clients.
+                  {t("providerDescription")}
                 </p>
               </button>
             </div>
@@ -400,20 +409,20 @@ export default function FirstProfileSetup({
 
           {provider && (
             <div className="mt-6">
-              <p className="mb-2 text-sm font-black">Premier métier</p>
+              <p className="mb-2 text-sm font-black">{t("firstService")}</p>
               <KlyxSelect
                 value={serviceId}
                 onChange={setServiceId}
                 disabled={loadingServices}
-                placeholder={loadingServices ? "Chargement..." : "Choisir un métier"}
+                placeholder={loadingServices ? t("loading") : t("chooseService")}
                 options={services.map((service) => ({
                   value: service.id,
                   label: service.name,
                 }))}
-                ariaLabel="Premier métier"
+                ariaLabel={t("firstService")}
               />
               <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                Tu pourras ajouter d’autres métiers ensuite depuis ton espace prestataire.
+                {t("serviceHint")}
               </p>
             </div>
           )}
@@ -439,17 +448,15 @@ export default function FirstProfileSetup({
 
               <div className="min-w-0">
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">
-                  Après cette étape
+                  {t("afterStep")}
                 </p>
                 <h2 className="mt-2 text-lg font-black">
-                  {provider
-                    ? "KLYX prépare ton démarrage professionnel"
-                    : "KLYX t’aide à organiser ton premier besoin"}
+                  {provider ? t("providerNextTitle") : t("clientNextTitle")}
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
                   {provider
-                    ? "Tu retrouveras la progression de ton profil, les opportunités compatibles et l’Assistant Prestataire."
-                    : "Tu pourras décrire ton besoin, comparer les prestataires puis confirmer toi-même les étapes importantes."}
+                    ? t("providerNextDescription")
+                    : t("clientNextDescription")}
                 </p>
               </div>
             </div>
@@ -457,15 +464,15 @@ export default function FirstProfileSetup({
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
               {provider ? (
                 <>
-                  <NextStep icon={BriefcaseBusiness} title="Configure" text="Complète ton activité." />
-                  <NextStep icon={Search} title="Découvre" text="Vois les opportunités." />
-                  <NextStep icon={Sparkles} title="Prépare" text="Utilise l’assistant." />
+                  <NextStep icon={BriefcaseBusiness} title={t("configure")} text={t("configureDescription")} />
+                  <NextStep icon={Search} title={t("discover")} text={t("discoverDescription")} />
+                  <NextStep icon={Sparkles} title={t("prepare")} text={t("prepareDescription")} />
                 </>
               ) : (
                 <>
-                  <NextStep icon={Sparkles} title="Décris" text="Explique ton besoin." />
-                  <NextStep icon={Search} title="Compare" text="Examine les solutions." />
-                  <NextStep icon={ShieldCheck} title="Confirme" text="Tu gardes le contrôle." />
+                  <NextStep icon={Sparkles} title={t("describe")} text={t("describeDescription")} />
+                  <NextStep icon={Search} title={t("compare")} text={t("compareDescription")} />
+                  <NextStep icon={ShieldCheck} title={t("confirm")} text={t("confirmDescription")} />
                 </>
               )}
             </div>
@@ -488,18 +495,15 @@ export default function FirstProfileSetup({
               <ArrowRight size={18} />
             )}
             {submitting
-              ? "Création du profil..."
+              ? t("creating")
               : provider
-                ? "Créer mon espace prestataire"
-                : "Créer mon espace client"}
+                ? t("createProvider")
+                : t("createClient")}
           </button>
 
           <div className="mt-4 flex items-start gap-2 text-xs leading-5 text-muted-foreground">
             <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-emerald-600" />
-            <p>
-              La création de ce profil ne déclenche aucune réservation, offre ou
-              paiement automatiquement.
-            </p>
+            <p>{t("noAutomaticAction")}</p>
           </div>
         </form>
       </div>
