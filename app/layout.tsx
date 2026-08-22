@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 
 import "./globals.css";
 import "./klyx-visual-system.css";
+import "./klyx-accessibility.css";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -176,6 +177,13 @@ export default function RootLayout({
       </head>
 
       <body className="min-h-full bg-background text-foreground">
+        <a
+          href="#klyx-main-content"
+          className="klyx-skip-link"
+        >
+          Aller au contenu principal
+        </a>
+
         <PwaRegistrar />
         <ActiveProfileSync />
         <AppVisualBackground />
@@ -187,7 +195,12 @@ export default function RootLayout({
 
               <div className="klyx-app-content min-w-0 flex-1">
                 <FounderAccessBar />
-                {children}
+                <div
+                  id="klyx-main-content"
+                  tabIndex={-1}
+                >
+                  {children}
+                </div>
               </div>
             </div>
           </TooltipProvider>
