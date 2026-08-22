@@ -13,6 +13,7 @@ const turnstile = readRepoFile(
   "app/components/AuthTurnstile.tsx"
 );
 const login = readRepoFile("app/login/page.tsx");
+const loginI18n = readRepoFile("lib/klyx-auth-page-i18n.ts");
 const signup = readRepoFile("app/signup/page.tsx");
 const runbook = readRepoFile(
   "docs/security/auth-abuse-protection.md"
@@ -35,7 +36,10 @@ describe("KLYX Supabase Auth bot protection wiring", () => {
   it("requires a fresh token before login when Turnstile is configured", () => {
     expect(login).toContain("AUTH_TURNSTILE_ENABLED &&");
     expect(login).toContain("!captchaToken");
-    expect(login).toContain("Valide d’abord la vérification anti-robot.");
+    expect(login).toContain('setErrorMessage(t("captchaRequired"))');
+    expect(loginI18n).toContain(
+      'captchaRequired: "Valide d’abord la vérification anti-robot."'
+    );
     expect(login).toContain("signInWithPassword({");
     expect(login).toContain("captchaToken,");
     expect(login).toContain('action="login"');
@@ -46,8 +50,9 @@ describe("KLYX Supabase Auth bot protection wiring", () => {
     expect(login).toContain("resetPasswordForEmail(");
     expect(login).toContain("captchaToken:");
     expect(login).toContain("AUTH_TURNSTILE_ENABLED");
-    expect(login).toContain(
-      "La vérification anti-robot a expiré ou a échoué. Réessaie."
+    expect(login).toContain('throw new Error(t("captchaFailed"))');
+    expect(loginI18n).toContain(
+      'captchaFailed: "La vérification anti-robot a expiré ou a échoué. Réessaie."'
     );
   });
 

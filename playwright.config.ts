@@ -54,6 +54,9 @@ export default defineConfig({
   use: {
     baseURL,
 
+    locale:
+      "fr-BE",
+
     trace:
       "on-first-retry",
 
