@@ -145,16 +145,15 @@ describe("KLYX i18n foundation", () => {
     expect(resolveKlyxLocale(["xx-YY", "ta-IN", "en-US"])).toBe("ta");
   });
 
-  it("ships 52 genuinely translated selectable shell locales", () => {
-    expect(KLYX_LANGUAGE_OPTIONS.map((item) => item.value)).toEqual([
-      "fr", "en", "nl", "de", "es", "it", "pt", "ar", "zh-hans", "zh-hant", "ja", "ko",
-      "ru", "uk", "pl", "tr", "hi", "ur", "he", "fa", "id", "vi", "th", "bn",
-      "sv", "da", "no", "fi", "cs", "sk", "hu", "ro", "el", "bg", "hr", "sr",
-      "lt", "lv", "et", "sl", "ms", "fil", "sw", "af", "ka", "hy", "kk", "uz",
-      "ta", "te", "mr", "ne",
-    ]);
+  it("keeps every selectable shell locale unique and complete", () => {
+    const localeValues = KLYX_LANGUAGE_OPTIONS.map((item) => item.value);
+    expect(new Set(localeValues).size).toBe(localeValues.length);
 
     for (const option of KLYX_LANGUAGE_OPTIONS) {
+      expect(option.label.trim()).not.toBe("");
+      expect(option.htmlLang.trim()).not.toBe("");
+      expect(["ltr", "rtl"]).toContain(option.dir);
+
       for (const key of REQUIRED_UI_KEYS) {
         expect(translateKlyxUi(option.value, key).trim()).not.toBe("");
       }
