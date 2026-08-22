@@ -60,6 +60,7 @@ jobs:
       KLYX_STRIPE_MODE: "test"
       STRIPE_SECRET_KEY: "sk_test_klyx_performance_local_only"
       NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_klyx_performance_local_only"
+      STRIPE_WEBHOOK_SECRET: "whsec_klyx_performance_local_only"
       KLYX_ALLOW_PLATFORM_ONLY_TEST_PAYMENTS: "true"
       KLYX_LIVE_PAYMENTS_ENABLED: "false"
       NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100"
