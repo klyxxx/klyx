@@ -44,13 +44,28 @@ describe("KLYX client intent to provider search golden path", () => {
     );
   });
 
-  it("starts from a natural-language client need and persists the analysis", () => {
+  it("proves ambiguity is persisted fail-closed before explicit service choice", () => {
     expect(intentSearch).toContain("J'ai besoin d'un ménage à Bruxelles à 10h");
     expect(intentSearch).toContain('path: "/api/requests/analyze"');
+    expect(intentSearch).toContain("initialParsed.serviceAmbiguous !== true");
+    expect(intentSearch).toContain("initialParsed.readyForSearch !== false");
+    expect(intentSearch).toContain("initialParsed.serviceSlug !== null");
+    expect(intentSearch).toContain("clarificationCandidates");
+    expect(intentSearch).toContain("candidate?.slug === expectedServiceSlug");
     expect(intentSearch).toContain('.from("service_requests")');
-    expect(intentSearch).toContain('persistedRequest.status !== "ready"');
+    expect(intentSearch).toContain('ambiguousRequest.status !== "analyzed"');
+    expect(intentSearch).toContain("ambiguousRequest.detected_service_slug !== null");
+    expect(intentSearch).toContain("ambiguousRequest.parsed_payload?.serviceAmbiguous !== true");
+  });
+
+  it("requires explicit candidate selection before the request becomes search-ready", () => {
+    expect(intentSearch).toContain("selectedServiceSlug: expectedServiceSlug");
     expect(intentSearch).toContain("parsed.readyForSearch !== true");
+    expect(intentSearch).toContain("parsed.serviceAmbiguous !== false");
+    expect(intentSearch).toContain("parsed.serviceSlug !== expectedServiceSlug");
     expect(intentSearch).toContain("parsed.missingFields.length !== 0");
+    expect(intentSearch).toContain('persistedRequest.status !== "ready"');
+    expect(intentSearch).toContain("persistedRequest.parsed_payload?.serviceAmbiguous !== false");
   });
 
   it("requires the exact fixture returned by the real provider-search API", () => {
@@ -63,6 +78,17 @@ describe("KLYX client intent to provider search golden path", () => {
     );
     expect(intentSearch).toContain("matchedProvider.isExactMatch !== true");
     expect(intentSearch).toContain("Number(matchedProvider.price) !== 35");
+  });
+
+  it("proves the public qualification summary without exposing private evidence", () => {
+    expect(intentSearch).toContain("matchedProvider.qualificationApproved !== true");
+    expect(intentSearch).toContain("matchedProvider.qualificationLevel");
+    expect(intentSearch).toContain("matchedProvider.qualificationLabel");
+    expect(intentSearch).toContain('"provider_statement"');
+    expect(intentSearch).toContain('"storage_path"');
+    expect(intentSearch).toContain('"review_note"');
+    expect(intentSearch).toContain("Object.prototype.hasOwnProperty.call");
+    expect(intentSearch).toContain("ambiguityClarificationVerified: true");
   });
 
   it("does not shortcut into quote, booking or payment creation", () => {
