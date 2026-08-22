@@ -82,9 +82,9 @@ test.describe("KLYX PWA and mobile accessibility", () => {
   }) => {
     await page.goto("/install");
 
-    const skipLink = page.getByRole("link", {
-      name: "Aller au contenu principal",
-    });
+    // The accessible label is intentionally localized. Target the stable
+    // accessibility contract instead of coupling the E2E test to French.
+    const skipLink = page.locator('a[href="#klyx-main-content"]');
 
     await page.keyboard.press("Tab");
     await expect(skipLink).toBeFocused();
