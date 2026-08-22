@@ -53,7 +53,7 @@ describe("KLYX provider smart quote draft contract", () => {
     expect(helper).toContain('riskLevel: "review_required"');
     expect(helper).toContain("requiresConfirmation: true");
     expect(helper).toContain('source: "quote_snapshot"');
-    expect(helper).toContain("providerPrice = null");
+    expect(helper).toContain("let providerPrice: number | null = null;");
     expect(helper).toContain(
       "La durée n’est pas suffisamment définie : KLYX ne propose pas de prix final automatique."
     );
