@@ -170,7 +170,7 @@ The sentinel:
 - checks only `/api/health` and `/`;
 - rejects remote HTTP;
 - rejects credentials/query/fragment in the target URL;
-- rejects cross-origin redirects;
+- rejects every redirect and requires the canonical deployment origin directly;
 - does not send Supabase, Stripe, session or application secrets;
 - does not mutate KLYX data.
 
