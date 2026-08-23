@@ -34,6 +34,22 @@ import {
 } from "next/navigation";
 
 import {
+  useKlyxLocale,
+} from "@/app/components/KlyxLocaleProvider";
+
+import {
+  formatKlyxSplitBookingStatus,
+  formatKlyxSplitMissionDetailDate,
+  formatKlyxSplitMissionProviderCount,
+  formatKlyxSplitMissionService,
+  formatKlyxSplitMissionSlotCount,
+  formatKlyxSplitMissionSlotPosition,
+  formatKlyxSplitMissionStatus,
+  translateKlyxSplitMission,
+  type KlyxSplitMissionMessageKey,
+} from "@/lib/klyx-split-mission-i18n";
+
+import {
   supabase,
 } from "@/lib/supabase";
 
@@ -42,6 +58,14 @@ import type {
 } from "../../SplitMissionSection";
 
 // KLYX_SPLIT_MISSION_DETAIL_13_21
+// KLYX_SPLIT_MISSION_DETAIL_I18N_16_09
+
+const SPLIT_SESSION_MISSING =
+  "KLYX_SPLIT_SESSION_MISSING";
+const SPLIT_UNAVAILABLE =
+  "KLYX_SPLIT_UNAVAILABLE";
+const SPLIT_LOAD_FAILED =
+  "KLYX_SPLIT_LOAD_FAILED";
 
 type ApiResponse = {
   missions?:
@@ -49,34 +73,10 @@ type ApiResponse = {
 
   error?:
     string;
+
+  code?:
+    string;
 };
-
-function formatDate(
-  value:
-    string
-): string {
-  return new Intl.DateTimeFormat(
-    "fr-BE",
-    {
-      weekday:
-        "short",
-
-      day:
-        "2-digit",
-
-      month:
-        "long",
-
-      year:
-        "numeric",
-    }
-  ).format(
-    new Date(
-      value +
-      "T12:00:00"
-    )
-  );
-}
 
 export default function SplitMissionDetailPage() {
   const params =
@@ -84,6 +84,21 @@ export default function SplitMissionDetailPage() {
       id:
         string;
     }>();
+
+  const {
+    locale,
+  } =
+    useKlyxLocale();
+
+  const t =
+    (
+      key:
+        KlyxSplitMissionMessageKey
+    ) =>
+      translateKlyxSplitMission(
+        locale,
+        key
+      );
 
   const batchId =
     typeof params.id ===
@@ -111,11 +126,14 @@ export default function SplitMissionDetailPage() {
     );
 
   const [
-    errorMessage,
-    setErrorMessage,
+    errorKey,
+    setErrorKey,
   ] =
-    useState(
-      ""
+    useState<
+      KlyxSplitMissionMessageKey |
+      null
+    >(
+      null
     );
 
   const load =
@@ -124,6 +142,15 @@ export default function SplitMissionDetailPage() {
         if (
           !batchId
         ) {
+          setMission(
+            null
+          );
+          setErrorKey(
+            "detailUnavailable"
+          );
+          setLoading(
+            false
+          );
           return;
         }
 
@@ -131,8 +158,8 @@ export default function SplitMissionDetailPage() {
           true
         );
 
-        setErrorMessage(
-          ""
+        setErrorKey(
+          null
         );
 
         try {
@@ -149,7 +176,7 @@ export default function SplitMissionDetailPage() {
             !token
           ) {
             throw new Error(
-              "Session KLYX manquante."
+              SPLIT_SESSION_MISSING
             );
           }
 
@@ -180,8 +207,7 @@ export default function SplitMissionDetailPage() {
             !response.ok
           ) {
             throw new Error(
-              body.error ||
-                "Mission introuvable."
+              SPLIT_LOAD_FAILED
             );
           }
 
@@ -194,7 +220,7 @@ export default function SplitMissionDetailPage() {
             !first
           ) {
             throw new Error(
-              "Mission KLYX introuvable."
+              SPLIT_UNAVAILABLE
             );
           }
 
@@ -209,10 +235,19 @@ export default function SplitMissionDetailPage() {
             null
           );
 
-          setErrorMessage(
+          const message =
             error instanceof Error
               ? error.message
-              : "Impossible de charger la mission."
+              : "";
+
+          setErrorKey(
+            message ===
+              SPLIT_SESSION_MISSING
+              ? "detailSessionMissing"
+              : message ===
+                  SPLIT_UNAVAILABLE
+                ? "detailUnavailable"
+                : "detailLoadFailed"
           );
         }
         finally {
@@ -261,7 +296,9 @@ export default function SplitMissionDetailPage() {
             <ArrowLeft
               size={16}
             />
-            Mes réservations
+            {t(
+              "detailBackToBookings"
+            )}
           </Link>
 
           <div className="klyx-card mt-8 p-7">
@@ -271,8 +308,10 @@ export default function SplitMissionDetailPage() {
             />
 
             <p className="mt-4 font-black">
-              {errorMessage ||
-                "Mission indisponible."}
+              {t(
+                errorKey ??
+                  "detailUnavailable"
+              )}
             </p>
           </div>
         </div>
@@ -292,7 +331,9 @@ export default function SplitMissionDetailPage() {
               size={16}
             />
 
-            Mes réservations
+            {t(
+              "detailBackToBookings"
+            )}
           </Link>
 
           <button
@@ -306,7 +347,9 @@ export default function SplitMissionDetailPage() {
               size={16}
             />
 
-            Actualiser
+            {t(
+              "detailRefresh"
+            )}
           </button>
         </div>
 
@@ -316,35 +359,54 @@ export default function SplitMissionDetailPage() {
               size={16}
             />
 
-            Mission multi-prestataires KLYX
+            {t(
+              "detailEyebrow"
+            )}
           </div>
 
           <h1 className="mt-4 text-3xl font-black sm:text-4xl">
-            {mission.serviceName}
+            {formatKlyxSplitMissionService(
+              locale,
+              mission.serviceSlug,
+              mission.serviceName
+            )}
           </h1>
 
           <p className="mt-3 max-w-2xl text-sm leading-6 text-white/65">
-            Cette mission regroupe toutes les réservations créées à partir du même plan confirmé.
+            {t(
+              "detailIntro"
+            )}
           </p>
 
           <div className="mt-6 flex flex-wrap gap-3">
             <span className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-black">
-              {mission.slotCount} créneaux
+              {formatKlyxSplitMissionSlotCount(
+                locale,
+                mission.slotCount
+              )}
             </span>
 
             <span className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-black">
-              {mission.providerCount} prestataires
+              {formatKlyxSplitMissionProviderCount(
+                locale,
+                mission.providerCount
+              )}
             </span>
 
             <span className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-black">
-              {mission.status}
+              {formatKlyxSplitMissionStatus(
+                locale,
+                mission.status
+              )}
             </span>
           </div>
         </section>
 
         <section className="mt-8">
           <h2 className="text-xl font-black">
-            Déroulement de la mission
+            {t(
+              "detailTimeline"
+            )}
           </h2>
 
           <div className="mt-5 grid gap-4">
@@ -384,14 +446,19 @@ export default function SplitMissionDetailPage() {
                         </p>
 
                         <p className="mt-1 text-sm text-muted-foreground">
-                          Créneau{" "}
-                          {slot.position}
+                          {formatKlyxSplitMissionSlotPosition(
+                            locale,
+                            slot.position
+                          )}
                         </p>
                       </div>
                     </div>
 
                     <span className="rounded-full border border-border px-3 py-1 text-xs font-black">
-                      {slot.bookingStatus}
+                      {formatKlyxSplitBookingStatus(
+                        locale,
+                        slot.bookingStatus
+                      )}
                     </span>
                   </div>
 
@@ -401,11 +468,14 @@ export default function SplitMissionDetailPage() {
                         <CalendarDays
                           size={15}
                         />
-                        Date
+                        {t(
+                          "detailDate"
+                        )}
                       </p>
 
                       <p className="mt-2 font-black">
-                        {formatDate(
+                        {formatKlyxSplitMissionDetailDate(
+                          locale,
                           slot.date
                         )}
                       </p>
@@ -416,7 +486,9 @@ export default function SplitMissionDetailPage() {
                         <Clock3
                           size={15}
                         />
-                        Horaire
+                        {t(
+                          "detailSchedule"
+                        )}
                       </p>
 
                       <p className="mt-2 font-black">
@@ -441,7 +513,9 @@ export default function SplitMissionDetailPage() {
                       }
                       className="mt-5 inline-flex items-center gap-2 text-sm font-black text-violet-500"
                     >
-                      Ouvrir cette réservation
+                      {t(
+                        "detailOpenBooking"
+                      )}
 
                       <ArrowRight
                         size={16}
@@ -454,7 +528,7 @@ export default function SplitMissionDetailPage() {
           </div>
         </section>
 
-                {/* KLYX_SPLIT_PROVIDER_ACCEPTANCE_WIRING_13_22 */}
+        {/* KLYX_SPLIT_PROVIDER_ACCEPTANCE_WIRING_13_22 */}
         <SplitMissionAcceptance
           batchId={mission.batchId}
         />
@@ -482,7 +556,8 @@ export default function SplitMissionDetailPage() {
         <SplitMissionRefundStatus
           batchId={mission.batchId}
         />
-<section className="klyx-card mt-8 p-6">
+
+        <section className="klyx-card mt-8 p-6">
           <div className="flex gap-3">
             <CheckCircle2
               className="shrink-0 text-emerald-500"
@@ -491,11 +566,15 @@ export default function SplitMissionDetailPage() {
 
             <div>
               <p className="font-black">
-                Une seule mission côté client
+                {t(
+                  "detailUnifiedTitle"
+                )}
               </p>
 
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Les créneaux restent des réservations techniques distinctes pour permettre à chaque prestataire de gérer sa partie. Cette page les réunit en une seule expérience client.
+                {t(
+                  "detailUnifiedDescription"
+                )}
               </p>
             </div>
           </div>
@@ -505,7 +584,9 @@ export default function SplitMissionDetailPage() {
               size={17}
             />
 
-            Aucun paiement n'est créé depuis cette page.
+            {t(
+              "detailNoPayment"
+            )}
           </div>
         </section>
       </div>
