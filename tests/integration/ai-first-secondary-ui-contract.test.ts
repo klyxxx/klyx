@@ -67,6 +67,11 @@ describe(
             "app/settings/PhoneAccessHistory.tsx"
           );
 
+        const historyI18n =
+          read(
+            "lib/klyx-phone-history-i18n.ts"
+          );
+
         expect(onboarding).toContain(
           "KLYX_AI_FIRST_ONBOARDING_15_04"
         );
@@ -120,7 +125,15 @@ describe(
         );
 
         expect(history).toContain(
-          "Aucun numero de telephone ni code SMS OTP n y apparait."
+          "KLYX_PHONE_ACCESS_HISTORY_UI_12_76"
+        );
+
+        expect(history).toContain(
+          't("privacyNote")'
+        );
+
+        expect(historyI18n).toContain(
+          "Aucun numéro de téléphone ni code SMS OTP n’y apparaît."
         );
       }
     );
