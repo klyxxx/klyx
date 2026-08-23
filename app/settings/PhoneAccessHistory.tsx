@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useState,
-} from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Eye,
   History,
@@ -14,9 +10,20 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import {
+  formatKlyxPhoneHistoryDate,
+  translateKlyxPhoneHistory,
+  translateKlyxPhoneHistoryEvent,
+  translateKlyxPhoneHistoryService,
+  translateKlyxPhoneHistoryStatus,
+  translateKlyxPhoneHistoryViewer,
+  type KlyxPhoneHistoryMessageKey,
+} from "@/lib/klyx-phone-history-i18n";
 import { supabase } from "@/lib/supabase";
 
 // KLYX_PHONE_ACCESS_HISTORY_UI_12_76
+// KLYX_PHONE_ACCESS_HISTORY_I18N_16_08
 
 type AccessItem = {
   id: string;
@@ -35,105 +42,52 @@ type HistoryPayload = {
   error?: string;
 };
 
-const SERVICE_LABELS: Record<string, string> = {
-  babysitting: "Baby-sitting",
-  cleaning: "Menage",
-  moving: "Demenagement",
-  handyman: "Bricolage",
-};
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat(
-    "fr-BE",
-    {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }
-  ).format(new Date(value));
-}
-
-function serviceLabel(
-  slug: string | null
-) {
-  if (!slug) {
-    return "Mission KLYX";
-  }
-
-  return SERVICE_LABELS[slug] ?? slug;
-}
-
 export default function PhoneAccessHistory() {
-  const [items, setItems] =
-    useState<AccessItem[]>([]);
+  const { locale } = useKlyxLocale();
+  const t = (
+    key: KlyxPhoneHistoryMessageKey,
+    variables?: Readonly<Record<string, string | number>>
+  ) => translateKlyxPhoneHistory(locale, key, variables);
 
-  const [loading, setLoading] =
-    useState(true);
+  const [items, setItems] = useState<AccessItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [errorKey, setErrorKey] =
+    useState<KlyxPhoneHistoryMessageKey | null>(null);
 
-  const [refreshing, setRefreshing] =
-    useState(false);
+  const loadHistory = useCallback(async (refresh = false) => {
+    if (refresh) setRefreshing(true);
+    else setLoading(true);
+    setErrorKey(null);
 
-  const [errorMessage, setErrorMessage] =
-    useState("");
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
 
-  const loadHistory =
-    useCallback(async (refresh = false) => {
-      if (refresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
+      if (!token) {
+        setErrorKey("sessionMissing");
+        return;
       }
 
-      setErrorMessage("");
+      const response = await fetch("/api/profile/phone/access-history", {
+        cache: "no-store",
+        headers: { Authorization: "Bearer " + token },
+      });
+      const result = (await response.json()) as HistoryPayload;
 
-      try {
-        const { data } =
-          await supabase.auth.getSession();
-
-        const token =
-          data.session?.access_token;
-
-        if (!token) {
-          throw new Error(
-            "Session KLYX introuvable."
-          );
-        }
-
-        const response = await fetch(
-          "/api/profile/phone/access-history",
-          {
-            cache: "no-store",
-            headers: {
-              Authorization:
-                "Bearer " + token,
-            },
-          }
-        );
-
-        const result =
-          (await response.json()) as HistoryPayload;
-
-        if (!response.ok) {
-          throw new Error(
-            result.error ||
-              "Historique indisponible."
-          );
-        }
-
-        setItems(result.items ?? []);
-      } catch (error) {
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "Historique indisponible."
-        );
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
+      if (!response.ok) {
+        setErrorKey("loadFailed");
+        return;
       }
-    }, []);
+
+      setItems(result.items ?? []);
+    } catch {
+      setErrorKey("loadFailed");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
     void loadHistory();
@@ -146,14 +100,10 @@ export default function PhoneAccessHistory() {
           <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-violet-500/10 text-violet-500">
             <History size={22} />
           </div>
-
           <div>
-            <h2 className="text-xl font-black">
-              Historique de confidentialite
-            </h2>
-
+            <h2 className="text-xl font-black">{t("title")}</h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Consulte les derniers acces autorises a ton numero de telephone KLYX.
+              {t("description")}
             </p>
           </div>
         </div>
@@ -161,59 +111,36 @@ export default function PhoneAccessHistory() {
         <button
           type="button"
           disabled={refreshing}
-          onClick={() =>
-            void loadHistory(true)
-          }
+          onClick={() => void loadHistory(true)}
           className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-black transition hover:bg-muted disabled:opacity-60"
         >
-          <RefreshCw
-            size={16}
-            className={
-              refreshing
-                ? "animate-spin"
-                : ""
-            }
-          />
-          Actualiser
+          <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
+          {t("refresh")}
         </button>
       </div>
 
       <div className="mt-5 flex items-start gap-3 rounded-2xl bg-emerald-500/[0.07] px-4 py-3">
-        <ShieldCheck
-          size={18}
-          className="mt-0.5 shrink-0 text-emerald-500"
-        />
-
+        <ShieldCheck size={18} className="mt-0.5 shrink-0 text-emerald-500" />
         <p className="text-xs leading-5 text-muted-foreground">
-          Cet historique affiche les acces de securite uniquement. Aucun numero de telephone ni code SMS OTP n y apparait.
+          {t("privacyNote")}
         </p>
       </div>
 
       {loading ? (
         <div className="mt-6 flex items-center gap-3 text-sm font-bold text-muted-foreground">
-          <LoaderCircle
-            size={18}
-            className="animate-spin"
-          />
-          Chargement de l historique...
+          <LoaderCircle size={18} className="animate-spin" />
+          {t("loading")}
         </div>
-      ) : errorMessage ? (
+      ) : errorKey ? (
         <div className="mt-6 rounded-2xl bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-500">
-          {errorMessage}
+          {t(errorKey)}
         </div>
       ) : items.length === 0 ? (
         <div className="mt-6 rounded-2xl border border-dashed border-border bg-background/50 p-6 text-center">
-          <ShieldCheck
-            size={28}
-            className="mx-auto text-emerald-500"
-          />
-
-          <p className="mt-3 font-black">
-            Aucun acces enregistre
-          </p>
-
+          <ShieldCheck size={28} className="mx-auto text-emerald-500" />
+          <p className="mt-3 font-black">{t("noAccessTitle")}</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Personne n a encore revele ton numero via KLYX.
+            {t("noAccessDescription")}
           </p>
         </div>
       ) : (
@@ -224,8 +151,7 @@ export default function PhoneAccessHistory() {
               className="flex min-w-0 items-start gap-4 rounded-2xl border border-border bg-background/60 p-4 sm:p-5"
             >
               <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-500/10 text-violet-500">
-                {item.eventType ===
-                "phone_call_started" ? (
+                {item.eventType === "phone_call_started" ? (
                   <PhoneCall size={18} />
                 ) : (
                   <Eye size={18} />
@@ -235,39 +161,30 @@ export default function PhoneAccessHistory() {
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="font-black">
-                    {item.viewerName}
+                    {translateKlyxPhoneHistoryViewer(locale, item.viewerName)}
                   </p>
-
                   <span className="text-xs font-semibold text-muted-foreground">
-                    {formatDate(
-                      item.createdAt
-                    )}
+                    {formatKlyxPhoneHistoryDate(locale, item.createdAt)}
                   </span>
                 </div>
 
                 <p className="mt-1 text-sm font-semibold">
-                  {item.eventLabel}
+                  {translateKlyxPhoneHistoryEvent(locale, item.eventType)}
                 </p>
 
                 <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
                   <span className="rounded-full bg-muted px-2.5 py-1">
-                    {serviceLabel(
-                      item.serviceSlug
-                    )}
+                    {translateKlyxPhoneHistoryService(locale, item.serviceSlug)}
                   </span>
 
                   {item.bookingStatus && (
                     <span className="rounded-full bg-muted px-2.5 py-1">
-                      {item.bookingStatus}
+                      {translateKlyxPhoneHistoryStatus(locale, item.bookingStatus)}
                     </span>
                   )}
 
                   <span className="rounded-full bg-muted px-2.5 py-1">
-                    Mission{" "}
-                    {item.bookingId.slice(
-                      0,
-                      8
-                    )}
+                    {t("missionId", { id: item.bookingId.slice(0, 8) })}
                   </span>
                 </div>
               </div>
