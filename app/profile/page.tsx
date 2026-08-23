@@ -19,6 +19,13 @@ import {
   UserRound,
 } from "lucide-react";
 
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import {
+  resolveKlyxProfilePageApiErrorKey,
+  translateKlyxProfilePage,
+  type KlyxProfilePageMessageKey,
+} from "@/lib/klyx-profile-page-i18n";
+
 type AccountType = "client" | "provider";
 
 type ProfilePayload = {
@@ -39,6 +46,10 @@ function inputClassName(): string {
 }
 
 export default function ProfilePage() {
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxProfilePageMessageKey) =>
+    translateKlyxProfilePage(locale, key);
+
   const [accountType, setAccountType] = useState<AccountType>("client");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -50,8 +61,10 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  const [message, setMessage] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
+  const [messageKey, setMessageKey] =
+    useState<KlyxProfilePageMessageKey | null>(null);
+  const [errorKey, setErrorKey] =
+    useState<KlyxProfilePageMessageKey | null>(null);
 
   const fullName = useMemo(
     () => `${firstName.trim()} ${lastName.trim()}`.trim(),
@@ -60,7 +73,7 @@ export default function ProfilePage() {
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
-    setErrorMessage("");
+    setErrorKey(null);
 
     try {
       const response = await fetch("/api/profile/me", {
@@ -70,11 +83,15 @@ export default function ProfilePage() {
       const body = (await response.json()) as ProfilePayload;
 
       if (!response.ok) {
-        throw new Error(body.error || "Impossible de charger le profil.");
+        setErrorKey(
+          resolveKlyxProfilePageApiErrorKey(body.error, "loadFailed")
+        );
+        return;
       }
 
       if (!body.profile) {
-        throw new Error("Profil KLYX introuvable.");
+        setErrorKey("profileNotFound");
+        return;
       }
 
       setFirstName(body.profile.firstName);
@@ -83,12 +100,8 @@ export default function ProfilePage() {
       setCity(body.profile.city);
       setAvatarUrl(body.profile.avatarUrl ?? "");
       setAccountType(body.profile.accountType);
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Impossible de charger le profil."
-      );
+    } catch {
+      setErrorKey("loadFailed");
     } finally {
       setLoading(false);
     }
@@ -105,18 +118,18 @@ export default function ProfilePage() {
     if (!file) return;
 
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-      setErrorMessage("Choisis une image JPG, PNG ou WEBP.");
+      setErrorKey("avatarTypeInvalid");
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      setErrorMessage("La photo doit faire 5 Mo maximum.");
+      setErrorKey("avatarTooLarge");
       return;
     }
 
     setUploading(true);
-    setMessage("");
-    setErrorMessage("");
+    setMessageKey(null);
+    setErrorKey(null);
 
     try {
       const formData = new FormData();
@@ -133,21 +146,18 @@ export default function ProfilePage() {
       };
 
       if (!response.ok || !body.avatarUrl) {
-        throw new Error(
-          body.error || "Impossible d’envoyer la photo."
+        setErrorKey(
+          resolveKlyxProfilePageApiErrorKey(body.error, "uploadFailed")
         );
+        return;
       }
 
       setAvatarUrl(
         `${body.avatarUrl}${body.avatarUrl.includes("?") ? "&" : "?"}v=${Date.now()}`
       );
-      setMessage("Photo de profil mise à jour.");
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Impossible d’envoyer la photo."
-      );
+      setMessageKey("avatarUpdated");
+    } catch {
+      setErrorKey("uploadFailed");
     } finally {
       setUploading(false);
     }
@@ -157,8 +167,8 @@ export default function ProfilePage() {
     event.preventDefault();
 
     setSaving(true);
-    setMessage("");
-    setErrorMessage("");
+    setMessageKey(null);
+    setErrorKey(null);
 
     try {
       const response = await fetch("/api/profile/me", {
@@ -180,19 +190,16 @@ export default function ProfilePage() {
       };
 
       if (!response.ok) {
-        throw new Error(
-          body.error || "Impossible d’enregistrer le profil."
+        setErrorKey(
+          resolveKlyxProfilePageApiErrorKey(body.error, "saveFailed")
         );
+        return;
       }
 
-      setMessage("Informations personnelles enregistrées.");
+      setMessageKey("saved");
       await loadProfile();
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Impossible d’enregistrer le profil."
-      );
+    } catch {
+      setErrorKey("saveFailed");
     } finally {
       setSaving(false);
     }
@@ -207,7 +214,7 @@ export default function ProfilePage() {
             size={40}
           />
           <p className="mt-4 text-muted-foreground dark:text-zinc-400">
-            Chargement du profil...
+            {t("loading")}
           </p>
         </div>
       </main>
@@ -222,28 +229,31 @@ export default function ProfilePage() {
           className="inline-flex items-center gap-2 text-sm text-muted-foreground dark:text-zinc-400 hover:text-foreground dark:text-white"
         >
           <ArrowLeft size={18} />
-          Tableau de bord
+          {t("dashboard")}
         </Link>
 
         <header className="mt-8">
           <p className="text-sm font-semibold uppercase tracking-[0.22em] text-violet-400">
-            {accountType === "provider" ? "Profil prestataire" : "Profil client"}
+            {accountType === "provider"
+              ? t("providerProfile")
+              : t("clientProfile")}
           </p>
           <h1 className="mt-3 text-3xl font-bold sm:text-5xl">
-            Mes informations
+            {t("title")}
           </h1>
-                    {/* KLYX_AI_FIRST_PROFILE_15_03 */}
+          {/* KLYX_AI_FIRST_PROFILE_15_03 */}
+          {/* KLYX_PROFILE_PAGE_I18N_16_03 */}
         </header>
 
-        {errorMessage && (
+        {errorKey && (
           <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-red-200">
-            {errorMessage}
+            {t(errorKey)}
           </div>
         )}
 
-        {message && (
+        {messageKey && (
           <div className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-emerald-200">
-            {message}
+            {t(messageKey)}
           </div>
         )}
 
@@ -257,11 +267,9 @@ export default function ProfilePage() {
                 <img
                   key={avatarUrl}
                   src={avatarUrl}
-                  alt={fullName || "Photo de profil"}
+                  alt={fullName || t("avatarAlt")}
                   className="h-full w-full object-cover"
-                  onError={() =>
-                    setErrorMessage("La photo enregistrée est inaccessible.")
-                  }
+                  onError={() => setErrorKey("avatarUnavailable")}
                 />
               ) : (
                 <UserRound size={62} className="text-muted-foreground dark:text-zinc-500" />
@@ -269,8 +277,7 @@ export default function ProfilePage() {
             </div>
 
             <div>
-              <h2 className="text-xl font-bold">Photo de profil</h2>
-
+              <h2 className="text-xl font-bold">{t("profilePhoto")}</h2>
 
               <label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 font-semibold hover:bg-violet-700">
                 {uploading ? (
@@ -278,7 +285,7 @@ export default function ProfilePage() {
                 ) : (
                   <Camera size={18} />
                 )}
-                {uploading ? "Envoi..." : "Changer la photo"}
+                {uploading ? t("uploading") : t("changePhoto")}
                 <input
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
@@ -291,24 +298,34 @@ export default function ProfilePage() {
           </div>
 
           <div className="mt-8 grid gap-5 sm:grid-cols-2">
-            <Field id="firstName" label="Prénom" value={firstName} onChange={setFirstName} />
-            <Field id="lastName" label="Nom" value={lastName} onChange={setLastName} />
+            <Field
+              id="firstName"
+              label={t("firstName")}
+              value={firstName}
+              onChange={setFirstName}
+            />
+            <Field
+              id="lastName"
+              label={t("lastName")}
+              value={lastName}
+              onChange={setLastName}
+            />
             <Field
               id="age"
-              label="Âge"
+              label={t("age")}
               value={age}
               onChange={setAge}
               type="number"
               min="18"
               max="100"
-              placeholder="Exemple : 28"
+              placeholder={t("agePlaceholder")}
             />
             <Field
               id="city"
-              label="Ville"
+              label={t("city")}
               value={city}
               onChange={setCity}
-              placeholder="Exemple : Bruxelles"
+              placeholder={t("cityPlaceholder")}
             />
           </div>
 
@@ -322,7 +339,7 @@ export default function ProfilePage() {
             ) : (
               <Save size={19} />
             )}
-            {saving ? "Enregistrement..." : "Enregistrer mes informations"}
+            {saving ? t("saving") : t("save")}
           </button>
         </form>
 
@@ -336,8 +353,7 @@ export default function ProfilePage() {
                 <BriefcaseBusiness size={22} />
               </span>
               <div>
-                <p className="font-bold">Gérer ma fiche commerciale</p>
-
+                <p className="font-bold">{t("manageProviderProfile")}</p>
               </div>
             </div>
             <ChevronRight size={22} className="text-violet-300" />
