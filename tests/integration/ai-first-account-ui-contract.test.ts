@@ -50,6 +50,11 @@ describe(
             "app/settings/page.tsx"
           );
 
+        const settingsI18n =
+          read(
+            "lib/klyx-settings-page-i18n.ts"
+          );
+
         expect(studio).toContain(
           "KLYX_AI_FIRST_PROVIDER_STUDIO_15_03"
         );
@@ -111,7 +116,15 @@ describe(
         );
 
         expect(settings).toContain(
-          "Supprimer"
+          't("deleteForever")'
+        );
+
+        expect(settings).toContain(
+          'const DELETE_CONFIRMATION = "SUPPRIMER"'
+        );
+
+        expect(settingsI18n).toContain(
+          'deleteForever: "Supprimer définitivement"'
         );
       }
     );

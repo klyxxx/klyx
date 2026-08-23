@@ -13,8 +13,6 @@ import {
   LoaderCircle,
   LockKeyhole,
   LogOut,
-  Monitor,
-  Moon,
   Save,
   ShieldAlert,
   Sun,
@@ -26,6 +24,11 @@ import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import { useTheme } from "@/app/components/ThemeProvider";
 import KlyxSelect from "@/app/components/KlyxSelect";
 import { KLYX_LANGUAGE_OPTIONS } from "@/lib/klyx-i18n";
+import {
+  resolveKlyxSettingsDeleteErrorKey,
+  translateKlyxSettingsPage,
+  type KlyxSettingsPageMessageKey,
+} from "@/lib/klyx-settings-page-i18n";
 import {
   getProfilesState,
   switchAccount,
@@ -39,11 +42,14 @@ type NotificationSettings = {
 };
 
 const NOTIFICATIONS_KEY = "klyx_notification_settings";
+const DELETE_CONFIRMATION = "SUPPRIMER";
 
 export default function SettingsPage() {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
   const { locale, setLocale } = useKlyxLocale();
+  const t = (key: KlyxSettingsPageMessageKey) =>
+    translateKlyxSettingsPage(locale, key);
 
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
@@ -64,8 +70,10 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>([]);
-  const [message, setMessage] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
+  const [messageKey, setMessageKey] =
+    useState<KlyxSettingsPageMessageKey | null>(null);
+  const [errorKey, setErrorKey] =
+    useState<KlyxSettingsPageMessageKey | null>(null);
   const [notifications, setNotifications] =
     useState<NotificationSettings>({
       bookings: true,
@@ -94,7 +102,10 @@ export default function SettingsPage() {
           state.profiles.find((item) => item.id === state.activeProfileId) ??
           state.profiles[0];
 
-        if (!profile) throw new Error("Profil introuvable.");
+        if (!profile) {
+          if (active) setErrorKey("loadFailed");
+          return;
+        }
         if (!active) return;
 
         setCurrentProfileId(profile.id);
@@ -109,12 +120,8 @@ export default function SettingsPage() {
         if (savedNotifications) {
           setNotifications(JSON.parse(savedNotifications));
         }
-      } catch (error) {
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "Impossible de charger les paramètres."
-        );
+      } catch {
+        if (active) setErrorKey("loadFailed");
       } finally {
         if (active) setLoading(false);
       }
@@ -127,14 +134,14 @@ export default function SettingsPage() {
     };
   }, [router]);
 
-  function success(text: string) {
-    setErrorMessage("");
-    setMessage(text);
+  function success(key: KlyxSettingsPageMessageKey) {
+    setErrorKey(null);
+    setMessageKey(key);
   }
 
-  function failure(text: string) {
-    setMessage("");
-    setErrorMessage(text);
+  function failure(key: KlyxSettingsPageMessageKey) {
+    setMessageKey(null);
+    setErrorKey(key);
   }
 
   async function updateProfile(event: FormEvent<HTMLFormElement>) {
@@ -155,9 +162,8 @@ export default function SettingsPage() {
       };
 
       if (!currentResponse.ok || !currentBody.profile) {
-        throw new Error(
-          currentBody.error || "Impossible de charger le profil."
-        );
+        failure("profileLoadFailed");
+        return;
       }
 
       const response = await fetch("/api/profile/me", {
@@ -170,15 +176,15 @@ export default function SettingsPage() {
           age: currentBody.profile.age,
         }),
       });
-      const result = (await response.json()) as { error?: string };
 
       if (!response.ok) {
-        throw new Error(result.error || "Impossible d’enregistrer le profil.");
+        failure("profileSaveFailed");
+        return;
       }
 
-      success("Profil enregistré.");
-    } catch (error) {
-      failure(error instanceof Error ? error.message : "Erreur.");
+      success("profileSaved");
+    } catch {
+      failure("profileSaveFailed");
     } finally {
       setSavingProfile(false);
     }
@@ -190,7 +196,8 @@ export default function SettingsPage() {
 
     try {
       if (!newEmail.trim() || newEmail.trim() === email) {
-        throw new Error("Entre une nouvelle adresse e-mail.");
+        failure("emailRequired");
+        return;
       }
 
       const supabase = createClient();
@@ -198,10 +205,13 @@ export default function SettingsPage() {
         email: newEmail.trim().toLowerCase(),
       });
 
-      if (error) throw new Error(error.message);
-      success("E-mail de confirmation envoyé.");
-    } catch (error) {
-      failure(error instanceof Error ? error.message : "Erreur.");
+      if (error) {
+        failure("emailUpdateFailed");
+        return;
+      }
+      success("emailConfirmationSent");
+    } catch {
+      failure("emailUpdateFailed");
     } finally {
       setSavingEmail(false);
     }
@@ -213,10 +223,12 @@ export default function SettingsPage() {
 
     try {
       if (newPassword.length < 8) {
-        throw new Error("8 caractères minimum.");
+        failure("passwordMin");
+        return;
       }
       if (newPassword !== confirmPassword) {
-        throw new Error("Les mots de passe ne correspondent pas.");
+        failure("passwordMismatch");
+        return;
       }
 
       const supabase = createClient();
@@ -224,12 +236,15 @@ export default function SettingsPage() {
         password: newPassword,
       });
 
-      if (error) throw new Error(error.message);
+      if (error) {
+        failure("passwordUpdateFailed");
+        return;
+      }
       setNewPassword("");
       setConfirmPassword("");
-      success("Mot de passe modifié.");
-    } catch (error) {
-      failure(error instanceof Error ? error.message : "Erreur.");
+      success("passwordChanged");
+    } catch {
+      failure("passwordUpdateFailed");
     } finally {
       setSavingPassword(false);
     }
@@ -253,11 +268,11 @@ export default function SettingsPage() {
   }
 
   async function deleteAccount() {
-    if (deleteConfirmation !== "SUPPRIMER") return;
-    if (!window.confirm("Supprimer définitivement le compte KLYX ?")) return;
+    if (deleteConfirmation !== DELETE_CONFIRMATION) return;
+    if (!window.confirm(t("deleteConfirmPrompt"))) return;
 
     setDeletingAccount(true);
-    setErrorMessage("");
+    setErrorKey(null);
 
     try {
       const response = await fetch("/api/account/delete", {
@@ -268,14 +283,16 @@ export default function SettingsPage() {
       const result = (await response.json()) as { error?: string };
 
       if (!response.ok) {
-        throw new Error(result.error || "Suppression impossible.");
+        failure(resolveKlyxSettingsDeleteErrorKey(result.error));
+        setDeletingAccount(false);
+        return;
       }
 
       localStorage.clear();
       router.replace("/signup?deleted=1");
       router.refresh();
-    } catch (error) {
-      failure(error instanceof Error ? error.message : "Erreur.");
+    } catch {
+      failure("deleteFailed");
       setDeletingAccount(false);
     }
   }
@@ -288,20 +305,33 @@ export default function SettingsPage() {
     );
   }
 
+  const notificationRows = [
+    ["bookings", "bookings", "bookingsDescription"],
+    ["messages", "messages", "messagesDescription"],
+    ["promotions", "promotions", "promotionsDescription"],
+  ] as const satisfies ReadonlyArray<
+    readonly [
+      keyof NotificationSettings,
+      KlyxSettingsPageMessageKey,
+      KlyxSettingsPageMessageKey,
+    ]
+  >;
+
   return (
     <main className="klyx-page">
       <div className="mx-auto max-w-5xl">
         {/* KLYX_AI_FIRST_SETTINGS_15_03 */}
-        <h1 className="mt-2 text-3xl font-black sm:text-5xl">Paramètres</h1>
+        {/* KLYX_SETTINGS_PAGE_I18N_16_05 */}
+        <h1 className="mt-2 text-3xl font-black sm:text-5xl">{t("title")}</h1>
 
-        {message && (
+        {messageKey && (
           <div className="mt-6 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-sm">
-            {message}
+            {t(messageKey)}
           </div>
         )}
-        {errorMessage && (
+        {errorKey && (
           <div className="mt-6 rounded-2xl border border-rose-500/25 bg-rose-500/10 p-4 text-sm">
-            {errorMessage}
+            {t(errorKey)}
           </div>
         )}
 
@@ -311,7 +341,8 @@ export default function SettingsPage() {
           {/* KLYX_PHONE_PRIVACY_SETTINGS_12_75 */}
           <PhonePrivacyControls />
           {/* KLYX_PHONE_ACCESS_HISTORY_SETTINGS_12_76 */}
-          <Section icon={<Sun />} title="Apparence">
+
+          <Section icon={<Sun />} title={t("appearance")}>
             <div className="grid gap-3 sm:grid-cols-3">
               {(["light", "dark", "system"] as const).map((value) => (
                 <button
@@ -325,91 +356,74 @@ export default function SettingsPage() {
                   }`}
                 >
                   {value === "light"
-                    ? "Clair"
+                    ? t("themeLight")
                     : value === "dark"
-                      ? "Sombre"
-                      : "Système"}
+                      ? t("themeDark")
+                      : t("themeSystem")}
                 </button>
               ))}
             </div>
           </Section>
 
           {accountType === "provider" && (
-            <Section icon={<CreditCard />} title="Paiements prestataire">
+            <Section icon={<CreditCard />} title={t("providerPayments")}>
               <Link
                 href="/provider/payments"
                 className="inline-flex h-12 items-center rounded-2xl bg-violet-600 px-5 text-sm font-bold text-white"
               >
-                Configurer les paiements
+                {t("configurePayments")}
               </Link>
             </Section>
           )}
 
-          <Section icon={<UserRound />} title="Profil">
+          <Section icon={<UserRound />} title={t("profile")}>
             <form onSubmit={updateProfile} className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
-                <Input label="Prénom" value={firstName} onChange={setFirstName} />
-                <Input label="Nom" value={lastName} onChange={setLastName} />
+                <Input label={t("firstName")} value={firstName} onChange={setFirstName} />
+                <Input label={t("lastName")} value={lastName} onChange={setLastName} />
               </div>
               <Button loading={savingProfile}>
                 <Save size={18} />
-                Enregistrer
+                {t("save")}
               </Button>
             </form>
           </Section>
 
-          <Section icon={<LockKeyhole />} title="E-mail et mot de passe">
+          <Section icon={<LockKeyhole />} title={t("auth")}>
             <div className="space-y-8">
               <form onSubmit={updateEmail} className="space-y-4">
                 <Input
-                  label="Nouvel e-mail"
+                  label={t("newEmail")}
                   type="email"
                   value={newEmail}
                   onChange={setNewEmail}
                 />
-                <Button loading={savingEmail}>Modifier l’e-mail</Button>
+                <Button loading={savingEmail}>{t("updateEmail")}</Button>
               </form>
 
               <form onSubmit={updatePassword} className="space-y-4 border-t border-border pt-6">
                 <Input
-                  label="Nouveau mot de passe"
+                  label={t("newPassword")}
                   type="password"
                   value={newPassword}
                   onChange={setNewPassword}
                 />
                 <Input
-                  label="Confirmer"
+                  label={t("confirmPassword")}
                   type="password"
                   value={confirmPassword}
                   onChange={setConfirmPassword}
                 />
-                <Button loading={savingPassword}>Modifier le mot de passe</Button>
+                <Button loading={savingPassword}>{t("updatePassword")}</Button>
               </form>
             </div>
           </Section>
 
-          <Section icon={<Bell />} title="Notifications">
+          <Section icon={<Bell />} title={t("notifications")}>
             <div className="space-y-3">
-              {(
-                [
-                  [
-                    "bookings",
-                    "Réservations",
-                    "Réservations et rappels.",
-                  ],
-                  [
-                    "messages",
-                    "Messages",
-                    "Nouveaux messages.",
-                  ],
-                  [
-                    "promotions",
-                    "Nouveautés",
-                    "Nouveautés KLYX.",
-                  ],
-                ] as const
-              ).map(([key, label, description]) => {
+              {notificationRows.map(([key, labelKey, descriptionKey]) => {
                 const enabled = notifications[key];
+                const label = t(labelKey);
 
                 return (
                   <div
@@ -417,12 +431,10 @@ export default function SettingsPage() {
                     className="flex min-w-0 items-center justify-between gap-5 rounded-2xl border border-border bg-background/50 p-4 sm:p-5"
                   >
                     <div className="min-w-0">
-                      <p className="font-black text-foreground">
-                        {label}
-                      </p>
+                      <p className="font-black text-foreground">{label}</p>
 
                       <p className="mt-1 max-w-2xl text-sm leading-6 text-muted-foreground">
-                        {description}
+                        {t(descriptionKey)}
                       </p>
                     </div>
 
@@ -431,11 +443,9 @@ export default function SettingsPage() {
                       role="switch"
                       aria-checked={enabled}
                       aria-label={`${label} : ${
-                        enabled ? "activé" : "désactivé"
+                        enabled ? t("enabled") : t("disabled")
                       }`}
-                      onClick={() =>
-                        updateNotifications(key, !enabled)
-                      }
+                      onClick={() => updateNotifications(key, !enabled)}
                       className={`relative h-8 w-14 shrink-0 rounded-full border transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-violet-500/20 ${
                         enabled
                           ? "border-violet-500 bg-violet-600"
@@ -455,7 +465,7 @@ export default function SettingsPage() {
             </div>
           </Section>
 
-          <Section icon={<Languages />} title="Langue">
+          <Section icon={<Languages />} title={t("language")}>
             <KlyxSelect
               value={locale}
               onChange={setLocale}
@@ -463,11 +473,11 @@ export default function SettingsPage() {
                 value,
                 label,
               }))}
-              ariaLabel="Langue"
+              ariaLabel={t("language")}
             />
           </Section>
 
-          <Section icon={<UserRound />} title="Profils KLYX">
+          <Section icon={<UserRound />} title={t("profiles")}>
             <div className="space-y-3">
               {savedAccounts.map((account) => (
                 <div
@@ -479,7 +489,9 @@ export default function SettingsPage() {
                       {account.firstName} {account.lastName}
                     </p>
                     <p className="text-xs text-violet-600">
-                      {account.accountType}
+                      {account.accountType === "provider"
+                        ? t("roleProvider")
+                        : t("roleClient")}
                     </p>
                   </div>
                   {account.id !== currentProfileId && (
@@ -487,13 +499,18 @@ export default function SettingsPage() {
                       type="button"
                       onClick={async () => {
                         setSwitchingAccountId(account.id);
-                        await switchAccount(account.id);
-                        window.location.reload();
+                        try {
+                          await switchAccount(account.id);
+                          window.location.reload();
+                        } catch {
+                          setSwitchingAccountId("");
+                          failure("switchFailed");
+                        }
                       }}
                       disabled={switchingAccountId === account.id}
                       className="rounded-xl bg-violet-600 px-4 py-2 text-sm font-bold text-white"
                     >
-                      Utiliser
+                      {t("useProfile")}
                     </button>
                   )}
                 </div>
@@ -501,31 +518,31 @@ export default function SettingsPage() {
             </div>
           </Section>
 
-          <Section icon={<ShieldAlert />} title="Confidentialité et assistance">
+          <Section icon={<ShieldAlert />} title={t("privacySupport")}>
             <div className="grid gap-3 sm:grid-cols-2">
               <Link
                 href="/privacy"
                 className="rounded-2xl border border-border p-4 font-bold transition hover:bg-muted"
               >
-                Politique de confidentialité
+                {t("privacyPolicy")}
               </Link>
               <Link
                 href="/terms"
                 className="rounded-2xl border border-border p-4 font-bold transition hover:bg-muted"
               >
-                Conditions d’utilisation
+                {t("terms")}
               </Link>
               <Link
                 href="/support"
                 className="rounded-2xl border border-border p-4 font-bold transition hover:bg-muted"
               >
-                Assistance KLYX
+                {t("support")}
               </Link>
               <Link
                 href="/delete-account"
                 className="rounded-2xl border border-border p-4 font-bold transition hover:bg-muted"
               >
-                Suppression du compte sur le web
+                {t("webAccountDeletion")}
               </Link>
             </div>
           </Section>
@@ -538,18 +555,19 @@ export default function SettingsPage() {
               className="inline-flex h-12 items-center gap-2 rounded-2xl border border-border px-5 font-bold"
             >
               <LogOut size={18} />
-              Se déconnecter
+              {t("logout")}
             </button>
           </section>
+
           <section className="rounded-3xl border border-rose-500/30 bg-rose-500/[0.06] p-6">
             <div className="flex gap-4">
               <ShieldAlert className="text-rose-600" />
               <div>
                 <h2 className="text-xl font-black text-rose-600">
-                  Supprimer mon compte
+                  {t("deleteTitle")}
                 </h2>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Une réservation active doit être terminée ou annulée. Si le compte contient des paiements à conserver, KLYX peut traiter la suppression avec anonymisation et conservation limitée des données obligatoires.
+                  {t("deleteDescription")}
                 </p>
               </div>
             </div>
@@ -558,14 +576,14 @@ export default function SettingsPage() {
               value={deleteConfirmation}
               onChange={(event) => setDeleteConfirmation(event.target.value)}
               className="klyx-input mt-5"
-              placeholder="Écris SUPPRIMER"
+              placeholder={t("deletePlaceholder")}
             />
 
             <button
               type="button"
               onClick={() => void deleteAccount()}
               disabled={
-                deletingAccount || deleteConfirmation !== "SUPPRIMER"
+                deletingAccount || deleteConfirmation !== DELETE_CONFIRMATION
               }
               className="mt-4 inline-flex h-12 items-center gap-2 rounded-2xl bg-rose-600 px-5 font-bold text-white disabled:opacity-40"
             >
@@ -574,7 +592,7 @@ export default function SettingsPage() {
               ) : (
                 <Trash2 size={18} />
               )}
-              Supprimer définitivement
+              {t("deleteForever")}
             </button>
           </section>
         </div>
