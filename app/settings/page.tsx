@@ -142,16 +142,40 @@ export default function SettingsPage() {
     setSavingProfile(true);
 
     try {
-      const supabase = createClient();
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          first_name: firstName.trim(),
-          last_name: lastName.trim(),
-        })
-        .eq("id", currentProfileId);
+      // KLYX_SETTINGS_PROFILE_SERVER_BOUNDARY_16_04
+      const currentResponse = await fetch("/api/profile/me", {
+        cache: "no-store",
+      });
+      const currentBody = (await currentResponse.json()) as {
+        profile?: {
+          city: string;
+          age: number | null;
+        };
+        error?: string;
+      };
 
-      if (error) throw new Error(error.message);
+      if (!currentResponse.ok || !currentBody.profile) {
+        throw new Error(
+          currentBody.error || "Impossible de charger le profil."
+        );
+      }
+
+      const response = await fetch("/api/profile/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          city: currentBody.profile.city,
+          age: currentBody.profile.age,
+        }),
+      });
+      const result = (await response.json()) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(result.error || "Impossible d’enregistrer le profil.");
+      }
+
       success("Profil enregistré.");
     } catch (error) {
       failure(error instanceof Error ? error.message : "Erreur.");
@@ -517,7 +541,6 @@ export default function SettingsPage() {
               Se déconnecter
             </button>
           </section>
-
           <section className="rounded-3xl border border-rose-500/30 bg-rose-500/[0.06] p-6">
             <div className="flex gap-4">
               <ShieldAlert className="text-rose-600" />
