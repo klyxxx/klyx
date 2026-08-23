@@ -21,10 +21,18 @@ import {
 } from "lucide-react";
 
 import {
+  useKlyxLocale,
+} from "@/app/components/KlyxLocaleProvider";
+import {
+  translateKlyxSplitMissionAcceptance,
+  type KlyxSplitMissionAcceptanceMessageKey,
+} from "@/lib/klyx-split-mission-acceptance-i18n";
+import {
   supabase,
 } from "@/lib/supabase";
 
 // KLYX_SPLIT_PROVIDER_ACCEPTANCE_UI_13_22
+// KLYX_SPLIT_MISSION_ACCEPTANCE_I18N
 
 type AggregateState =
   | "waiting"
@@ -109,46 +117,49 @@ type AcceptanceResult = {
     string;
 };
 
-const AGGREGATE_LABELS:
+const AGGREGATE_LABEL_KEYS:
   Record<
     AggregateState,
-    string
+    KlyxSplitMissionAcceptanceMessageKey
   > = {
   waiting:
-    "En attente des prestataires",
+    "aggregateWaiting",
 
   partially_accepted:
-    "Acceptation partielle",
+    "aggregatePartiallyAccepted",
 
   all_accepted:
-    "Tous les prestataires ont accepté",
+    "aggregateAllAccepted",
 
   rebuild_required:
-    "Mission à reconstruire",
+    "aggregateRebuildRequired",
 
   recovery_required:
-    "Vérification technique requise",
+    "aggregateRecoveryRequired",
 };
 
-const PROVIDER_LABELS:
+const PROVIDER_LABEL_KEYS:
   Record<
     ProviderState,
-    string
+    KlyxSplitMissionAcceptanceMessageKey
   > = {
   pending:
-    "En attente",
+    "providerPending",
 
   accepted:
-    "Accepté",
+    "providerAccepted",
 
   rejected:
-    "Refusé / indisponible",
+    "providerRejected",
 
   recovery_required:
-    "À vérifier",
+    "providerRecoveryRequired",
 };
 
-async function accessToken(): Promise<string> {
+async function accessToken(
+  missingSessionMessage:
+    string
+): Promise<string> {
   const {
     data,
   } =
@@ -160,7 +171,7 @@ async function accessToken(): Promise<string> {
 
   if (!token) {
     throw new Error(
-      "Session KLYX manquante."
+      missingSessionMessage
     );
   }
 
@@ -173,6 +184,20 @@ export default function SplitMissionAcceptance({
   batchId:
     string;
 }) {
+  const {
+    locale,
+  } =
+    useKlyxLocale();
+
+  const t = (
+    key:
+      KlyxSplitMissionAcceptanceMessageKey
+  ) =>
+    translateKlyxSplitMissionAcceptance(
+      locale,
+      key
+    );
+
   const [
     result,
     setResult,
@@ -213,7 +238,12 @@ export default function SplitMissionAcceptance({
 
         try {
           const token =
-            await accessToken();
+            await accessToken(
+              translateKlyxSplitMissionAcceptance(
+                locale,
+                "sessionMissing"
+              )
+            );
 
           const response =
             await fetch(
@@ -244,7 +274,10 @@ export default function SplitMissionAcceptance({
           ) {
             throw new Error(
               body.error ||
-                "Acceptation impossible à vérifier."
+                translateKlyxSplitMissionAcceptance(
+                  locale,
+                  "verificationFallback"
+                )
             );
           }
 
@@ -258,7 +291,10 @@ export default function SplitMissionAcceptance({
           setErrorMessage(
             error instanceof Error
               ? error.message
-              : "Acceptation impossible à vérifier."
+              : translateKlyxSplitMissionAcceptance(
+                  locale,
+                  "verificationFallback"
+                )
           );
         }
         finally {
@@ -269,6 +305,7 @@ export default function SplitMissionAcceptance({
       },
       [
         batchId,
+        locale,
       ]
     );
 
@@ -292,7 +329,9 @@ export default function SplitMissionAcceptance({
         />
 
         <p className="text-sm font-bold text-muted-foreground">
-          Vérification des réponses des prestataires...
+          {t(
+            "loadingResponses"
+          )}
         </p>
       </section>
     );
@@ -309,7 +348,9 @@ export default function SplitMissionAcceptance({
         />
 
         <p className="mt-3 font-black">
-          Vérification impossible
+          {t(
+            "verificationImpossible"
+          )}
         </p>
 
         <p className="mt-2 text-sm text-muted-foreground">
@@ -327,7 +368,9 @@ export default function SplitMissionAcceptance({
             size={16}
           />
 
-          Réessayer
+          {t(
+            "retry"
+          )}
         </button>
       </section>
     );
@@ -362,13 +405,17 @@ export default function SplitMissionAcceptance({
           </p>
 
           <h2 className="mt-2 text-xl font-black">
-            Acceptation de la mission
+            {t(
+              "title"
+            )}
           </h2>
 
           <p className="mt-2 text-sm text-muted-foreground">
-            {AGGREGATE_LABELS[
-              state
-            ]}
+            {t(
+              AGGREGATE_LABEL_KEYS[
+                state
+              ]
+            )}
           </p>
         </div>
 
@@ -383,7 +430,9 @@ export default function SplitMissionAcceptance({
             size={16}
           />
 
-          Actualiser
+          {t(
+            "refresh"
+          )}
         </button>
       </div>
 
@@ -393,7 +442,9 @@ export default function SplitMissionAcceptance({
             <UsersRound
               size={15}
             />
-            Prestataires
+            {t(
+              "providers"
+            )}
           </p>
 
           <p className="mt-2 text-2xl font-black">
@@ -404,7 +455,9 @@ export default function SplitMissionAcceptance({
 
         <div className="rounded-2xl border border-border bg-background/60 p-4">
           <p className="text-xs font-black text-muted-foreground">
-            Ont accepté
+            {t(
+              "acceptedProviders"
+            )}
           </p>
 
           <p className="mt-2 text-2xl font-black text-emerald-600">
@@ -415,7 +468,9 @@ export default function SplitMissionAcceptance({
 
         <div className="rounded-2xl border border-border bg-background/60 p-4">
           <p className="text-xs font-black text-muted-foreground">
-            En attente
+            {t(
+              "pendingProviders"
+            )}
           </p>
 
           <p className="mt-2 text-2xl font-black">
@@ -467,7 +522,9 @@ export default function SplitMissionAcceptance({
                       />
 
                       {provider.slotCount}{" "}
-                      créneau(x)
+                      {t(
+                        "slots"
+                      )}
                     </p>
                   </div>
                 </div>
@@ -485,9 +542,11 @@ export default function SplitMissionAcceptance({
                         : "rounded-full border border-amber-500/25 bg-amber-500/10 px-3 py-1 text-xs font-black text-amber-600"
                   }
                 >
-                  {PROVIDER_LABELS[
-                    provider.state
-                  ]}
+                  {t(
+                    PROVIDER_LABEL_KEYS[
+                      provider.state
+                    ]
+                  )}
                 </span>
               </div>
             </article>
@@ -505,11 +564,15 @@ export default function SplitMissionAcceptance({
 
           <div>
             <p className="font-black">
-              Mission entièrement acceptée
+              {t(
+                "allAcceptedTitle"
+              )}
             </p>
 
             <p className="mt-1 text-sm text-muted-foreground">
-              Tous les prestataires nécessaires ont accepté leurs créneaux. KLYX peut préparer l'étape suivante, mais aucun paiement n'est automatique.
+              {t(
+                "allAcceptedDescription"
+              )}
             </p>
           </div>
         </div>
@@ -525,11 +588,15 @@ export default function SplitMissionAcceptance({
 
           <div>
             <p className="font-black">
-              Acceptation partielle
+              {t(
+                "partiallyAcceptedTitle"
+              )}
             </p>
 
             <p className="mt-1 text-sm text-muted-foreground">
-              Au moins un prestataire a accepté, mais la mission entière n'est pas encore sécurisée.
+              {t(
+                "partiallyAcceptedDescription"
+              )}
             </p>
           </div>
         </div>
@@ -546,11 +613,15 @@ export default function SplitMissionAcceptance({
 
             <div>
               <p className="font-black">
-                Le plan doit être revu
+                {t(
+                  "rebuildTitle"
+                )}
               </p>
 
               <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                Un prestataire a refusé ou n'est plus disponible. KLYX ne le remplace jamais silencieusement.
+                {t(
+                  "rebuildDescription"
+                )}
               </p>
             </div>
           </div>
@@ -564,7 +635,9 @@ export default function SplitMissionAcceptance({
               }
               className="mt-5 inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-black text-white"
             >
-              Revoir le plan KLYX
+              {t(
+                "reviewPlan"
+              )}
 
               <ArrowRight
                 size={16}
@@ -573,7 +646,9 @@ export default function SplitMissionAcceptance({
           )}
 
           <p className="mt-3 text-xs text-muted-foreground">
-            Un nouveau plan devra de nouveau être confirmé explicitement avant toute nouvelle réservation.
+            {t(
+              "rebuildConfirmationDescription"
+            )}
           </p>
         </div>
       )}
@@ -588,18 +663,24 @@ export default function SplitMissionAcceptance({
 
           <div>
             <p className="font-black">
-              Vérification technique requise
+              {t(
+                "recoveryTitle"
+              )}
             </p>
 
             <p className="mt-1 text-sm text-muted-foreground">
-              Le nombre de réservations ou l'intégrité du batch ne correspond pas au plan attendu. Aucun remplacement ou retry automatique n'est effectué.
+              {t(
+                "recoveryDescription"
+              )}
             </p>
           </div>
         </div>
       )}
 
       <p className="mt-5 text-xs leading-5 text-muted-foreground">
-        Remplacement automatique : non · Reconstruction automatique : non · Réservation automatique : non · Paiement automatique : non
+        {t(
+          "automationSummary"
+        )}
       </p>
     </section>
   );
