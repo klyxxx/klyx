@@ -1,7 +1,13 @@
 // KLYX_BOOKING_DETAIL_CURRENCY_PHASE_5G
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -18,9 +24,27 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
-import { getActiveClientProfile, type SavedAccount } from "@/lib/account-switcher";
+
 import BookingContactCard from "@/app/components/BookingContactCard";
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import {
+  formatKlyxBookingDetailAmount,
+  formatKlyxBookingDetailDate,
+  formatKlyxBookingDetailDateTime,
+  formatKlyxBookingDetailStatus,
+  formatKlyxBookingEventNote,
+  formatKlyxBookingNextDescription,
+  formatKlyxBookingNextTitle,
+  formatKlyxBookingPaymentLabel,
+  klyxBookingCheckoutErrorKey,
+  klyxBookingStatusErrorKey,
+  klyxBookingStatusSuccessKey,
+  translateKlyxBookingDetail,
+  type KlyxBookingDetailMessageKey,
+} from "@/lib/klyx-booking-detail-i18n";
+import { formatKlyxBookingServiceFromSlug } from "@/lib/klyx-bookings-service-i18n";
+import { getActiveClientProfile, type SavedAccount } from "@/lib/account-switcher";
+import { supabase } from "@/lib/supabase";
 
 type BookingRow = {
   id: string;
@@ -78,127 +102,58 @@ type TimelineEvent = StatusEventRow & {
 };
 
 type BookingStatusAction = "accepted" | "rejected" | "cancelled";
+type JourneyState = "done" | "current" | "upcoming" | "stopped";
 
-const SERVICE_LABELS: Record<string, string> = {
-  babysitting: "Baby-sitting",
-  cleaning: "Ménage",
-  moving: "Déménagement",
-  handyman: "Bricolage",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  pending: "Demande envoyée",
-  accepted: "Réservation acceptée",
-  rejected: "Demande refusée",
-  cancelled: "Réservation annulée",
-  completed: "Prestation terminée",
-};
+const BOOKING_NOT_FOUND = "KLYX_BOOKING_NOT_FOUND";
+const BOOKING_ACCESS_DENIED = "KLYX_BOOKING_ACCESS_DENIED";
 
 const STATUS_STYLES: Record<string, string> = {
   pending: "border-amber-500/30 bg-amber-500/10 text-amber-300",
   accepted: "border-violet-500/30 bg-violet-500/10 text-violet-300",
   rejected: "border-red-500/30 bg-red-500/10 text-red-300",
-  cancelled: "border-border dark:border-zinc-700 bg-muted dark:bg-zinc-800 text-foreground/80 dark:text-zinc-300",
+  cancelled:
+    "border-border dark:border-zinc-700 bg-muted dark:bg-zinc-800 text-foreground/80 dark:text-zinc-300",
   completed: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
 };
 
-function formatName(profile: ProfileRow | undefined): string {
-  if (!profile) return "Utilisateur KLYX";
-
-  return (
-    [profile.first_name, profile.last_name].filter(Boolean).join(" ") ||
-    "Utilisateur KLYX"
-  );
-}
-
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat("fr-BE", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  }).format(new Date(`${value}T12:00:00`));
-}
-
-function formatDateTime(value: string): string {
-  return new Intl.DateTimeFormat("fr-BE", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
-
-function formatMoney(
-  amount: number | null,
-  currency: string
-): string {
-  if (
-    amount == null
-  ) {
-    return "Prix à confirmer";
-  }
-
-  const code =
-    currency
-      ?.trim()
-      .toUpperCase();
-
-  if (
-    !/^[A-Z]{3}$/.test(
-      code
-    )
-  ) {
-    return (
-      (
-        amount /
-        100
-      ).toFixed(2) +
-      " · devise indisponible"
-    );
-  }
-
-  return new Intl.NumberFormat(
-    "fr-BE",
-    {
-      style:
-        "currency",
-      currency:
-        code,
-    }
-  ).format(
-    amount /
-    100
-  );
+function profileName(profile: ProfileRow | null | undefined): string {
+  return [profile?.first_name, profile?.last_name]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
 }
 
 export default function BookingDetailsPage() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { locale } = useKlyxLocale();
   const bookingId = params.id;
+  const t = (key: KlyxBookingDetailMessageKey) =>
+    translateKlyxBookingDetail(locale, key);
 
   const [activeProfile, setActiveProfile] = useState<SavedAccount | null>(null);
   const [booking, setBooking] = useState<BookingRow | null>(null);
   const [otherProfile, setOtherProfile] = useState<ProfileRow | null>(null);
-  const [serviceLabel, setServiceLabel] = useState("Service KLYX");
+  const [serviceSlug, setServiceSlug] = useState<string | null>(null);
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(true);
   const [activeAction, setActiveAction] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState(
-    searchParams.get("created") === "1"
-      ? "Demande envoyée. Le prestataire vient d’être averti."
-      : searchParams.get("payment") === "success"
-        ? "Paiement effectué avec succès."
-        : ""
-  );
+  const [errorKey, setErrorKey] =
+    useState<KlyxBookingDetailMessageKey | null>(null);
+  const [successKey, setSuccessKey] =
+    useState<KlyxBookingDetailMessageKey | null>(() =>
+      searchParams.get("created") === "1"
+        ? "requestSent"
+        : searchParams.get("payment") === "success"
+          ? "paymentSuccess"
+          : null
+    );
 
   const loadBooking = useCallback(async () => {
     setLoading(true);
-    setErrorMessage("");
+    setErrorKey(null);
 
     try {
       const {
@@ -228,23 +183,25 @@ export default function BookingDetailsPage() {
 
       if (bookingResult.error) throw new Error(bookingResult.error.message);
       if (eventsResult.error) throw new Error(eventsResult.error.message);
-      if (!bookingResult.data) throw new Error("Réservation introuvable.");
+      if (!bookingResult.data) throw new Error(BOOKING_NOT_FOUND);
 
       const bookingData = bookingResult.data as BookingRow;
       const providerId = bookingData.provider_id ?? bookingData.babysitter_id;
       const participant =
         bookingData.parent_id === profile.id || providerId === profile.id;
 
-      if (!participant) throw new Error("Accès refusé.");
+      if (!participant) throw new Error(BOOKING_ACCESS_DENIED);
 
       const otherProfileId =
         bookingData.parent_id === profile.id ? providerId : bookingData.parent_id;
       const statusEvents = (eventsResult.data ?? []) as StatusEventRow[];
       const profileIds = Array.from(
         new Set(
-          [otherProfileId, profile.id, ...statusEvents.map((event) => event.actor_id)].filter(
-            (value): value is string => Boolean(value)
-          )
+          [
+            otherProfileId,
+            profile.id,
+            ...statusEvents.map((event) => event.actor_id),
+          ].filter((value): value is string => Boolean(value))
         )
       );
 
@@ -271,21 +228,26 @@ export default function BookingDetailsPage() {
 
       setActiveProfile(profile);
       setBooking(bookingData);
-      setOtherProfile(otherProfileId ? profileById.get(otherProfileId) ?? null : null);
-      setServiceLabel(
-        service ? SERVICE_LABELS[service.slug] ?? service.slug : "Baby-sitting"
+      setOtherProfile(
+        otherProfileId ? profileById.get(otherProfileId) ?? null : null
       );
+      setServiceSlug(service?.slug ?? null);
       setEvents(
         statusEvents.map((event) => ({
           ...event,
           actorName: event.actor_id
-            ? formatName(profileById.get(event.actor_id))
+            ? profileName(profileById.get(event.actor_id))
             : "KLYX",
         }))
       );
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Impossible de charger la réservation."
+      const message = error instanceof Error ? error.message : "";
+      setErrorKey(
+        message === BOOKING_NOT_FOUND
+          ? "notFound"
+          : message === BOOKING_ACCESS_DENIED
+            ? "apiAccessDenied"
+            : "loadFailed"
       );
     } finally {
       setLoading(false);
@@ -302,14 +264,13 @@ export default function BookingDetailsPage() {
 
   const role = useMemo<"client" | "provider" | null>(() => {
     if (!booking || !activeProfile) return null;
-
     return booking.parent_id === activeProfile.id ? "client" : "provider";
   }, [activeProfile, booking]);
 
   async function updateStatus(status: BookingStatusAction) {
     setActiveAction(status);
-    setErrorMessage("");
-    setSuccessMessage("");
+    setErrorKey(null);
+    setSuccessKey(null);
 
     try {
       const {
@@ -329,15 +290,22 @@ export default function BookingDetailsPage() {
         },
         body: JSON.stringify({ bookingId, status, note }),
       });
-      const result = (await response.json()) as { error?: string; message?: string };
+      const result = (await response.json()) as {
+        error?: string;
+        message?: string;
+        code?: string;
+      };
 
-      if (!response.ok) throw new Error(result.error || "Action impossible.");
+      if (!response.ok) {
+        setErrorKey(klyxBookingStatusErrorKey(result.error, result.code));
+        return;
+      }
 
       setNote("");
-      setSuccessMessage(result.message || "Réservation mise à jour.");
+      setSuccessKey(klyxBookingStatusSuccessKey(result.message));
       await loadBooking();
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Action impossible.");
+    } catch {
+      setErrorKey("actionFailed");
     } finally {
       setActiveAction(null);
     }
@@ -345,8 +313,8 @@ export default function BookingDetailsPage() {
 
   async function payBooking() {
     setActiveAction("pay");
-    setErrorMessage("");
-    setSuccessMessage("");
+    setErrorKey(null);
+    setSuccessKey(null);
 
     try {
       const {
@@ -355,6 +323,7 @@ export default function BookingDetailsPage() {
 
       if (!session?.access_token) {
         router.replace("/login");
+        setActiveAction(null);
         return;
       }
 
@@ -370,13 +339,16 @@ export default function BookingDetailsPage() {
         const result = (await response.json()) as {
           url?: string;
           error?: string;
+          code?: string;
           alreadyPaid?: boolean;
           paymentPending?: boolean;
+          splitMissionPayment?: boolean;
         };
 
         if (result.alreadyPaid) {
-          setSuccessMessage("Paiement effectué avec succès.");
+          setSuccessKey("paymentSuccess");
           await loadBooking();
+          setActiveAction(null);
           return;
         }
 
@@ -386,35 +358,39 @@ export default function BookingDetailsPage() {
         }
 
         if (!response.ok || !result.url) {
-          throw new Error(
+          setErrorKey(
             result.paymentPending
-              ? "Le paiement sécurisé ne s’est pas ouvert. Clique de nouveau sur Payer la réservation."
-              : result.error || "Paiement impossible."
+              ? "checkoutRetry"
+              : klyxBookingCheckoutErrorKey(result.error, result)
           );
+          setActiveAction(null);
+          return;
         }
 
         window.location.href = result.url;
         return;
       }
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Paiement impossible.");
+
+      setActiveAction(null);
+    } catch {
+      setErrorKey("paymentFailed");
       setActiveAction(null);
     }
   }
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 text-foreground dark:text-white">
-        Chargement de la réservation...
+      <main className="flex min-h-screen items-center justify-center bg-background text-foreground dark:bg-zinc-950 dark:text-white">
+        {t("loading")}
       </main>
     );
   }
 
   if (!booking || !activeProfile) {
     return (
-      <main className="min-h-screen bg-background dark:bg-zinc-950 px-5 py-10 text-foreground dark:text-white">
+      <main className="min-h-screen bg-background px-5 py-10 text-foreground dark:bg-zinc-950 dark:text-white">
         <div className="mx-auto max-w-3xl rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-red-300">
-          {errorMessage || "Réservation introuvable."}
+          {t(errorKey ?? "notFound")}
         </div>
       </main>
     );
@@ -432,26 +408,32 @@ export default function BookingDetailsPage() {
     booking.payment_status !== "refunded";
   const canTrack =
     booking.status === "accepted" && booking.payment_status === "paid";
-  const otherName = formatName(otherProfile ?? undefined);
-  const paymentLabel =
-    booking.payment_status === "refunded" || booking.refund_status === "succeeded"
-      ? "Remboursement confirmé"
-      : booking.refund_status === "processing"
-        ? "Remboursement en cours"
-        : booking.refund_status === "failed"
-          ? "Remboursement à vérifier"
-          : booking.payment_status === "paid"
-            ? role === "provider"
-              ? "Paiement reçu avec succès"
-              : "Paiement effectué avec succès"
-            : booking.payment_failure_message && role === "client"
-              ? "Paiement refusé"
-              : role === "provider"
-                ? "En attente du paiement du client"
-                : "À payer";
+  const otherName = profileName(otherProfile) || t("userFallback");
+  const serviceLabel = formatKlyxBookingServiceFromSlug(
+    locale,
+    serviceSlug,
+    "Baby-sitting"
+  );
+  const paymentLabel = formatKlyxBookingPaymentLabel(locale, {
+    paymentStatus: booking.payment_status,
+    refundStatus: booking.refund_status,
+    paymentFailureMessage: booking.payment_failure_message,
+    role,
+  });
+  const nextTitle = formatKlyxBookingNextTitle(locale, {
+    status: booking.status,
+    paymentStatus: booking.payment_status,
+    role,
+  });
+  const nextDescription = formatKlyxBookingNextDescription(locale, {
+    status: booking.status,
+    paymentStatus: booking.payment_status,
+    refundStatus: booking.refund_status,
+    role,
+  });
 
   return (
-    <main className="min-h-screen bg-background dark:bg-zinc-950 px-5 py-10 text-foreground dark:text-white">
+    <main className="min-h-screen bg-background px-5 py-10 text-foreground dark:bg-zinc-950 dark:text-white">
       <div className="mx-auto max-w-6xl">
         {/* KLYX_AI_FIRST_BOOKING_UI_15_01 */}
         {/* KLYX_BOOKING_NEXT_ACTION_13_69 */}
@@ -460,57 +442,13 @@ export default function BookingDetailsPage() {
             <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0">
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-violet-600">
-                  Suivi KLYX
+                  {t("tracking")}
                 </p>
-
                 <h1 className="mt-2 text-2xl font-black sm:text-3xl">
-                  {booking.status === "pending"
-                    ? role === "provider"
-                      ? "Une demande attend ta réponse"
-                      : "En attente de la réponse du prestataire"
-                    : booking.status === "accepted" &&
-                        booking.payment_status !== "paid"
-                      ? role === "client"
-                        ? "Le prestataire a accepté. Le paiement est la prochaine étape."
-                        : "Réservation acceptée. En attente du paiement du client."
-                      : booking.status === "accepted" &&
-                          booking.payment_status === "paid"
-                        ? "Tout est prêt pour la prestation"
-                        : booking.status === "completed"
-                          ? "Prestation terminée"
-                          : booking.status === "cancelled"
-                            ? "Cette réservation est annulée"
-                            : booking.status === "rejected"
-                              ? "Cette demande a été refusée"
-                              : "Suivi de la réservation"}
+                  {nextTitle}
                 </h1>
-
                 <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
-                  {booking.status === "pending"
-                    ? role === "provider"
-                      ? "Vérifie la mission puis accepte ou refuse explicitement la demande."
-                      : "Aucune action n’est nécessaire pour le moment. KLYX attend la décision du prestataire."
-                    : booking.status === "accepted" &&
-                        booking.payment_status !== "paid"
-                      ? role === "client"
-                        ? "La réservation est acceptée. Rien n’est débité automatiquement : tu décides quand lancer le paiement sécurisé."
-                        : "Le client doit encore effectuer le paiement avant le démarrage de la prestation."
-                      : booking.status === "accepted" &&
-                          booking.payment_status === "paid"
-                        ? "Le paiement est confirmé. La prestation peut maintenant être suivie."
-                        : booking.status === "completed"
-                          ? "La prestation est terminée. L’évaluation devient la prochaine étape."
-                          : booking.status === "cancelled"
-                            ? booking.payment_status === "refunded" || booking.refund_status === "succeeded"
-                              ? "La réservation est annulée et le remboursement est confirmé."
-                              : booking.refund_status === "processing"
-                                ? "La réservation est annulée. Le remboursement est en cours de traitement."
-                                : booking.refund_status === "failed"
-                                  ? "La réservation est annulée, mais le remboursement nécessite une vérification."
-                                  : "Le parcours de cette réservation est arrêté."
-                            : booking.status === "rejected"
-                              ? "Cette demande ne poursuivra pas le parcours."
-                              : "KLYX affiche ici l’état actuel et la prochaine action utile."}
+                  {nextDescription}
                 </p>
               </div>
 
@@ -522,15 +460,11 @@ export default function BookingDetailsPage() {
                   className="klyx-button shrink-0 lg:min-w-[220px]"
                 >
                   {activeAction === "pay" ? (
-                    <RefreshCw
-                      size={17}
-                      className="animate-spin"
-                    />
+                    <RefreshCw size={17} className="animate-spin" />
                   ) : (
                     <CreditCard size={17} />
                   )}
-
-                  Payer maintenant
+                  {t("payNow")}
                 </button>
               )}
             </div>
@@ -538,7 +472,7 @@ export default function BookingDetailsPage() {
             <div className="mt-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <JourneyStep
                 number="1"
-                label="Demande"
+                label={t("journeyRequest")}
                 state={
                   booking.status === "pending"
                     ? "current"
@@ -547,11 +481,11 @@ export default function BookingDetailsPage() {
                       ? "stopped"
                       : "done"
                 }
+                locale={locale}
               />
-
               <JourneyStep
                 number="2"
-                label="Acceptation"
+                label={t("journeyAcceptance")}
                 state={
                   booking.status === "pending"
                     ? "upcoming"
@@ -560,11 +494,11 @@ export default function BookingDetailsPage() {
                       ? "stopped"
                       : "done"
                 }
+                locale={locale}
               />
-
               <JourneyStep
                 number="3"
-                label="Paiement"
+                label={t("journeyPayment")}
                 state={
                   booking.payment_status === "paid"
                     ? "done"
@@ -575,11 +509,11 @@ export default function BookingDetailsPage() {
                         ? "stopped"
                         : "upcoming"
                 }
+                locale={locale}
               />
-
               <JourneyStep
                 number="4"
-                label="Prestation"
+                label={t("journeyService")}
                 state={
                   booking.status === "completed"
                     ? "done"
@@ -590,77 +524,76 @@ export default function BookingDetailsPage() {
                         ? "stopped"
                         : "upcoming"
                 }
+                locale={locale}
               />
             </div>
 
             <div className="mt-5 flex flex-wrap gap-2 text-xs font-bold">
               <span className="rounded-full border border-border bg-background px-3 py-1.5">
-                Réservation : {STATUS_LABELS[booking.status] ?? booking.status}
+                {t("bookingPrefix")}: {formatKlyxBookingDetailStatus(locale, booking.status)}
               </span>
-
               <span className="rounded-full border border-border bg-background px-3 py-1.5">
-                Paiement : {paymentLabel}
+                {t("paymentPrefix")}: {paymentLabel}
               </span>
-
               {canPay && (
                 <span className="rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1.5 text-violet-700 dark:text-violet-300">
-                  Action requise : paiement
+                  {t("actionPayment")}
                 </span>
               )}
-
               {canTrack && (
                 <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300">
-                  Prestation prête
+                  {t("serviceReady")}
                 </span>
               )}
             </div>
 
             {canPay && (
               <p className="mt-5 text-xs font-bold text-muted-foreground">
-                Paiement manuel uniquement · aucun débit automatique.
+                {t("manualPaymentSafety")}
               </p>
             )}
           </div>
         </section>
+
         <div className="flex flex-wrap items-center justify-between gap-4">
           <Link
             href="/bookings"
-            className="inline-flex items-center gap-2 text-sm text-muted-foreground dark:text-zinc-400 hover:text-foreground dark:text-white"
+            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground dark:text-zinc-400 dark:hover:text-white"
           >
-            <ArrowLeft size={17} /> Retour aux réservations
+            <ArrowLeft size={17} /> {t("backBookings")}
           </Link>
           <button
             type="button"
             onClick={() => void loadBooking()}
-            className="inline-flex items-center gap-2 rounded-xl border border-border dark:border-zinc-700 px-4 py-2 text-sm font-semibold hover:bg-card dark:bg-zinc-900"
+            className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-semibold hover:bg-card dark:border-zinc-700 dark:bg-zinc-900"
           >
-            <RefreshCw size={16} /> Actualiser
+            <RefreshCw size={16} /> {t("refresh")}
           </button>
         </div>
 
-        {successMessage && (
+        {successKey && (
           <div className="mt-6 flex items-start gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-5 text-emerald-200">
             <CheckCircle2 className="mt-0.5 shrink-0" size={20} />
-            {successMessage}
+            {t(successKey)}
           </div>
         )}
 
-        {errorMessage && (
+        {errorKey && (
           <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-red-300">
-            {errorMessage}
+            {t(errorKey)}
           </div>
         )}
 
         <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_380px]">
           <div className="space-y-8">
-            <section className="rounded-3xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-6 sm:p-8">
+            <section className="rounded-3xl border border-border bg-card p-6 sm:p-8 dark:border-zinc-800 dark:bg-zinc-900">
               <div className="flex flex-wrap items-start justify-between gap-5">
                 <div>
                   <p className="text-sm font-semibold uppercase tracking-[0.2em] text-violet-400">
                     {serviceLabel}
                   </p>
                   <h1 className="mt-3 text-3xl font-bold sm:text-4xl">
-                    {STATUS_LABELS[booking.status] ?? booking.status}
+                    {formatKlyxBookingDetailStatus(locale, booking.status)}
                   </h1>
                 </div>
                 <span
@@ -668,34 +601,38 @@ export default function BookingDetailsPage() {
                     STATUS_STYLES[booking.status] ?? STATUS_STYLES.cancelled
                   }`}
                 >
-                  {STATUS_LABELS[booking.status] ?? booking.status}
+                  {formatKlyxBookingDetailStatus(locale, booking.status)}
                 </span>
               </div>
 
               <div className="mt-8 grid gap-4 sm:grid-cols-2">
                 <InfoItem
                   icon={<CalendarDays size={19} />}
-                  label="Date"
-                  value={formatDate(booking.booking_date)}
+                  label={t("date")}
+                  value={formatKlyxBookingDetailDate(locale, booking.booking_date)}
                 />
                 <InfoItem
                   icon={<Clock3 size={19} />}
-                  label="Horaire"
+                  label={t("schedule")}
                   value={`${booking.start_time.slice(0, 5)}–${booking.end_time.slice(0, 5)}`}
                 />
                 <InfoItem
                   icon={<CreditCard size={19} />}
-                  label="Paiement"
+                  label={t("payment")}
                   value={paymentLabel}
                 />
                 <InfoItem
                   icon={<MapPin size={19} />}
-                  label="Total estimé"
-                  value={formatMoney(amount, booking.currency ?? "")}
+                  label={t("estimatedTotal")}
+                  value={formatKlyxBookingDetailAmount(
+                    locale,
+                    amount,
+                    booking.currency ?? ""
+                  )}
                 />
               </div>
 
-              <div className="mt-6 flex items-center gap-4 rounded-2xl border border-border dark:border-zinc-800 bg-background dark:bg-zinc-950 p-4">
+              <div className="mt-6 flex items-center gap-4 rounded-2xl border border-border bg-background p-4 dark:border-zinc-800 dark:bg-zinc-950">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted dark:bg-zinc-800">
                   {otherProfile?.avatar_url ? (
                     <img
@@ -704,12 +641,15 @@ export default function BookingDetailsPage() {
                       className="h-full w-full object-cover"
                     />
                   ) : (
-                    <UserRound className="text-muted-foreground dark:text-zinc-500" size={24} />
+                    <UserRound
+                      className="text-muted-foreground dark:text-zinc-500"
+                      size={24}
+                    />
                   )}
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground dark:text-zinc-500">
-                    {role === "client" ? "Prestataire" : "Client"}
+                    {role === "client" ? t("provider") : t("client")}
                   </p>
                   <p className="font-bold">{otherName}</p>
                 </div>
@@ -721,9 +661,12 @@ export default function BookingDetailsPage() {
                 bookingStatus={booking.status}
                 otherName={otherName}
               />
+
               {booking.message && (
-                <div className="mt-6 rounded-2xl border border-border dark:border-zinc-800 p-5">
-                  <p className="text-sm font-semibold text-muted-foreground dark:text-zinc-400">Demande du client</p>
+                <div className="mt-6 rounded-2xl border border-border p-5 dark:border-zinc-800">
+                  <p className="text-sm font-semibold text-muted-foreground dark:text-zinc-400">
+                    {t("clientRequest")}
+                  </p>
                   <p className="mt-2 whitespace-pre-wrap leading-7 text-zinc-200">
                     {booking.message}
                   </p>
@@ -733,7 +676,7 @@ export default function BookingDetailsPage() {
               {booking.provider_response && (
                 <div className="mt-4 rounded-2xl border border-violet-500/30 bg-violet-500/10 p-5">
                   <p className="text-sm font-semibold text-violet-300">
-                    Réponse du prestataire
+                    {t("providerResponse")}
                   </p>
                   <p className="mt-2 whitespace-pre-wrap text-zinc-200">
                     {booking.provider_response}
@@ -743,7 +686,9 @@ export default function BookingDetailsPage() {
 
               {booking.cancellation_reason && (
                 <div className="mt-4 rounded-2xl border border-red-500/30 bg-red-500/10 p-5">
-                  <p className="text-sm font-semibold text-red-300">Motif d’annulation</p>
+                  <p className="text-sm font-semibold text-red-300">
+                    {t("cancellationReason")}
+                  </p>
                   <p className="mt-2 whitespace-pre-wrap text-zinc-200">
                     {booking.cancellation_reason}
                   </p>
@@ -756,7 +701,7 @@ export default function BookingDetailsPage() {
                 booking.payment_failure_message && (
                   <div className="mt-4 rounded-2xl border border-red-500/30 bg-red-500/10 p-5">
                     <p className="text-sm font-semibold text-red-300">
-                      Paiement refusé
+                      {t("paymentDeclined")}
                     </p>
                     <p className="mt-2 text-zinc-200">
                       {booking.payment_failure_message}
@@ -765,14 +710,16 @@ export default function BookingDetailsPage() {
                 )}
             </section>
 
-            <section className="rounded-3xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-6 sm:p-8">
+            <section className="rounded-3xl border border-border bg-card p-6 sm:p-8 dark:border-zinc-800 dark:bg-zinc-900">
               <div className="flex items-center gap-3">
                 <History className="text-violet-400" size={24} />
-                <h2 className="text-2xl font-bold">Historique</h2>
+                <h2 className="text-2xl font-bold">{t("history")}</h2>
               </div>
 
               {events.length === 0 ? (
-                <p className="mt-5 text-muted-foreground dark:text-zinc-400">Aucun événement enregistré.</p>
+                <p className="mt-5 text-muted-foreground dark:text-zinc-400">
+                  {t("noEvents")}
+                </p>
               ) : (
                 <div className="mt-6 space-y-5">
                   {events.map((event, index) => (
@@ -783,13 +730,22 @@ export default function BookingDetailsPage() {
                       <span className="relative mt-1 h-6 w-6 shrink-0 rounded-full border-4 border-zinc-900 bg-violet-500" />
                       <div className="pb-3">
                         <p className="font-semibold">
-                          {STATUS_LABELS[event.new_status] ?? event.new_status}
+                          {formatKlyxBookingDetailStatus(
+                            locale,
+                            event.new_status
+                          )}
                         </p>
                         <p className="mt-1 text-sm text-muted-foreground dark:text-zinc-500">
-                          {event.actorName} · {formatDateTime(event.created_at)}
+                          {event.actorName || t("userFallback")} ·{" "}
+                          {formatKlyxBookingDetailDateTime(
+                            locale,
+                            event.created_at
+                          )}
                         </p>
                         {event.note && (
-                          <p className="mt-2 text-sm leading-6 text-foreground/80 dark:text-zinc-300">{event.note}</p>
+                          <p className="mt-2 text-sm leading-6 text-foreground/80 dark:text-zinc-300">
+                            {formatKlyxBookingEventNote(locale, event.note)}
+                          </p>
                         )}
                       </div>
                     </div>
@@ -799,18 +755,20 @@ export default function BookingDetailsPage() {
             </section>
           </div>
 
-          <aside className="h-fit rounded-3xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-6 lg:sticky lg:top-6">
-            <h2 className="text-xl font-bold">Actions</h2>
+          <aside className="h-fit rounded-3xl border border-border bg-card p-6 lg:sticky lg:top-6 dark:border-zinc-800 dark:bg-zinc-900">
+            <h2 className="text-xl font-bold">{t("actions")}</h2>
             <p className="mt-2 text-sm leading-6 text-muted-foreground dark:text-zinc-400">
               {canProviderAnswer
-                ? "Réponds à la demande. Ton message sera visible par le client."
-                : "Les actions disponibles dépendent de l’état de la réservation."}
+                ? t("providerActionHelp")
+                : t("genericActionHelp")}
             </p>
 
             {(canProviderAnswer || canCancel) && (
               <label className="mt-5 block">
                 <span className="mb-2 block text-sm text-foreground/80 dark:text-zinc-300">
-                  {canProviderAnswer ? "Message de réponse" : "Motif d’annulation"}
+                  {canProviderAnswer
+                    ? t("responseMessage")
+                    : t("cancellationReasonLabel")}
                 </span>
                 <textarea
                   rows={4}
@@ -819,10 +777,10 @@ export default function BookingDetailsPage() {
                   onChange={(event) => setNote(event.target.value)}
                   placeholder={
                     canProviderAnswer
-                      ? "Ex. Je confirme, à bientôt."
-                      : "Explique brièvement l’annulation."
+                      ? t("responsePlaceholder")
+                      : t("cancellationPlaceholder")
                   }
-                  className="w-full resize-none rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 p-4 outline-none focus:border-violet-500"
+                  className="w-full resize-none rounded-xl border border-border bg-background p-4 outline-none focus:border-violet-500 dark:border-zinc-700 dark:bg-zinc-950"
                 />
               </label>
             )}
@@ -835,7 +793,7 @@ export default function BookingDetailsPage() {
                   onClick={() => void updateStatus("accepted")}
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-3 font-semibold hover:bg-violet-700 disabled:opacity-50"
                 >
-                  <Check size={18} /> Accepter
+                  <Check size={18} /> {t("accept")}
                 </button>
                 <button
                   type="button"
@@ -843,7 +801,7 @@ export default function BookingDetailsPage() {
                   onClick={() => void updateStatus("rejected")}
                   className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 font-semibold text-red-300 hover:bg-red-500/20 disabled:opacity-50"
                 >
-                  <X size={18} /> Refuser
+                  <X size={18} /> {t("reject")}
                 </button>
               </div>
             )}
@@ -855,7 +813,7 @@ export default function BookingDetailsPage() {
                 onClick={() => void payBooking()}
                 className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-4 font-semibold hover:bg-violet-700 disabled:opacity-50"
               >
-                <CreditCard size={19} /> Payer la réservation
+                <CreditCard size={19} /> {t("payBooking")}
               </button>
             )}
 
@@ -864,15 +822,15 @@ export default function BookingDetailsPage() {
                 href={`/tracking/${booking.id}`}
                 className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-4 font-semibold hover:bg-violet-700"
               >
-                <MapPin size={19} /> Suivre la prestation
+                <MapPin size={19} /> {t("trackService")}
               </Link>
             )}
 
             <Link
               href={`/messages/${booking.id}`}
-              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border dark:border-zinc-700 px-4 py-3 font-semibold hover:bg-muted dark:bg-zinc-800"
+              className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 font-semibold hover:bg-muted dark:border-zinc-700 dark:bg-zinc-800"
             >
-              <MessageCircle size={18} /> Ouvrir la messagerie
+              <MessageCircle size={18} /> {t("openMessages")}
             </Link>
 
             {canCancel && (
@@ -882,13 +840,13 @@ export default function BookingDetailsPage() {
                 onClick={() => void updateStatus("cancelled")}
                 className="mt-3 w-full rounded-xl px-4 py-3 text-sm font-semibold text-red-300 hover:bg-red-500/10 disabled:opacity-50"
               >
-                Annuler la réservation
+                {t("cancelBooking")}
               </button>
             )}
 
             {!canProviderAnswer && !canPay && !canTrack && !canCancel && (
-              <div className="mt-5 rounded-xl border border-border dark:border-zinc-800 bg-background dark:bg-zinc-950 p-4 text-sm text-muted-foreground dark:text-zinc-400">
-                Aucune action supplémentaire pour le moment.
+              <div className="mt-5 rounded-xl border border-border bg-background p-4 text-sm text-muted-foreground dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
+                {t("noMoreActions")}
               </div>
             )}
           </aside>
@@ -900,24 +858,20 @@ export default function BookingDetailsPage() {
             <div className="flex flex-col gap-5 p-6 sm:p-8 lg:flex-row lg:items-center lg:justify-between">
               <div className="min-w-0">
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-amber-600 dark:text-amber-400">
-                  Avis vérifié KLYX
+                  {t("verifiedReview")}
                 </p>
-
                 <h2 className="mt-2 text-2xl font-black tracking-tight">
-                  Comment s’est passée la prestation ?
+                  {t("reviewQuestion")}
                 </h2>
-
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-                  Partage ton expérience sur cette mission.
+                  {t("reviewDescription")}
                 </p>
-
                 <div className="mt-4 flex flex-wrap gap-2">
                   <span className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-bold">
-                    Mission terminée
+                    {t("missionCompleted")}
                   </span>
-
                   <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300">
-                    Réservation vérifiée
+                    {t("bookingVerified")}
                   </span>
                 </div>
               </div>
@@ -926,16 +880,15 @@ export default function BookingDetailsPage() {
                 href={`/reviews/${booking.id}`}
                 className="inline-flex min-h-12 shrink-0 items-center justify-center rounded-xl bg-violet-600 px-6 py-3 text-sm font-black text-white transition hover:bg-violet-700"
               >
-                Laisser mon avis
+                {t("leaveReview")}
               </Link>
             </div>
-
             <div className="border-t border-amber-500/15 px-6 py-4 text-xs leading-5 text-muted-foreground sm:px-8">
-              Avis disponible après mission terminée.
+              {t("reviewAvailable")}
             </div>
           </section>
         )}
-</div>
+      </div>
     </main>
   );
 }
@@ -945,12 +898,12 @@ function InfoItem({
   label,
   value,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   value: string;
 }) {
   return (
-    <div className="rounded-2xl border border-border dark:border-zinc-800 bg-background dark:bg-zinc-950 p-4">
+    <div className="rounded-2xl border border-border bg-background p-4 dark:border-zinc-800 dark:bg-zinc-950">
       <p className="flex items-center gap-2 text-sm text-muted-foreground dark:text-zinc-500">
         {icon} {label}
       </p>
@@ -958,18 +911,17 @@ function InfoItem({
     </div>
   );
 }
+
 function JourneyStep({
   number,
   label,
   state,
+  locale,
 }: {
   number: string;
   label: string;
-  state:
-    | "done"
-    | "current"
-    | "upcoming"
-    | "stopped";
+  state: JourneyState;
+  locale: string;
 }) {
   const className =
     state === "done"
@@ -979,7 +931,6 @@ function JourneyStep({
         : state === "stopped"
           ? "border-rose-500/20 bg-rose-500/10"
           : "border-border bg-background";
-
   const numberClassName =
     state === "done"
       ? "bg-emerald-600 text-white"
@@ -988,35 +939,27 @@ function JourneyStep({
         : state === "stopped"
           ? "bg-rose-500/15 text-rose-600"
           : "bg-muted text-muted-foreground";
+  const stateKey: KlyxBookingDetailMessageKey =
+    state === "done"
+      ? "journeyDone"
+      : state === "current"
+        ? "journeyCurrent"
+        : state === "stopped"
+          ? "journeyStopped"
+          : "journeyUpcoming";
 
   return (
-    <div
-      className={`rounded-2xl border p-4 ${className}`}
-    >
+    <div className={`rounded-2xl border p-4 ${className}`}>
       <div className="flex items-center gap-3">
         <span
           className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-black ${numberClassName}`}
         >
-          {state === "done" ? (
-            <Check size={15} />
-          ) : (
-            number
-          )}
+          {state === "done" ? <Check size={15} /> : number}
         </span>
-
         <div>
-          <p className="font-black">
-            {label}
-          </p>
-
+          <p className="font-black">{label}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {state === "done"
-              ? "Terminé"
-              : state === "current"
-                ? "Étape actuelle"
-                : state === "stopped"
-                  ? "Arrêté"
-                  : "À venir"}
+            {translateKlyxBookingDetail(locale, stateKey)}
           </p>
         </div>
       </div>
