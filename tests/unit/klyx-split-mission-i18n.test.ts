@@ -7,9 +7,13 @@ import {
 import {
   KLYX_SPLIT_MISSION_MESSAGE_KEYS,
   KLYX_SPLIT_MISSION_TRANSLATED_LOCALES,
+  formatKlyxSplitBookingStatus,
   formatKlyxSplitMissionAdditionalSlots,
+  formatKlyxSplitMissionDetailDate,
+  formatKlyxSplitMissionProviderCount,
   formatKlyxSplitMissionService,
   formatKlyxSplitMissionSlotCount,
+  formatKlyxSplitMissionSlotPosition,
   formatKlyxSplitMissionStatus,
   formatKlyxSplitMissionSummary,
   resolveKlyxSplitMissionLocale,
@@ -29,6 +33,9 @@ describe("KLYX split mission i18n", () => {
     expect(resolveKlyxSplitMissionLocale("es")).toBe("fr");
     expect(translateKlyxSplitMission("es", "viewMission")).toBe(
       "Voir la mission complète"
+    );
+    expect(translateKlyxSplitMission("es", "detailRefresh")).toBe(
+      "Actualiser"
     );
   });
 
@@ -56,6 +63,33 @@ describe("KLYX split mission i18n", () => {
     );
     expect(formatKlyxSplitMissionAdditionalSlots("nl", 2)).toBe(
       "+ 2 andere tijdsloten"
+    );
+  });
+
+  it("localizes detail counts, positions and known booking states", () => {
+    expect(formatKlyxSplitMissionProviderCount("fr", 2)).toBe(
+      "2 prestataires"
+    );
+    expect(formatKlyxSplitMissionProviderCount("en", 1)).toBe("1 provider");
+    expect(formatKlyxSplitMissionSlotPosition("nl", 4)).toBe("Tijdslot 4");
+    expect(formatKlyxSplitBookingStatus("de", "accepted")).toBe("Angenommen");
+    expect(formatKlyxSplitBookingStatus("en", "missing")).toBe(
+      "Booking missing"
+    );
+    expect(formatKlyxSplitBookingStatus("en", "custom_state")).toBe(
+      "custom_state"
+    );
+  });
+
+  it("formats detail dates with the certified locale and explicit French fallback", () => {
+    expect(formatKlyxSplitMissionDetailDate("en", "2026-08-23")).toContain(
+      "2026"
+    );
+    expect(formatKlyxSplitMissionDetailDate("nl", "2026-08-23")).toContain(
+      "2026"
+    );
+    expect(formatKlyxSplitMissionDetailDate("es", "2026-08-23")).toBe(
+      formatKlyxSplitMissionDetailDate("fr", "2026-08-23")
     );
   });
 });

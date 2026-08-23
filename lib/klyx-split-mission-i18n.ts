@@ -38,6 +38,28 @@ export const KLYX_SPLIT_MISSION_MESSAGE_KEYS = [
   "statusCompleted",
   "statusCancelled",
   "statusMixedIssue",
+  "detailBackToBookings",
+  "detailRefresh",
+  "detailEyebrow",
+  "detailIntro",
+  "detailTimeline",
+  "detailDate",
+  "detailSchedule",
+  "detailOpenBooking",
+  "detailUnifiedTitle",
+  "detailUnifiedDescription",
+  "detailNoPayment",
+  "detailSessionMissing",
+  "detailUnavailable",
+  "detailLoadFailed",
+  "bookingStatusPending",
+  "bookingStatusAccepted",
+  "bookingStatusConfirmed",
+  "bookingStatusRejected",
+  "bookingStatusCancelled",
+  "bookingStatusCompleted",
+  "bookingStatusMissing",
+  "bookingStatusUnknown",
 ] as const;
 
 export type KlyxSplitMissionMessageKey =
@@ -66,6 +88,30 @@ const dictionaries: Record<KlyxSplitMissionLocale, Dictionary> = {
     statusCompleted: "Terminée",
     statusCancelled: "Annulée",
     statusMixedIssue: "Action requise",
+    detailBackToBookings: "Mes réservations",
+    detailRefresh: "Actualiser",
+    detailEyebrow: "Mission multi-prestataires KLYX",
+    detailIntro:
+      "Cette mission regroupe toutes les réservations créées à partir du même plan confirmé.",
+    detailTimeline: "Déroulement de la mission",
+    detailDate: "Date",
+    detailSchedule: "Horaire",
+    detailOpenBooking: "Ouvrir cette réservation",
+    detailUnifiedTitle: "Une seule mission côté client",
+    detailUnifiedDescription:
+      "Les créneaux restent des réservations techniques distinctes pour permettre à chaque prestataire de gérer sa partie. Cette page les réunit en une seule expérience client.",
+    detailNoPayment: "Aucun paiement n'est créé depuis cette page.",
+    detailSessionMissing: "Session KLYX manquante.",
+    detailUnavailable: "Mission indisponible.",
+    detailLoadFailed: "Impossible de charger la mission.",
+    bookingStatusPending: "En attente",
+    bookingStatusAccepted: "Acceptée",
+    bookingStatusConfirmed: "Confirmée",
+    bookingStatusRejected: "Refusée",
+    bookingStatusCancelled: "Annulée",
+    bookingStatusCompleted: "Terminée",
+    bookingStatusMissing: "Réservation manquante",
+    bookingStatusUnknown: "Statut inconnu",
   },
   en: {
     sectionEyebrow: "KLYX missions",
@@ -87,6 +133,30 @@ const dictionaries: Record<KlyxSplitMissionLocale, Dictionary> = {
     statusCompleted: "Completed",
     statusCancelled: "Cancelled",
     statusMixedIssue: "Action required",
+    detailBackToBookings: "My bookings",
+    detailRefresh: "Refresh",
+    detailEyebrow: "KLYX multi-provider mission",
+    detailIntro:
+      "This mission brings together every booking created from the same confirmed plan.",
+    detailTimeline: "Mission timeline",
+    detailDate: "Date",
+    detailSchedule: "Time",
+    detailOpenBooking: "Open this booking",
+    detailUnifiedTitle: "One client-side mission",
+    detailUnifiedDescription:
+      "Time slots remain separate technical bookings so each provider can manage their part. This page brings them together into one client experience.",
+    detailNoPayment: "No payment is created from this page.",
+    detailSessionMissing: "KLYX session missing.",
+    detailUnavailable: "Mission unavailable.",
+    detailLoadFailed: "Unable to load the mission.",
+    bookingStatusPending: "Pending",
+    bookingStatusAccepted: "Accepted",
+    bookingStatusConfirmed: "Confirmed",
+    bookingStatusRejected: "Rejected",
+    bookingStatusCancelled: "Cancelled",
+    bookingStatusCompleted: "Completed",
+    bookingStatusMissing: "Booking missing",
+    bookingStatusUnknown: "Unknown status",
   },
   nl: {
     sectionEyebrow: "KLYX-missies",
@@ -108,6 +178,30 @@ const dictionaries: Record<KlyxSplitMissionLocale, Dictionary> = {
     statusCompleted: "Voltooid",
     statusCancelled: "Geannuleerd",
     statusMixedIssue: "Actie vereist",
+    detailBackToBookings: "Mijn boekingen",
+    detailRefresh: "Vernieuwen",
+    detailEyebrow: "KLYX-missie met meerdere dienstverleners",
+    detailIntro:
+      "Deze missie bundelt alle boekingen die vanuit hetzelfde bevestigde plan zijn aangemaakt.",
+    detailTimeline: "Verloop van de missie",
+    detailDate: "Datum",
+    detailSchedule: "Tijd",
+    detailOpenBooking: "Deze boeking openen",
+    detailUnifiedTitle: "Eén missie voor de klant",
+    detailUnifiedDescription:
+      "Tijdsloten blijven technisch aparte boekingen zodat elke dienstverlener zijn deel kan beheren. Deze pagina bundelt ze tot één klantervaring.",
+    detailNoPayment: "Vanaf deze pagina wordt geen betaling aangemaakt.",
+    detailSessionMissing: "KLYX-sessie ontbreekt.",
+    detailUnavailable: "Missie niet beschikbaar.",
+    detailLoadFailed: "De missie kan niet worden geladen.",
+    bookingStatusPending: "In afwachting",
+    bookingStatusAccepted: "Geaccepteerd",
+    bookingStatusConfirmed: "Bevestigd",
+    bookingStatusRejected: "Geweigerd",
+    bookingStatusCancelled: "Geannuleerd",
+    bookingStatusCompleted: "Voltooid",
+    bookingStatusMissing: "Boeking ontbreekt",
+    bookingStatusUnknown: "Onbekende status",
   },
   de: {
     sectionEyebrow: "KLYX-Aufträge",
@@ -129,6 +223,30 @@ const dictionaries: Record<KlyxSplitMissionLocale, Dictionary> = {
     statusCompleted: "Abgeschlossen",
     statusCancelled: "Storniert",
     statusMixedIssue: "Aktion erforderlich",
+    detailBackToBookings: "Meine Buchungen",
+    detailRefresh: "Aktualisieren",
+    detailEyebrow: "KLYX-Auftrag mit mehreren Anbietern",
+    detailIntro:
+      "Dieser Auftrag bündelt alle Buchungen, die aus demselben bestätigten Plan erstellt wurden.",
+    detailTimeline: "Ablauf des Auftrags",
+    detailDate: "Datum",
+    detailSchedule: "Uhrzeit",
+    detailOpenBooking: "Diese Buchung öffnen",
+    detailUnifiedTitle: "Ein Auftrag für den Kunden",
+    detailUnifiedDescription:
+      "Die Zeitfenster bleiben technisch getrennte Buchungen, damit jeder Anbieter seinen Teil verwalten kann. Diese Seite bündelt sie zu einem Kundenerlebnis.",
+    detailNoPayment: "Auf dieser Seite wird keine Zahlung erstellt.",
+    detailSessionMissing: "KLYX-Sitzung fehlt.",
+    detailUnavailable: "Auftrag nicht verfügbar.",
+    detailLoadFailed: "Der Auftrag konnte nicht geladen werden.",
+    bookingStatusPending: "Ausstehend",
+    bookingStatusAccepted: "Angenommen",
+    bookingStatusConfirmed: "Bestätigt",
+    bookingStatusRejected: "Abgelehnt",
+    bookingStatusCancelled: "Storniert",
+    bookingStatusCompleted: "Abgeschlossen",
+    bookingStatusMissing: "Buchung fehlt",
+    bookingStatusUnknown: "Unbekannter Status",
   },
 };
 
@@ -151,7 +269,21 @@ const STATUS_KEYS: Record<KlyxSplitMissionState, KlyxSplitMissionMessageKey> = {
   mixed_issue: "statusMixedIssue",
 };
 
-const SERVICE_SLUG_ALIASES: Record<string, "babysitting" | "cleaning" | "moving" | "handyman"> = {
+const BOOKING_STATUS_KEYS: Record<string, KlyxSplitMissionMessageKey> = {
+  pending: "bookingStatusPending",
+  accepted: "bookingStatusAccepted",
+  confirmed: "bookingStatusConfirmed",
+  rejected: "bookingStatusRejected",
+  cancelled: "bookingStatusCancelled",
+  completed: "bookingStatusCompleted",
+  missing: "bookingStatusMissing",
+  unknown: "bookingStatusUnknown",
+};
+
+const SERVICE_SLUG_ALIASES: Record<
+  string,
+  "babysitting" | "cleaning" | "moving" | "handyman"
+> = {
   babysitting: "babysitting",
   "baby-sitting": "babysitting",
   cleaning: "cleaning",
@@ -226,11 +358,37 @@ export function formatKlyxSplitMissionDate(
   }).format(new Date(value + "T12:00:00"));
 }
 
+export function formatKlyxSplitMissionDetailDate(
+  locale: string,
+  value: string
+): string {
+  const resolved = resolveKlyxSplitMissionLocale(locale);
+
+  return new Intl.DateTimeFormat(INTL_LOCALES[resolved], {
+    weekday: "short",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(value + "T12:00:00"));
+}
+
 export function formatKlyxSplitMissionStatus(
   locale: string,
   status: KlyxSplitMissionState
 ): string {
   return translateKlyxSplitMission(locale, STATUS_KEYS[status]);
+}
+
+export function formatKlyxSplitBookingStatus(
+  locale: string,
+  status: string
+): string {
+  const normalized = status.trim().toLowerCase();
+  const key = BOOKING_STATUS_KEYS[normalized];
+
+  return key
+    ? translateKlyxSplitMission(locale, key)
+    : status.trim() || translateKlyxSplitMission(locale, "bookingStatusUnknown");
 }
 
 export function formatKlyxSplitMissionService(
@@ -277,6 +435,48 @@ export function formatKlyxSplitMissionSlotCount(
   }
 
   return `${count} ${count === 1 ? "créneau" : "créneaux"}`;
+}
+
+export function formatKlyxSplitMissionProviderCount(
+  locale: string,
+  count: number
+): string {
+  const resolved = resolveKlyxSplitMissionLocale(locale);
+
+  if (resolved === "en") {
+    return `${count} ${count === 1 ? "provider" : "providers"}`;
+  }
+
+  if (resolved === "nl") {
+    return `${count} ${count === 1 ? "dienstverlener" : "dienstverleners"}`;
+  }
+
+  if (resolved === "de") {
+    return `${count} ${count === 1 ? "Anbieter" : "Anbieter"}`;
+  }
+
+  return `${count} ${count === 1 ? "prestataire" : "prestataires"}`;
+}
+
+export function formatKlyxSplitMissionSlotPosition(
+  locale: string,
+  position: number
+): string {
+  const resolved = resolveKlyxSplitMissionLocale(locale);
+
+  if (resolved === "en") {
+    return `Time slot ${position}`;
+  }
+
+  if (resolved === "nl") {
+    return `Tijdslot ${position}`;
+  }
+
+  if (resolved === "de") {
+    return `Zeitfenster ${position}`;
+  }
+
+  return `Créneau ${position}`;
 }
 
 export function formatKlyxSplitMissionSummary(
