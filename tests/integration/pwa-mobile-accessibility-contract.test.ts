@@ -16,6 +16,9 @@ const registrar = readRepoFile("app/components/PwaRegistrar.tsx");
 const serviceWorker = readRepoFile("public/sw.js");
 const accessibility = readRepoFile("app/klyx-accessibility.css");
 const offlinePage = readRepoFile("app/offline/page.tsx");
+const offlineContent = readRepoFile("app/offline/OfflinePageContent.tsx");
+const offlineRetry = readRepoFile("app/components/OfflineRetryButton.tsx");
+const offlineI18n = readRepoFile("lib/klyx-offline-page-i18n.ts");
 
 describe("KLYX PWA and mobile accessibility contract", () => {
   it("connects the installable metadata, service worker and application icons", () => {
@@ -41,12 +44,27 @@ describe("KLYX PWA and mobile accessibility contract", () => {
       expect(serviceWorker).toContain(`url.pathname.startsWith("${route}")`);
     }
 
-    expect(offlinePage).toContain(
-      "Les paiements, réservations, messages et données"
-    );
-    expect(offlinePage).toContain(
-      "personnelles ne sont jamais servis depuis un cache"
-    );
+    expect(offlineI18n).toContain("Les paiements, réservations, messages et données personnelles ne sont jamais servis depuis un cache hors ligne.");
+    expect(offlineI18n).toContain("Payments, bookings, messages and personal data are never served from an offline cache.");
+  });
+
+  it("keeps the offline page localized without moving its sensitive operation boundary", () => {
+    expect(offlinePage).toContain("generateMetadata");
+    expect(offlinePage).toContain("KLYX_LANGUAGE_COOKIE_KEY");
+    expect(offlinePage).toContain("translateKlyxOfflinePage");
+    expect(offlinePage).toContain("<OfflinePageContent />");
+
+    expect(offlineContent).toContain('"use client"');
+    expect(offlineContent).toContain("useKlyxLocale");
+    expect(offlineContent).toContain('t("description")');
+    expect(offlineContent).toContain('t("safetyInfo")');
+    expect(offlineContent).not.toContain("fetch(");
+    expect(offlineContent).not.toContain("supabase");
+    expect(offlineContent).not.toContain("stripe");
+
+    expect(offlineRetry).toContain('window.location.href = "/"');
+    expect(offlineRetry).toContain('window.addEventListener("online", handleOnline)');
+    expect(offlineRetry).toContain('window.addEventListener("offline", handleOffline)');
   });
 
   it("provides a first-focus localized skip link and a stable focusable content target", () => {
