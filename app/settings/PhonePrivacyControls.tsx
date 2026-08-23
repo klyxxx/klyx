@@ -1,24 +1,20 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useState,
-} from "react";
-import {
-  EyeOff,
-  LoaderCircle,
-  ShieldCheck,
-  Users,
-} from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { EyeOff, LoaderCircle, ShieldCheck, Users } from "lucide-react";
 
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import {
+  resolveKlyxPhonePrivacyPublicErrorKey,
+  translateKlyxPhonePrivacy,
+  type KlyxPhonePrivacyMessageKey,
+} from "@/lib/klyx-phone-privacy-i18n";
 import { supabase } from "@/lib/supabase";
 
 // KLYX_PHONE_PRIVACY_UI_12_75
+// KLYX_PHONE_PRIVACY_I18N_16_07
 
-type Visibility =
-  | "private"
-  | "transaction_participants";
+type Visibility = "private" | "transaction_participants";
 
 type PrivacyPayload = {
   visibility?: Visibility;
@@ -29,166 +25,102 @@ type PrivacyPayload = {
 };
 
 export default function PhonePrivacyControls() {
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxPhonePrivacyMessageKey) =>
+    translateKlyxPhonePrivacy(locale, key);
+
   const [visibility, setVisibility] =
-    useState<Visibility>(
-      "transaction_participants"
-    );
-
-  const [hasPhone, setHasPhone] =
-    useState(false);
-
-  const [verified, setVerified] =
-    useState(false);
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [saving, setSaving] =
-    useState<Visibility | null>(null);
-
-  const [message, setMessage] =
-    useState("");
-
-  const [errorMessage, setErrorMessage] =
-    useState("");
+    useState<Visibility>("transaction_participants");
+  const [hasPhone, setHasPhone] = useState(false);
+  const [verified, setVerified] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<Visibility | null>(null);
+  const [messageKey, setMessageKey] =
+    useState<KlyxPhonePrivacyMessageKey | null>(null);
+  const [errorKey, setErrorKey] =
+    useState<KlyxPhonePrivacyMessageKey | null>(null);
 
   const getToken = useCallback(async () => {
-    const { data } =
-      await supabase.auth.getSession();
-
-    const token =
-      data.session?.access_token;
-
-    if (!token) {
-      throw new Error(
-        "Session KLYX introuvable."
-      );
-    }
-
-    return token;
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token ?? null;
   }, []);
 
-  const loadPrivacy =
-    useCallback(async () => {
-      setLoading(true);
+  const loadPrivacy = useCallback(async () => {
+    setLoading(true);
 
-      try {
-        const token = await getToken();
-
-        const response = await fetch(
-          "/api/profile/phone/privacy",
-          {
-            cache: "no-store",
-            headers: {
-              Authorization:
-                "Bearer " + token,
-            },
-          }
-        );
-
-        const result =
-          (await response.json()) as PrivacyPayload;
-
-        if (!response.ok) {
-          throw new Error(
-            result.error ||
-              "Chargement impossible."
-          );
-        }
-
-        setVisibility(
-          result.visibility ??
-            "transaction_participants"
-        );
-
-        setHasPhone(
-          Boolean(result.hasPhone)
-        );
-
-        setVerified(
-          Boolean(result.verified)
-        );
-      } catch (error) {
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "Chargement impossible."
-        );
-      } finally {
-        setLoading(false);
+    try {
+      const token = await getToken();
+      if (!token) {
+        setErrorKey("sessionMissing");
+        return;
       }
-    }, [getToken]);
+
+      const response = await fetch("/api/profile/phone/privacy", {
+        cache: "no-store",
+        headers: { Authorization: "Bearer " + token },
+      });
+      const result = (await response.json()) as PrivacyPayload;
+
+      if (!response.ok) {
+        setErrorKey(
+          resolveKlyxPhonePrivacyPublicErrorKey(result.error, "loadFailed")
+        );
+        return;
+      }
+
+      setVisibility(result.visibility ?? "transaction_participants");
+      setHasPhone(Boolean(result.hasPhone));
+      setVerified(Boolean(result.verified));
+    } catch {
+      setErrorKey("loadFailed");
+    } finally {
+      setLoading(false);
+    }
+  }, [getToken]);
 
   useEffect(() => {
     void loadPrivacy();
   }, [loadPrivacy]);
 
-  async function changeVisibility(
-    nextVisibility: Visibility
-  ) {
-    if (
-      nextVisibility === visibility
-    ) {
-      return;
-    }
+  async function changeVisibility(nextVisibility: Visibility) {
+    if (nextVisibility === visibility) return;
 
     setSaving(nextVisibility);
-    setMessage("");
-    setErrorMessage("");
+    setMessageKey(null);
+    setErrorKey(null);
 
     try {
       const token = await getToken();
-
-      const response = await fetch(
-        "/api/profile/phone/privacy",
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type":
-              "application/json",
-            Authorization:
-              "Bearer " + token,
-          },
-          body: JSON.stringify({
-            visibility: nextVisibility,
-          }),
-        }
-      );
-
-      const result =
-        (await response.json()) as PrivacyPayload;
-
-      if (!response.ok) {
-        throw new Error(
-          result.error ||
-            "Modification impossible."
-        );
+      if (!token) {
+        setErrorKey("sessionMissing");
+        return;
       }
 
-      setVisibility(
-        result.visibility ??
-          nextVisibility
-      );
+      const response = await fetch("/api/profile/phone/privacy", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token,
+        },
+        body: JSON.stringify({ visibility: nextVisibility }),
+      });
+      const result = (await response.json()) as PrivacyPayload;
 
-      setHasPhone(
-        Boolean(result.hasPhone)
-      );
+      if (!response.ok) {
+        setErrorKey(
+          resolveKlyxPhonePrivacyPublicErrorKey(result.error, "saveFailed")
+        );
+        return;
+      }
 
-      setVerified(
-        Boolean(result.verified)
+      setVisibility(result.visibility ?? nextVisibility);
+      setHasPhone(Boolean(result.hasPhone));
+      setVerified(Boolean(result.verified));
+      setMessageKey(
+        nextVisibility === "private" ? "privateSaved" : "participantsSaved"
       );
-
-      setMessage(
-        nextVisibility === "private"
-          ? "Ton numero est maintenant prive."
-          : "Le partage avec les participants de mission est active."
-      );
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Modification impossible."
-      );
+    } catch {
+      setErrorKey("saveFailed");
     } finally {
       setSaving(null);
     }
@@ -198,11 +130,8 @@ export default function PhonePrivacyControls() {
     return (
       <section className="mb-7 rounded-[30px] border border-border bg-card p-6">
         <div className="flex items-center gap-3 text-sm font-bold text-muted-foreground">
-          <LoaderCircle
-            size={19}
-            className="animate-spin"
-          />
-          Chargement de la confidentialite...
+          <LoaderCircle size={19} className="animate-spin" />
+          {t("loading")}
         </div>
       </section>
     );
@@ -214,27 +143,23 @@ export default function PhonePrivacyControls() {
         <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-emerald-500/10 text-emerald-500">
           <ShieldCheck size={22} />
         </div>
-
         <div>
-          <h2 className="text-xl font-black">
-            Confidentialite du telephone
-          </h2>
-
+          <h2 className="text-xl font-black">{t("title")}</h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            Tu controles si ton numero peut etre revele aux personnes liees a une mission KLYX.
+            {t("description")}
           </p>
         </div>
       </div>
 
       {!hasPhone && (
         <div className="mt-5 rounded-2xl bg-amber-500/10 px-4 py-3 text-sm font-bold text-amber-600 dark:text-amber-400">
-          Ajoute d abord ton numero de telephone.
+          {t("phoneRequired")}
         </div>
       )}
 
       {hasPhone && !verified && (
         <div className="mt-5 rounded-2xl bg-amber-500/10 px-4 py-3 text-sm font-bold text-amber-600 dark:text-amber-400">
-          Ton numero doit etre verifie par SMS avant tout partage.
+          {t("verificationRequired")}
         </div>
       )}
 
@@ -242,31 +167,19 @@ export default function PhonePrivacyControls() {
         <button
           type="button"
           disabled={saving !== null}
-          onClick={() =>
-            void changeVisibility(
-              "transaction_participants"
-            )
-          }
+          onClick={() => void changeVisibility("transaction_participants")}
           className={
             "flex min-h-28 items-start gap-4 rounded-2xl border p-5 text-left transition " +
-            (visibility ===
-            "transaction_participants"
+            (visibility === "transaction_participants"
               ? "border-violet-500 bg-violet-500/[0.07]"
               : "border-border bg-background hover:border-violet-500/40")
           }
         >
-          <Users
-            size={21}
-            className="mt-0.5 shrink-0 text-violet-500"
-          />
-
+          <Users size={21} className="mt-0.5 shrink-0 text-violet-500" />
           <span>
-            <span className="block font-black">
-              Participants de mission
-            </span>
-
+            <span className="block font-black">{t("participantsTitle")}</span>
             <span className="mt-1 block text-sm leading-6 text-muted-foreground">
-              Ton numero peut etre revele uniquement a ton client ou prestataire autorise.
+              {t("participantsDescription")}
             </span>
           </span>
         </button>
@@ -274,11 +187,7 @@ export default function PhonePrivacyControls() {
         <button
           type="button"
           disabled={saving !== null}
-          onClick={() =>
-            void changeVisibility(
-              "private"
-            )
-          }
+          onClick={() => void changeVisibility("private")}
           className={
             "flex min-h-28 items-start gap-4 rounded-2xl border p-5 text-left transition " +
             (visibility === "private"
@@ -286,18 +195,11 @@ export default function PhonePrivacyControls() {
               : "border-border bg-background hover:border-rose-500/40")
           }
         >
-          <EyeOff
-            size={21}
-            className="mt-0.5 shrink-0 text-rose-500"
-          />
-
+          <EyeOff size={21} className="mt-0.5 shrink-0 text-rose-500" />
           <span>
-            <span className="block font-black">
-              Toujours prive
-            </span>
-
+            <span className="block font-black">{t("privateTitle")}</span>
             <span className="mt-1 block text-sm leading-6 text-muted-foreground">
-              Ton numero ne peut plus etre revele dans aucune mission.
+              {t("privateDescription")}
             </span>
           </span>
         </button>
@@ -305,23 +207,20 @@ export default function PhonePrivacyControls() {
 
       {saving && (
         <div className="mt-4 flex items-center gap-2 text-sm font-bold text-muted-foreground">
-          <LoaderCircle
-            size={16}
-            className="animate-spin"
-          />
-          Enregistrement...
+          <LoaderCircle size={16} className="animate-spin" />
+          {t("saving")}
         </div>
       )}
 
-      {message && (
+      {messageKey && (
         <div className="mt-4 rounded-2xl bg-emerald-500/10 px-4 py-3 text-sm font-bold text-emerald-500">
-          {message}
+          {t(messageKey)}
         </div>
       )}
 
-      {errorMessage && (
+      {errorKey && (
         <div className="mt-4 rounded-2xl bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-500">
-          {errorMessage}
+          {t(errorKey)}
         </div>
       )}
     </section>
