@@ -6,10 +6,8 @@ const migrationPath =
   "supabase/migrations/20260819211000_klyx_message_column_privileges.sql";
 const baselinePath =
   "supabase/migrations/20260814000000_klyx_canonical_baseline.sql";
-const messagePages = [
-  "app/messages/page.tsx",
-  "app/messages/[bookingId]/page.tsx",
-] as const;
+const overviewPath = "app/messages/page.tsx";
+const conversationPath = "app/messages/[bookingId]/page.tsx";
 
 describe("message column privilege hardening contract", () => {
   it("keeps authenticated message access at the minimum required columns", () => {
@@ -52,9 +50,13 @@ describe("message column privilege hardening contract", () => {
     );
   });
 
-  it("preserves the existing RLS row boundary and Realtime client requirements", () => {
+  it("preserves the existing RLS row boundary and dynamic conversation Realtime requirements", () => {
     const baseline = readFileSync(
       join(process.cwd(), baselinePath),
+      "utf8"
+    );
+    const conversation = readFileSync(
+      join(process.cwd(), conversationPath),
       "utf8"
     );
 
@@ -68,16 +70,23 @@ describe("message column privilege hardening contract", () => {
       'CREATE POLICY "klyx_messages_update"'
     );
 
-    for (const pagePath of messagePages) {
-      const page = readFileSync(
-        join(process.cwd(), pagePath),
-        "utf8"
-      );
+    expect(conversation).toContain('.from("messages")');
+    expect(conversation).toContain('.update({ is_read: true })');
+    expect(conversation).toContain("is_read: false");
+    expect(conversation).toContain('table: "messages"');
+  });
 
-      expect(page).toContain('.from("messages")');
-      expect(page).toContain('.update({ is_read: true })');
-      expect(page).toContain("is_read: false");
-      expect(page).toContain('table: "messages"');
-    }
+  it("keeps the root messages overview read-only while relying on the same RLS select boundary", () => {
+    const overview = readFileSync(
+      join(process.cwd(), overviewPath),
+      "utf8"
+    );
+
+    expect(overview).toContain("KLYX_MESSAGES_OVERVIEW_READ_ONLY");
+    expect(overview).toContain('.from("messages")');
+    expect(overview).not.toContain('.update({ is_read: true })');
+    expect(overview).not.toContain(".insert({");
+    expect(overview).not.toContain('.channel(');
+    expect(overview).not.toContain('table: "messages"');
   });
 });
