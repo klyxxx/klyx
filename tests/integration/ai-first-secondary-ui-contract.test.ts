@@ -57,6 +57,11 @@ describe(
             "app/settings/PhonePrivacyControls.tsx"
           );
 
+        const privacyI18n =
+          read(
+            "lib/klyx-phone-privacy-i18n.ts"
+          );
+
         const history =
           read(
             "app/settings/PhoneAccessHistory.tsx"
@@ -103,7 +108,15 @@ describe(
         );
 
         expect(privacy).toContain(
-          "Confidentialite du telephone"
+          "KLYX_PHONE_PRIVACY_UI_12_75"
+        );
+
+        expect(privacy).toContain(
+          't("title")'
+        );
+
+        expect(privacyI18n).toContain(
+          'title: "Confidentialité du téléphone"'
         );
 
         expect(history).toContain(
