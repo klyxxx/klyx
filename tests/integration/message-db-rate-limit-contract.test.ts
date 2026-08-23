@@ -57,15 +57,21 @@ describe("KLYX direct-message database abuse guard", () => {
     expect(migration).toContain("to service_role");
   });
 
-  it("maps database failures to safe message-composer errors", () => {
-    for (const source of [page, rootPage]) {
-      expect(source).toContain('error.message.includes("KLYX_MESSAGE_RATE_LIMITED")');
-      expect(source).toContain(
-        "Trop de messages envoyés. Réessaie dans une minute."
-      );
-      expect(source).toContain("Impossible d'envoyer le message.");
-      expect(source).not.toContain("throw new Error(error.message);");
-    }
+  it("maps database failures to safe message-composer errors on the dynamic conversation", () => {
+    expect(page).toContain('error.message.includes("KLYX_MESSAGE_RATE_LIMITED")');
+    expect(page).toContain(
+      "Trop de messages envoyés. Réessaie dans une minute."
+    );
+    expect(page).toContain("Impossible d'envoyer le message.");
+    expect(page).not.toContain("throw new Error(error.message);");
+  });
+
+  it("keeps the root messages overview outside the composer and send-rate-limit surface", () => {
+    expect(rootPage).toContain("KLYX_MESSAGES_OVERVIEW_READ_ONLY");
+    expect(rootPage).toContain('.from("messages")');
+    expect(rootPage).not.toContain(".insert({");
+    expect(rootPage).not.toContain('error.message.includes("KLYX_MESSAGE_RATE_LIMITED")');
+    expect(rootPage).not.toContain("Impossible d'envoyer le message.");
   });
 
   it("proves direct Supabase enforcement and canonical notification continuity in Golden", () => {
