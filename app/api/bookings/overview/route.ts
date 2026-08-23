@@ -180,6 +180,10 @@ export type BookingOverviewCard = {
   serviceLabel:
     string;
 
+  serviceSlug:
+    | string
+    | null;
+
   status:
     string;
 
@@ -1088,6 +1092,10 @@ export async function GET(
             service
           ),
 
+        serviceSlug:
+          service?.slug ??
+          null,
+
         status:
           status.status,
 
@@ -1212,6 +1220,10 @@ export async function GET(
           serviceLabel(
             service
           ),
+
+        serviceSlug:
+          service?.slug ??
+          null,
 
         status:
           status.status,
