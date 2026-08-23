@@ -14,6 +14,16 @@ import {
   SlidersHorizontal,
   UserRound,
 } from "lucide-react";
+
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import {
+  formatKlyxBabysittersBudgetMax,
+  formatKlyxBabysittersCompletedJobs,
+  formatKlyxBabysittersDisplayedProfiles,
+  translateKlyxBabysittersPage,
+  type KlyxBabysittersPageMessageKey,
+} from "@/lib/klyx-babysitters-page-i18n";
+import type { KlyxLocale } from "@/lib/klyx-i18n";
 import { supabase } from "@/lib/supabase";
 
 type ProfileRow = {
@@ -73,12 +83,18 @@ function timeToMinutes(value: string): number {
   return hours * 60 + minutes;
 }
 
-function scoreLabel(score: number): string {
-  if (score >= 90) return "Excellent";
-  if (score >= 80) return "Très fiable";
-  if (score >= 70) return "Fiable";
-  if (score >= 60) return "Correct";
-  return "Nouveau profil";
+function scoreLabel(
+  locale: KlyxLocale,
+  score: number
+): string {
+  let key: KlyxBabysittersPageMessageKey = "scoreNew";
+
+  if (score >= 90) key = "scoreExcellent";
+  else if (score >= 80) key = "scoreVeryReliable";
+  else if (score >= 70) key = "scoreReliable";
+  else if (score >= 60) key = "scoreFair";
+
+  return translateKlyxBabysittersPage(locale, key);
 }
 
 function matchesCity(
@@ -145,6 +161,9 @@ function matchesAvailability(
 
 function BabysittersContent() {
   const searchParams = useSearchParams();
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxBabysittersPageMessageKey) =>
+    translateKlyxBabysittersPage(locale, key);
 
   const city = searchParams.get("city")?.trim() ?? "";
   const date = searchParams.get("date")?.trim() ?? "";
@@ -156,12 +175,12 @@ function BabysittersContent() {
 
   const [babysitters, setBabysitters] = useState<BabysitterCard[]>([]);
   const [loading, setLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     async function loadBabysitters() {
       setLoading(true);
-      setErrorMessage("");
+      setLoadFailed(false);
 
       try {
         const { data: service, error: serviceError } = await supabase
@@ -302,12 +321,8 @@ function BabysittersContent() {
           });
 
         setBabysitters(cards);
-      } catch (error) {
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "Impossible de charger les baby-sitters."
-        );
+      } catch {
+        setLoadFailed(true);
       } finally {
         setLoading(false);
       }
@@ -382,16 +397,15 @@ function BabysittersContent() {
               href="/request"
               className="text-sm text-muted-foreground dark:text-zinc-400 hover:text-foreground dark:text-white"
             >
-              Modifier ma demande
+              {t("modifyRequest")}
             </Link>
 
             <h1 className="mt-3 text-3xl font-bold sm:text-5xl">
-              Baby-sitters recommandées
+              {t("title")}
             </h1>
 
             <p className="mt-3 max-w-2xl text-muted-foreground dark:text-zinc-400">
-              KLYX compare la disponibilité, le prix, la ville et le
-              score de confiance.
+              {t("intro")}
             </p>
           </div>
 
@@ -400,86 +414,81 @@ function BabysittersContent() {
             className="inline-flex items-center justify-center gap-2 rounded-xl border border-border dark:border-zinc-700 px-5 py-3 font-semibold hover:bg-card dark:bg-zinc-900"
           >
             <SlidersHorizontal size={18} />
-            Nouvelle recherche
+            {t("newSearch")}
           </Link>
         </div>
 
         <section className="mt-8 grid gap-3 rounded-2xl border border-border dark:border-zinc-800 bg-card/70 dark:bg-zinc-900/70 p-4 sm:grid-cols-4">
           <FilterSummary
             icon={<MapPin size={18} />}
-            label="Ville"
-            value={city || "Toutes"}
+            label={t("city")}
+            value={city || t("allFeminine")}
           />
 
           <FilterSummary
             icon={<CalendarDays size={18} />}
-            label="Date"
-            value={date || "Toutes"}
+            label={t("date")}
+            value={date || t("allFeminine")}
           />
 
           <FilterSummary
             icon={<Clock3 size={18} />}
-            label="Heure"
-            value={time || "Toutes"}
+            label={t("time")}
+            value={time || t("allFeminine")}
           />
 
           <FilterSummary
             icon={<Search size={18} />}
-            label="Budget"
+            label={t("budget")}
             value={
               budget !== null && Number.isFinite(budget)
-                ? `${budget.toFixed(2)} €/h max`
-                : "Tous"
+                ? formatKlyxBabysittersBudgetMax(locale, budget)
+                : t("allMasculine")
             }
           />
         </section>
 
         {loading && (
           <div className="mt-10 rounded-2xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-8 text-center text-muted-foreground dark:text-zinc-400">
-            KLYX classe les meilleurs profils...
+            {t("rankingLoading")}
           </div>
         )}
 
-        {errorMessage && (
+        {loadFailed && (
           <div className="mt-10 rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-red-300">
-            {errorMessage}
+            {t("loadError")}
           </div>
         )}
 
-        {!loading && !errorMessage && showingAlternatives && (
+        {!loading && !loadFailed && showingAlternatives && (
           <div className="mt-8 flex gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 text-amber-200">
             <AlertCircle className="mt-0.5 shrink-0" size={20} />
 
             <div>
-              <p className="font-semibold">
-                Aucun profil ne correspond à tous les critères.
-              </p>
+              <p className="font-semibold">{t("noExactTitle")}</p>
 
               <p className="mt-1 text-sm text-amber-100/80">
-                KLYX affiche les profils les plus proches de ta demande,
-                classés par pertinence et score de confiance.
+                {t("noExactDescription")}
               </p>
             </div>
           </div>
         )}
 
         {!loading &&
-          !errorMessage &&
+          !loadFailed &&
           displayedBabysitters.length === 0 && (
             <div className="mt-10 rounded-2xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-8 text-center">
-              <h2 className="text-xl font-bold">
-                Aucun profil disponible
-              </h2>
+              <h2 className="text-xl font-bold">{t("noProfilesTitle")}</h2>
 
               <p className="mt-3 text-muted-foreground dark:text-zinc-400">
-                Aucun prestataire actif n’est actuellement disponible.
+                {t("noProfilesDescription")}
               </p>
 
               <Link
                 href="/request"
                 className="mt-6 inline-flex rounded-xl bg-violet-600 px-6 py-3 font-semibold hover:bg-violet-700"
               >
-                Modifier la demande
+                {t("modifyRequestButton")}
               </Link>
             </div>
           )}
@@ -488,14 +497,15 @@ function BabysittersContent() {
           <>
             <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-muted-foreground dark:text-zinc-400">
-                {displayedBabysitters.length} profil
-                {displayedBabysitters.length > 1 ? "s" : ""} affiché
-                {displayedBabysitters.length > 1 ? "s" : ""}
+                {formatKlyxBabysittersDisplayedProfiles(
+                  locale,
+                  displayedBabysitters.length
+                )}
               </p>
 
               <p className="inline-flex items-center gap-2 text-sm text-violet-300">
                 <ShieldCheck size={16} />
-                Classés par score KLYX
+                {t("rankedByScore")}
               </p>
             </div>
 
@@ -505,6 +515,7 @@ function BabysittersContent() {
                   key={babysitter.userServiceId}
                   babysitter={babysitter}
                   recommended={index === 0}
+                  locale={locale}
                 />
               ))}
             </section>
@@ -518,10 +529,15 @@ function BabysittersContent() {
 function BabysitterCardView({
   babysitter,
   recommended,
+  locale,
 }: {
   babysitter: BabysitterCard;
   recommended: boolean;
+  locale: KlyxLocale;
 }) {
+  const t = (key: KlyxBabysittersPageMessageKey) =>
+    translateKlyxBabysittersPage(locale, key);
+
   return (
     <article className="overflow-hidden rounded-2xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900">
       <div className="relative flex h-52 items-center justify-center bg-muted dark:bg-zinc-800">
@@ -537,7 +553,7 @@ function BabysitterCardView({
 
         {recommended && (
           <div className="absolute left-4 top-4 rounded-full bg-violet-600 px-3 py-1 text-xs font-bold">
-            Recommandé par KLYX
+            {t("recommendedByKlyx")}
           </div>
         )}
       </div>
@@ -546,13 +562,13 @@ function BabysitterCardView({
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-violet-400">
-              Baby-sitter
+              {t("babysitter")}
             </p>
 
             <h2 className="mt-2 text-2xl font-bold">
               {[babysitter.firstName, babysitter.lastName]
                 .filter(Boolean)
-                .join(" ") || "Baby-sitter KLYX"}
+                .join(" ") || t("fallbackName")}
             </h2>
           </div>
 
@@ -565,25 +581,25 @@ function BabysitterCardView({
         </div>
 
         <p className="mt-2 text-sm font-semibold text-violet-300">
-          {scoreLabel(babysitter.klyxScore)}
+          {scoreLabel(locale, babysitter.klyxScore)}
         </p>
 
         <div className="mt-4 space-y-2 text-sm text-muted-foreground dark:text-zinc-400">
           <p className="flex items-center gap-2">
             <MapPin size={16} />
-            {babysitter.city || "Ville non renseignée"}
+            {babysitter.city || t("cityMissing")}
           </p>
 
           <p className="flex items-center gap-2">
             <CheckCircle2 size={16} />
-            {babysitter.completedJobs} prestation
-            {babysitter.completedJobs > 1 ? "s" : ""} terminée
-            {babysitter.completedJobs > 1 ? "s" : ""}
+            {formatKlyxBabysittersCompletedJobs(
+              locale,
+              babysitter.completedJobs
+            )}
           </p>
 
           <p>
-            Taux d’annulation :{" "}
-            {babysitter.cancellationRate.toFixed(1)} %
+            {t("cancellationRate")}: {babysitter.cancellationRate.toFixed(1)} %
           </p>
         </div>
 
@@ -591,14 +607,14 @@ function BabysitterCardView({
           <p className="text-lg font-bold text-violet-400">
             {babysitter.price !== null
               ? `${Number(babysitter.price).toFixed(2)} €/h`
-              : "Prix à confirmer"}
+              : t("pricePending")}
           </p>
 
           <Link
             href={`/babysitters/${babysitter.userId}`}
             className="rounded-xl bg-white px-4 py-2 font-semibold text-black hover:bg-zinc-200"
           >
-            Voir le profil
+            {t("viewProfile")}
           </Link>
         </div>
       </div>
@@ -628,11 +644,13 @@ function FilterSummary({
 }
 
 export default function BabysittersPage() {
+  const { locale } = useKlyxLocale();
+
   return (
     <Suspense
       fallback={
         <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 text-foreground dark:text-white">
-          Chargement...
+          {translateKlyxBabysittersPage(locale, "suspenseLoading")}
         </main>
       }
     >
