@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { Download, Share2, Smartphone } from "lucide-react";
 
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import { translateKlyxPublicHome } from "@/lib/klyx-page-i18n";
+
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
@@ -21,10 +24,20 @@ function isStandalone() {
 }
 
 export default function InstallKlyxButton() {
+  const { locale } = useKlyxLocale();
   const [promptEvent, setPromptEvent] =
     useState<BeforeInstallPromptEvent | null>(null);
   const [installed, setInstalled] = useState(false);
   const [ios, setIos] = useState(false);
+
+  const t = (
+    key:
+      | "installKlyx"
+      | "installInstalled"
+      | "installIosTitle"
+      | "installIosInstructions"
+      | "installAutomatic"
+  ) => translateKlyxPublicHome(locale, key);
 
   useEffect(() => {
     setInstalled(isStandalone());
@@ -66,7 +79,7 @@ export default function InstallKlyxButton() {
     return (
       <div className="inline-flex items-center gap-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm font-bold text-emerald-700 dark:text-emerald-300">
         <Smartphone size={18} />
-        KLYX est installé sur cet appareil
+        {t("installInstalled")}
       </div>
     );
   }
@@ -79,7 +92,7 @@ export default function InstallKlyxButton() {
         className="inline-flex h-12 items-center gap-2 rounded-2xl bg-violet-600 px-5 text-sm font-bold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-violet-500"
       >
         <Download size={18} />
-        Installer KLYX
+        {t("installKlyx")}
       </button>
     );
   }
@@ -89,19 +102,16 @@ export default function InstallKlyxButton() {
       <div className="rounded-2xl border border-border bg-background/70 p-4 text-sm leading-6 text-muted-foreground">
         <p className="flex items-center gap-2 font-bold text-foreground">
           <Share2 size={18} />
-          Installation sur iPhone ou iPad
+          {t("installIosTitle")}
         </p>
-        <p className="mt-2">
-          Dans Safari, touche le bouton Partager, puis « Sur l’écran d’accueil ».
-        </p>
+        <p className="mt-2">{t("installIosInstructions")}</p>
       </div>
     );
   }
 
   return (
     <div className="rounded-2xl border border-border bg-background/70 p-4 text-sm leading-6 text-muted-foreground">
-      L’installation sera proposée automatiquement par ton navigateur dès que
-      toutes les conditions sont réunies.
+      {t("installAutomatic")}
     </div>
   );
 }
