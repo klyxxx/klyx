@@ -11,6 +11,7 @@ function read(relativePath: string) {
 
 const overview = read("app/api/bookings/overview/route.ts");
 const detail = read("app/bookings/[id]/page.tsx");
+const detailI18n = read("lib/klyx-booking-detail-i18n.ts");
 
 describe("KLYX single booking refund UI state", () => {
   it("loads refund status in the booking overview", () => {
@@ -27,11 +28,13 @@ describe("KLYX single booking refund UI state", () => {
     expect(detail).toContain('booking.payment_status !== "refunded"');
   });
 
-  it("shows explicit refund labels on booking detail", () => {
+  it("shows explicit localized refund labels on booking detail", () => {
     expect(detail).toContain('refund_status: string | null');
     expect(detail).toContain("payment_status, refund_status, service_status");
-    expect(detail).toContain('"Remboursement confirmé"');
-    expect(detail).toContain('"Remboursement en cours"');
-    expect(detail).toContain('"Remboursement à vérifier"');
+    expect(detail).toContain("formatKlyxBookingPaymentLabel(locale, {");
+    expect(detail).toContain("refundStatus: booking.refund_status");
+    expect(detailI18n).toContain('refundConfirmed: "Remboursement confirmé"');
+    expect(detailI18n).toContain('refundProcessing: "Remboursement en cours"');
+    expect(detailI18n).toContain('refundNeedsReview: "Remboursement à vérifier"');
   });
 });
