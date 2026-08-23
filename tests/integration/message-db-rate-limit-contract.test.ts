@@ -14,6 +14,9 @@ const migration = readRepoFile(
 );
 const page = readRepoFile("app/messages/[bookingId]/page.tsx");
 const rootPage = readRepoFile("app/messages/page.tsx");
+const conversationI18n = readRepoFile(
+  "lib/klyx-message-conversation-i18n.ts"
+);
 const golden = readRepoFile("scripts/golden-path-message-rate-limit.mjs");
 const workflow = readRepoFile(".github/workflows/klyx-golden-path.yml");
 
@@ -57,13 +60,21 @@ describe("KLYX direct-message database abuse guard", () => {
     expect(migration).toContain("to service_role");
   });
 
-  it("maps database failures to safe message-composer errors on the dynamic conversation", () => {
+  it("maps database failures to safe localized message-composer errors", () => {
     expect(page).toContain('error.message.includes("KLYX_MESSAGE_RATE_LIMITED")');
-    expect(page).toContain(
-      "Trop de messages envoyés. Réessaie dans une minute."
-    );
-    expect(page).toContain("Impossible d'envoyer le message.");
+    expect(page).toContain('? "rateLimited"');
+    expect(page).toContain(': "sendError"');
     expect(page).not.toContain("throw new Error(error.message);");
+
+    expect(conversationI18n).toContain(
+      'rateLimited: "Trop de messages envoyés. Réessaie dans une minute."'
+    );
+    expect(conversationI18n).toContain(
+      'sendError: "Impossible d\'envoyer le message."'
+    );
+    expect(conversationI18n).toContain(
+      'rateLimited: "Too many messages sent. Try again in one minute."'
+    );
   });
 
   it("keeps the root messages overview outside the composer and send-rate-limit surface", () => {
