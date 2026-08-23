@@ -11,8 +11,18 @@ import {
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import { supabase } from "@/lib/supabase";
 import { getActiveClientProfile } from "@/lib/account-switcher";
+import type { KlyxLocale } from "@/lib/klyx-i18n";
+import {
+  getKlyxMessageConversationLocaleTag,
+  translateKlyxMessageConversation,
+  type KlyxMessageConversationMessageKey,
+} from "@/lib/klyx-message-conversation-i18n";
+
+// KLYX_MESSAGE_CONVERSATION_I18N
+// KLYX_MESSAGE_CONVERSATION_SAFE_ERRORS
 
 type BookingRow = {
   id: string;
@@ -45,7 +55,10 @@ type MessageRow = {
 export default function ConversationPage() {
   const params = useParams<{ bookingId: string }>();
   const router = useRouter();
+  const { locale } = useKlyxLocale();
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const t = (key: KlyxMessageConversationMessageKey) =>
+    translateKlyxMessageConversation(locale, key);
 
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -54,21 +67,24 @@ export default function ConversationPage() {
   const [otherUser, setOtherUser] = useState<ProfileRow | null>(null);
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [draft, setDraft] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
+  const [errorKey, setErrorKey] =
+    useState<KlyxMessageConversationMessageKey | null>(null);
 
   const bookingId = params.bookingId;
+  const errorMessage = errorKey ? t(errorKey) : "";
+  const unknownUserName = t("unknownUser");
 
   const otherUserName = useMemo(() => {
     if (!otherUser) {
-      return "Utilisateur KLYX";
+      return unknownUserName;
     }
 
     return (
       otherUser.full_name?.trim() ||
       `${otherUser.first_name ?? ""} ${otherUser.last_name ?? ""}`.trim() ||
-      "Utilisateur KLYX"
+      unknownUserName
     );
-  }, [otherUser]);
+  }, [otherUser, unknownUserName]);
 
   const markMessagesAsRead = useCallback(
     async (userId: string) => {
@@ -88,7 +104,7 @@ export default function ConversationPage() {
 
   const loadConversation = useCallback(async () => {
     setLoading(true);
-    setErrorMessage("");
+    setErrorKey(null);
 
     try {
       const {
@@ -102,7 +118,8 @@ export default function ConversationPage() {
       }
 
       if (!bookingId) {
-        throw new Error("Conversation introuvable.");
+        setErrorKey("conversationNotFound");
+        return;
       }
 
       const activeProfile = await getActiveClientProfile();
@@ -119,11 +136,12 @@ export default function ConversationPage() {
         .maybeSingle();
 
       if (bookingError) {
-        throw new Error(bookingError.message);
+        throw new Error("booking_read_failed");
       }
 
       if (!bookingData) {
-        throw new Error("Réservation introuvable.");
+        setErrorKey("bookingNotFound");
+        return;
       }
 
       const typedBooking = bookingData as BookingRow;
@@ -132,7 +150,8 @@ export default function ConversationPage() {
         typedBooking.babysitter_id === activeProfileId;
 
       if (!isParticipant) {
-        throw new Error("Tu n'as pas accès à cette conversation.");
+        setErrorKey("accessDenied");
+        return;
       }
 
       setBooking(typedBooking);
@@ -160,24 +179,16 @@ export default function ConversationPage() {
           .order("created_at", { ascending: true }),
       ]);
 
-      if (profileError) {
-        throw new Error(profileError.message);
-      }
-
-      if (messageError) {
-        throw new Error(messageError.message);
+      if (profileError || messageError) {
+        throw new Error("conversation_read_failed");
       }
 
       setOtherUser((profileData as ProfileRow | null) ?? null);
       setMessages((messageData ?? []) as MessageRow[]);
 
       await markMessagesAsRead(activeProfileId);
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Impossible de charger la conversation."
-      );
+    } catch {
+      setErrorKey("loadError");
     } finally {
       setLoading(false);
     }
@@ -251,7 +262,7 @@ export default function ConversationPage() {
         : booking.parent_id;
 
     setSending(true);
-    setErrorMessage("");
+    setErrorKey(null);
 
     try {
       const { error } = await supabase.from("messages").insert({
@@ -263,20 +274,17 @@ export default function ConversationPage() {
       });
 
       if (error) {
-        throw new Error(
+        setErrorKey(
           error.message.includes("KLYX_MESSAGE_RATE_LIMITED")
-            ? "Trop de messages envoyés. Réessaie dans une minute."
-            : "Impossible d'envoyer le message."
+            ? "rateLimited"
+            : "sendError"
         );
+        return;
       }
 
       setDraft("");
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Impossible d'envoyer le message."
-      );
+    } catch {
+      setErrorKey("sendError");
     } finally {
       setSending(false);
     }
@@ -285,7 +293,7 @@ export default function ConversationPage() {
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 text-foreground dark:text-white">
-        Chargement...
+        {t("loading")}
       </main>
     );
   }
@@ -294,13 +302,13 @@ export default function ConversationPage() {
     return (
       <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 px-6 text-center text-foreground dark:text-white">
         <div>
-          <h1 className="text-2xl font-bold">Conversation indisponible</h1>
+          <h1 className="text-2xl font-bold">{t("unavailableTitle")}</h1>
           <p className="mt-3 text-red-400">{errorMessage}</p>
           <Link
             href="/dashboard"
             className="mt-6 inline-flex rounded-xl bg-violet-600 px-6 py-3 font-semibold"
           >
-            Retour au tableau de bord
+            {t("backDashboardFull")}
           </Link>
         </div>
       </main>
@@ -315,7 +323,7 @@ export default function ConversationPage() {
             href="/dashboard"
             className="rounded-xl border border-border dark:border-zinc-700 px-3 py-2 text-sm text-foreground/80 dark:text-zinc-300 hover:bg-muted dark:bg-zinc-800"
           >
-            Retour
+            {t("back")}
           </Link>
 
           <img
@@ -330,7 +338,7 @@ export default function ConversationPage() {
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-lg font-bold">{otherUserName}</h1>
             <p className="truncate text-sm text-muted-foreground dark:text-zinc-400">
-              {formatDate(booking.booking_date)} ·{" "}
+              {formatDate(booking.booking_date, locale)} ·{" "}
               {formatTime(booking.start_time)}–{formatTime(booking.end_time)}
             </p>
           </div>
@@ -349,7 +357,7 @@ export default function ConversationPage() {
         <section className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
           {messages.length === 0 && (
             <div className="py-16 text-center text-muted-foreground dark:text-zinc-500">
-              Aucun message. Commence la conversation.
+              {t("empty")}
             </div>
           )}
 
@@ -377,9 +385,9 @@ export default function ConversationPage() {
                       isMine ? "text-violet-200" : "text-muted-foreground dark:text-zinc-500"
                     }`}
                   >
-                    <span>{formatMessageTime(message.created_at)}</span>
+                    <span>{formatMessageTime(message.created_at, locale)}</span>
                     {isMine && (
-                      <span>{message.is_read ? "Lu" : "Envoyé"}</span>
+                      <span>{message.is_read ? t("read") : t("sent")}</span>
                     )}
                   </div>
                 </div>
@@ -405,7 +413,7 @@ export default function ConversationPage() {
             }}
             rows={1}
             maxLength={2000}
-            placeholder="Écris un message..."
+            placeholder={t("placeholder")}
             className="min-h-12 flex-1 resize-none rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 px-4 py-3 outline-none focus:border-violet-500"
           />
 
@@ -414,7 +422,7 @@ export default function ConversationPage() {
             disabled={sending || !draft.trim()}
             className="rounded-xl bg-violet-600 px-5 py-3 font-semibold hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {sending ? "Envoi..." : "Envoyer"}
+            {sending ? t("sending") : t("send")}
           </button>
         </form>
       </div>
@@ -422,25 +430,31 @@ export default function ConversationPage() {
   );
 }
 
-function formatDate(value: string) {
+function formatDate(value: string, locale: KlyxLocale) {
   const date = new Date(`${value}T00:00:00`);
 
-  return new Intl.DateTimeFormat("fr-BE", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  }).format(date);
+  return new Intl.DateTimeFormat(
+    getKlyxMessageConversationLocaleTag(locale),
+    {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    }
+  ).format(date);
 }
 
 function formatTime(value: string) {
   return value.slice(0, 5);
 }
 
-function formatMessageTime(value: string) {
+function formatMessageTime(value: string, locale: KlyxLocale) {
   const date = new Date(value);
 
-  return new Intl.DateTimeFormat("fr-BE", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
+  return new Intl.DateTimeFormat(
+    getKlyxMessageConversationLocaleTag(locale),
+    {
+      hour: "2-digit",
+      minute: "2-digit",
+    }
+  ).format(date);
 }
