@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
@@ -16,14 +12,23 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
-import type { ProviderSearchItem } from "@/lib/provider-search";
+
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import {
   explainProviderMatch,
   matchingLevelLabel,
   type MatchingFilters,
 } from "@/lib/intelligent-matching";
+import {
+  formatKlyxCoverageMessage,
+  translateKlyxMatchExplanation,
+  type KlyxMatchExplanationMessageKey,
+} from "@/lib/klyx-match-explanation-i18n";
+import type { ProviderSearchItem } from "@/lib/provider-search";
+import { supabase } from "@/lib/supabase";
 import QuoteRequestButton from "./QuoteRequestButton";
+
+// KLYX_MATCH_EXPLANATION_I18N
 
 type CoverageResult = {
   available?: boolean;
@@ -34,8 +39,6 @@ type CoverageResult = {
   radiusKm?: number;
   remainingKm?: number;
   isPrimary?: boolean;
-  message?: string;
-  error?: string;
 };
 
 export default function MatchExplanation({
@@ -46,32 +49,27 @@ export default function MatchExplanation({
   filters: MatchingFilters;
 }) {
   const searchParams = useSearchParams();
+  const { locale } = useKlyxLocale();
   const [expanded, setExpanded] = useState(false);
-  const [coverage, setCoverage] =
-    useState<CoverageResult | null>(null);
-  const [loadingCoverage, setLoadingCoverage] =
-    useState(false);
+  const [coverage, setCoverage] = useState<CoverageResult | null>(null);
+  const [loadingCoverage, setLoadingCoverage] = useState(false);
+  const t = (key: KlyxMatchExplanationMessageKey) =>
+    translateKlyxMatchExplanation(locale, key);
 
   const explanation = useMemo(
-    () => explainProviderMatch(provider, filters),
-    [provider, filters]
+    () => explainProviderMatch(provider, filters, locale),
+    [provider, filters, locale]
   );
 
   const serviceSlug =
-    searchParams.get("service")?.trim() ||
-    provider.serviceSlug;
-
+    searchParams.get("service")?.trim() || provider.serviceSlug;
   const locality = filters.city.trim();
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadCoverage() {
-      if (
-        !provider.profileId ||
-        !serviceSlug ||
-        !locality
-      ) {
+      if (!provider.profileId || !serviceSlug || !locality) {
         setCoverage(null);
         return;
       }
@@ -99,15 +97,12 @@ export default function MatchExplanation({
           {
             cache: "no-store",
             headers: {
-              Authorization:
-                `Bearer ${session.access_token}`,
+              Authorization: `Bearer ${session.access_token}`,
             },
           }
         );
 
-        const body =
-          (await response.json()) as CoverageResult;
-
+        const body = (await response.json()) as CoverageResult;
         if (cancelled) return;
 
         if (!response.ok) {
@@ -117,46 +112,26 @@ export default function MatchExplanation({
 
         setCoverage(body);
       } catch {
-        if (!cancelled) {
-          setCoverage(null);
-        }
+        if (!cancelled) setCoverage(null);
       } finally {
-        if (!cancelled) {
-          setLoadingCoverage(false);
-        }
+        if (!cancelled) setLoadingCoverage(false);
       }
     }
 
     void loadCoverage();
-
     return () => {
       cancelled = true;
     };
-  }, [
-    provider.profileId,
-    serviceSlug,
-    locality,
-  ]);
+  }, [provider.profileId, serviceSlug, locality]);
 
   const adjustedScore = useMemo(() => {
-    if (!coverage?.available) {
-      return explanation.score;
-    }
-
+    if (!coverage?.available) return explanation.score;
     if (coverage.covered === true) {
-      return Math.min(
-        100,
-        explanation.score + 8
-      );
+      return Math.min(100, explanation.score + 8);
     }
-
     if (coverage.covered === false) {
-      return Math.max(
-        0,
-        explanation.score - 20
-      );
+      return Math.max(0, explanation.score - 20);
     }
-
     return explanation.score;
   }, [coverage, explanation.score]);
 
@@ -169,13 +144,21 @@ export default function MatchExplanation({
           ? "possible"
           : "alternative";
 
+  const coverageMessage = coverage?.available
+    ? formatKlyxCoverageMessage(locale, {
+        covered: coverage.covered === true,
+        requestedLocality: coverage.requestedLocality ?? locality,
+        zoneLocality: coverage.zoneLocality ?? "",
+        distanceKm: coverage.distanceKm ?? 0,
+        radiusKm: coverage.radiusKm ?? 0,
+      })
+    : "";
+
   return (
     <section className="mt-4 overflow-hidden rounded-2xl border border-violet-500/20 bg-violet-500/[0.06]">
       <button
         type="button"
-        onClick={() =>
-          setExpanded((current) => !current)
-        }
+        onClick={() => setExpanded((current) => !current)}
         className="flex w-full items-center justify-between gap-4 p-4 text-left"
       >
         <div className="flex items-center gap-3">
@@ -185,28 +168,20 @@ export default function MatchExplanation({
 
           <div>
             <p className="text-sm font-black">
-              {adjustedScore}/100 ·{" "}
-              {matchingLevelLabel(adjustedLevel)}
+              {adjustedScore}/100 · {matchingLevelLabel(adjustedLevel, locale)}
             </p>
-
             <p className="mt-1 text-xs text-muted-foreground">
               {provider.qualificationLevel === "regulated"
-                ? "Dossier métier réglementé approuvé · Voir les contrôles"
-                : "Dossier métier approuvé · Voir les contrôles"}
+                ? t("regulatedApprovedSummary")
+                : t("approvedSummary")}
             </p>
           </div>
         </div>
 
         {expanded ? (
-          <ChevronUp
-            className="shrink-0 text-muted-foreground"
-            size={18}
-          />
+          <ChevronUp className="shrink-0 text-muted-foreground" size={18} />
         ) : (
-          <ChevronDown
-            className="shrink-0 text-muted-foreground"
-            size={18}
-          />
+          <ChevronDown className="shrink-0 text-muted-foreground" size={18} />
         )}
       </button>
 
@@ -218,26 +193,20 @@ export default function MatchExplanation({
                 className="mt-0.5 shrink-0 text-cyan-600 dark:text-cyan-400"
                 size={16}
               />
-
               <div>
-                <p className="text-xs font-black">
-                  Contrôle de qualification métier
-                </p>
+                <p className="text-xs font-black">{t("qualificationTitle")}</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
                   {provider.qualificationLabel}
                 </p>
 
                 {provider.officialRegistrationLabel && (
                   <p className="mt-2 text-xs font-semibold text-cyan-800 dark:text-cyan-200">
-                    Exigence réglementaire configurée :{" "}
-                    {provider.officialRegistrationLabel}
+                    {t("officialRequirementPrefix")} {provider.officialRegistrationLabel}
                   </p>
                 )}
 
                 <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
-                  KLYX a approuvé le dossier transmis pour cette compétence.
-                  Ce contrôle KLYX ne remplace pas une autorisation, un agrément
-                  ou un registre officiel lorsqu’un organisme public en exige un.
+                  {t("qualificationDisclaimer")}
                 </p>
               </div>
             </div>
@@ -245,11 +214,8 @@ export default function MatchExplanation({
 
           {loadingCoverage && (
             <div className="mb-4 flex items-center gap-2 rounded-xl bg-background/70 p-3 text-xs text-muted-foreground">
-              <LoaderCircle
-                className="animate-spin text-violet-600"
-                size={14}
-              />
-              Vérification du rayon professionnel...
+              <LoaderCircle className="animate-spin text-violet-600" size={14} />
+              {t("coverageLoading")}
             </div>
           )}
 
@@ -264,9 +230,7 @@ export default function MatchExplanation({
               <div className="flex items-start gap-2">
                 <MapPin
                   className={`mt-0.5 shrink-0 ${
-                    coverage.covered
-                      ? "text-emerald-600"
-                      : "text-amber-600"
+                    coverage.covered ? "text-emerald-600" : "text-amber-600"
                   }`}
                   size={16}
                 />
@@ -274,38 +238,32 @@ export default function MatchExplanation({
                 <div>
                   <p className="text-xs font-black">
                     {coverage.covered
-                      ? "Zone couverte"
-                      : "Hors rayon déclaré"}
+                      ? t("coverageCoveredTitle")
+                      : t("coverageOutsideTitle")}
                   </p>
 
-                  {coverage.message && (
+                  {coverageMessage && (
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                      {coverage.message}
+                      {coverageMessage}
                     </p>
                   )}
 
-                  {typeof coverage.distanceKm ===
-                    "number" &&
-                    typeof coverage.radiusKm ===
-                      "number" && (
+                  {typeof coverage.distanceKm === "number" &&
+                    typeof coverage.radiusKm === "number" && (
                       <div className="mt-2 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-wide text-muted-foreground">
                         <span>
-                          Distance ≈{" "}
-                          {coverage.distanceKm} km
+                          {t("distanceLabel")} ≈ {coverage.distanceKm} km
                         </span>
                         <span>·</span>
                         <span>
-                          Rayon {coverage.radiusKm} km
+                          {t("radiusLabel")} {coverage.radiusKm} km
                         </span>
-
                         {coverage.covered &&
-                          typeof coverage.remainingKm ===
-                            "number" && (
+                          typeof coverage.remainingKm === "number" && (
                             <>
                               <span>·</span>
                               <span>
-                                Marge{" "}
-                                {coverage.remainingKm} km
+                                {t("marginLabel")} {coverage.remainingKm} km
                               </span>
                             </>
                           )}
@@ -340,10 +298,7 @@ export default function MatchExplanation({
                   key={warning}
                   className="flex items-start gap-2 text-xs leading-5 text-amber-700 dark:text-amber-300"
                 >
-                  <AlertTriangle
-                    className="mt-0.5 shrink-0"
-                    size={14}
-                  />
+                  <AlertTriangle className="mt-0.5 shrink-0" size={14} />
                   {warning}
                 </p>
               ))}
@@ -351,18 +306,13 @@ export default function MatchExplanation({
           )}
 
           <p className="mt-4 text-[11px] leading-5 text-muted-foreground">
-            Le score explique une compatibilité avec cette
-            recherche. La distance est estimée entre centres
-            de communes et ne révèle aucune adresse privée.
+            {t("scoreDisclaimer")}
           </p>
         </div>
       )}
 
       <div className="border-t border-violet-500/15 p-4">
-        <QuoteRequestButton
-          provider={provider}
-          filters={filters}
-        />
+        <QuoteRequestButton provider={provider} filters={filters} />
       </div>
     </section>
   );

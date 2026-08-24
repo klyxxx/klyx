@@ -20,6 +20,7 @@ const providerSearch = readRepoFile(
 );
 const providerTypes = readRepoFile("lib/provider-search.ts");
 const matchUi = readRepoFile("app/search/MatchExplanation.tsx");
+const matchI18n = readRepoFile("lib/klyx-match-explanation-i18n.ts");
 
 describe("catalog ambiguity and provider qualification contract", () => {
   it("uses a bounded controlled synonym dictionary instead of a free-form fuzzy classifier", () => {
@@ -96,11 +97,15 @@ describe("catalog ambiguity and provider qualification contract", () => {
   });
 
   it("does not present KLYX approval as an official public authorization", () => {
-    expect(matchUi).toContain("Contrôle de qualification métier");
-    expect(matchUi).toContain("Dossier métier réglementé approuvé");
-    expect(matchUi).toContain("Exigence réglementaire configurée");
-    expect(matchUi).toContain("ne remplace pas une autorisation");
-    expect(matchUi).toContain("registre officiel");
+    expect(matchUi).toContain('t("qualificationTitle")');
+    expect(matchUi).toContain('t("regulatedApprovedSummary")');
+    expect(matchUi).toContain('t("officialRequirementPrefix")');
+    expect(matchUi).toContain('t("qualificationDisclaimer")');
+    expect(matchI18n).toContain("Contrôle de qualification métier");
+    expect(matchI18n).toContain("Dossier métier réglementé approuvé");
+    expect(matchI18n).toContain("Exigence réglementaire configurée");
+    expect(matchI18n).toContain("ne remplace pas une autorisation");
+    expect(matchI18n).toContain("registre officiel");
   });
 
   it("does not add transactional side effects to classification or qualification", () => {
