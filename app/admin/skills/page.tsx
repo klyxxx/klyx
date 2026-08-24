@@ -12,7 +12,18 @@ import {
   Search,
   ShieldCheck,
 } from "lucide-react";
+
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import {
+  formatKlyxAdminSkillExperience,
+  translateKlyxAdminSkillDocumentStatus,
+  translateKlyxAdminSkills,
+  translateKlyxAdminSkillStatus,
+  type KlyxAdminSkillsMessageKey,
+} from "@/lib/klyx-admin-skills-i18n";
 import { createClient } from "@/lib/supabase/client";
+
+// KLYX_ADMIN_SKILLS_I18N
 
 type DocumentRow = {
   id: string;
@@ -40,20 +51,16 @@ type Verification = {
   documents: DocumentRow[];
 };
 
-const STATUS: Record<string, string> = {
-  not_started: "À compléter",
-  submitted: "Envoyée",
-  under_review: "En vérification",
-  approved: "Compétence vérifiée",
-  changes_required: "Corrections demandées",
-  rejected: "Refusée",
-};
-
 export default function AdminSkillsPage() {
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxAdminSkillsMessageKey) =>
+    translateKlyxAdminSkills(locale, key);
+
   const [rows, setRows] = useState<Verification[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
-  const [error, setError] = useState("");
+  const [errorKey, setErrorKey] =
+    useState<KlyxAdminSkillsMessageKey | null>(null);
 
   async function token() {
     const supabase = createClient();
@@ -61,19 +68,20 @@ export default function AdminSkillsPage() {
       data: { session },
     } = await supabase.auth.getSession();
 
-    if (!session?.access_token) {
-      throw new Error("Session manquante.");
-    }
-
-    return session.access_token;
+    return session?.access_token ?? null;
   }
 
   async function load() {
     setLoading(true);
-    setError("");
+    setErrorKey(null);
 
     try {
       const accessToken = await token();
+
+      if (!accessToken) {
+        setErrorKey("sessionMissing");
+        return;
+      }
 
       const response = await fetch(
         "/api/admin/skill-verifications",
@@ -85,24 +93,18 @@ export default function AdminSkillsPage() {
         }
       );
 
-      const body = (await response.json()) as {
+      const body = (await response.json().catch(() => ({}))) as {
         verifications?: Verification[];
-        error?: string;
       };
 
       if (!response.ok) {
-        throw new Error(
-          body.error || "Chargement impossible."
-        );
+        setErrorKey("loadError");
+        return;
       }
 
       setRows(body.verifications ?? []);
-    } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : "Chargement impossible."
-      );
+    } catch {
+      setErrorKey("loadError");
     } finally {
       setLoading(false);
     }
@@ -131,8 +133,15 @@ export default function AdminSkillsPage() {
   }, [query, rows]);
 
   async function preview(documentId: string) {
+    setErrorKey(null);
+
     try {
       const accessToken = await token();
+
+      if (!accessToken) {
+        setErrorKey("sessionMissing");
+        return;
+      }
 
       const response = await fetch(
         "/api/admin/skill-verifications/document",
@@ -146,15 +155,13 @@ export default function AdminSkillsPage() {
         }
       );
 
-      const body = (await response.json()) as {
+      const body = (await response.json().catch(() => ({}))) as {
         url?: string;
-        error?: string;
       };
 
       if (!response.ok || !body.url) {
-        throw new Error(
-          body.error || "Ouverture impossible."
-        );
+        setErrorKey("openError");
+        return;
       }
 
       window.open(
@@ -162,12 +169,8 @@ export default function AdminSkillsPage() {
         "_blank",
         "noopener,noreferrer"
       );
-    } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : "Ouverture impossible."
-      );
+    } catch {
+      setErrorKey("openError");
     }
   }
 
@@ -179,35 +182,30 @@ export default function AdminSkillsPage() {
           className="inline-flex items-center gap-2 text-sm font-bold text-muted-foreground"
         >
           <ArrowLeft size={17} />
-          Centre Admin KLYX
+          {t("backAdmin")}
         </Link>
 
         <section className="mt-6 rounded-[2rem] bg-[linear-gradient(135deg,#17131f,#2b1452_52%,#111827)] p-8 text-white">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em]">
             <ShieldCheck size={15} />
-            Supervision
+            {t("eyebrow")}
           </div>
 
           <h1 className="mt-5 text-3xl font-black sm:text-5xl">
-            Compétences prestataires
+            {t("title")}
           </h1>
 
           <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">
-            Tu peux consulter les dossiers et leurs décisions.
-            Cette console ne contient volontairement aucun bouton
-            Approuver ou Refuser.
+            {t("description")}
           </p>
         </section>
 
         <section className="mt-6 rounded-2xl border border-blue-500/20 bg-blue-500/10 p-5">
           <p className="font-black">
-            Autorité de décision : vérificateur externe
+            {t("authorityTitle")}
           </p>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            KLYX prépare l’intégration Sumsub pour l’identité et
-            les contrôles documentaires. Les compétences
-            réglementées resteront soumises aux preuves exigées
-            pour le métier et le pays concernés.
+            {t("authorityText")}
           </p>
         </section>
 
@@ -223,7 +221,7 @@ export default function AdminSkillsPage() {
                 setQuery(event.target.value)
               }
               className="klyx-input pl-11"
-              placeholder="Rechercher un prestataire, métier, ville ou statut..."
+              placeholder={t("searchPlaceholder")}
             />
           </label>
 
@@ -233,13 +231,13 @@ export default function AdminSkillsPage() {
             className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-border px-4 text-sm font-black"
           >
             <RefreshCw size={17} />
-            Actualiser
+            {t("refresh")}
           </button>
         </div>
 
-        {error && (
+        {errorKey && (
           <div className="mt-5 rounded-2xl border border-rose-500/25 bg-rose-500/10 p-4 text-sm text-rose-600">
-            {error}
+            {t(errorKey)}
           </div>
         )}
 
@@ -252,7 +250,7 @@ export default function AdminSkillsPage() {
           </div>
         ) : filtered.length === 0 ? (
           <section className="klyx-card mt-6 p-8 text-center text-sm text-muted-foreground">
-            Aucun dossier de compétence trouvé.
+            {t("empty")}
           </section>
         ) : (
           <section className="mt-6 grid gap-5">
@@ -270,10 +268,12 @@ export default function AdminSkillsPage() {
                       {row.providerName}
                     </h2>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {row.providerCity || "Ville non renseignée"}
+                      {row.providerCity || t("cityMissing")}
                       {" · "}
-                      {row.years_experience ?? 0} an(s)
-                      d’expérience
+                      {formatKlyxAdminSkillExperience(
+                        locale,
+                        row.years_experience
+                      )}
                     </p>
                   </div>
 
@@ -284,7 +284,10 @@ export default function AdminSkillsPage() {
                         className="text-emerald-500"
                       />
                     )}
-                    {STATUS[row.status] ?? row.status}
+                    {translateKlyxAdminSkillStatus(
+                      locale,
+                      row.status
+                    )}
                   </span>
                 </div>
 
@@ -296,18 +299,18 @@ export default function AdminSkillsPage() {
 
                 {row.review_note && (
                   <p className="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm">
-                    Décision : {row.review_note}
+                    {t("decisionPrefix")} {row.review_note}
                   </p>
                 )}
 
                 <div className="mt-5">
                   <p className="text-sm font-black">
-                    Documents de preuve
+                    {t("documentsTitle")}
                   </p>
 
                   {row.documents.length === 0 ? (
                     <p className="mt-2 text-sm text-muted-foreground">
-                      Aucun document.
+                      {t("noDocuments")}
                     </p>
                   ) : (
                     <div className="mt-3 grid gap-2">
@@ -328,7 +331,10 @@ export default function AdminSkillsPage() {
                             <p className="mt-1 text-xs text-muted-foreground">
                               {document.proof_type}
                               {" · "}
-                              {document.status}
+                              {translateKlyxAdminSkillDocumentStatus(
+                                locale,
+                                document.status
+                              )}
                             </p>
                           </div>
 
@@ -340,7 +346,7 @@ export default function AdminSkillsPage() {
                             className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-border px-3 text-xs font-black"
                           >
                             <Eye size={15} />
-                            Voir
+                            {t("view")}
                           </button>
                         </div>
                       ))}
