@@ -15,78 +15,41 @@ import {
   ShieldCheck,
   UsersRound,
 } from "lucide-react";
+
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import {
+  getKlyxAdminHomeAreaCopy,
+  translateKlyxAdminHome,
+  type KlyxAdminHomeAreaId,
+  type KlyxAdminHomeMessageKey,
+} from "@/lib/klyx-admin-home-i18n";
 import { createClient } from "@/lib/supabase/client";
 
-const AREAS = [
-  {
-    title: "Console Founder",
-    description:
-      "Basculer entre Client, Prestataire et Super Admin.",
-    href: "/founder",
-    icon: Crown,
-  },
-  {
-    title: "Tests Founder",
-    description:
-      "Valider le compte unique et ses accès critiques.",
-    href: "/founder/test",
-    icon: ShieldCheck,
-  },
-  {
-    title: "Audit des comptes",
-    description:
-      "Identifier les anciens comptes Auth sans suppression risquée.",
-    href: "/founder/cleanup",
-    icon: UsersRound,
-  },
-  {
-    title: "Centre de lancement",
-    description:
-      "Contrôler les briques essentielles avant ouverture de KLYX.",
-    href: "/admin/launch",
-    icon: Rocket,
-  },
-  {
-    title: "Compétences prestataires",
-    description:
-      "Voir les preuves et les décisions métier par métier.",
-    href: "/admin/skills",
-    icon: BriefcaseBusiness,
-  },
-  {
-    title: "Vérifications prestataires",
-    description:
-      "Suivre identité, adresse et documents généraux.",
-    href: "/admin/verifications",
-    icon: BadgeCheck,
-  },
-  {
-    title: "Litiges",
-    description:
-      "Suivre les incidents et dossiers de confiance.",
-    href: "/admin/disputes",
-    icon: Gavel,
-  },
-  {
-    title: "Services KLYX",
-    description:
-      "Voir le catalogue et les propositions de services.",
-    href: "/admin/services",
-    icon: FileCheck2,
-  },
-  {
-    title: "Audit financier",
-    description:
-      "Contrôler paiements, remboursements et cohérence Stripe.",
-    href: "/admin/finance",
-    icon: Banknote,
-  },
+// KLYX_ADMIN_HOME_I18N
+
+const AREAS: Array<{
+  id: KlyxAdminHomeAreaId;
+  href: string;
+  icon: typeof Crown;
+}> = [
+  { id: "founderConsole", href: "/founder", icon: Crown },
+  { id: "founderTests", href: "/founder/test", icon: ShieldCheck },
+  { id: "accountAudit", href: "/founder/cleanup", icon: UsersRound },
+  { id: "launchCenter", href: "/admin/launch", icon: Rocket },
+  { id: "providerSkills", href: "/admin/skills", icon: BriefcaseBusiness },
+  { id: "providerVerifications", href: "/admin/verifications", icon: BadgeCheck },
+  { id: "disputes", href: "/admin/disputes", icon: Gavel },
+  { id: "services", href: "/admin/services", icon: FileCheck2 },
+  { id: "finance", href: "/admin/finance", icon: Banknote },
 ];
 
 export default function AdminHomePage() {
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxAdminHomeMessageKey) => translateKlyxAdminHome(locale, key);
+
   const [loading, setLoading] = useState(true);
   const [allowed, setAllowed] = useState(false);
-  const [error, setError] = useState("");
+  const [errorKey, setErrorKey] = useState<KlyxAdminHomeMessageKey | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -99,7 +62,8 @@ export default function AdminHomePage() {
         } = await supabase.auth.getSession();
 
         if (!session?.access_token) {
-          throw new Error("Session manquante.");
+          if (!cancelled) setErrorKey("sessionMissing");
+          return;
         }
 
         const response = await fetch("/api/admin/access", {
@@ -109,24 +73,18 @@ export default function AdminHomePage() {
           },
         });
 
-        const body = (await response.json()) as {
+        const body = (await response.json().catch(() => ({}))) as {
           isAdmin?: boolean;
-          error?: string;
         };
 
         if (!response.ok || !body.isAdmin) {
-          throw new Error(
-            body.error || "Accès administrateur refusé."
-          );
+          if (!cancelled) setErrorKey("accessDenied");
+          return;
         }
 
         if (!cancelled) setAllowed(true);
-      } catch (e) {
-        if (!cancelled) {
-          setError(
-            e instanceof Error ? e.message : "Accès refusé."
-          );
-        }
+      } catch {
+        if (!cancelled) setErrorKey("accessError");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -153,11 +111,9 @@ export default function AdminHomePage() {
         <div className="mx-auto max-w-3xl">
           <section className="klyx-card p-8">
             <ShieldCheck size={34} className="text-rose-500" />
-            <h1 className="mt-5 text-2xl font-black">
-              Accès administrateur refusé
-            </h1>
+            <h1 className="mt-5 text-2xl font-black">{t("deniedTitle")}</h1>
             <p className="mt-3 text-sm text-muted-foreground">
-              {error}
+              {t(errorKey ?? "accessDenied")}
             </p>
           </section>
         </div>
@@ -172,23 +128,19 @@ export default function AdminHomePage() {
           <div className="flex flex-wrap items-center gap-2">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em]">
               <ShieldCheck size={15} />
-              Accès administrateur
+              {t("adminAccess")}
             </div>
 
             <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-amber-200">
               <Crown size={15} />
-              Founder
+              {t("founder")}
             </div>
           </div>
 
-          <h1 className="mt-5 text-3xl font-black sm:text-5xl">
-            Centre Admin KLYX
-          </h1>
+          <h1 className="mt-5 text-3xl font-black sm:text-5xl">{t("title")}</h1>
 
           <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">
-            Ton compte dispose de l’accès de supervision KLYX.
-            Les vérifications externes restent l’autorité pour les
-            validations réelles des utilisateurs publics.
+            {t("description")}
           </p>
 
           <div className="mt-6 flex flex-wrap gap-3">
@@ -197,7 +149,7 @@ export default function AdminHomePage() {
               className="inline-flex h-11 items-center gap-2 rounded-xl bg-white px-4 text-sm font-black text-zinc-950"
             >
               <Crown size={16} />
-              Console Founder
+              {t("founderConsoleButton")}
             </Link>
 
             <Link
@@ -205,7 +157,7 @@ export default function AdminHomePage() {
               className="inline-flex h-11 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 text-sm font-black text-white"
             >
               <ShieldCheck size={16} />
-              Tests Founder
+              {t("founderTestsButton")}
             </Link>
 
             <Link
@@ -213,7 +165,7 @@ export default function AdminHomePage() {
               className="inline-flex h-11 items-center gap-2 rounded-xl border border-white/15 bg-white/5 px-4 text-sm font-black text-white"
             >
               <UsersRound size={16} />
-              Audit comptes
+              {t("accountAuditButton")}
             </Link>
           </div>
         </section>
@@ -222,13 +174,8 @@ export default function AdminHomePage() {
           <div className="flex gap-3">
             <Search size={21} className="shrink-0 text-blue-600" />
             <div>
-              <p className="font-black">
-                Recherche globale disponible
-              </p>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Utilise la barre de recherche du menu ou Ctrl+K
-                pour retrouver rapidement une page KLYX.
-              </p>
+              <p className="font-black">{t("searchTitle")}</p>
+              <p className="mt-2 text-sm text-muted-foreground">{t("searchText")}</p>
             </div>
           </div>
         </section>
@@ -236,6 +183,7 @@ export default function AdminHomePage() {
         <section className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {AREAS.map((area) => {
             const Icon = area.icon;
+            const copy = getKlyxAdminHomeAreaCopy(locale, area.id);
 
             return (
               <Link
@@ -247,12 +195,10 @@ export default function AdminHomePage() {
                   <Icon size={22} />
                 </span>
 
-                <h2 className="mt-5 text-xl font-black">
-                  {area.title}
-                </h2>
+                <h2 className="mt-5 text-xl font-black">{copy.title}</h2>
 
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  {area.description}
+                  {copy.description}
                 </p>
               </Link>
             );
