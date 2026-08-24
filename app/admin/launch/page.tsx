@@ -13,24 +13,30 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import {
+  formatKlyxAdminLaunchProbeDetail,
+  getKlyxAdminLaunchProbeCopy,
+  translateKlyxAdminLaunch,
+  type KlyxAdminLaunchMessageKey,
+  type KlyxAdminLaunchProbeId,
+} from "@/lib/klyx-admin-launch-i18n";
 import { createClient } from "@/lib/supabase/client";
+
+// KLYX_ADMIN_LAUNCH_I18N
 
 type CheckStatus = "ok" | "warning" | "error";
 
 type LaunchCheck = {
-  id: string;
-  title: string;
-  description: string;
-  href?: string;
+  id: KlyxAdminLaunchProbeId;
+  href: string;
   status: CheckStatus;
-  detail: string;
+  httpStatus: number | null;
   blocking: boolean;
 };
 
 type Probe = {
-  id: string;
-  title: string;
-  description: string;
+  id: KlyxAdminLaunchProbeId;
   path: string;
   blocking: boolean;
   auth?: boolean;
@@ -38,84 +44,33 @@ type Probe = {
 };
 
 const PROBES: Probe[] = [
-  {
-    id: "home",
-    title: "Accueil public",
-    description: "La porte d’entrée KLYX répond.",
-    path: "/",
-    blocking: true,
-  },
-  {
-    id: "login",
-    title: "Connexion",
-    description: "La page de connexion est accessible.",
-    path: "/login",
-    blocking: true,
-  },
-  {
-    id: "signup",
-    title: "Inscription",
-    description: "La création de compte est accessible.",
-    path: "/signup",
-    blocking: true,
-  },
-  {
-    id: "install",
-    title: "Installation PWA",
-    description: "La page Installer KLYX est accessible.",
-    path: "/install",
-    blocking: true,
-  },
-  {
-    id: "manifest",
-    title: "Manifest PWA",
-    description: "Le manifest de l’application est servi.",
-    path: "/manifest.webmanifest",
-    blocking: true,
-  },
-  {
-    id: "service-worker",
-    title: "Service worker",
-    description: "Le service worker KLYX est disponible.",
-    path: "/sw.js",
-    blocking: true,
-  },
-  {
-    id: "offline",
-    title: "Mode hors ligne",
-    description: "La page de secours hors ligne est disponible.",
-    path: "/offline",
-    blocking: true,
-  },
+  { id: "home", path: "/", blocking: true },
+  { id: "login", path: "/login", blocking: true },
+  { id: "signup", path: "/signup", blocking: true },
+  { id: "install", path: "/install", blocking: true },
+  { id: "manifest", path: "/manifest.webmanifest", blocking: true },
+  { id: "service-worker", path: "/sw.js", blocking: true },
+  { id: "offline", path: "/offline", blocking: true },
   {
     id: "verifications",
-    title: "Vérifications prestataires",
-    description: "Le centre de vérification admin répond.",
     path: "/api/admin/verifications",
     blocking: true,
     auth: true,
   },
   {
     id: "skills",
-    title: "Validation des compétences",
-    description: "Le contrôle métier par métier répond.",
     path: "/api/admin/skill-verifications",
     blocking: true,
     auth: true,
   },
   {
     id: "stripe",
-    title: "Stripe / paiements",
-    description: "Le contrôle de préparation Stripe répond.",
     path: "/api/admin/stripe-readiness",
     blocking: true,
     auth: true,
   },
   {
     id: "sumsub",
-    title: "Sumsub",
-    description:
-      "Vérification externe optionnelle pour le lancement actuel.",
     path: "/api/admin/sumsub",
     blocking: false,
     auth: true,
@@ -137,36 +92,31 @@ function statusClass(status: CheckStatus) {
 
 function StatusIcon({ status }: { status: CheckStatus }) {
   if (status === "ok") {
-    return (
-      <CheckCircle2
-        size={20}
-        className="text-emerald-500"
-      />
-    );
+    return <CheckCircle2 size={20} className="text-emerald-500" />;
   }
 
   return (
     <CircleAlert
       size={20}
-      className={
-        status === "warning"
-          ? "text-amber-500"
-          : "text-rose-500"
-      }
+      className={status === "warning" ? "text-amber-500" : "text-rose-500"}
     />
   );
 }
 
 export default function AdminLaunchPage() {
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxAdminLaunchMessageKey) =>
+    translateKlyxAdminLaunch(locale, key);
+
   const [loading, setLoading] = useState(true);
   const [allowed, setAllowed] = useState(false);
   const [running, setRunning] = useState(false);
-  const [error, setError] = useState("");
+  const [errorKey, setErrorKey] = useState<KlyxAdminLaunchMessageKey | null>(null);
   const [checks, setChecks] = useState<LaunchCheck[]>([]);
 
   const runAudit = useCallback(async () => {
     setRunning(true);
-    setError("");
+    setErrorKey(null);
 
     try {
       const supabase = createClient();
@@ -175,7 +125,10 @@ export default function AdminLaunchPage() {
       } = await supabase.auth.getSession();
 
       if (!session?.access_token) {
-        throw new Error("Session manquante.");
+        setAllowed(false);
+        setChecks([]);
+        setErrorKey("sessionMissing");
+        return;
       }
 
       const accessResponse = await fetch("/api/admin/access", {
@@ -185,15 +138,15 @@ export default function AdminLaunchPage() {
         },
       });
 
-      const accessBody = (await accessResponse.json()) as {
-        isAdmin?: boolean;
-        error?: string;
-      };
+      const accessBody = (await accessResponse
+        .json()
+        .catch(() => ({}))) as { isAdmin?: boolean };
 
       if (!accessResponse.ok || !accessBody.isAdmin) {
-        throw new Error(
-          accessBody.error || "Accès administrateur refusé."
-        );
+        setAllowed(false);
+        setChecks([]);
+        setErrorKey("accessDenied");
+        return;
       }
 
       setAllowed(true);
@@ -210,41 +163,21 @@ export default function AdminLaunchPage() {
                 : undefined,
             });
 
-            const ok =
-              response.status >= 200 && response.status < 400;
-
-            if (ok) {
-              return {
-                id: probe.id,
-                title: probe.title,
-                description: probe.description,
-                href: probe.path,
-                status: "ok",
-                detail: `HTTP ${response.status}`,
-                blocking: probe.blocking,
-              };
-            }
+            const ok = response.status >= 200 && response.status < 400;
 
             return {
               id: probe.id,
-              title: probe.title,
-              description: probe.description,
               href: probe.path,
-              status: probe.optional ? "warning" : "error",
-              detail: `HTTP ${response.status}`,
+              status: ok ? "ok" : probe.optional ? "warning" : "error",
+              httpStatus: response.status,
               blocking: probe.blocking,
             };
-          } catch (probeError) {
+          } catch {
             return {
               id: probe.id,
-              title: probe.title,
-              description: probe.description,
               href: probe.path,
               status: probe.optional ? "warning" : "error",
-              detail:
-                probeError instanceof Error
-                  ? probeError.message
-                  : "Échec du contrôle.",
+              httpStatus: null,
               blocking: probe.blocking,
             };
           }
@@ -252,13 +185,10 @@ export default function AdminLaunchPage() {
       );
 
       setChecks(results);
-    } catch (auditError) {
+    } catch {
       setAllowed(false);
-      setError(
-        auditError instanceof Error
-          ? auditError.message
-          : "Audit impossible."
-      );
+      setChecks([]);
+      setErrorKey("auditError");
     } finally {
       setRunning(false);
       setLoading(false);
@@ -271,13 +201,9 @@ export default function AdminLaunchPage() {
 
   const summary = useMemo(() => {
     const blocking = checks.filter((item) => item.blocking);
-    const blockingErrors = blocking.filter(
-      (item) => item.status === "error"
-    ).length;
+    const blockingErrors = blocking.filter((item) => item.status === "error").length;
     const ok = checks.filter((item) => item.status === "ok").length;
-    const warnings = checks.filter(
-      (item) => item.status === "warning"
-    ).length;
+    const warnings = checks.filter((item) => item.status === "warning").length;
 
     return {
       ready: checks.length > 0 && blockingErrors === 0,
@@ -301,11 +227,9 @@ export default function AdminLaunchPage() {
         <div className="mx-auto max-w-3xl">
           <section className="klyx-card p-8">
             <ShieldCheck size={34} className="text-rose-500" />
-            <h1 className="mt-5 text-2xl font-black">
-              Accès administrateur refusé
-            </h1>
+            <h1 className="mt-5 text-2xl font-black">{t("deniedTitle")}</h1>
             <p className="mt-3 text-sm text-muted-foreground">
-              {error || "Accès impossible."}
+              {errorKey ? t(errorKey) : t("inaccessible")}
             </p>
           </section>
         </div>
@@ -321,23 +245,21 @@ export default function AdminLaunchPage() {
           className="inline-flex items-center gap-2 text-sm font-bold text-muted-foreground transition hover:text-foreground"
         >
           <ArrowLeft size={17} />
-          Centre Admin
+          {t("backAdmin")}
         </Link>
 
         <section className="mt-6 overflow-hidden rounded-[2rem] bg-[linear-gradient(135deg,#17131f,#2b1452_52%,#111827)] p-8 text-white">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em]">
             <Rocket size={15} />
-            Étape 11
+            {t("step")}
           </div>
 
           <h1 className="mt-5 text-3xl font-black tracking-[-0.045em] sm:text-5xl">
-            Centre de lancement KLYX
+            {t("title")}
           </h1>
 
           <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">
-            Cette page contrôle les briques essentielles du lancement.
-            Un avertissement optionnel ne bloque pas KLYX. Une erreur sur
-            un contrôle obligatoire doit être corrigée avant ouverture.
+            {t("description")}
           </p>
 
           <div className="mt-7 flex flex-wrap gap-3">
@@ -352,7 +274,7 @@ export default function AdminLaunchPage() {
               ) : (
                 <RefreshCw size={18} />
               )}
-              Relancer l’audit
+              {t("rerun")}
             </button>
           </div>
         </section>
@@ -367,12 +289,10 @@ export default function AdminLaunchPage() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">
-                État global
+                {t("globalState")}
               </p>
               <h2 className="mt-2 text-2xl font-black">
-                {summary.ready
-                  ? "Socle de lancement prêt"
-                  : "Blocage avant lancement"}
+                {summary.ready ? t("readyTitle") : t("blockedTitle")}
               </h2>
             </div>
 
@@ -383,77 +303,73 @@ export default function AdminLaunchPage() {
                   : "bg-rose-500/15 text-rose-600"
               }`}
             >
-              {summary.ready ? "READY" : "NOT READY"}
+              {summary.ready ? t("readyBadge") : t("notReadyBadge")}
             </span>
           </div>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <Metric label="OK" value={summary.ok} />
-            <Metric label="Avertissements" value={summary.warnings} />
-            <Metric
-              label="Blocages"
-              value={summary.blockingErrors}
-            />
+            <Metric label={t("okMetric")} value={summary.ok} />
+            <Metric label={t("warningsMetric")} value={summary.warnings} />
+            <Metric label={t("blockersMetric")} value={summary.blockingErrors} />
           </div>
         </section>
 
         <section className="mt-8 grid gap-4 md:grid-cols-2">
-          {checks.map((check) => (
-            <article
-              key={check.id}
-              className={`rounded-2xl border p-5 ${statusClass(
-                check.status
-              )}`}
-            >
-              <div className="flex items-start gap-3">
-                <StatusIcon status={check.status} />
+          {checks.map((check) => {
+            const copy = getKlyxAdminLaunchProbeCopy(locale, check.id);
 
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h2 className="font-black">{check.title}</h2>
-                      <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                        {check.description}
-                      </p>
+            return (
+              <article
+                key={check.id}
+                className={`rounded-2xl border p-5 ${statusClass(check.status)}`}
+              >
+                <div className="flex items-start gap-3">
+                  <StatusIcon status={check.status} />
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h2 className="font-black">{copy.title}</h2>
+                        <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                          {copy.description}
+                        </p>
+                      </div>
+
+                      {!check.blocking && (
+                        <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-black text-amber-600">
+                          {t("optional")}
+                        </span>
+                      )}
                     </div>
 
-                    {!check.blocking && (
-                      <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-black text-amber-600">
-                        OPTIONNEL
+                    <div className="mt-4 flex items-center justify-between gap-3">
+                      <span className="text-xs font-bold text-muted-foreground">
+                        {formatKlyxAdminLaunchProbeDetail(locale, check.httpStatus)}
                       </span>
-                    )}
-                  </div>
 
-                  <div className="mt-4 flex items-center justify-between gap-3">
-                    <span className="text-xs font-bold text-muted-foreground">
-                      {check.detail}
-                    </span>
-
-                    {check.href && !check.href.startsWith("/api/") && (
-                      <Link
-                        href={check.href}
-                        className="inline-flex items-center gap-1 text-xs font-black text-violet-600"
-                      >
-                        Ouvrir
-                        <ExternalLink size={13} />
-                      </Link>
-                    )}
+                      {check.href && !check.href.startsWith("/api/") && (
+                        <Link
+                          href={check.href}
+                          className="inline-flex items-center gap-1 text-xs font-black text-violet-600"
+                        >
+                          {t("open")}
+                          <ExternalLink size={13} />
+                        </Link>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            </article>
-          ))}
+              </article>
+            );
+          })}
         </section>
 
         <section className="klyx-card mt-8 p-6">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">
-            Règle de lancement
+            {t("launchRule")}
           </p>
           <p className="mt-3 text-sm leading-7 text-muted-foreground">
-            KLYX peut continuer vers les derniers tests utilisateurs quand
-            tous les contrôles obligatoires sont verts. Sumsub reste
-            volontairement non bloquant tant que cette intégration externe
-            n’est pas activée.
+            {t("launchRuleText")}
           </p>
         </section>
       </div>
@@ -461,18 +377,10 @@ export default function AdminLaunchPage() {
   );
 }
 
-function Metric({
-  label,
-  value,
-}: {
-  label: string;
-  value: number;
-}) {
+function Metric({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-xl border border-border/60 bg-background/50 p-4">
-      <p className="text-xs font-bold text-muted-foreground">
-        {label}
-      </p>
+      <p className="text-xs font-bold text-muted-foreground">{label}</p>
       <p className="mt-1 text-2xl font-black">{value}</p>
     </div>
   );
