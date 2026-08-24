@@ -46,8 +46,8 @@ describe("KLYX Brain action presentation i18n contract", () => {
 
     expect(brain).toContain('kind: "compare_offers"');
     expect(brain).toContain('"payment-group-" + booking.booking_group_id');
-    expect(brain).toContain('kind: "confirm_completion"');
-    expect(brain).toContain('kind: "provider_finish_mission"');
+    expect(brain).toMatch(/kind:\s*"confirm_completion"/);
+    expect(brain).toMatch(/kind:\s*"provider_finish_mission"/);
     expect(brain).toMatch(/href:\s*"\/tracking\/"\s*\+/);
     expect(cancellation).toMatch(/kind:\s*"group_cancellation_decision"/);
     expect(cancellation).toMatch(/kind:\s*"group_refund_processing"/);
