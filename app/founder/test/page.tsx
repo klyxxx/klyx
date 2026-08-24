@@ -44,6 +44,8 @@ const GROUP_ORDER = [
   "Transactions",
   "Paiement",
   "Vérification",
+  "Sécurité",
+  "Beta 12.6",
 ];
 
 export default function FounderTestPage() {
@@ -91,12 +93,15 @@ export default function FounderTestPage() {
       map.set(check.group, current);
     }
 
-    return GROUP_ORDER
-      .filter((group) => map.has(group))
-      .map((group) => ({
-        name: group,
-        checks: map.get(group) ?? [],
-      }));
+    const orderedNames = GROUP_ORDER.filter((group) => map.has(group));
+    const remainingNames = Array.from(map.keys()).filter(
+      (group) => !GROUP_ORDER.includes(group)
+    );
+
+    return [...orderedNames, ...remainingNames].map((group) => ({
+      name: group,
+      checks: map.get(group) ?? [],
+    }));
   }, [report]);
 
   return (
