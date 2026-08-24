@@ -1,6 +1,4 @@
-import {
-  NextResponse,
-} from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import {
   getAuthenticatedProfile,
@@ -12,8 +10,16 @@ import {
 import {
   getGroupCancellationBrainActions,
 } from "@/lib/brain-group-cancellation-actions";
+import {
+  localizeKlyxBrainActions,
+} from "@/lib/klyx-brain-action-i18n";
+import {
+  KLYX_LANGUAGE_COOKIE_KEY,
+  normalizeKlyxLocale,
+} from "@/lib/klyx-i18n";
 
 // KLYX_GROUP_ACTION_CENTER_12_91
+// KLYX_BRAIN_ACTION_PRESENTATION_I18N
 
 type ActionItem = {
   id: string;
@@ -28,51 +34,33 @@ type ActionItem = {
 function normalizeActions(
   value: unknown
 ): ActionItem[] {
-  if (
-    !Array.isArray(
-      value
-    )
-  ) {
+  if (!Array.isArray(value)) {
     return [];
   }
 
   return value.filter(
-    (
-      item
-    ): item is ActionItem => {
-      if (
-        !item ||
-        typeof item !==
-          "object"
-      ) {
+    (item): item is ActionItem => {
+      if (!item || typeof item !== "object") {
         return false;
       }
 
-      const candidate =
-        item as Partial<ActionItem>;
+      const candidate = item as Partial<ActionItem>;
 
       return (
-        typeof candidate.id ===
-          "string" &&
-        typeof candidate.kind ===
-          "string" &&
-        typeof candidate.priority ===
-          "number" &&
-        typeof candidate.title ===
-          "string" &&
-        typeof candidate.description ===
-          "string" &&
-        typeof candidate.href ===
-          "string" &&
-        typeof candidate.label ===
-          "string"
+        typeof candidate.id === "string" &&
+        typeof candidate.kind === "string" &&
+        typeof candidate.priority === "number" &&
+        typeof candidate.title === "string" &&
+        typeof candidate.description === "string" &&
+        typeof candidate.href === "string" &&
+        typeof candidate.label === "string"
       );
     }
   );
 }
 
 export async function GET(
-  request: Request
+  request: NextRequest
 ) {
   const startedAt = Date.now();
 
@@ -166,6 +154,19 @@ export async function GET(
           30
         );
 
+    const locale =
+      normalizeKlyxLocale(
+        request.cookies.get(
+          KLYX_LANGUAGE_COOKIE_KEY
+        )?.value
+      );
+
+    const localizedActions =
+      localizeKlyxBrainActions(
+        locale,
+        actions
+      );
+
     return NextResponse.json({
       profileId:
         profile.id,
@@ -173,10 +174,11 @@ export async function GET(
       accountType:
         profile.accountType,
 
-      actions,
+      actions:
+        localizedActions,
 
       count:
-        actions.length,
+        localizedActions.length,
 
       automaticExecutionAllowed:
         false,
