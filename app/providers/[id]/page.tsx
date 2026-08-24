@@ -13,9 +13,24 @@ import {
   ShieldCheck,
   UserRound,
 } from "lucide-react";
+
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import {
+  formatKlyxPublicProviderAvailability,
+  formatKlyxPublicProviderCompletedJobs,
+  formatKlyxPublicProviderExperience,
+  formatKlyxPublicProviderPrice,
+  formatKlyxPublicProviderScoreLabel,
+  formatKlyxPublicProviderServiceLabel,
+  translateKlyxPublicProvider,
+  type KlyxPublicProviderMessageKey,
+} from "@/lib/klyx-public-provider-i18n";
+import type { PricingType } from "@/lib/provider-studio";
 import { supabase } from "@/lib/supabase";
-import { formatServicePrice, serviceLabel, type PricingType } from "@/lib/provider-studio";
 import PublicReviews from "./PublicReviews";
+
+// KLYX_PUBLIC_PROVIDER_I18N
+// KLYX_PUBLIC_PROVIDER_READ_ONLY
 
 type ProfileRow = {
   id: string;
@@ -77,8 +92,8 @@ type GalleryRow = {
 type ProviderService = {
   userServiceId: string;
   slug: string;
-  label: string;
-  title: string;
+  serviceName: string;
+  title: string | null;
   description: string;
   pricingType: PricingType;
   price: number | null;
@@ -91,28 +106,24 @@ type ProviderService = {
   availabilityCount: number;
 };
 
-function scoreLabel(score: number): string {
-  if (score >= 90) return "Excellent";
-  if (score >= 80) return "Très fiable";
-  if (score >= 70) return "Fiable";
-  if (score >= 60) return "Correct";
-  return "Nouveau profil";
-}
-
 export default function ProviderProfilePage() {
   const params = useParams<{ id: string }>();
   const providerId = params.id;
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxPublicProviderMessageKey) =>
+    translateKlyxPublicProvider(locale, key);
+
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [providerProfile, setProviderProfile] = useState<ProviderProfileRow | null>(null);
   const [services, setServices] = useState<ProviderService[]>([]);
   const [gallery, setGallery] = useState<GalleryRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     async function loadProvider() {
       setLoading(true);
-      setErrorMessage("");
+      setLoadError(false);
 
       try {
         const [
@@ -122,34 +133,33 @@ export default function ProviderProfilePage() {
           galleryResult,
           verifiedServicesResponse,
         ] = await Promise.all([
-            supabase
-              .from("profiles")
-              .select("id, first_name, last_name, city, avatar_url")
-              .eq("id", providerId)
-              .maybeSingle(),
-            supabase
-              .from("provider_profiles")
-              .select(
-                "business_name, headline, bio, years_experience, is_published, verification_status"
-              )
-              .eq("profile_id", providerId)
-              .maybeSingle(),
-            supabase
-              .from("user_services")
-              .select("id, service_id")
-              .eq("user_id", providerId)
-              .eq("active", true),
-            supabase
-              .from("provider_gallery")
-              .select("id, public_url, caption")
-              .eq("profile_id", providerId)
-              .order("position", { ascending: true })
-              .limit(8),
-            fetch(
-              `/api/providers/${providerId}/verified-services`,
-              { cache: "no-store" }
-            ),
-          ]);
+          supabase
+            .from("profiles")
+            .select("id, first_name, last_name, city, avatar_url")
+            .eq("id", providerId)
+            .maybeSingle(),
+          supabase
+            .from("provider_profiles")
+            .select(
+              "business_name, headline, bio, years_experience, is_published, verification_status"
+            )
+            .eq("profile_id", providerId)
+            .maybeSingle(),
+          supabase
+            .from("user_services")
+            .select("id, service_id")
+            .eq("user_id", providerId)
+            .eq("active", true),
+          supabase
+            .from("provider_gallery")
+            .select("id, public_url, caption")
+            .eq("profile_id", providerId)
+            .order("position", { ascending: true })
+            .limit(8),
+          fetch(`/api/providers/${providerId}/verified-services`, {
+            cache: "no-store",
+          }),
+        ]);
 
         const firstError = [
           profileResult.error,
@@ -158,7 +168,7 @@ export default function ProviderProfilePage() {
           galleryResult.error,
         ].find(Boolean);
 
-        if (firstError) throw new Error(firstError.message);
+        if (firstError) throw new Error("KLYX_PUBLIC_PROVIDER_LOAD_FAILED");
 
         if (!profileResult.data || !providerProfileResult.data) {
           setProfile(null);
@@ -169,24 +179,18 @@ export default function ProviderProfilePage() {
         const commercialData = providerProfileResult.data as ProviderProfileRow;
 
         if (!verifiedServicesResponse.ok) {
-          throw new Error(
-            "Impossible de vérifier les métiers publiables."
-          );
+          throw new Error("KLYX_PUBLIC_PROVIDER_VERIFICATION_LOAD_FAILED");
         }
 
-        const verifiedServicesBody =
-          (await verifiedServicesResponse.json()) as {
-            userServiceIds?: string[];
-          };
-
-        const approvedUserServiceIds =
-          new Set(verifiedServicesBody.userServiceIds ?? []);
-
-        const userServices =
-          ((userServicesResult.data ?? []) as UserServiceRow[])
-            .filter((item) =>
-              approvedUserServiceIds.has(item.id)
-            );
+        const verifiedServicesBody = (await verifiedServicesResponse.json()) as {
+          userServiceIds?: string[];
+        };
+        const approvedUserServiceIds = new Set(
+          verifiedServicesBody.userServiceIds ?? []
+        );
+        const userServices = ((userServicesResult.data ?? []) as UserServiceRow[]).filter(
+          (item) => approvedUserServiceIds.has(item.id)
+        );
 
         if (!commercialData.is_published && userServices.length === 0) {
           setProfile(null);
@@ -200,10 +204,7 @@ export default function ProviderProfilePage() {
           const serviceIds = userServices.map((item) => item.service_id);
           const [servicesResult, serviceProfilesResult, availabilityResult] =
             await Promise.all([
-              supabase
-                .from("services")
-                .select("id, name, slug")
-                .in("id", serviceIds),
+              supabase.from("services").select("id, name, slug").in("id", serviceIds),
               supabase
                 .from("service_profiles")
                 .select(
@@ -224,12 +225,14 @@ export default function ProviderProfilePage() {
             availabilityResult.error,
           ].find(Boolean);
 
-          if (nestedError) throw new Error(nestedError.message);
+          if (nestedError) throw new Error("KLYX_PUBLIC_PROVIDER_SERVICE_LOAD_FAILED");
 
           const serviceRows = (servicesResult.data ?? []) as ServiceRow[];
           const serviceProfiles = (serviceProfilesResult.data ?? []) as ServiceProfileRow[];
           const availability = (availabilityResult.data ?? []) as AvailabilityRow[];
-          const serviceById = new Map(serviceRows.map((service) => [service.id, service]));
+          const serviceById = new Map(
+            serviceRows.map((service) => [service.id, service])
+          );
           const profileByUserService = new Map(
             serviceProfiles.map((item) => [item.user_service_id, item])
           );
@@ -239,15 +242,18 @@ export default function ProviderProfilePage() {
               const service = serviceById.get(userService.service_id);
               const serviceProfile = profileByUserService.get(userService.id);
 
-              if (!service || !serviceProfile || !serviceProfile.available) return null;
+              if (!service || !serviceProfile || !serviceProfile.available) {
+                return null;
+              }
 
               return {
                 userServiceId: userService.id,
                 slug: service.slug,
-                label: serviceLabel(service.slug, service.name),
-                title: serviceProfile.title ?? serviceLabel(service.slug, service.name),
+                serviceName: service.name,
+                title: serviceProfile.title,
                 description: serviceProfile.description ?? "",
-                pricingType: serviceProfile.pricing_type === "fixed" ? "fixed" : "hourly",
+                pricingType:
+                  serviceProfile.pricing_type === "fixed" ? "fixed" : "hourly",
                 price:
                   serviceProfile.price === null ? null : Number(serviceProfile.price),
                 city: serviceProfile.city ?? profileData.city ?? "",
@@ -269,10 +275,8 @@ export default function ProviderProfilePage() {
         setProviderProfile(commercialData);
         setServices(providerServices);
         setGallery((galleryResult.data ?? []) as GalleryRow[]);
-      } catch (error) {
-        setErrorMessage(
-          error instanceof Error ? error.message : "Impossible de charger ce prestataire."
-        );
+      } catch {
+        setLoadError(true);
       } finally {
         setLoading(false);
       }
@@ -282,23 +286,26 @@ export default function ProviderProfilePage() {
   }, [providerId]);
 
   const bestScore = useMemo(
-    () => (services.length === 0 ? 50 : Math.max(...services.map((service) => service.klyxScore))),
+    () =>
+      services.length === 0
+        ? 50
+        : Math.max(...services.map((service) => service.klyxScore)),
     [services]
   );
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 text-foreground dark:text-white">
-        Chargement du profil...
+      <main className="flex min-h-screen items-center justify-center bg-background text-foreground dark:bg-zinc-950 dark:text-white">
+        {t("loading")}
       </main>
     );
   }
 
-  if (errorMessage) {
+  if (loadError) {
     return (
-      <main className="min-h-screen bg-background dark:bg-zinc-950 px-5 py-10 text-foreground dark:text-white">
-        <div className="mx-auto max-w-3xl rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-red-300">
-          {errorMessage}
+      <main className="min-h-screen bg-background px-5 py-10 text-foreground dark:bg-zinc-950 dark:text-white">
+        <div className="mx-auto max-w-3xl rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-red-700 dark:text-red-300">
+          {t("loadError")}
         </div>
       </main>
     );
@@ -306,15 +313,17 @@ export default function ProviderProfilePage() {
 
   if (!profile || !providerProfile) {
     return (
-      <main className="min-h-screen bg-background dark:bg-zinc-950 px-5 py-10 text-foreground dark:text-white">
-        <div className="mx-auto max-w-3xl rounded-2xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-8 text-center">
-          <h1 className="text-2xl font-bold">Prestataire introuvable</h1>
-          <p className="mt-3 text-muted-foreground dark:text-zinc-400">Cette fiche n’est pas encore publiée.</p>
+      <main className="min-h-screen bg-background px-5 py-10 text-foreground dark:bg-zinc-950 dark:text-white">
+        <div className="mx-auto max-w-3xl rounded-2xl border border-border bg-card p-8 text-center dark:border-zinc-800 dark:bg-zinc-900">
+          <h1 className="text-2xl font-bold">{t("notFoundTitle")}</h1>
+          <p className="mt-3 text-muted-foreground dark:text-zinc-400">
+            {t("notFoundText")}
+          </p>
           <Link
             href="/search"
             className="mt-6 inline-flex rounded-xl bg-violet-600 px-6 py-3 font-semibold hover:bg-violet-700"
           >
-            Retour à la recherche
+            {t("backToSearch")}
           </Link>
         </div>
       </main>
@@ -323,30 +332,34 @@ export default function ProviderProfilePage() {
 
   const fullName =
     [profile.first_name, profile.last_name].filter(Boolean).join(" ") ||
-    "Prestataire KLYX";
+    t("providerEyebrow");
 
   return (
-    <main className="min-h-screen bg-background dark:bg-zinc-950 px-5 py-10 text-foreground dark:text-white">
+    <main className="min-h-screen bg-background px-5 py-10 text-foreground dark:bg-zinc-950 dark:text-white">
       <div className="mx-auto max-w-6xl">
         <Link
           href="/search"
-          className="inline-flex items-center gap-2 text-sm text-muted-foreground dark:text-zinc-400 hover:text-foreground dark:text-white"
+          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground dark:text-zinc-400 dark:hover:text-white"
         >
           <ArrowLeft size={17} />
-          Retour à la recherche
+          {t("backToSearch")}
         </Link>
 
-        <section className="mt-8 overflow-hidden rounded-3xl border border-border dark:border-zinc-800 bg-card/70 dark:bg-zinc-900/70">
+        <section className="mt-8 overflow-hidden rounded-3xl border border-border bg-card/70 dark:border-zinc-800 dark:bg-zinc-900/70">
           <div className="grid md:grid-cols-[340px_1fr]">
             <div className="flex min-h-96 items-center justify-center bg-muted dark:bg-zinc-800">
               {profile.avatar_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={profile.avatar_url}
                   alt={fullName}
                   className="h-full min-h-96 w-full object-cover"
                 />
               ) : (
-                <UserRound size={90} className="text-muted-foreground dark:text-zinc-500" />
+                <UserRound
+                  size={90}
+                  className="text-muted-foreground dark:text-zinc-500"
+                />
               )}
             </div>
 
@@ -355,49 +368,58 @@ export default function ProviderProfilePage() {
                 <div className="max-w-2xl">
                   <div className="flex flex-wrap items-center gap-3">
                     <p className="text-sm font-semibold uppercase tracking-[0.2em] text-violet-400">
-                      Prestataire KLYX
+                      {t("providerEyebrow")}
                     </p>
                     {providerProfile.verification_status === "verified" && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">
-                        <BadgeCheck size={15} /> Identité vérifiée
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                        <BadgeCheck size={15} /> {t("identityVerified")}
                       </span>
                     )}
                   </div>
+
                   <h1 className="mt-3 text-3xl font-bold sm:text-5xl">{fullName}</h1>
+
                   {providerProfile.business_name && (
-                    <p className="mt-2 text-lg text-muted-foreground dark:text-zinc-400">{providerProfile.business_name}</p>
+                    <p className="mt-2 text-lg text-muted-foreground dark:text-zinc-400">
+                      {providerProfile.business_name}
+                    </p>
                   )}
+
                   <p className="mt-5 text-xl font-semibold text-foreground dark:text-white">
-                    {providerProfile.headline || "Prestataire de services du quotidien"}
+                    {providerProfile.headline || t("headlineFallback")}
                   </p>
+
                   {providerProfile.bio && (
                     <p className="mt-4 whitespace-pre-line leading-7 text-foreground/80 dark:text-zinc-300">
                       {providerProfile.bio}
                     </p>
                   )}
+
                   <div className="mt-6 flex flex-wrap gap-4 text-sm text-muted-foreground dark:text-zinc-400">
                     <span className="inline-flex items-center gap-2">
                       <MapPin size={17} /> {profile.city || "Bruxelles"}
                     </span>
                     <span className="inline-flex items-center gap-2">
                       <BriefcaseBusiness size={17} />
-                      {providerProfile.years_experience ?? 0} an
-                      {Number(providerProfile.years_experience ?? 0) > 1 ? "s" : ""} d’expérience
+                      {formatKlyxPublicProviderExperience(
+                        locale,
+                        Number(providerProfile.years_experience ?? 0)
+                      )}
                     </span>
                   </div>
                 </div>
 
                 <div className="rounded-2xl border border-violet-500/30 bg-violet-500/10 px-5 py-4 text-center">
-                  <div className="flex items-center justify-center gap-2 text-violet-300">
+                  <div className="flex items-center justify-center gap-2 text-violet-700 dark:text-violet-300">
                     <ShieldCheck size={20} />
-                    <span className="text-sm font-semibold">KLYX Score</span>
+                    <span className="text-sm font-semibold">{t("score")}</span>
                   </div>
-                  <p className="mt-2 text-4xl font-bold text-violet-300">
+                  <p className="mt-2 text-4xl font-bold text-violet-700 dark:text-violet-300">
                     {bestScore.toFixed(0)}
                   </p>
                   <p className="text-sm text-muted-foreground dark:text-zinc-400">/100</p>
-                  <p className="mt-2 text-sm font-semibold text-violet-200">
-                    {scoreLabel(bestScore)}
+                  <p className="mt-2 text-sm font-semibold text-violet-700 dark:text-violet-200">
+                    {formatKlyxPublicProviderScoreLabel(locale, bestScore)}
                   </p>
                 </div>
               </div>
@@ -407,16 +429,17 @@ export default function ProviderProfilePage() {
 
         {gallery.length > 0 && (
           <section className="mt-8">
-            <h2 className="text-2xl font-bold">Réalisations et environnement</h2>
+            <h2 className="text-2xl font-bold">{t("galleryTitle")}</h2>
             <div className="mt-5 grid grid-cols-2 gap-4 md:grid-cols-4">
               {gallery.map((item) => (
                 <figure
                   key={item.id}
-                  className="aspect-square overflow-hidden rounded-2xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900"
+                  className="aspect-square overflow-hidden rounded-2xl border border-border bg-card dark:border-zinc-800 dark:bg-zinc-900"
                 >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={item.public_url}
-                    alt={item.caption || "Réalisation du prestataire"}
+                    alt={item.caption || t("galleryAlt")}
                     className="h-full w-full object-cover"
                   />
                 </figure>
@@ -426,100 +449,117 @@ export default function ProviderProfilePage() {
         )}
 
         <section className="mt-8">
-          <h2 className="text-2xl font-bold">Services proposés</h2>
+          <h2 className="text-2xl font-bold">{t("servicesTitle")}</h2>
           {services.length === 0 ? (
-            <div className="mt-5 rounded-2xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-6 text-muted-foreground dark:text-zinc-400">
-              Aucun service disponible pour le moment.
+            <div className="mt-5 rounded-2xl border border-border bg-card p-6 text-muted-foreground dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+              {t("noServices")}
             </div>
           ) : (
             <div className="mt-5 grid gap-5 lg:grid-cols-2">
-              {services.map((service) => (
-                <article
-                  key={service.userServiceId}
-                  className="rounded-2xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-6"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-semibold uppercase tracking-[0.18em] text-violet-400">
-                        {service.label}
-                      </p>
-                      <h3 className="mt-2 text-xl font-bold">{service.title}</h3>
+              {services.map((service) => {
+                const serviceLabel = formatKlyxPublicProviderServiceLabel(
+                  locale,
+                  service.slug,
+                  service.serviceName
+                );
+
+                return (
+                  <article
+                    key={service.userServiceId}
+                    className="rounded-2xl border border-border bg-card p-6 dark:border-zinc-800 dark:bg-zinc-900"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-violet-400">
+                          {serviceLabel}
+                        </p>
+                        <h3 className="mt-2 text-xl font-bold">
+                          {service.title ?? serviceLabel}
+                        </h3>
+                      </div>
+                      <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-center">
+                        <p className="text-2xl font-bold text-violet-700 dark:text-violet-300">
+                          {service.klyxScore.toFixed(0)}
+                        </p>
+                        <p className="text-xs text-muted-foreground dark:text-zinc-400">/100</p>
+                      </div>
                     </div>
-                    <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-center">
-                      <p className="text-2xl font-bold text-violet-300">
-                        {service.klyxScore.toFixed(0)}
+
+                    {service.description && (
+                      <p className="mt-4 line-clamp-4 leading-6 text-foreground/80 dark:text-zinc-300">
+                        {service.description}
                       </p>
-                      <p className="text-xs text-muted-foreground dark:text-zinc-400">/100</p>
+                    )}
+
+                    <div className="mt-5 space-y-2 text-sm text-muted-foreground dark:text-zinc-400">
+                      <p className="flex items-center gap-2">
+                        <MapPin size={16} />
+                        {service.serviceArea.length > 0
+                          ? service.serviceArea.join(", ")
+                          : service.city || t("cityMissing")}
+                        {service.travelRadiusKm > 0
+                          ? ` · ${service.travelRadiusKm} km`
+                          : ""}
+                      </p>
+                      <p className="flex items-center gap-2">
+                        <Clock3 size={16} />
+                        {formatKlyxPublicProviderAvailability(
+                          locale,
+                          service.availabilityCount
+                        )}
+                      </p>
+                      <p className="flex items-center gap-2">
+                        <CheckCircle2 size={16} />
+                        {formatKlyxPublicProviderCompletedJobs(
+                          locale,
+                          service.completedJobs
+                        )}
+                      </p>
+                      <p>
+                        {t("cancellationRate")}: {service.cancellationRate.toFixed(1)} %
+                      </p>
                     </div>
-                  </div>
 
-                  {service.description && (
-                    <p className="mt-4 line-clamp-4 leading-6 text-foreground/80 dark:text-zinc-300">
-                      {service.description}
-                    </p>
-                  )}
+                    <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
+                      <p className="text-xl font-bold text-violet-600 dark:text-violet-400">
+                        {formatKlyxPublicProviderPrice(
+                          locale,
+                          service.price,
+                          service.pricingType
+                        )}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <Link
+                          href={`/providers/${profile.id}/quote?service=${encodeURIComponent(
+                            service.slug
+                          )}`}
+                          className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-5 py-3 font-semibold text-violet-700 transition hover:bg-violet-500/15 dark:text-violet-200"
+                        >
+                          {t("quote")}
+                        </Link>
 
-                  <div className="mt-5 space-y-2 text-sm text-muted-foreground dark:text-zinc-400">
-                    <p className="flex items-center gap-2">
-                      <MapPin size={16} />
-                      {service.serviceArea.length > 0
-                        ? service.serviceArea.join(", ")
-                        : service.city || "Ville non renseignée"}
-                      {service.travelRadiusKm > 0 ? ` · ${service.travelRadiusKm} km` : ""}
-                    </p>
-                    <p className="flex items-center gap-2">
-                      <Clock3 size={16} />
-                      {service.availabilityCount} jour
-                      {service.availabilityCount > 1 ? "s" : ""} disponible
-                      {service.availabilityCount > 1 ? "s" : ""}
-                    </p>
-                    <p className="flex items-center gap-2">
-                      <CheckCircle2 size={16} />
-                      {service.completedJobs} prestation
-                      {service.completedJobs > 1 ? "s" : ""} terminée
-                      {service.completedJobs > 1 ? "s" : ""}
-                    </p>
-                    <p>Taux d’annulation : {service.cancellationRate.toFixed(1)} %</p>
-                  </div>
-
-                  <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
-                    <p className="text-xl font-bold text-violet-400">
-                      {formatServicePrice(service.price, service.pricingType)}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-  <Link
-    href={`/providers/${profile.id}/quote?service=${encodeURIComponent(
-      service.slug
-    )}`}
-    className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-5 py-3 font-semibold text-violet-700 transition hover:bg-violet-500/15 dark:text-violet-200"
-  >
-    Demander un devis
-  </Link>
-
-  <Link
-    href={`/providers/${profile.id}/book?service=${encodeURIComponent(
-      service.slug
-    )}`}
-    className="rounded-xl bg-violet-600 px-5 py-3 font-semibold text-white transition hover:bg-violet-700"
-  >
-    Réserver directement
-  </Link>
-</div>
-                  </div>
-                </article>
-              ))}
+                        <Link
+                          href={`/providers/${profile.id}/book?service=${encodeURIComponent(
+                            service.slug
+                          )}`}
+                          className="rounded-xl bg-violet-600 px-5 py-3 font-semibold text-white transition hover:bg-violet-700"
+                        >
+                          {t("book")}
+                        </Link>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>
+
         <PublicReviews
           providerId={profile.id}
           klyxScore={bestScore}
-          verified={
-            providerProfile.verification_status === "verified"
-          }
-          yearsExperience={Number(
-            providerProfile.years_experience ?? 0
-          )}
+          verified={providerProfile.verification_status === "verified"}
+          yearsExperience={Number(providerProfile.years_experience ?? 0)}
         />
       </div>
     </main>
