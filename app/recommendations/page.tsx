@@ -22,13 +22,26 @@ import {
   Star,
   UserRound,
 } from "lucide-react";
+
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import type { KlyxLocale } from "@/lib/klyx-i18n";
 import {
-  formatProviderPrice,
-  scoreLabel,
+  formatKlyxRecommendationExperience,
+  formatKlyxRecommendationMissions,
+  formatKlyxRecommendationPrice,
+  formatKlyxRecommendationScore,
+  formatKlyxRecommendationService,
+  translateKlyxRecommendations,
+  type KlyxRecommendationsMessageKey,
+} from "@/lib/klyx-recommendations-page-i18n";
+import {
   serviceLabel,
   type ProviderSearchItem,
   type ProviderSearchResponse,
 } from "@/lib/provider-search";
+
+// KLYX_RECOMMENDATIONS_PAGE_I18N
+// KLYX_RECOMMENDATIONS_READ_ONLY
 
 const EMPTY_RESPONSE: ProviderSearchResponse = {
   providers: [],
@@ -61,6 +74,9 @@ function profileHref(provider: ProviderSearchItem) {
 }
 
 function RecommendationsContent() {
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxRecommendationsMessageKey) =>
+    translateKlyxRecommendations(locale, key);
   const searchParams = useSearchParams();
   const queryString = searchParams.toString();
   const stableParams = useMemo(
@@ -71,14 +87,14 @@ function RecommendationsContent() {
   const [result, setResult] =
     useState<ProviderSearchResponse>(EMPTY_RESPONSE);
   const [loading, setLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
 
     async function loadRecommendations() {
       setLoading(true);
-      setErrorMessage("");
+      setLoadError(false);
 
       try {
         const requestParams = new URLSearchParams(queryString);
@@ -97,19 +113,15 @@ function RecommendationsContent() {
         };
 
         if (!response.ok) {
-          throw new Error(body.error || "Recherche impossible.");
+          throw new Error("KLYX_RECOMMENDATIONS_LOAD_FAILED");
         }
 
         setResult(body);
-      } catch (error) {
+      } catch {
         if (controller.signal.aborted) return;
 
         setResult(EMPTY_RESPONSE);
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "Impossible de charger les recommandations."
-        );
+        setLoadError(true);
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
@@ -135,7 +147,7 @@ function RecommendationsContent() {
           className="inline-flex items-center gap-2 text-sm font-bold text-muted-foreground transition hover:text-foreground"
         >
           <ArrowLeft size={17} />
-          Modifier ma demande
+          {t("editRequest")}
         </Link>
 
         <section className="relative mt-6 overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#17131f_0%,#2b1452_52%,#111827_100%)] p-7 text-white shadow-[0_28px_90px_rgba(44,20,85,0.25)] sm:p-10">
@@ -144,16 +156,15 @@ function RecommendationsContent() {
           <div className="relative max-w-3xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/7 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-white/70">
               <Sparkles size={15} />
-              Sélection KLYX
+              {t("eyebrow")}
             </div>
 
             <h1 className="mt-5 text-3xl font-black tracking-[-0.045em] sm:text-5xl">
-              Les meilleurs profils pour ta demande
+              {t("title")}
             </h1>
 
             <p className="mt-4 max-w-2xl text-sm leading-7 text-white/70 sm:text-base">
-              KLYX classe les profils selon la correspondance avec tes critères,
-              leur score de confiance, leur expérience et leur disponibilité.
+              {t("description")}
             </p>
           </div>
         </section>
@@ -161,28 +172,40 @@ function RecommendationsContent() {
         <section className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <Summary
             icon={<Search size={17} />}
-            label="Service"
-            value={service ? serviceLabel(service, service) : "Tous"}
+            label={t("service")}
+            value={
+              service
+                ? formatKlyxRecommendationService(
+                    locale,
+                    service,
+                    serviceLabel(service, service)
+                  )
+                : t("allServices")
+            }
           />
           <Summary
             icon={<MapPin size={17} />}
-            label="Ville"
-            value={city || "Toutes les zones"}
+            label={t("city")}
+            value={city || t("allAreas")}
           />
           <Summary
             icon={<CalendarDays size={17} />}
-            label="Date"
-            value={date || "Flexible"}
+            label={t("date")}
+            value={date || t("flexible")}
           />
           <Summary
             icon={<Clock3 size={17} />}
-            label="Heure"
-            value={time || "Flexible"}
+            label={t("time")}
+            value={time || t("flexible")}
           />
           <Summary
             icon={<Euro size={17} />}
-            label="Budget"
-            value={budget ? `${budget} € maximum` : "Non défini"}
+            label={t("budget")}
+            value={
+              budget
+                ? `${budget} € ${t("budgetMaximum")}`
+                : t("budgetUndefined")
+            }
           />
         </section>
 
@@ -194,72 +217,71 @@ function RecommendationsContent() {
                 className="mx-auto animate-spin text-violet-600"
               />
               <p className="mt-4 text-sm font-semibold text-muted-foreground">
-                KLYX compare les profils disponibles...
+                {t("loading")}
               </p>
             </div>
           </section>
         )}
 
-        {!loading && errorMessage && (
+        {!loading && loadError && (
           <section className="mt-8 rounded-3xl border border-rose-500/25 bg-rose-500/10 p-6 text-rose-700 dark:text-rose-300">
             <div className="flex gap-3">
               <AlertCircle className="mt-0.5 shrink-0" />
               <div>
-                <p className="font-black">Sélection indisponible</p>
-                <p className="mt-2 text-sm">{errorMessage}</p>
+                <p className="font-black">{t("selectionUnavailable")}</p>
+                <p className="mt-2 text-sm">{t("loadError")}</p>
               </div>
             </div>
           </section>
         )}
 
         {!loading &&
-          !errorMessage &&
+          !loadError &&
           result.showingAlternatives &&
           topProviders.length > 0 && (
             <section className="mt-8 rounded-3xl border border-amber-500/25 bg-amber-500/10 p-5 text-amber-800 dark:text-amber-200">
-              <p className="font-black">
-                Aucun profil ne correspond exactement à tous les critères.
-              </p>
+              <p className="font-black">{t("alternativesTitle")}</p>
               <p className="mt-2 text-sm leading-6">
-                KLYX affiche les alternatives les plus proches pour ne pas te
-                laisser sans solution.
+                {t("alternativesDescription")}
               </p>
             </section>
           )}
 
-        {!loading && !errorMessage && topProviders.length === 0 && (
+        {!loading && !loadError && topProviders.length === 0 && (
           <section className="klyx-card mt-8 p-8 text-center sm:p-12">
             <UserRound
               size={42}
               className="mx-auto text-muted-foreground"
             />
             <h2 className="mt-5 text-2xl font-black">
-              Aucun prestataire disponible
+              {t("noProviderTitle")}
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-muted-foreground">
-              Aucun profil publié ne correspond encore à cette demande. Essaie
-              une autre zone, une autre date ou un budget plus flexible.
+              {t("noProviderDescription")}
             </p>
 
             <Link
               href={`/search?${queryString}`}
               className="mt-6 inline-flex h-12 items-center gap-2 rounded-2xl bg-violet-600 px-5 text-sm font-bold text-white"
             >
-              Modifier les filtres
+              {t("editFilters")}
               <ArrowRight size={17} />
             </Link>
           </section>
         )}
 
-        {!loading && !errorMessage && topProviders.length > 0 && (
+        {!loading && !loadError && topProviders.length > 0 && (
           <>
             <div className="mt-8 flex flex-wrap items-end justify-between gap-4">
               <div>
-                <p className="klyx-eyebrow">Recommandations</p>
+                <p className="klyx-eyebrow">{t("recommendations")}</p>
                 <h2 className="mt-2 text-2xl font-black tracking-[-0.035em] sm:text-3xl">
-                  {topProviders.length} profil
-                  {topProviders.length > 1 ? "s" : ""} sélectionné
-                  {topProviders.length > 1 ? "s" : ""}
+                  {topProviders.length}{" "}
+                  {t(
+                    topProviders.length === 1
+                      ? "selectedProfile"
+                      : "selectedProfiles"
+                  )}
                 </h2>
               </div>
 
@@ -267,7 +289,7 @@ function RecommendationsContent() {
                 href={`/search?${queryString}`}
                 className="inline-flex items-center gap-2 text-sm font-bold text-violet-600 dark:text-violet-400"
               >
-                Voir tous les résultats
+                {t("seeAllResults")}
                 <ArrowRight size={16} />
               </Link>
             </div>
@@ -279,6 +301,7 @@ function RecommendationsContent() {
                   provider={provider}
                   position={index + 1}
                   bookingUrl={bookingHref(provider, stableParams)}
+                  locale={locale}
                 />
               ))}
             </section>
@@ -315,22 +338,33 @@ function ProviderCard({
   provider,
   position,
   bookingUrl,
+  locale,
 }: {
   provider: ProviderSearchItem;
   position: number;
   bookingUrl: string;
+  locale: KlyxLocale;
 }) {
+  const t = (key: KlyxRecommendationsMessageKey) =>
+    translateKlyxRecommendations(locale, key);
   const displayName =
     provider.businessName ||
     `${provider.firstName} ${provider.lastName}`.trim() ||
-    "Prestataire KLYX";
+    t("providerFallback");
+  const displayedService =
+    provider.title ||
+    formatKlyxRecommendationService(
+      locale,
+      provider.serviceSlug,
+      provider.serviceLabel
+    );
 
   return (
     <article className="klyx-card klyx-card-hover group relative flex min-h-[32rem] flex-col overflow-hidden p-0">
       {position === 1 && (
         <div className="absolute left-4 top-4 z-10 inline-flex items-center gap-2 rounded-full bg-background/90 dark:bg-zinc-950/90 px-3 py-1.5 text-xs font-black text-foreground dark:text-white shadow-lg backdrop-blur">
           <Medal size={15} className="text-amber-400" />
-          Meilleur choix
+          {t("bestChoice")}
         </div>
       )}
 
@@ -354,7 +388,11 @@ function ProviderCard({
         <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/65 to-transparent" />
 
         <div className="absolute bottom-4 right-4 rounded-full border border-white/15 bg-black/55 px-3 py-1.5 text-xs font-black text-white backdrop-blur">
-          {formatProviderPrice(provider.price, provider.pricingType)}
+          {formatKlyxRecommendationPrice(
+            locale,
+            provider.price,
+            provider.pricingType
+          )}
         </div>
       </div>
 
@@ -374,7 +412,7 @@ function ProviderCard({
             </div>
 
             <p className="mt-1 text-sm font-bold text-violet-600 dark:text-violet-400">
-              {provider.title || provider.serviceLabel}
+              {displayedService}
             </p>
           </div>
 
@@ -383,42 +421,42 @@ function ProviderCard({
               {provider.klyxScore}
             </p>
             <p className="text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700/70 dark:text-emerald-300/70">
-              Score
+              {t("score")}
             </p>
           </div>
         </div>
 
         <p className="mt-4 line-clamp-2 text-sm leading-6 text-muted-foreground">
-          {provider.headline ||
-            "Prestataire disponible pour répondre à ta demande."}
+          {provider.headline || t("headlineFallback")}
         </p>
 
         <div className="mt-5 grid grid-cols-2 gap-3">
           <TrustItem
             icon={<ShieldCheck size={16} />}
-            label={scoreLabel(provider.klyxScore)}
+            label={formatKlyxRecommendationScore(locale, provider.klyxScore)}
           />
           <TrustItem
             icon={<Star size={16} />}
-            label={`${provider.yearsExperience} an${
-              provider.yearsExperience > 1 ? "s" : ""
-            } d’expérience`}
+            label={formatKlyxRecommendationExperience(
+              locale,
+              provider.yearsExperience
+            )}
           />
           <TrustItem
             icon={<CheckCircle2 size={16} />}
-            label={`${provider.completedJobs} mission${
-              provider.completedJobs > 1 ? "s" : ""
-            }`}
+            label={formatKlyxRecommendationMissions(
+              locale,
+              provider.completedJobs
+            )}
           />
           <TrustItem
             icon={<MapPin size={16} />}
-            label={provider.city || "Zone à confirmer"}
+            label={provider.city || t("areaToConfirm")}
           />
         </div>
 
         <p className="mt-5 text-xs font-semibold text-muted-foreground">
-          {provider.availabilitySummary ||
-            "Disponibilité à confirmer avec le prestataire."}
+          {provider.availabilitySummary || t("availabilityFallback")}
         </p>
 
         <div className="mt-auto grid gap-3 pt-6 sm:grid-cols-2">
@@ -426,14 +464,14 @@ function ProviderCard({
             href={profileHref(provider)}
             className="inline-flex h-12 items-center justify-center rounded-2xl border border-border bg-background px-4 text-sm font-bold transition hover:bg-muted"
           >
-            Voir le profil
+            {t("viewProfile")}
           </Link>
 
           <Link
             href={bookingUrl}
             className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-violet-600 px-4 text-sm font-bold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-violet-500"
           >
-            Choisir
+            {t("choose")}
             <ArrowRight size={16} />
           </Link>
         </div>
