@@ -16,6 +16,7 @@ const recorder = readRepoFile("lib/product-analytics.ts");
 const searchRoute = readRepoFile("app/api/search/providers/route.ts");
 const founderApi = readRepoFile("app/api/founder/analytics/route.ts");
 const founderPage = readRepoFile("app/founder/analytics/page.tsx");
+const founderI18n = readRepoFile("lib/klyx-founder-analytics-i18n.ts");
 const founderHome = readRepoFile("app/founder/page.tsx");
 const k6 = readRepoFile("performance/k6/klyx-readonly.js");
 
@@ -87,12 +88,22 @@ describe("KLYX privacy-safe product analytics contract", () => {
 
   it("labels the dashboard as aggregate analytics without a third-party browser tracker", () => {
     expect(founderHome).toContain('href="/founder/analytics"');
-    expect(founderPage).toContain("Analytics privées");
-    expect(founderPage).toContain("Privacy by design");
-    expect(founderPage).toContain("Lecture correcte des ratios");
-    expect(founderPage).toContain("data.interpretation");
+    expect(founderPage).toContain("KLYX_FOUNDER_ANALYTICS_I18N");
+    expect(founderPage).toContain('t("privacyTitle")');
+    expect(founderPage).toContain('t("ratiosTitle")');
+    expect(founderPage).not.toContain("data.interpretation");
+    expect(founderI18n).toContain("Analytics privées");
+    expect(founderI18n).toContain("Privacy by design");
+    expect(founderI18n).toContain("Lecture correcte des ratios");
+    expect(founderI18n).toContain("ratios de volumes sur la période");
 
-    const newAnalyticsCode = [recorder, searchRoute, founderApi, founderPage].join("\n");
+    const newAnalyticsCode = [
+      recorder,
+      searchRoute,
+      founderApi,
+      founderPage,
+      founderI18n,
+    ].join("\n");
     expect(newAnalyticsCode).not.toMatch(
       /\b(gtag|google-analytics|posthog|mixpanel|amplitude|segment\.com)\b/i
     );
