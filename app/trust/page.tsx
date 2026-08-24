@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -10,7 +10,18 @@ import {
   LoaderCircle,
   ShieldCheck,
 } from "lucide-react";
+
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import {
+  getKlyxTrustIntlLocale,
+  translateKlyxTrust,
+  translateKlyxTrustReason,
+  translateKlyxTrustStatus,
+  type KlyxTrustMessageKey,
+} from "@/lib/klyx-trust-page-i18n";
 import { supabase } from "@/lib/supabase";
+
+// KLYX_TRUST_OVERVIEW_I18N
 
 type Dispute = {
   id: string;
@@ -25,39 +36,38 @@ type Dispute = {
   created_at: string;
 };
 
-const REASON_LABELS: Record<string, string> = {
-  provider_absent: "Prestataire absent",
-  client_absent: "Client absent",
-  major_delay: "Retard important",
-  unfinished_work: "Mission non terminée",
-  unsatisfactory_work: "Travail insatisfaisant",
-  unsafe_behavior: "Comportement dangereux",
-  payment_problem: "Problème de paiement",
-  other: "Autre problème",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  open: "Ouvert",
-  under_review: "En analyse",
-  waiting_user: "Informations attendues",
-  resolved: "Résolu",
-  closed: "Fermé",
+type DisputesResponse = {
+  disputes?: Dispute[];
 };
 
 export default function ClientTrustPage() {
+  const { locale } = useKlyxLocale();
+  const t = useCallback(
+    (key: KlyxTrustMessageKey) => translateKlyxTrust(locale, key),
+    [locale]
+  );
+
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
+
     async function load() {
+      setLoading(true);
+      setErrorMessage("");
+
       try {
         const {
           data: { session },
         } = await supabase.auth.getSession();
 
         if (!session?.access_token) {
-          throw new Error("Session manquante.");
+          if (!cancelled) {
+            setErrorMessage(t("sessionMissing"));
+          }
+          return;
         }
 
         const response = await fetch("/api/disputes", {
@@ -67,31 +77,36 @@ export default function ClientTrustPage() {
           },
         });
 
-        const result = (await response.json()) as {
-          disputes?: Dispute[];
-          error?: string;
-        };
-
         if (!response.ok) {
-          throw new Error(
-            result.error || "Chargement impossible."
-          );
+          if (!cancelled) {
+            setErrorMessage(t("loadError"));
+          }
+          return;
         }
 
-        setDisputes(result.disputes ?? []);
-      } catch (error) {
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "Impossible de charger le Centre de confiance."
-        );
+        const result = (await response.json()) as DisputesResponse;
+        if (!cancelled) {
+          setDisputes(result.disputes ?? []);
+        }
+      } catch {
+        if (!cancelled) {
+          setErrorMessage(t("loadError"));
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
 
     void load();
-  }, []);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
+
+  const intlLocale = getKlyxTrustIntlLocale(locale);
 
   return (
     <main className="klyx-page">
@@ -99,23 +114,20 @@ export default function ClientTrustPage() {
         <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#17131f,#3b162f_52%,#111827)] p-7 text-white sm:p-10">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white/70">
             <ShieldCheck size={15} />
-            Protection client
+            {t("eyebrow")}
           </div>
 
-          <h1 className="mt-5 text-3xl font-black sm:text-5xl">
-            Centre de confiance client
-          </h1>
+          <h1 className="mt-5 text-3xl font-black sm:text-5xl">{t("title")}</h1>
 
           <p className="mt-4 max-w-2xl text-sm leading-7 text-white/70">
-            Signale un problème lié à une prestation, conserve les faits
-            et suis la décision de KLYX.
+            {t("description")}
           </p>
 
           <Link
             href="/trust/new"
             className="mt-7 inline-flex h-12 items-center gap-2 rounded-2xl bg-white px-5 text-sm font-black text-zinc-950"
           >
-            Ouvrir un signalement
+            {t("openReport")}
             <ArrowRight size={17} />
           </Link>
         </section>
@@ -123,27 +135,24 @@ export default function ClientTrustPage() {
         <section className="mt-8 grid gap-5 md:grid-cols-3">
           <TrustInfo
             icon={<FileWarning size={21} />}
-            title="Décrire les faits"
-            text="Indique précisément ce qui s’est passé."
+            title={t("factsTitle")}
+            text={t("factsText")}
           />
           <TrustInfo
             icon={<ShieldCheck size={21} />}
-            title="Dossier protégé"
-            text="Le dossier reste lié à la réservation."
+            title={t("protectedTitle")}
+            text={t("protectedText")}
           />
           <TrustInfo
             icon={<Clock3 size={21} />}
-            title="Suivre la décision"
-            text="Le statut évoluera dans cet espace."
+            title={t("decisionTitle")}
+            text={t("decisionText")}
           />
         </section>
 
         {loading && (
           <div className="mt-8 grid min-h-52 place-items-center">
-            <LoaderCircle
-              className="animate-spin text-violet-600"
-              size={36}
-            />
+            <LoaderCircle className="animate-spin text-violet-600" size={36} />
           </div>
         )}
 
@@ -155,31 +164,19 @@ export default function ClientTrustPage() {
 
         {!loading && !errorMessage && (
           <section className="mt-8">
-            <p className="klyx-eyebrow">Mes dossiers</p>
-            <h2 className="mt-2 text-2xl font-black">
-              Mes litiges et signalements
-            </h2>
+            <p className="klyx-eyebrow">{t("filesEyebrow")}</p>
+            <h2 className="mt-2 text-2xl font-black">{t("filesTitle")}</h2>
 
             {disputes.length === 0 ? (
               <div className="klyx-card mt-5 p-8 text-center">
-                <ShieldCheck
-                  className="mx-auto text-emerald-500"
-                  size={42}
-                />
-                <h3 className="mt-4 text-xl font-black">
-                  Aucun dossier actif
-                </h3>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Tes signalements apparaîtront ici.
-                </p>
+                <ShieldCheck className="mx-auto text-emerald-500" size={42} />
+                <h3 className="mt-4 text-xl font-black">{t("emptyTitle")}</h3>
+                <p className="mt-2 text-sm text-muted-foreground">{t("emptyText")}</p>
               </div>
             ) : (
               <div className="mt-5 grid gap-4">
                 {disputes.map((dispute) => (
-                  <article
-                    key={dispute.id}
-                    className="klyx-card p-5 sm:p-6"
-                  >
+                  <article key={dispute.id} className="klyx-card p-5 sm:p-6">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                       <div className="flex gap-4">
                         <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-amber-500/10 text-amber-600">
@@ -188,8 +185,7 @@ export default function ClientTrustPage() {
 
                         <div>
                           <h3 className="font-black">
-                            {REASON_LABELS[dispute.reason] ??
-                              dispute.reason}
+                            {translateKlyxTrustReason(locale, dispute.reason)}
                           </h3>
 
                           <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">
@@ -198,16 +194,13 @@ export default function ClientTrustPage() {
 
                           <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
                             <Clock3 size={14} />
-                            {new Date(
-                              dispute.created_at
-                            ).toLocaleString("fr-BE")}
+                            {new Date(dispute.created_at).toLocaleString(intlLocale)}
                           </p>
                         </div>
                       </div>
 
                       <span className="w-fit rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1.5 text-xs font-black text-violet-700 dark:text-violet-300">
-                        {STATUS_LABELS[dispute.status] ??
-                          dispute.status}
+                        {translateKlyxTrustStatus(locale, dispute.status)}
                       </span>
                     </div>
 
@@ -215,7 +208,7 @@ export default function ClientTrustPage() {
                       href={`/bookings/${dispute.booking_id}`}
                       className="mt-5 inline-flex items-center gap-2 text-sm font-black text-violet-600 dark:text-violet-400"
                     >
-                      Voir la réservation
+                      {t("viewBooking")}
                       <ArrowRight size={15} />
                     </Link>
                   </article>
@@ -244,9 +237,7 @@ function TrustInfo({
         {icon}
       </div>
       <h3 className="mt-4 font-black">{title}</h3>
-      <p className="mt-2 text-sm leading-6 text-muted-foreground">
-        {text}
-      </p>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">{text}</p>
     </article>
   );
 }
