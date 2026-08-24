@@ -2,8 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import { getActiveClientProfile } from "@/lib/account-switcher";
+import {
+  translateKlyxFavorites,
+  type KlyxFavoritesMessageKey,
+} from "@/lib/klyx-favorites-i18n";
+import { supabase } from "@/lib/supabase";
+
+// KLYX_FAVORITE_BUTTON_I18N
 
 type FavoriteButtonProps = {
   serviceProfileId: string;
@@ -15,6 +23,8 @@ export default function FavoriteButton({
   compact = false,
 }: FavoriteButtonProps) {
   const router = useRouter();
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxFavoritesMessageKey) => translateKlyxFavorites(locale, key);
 
   const [userId, setUserId] = useState("");
   const [favoriteId, setFavoriteId] = useState("");
@@ -106,20 +116,20 @@ export default function FavoriteButton({
       disabled={loading || saving}
       className={
         compact
-          ? "flex h-11 w-11 items-center justify-center rounded-full border border-border dark:border-zinc-700 bg-background/90 dark:bg-zinc-950/90 text-xl transition hover:bg-muted dark:bg-zinc-800 disabled:opacity-50"
-          : "inline-flex items-center justify-center gap-2 rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 px-5 py-3 font-semibold transition hover:bg-muted dark:bg-zinc-800 disabled:opacity-50"
+          ? "flex h-11 w-11 items-center justify-center rounded-full border border-border bg-background/90 text-xl transition hover:bg-muted disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950/90 dark:hover:bg-zinc-800"
+          : "inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-background px-5 py-3 font-semibold transition hover:bg-muted disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:bg-zinc-800"
       }
-      aria-label={isFavorite ? "Retirer des favoris" : "Ajouter aux favoris"}
+      aria-label={isFavorite ? t("removeFavorite") : t("addFavorite")}
     >
       <span aria-hidden="true">{isFavorite ? "♥" : "♡"}</span>
 
       {!compact && (
         <span>
           {saving
-            ? "Mise à jour..."
+            ? t("updating")
             : isFavorite
-              ? "Retirer des favoris"
-              : "Ajouter aux favoris"}
+              ? t("removeFavorite")
+              : t("addFavorite")}
         </span>
       )}
     </button>
