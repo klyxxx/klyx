@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -11,6 +11,22 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import KlyxSelect from "@/app/components/KlyxSelect";
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import {
+  getKlyxAdminDisputesIntlLocale,
+  translateKlyxAdminBookingStatus,
+  translateKlyxAdminDisputeDecision,
+  translateKlyxAdminDisputes,
+  translateKlyxAdminPaymentStatus,
+  translateKlyxAdminPriority,
+  type KlyxAdminDisputesMessageKey,
+} from "@/lib/klyx-admin-disputes-i18n";
+import {
+  translateKlyxTrustReason,
+  translateKlyxTrustStatus,
+} from "@/lib/klyx-trust-page-i18n";
+
+// KLYX_ADMIN_DISPUTES_I18N
 
 type ProfileSummary = {
   id: string;
@@ -45,61 +61,49 @@ type Dispute = {
   againstProfile: ProfileSummary | null;
 };
 
-const REASONS: Record<string, string> = {
-  provider_absent: "Prestataire absent",
-  client_absent: "Client absent",
-  major_delay: "Retard important",
-  unfinished_work: "Mission non terminée",
-  unsatisfactory_work: "Travail insatisfaisant",
-  unsafe_behavior: "Comportement dangereux",
-  payment_problem: "Problème de paiement",
-  other: "Autre problème",
-};
-
-const STATUSES = [
-  ["open", "Ouvert"],
-  ["under_review", "En analyse"],
-  ["waiting_user", "Informations attendues"],
-  ["resolved", "Résolu"],
-  ["closed", "Fermé"],
+const STATUS_VALUES = [
+  "open",
+  "under_review",
+  "waiting_user",
+  "resolved",
+  "closed",
 ] as const;
 
-const DECISIONS = [
-  ["", "Aucune décision"],
-  ["no_action", "Aucune action"],
-  ["warning_recorded", "Avertissement enregistré"],
-  [
-    "refund_review_required",
-    "Remboursement à examiner séparément",
-  ],
-  [
-    "provider_compensation_review",
-    "Indemnisation prestataire à examiner",
-  ],
-  [
-    "more_information_required",
-    "Informations complémentaires nécessaires",
-  ],
-  ["safety_escalation", "Escalade sécurité"],
+const DECISION_VALUES = [
+  "",
+  "no_action",
+  "warning_recorded",
+  "refund_review_required",
+  "provider_compensation_review",
+  "more_information_required",
+  "safety_escalation",
 ] as const;
-
-function displayName(profile: ProfileSummary | null): string {
-  if (!profile) return "Profil inconnu";
-
-  return (
-    `${profile.first_name ?? ""} ${
-      profile.last_name ?? ""
-    }`.trim() || "Profil KLYX"
-  );
-}
 
 export default function AdminDisputesPage() {
+  const { locale } = useKlyxLocale();
+  const t = useCallback(
+    (key: KlyxAdminDisputesMessageKey) =>
+      translateKlyxAdminDisputes(locale, key),
+    [locale]
+  );
+
+  const displayName = useCallback(
+    (profile: ProfileSummary | null): string => {
+      if (!profile) return t("unknownProfile");
+
+      return (
+        `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() ||
+        t("klyxProfile")
+      );
+    },
+    [t]
+  );
+
   const [rows, setRows] = useState<Dispute[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState("");
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] =
-    useState("active");
+  const [statusFilter, setStatusFilter] = useState("active");
   const [forms, setForms] = useState<
     Record<
       string,
@@ -111,30 +115,23 @@ export default function AdminDisputesPage() {
     >
   >({});
   const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] =
-    useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setErrorMessage("");
 
     try {
-      const response = await fetch(
-        "/api/admin/disputes",
-        {
-          cache: "no-store",
-        }
-      );
+      const response = await fetch("/api/admin/disputes", {
+        cache: "no-store",
+      });
 
       const body = (await response.json()) as {
         disputes?: Dispute[];
-        error?: string;
       };
 
       if (!response.ok) {
-        throw new Error(
-          body.error || "Chargement impossible."
-        );
+        throw new Error("KLYX_ADMIN_DISPUTES_LOAD_FAILED");
       }
 
       const disputes = body.disputes ?? [];
@@ -145,27 +142,22 @@ export default function AdminDisputesPage() {
             dispute.id,
             {
               status: dispute.status,
-              decisionCode:
-                dispute.decision_code ?? "",
+              decisionCode: dispute.decision_code ?? "",
               note: dispute.decision_note ?? "",
             },
           ])
         )
       );
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Impossible de charger les litiges."
-      );
+    } catch {
+      setErrorMessage(t("loadError"));
     } finally {
       setLoading(false);
     }
-  }
+  }, [t]);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
   const filteredRows = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -183,7 +175,7 @@ export default function AdminDisputesPage() {
       return [
         row.id,
         row.booking_id,
-        REASONS[row.reason] ?? row.reason,
+        translateKlyxTrustReason(locale, row.reason),
         row.description,
         displayName(row.openedByProfile),
         displayName(row.againstProfile),
@@ -192,7 +184,7 @@ export default function AdminDisputesPage() {
         .toLowerCase()
         .includes(normalized);
     });
-  }, [query, rows, statusFilter]);
+  }, [displayName, locale, query, rows, statusFilter]);
 
   async function save(disputeId: string) {
     const form = forms[disputeId];
@@ -204,47 +196,43 @@ export default function AdminDisputesPage() {
     setSuccessMessage("");
 
     try {
-      const response = await fetch(
-        "/api/admin/disputes",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            disputeId,
-            status: form.status,
-            decisionCode: form.decisionCode,
-            note: form.note,
-          }),
-        }
-      );
+      const response = await fetch("/api/admin/disputes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          disputeId,
+          status: form.status,
+          decisionCode: form.decisionCode,
+          note: form.note,
+        }),
+      });
 
-      const body = (await response.json()) as {
-        message?: string;
-        error?: string;
-      };
+      await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          body.error || "Mise à jour impossible."
-        );
+        throw new Error("KLYX_ADMIN_DISPUTES_UPDATE_FAILED");
       }
 
-      setSuccessMessage(
-        body.message || "Dossier mis à jour."
-      );
+      setSuccessMessage(t("updateSuccess"));
       await load();
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Mise à jour impossible."
-      );
+    } catch {
+      setErrorMessage(t("updateError"));
     } finally {
       setBusyId("");
     }
   }
+
+  const statusOptions = STATUS_VALUES.map((value) => ({
+    value,
+    label: translateKlyxTrustStatus(locale, value),
+  }));
+
+  const decisionOptions = DECISION_VALUES.map((value) => ({
+    value,
+    label: translateKlyxAdminDisputeDecision(locale, value),
+  }));
 
   return (
     <main className="klyx-page">
@@ -252,17 +240,15 @@ export default function AdminDisputesPage() {
         <section className="rounded-[2rem] bg-[linear-gradient(135deg,#111827,#4c1d3f)] p-8 text-white">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em]">
             <ShieldCheck size={15} />
-            Administration KLYX
+            {t("eyebrow")}
           </div>
 
           <h1 className="mt-5 text-3xl font-black sm:text-5xl">
-            Administration des litiges
+            {t("title")}
           </h1>
 
           <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">
-            Analyse les faits, demande des informations et
-            conserve une décision motivée. Les remboursements
-            restent traités dans leur système sécurisé séparé.
+            {t("description")}
           </p>
 
           <button
@@ -271,7 +257,7 @@ export default function AdminDisputesPage() {
             className="mt-6 inline-flex h-11 items-center gap-2 rounded-xl bg-white px-4 text-sm font-black text-zinc-950"
           >
             <RefreshCw size={17} />
-            Actualiser
+            {t("refresh")}
           </button>
         </section>
 
@@ -283,11 +269,9 @@ export default function AdminDisputesPage() {
             />
             <input
               value={query}
-              onChange={(event) =>
-                setQuery(event.target.value)
-              }
+              onChange={(event) => setQuery(event.target.value)}
               className="klyx-input pl-11"
-              placeholder="Rechercher un profil, motif ou dossier"
+              placeholder={t("searchPlaceholder")}
             />
           </label>
 
@@ -295,14 +279,11 @@ export default function AdminDisputesPage() {
             value={statusFilter}
             onChange={setStatusFilter}
             options={[
-              { value: "active", label: "Dossiers actifs" },
-              { value: "all", label: "Tous les dossiers" },
-              ...STATUSES.map(([value, label]) => ({
-                value,
-                label,
-              })),
+              { value: "active", label: t("activeCases") },
+              { value: "all", label: t("allCases") },
+              ...statusOptions,
             ]}
-            ariaLabel="Filtrer les dossiers"
+            ariaLabel={t("filterAria")}
           />
         </section>
 
@@ -331,25 +312,19 @@ export default function AdminDisputesPage() {
               className="mx-auto text-emerald-500"
               size={42}
             />
-            <h2 className="mt-4 text-xl font-black">
-              Aucun dossier correspondant
-            </h2>
+            <h2 className="mt-4 text-xl font-black">{t("emptyTitle")}</h2>
           </div>
         ) : (
           <div className="mt-8 grid gap-6">
             {filteredRows.map((row) => {
               const form = forms[row.id] ?? {
                 status: row.status,
-                decisionCode:
-                  row.decision_code ?? "",
+                decisionCode: row.decision_code ?? "",
                 note: row.decision_note ?? "",
               };
 
               return (
-                <article
-                  key={row.id}
-                  className="klyx-card p-6"
-                >
+                <article key={row.id} className="klyx-card p-6">
                   <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                     <div className="flex gap-4">
                       <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-amber-500/10 text-amber-600">
@@ -359,27 +334,16 @@ export default function AdminDisputesPage() {
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
                           <h2 className="text-xl font-black">
-                            {REASONS[row.reason] ??
-                              row.reason}
+                            {translateKlyxTrustReason(locale, row.reason)}
                           </h2>
                           <span className="rounded-full bg-muted px-3 py-1 text-xs font-black">
-                            {row.priority}
+                            {translateKlyxAdminPriority(locale, row.priority)}
                           </span>
                         </div>
 
                         <p className="mt-2 text-sm text-muted-foreground">
-                          Ouvert par{" "}
-                          <strong>
-                            {displayName(
-                              row.openedByProfile
-                            )}
-                          </strong>{" "}
-                          contre{" "}
-                          <strong>
-                            {displayName(
-                              row.againstProfile
-                            )}
-                          </strong>
+                          {t("openedBy")} <strong>{displayName(row.openedByProfile)}</strong>{" "}
+                          {t("against")} <strong>{displayName(row.againstProfile)}</strong>
                         </p>
 
                         <p className="mt-3 max-w-3xl text-sm leading-7 text-muted-foreground">
@@ -388,29 +352,22 @@ export default function AdminDisputesPage() {
 
                         <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
                           <Clock3 size={14} />
-                          {new Date(
-                            row.created_at
-                          ).toLocaleString("fr-BE")}
+                          {new Date(row.created_at).toLocaleString(
+                            getKlyxAdminDisputesIntlLocale(locale)
+                          )}
                         </p>
                       </div>
                     </div>
 
                     {row.booking && (
                       <div className="rounded-2xl border border-border bg-muted/30 p-4 text-sm">
-                        <p className="font-black">
-                          Réservation
-                        </p>
+                        <p className="font-black">{t("booking")}</p>
                         <p className="mt-2">
-                          {row.booking.booking_date} ·{" "}
-                          {row.booking.start_time.slice(
-                            0,
-                            5
-                          )}
+                          {row.booking.booking_date} · {row.booking.start_time.slice(0, 5)}
                         </p>
                         <p className="mt-1 text-muted-foreground">
-                          {row.booking.status} ·{" "}
-                          {row.booking.payment_status ??
-                            "paiement inconnu"}
+                          {translateKlyxAdminBookingStatus(locale, row.booking.status)} ·{" "}
+                          {translateKlyxAdminPaymentStatus(locale, row.booking.payment_status)}
                         </p>
                       </div>
                     )}
@@ -419,7 +376,7 @@ export default function AdminDisputesPage() {
                   <div className="mt-6 grid gap-4 lg:grid-cols-2">
                     <label>
                       <span className="mb-2 block text-sm font-black">
-                        Statut du dossier
+                        {t("caseStatus")}
                       </span>
                       <KlyxSelect
                         value={form.status}
@@ -432,17 +389,14 @@ export default function AdminDisputesPage() {
                             },
                           }))
                         }
-                        options={STATUSES.map(([value, label]) => ({
-                          value,
-                          label,
-                        }))}
-                        ariaLabel="Statut du dossier"
+                        options={statusOptions}
+                        ariaLabel={t("caseStatus")}
                       />
                     </label>
 
                     <label>
                       <span className="mb-2 block text-sm font-black">
-                        Décision
+                        {t("decision")}
                       </span>
                       <KlyxSelect
                         value={form.decisionCode}
@@ -455,18 +409,15 @@ export default function AdminDisputesPage() {
                             },
                           }))
                         }
-                        options={DECISIONS.map(([value, label]) => ({
-                          value,
-                          label,
-                        }))}
-                        ariaLabel="Décision"
+                        options={decisionOptions}
+                        ariaLabel={t("decision")}
                       />
                     </label>
                   </div>
 
                   <label className="mt-4 block">
                     <span className="mb-2 block text-sm font-black">
-                      Note visible dans le suivi
+                      {t("noteLabel")}
                     </span>
                     <textarea
                       rows={4}
@@ -482,7 +433,7 @@ export default function AdminDisputesPage() {
                         }))
                       }
                       className="klyx-input resize-none"
-                      placeholder="Explique la demande d’information ou la décision."
+                      placeholder={t("notePlaceholder")}
                     />
                   </label>
 
@@ -492,9 +443,7 @@ export default function AdminDisputesPage() {
                     onClick={() => void save(row.id)}
                     className="mt-5 inline-flex h-12 items-center justify-center rounded-2xl bg-violet-600 px-5 text-sm font-black text-white disabled:opacity-50"
                   >
-                    {busyId === row.id
-                      ? "Enregistrement..."
-                      : "Enregistrer la décision"}
+                    {busyId === row.id ? t("saving") : t("saveDecision")}
                   </button>
                 </article>
               );
@@ -505,5 +454,3 @@ export default function AdminDisputesPage() {
     </main>
   );
 }
-
-
