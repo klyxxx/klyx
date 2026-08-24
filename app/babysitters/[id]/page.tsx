@@ -2,7 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import {
+  formatKlyxBabysitterBookingAvailability,
+  formatKlyxBabysitterBookingHourlyPrice,
+  formatKlyxBabysitterBookingUnavailableDay,
+  getKlyxBabysitterBookingDayLabel,
+  translateKlyxBabysitterBooking,
+  type KlyxBabysitterBookingMessageKey,
+} from "@/lib/klyx-babysitter-booking-i18n";
 import { supabase } from "@/lib/supabase";
+
+// KLYX_BABYSITTER_BOOKING_I18N
+
+const LOAD_FAILED = "KLYX_BABYSITTER_BOOKING_LOAD_FAILED";
 
 type AvailabilitySlot = {
   id: string;
@@ -20,25 +34,18 @@ type Babysitter = {
   userServiceId: string;
 };
 
-const DAY_LABELS: Record<number, string> = {
-  0: "Dimanche",
-  1: "Lundi",
-  2: "Mardi",
-  3: "Mercredi",
-  4: "Jeudi",
-  5: "Vendredi",
-  6: "Samedi",
-};
-
 export default function BookingPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxBabysitterBookingMessageKey) =>
+    translateKlyxBabysitterBooking(locale, key);
 
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [babysitter, setBabysitter] = useState<Babysitter | null>(null);
   const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [errorKey, setErrorKey] = useState<KlyxBabysitterBookingMessageKey | null>(null);
 
   const [date, setDate] = useState("");
   const [startTime, setStartTime] = useState("");
@@ -61,14 +68,11 @@ export default function BookingPage() {
 
   const loadBabysitter = useCallback(async () => {
     setLoading(true);
-    setErrorMessage("");
+    setErrorKey(null);
 
     try {
       const babysitterId = params.id;
-
-      if (!babysitterId) {
-        throw new Error("Identifiant de la baby-sitter manquant.");
-      }
+      if (!babysitterId) throw new Error(LOAD_FAILED);
 
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
@@ -76,7 +80,7 @@ export default function BookingPage() {
         .eq("id", babysitterId)
         .maybeSingle();
 
-      if (profileError) throw new Error(profileError.message);
+      if (profileError) throw new Error(LOAD_FAILED);
       if (!profile) {
         setBabysitter(null);
         return;
@@ -88,10 +92,7 @@ export default function BookingPage() {
         .eq("slug", "babysitting")
         .maybeSingle();
 
-      if (serviceError) throw new Error(serviceError.message);
-      if (!service) {
-        throw new Error("Le service Babysitting est introuvable.");
-      }
+      if (serviceError || !service) throw new Error(LOAD_FAILED);
 
       const { data: userService, error: userServiceError } = await supabase
         .from("user_services")
@@ -101,7 +102,7 @@ export default function BookingPage() {
         .eq("active", true)
         .maybeSingle();
 
-      if (userServiceError) throw new Error(userServiceError.message);
+      if (userServiceError) throw new Error(LOAD_FAILED);
       if (!userService) {
         setBabysitter(null);
         return;
@@ -123,9 +124,7 @@ export default function BookingPage() {
           .eq("is_active", true),
       ]);
 
-      if (serviceProfileError) throw new Error(serviceProfileError.message);
-      if (slotsError) throw new Error(slotsError.message);
-
+      if (serviceProfileError || slotsError) throw new Error(LOAD_FAILED);
       if (!serviceProfile || serviceProfile.available === false) {
         setBabysitter(null);
         return;
@@ -139,14 +138,9 @@ export default function BookingPage() {
         price: serviceProfile.price ?? null,
         userServiceId: userService.id,
       });
-
       setAvailability((slots ?? []) as AvailabilitySlot[]);
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Impossible de charger la baby-sitter."
-      );
+    } catch {
+      setErrorKey("loadError");
       setBabysitter(null);
     } finally {
       setLoading(false);
@@ -171,42 +165,37 @@ export default function BookingPage() {
     if (!babysitter) return;
 
     if (!date || !startTime || !endTime) {
-      setErrorMessage("Complète la date et les heures.");
+      setErrorKey("missingDateTime");
       return;
     }
 
     if (endTime <= startTime) {
-      setErrorMessage("L'heure de fin doit être après l'heure de début.");
+      setErrorKey("endBeforeStart");
       return;
     }
 
     if (selectedDaySlots.length === 0) {
-      setErrorMessage(
-        "La baby-sitter n'est pas disponible ce jour-là."
-      );
+      setErrorKey("dayUnavailable");
       return;
     }
 
     if (!isInsideAvailability()) {
-      setErrorMessage(
-        "Les heures choisies sont en dehors des disponibilités."
-      );
+      setErrorKey("outsideAvailability");
       return;
     }
 
     const childrenCount = Number(children);
-
     if (
       Number.isNaN(childrenCount) ||
       !Number.isInteger(childrenCount) ||
       childrenCount < 1
     ) {
-      setErrorMessage("Le nombre d'enfants doit être au minimum 1.");
+      setErrorKey("childrenInvalid");
       return;
     }
 
     setSending(true);
-    setErrorMessage("");
+    setErrorKey(null);
 
     try {
       const {
@@ -241,20 +230,16 @@ export default function BookingPage() {
         }),
       });
 
-      const result = (await response.json()) as { error?: string };
-
+      await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(result.error ?? "Impossible d'envoyer la demande.");
+        setErrorKey("actionError");
+        return;
       }
 
-      alert("Demande envoyée.");
+      alert(t("success"));
       router.push("/dashboard");
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Impossible d'envoyer la demande."
-      );
+    } catch {
+      setErrorKey("actionError");
     } finally {
       setSending(false);
     }
@@ -262,19 +247,19 @@ export default function BookingPage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 text-foreground dark:text-white">
-        Chargement...
+      <main className="flex min-h-screen items-center justify-center bg-background text-foreground dark:bg-zinc-950 dark:text-white">
+        {t("loading")}
       </main>
     );
   }
 
   if (!babysitter) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 px-6 text-center text-foreground dark:text-white">
+      <main className="flex min-h-screen items-center justify-center bg-background px-6 text-center text-foreground dark:bg-zinc-950 dark:text-white">
         <div>
-          <p>Baby-sitter introuvable ou indisponible.</p>
-          {errorMessage && (
-            <p className="mt-3 text-sm text-red-400">{errorMessage}</p>
+          <p>{t("unavailable")}</p>
+          {errorKey && (
+            <p className="mt-3 text-sm text-red-400">{t(errorKey)}</p>
           )}
         </div>
       </main>
@@ -282,47 +267,41 @@ export default function BookingPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background dark:bg-zinc-950 p-6 text-foreground dark:text-white sm:p-8">
+    <main className="min-h-screen bg-background p-6 text-foreground dark:bg-zinc-950 dark:text-white sm:p-8">
       <div className="mx-auto max-w-3xl">
-        <h1 className="mb-2 text-3xl font-bold sm:text-4xl">
-          Réserver une baby-sitter
-        </h1>
+        <h1 className="mb-2 text-3xl font-bold sm:text-4xl">{t("title")}</h1>
 
         <p className="mb-2 text-foreground/80 dark:text-zinc-300">
           {babysitter.firstName} {babysitter.lastName}
         </p>
 
         <p className="mb-8 text-sm text-muted-foreground dark:text-zinc-500">
-          {babysitter.city || "Ville non renseignée"}
+          {babysitter.city || t("cityMissing")}
           {babysitter.price !== null
-            ? ` · ${babysitter.price.toFixed(2)} €/heure`
+            ? ` · ${formatKlyxBabysitterBookingHourlyPrice(locale, babysitter.price)}`
             : ""}
         </p>
 
-        <section className="mb-8 rounded-2xl border border-border dark:border-zinc-800 bg-card/60 dark:bg-zinc-900/60 p-5">
-          <h2 className="font-semibold">Disponibilités hebdomadaires</h2>
+        <section className="mb-8 rounded-2xl border border-border bg-card/60 p-5 dark:border-zinc-800 dark:bg-zinc-900/60">
+          <h2 className="font-semibold">{t("weeklyAvailability")}</h2>
 
           {availability.length === 0 ? (
             <p className="mt-3 text-sm text-muted-foreground dark:text-zinc-400">
-              Aucune disponibilité renseignée.
+              {t("noAvailability")}
             </p>
           ) : (
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
               {availability
                 .slice()
-                .sort(
-                  (a, b) =>
-                    dayOrder(a.day_of_week) - dayOrder(b.day_of_week)
-                )
+                .sort((a, b) => dayOrder(a.day_of_week) - dayOrder(b.day_of_week))
                 .map((slot) => (
                   <div
                     key={slot.id}
-                    className="flex justify-between rounded-xl bg-background dark:bg-zinc-950 px-4 py-3 text-sm"
+                    className="flex justify-between rounded-xl bg-background px-4 py-3 text-sm dark:bg-zinc-950"
                   >
-                    <span>{DAY_LABELS[slot.day_of_week]}</span>
+                    <span>{getKlyxBabysitterBookingDayLabel(locale, slot.day_of_week)}</span>
                     <span className="text-muted-foreground dark:text-zinc-400">
-                      {slot.start_time.slice(0, 5)} →{" "}
-                      {slot.end_time.slice(0, 5)}
+                      {slot.start_time.slice(0, 5)} → {slot.end_time.slice(0, 5)}
                     </span>
                   </div>
                 ))}
@@ -330,84 +309,75 @@ export default function BookingPage() {
           )}
         </section>
 
-        {errorMessage && (
+        {errorKey && (
           <div className="mb-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">
-            {errorMessage}
+            {t(errorKey)}
           </div>
         )}
 
         <div className="space-y-6">
           <div>
             <label htmlFor="date" className="mb-2 block text-sm text-foreground/80 dark:text-zinc-300">
-              Date
+              {t("date")}
             </label>
-
             <input
               id="date"
               type="date"
               min={new Date().toISOString().split("T")[0]}
-              className="w-full rounded-xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-4 outline-none focus:border-violet-500"
+              className="w-full rounded-xl border border-border bg-card p-4 outline-none focus:border-violet-500 dark:border-zinc-800 dark:bg-zinc-900"
               value={date}
               onChange={(event) => {
                 setDate(event.target.value);
                 setStartTime("");
                 setEndTime("");
-                setErrorMessage("");
+                setErrorKey(null);
               }}
             />
 
             {date && (
               <p
                 className={`mt-2 text-sm ${
-                  selectedDaySlots.length > 0
-                    ? "text-emerald-400"
-                    : "text-red-400"
+                  selectedDaySlots.length > 0 ? "text-emerald-400" : "text-red-400"
                 }`}
               >
                 {selectedDaySlots.length > 0
-                  ? `Disponible le ${DAY_LABELS[selectedDayOfWeek ?? 0]} : ${selectedDaySlots
-                      .map(
-                        (slot) =>
-                          `${slot.start_time.slice(0, 5)}–${slot.end_time.slice(0, 5)}`
-                      )
-                      .join(", ")}`
-                  : `Indisponible le ${DAY_LABELS[selectedDayOfWeek ?? 0]}`}
+                  ? formatKlyxBabysitterBookingAvailability(
+                      locale,
+                      selectedDayOfWeek ?? 0,
+                      selectedDaySlots
+                    )
+                  : formatKlyxBabysitterBookingUnavailableDay(
+                      locale,
+                      selectedDayOfWeek ?? 0
+                    )}
               </p>
             )}
           </div>
 
           <div className="grid gap-6 md:grid-cols-2">
             <div>
-              <label
-                htmlFor="startTime"
-                className="mb-2 block text-sm text-foreground/80 dark:text-zinc-300"
-              >
-                Heure de début
+              <label htmlFor="startTime" className="mb-2 block text-sm text-foreground/80 dark:text-zinc-300">
+                {t("startTime")}
               </label>
-
               <input
                 id="startTime"
                 type="time"
                 disabled={!date || selectedDaySlots.length === 0}
-                className="w-full rounded-xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-4 outline-none focus:border-violet-500 disabled:opacity-40"
+                className="w-full rounded-xl border border-border bg-card p-4 outline-none focus:border-violet-500 disabled:opacity-40 dark:border-zinc-800 dark:bg-zinc-900"
                 value={startTime}
                 onChange={(event) => setStartTime(event.target.value)}
               />
             </div>
 
             <div>
-              <label
-                htmlFor="endTime"
-                className="mb-2 block text-sm text-foreground/80 dark:text-zinc-300"
-              >
-                Heure de fin
+              <label htmlFor="endTime" className="mb-2 block text-sm text-foreground/80 dark:text-zinc-300">
+                {t("endTime")}
               </label>
-
               <input
                 id="endTime"
                 type="time"
                 disabled={!date || selectedDaySlots.length === 0}
-                className="w-full rounded-xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-4 outline-none focus:border-violet-500 disabled:opacity-40"
+                className="w-full rounded-xl border border-border bg-card p-4 outline-none focus:border-violet-500 disabled:opacity-40 dark:border-zinc-800 dark:bg-zinc-900"
                 value={endTime}
                 onChange={(event) => setEndTime(event.target.value)}
               />
@@ -415,37 +385,29 @@ export default function BookingPage() {
           </div>
 
           <div>
-            <label
-              htmlFor="children"
-              className="mb-2 block text-sm text-foreground/80 dark:text-zinc-300"
-            >
-              Nombre d'enfants
+            <label htmlFor="children" className="mb-2 block text-sm text-foreground/80 dark:text-zinc-300">
+              {t("children")}
             </label>
-
             <input
               id="children"
               type="number"
               min="1"
               step="1"
-              className="w-full rounded-xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-4 outline-none focus:border-violet-500"
+              className="w-full rounded-xl border border-border bg-card p-4 outline-none focus:border-violet-500 dark:border-zinc-800 dark:bg-zinc-900"
               value={children}
               onChange={(event) => setChildren(event.target.value)}
             />
           </div>
 
           <div>
-            <label
-              htmlFor="message"
-              className="mb-2 block text-sm text-foreground/80 dark:text-zinc-300"
-            >
-              Message
+            <label htmlFor="message" className="mb-2 block text-sm text-foreground/80 dark:text-zinc-300">
+              {t("message")}
             </label>
-
             <textarea
               id="message"
               rows={6}
-              className="w-full rounded-xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-4 outline-none focus:border-violet-500"
-              placeholder="Précise tes besoins."
+              className="w-full rounded-xl border border-border bg-card p-4 outline-none focus:border-violet-500 dark:border-zinc-800 dark:bg-zinc-900"
+              placeholder={t("messagePlaceholder")}
               value={message}
               onChange={(event) => setMessage(event.target.value)}
             />
@@ -463,7 +425,7 @@ export default function BookingPage() {
             }
             className="w-full rounded-xl bg-violet-600 py-4 text-lg font-semibold transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {sending ? "Envoi..." : "Envoyer la demande"}
+            {sending ? t("sending") : t("sendRequest")}
           </button>
         </div>
       </div>
