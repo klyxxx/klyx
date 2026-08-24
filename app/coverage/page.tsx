@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  FormEvent,
-  useEffect,
-  useState,
-} from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -17,9 +13,19 @@ import {
   Star,
   Users,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
-import { BELGIAN_LOCALITIES } from "@/lib/belgian-localities";
+
 import KlyxSelect from "@/app/components/KlyxSelect";
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import { BELGIAN_LOCALITIES } from "@/lib/belgian-localities";
+import {
+  formatKlyxCoverageProviderCount,
+  translateKlyxCoverage,
+  type KlyxCoverageMessageKey,
+} from "@/lib/klyx-coverage-i18n";
+import { supabase } from "@/lib/supabase";
+
+// KLYX_COVERAGE_I18N
+// KLYX_COVERAGE_READ_ONLY
 
 type Service = {
   id: string;
@@ -52,19 +58,18 @@ type CoverageResponse = {
 };
 
 export default function CoveragePage() {
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxCoverageMessageKey) => translateKlyxCoverage(locale, key);
+
   const [services, setServices] = useState<Service[]>([]);
   const [serviceSlug, setServiceSlug] = useState("");
   const [locality, setLocality] = useState("");
-  const [providers, setProviders] = useState<
-    ProviderCoverage[]
-  >([]);
+  const [providers, setProviders] = useState<ProviderCoverage[]>([]);
   const [searched, setSearched] = useState(false);
-  const [privacyNotice, setPrivacyNotice] =
-    useState("");
+  const [privacyNotice, setPrivacyNotice] = useState("");
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
-  const [errorMessage, setErrorMessage] =
-    useState("");
+  const [errorKey, setErrorKey] = useState<KlyxCoverageMessageKey | null>(null);
 
   async function token(): Promise<string> {
     const {
@@ -72,7 +77,7 @@ export default function CoveragePage() {
     } = await supabase.auth.getSession();
 
     if (!session?.access_token) {
-      throw new Error("Session manquante.");
+      throw new Error("KLYX_COVERAGE_SESSION_MISSING");
     }
 
     return session.access_token;
@@ -80,27 +85,22 @@ export default function CoveragePage() {
 
   async function loadServices() {
     setLoading(true);
-    setErrorMessage("");
+    setErrorKey(null);
 
     try {
       const accessToken = await token();
-      const response = await fetch(
-        "/api/search/coverage",
-        {
-          cache: "no-store",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
+      const response = await fetch("/api/search/coverage", {
+        cache: "no-store",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
 
-      const body =
-        (await response.json()) as CoverageResponse;
+      const body = (await response.json()) as CoverageResponse;
 
       if (!response.ok) {
-        throw new Error(
-          body.error || "Chargement impossible."
-        );
+        setErrorKey("loadError");
+        return;
       }
 
       const nextServices = body.services ?? [];
@@ -109,12 +109,8 @@ export default function CoveragePage() {
       if (!serviceSlug && nextServices[0]?.slug) {
         setServiceSlug(nextServices[0].slug);
       }
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Impossible de charger les services."
-      );
+    } catch {
+      setErrorKey("loadError");
     } finally {
       setLoading(false);
     }
@@ -132,7 +128,7 @@ export default function CoveragePage() {
     }
 
     setSearching(true);
-    setErrorMessage("");
+    setErrorKey(null);
     setProviders([]);
     setSearched(false);
 
@@ -143,42 +139,31 @@ export default function CoveragePage() {
         locality,
       });
 
-      const response = await fetch(
-        `/api/search/coverage?${params.toString()}`,
-        {
-          cache: "no-store",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
+      const response = await fetch(`/api/search/coverage?${params.toString()}`, {
+        cache: "no-store",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
 
-      const body =
-        (await response.json()) as CoverageResponse;
+      const body = (await response.json()) as CoverageResponse;
 
       if (!response.ok) {
-        throw new Error(
-          body.error || "Recherche impossible."
-        );
+        setErrorKey("searchError");
+        return;
       }
 
       setProviders(body.providers ?? []);
       setSearched(Boolean(body.searched));
       setPrivacyNotice(body.privacyNotice ?? "");
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Recherche impossible."
-      );
+    } catch {
+      setErrorKey("searchError");
     } finally {
       setSearching(false);
     }
   }
 
-  function searchHref(
-    provider: ProviderCoverage
-  ): string {
+  function searchHref(provider: ProviderCoverage): string {
     const params = new URLSearchParams({
       service: provider.serviceSlug,
       city: locality,
@@ -193,28 +178,17 @@ export default function CoveragePage() {
         <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#17131f,#164e63_52%,#101827)] p-7 text-white sm:p-10">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white/70">
             <Navigation size={15} />
-            Distance entre communes
+            {t("eyebrow")}
           </div>
 
-          <h1 className="mt-5 text-3xl font-black sm:text-5xl">
-            Trouve les prestataires réellement dans leur rayon
-          </h1>
-
-          <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">
-            KLYX compare ta commune avec les zones professionnelles
-            déclarées et vérifie automatiquement le rayon maximal.
-          </p>
+          <h1 className="mt-5 text-3xl font-black sm:text-5xl">{t("title")}</h1>
+          <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">{t("description")}</p>
         </section>
 
-        <form
-          onSubmit={searchCoverage}
-          className="klyx-card mt-8 p-6 sm:p-8"
-        >
+        <form onSubmit={searchCoverage} className="klyx-card mt-8 p-6 sm:p-8">
           <div className="grid gap-5 md:grid-cols-2">
             <label>
-              <span className="mb-2 block text-sm font-black">
-                Service recherché
-              </span>
+              <span className="mb-2 block text-sm font-black">{t("serviceLabel")}</span>
               <KlyxSelect
                 value={serviceSlug}
                 onChange={setServiceSlug}
@@ -223,86 +197,63 @@ export default function CoveragePage() {
                   value: service.slug,
                   label: service.name ?? service.slug,
                 }))}
-                ariaLabel="Service recherché"
+                ariaLabel={t("serviceLabel")}
               />
             </label>
 
             <label>
-              <span className="mb-2 block text-sm font-black">
-                Ma commune
-              </span>
+              <span className="mb-2 block text-sm font-black">{t("localityLabel")}</span>
               <KlyxSelect
                 value={locality}
                 onChange={setLocality}
-                placeholder="Choisir une commune"
+                placeholder={t("localityPlaceholder")}
                 options={BELGIAN_LOCALITIES.map((item) => ({
                   value: item.name,
                   label: `${item.name} · ${item.postalCodes.join(", ")}`,
                 }))}
-                ariaLabel="Ma commune"
+                ariaLabel={t("localityLabel")}
               />
             </label>
           </div>
 
-          {errorMessage && (
+          {errorKey && (
             <div className="mt-5 rounded-2xl border border-rose-500/25 bg-rose-500/10 p-4 text-rose-700 dark:text-rose-300">
-              {errorMessage}
+              {t(errorKey)}
             </div>
           )}
 
           <button
             type="submit"
-            disabled={
-              searching ||
-              loading ||
-              !serviceSlug ||
-              !locality
-            }
+            disabled={searching || loading || !serviceSlug || !locality}
             className="klyx-button mt-6 w-full"
           >
             {searching ? (
-              <LoaderCircle
-                className="animate-spin"
-                size={19}
-              />
+              <LoaderCircle className="animate-spin" size={19} />
             ) : (
               <Route size={19} />
             )}
-            Calculer la couverture
+            {searching ? t("calculating") : t("calculate")}
           </button>
         </form>
 
         {searched && (
           <section className="mt-8">
-            <p className="klyx-eyebrow">
-              Couverture calculée
-            </p>
+            <p className="klyx-eyebrow">{t("resultsEyebrow")}</p>
             <h2 className="mt-2 text-2xl font-black">
-              {providers.length} prestataire
-              {providers.length > 1 ? "s" : ""} dans le rayon
+              {formatKlyxCoverageProviderCount(locale, providers.length)}
             </h2>
 
             {providers.length === 0 ? (
               <div className="klyx-card mt-5 p-8 text-center">
-                <MapPin
-                  className="mx-auto text-amber-500"
-                  size={42}
-                />
-                <h3 className="mt-4 text-xl font-black">
-                  Aucun rayon compatible
-                </h3>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Les zones déclarées pour ce service ne couvrent
-                  pas cette commune actuellement.
-                </p>
+                <MapPin className="mx-auto text-amber-500" size={42} />
+                <h3 className="mt-4 text-xl font-black">{t("noCoverageTitle")}</h3>
+                <p className="mt-2 text-sm text-muted-foreground">{t("noCoverageDescription")}</p>
 
                 <Link
-                  href={`/search?service=${encodeURIComponent(
-                    serviceSlug
-                  )}&city=${encodeURIComponent(locality)}`}
+                  href={`/search?service=${encodeURIComponent(serviceSlug)}&city=${encodeURIComponent(locality)}`}
                   className="klyx-button mt-5"
                 >
-                  Ouvrir la recherche générale
+                  {t("openGeneralSearch")}
                   <ArrowRight size={18} />
                 </Link>
               </div>
@@ -317,11 +268,7 @@ export default function CoveragePage() {
                       <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl bg-cyan-500/10 text-cyan-600">
                         {provider.avatarUrl ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={provider.avatarUrl}
-                            alt=""
-                            className="h-full w-full object-cover"
-                          />
+                          <img src={provider.avatarUrl} alt="" className="h-full w-full object-cover" />
                         ) : (
                           <Users size={24} />
                         )}
@@ -329,14 +276,11 @@ export default function CoveragePage() {
 
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-lg font-black">
-                            {provider.displayName}
-                          </h3>
-
+                          <h3 className="text-lg font-black">{provider.displayName}</h3>
                           {provider.isPrimary && (
                             <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-black uppercase text-amber-700 dark:text-amber-300">
                               <Star size={12} />
-                              Zone principale
+                              {t("primaryZone")}
                             </span>
                           )}
                         </div>
@@ -348,33 +292,18 @@ export default function CoveragePage() {
                     </div>
 
                     <div className="mt-5 grid grid-cols-3 gap-3">
-                      <Metric
-                        label="Distance"
-                        value={`${provider.distanceKm} km`}
-                      />
-                      <Metric
-                        label="Rayon"
-                        value={`${provider.radiusKm} km`}
-                      />
-                      <Metric
-                        label="Marge"
-                        value={`${provider.remainingKm} km`}
-                      />
+                      <Metric label={t("distance")} value={`${provider.distanceKm} km`} />
+                      <Metric label={t("radius")} value={`${provider.radiusKm} km`} />
+                      <Metric label={t("margin")} value={`${provider.remainingKm} km`} />
                     </div>
 
                     <p className="mt-4 flex items-start gap-2 text-sm leading-6 text-muted-foreground">
-                      <CheckCircle2
-                        className="mt-0.5 shrink-0 text-emerald-500"
-                        size={17}
-                      />
+                      <CheckCircle2 className="mt-0.5 shrink-0 text-emerald-500" size={17} />
                       {provider.coverageMessage}
                     </p>
 
-                    <Link
-                      href={searchHref(provider)}
-                      className="klyx-button mt-5 w-full"
-                    >
-                      Voir dans la recherche
+                    <Link href={searchHref(provider)} className="klyx-button mt-5 w-full">
+                      {t("viewInSearch")}
                       <ArrowRight size={18} />
                     </Link>
                   </article>
@@ -384,13 +313,8 @@ export default function CoveragePage() {
 
             {privacyNotice && (
               <div className="mt-6 flex gap-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-5">
-                <LockKeyhole
-                  className="mt-0.5 shrink-0 text-emerald-600"
-                  size={20}
-                />
-                <p className="text-sm leading-6 text-muted-foreground">
-                  {privacyNotice}
-                </p>
+                <LockKeyhole className="mt-0.5 shrink-0 text-emerald-600" size={20} />
+                <p className="text-sm leading-6 text-muted-foreground">{privacyNotice}</p>
               </div>
             )}
           </section>
@@ -400,22 +324,11 @@ export default function CoveragePage() {
   );
 }
 
-function Metric({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
+function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-border bg-background/60 p-3 text-center">
-      <p className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">
-        {label}
-      </p>
-      <p className="mt-1 text-sm font-black">
-        {value}
-      </p>
+      <p className="text-[10px] font-black uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-1 text-sm font-black">{value}</p>
     </div>
   );
 }
-
