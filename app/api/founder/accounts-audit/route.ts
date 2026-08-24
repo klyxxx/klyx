@@ -8,13 +8,20 @@ import {
 } from "@/lib/founder-auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
-function founderIds(): Set<string> {
+function splitIds(value: string | undefined): Set<string> {
   return new Set(
-    (process.env.KLYX_FOUNDER_USER_IDS ?? "")
+    (value ?? "")
       .split(",")
-      .map((value) => value.trim())
+      .map((item) => item.trim())
       .filter(Boolean)
   );
+}
+
+function protectedConfiguredIds(): Set<string> {
+  return new Set([
+    ...splitIds(process.env.KLYX_FOUNDER_USER_IDS),
+    ...splitIds(process.env.KLYX_ADMIN_USER_IDS),
+  ]);
 }
 
 export async function GET() {
@@ -46,7 +53,7 @@ export async function GET() {
       throw new Error(profilesError.message);
     }
 
-    const protectedFounderIds = founderIds();
+    const protectedIds = protectedConfiguredIds();
 
     const users = usersData.users.map((user) => {
       const profileIdRefs = (profiles ?? []).filter(
@@ -63,8 +70,8 @@ export async function GET() {
         reasons.push("Session Founder actuellement connectée");
       }
 
-      if (protectedFounderIds.has(user.id)) {
-        reasons.push("UID déclaré Founder");
+      if (protectedIds.has(user.id)) {
+        reasons.push("UID déclaré Founder ou Admin");
       }
 
       if (profileIdRefs.length > 0) {
