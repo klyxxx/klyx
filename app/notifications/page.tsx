@@ -10,7 +10,17 @@ import {
   Circle,
   RefreshCw,
 } from "lucide-react";
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import { supabase } from "@/lib/supabase";
+import {
+  formatKlyxNotificationsUnreadSummary,
+  getKlyxNotificationsLocaleTag,
+  translateKlyxNotifications,
+  type KlyxNotificationsMessageKey,
+} from "@/lib/klyx-notifications-page-i18n";
+
+// KLYX_NOTIFICATIONS_I18N
+// KLYX_NOTIFICATIONS_SAFE_ERRORS
 
 type NotificationRow = {
   id: string;
@@ -24,18 +34,21 @@ type NotificationRow = {
 
 export default function NotificationsPage() {
   const router = useRouter();
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxNotificationsMessageKey) =>
+    translateKlyxNotifications(locale, key);
 
   const [notifications, setNotifications] =
     useState<NotificationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeAction, setActiveAction] =
     useState<string | null>(null);
-  const [errorMessage, setErrorMessage] =
-    useState("");
+  const [errorKey, setErrorKey] =
+    useState<KlyxNotificationsMessageKey | null>(null);
 
   const loadNotifications = useCallback(async () => {
     setLoading(true);
-    setErrorMessage("");
+    setErrorKey(null);
 
     try {
       const {
@@ -62,14 +75,10 @@ export default function NotificationsPage() {
           accountType: "client" | "provider";
         }>;
         activeProfileId?: string | null;
-        error?: string;
       };
 
       if (!profileResponse.ok) {
-        throw new Error(
-          profileBody.error ||
-            "Impossible de determiner le profil actif."
-        );
+        throw new Error("active_profile_request_failed");
       }
 
       const activeProfile =
@@ -80,7 +89,7 @@ export default function NotificationsPage() {
         ) ?? profileBody.profiles?.[0];
 
       if (!activeProfile) {
-        throw new Error("Profil actif introuvable.");
+        throw new Error("active_profile_not_found");
       }
 
       const { data, error } = await supabase
@@ -94,18 +103,14 @@ export default function NotificationsPage() {
         });
 
       if (error) {
-        throw new Error(error.message);
+        throw new Error("notifications_read_failed");
       }
 
       setNotifications(
         (data ?? []) as NotificationRow[]
       );
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Impossible de charger les notifications."
-      );
+    } catch {
+      setErrorKey("loadError");
     } finally {
       setLoading(false);
     }
@@ -128,7 +133,7 @@ export default function NotificationsPage() {
     notificationId: string
   ) {
     setActiveAction(notificationId);
-    setErrorMessage("");
+    setErrorKey(null);
 
     try {
       const {
@@ -155,16 +160,10 @@ export default function NotificationsPage() {
         }
       );
 
-      const result =
-        (await response.json()) as {
-          error?: string;
-        };
+      await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          result.error ||
-            "Action impossible."
-        );
+        throw new Error("notification_mark_read_failed");
       }
 
       setNotifications((current) =>
@@ -178,12 +177,8 @@ export default function NotificationsPage() {
             : notification
         )
       );
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Action impossible."
-      );
+    } catch {
+      setErrorKey("actionError");
     } finally {
       setActiveAction(null);
     }
@@ -191,7 +186,7 @@ export default function NotificationsPage() {
 
   async function markAllRead() {
     setActiveAction("all");
-    setErrorMessage("");
+    setErrorKey(null);
 
     try {
       const {
@@ -218,16 +213,10 @@ export default function NotificationsPage() {
         }
       );
 
-      const result =
-        (await response.json()) as {
-          error?: string;
-        };
+      await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          result.error ||
-            "Action impossible."
-        );
+        throw new Error("notifications_mark_all_read_failed");
       }
 
       const now = new Date().toISOString();
@@ -239,12 +228,8 @@ export default function NotificationsPage() {
             notification.read_at ?? now,
         }))
       );
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Action impossible."
-      );
+    } catch {
+      setErrorKey("actionError");
     } finally {
       setActiveAction(null);
     }
@@ -262,6 +247,8 @@ export default function NotificationsPage() {
     }
   }
 
+  const errorMessage = errorKey ? t(errorKey) : "";
+
   return (
     <main className="min-h-screen bg-background dark:bg-zinc-950 px-5 py-10 text-foreground dark:text-white">
       <div className="mx-auto max-w-4xl">
@@ -271,17 +258,15 @@ export default function NotificationsPage() {
               href="/dashboard"
               className="text-sm text-muted-foreground dark:text-zinc-400 hover:text-foreground dark:text-white"
             >
-              Retour au tableau de bord
+              {t("backDashboard")}
             </Link>
 
             <h1 className="mt-3 text-3xl font-bold sm:text-5xl">
-              Notifications
+              {t("title")}
             </h1>
 
             <p className="mt-3 text-muted-foreground dark:text-zinc-400">
-              {unreadCount} notification
-              {unreadCount > 1 ? "s" : ""} non lue
-              {unreadCount > 1 ? "s" : ""}.
+              {formatKlyxNotificationsUnreadSummary(locale, unreadCount)}
             </p>
           </div>
 
@@ -302,7 +287,7 @@ export default function NotificationsPage() {
                     : ""
                 }
               />
-              Actualiser
+              {t("refresh")}
             </button>
 
             {unreadCount > 0 && (
@@ -317,7 +302,7 @@ export default function NotificationsPage() {
                 className="inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-3 font-semibold hover:bg-violet-700 disabled:opacity-50"
               >
                 <CheckCheck size={18} />
-                Tout marquer comme lu
+                {t("markAllRead")}
               </button>
             )}
           </div>
@@ -331,7 +316,7 @@ export default function NotificationsPage() {
 
         {loading ? (
           <div className="mt-10 rounded-2xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-8 text-center text-muted-foreground dark:text-zinc-400">
-            Chargement des notifications...
+            {t("loading")}
           </div>
         ) : notifications.length === 0 ? (
           <div className="mt-10 rounded-2xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-8 text-center">
@@ -341,11 +326,11 @@ export default function NotificationsPage() {
             />
 
             <h2 className="mt-4 text-xl font-bold">
-              Aucune notification
+              {t("emptyTitle")}
             </h2>
 
             <p className="mt-2 text-muted-foreground dark:text-zinc-400">
-              Les changements importants apparaîtront ici.
+              {t("emptyBody")}
             </p>
           </div>
         ) : (
@@ -398,7 +383,7 @@ export default function NotificationsPage() {
                           {new Date(
                             notification.created_at
                           ).toLocaleString(
-                            "fr-BE"
+                            getKlyxNotificationsLocaleTag(locale)
                           )}
                         </span>
                       </div>
