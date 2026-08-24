@@ -12,6 +12,17 @@ import {
   X,
 } from "lucide-react";
 
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import {
+  formatKlyxAdminServiceApproved,
+  formatKlyxAdminServiceConfirm,
+  translateKlyxAdminServiceProposalStatus,
+  translateKlyxAdminServices,
+  type KlyxAdminServicesMessageKey,
+} from "@/lib/klyx-admin-services-i18n";
+
+// KLYX_ADMIN_SERVICES_I18N
+
 type ProposalStatus = "pending" | "approved" | "rejected";
 
 type Proposal = {
@@ -31,13 +42,17 @@ type Proposal = {
 };
 
 export default function AdminServicesPage() {
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxAdminServicesMessageKey) =>
+    translateKlyxAdminServices(locale, key);
+
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [filter, setFilter] = useState<"all" | ProposalStatus>("pending");
   const [query, setQuery] = useState("");
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [reviewingId, setReviewingId] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
+  const [errorKey, setErrorKey] = useState<KlyxAdminServicesMessageKey | null>(null);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -46,22 +61,18 @@ export default function AdminServicesPage() {
         const response = await fetch("/api/admin/service-proposals", {
           cache: "no-store",
         });
-        const result = (await response.json()) as {
+        const result = (await response.json().catch(() => ({}))) as {
           proposals?: Proposal[];
-          error?: string;
         };
 
         if (!response.ok) {
-          throw new Error(result.error ?? "Chargement impossible.");
+          setErrorKey("loadError");
+          return;
         }
 
         setProposals(result.proposals ?? []);
-      } catch (error) {
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "Impossible de charger les propositions."
-        );
+      } catch {
+        setErrorKey("loadError");
       } finally {
         setLoading(false);
       }
@@ -94,18 +105,12 @@ export default function AdminServicesPage() {
     proposal: Proposal,
     action: "approve" | "reject"
   ) {
-    if (
-      !window.confirm(
-        `${action === "approve" ? "Approuver" : "Refuser"} « ${
-          proposal.proposed_name
-        } » ?`
-      )
-    ) {
+    if (!window.confirm(formatKlyxAdminServiceConfirm(locale, action, proposal.proposed_name))) {
       return;
     }
 
     setReviewingId(proposal.id);
-    setErrorMessage("");
+    setErrorKey(null);
     setMessage("");
 
     try {
@@ -119,18 +124,18 @@ export default function AdminServicesPage() {
         }),
       });
 
-      const result = (await response.json()) as {
+      const result = (await response.json().catch(() => ({}))) as {
         review?: {
           status: ProposalStatus;
           admin_note: string | null;
           reviewed_at: string;
         };
         service?: { name: string } | null;
-        error?: string;
       };
 
       if (!response.ok || !result.review) {
-        throw new Error(result.error ?? "Action impossible.");
+        setErrorKey("actionError");
+        return;
       }
 
       setProposals((current) =>
@@ -148,19 +153,25 @@ export default function AdminServicesPage() {
 
       setMessage(
         action === "approve"
-          ? `Métier ajouté au catalogue : ${
+          ? formatKlyxAdminServiceApproved(
+              locale,
               result.service?.name ?? proposal.proposed_name
-            }.`
-          : "Proposition refusée."
+            )
+          : t("rejectSuccess")
       );
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Action impossible."
-      );
+    } catch {
+      setErrorKey("actionError");
     } finally {
       setReviewingId("");
     }
   }
+
+  const filterLabel = (value: "all" | ProposalStatus) => {
+    if (value === "pending") return t("pending");
+    if (value === "approved") return t("approved");
+    if (value === "rejected") return t("rejected");
+    return t("all");
+  };
 
   return (
     <main className="klyx-page">
@@ -169,17 +180,15 @@ export default function AdminServicesPage() {
         className="inline-flex items-center gap-2 text-sm font-bold text-muted-foreground"
       >
         <ArrowLeft size={17} />
-        Tableau de bord
+        {t("backDashboard")}
       </Link>
 
       <section className="mt-6 rounded-[2rem] bg-[linear-gradient(135deg,#17131f,#30135c_52%,#111827)] p-8 text-white">
         <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em]">
           <ShieldCheck size={15} />
-          Administration KLYX
+          {t("eyebrow")}
         </div>
-        <h1 className="mt-5 text-3xl font-black sm:text-5xl">
-          Validation des nouveaux métiers
-        </h1>
+        <h1 className="mt-5 text-3xl font-black sm:text-5xl">{t("title")}</h1>
       </section>
 
       {message && (
@@ -188,9 +197,9 @@ export default function AdminServicesPage() {
         </div>
       )}
 
-      {errorMessage && (
+      {errorKey && (
         <div className="mt-6 rounded-2xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm">
-          {errorMessage}
+          {t(errorKey)}
         </div>
       )}
 
@@ -209,13 +218,7 @@ export default function AdminServicesPage() {
                       : "bg-muted text-muted-foreground"
                   }`}
                 >
-                  {value === "pending"
-                    ? "En attente"
-                    : value === "approved"
-                      ? "Approuvés"
-                      : value === "rejected"
-                        ? "Refusés"
-                        : "Tous"}
+                  {filterLabel(value)}
                 </button>
               )
             )}
@@ -230,7 +233,7 @@ export default function AdminServicesPage() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               className="klyx-input pl-11"
-              placeholder="Rechercher"
+              placeholder={t("searchPlaceholder")}
             />
           </label>
         </div>
@@ -244,7 +247,7 @@ export default function AdminServicesPage() {
         ) : visibleProposals.length === 0 ? (
           <div className="klyx-card p-8 text-center">
             <Clock3 className="mx-auto" />
-            <p className="mt-3 font-black">Aucune proposition</p>
+            <p className="mt-3 font-black">{t("empty")}</p>
           </div>
         ) : (
           visibleProposals.map((proposal) => {
@@ -254,9 +257,7 @@ export default function AdminServicesPage() {
 
             return (
               <article key={proposal.id} className="klyx-card p-6">
-                <h2 className="text-2xl font-black">
-                  {proposal.proposed_name}
-                </h2>
+                <h2 className="text-2xl font-black">{proposal.proposed_name}</h2>
                 <p className="mt-1 text-sm font-bold text-violet-600">
                   {proposal.category}
                 </p>
@@ -279,7 +280,7 @@ export default function AdminServicesPage() {
                         }))
                       }
                       className="klyx-input min-h-24 py-4"
-                      placeholder="Note administrateur"
+                      placeholder={t("notePlaceholder")}
                     />
                     <div className="mt-3 flex gap-3">
                       <button
@@ -289,7 +290,7 @@ export default function AdminServicesPage() {
                         className="inline-flex h-11 items-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-bold text-white"
                       >
                         <Check size={17} />
-                        Approuver
+                        {t("approve")}
                       </button>
                       <button
                         type="button"
@@ -298,13 +299,13 @@ export default function AdminServicesPage() {
                         className="inline-flex h-11 items-center gap-2 rounded-xl bg-rose-600 px-4 text-sm font-bold text-white"
                       >
                         <X size={17} />
-                        Refuser
+                        {t("reject")}
                       </button>
                     </div>
                   </div>
                 ) : (
                   <p className="mt-5 text-sm font-bold">
-                    Statut : {proposal.status}
+                    {t("status")}: {translateKlyxAdminServiceProposalStatus(locale, proposal.status)}
                   </p>
                 )}
               </article>
