@@ -10,8 +10,21 @@ import {
   LoaderCircle,
   ShieldCheck,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import { getActiveClientProfile } from "@/lib/account-switcher";
+import {
+  getKlyxTrustIntlLocale,
+  translateKlyxTrustReason,
+  translateKlyxTrustStatus,
+} from "@/lib/klyx-trust-page-i18n";
+import {
+  translateKlyxProviderTrust,
+  type KlyxProviderTrustMessageKey,
+} from "@/lib/klyx-provider-trust-page-i18n";
+import { supabase } from "@/lib/supabase";
+
+// KLYX_PROVIDER_TRUST_I18N
 
 type Dispute = {
   id: string;
@@ -26,26 +39,9 @@ type Dispute = {
   created_at: string;
 };
 
-const REASON_LABELS: Record<string, string> = {
-  provider_absent: "Prestataire absent",
-  client_absent: "Client absent",
-  major_delay: "Retard important",
-  unfinished_work: "Mission non terminée",
-  unsatisfactory_work: "Travail insatisfaisant",
-  unsafe_behavior: "Comportement dangereux",
-  payment_problem: "Problème de paiement",
-  other: "Autre problème",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  open: "Ouvert",
-  under_review: "En analyse",
-  waiting_user: "Réponse attendue",
-  resolved: "Résolu",
-  closed: "Fermé",
-};
-
 export default function ProviderTrustPage() {
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxProviderTrustMessageKey) => translateKlyxProviderTrust(locale, key);
   const [profileId, setProfileId] = useState("");
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [loading, setLoading] = useState(true);
@@ -53,6 +49,8 @@ export default function ProviderTrustPage() {
 
   useEffect(() => {
     async function load() {
+      setLoading(true);
+      setErrorMessage("");
       try {
         const profile = await getActiveClientProfile();
         setProfileId(profile.id);
@@ -62,7 +60,8 @@ export default function ProviderTrustPage() {
         } = await supabase.auth.getSession();
 
         if (!session?.access_token) {
-          throw new Error("Session manquante.");
+          setErrorMessage(t("sessionMissing"));
+          return;
         }
 
         const response = await fetch("/api/disputes", {
@@ -78,40 +77,28 @@ export default function ProviderTrustPage() {
         };
 
         if (!response.ok) {
-          throw new Error(
-            result.error || "Chargement impossible."
-          );
+          setErrorMessage(t("loadError"));
+          return;
         }
 
         setDisputes(result.disputes ?? []);
-      } catch (error) {
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "Impossible de charger les dossiers professionnels."
-        );
+      } catch {
+        setErrorMessage(t("loadError"));
       } finally {
         setLoading(false);
       }
     }
 
     void load();
-  }, []);
+  }, [locale]);
 
   const received = useMemo(
-    () =>
-      disputes.filter(
-        (dispute) =>
-          dispute.against_profile_id === profileId
-      ),
+    () => disputes.filter((dispute) => dispute.against_profile_id === profileId),
     [disputes, profileId]
   );
 
   const opened = useMemo(
-    () =>
-      disputes.filter(
-        (dispute) => dispute.opened_by === profileId
-      ),
+    () => disputes.filter((dispute) => dispute.opened_by === profileId),
     [disputes, profileId]
   );
 
@@ -121,33 +108,21 @@ export default function ProviderTrustPage() {
         <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#111827,#1e2c4f_52%,#0f172a)] p-7 text-white sm:p-10">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white/70">
             <BriefcaseBusiness size={15} />
-            Protection professionnelle
+            {t("eyebrow")}
           </div>
 
-          <h1 className="mt-5 text-3xl font-black sm:text-5xl">
-            Centre de confiance prestataire
-          </h1>
+          <h1 className="mt-5 text-3xl font-black sm:text-5xl">{t("title")}</h1>
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-white/70">{t("description")}</p>
 
-          <p className="mt-4 max-w-2xl text-sm leading-7 text-white/70">
-            Consulte les signalements reçus, suis tes dossiers et protège
-            ton activité professionnelle.
-          </p>
-
-          <Link
-            href="/trust/new"
-            className="mt-7 inline-flex h-12 items-center gap-2 rounded-2xl bg-white px-5 text-sm font-black text-zinc-950"
-          >
-            Signaler un problème client
+          <Link href="/trust/new" className="mt-7 inline-flex h-12 items-center gap-2 rounded-2xl bg-white px-5 text-sm font-black text-zinc-950">
+            {t("reportClient")}
             <ArrowRight size={17} />
           </Link>
         </section>
 
         {loading && (
           <div className="mt-8 grid min-h-52 place-items-center">
-            <LoaderCircle
-              className="animate-spin text-blue-600"
-              size={36}
-            />
+            <LoaderCircle className="animate-spin text-blue-600" size={36} />
           </div>
         )}
 
@@ -160,17 +135,22 @@ export default function ProviderTrustPage() {
         {!loading && !errorMessage && (
           <>
             <DisputeSection
-              title="Signalements reçus"
-              description="Dossiers ouverts contre ton profil professionnel."
+              title={t("receivedTitle")}
+              description={t("receivedDescription")}
               disputes={received}
-              emptyText="Aucun signalement reçu."
+              emptyText={t("receivedEmpty")}
+              activityLabel={t("activity")}
+              viewMissionLabel={t("viewMission")}
+              locale={locale}
             />
-
             <DisputeSection
-              title="Signalements ouverts par moi"
-              description="Dossiers que tu as ouverts concernant un client."
+              title={t("openedTitle")}
+              description={t("openedDescription")}
               disputes={opened}
-              emptyText="Aucun dossier ouvert par toi."
+              emptyText={t("openedEmpty")}
+              activityLabel={t("activity")}
+              viewMissionLabel={t("viewMission")}
+              locale={locale}
             />
           </>
         )}
@@ -184,71 +164,60 @@ function DisputeSection({
   description,
   disputes,
   emptyText,
+  activityLabel,
+  viewMissionLabel,
+  locale,
 }: {
   title: string;
   description: string;
   disputes: Dispute[];
   emptyText: string;
+  activityLabel: string;
+  viewMissionLabel: string;
+  locale: Parameters<typeof translateKlyxTrustReason>[0];
 }) {
   return (
     <section className="mt-8">
-      <p className="klyx-eyebrow">Activité professionnelle</p>
+      <p className="klyx-eyebrow">{activityLabel}</p>
       <h2 className="mt-2 text-2xl font-black">{title}</h2>
-      <p className="mt-2 text-sm text-muted-foreground">
-        {description}
-      </p>
+      <p className="mt-2 text-sm text-muted-foreground">{description}</p>
 
       {disputes.length === 0 ? (
         <div className="klyx-card mt-5 p-7 text-center">
-          <ShieldCheck
-            className="mx-auto text-emerald-500"
-            size={38}
-          />
+          <ShieldCheck className="mx-auto text-emerald-500" size={38} />
           <p className="mt-4 font-black">{emptyText}</p>
         </div>
       ) : (
         <div className="mt-5 grid gap-4">
           {disputes.map((dispute) => (
-            <article
-              key={dispute.id}
-              className="klyx-card p-5 sm:p-6"
-            >
+            <article key={dispute.id} className="klyx-card p-5 sm:p-6">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex gap-4">
                   <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-amber-500/10 text-amber-600">
                     <AlertTriangle size={21} />
                   </div>
-
                   <div>
-                    <h3 className="font-black">
-                      {REASON_LABELS[dispute.reason] ??
-                        dispute.reason}
-                    </h3>
-
+                    <h3 className="font-black">{translateKlyxTrustReason(locale, dispute.reason)}</h3>
                     <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">
                       {dispute.description}
                     </p>
-
                     <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
                       <Clock3 size={14} />
-                      {new Date(
-                        dispute.created_at
-                      ).toLocaleString("fr-BE")}
+                      {new Intl.DateTimeFormat(getKlyxTrustIntlLocale(locale), {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      }).format(new Date(dispute.created_at))}
                     </p>
                   </div>
                 </div>
 
                 <span className="w-fit rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1.5 text-xs font-black text-blue-700 dark:text-blue-300">
-                  {STATUS_LABELS[dispute.status] ??
-                    dispute.status}
+                  {translateKlyxTrustStatus(locale, dispute.status)}
                 </span>
               </div>
 
-              <Link
-                href={`/bookings/${dispute.booking_id}`}
-                className="mt-5 inline-flex items-center gap-2 text-sm font-black text-blue-600 dark:text-blue-400"
-              >
-                Voir la mission
+              <Link href={`/bookings/${dispute.booking_id}`} className="mt-5 inline-flex items-center gap-2 text-sm font-black text-blue-600 dark:text-blue-400">
+                {viewMissionLabel}
                 <ArrowRight size={15} />
               </Link>
             </article>
