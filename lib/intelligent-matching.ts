@@ -1,3 +1,8 @@
+import type { KlyxLocale } from "./klyx-i18n";
+import {
+  formatKlyxMatchExplanation,
+  translateKlyxMatchExplanation,
+} from "./klyx-match-explanation-i18n";
 import type { ProviderSearchItem } from "@/lib/provider-search";
 
 export type MatchingFilters = {
@@ -29,73 +34,33 @@ function locationMatches(
   provider: ProviderSearchItem,
   requestedCity: string
 ): boolean {
-  if (!requestedCity.trim()) {
-    return true;
-  }
-
+  if (!requestedCity.trim()) return true;
   const requested = normalize(requestedCity);
 
-  return [
-    provider.city,
-    ...provider.serviceArea,
-  ].some((location) => {
+  return [provider.city, ...provider.serviceArea].some((location) => {
     const normalized = normalize(location);
-
     return Boolean(
       normalized &&
-        (
-          normalized.includes(requested) ||
-          requested.includes(normalized)
-        )
+        (normalized.includes(requested) || requested.includes(normalized))
     );
   });
 }
 
-function timeToMinutes(
-  value: string
-): number | null {
-  const match =
-    /^(\d{2}):(\d{2})$/.exec(value);
-
-  if (!match) {
-    return null;
-  }
+function timeToMinutes(value: string): number | null {
+  const match = /^(\d{2}):(\d{2})$/.exec(value);
+  if (!match) return null;
 
   const hours = Number(match[1]);
   const minutes = Number(match[2]);
-
-  if (
-    hours > 23 ||
-    minutes > 59
-  ) {
-    return null;
-  }
-
+  if (hours > 23 || minutes > 59) return null;
   return hours * 60 + minutes;
 }
 
-function requestedDurationHours(
-  startTime: string,
-  endTime: string
-): number {
-  const start =
-    timeToMinutes(startTime);
-
-  const end =
-    timeToMinutes(endTime);
-
-  if (
-    start === null ||
-    end === null ||
-    end <= start
-  ) {
-    return 1;
-  }
-
-  return Math.max(
-    1,
-    (end - start) / 60
-  );
+function requestedDurationHours(startTime: string, endTime: string): number {
+  const start = timeToMinutes(startTime);
+  const end = timeToMinutes(endTime);
+  if (start === null || end === null || end <= start) return 1;
+  return Math.max(1, (end - start) / 60);
 }
 
 function budgetResult(
@@ -103,28 +68,12 @@ function budgetResult(
   budgetValue: string,
   startTime: string,
   endTime: string
-): {
-  fits: boolean;
-  estimated: number | null;
-  budget: number | null;
-} {
-  const budget =
-    budgetValue.trim()
-      ? Number(budgetValue)
-      : null;
-
-  const duration =
-    requestedDurationHours(
-      startTime,
-      endTime
-    );
+): { fits: boolean; estimated: number | null; budget: number | null } {
+  const budget = budgetValue.trim() ? Number(budgetValue) : null;
+  const duration = requestedDurationHours(startTime, endTime);
 
   if (provider.price == null) {
-    return {
-      fits: budget == null,
-      estimated: null,
-      budget,
-    };
+    return { fits: budget == null, estimated: null, budget };
   }
 
   const estimated =
@@ -134,280 +83,150 @@ function budgetResult(
 
   return {
     fits:
-      budget == null ||
-      (
-        Number.isFinite(budget) &&
-        estimated <= budget
-      ),
+      budget == null || (Number.isFinite(budget) && estimated <= budget),
     estimated,
-    budget:
-      budget != null &&
-      Number.isFinite(budget)
-        ? budget
-        : null,
+    budget: budget != null && Number.isFinite(budget) ? budget : null,
   };
 }
 
-function compatibilityLevel(
-  score: number
-): MatchExplanation["level"] {
-  if (score >= 90) {
-    return "excellent";
-  }
-
-  if (score >= 75) {
-    return "strong";
-  }
-
-  if (score >= 55) {
-    return "possible";
-  }
-
+function compatibilityLevel(score: number): MatchExplanation["level"] {
+  if (score >= 90) return "excellent";
+  if (score >= 75) return "strong";
+  if (score >= 55) return "possible";
   return "alternative";
 }
 
 export function explainProviderMatch(
   provider: ProviderSearchItem,
-  filters: MatchingFilters
+  filters: MatchingFilters,
+  locale: KlyxLocale = "fr"
 ): MatchExplanation {
   let score = 0;
-
   const reasons: string[] = [];
   const warnings: string[] = [];
+  const t = (key: Parameters<typeof translateKlyxMatchExplanation>[1]) =>
+    translateKlyxMatchExplanation(locale, key);
+  const f = (
+    key: Parameters<typeof formatKlyxMatchExplanation>[1],
+    values: Record<string, string | number>
+  ) => formatKlyxMatchExplanation(locale, key, values);
 
-  const locationOk =
-    locationMatches(
-      provider,
-      filters.city
-    );
-
+  const locationOk = locationMatches(provider, filters.city);
   if (locationOk) {
-    score += filters.city
-      ? 20
-      : 10;
-
-    reasons.push(
-      filters.city
-        ? "Intervient dans la zone demandée"
-        : "Zone de déplacement renseignée"
-    );
+    score += filters.city ? 20 : 10;
+    reasons.push(filters.city ? t("zoneRequested") : t("zoneKnown"));
   } else {
-    warnings.push(
-      "La zone demandée n’est pas confirmée"
-    );
+    warnings.push(t("zoneUnconfirmed"));
   }
 
-  if (
-    filters.date ||
-    filters.startTime ||
-    filters.endTime
-  ) {
+  if (filters.date || filters.startTime || filters.endTime) {
     if (provider.isExactMatch) {
       score += 25;
-
-      reasons.push(
-        "Disponible au créneau recherché"
-      );
+      reasons.push(t("slotAvailable"));
     } else {
-      warnings.push(
-        "Le créneau exact reste à confirmer"
-      );
+      warnings.push(t("slotConfirm"));
     }
   } else {
     score += 10;
-
-    reasons.push(
-      "Disponibilités professionnelles renseignées"
-    );
+    reasons.push(t("availabilityKnown"));
   }
 
-  const budget =
-    budgetResult(
-      provider,
-      filters.budget,
-      filters.startTime,
-      filters.endTime
-    );
+  const budget = budgetResult(
+    provider,
+    filters.budget,
+    filters.startTime,
+    filters.endTime
+  );
 
   if (budget.fits) {
-    score += filters.budget
-      ? 20
-      : 10;
+    score += filters.budget ? 20 : 10;
 
-    if (
-      budget.estimated != null &&
-      budget.budget != null
-    ) {
+    if (budget.estimated != null && budget.budget != null) {
       reasons.push(
-        `Estimation compatible avec le budget (${budget.estimated.toFixed(
-          2
-        )} €)`
+        f("budgetCompatible", { amount: budget.estimated.toFixed(2) })
       );
-    } else if (
-      provider.price != null
-    ) {
-      reasons.push(
-        "Tarif clairement renseigné"
-      );
+    } else if (provider.price != null) {
+      reasons.push(t("priceKnown"));
     }
-  } else if (
-    budget.estimated != null &&
-    budget.budget != null
-  ) {
-    warnings.push(
-      `Estimation supérieure au budget (${budget.estimated.toFixed(
-        2
-      )} €)`
-    );
+  } else if (budget.estimated != null && budget.budget != null) {
+    warnings.push(f("budgetExceeded", { amount: budget.estimated.toFixed(2) }));
   } else {
-    warnings.push(
-      "Tarif encore à confirmer"
-    );
+    warnings.push(t("priceConfirm"));
   }
 
-  const trustPoints =
-    Math.round(
-      Math.max(
-        0,
-        Math.min(
-          100,
-          provider.klyxScore
-        )
-      ) * 0.2
-    );
-
+  const trustPoints = Math.round(
+    Math.max(0, Math.min(100, provider.klyxScore)) * 0.2
+  );
   score += trustPoints;
 
-  if (
-    provider.klyxScore >= 80
-  ) {
-    reasons.push(
-      "Très bon score de confiance"
-    );
-  } else if (
-    provider.klyxScore >= 60
-  ) {
-    reasons.push(
-      "Score de confiance correct"
-    );
+  if (provider.klyxScore >= 80) {
+    reasons.push(t("trustVeryGood"));
+  } else if (provider.klyxScore >= 60) {
+    reasons.push(t("trustGood"));
   } else {
-    warnings.push(
-      "Profil encore récent ou peu évalué"
-    );
+    warnings.push(t("profileRecent"));
   }
 
   if (provider.isVerified) {
     score += 10;
-
-    reasons.push(
-      "Profil vérifié"
-    );
+    reasons.push(t("profileVerified"));
   }
 
-  if (
-    provider.completedJobs >= 10
-  ) {
+  if (provider.completedJobs >= 10) {
     score += 8;
-
-    reasons.push(
-      `${provider.completedJobs} prestations réalisées`
-    );
-  } else if (
-    provider.completedJobs > 0
-  ) {
+    reasons.push(f("completedJobsPlural", { count: provider.completedJobs }));
+  } else if (provider.completedJobs > 0) {
     score += 4;
-
     reasons.push(
-      `${provider.completedJobs} prestation${
+      f(
         provider.completedJobs > 1
-          ? "s"
-          : ""
-      } réalisée${
-        provider.completedJobs > 1
-          ? "s"
-          : ""
-      }`
+          ? "completedJobsPlural"
+          : "completedJobSingle",
+        { count: provider.completedJobs }
+      )
     );
   }
 
-  if (
-    provider.yearsExperience >= 5
-  ) {
+  if (provider.yearsExperience >= 5) {
     score += 7;
-
-    reasons.push(
-      `${provider.yearsExperience} ans d’expérience`
-    );
-  } else if (
-    provider.yearsExperience > 0
-  ) {
+    reasons.push(f("yearsExperience", { count: provider.yearsExperience }));
+  } else if (provider.yearsExperience > 0) {
     score += 3;
   }
 
-  if (
-    provider.cancellationRate <= 0.1
-  ) {
+  if (provider.cancellationRate <= 0.1) {
     score += 5;
-
-    reasons.push(
-      "Faible taux d’annulation"
-    );
-  } else if (
-    provider.cancellationRate >= 0.35
-  ) {
-    warnings.push(
-      "Taux d’annulation plus élevé"
-    );
+    reasons.push(t("lowCancellation"));
+  } else if (provider.cancellationRate >= 0.35) {
+    warnings.push(t("highCancellation"));
   }
 
-  if (
-    filters.pricing !== "all" &&
-    provider.pricingType ===
-      filters.pricing
-  ) {
+  if (filters.pricing !== "all" && provider.pricingType === filters.pricing) {
     score += 5;
-
-    reasons.push(
-      "Type de tarif souhaité"
-    );
+    reasons.push(t("pricingTypeMatched"));
   }
 
-  const finalScore =
-    Math.max(
-      0,
-      Math.min(
-        100,
-        Math.round(score)
-      )
-    );
-
+  const finalScore = Math.max(0, Math.min(100, Math.round(score)));
   return {
     score: finalScore,
-    level:
-      compatibilityLevel(
-        finalScore
-      ),
-    reasons:
-      reasons.slice(0, 5),
-    warnings:
-      warnings.slice(0, 3),
+    level: compatibilityLevel(finalScore),
+    reasons: reasons.slice(0, 5),
+    warnings: warnings.slice(0, 3),
   };
 }
 
 export function matchingLevelLabel(
-  level: MatchExplanation["level"]
+  level: MatchExplanation["level"],
+  locale: KlyxLocale = "fr"
 ): string {
   if (level === "excellent") {
-    return "Excellente compatibilité";
+    return translateKlyxMatchExplanation(locale, "levelExcellent");
   }
-
   if (level === "strong") {
-    return "Très bonne compatibilité";
+    return translateKlyxMatchExplanation(locale, "levelStrong");
   }
-
   if (level === "possible") {
-    return "Compatibilité possible";
+    return translateKlyxMatchExplanation(locale, "levelPossible");
   }
-
-  return "Alternative à vérifier";
+  return translateKlyxMatchExplanation(locale, "levelAlternative");
 }
