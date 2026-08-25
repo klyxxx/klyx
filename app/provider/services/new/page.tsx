@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
+import { FormEvent, useEffect, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
   BadgeCheck,
@@ -12,7 +12,16 @@ import {
   ShieldAlert,
   XCircle,
 } from "lucide-react";
+
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import KlyxSelect from "@/app/components/KlyxSelect";
+import {
+  getKlyxProviderServiceProposalCategoryLabel,
+  KLYX_PROVIDER_SERVICE_PROPOSAL_CATEGORIES,
+  translateKlyxProviderServiceProposals,
+  translateKlyxProviderServiceProposalStatus,
+  type KlyxProviderServiceProposalsMessageKey,
+} from "@/lib/klyx-provider-service-proposals-i18n";
 
 type ProposalStatus = "pending" | "approved" | "rejected";
 
@@ -28,37 +37,21 @@ type Proposal = {
   reviewedAt: string | null;
 };
 
-const categories = [
-  "Maison et entretien",
-  "Famille et garde",
-  "Transport et déménagement",
-  "Beauté et bien-être",
-  "Cours et accompagnement",
-  "Événementiel",
-  "Animaux",
-  "Numérique et création",
-  "Réparation et technique",
-  "Autre service",
-];
-
 const statusConfig: Record<
   ProposalStatus,
-  { label: string; icon: typeof Clock3; className: string }
+  { icon: typeof Clock3; className: string }
 > = {
   pending: {
-    label: "En validation",
     icon: Clock3,
     className:
       "border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300",
   },
   approved: {
-    label: "Approuvé",
     icon: CheckCircle2,
     className:
       "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   },
   rejected: {
-    label: "Refusé",
     icon: XCircle,
     className:
       "border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-300",
@@ -66,9 +59,15 @@ const statusConfig: Record<
 };
 
 export default function NewProviderServicePage() {
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxProviderServiceProposalsMessageKey) =>
+    translateKlyxProviderServiceProposals(locale, key);
+
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [proposedName, setProposedName] = useState("");
-  const [category, setCategory] = useState(categories[0]);
+  const [category, setCategory] = useState<string>(
+    KLYX_PROVIDER_SERVICE_PROPOSAL_CATEGORIES[0]
+  );
   const [description, setDescription] = useState("");
   const [experienceDetails, setExperienceDetails] = useState("");
   const [loading, setLoading] = useState(true);
@@ -80,29 +79,27 @@ export default function NewProviderServicePage() {
     let cancelled = false;
 
     async function loadProposals() {
+      setLoading(true);
+      setErrorMessage("");
+
       try {
         const response = await fetch("/api/provider/service-proposals", {
           cache: "no-store",
         });
         const result = (await response.json()) as {
           proposals?: Proposal[];
-          error?: string;
         };
 
         if (!response.ok) {
-          throw new Error(result.error ?? "Chargement impossible.");
+          throw new Error("KLYX_PROVIDER_SERVICE_PROPOSALS_LOAD_FAILED");
         }
 
         if (!cancelled) {
           setProposals(result.proposals ?? []);
         }
-      } catch (error) {
+      } catch {
         if (!cancelled) {
-          setErrorMessage(
-            error instanceof Error
-              ? error.message
-              : "Impossible de charger tes propositions."
-          );
+          setErrorMessage(t("loadError"));
         }
       } finally {
         if (!cancelled) {
@@ -116,7 +113,7 @@ export default function NewProviderServicePage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [locale]);
 
   async function submitProposal(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -138,26 +135,19 @@ export default function NewProviderServicePage() {
 
       const result = (await response.json()) as {
         proposal?: Proposal;
-        error?: string;
       };
 
       if (!response.ok || !result.proposal) {
-        throw new Error(result.error ?? "Envoi impossible.");
+        throw new Error("KLYX_PROVIDER_SERVICE_PROPOSAL_SUBMIT_FAILED");
       }
 
       setProposals((current) => [result.proposal!, ...current]);
       setProposedName("");
       setDescription("");
       setExperienceDetails("");
-      setMessage(
-        "Ton métier a été transmis. KLYX le vérifiera avant de l’ajouter au catalogue."
-      );
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Impossible d’envoyer cette proposition."
-      );
+      setMessage(t("submitSuccess"));
+    } catch {
+      setErrorMessage(t("submitError"));
     } finally {
       setSending(false);
     }
@@ -170,7 +160,7 @@ export default function NewProviderServicePage() {
         className="inline-flex items-center gap-2 text-sm font-bold text-muted-foreground transition hover:text-foreground"
       >
         <ArrowLeft size={17} />
-        Retour à l’espace prestataire
+        {t("backToProvider")}
       </Link>
 
       <section className="relative mt-6 overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#17131f_0%,#2b1452_52%,#111827_100%)] p-7 text-white shadow-[0_28px_90px_rgba(44,20,85,0.25)] sm:p-10">
@@ -179,17 +169,15 @@ export default function NewProviderServicePage() {
         <div className="relative max-w-3xl">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/7 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-white/70">
             <BriefcaseBusiness size={15} />
-            Catalogue universel
+            {t("eyebrow")}
           </div>
 
           <h1 className="mt-5 text-3xl font-black tracking-[-0.045em] sm:text-5xl">
-            Propose le métier que tu sais exercer
+            {t("title")}
           </h1>
 
           <p className="mt-4 max-w-2xl text-sm leading-7 text-white/70 sm:text-base">
-            Si ton métier n’existe pas encore dans KLYX, décris-le ici. Après
-            validation, il pourra rejoindre le catalogue et devenir disponible
-            pour les prestataires et les clients.
+            {t("description")}
           </p>
         </div>
       </section>
@@ -201,9 +189,9 @@ export default function NewProviderServicePage() {
               <Send size={21} />
             </div>
             <div>
-              <p className="klyx-eyebrow">Nouveau métier</p>
+              <p className="klyx-eyebrow">{t("newProfession")}</p>
               <h2 className="mt-2 text-2xl font-black tracking-[-0.035em]">
-                Envoyer une proposition
+                {t("sendProposal")}
               </h2>
             </div>
           </div>
@@ -221,32 +209,37 @@ export default function NewProviderServicePage() {
           )}
 
           <form onSubmit={submitProposal} className="mt-7 space-y-5">
-            <Field label="Nom du métier" htmlFor="proposedName">
+            <Field label={t("professionName")} htmlFor="proposedName">
               <input
                 id="proposedName"
                 value={proposedName}
                 onChange={(event) => setProposedName(event.target.value)}
                 className="klyx-input"
-                placeholder="Ex. Photographe immobilier"
+                placeholder={t("professionNamePlaceholder")}
                 maxLength={100}
                 required
               />
             </Field>
 
-            <Field label="Catégorie" htmlFor="category">
+            <Field label={t("category")} htmlFor="category">
               <KlyxSelect
                 value={category}
                 onChange={setCategory}
-                options={categories.map((item) => ({
-                  value: item,
-                  label: item,
-                }))}
-                ariaLabel="Catégorie"
+                options={KLYX_PROVIDER_SERVICE_PROPOSAL_CATEGORIES.map(
+                  (canonicalCategory) => ({
+                    value: canonicalCategory,
+                    label: getKlyxProviderServiceProposalCategoryLabel(
+                      locale,
+                      canonicalCategory
+                    ),
+                  })
+                )}
+                ariaLabel={t("category")}
               />
             </Field>
 
             <Field
-              label="Description du service"
+              label={t("serviceDescription")}
               htmlFor="description"
               hint={`${description.length}/800`}
             >
@@ -255,23 +248,23 @@ export default function NewProviderServicePage() {
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
                 className="klyx-input min-h-36 resize-y py-4"
-                placeholder="Explique précisément ce que fait ce professionnel, pour quels clients et dans quelles situations."
+                placeholder={t("serviceDescriptionPlaceholder")}
                 maxLength={800}
                 required
               />
             </Field>
 
             <Field
-              label="Expérience, diplôme ou compétence"
+              label={t("experience")}
               htmlFor="experienceDetails"
-              hint="Facultatif"
+              hint={t("optional")}
             >
               <textarea
                 id="experienceDetails"
                 value={experienceDetails}
                 onChange={(event) => setExperienceDetails(event.target.value)}
                 className="klyx-input min-h-28 resize-y py-4"
-                placeholder="Décris ton expérience ou les qualifications utiles."
+                placeholder={t("experiencePlaceholder")}
                 maxLength={500}
               />
             </Field>
@@ -282,7 +275,7 @@ export default function NewProviderServicePage() {
               className="inline-flex h-12 items-center gap-2 rounded-2xl bg-violet-600 px-5 text-sm font-bold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Send size={18} />
-              {sending ? "Envoi..." : "Proposer ce métier"}
+              {sending ? t("sending") : t("proposeProfession")}
             </button>
           </form>
         </section>
@@ -292,11 +285,9 @@ export default function NewProviderServicePage() {
             <div className="flex items-start gap-3">
               <ShieldAlert className="mt-0.5 text-violet-600 dark:text-violet-400" />
               <div>
-                <h2 className="font-black">Validation obligatoire</h2>
+                <h2 className="font-black">{t("validationTitle")}</h2>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  KLYX refuse les activités illégales, dangereuses, frauduleuses
-                  ou incompatibles avec les règles de la plateforme. Certains
-                  métiers pourront demander des documents supplémentaires.
+                  {t("validationDescription")}
                 </p>
               </div>
             </div>
@@ -305,16 +296,16 @@ export default function NewProviderServicePage() {
           <article className="klyx-card p-6">
             <div className="flex items-center gap-3">
               <BadgeCheck className="text-violet-600 dark:text-violet-400" />
-              <h2 className="text-lg font-black">Mes propositions</h2>
+              <h2 className="text-lg font-black">{t("myProposals")}</h2>
             </div>
 
             {loading ? (
               <p className="mt-5 text-sm text-muted-foreground">
-                Chargement...
+                {t("loading")}
               </p>
             ) : proposals.length === 0 ? (
               <p className="mt-5 text-sm leading-6 text-muted-foreground">
-                Tu n’as encore proposé aucun nouveau métier.
+                {t("empty")}
               </p>
             ) : (
               <div className="mt-5 space-y-3">
@@ -331,7 +322,10 @@ export default function NewProviderServicePage() {
                         <div>
                           <p className="font-black">{proposal.proposedName}</p>
                           <p className="mt-1 text-xs text-muted-foreground">
-                            {proposal.category}
+                            {getKlyxProviderServiceProposalCategoryLabel(
+                              locale,
+                              proposal.category
+                            )}
                           </p>
                         </div>
 
@@ -339,7 +333,10 @@ export default function NewProviderServicePage() {
                           className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold ${config.className}`}
                         >
                           <Icon size={14} />
-                          {config.label}
+                          {translateKlyxProviderServiceProposalStatus(
+                            locale,
+                            proposal.status
+                          )}
                         </span>
                       </div>
 
@@ -369,7 +366,7 @@ function Field({
   label: string;
   htmlFor: string;
   hint?: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div>
@@ -383,4 +380,3 @@ function Field({
     </div>
   );
 }
-
