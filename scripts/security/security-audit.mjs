@@ -25,6 +25,7 @@ const TEXT_EXTENSIONS = new Set([
   ".env",
   ".toml",
 ]);
+const JS_LIKE_EXTENSIONS = new Set([".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"]);
 
 const checks = [
   {
@@ -48,17 +49,27 @@ const checks = [
   {
     id: "supabase-service-role-client",
     severity: "high",
-    description: "SUPABASE_SERVICE_ROLE_KEY referenced from client-facing source",
+    description: "SUPABASE_SERVICE_ROLE_KEY referenced from client-facing executable source",
     pattern: /\bSUPABASE_SERVICE_ROLE_KEY\b/g,
     fileFilter(relativePath) {
-      return /^(?:app|components|pages|src)\//.test(relativePath.replaceAll("\\", "/"));
+      const normalized = relativePath.replaceAll("\\", "/");
+      const extension = path.extname(normalized).toLowerCase();
+      return (
+        JS_LIKE_EXTENSIONS.has(extension) &&
+        /^(?:app|components|pages|src)\//.test(normalized)
+      );
     },
+    stripJsComments: true,
   },
   {
     id: "dangerous-eval",
     severity: "medium",
     description: "Dynamic eval() usage should be reviewed",
     pattern: /\beval\s*\(/g,
+    fileFilter(relativePath) {
+      return JS_LIKE_EXTENSIONS.has(path.extname(relativePath).toLowerCase());
+    },
+    stripJsComments: true,
   },
 ];
 
@@ -94,6 +105,80 @@ function lineNumber(text, index) {
   return text.slice(0, index).split("\n").length;
 }
 
+function stripJavaScriptCommentsPreservingLayout(text) {
+  let output = "";
+  let index = 0;
+  let state = "code";
+  let quote = "";
+
+  while (index < text.length) {
+    const char = text[index];
+    const next = text[index + 1];
+
+    if (state === "line-comment") {
+      if (char === "\n") {
+        output += "\n";
+        state = "code";
+      } else {
+        output += " ";
+      }
+      index += 1;
+      continue;
+    }
+
+    if (state === "block-comment") {
+      if (char === "*" && next === "/") {
+        output += "  ";
+        index += 2;
+        state = "code";
+      } else {
+        output += char === "\n" ? "\n" : " ";
+        index += 1;
+      }
+      continue;
+    }
+
+    if (state === "string") {
+      output += char;
+      if (char === "\\" && index + 1 < text.length) {
+        output += text[index + 1];
+        index += 2;
+        continue;
+      }
+      if (char === quote) {
+        state = "code";
+        quote = "";
+      }
+      index += 1;
+      continue;
+    }
+
+    if (char === "/" && next === "/") {
+      output += "  ";
+      index += 2;
+      state = "line-comment";
+      continue;
+    }
+
+    if (char === "/" && next === "*") {
+      output += "  ";
+      index += 2;
+      state = "block-comment";
+      continue;
+    }
+
+    if (char === '"' || char === "'" || char === "`") {
+      state = "string";
+      quote = char;
+    }
+
+    output += char;
+    index += 1;
+  }
+
+  return output;
+}
+
 async function main() {
   const findings = [];
   const files = await walk(ROOT);
@@ -115,14 +200,18 @@ async function main() {
         continue;
       }
 
+      const scanText = check.stripJsComments
+        ? stripJavaScriptCommentsPreservingLayout(text)
+        : text;
+
       check.pattern.lastIndex = 0;
-      for (const match of text.matchAll(check.pattern)) {
+      for (const match of scanText.matchAll(check.pattern)) {
         findings.push({
           id: check.id,
           severity: check.severity,
           description: check.description,
           file: file.relative.replaceAll("\\", "/"),
-          line: lineNumber(text, match.index ?? 0),
+          line: lineNumber(scanText, match.index ?? 0),
         });
       }
     }
