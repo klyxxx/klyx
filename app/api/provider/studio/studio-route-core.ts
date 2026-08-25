@@ -553,10 +553,6 @@ function validatePublication(
       throw new Error("Impossible de publier : complète le titre et la description de chaque service actif.");
     }
 
-    if (!service.city || service.serviceArea.length === 0) {
-      throw new Error("Impossible de publier : ajoute une ville et une zone à chaque service actif.");
-    }
-
     if (!service.availability.some((day) => day.enabled)) {
       throw new Error("Impossible de publier : ajoute au moins une disponibilité à chaque service actif.");
     }
@@ -733,8 +729,8 @@ export async function PUT(request: Request) {
         userService = data as UserServiceRow;
       } else {
         const { error } = await supabaseAdmin
-            .from("user_services")
-            .update({ active: publish, provider_enabled: true })
+          .from("user_services")
+          .update({ active: publish, provider_enabled: true })
           .eq("id", userService.id)
           .eq("user_id", profile.id);
 
@@ -1002,4 +998,3 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: message }, { status: statusForError(message) });
   }
 }
-
