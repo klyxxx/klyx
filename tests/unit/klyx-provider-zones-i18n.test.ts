@@ -43,7 +43,9 @@ describe("KLYX provider zones i18n", () => {
           locale,
           "KLYX_LOCALITY_CATALOG_NOT_AVAILABLE"
         )
-      ).toBe(translateKlyxProviderZones(locale, "catalogUnavailable"));
+      ).toBe(
+        translateKlyxProviderZones(locale, "localityCatalogUnavailable")
+      );
     }
   });
 
