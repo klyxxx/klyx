@@ -7,20 +7,21 @@ import {
   LoaderCircle,
   ShieldCheck,
 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import {
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+  formatKlyxProviderSkillMinimumYears,
+  translateKlyxProviderSkillProofType,
+  translateKlyxProviderSkills,
+  type KlyxProviderSkillsMessageKey,
+} from "@/lib/klyx-provider-skills-i18n";
 import { supabase } from "@/lib/supabase";
 
 type Rule = {
   countryCode: string;
   serviceSlug: string;
-  ruleLevel:
-    | "self_declared"
-    | "evidence_required"
-    | "regulated";
+  ruleLevel: "self_declared" | "evidence_required" | "regulated";
   requiredProofTypes: string[];
   acceptedProofTypes: string[];
   minimumYearsExperience: number;
@@ -42,53 +43,33 @@ type Evaluation = {
 type RequirementResponse = {
   rule?: Rule;
   evaluation?: Evaluation;
-  error?: string;
 };
 
 type Props = {
   userServiceId: string;
   refreshKey: string;
-  onReadyChange: (
-    userServiceId: string,
-    ready: boolean
-  ) => void;
+  onReadyChange: (userServiceId: string, ready: boolean) => void;
 };
-
-const PROOF_LABELS: Record<string, string> = {
-  diploma: "Diplôme",
-  training_certificate: "Certificat de formation",
-  professional_license:
-    "Licence ou autorisation professionnelle",
-  insurance: "Assurance professionnelle",
-  experience_reference:
-    "Référence d’expérience",
-  portfolio:
-    "Portfolio / preuve de réalisations",
-  other: "Autre justificatif",
-};
-
-function proofLabel(value: string) {
-  return PROOF_LABELS[value] ?? value;
-}
 
 export default function SkillRequirementsPanel({
   userServiceId,
   refreshKey,
   onReadyChange,
 }: Props) {
-  const [data, setData] =
-    useState<RequirementResponse | null>(null);
-  const [loading, setLoading] =
-    useState(true);
-  const [error, setError] =
-    useState("");
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxProviderSkillsMessageKey) =>
+    translateKlyxProviderSkills(locale, key);
+
+  const [data, setData] = useState<RequirementResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
       setLoading(true);
-      setError("");
+      setError(false);
 
       try {
         const {
@@ -96,7 +77,7 @@ export default function SkillRequirementsPanel({
         } = await supabase.auth.getSession();
 
         if (!session?.access_token) {
-          throw new Error("Session manquante.");
+          throw new Error("KLYX_PROVIDER_SKILL_REQUIREMENTS_SESSION_MISSING");
         }
 
         const response = await fetch(
@@ -106,40 +87,25 @@ export default function SkillRequirementsPanel({
           {
             cache: "no-store",
             headers: {
-              Authorization:
-                `Bearer ${session.access_token}`,
+              Authorization: `Bearer ${session.access_token}`,
             },
           }
         );
 
-        const body =
-          (await response.json()) as RequirementResponse;
+        const body = (await response.json()) as RequirementResponse;
 
         if (!response.ok) {
-          throw new Error(
-            body.error ||
-              "Chargement des exigences impossible."
-          );
+          throw new Error("KLYX_PROVIDER_SKILL_REQUIREMENTS_LOAD_FAILED");
         }
 
         if (!cancelled) {
           setData(body);
-          onReadyChange(
-            userServiceId,
-            body.evaluation?.ready === true
-          );
+          onReadyChange(userServiceId, body.evaluation?.ready === true);
         }
-      } catch (e) {
+      } catch {
         if (!cancelled) {
-          setError(
-            e instanceof Error
-              ? e.message
-              : "Chargement impossible."
-          );
-          onReadyChange(
-            userServiceId,
-            false
-          );
+          setError(true);
+          onReadyChange(userServiceId, false);
         }
       } finally {
         if (!cancelled) {
@@ -153,18 +119,11 @@ export default function SkillRequirementsPanel({
     return () => {
       cancelled = true;
     };
-  }, [
-    userServiceId,
-    refreshKey,
-    onReadyChange,
-  ]);
+    // Locale changes presentation only and must not refetch qualification rules.
+  }, [userServiceId, refreshKey, onReadyChange]);
 
   const missing = useMemo(
-    () =>
-      new Set(
-        data?.evaluation
-          ?.missingProofTypes ?? []
-      ),
+    () => new Set(data?.evaluation?.missingProofTypes ?? []),
     [data]
   );
 
@@ -172,21 +131,14 @@ export default function SkillRequirementsPanel({
     return (
       <section className="mt-5 rounded-2xl border border-border bg-muted/30 p-4">
         <div className="flex items-center gap-3 text-sm font-bold text-muted-foreground">
-          <LoaderCircle
-            size={17}
-            className="animate-spin"
-          />
-          Vérification des exigences KLYX...
+          <LoaderCircle size={17} className="animate-spin" />
+          {t("requirementsLoading")}
         </div>
       </section>
     );
   }
 
-  if (
-    error ||
-    !data?.rule ||
-    !data.evaluation
-  ) {
+  if (error || !data?.rule || !data.evaluation) {
     return (
       <section className="mt-5 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4">
         <div className="flex gap-3">
@@ -196,11 +148,10 @@ export default function SkillRequirementsPanel({
           />
           <div>
             <p className="text-sm font-black">
-              Exigences indisponibles
+              {t("requirementsUnavailableTitle")}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
-              {error ||
-                "Impossible de déterminer les exigences de ce métier."}
+              {t("requirementsUnavailableText")}
             </p>
           </div>
         </div>
@@ -235,13 +186,11 @@ export default function SkillRequirementsPanel({
           </span>
 
           <div>
-            <p className="font-black">
-              Exigences KLYX
-            </p>
+            <p className="font-black">{t("requirementsTitle")}</p>
             <p className="mt-1 text-sm text-muted-foreground">
               {evaluation.ready
-                ? "Ton dossier remplit les exigences actuelles."
-                : "Complète les éléments manquants avant l’envoi."}
+                ? t("requirementsReadyText")
+                : t("requirementsIncompleteText")}
             </p>
           </div>
         </div>
@@ -253,56 +202,45 @@ export default function SkillRequirementsPanel({
               : "bg-amber-500/15 text-amber-700 dark:text-amber-300"
           }`}
         >
-          {evaluation.ready
-            ? "Prêt à envoyer"
-            : "Dossier incomplet"}
+          {evaluation.ready ? t("readyBadge") : t("incompleteBadge")}
         </span>
       </div>
 
       <div className="mt-5 grid gap-3 md:grid-cols-2">
         <RequirementRow
-          label="Identité"
-          detail={
-            rule.identityRequired
-              ? "Vérification d’identité requise"
-              : "Non requise"
-          }
-          ok={
-            !rule.identityRequired ||
-            evaluation.identityOk
-          }
+          label={t("identity")}
+          detail={rule.identityRequired ? t("identityRequired") : t("notRequired")}
+          ok={!rule.identityRequired || evaluation.identityOk}
         />
 
         <RequirementRow
-          label="Expérience"
+          label={t("experience")}
           detail={
             rule.minimumYearsExperience > 0
-              ? `${rule.minimumYearsExperience} année(s) minimum`
-              : "Aucun minimum configuré"
+              ? formatKlyxProviderSkillMinimumYears(
+                  locale,
+                  rule.minimumYearsExperience
+                )
+              : t("noMinimum")
           }
           ok={evaluation.experienceOk}
         />
 
         {rule.insuranceRequired && (
           <RequirementRow
-            label="Assurance"
-            detail="Assurance professionnelle obligatoire"
+            label={t("insurance")}
+            detail={t("insuranceRequired")}
             ok={!missing.has("insurance")}
           />
         )}
 
         {rule.officialRegistrationRequired && (
           <RequirementRow
-            label="Autorisation"
+            label={t("authorization")}
             detail={
-              rule.officialRegistrationLabel ||
-              "Licence ou autorisation professionnelle"
+              rule.officialRegistrationLabel || t("professionalLicenseFallback")
             }
-            ok={
-              !missing.has(
-                "professional_license"
-              )
-            }
+            ok={!missing.has("professional_license")}
           />
         )}
       </div>
@@ -310,38 +248,33 @@ export default function SkillRequirementsPanel({
       {rule.requiredProofTypes.length > 0 && (
         <div className="mt-5">
           <p className="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">
-            Preuves obligatoires
+            {t("requiredProofs")}
           </p>
 
           <div className="mt-3 flex flex-wrap gap-2">
-            {rule.requiredProofTypes.map(
-              (proof) => {
-                const isMissing =
-                  missing.has(proof);
+            {rule.requiredProofTypes.map((proof) => {
+              const isMissing = missing.has(proof);
 
-                return (
-                  <span
-                    key={proof}
-                    className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-black ${
-                      isMissing
-                        ? "bg-rose-500/10 text-rose-600"
-                        : "bg-emerald-500/10 text-emerald-600"
-                    }`}
-                  >
-                    {isMissing ? (
-                      <CircleAlert size={14} />
-                    ) : (
-                      <CheckCircle2 size={14} />
-                    )}
-                    {proofLabel(proof)}
-                    {" · "}
-                    {isMissing
-                      ? "Manquant"
-                      : "Validé"}
-                  </span>
-                );
-              }
-            )}
+              return (
+                <span
+                  key={proof}
+                  className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-black ${
+                    isMissing
+                      ? "bg-rose-500/10 text-rose-600"
+                      : "bg-emerald-500/10 text-emerald-600"
+                  }`}
+                >
+                  {isMissing ? (
+                    <CircleAlert size={14} />
+                  ) : (
+                    <CheckCircle2 size={14} />
+                  )}
+                  {translateKlyxProviderSkillProofType(locale, proof)}
+                  {" · "}
+                  {isMissing ? t("missing") : t("validated")}
+                </span>
+              );
+            })}
           </div>
         </div>
       )}
@@ -349,11 +282,11 @@ export default function SkillRequirementsPanel({
       {rule.acceptedProofTypes.length > 0 && (
         <div className="mt-5">
           <p className="text-xs font-black uppercase tracking-[0.16em] text-muted-foreground">
-            Preuves acceptées
+            {t("acceptedProofs")}
           </p>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
             {rule.acceptedProofTypes
-              .map(proofLabel)
+              .map((proof) => translateKlyxProviderSkillProofType(locale, proof))
               .join(" · ")}
           </p>
         </div>
@@ -366,13 +299,9 @@ export default function SkillRequirementsPanel({
             className="mt-0.5 shrink-0 text-violet-600"
           />
           <div>
-            <p className="text-sm font-black">
-              Activité à exigences renforcées
-            </p>
+            <p className="text-sm font-black">{t("regulatedTitle")}</p>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">
-              La publication reste bloquée
-              jusqu’à validation des justificatifs
-              configurés pour ce métier.
+              {t("regulatedText")}
             </p>
           </div>
         </div>
@@ -411,9 +340,7 @@ function RequirementRow({
       )}
 
       <div>
-        <p className="text-sm font-black">
-          {label}
-        </p>
+        <p className="text-sm font-black">{label}</p>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">
           {detail}
         </p>
