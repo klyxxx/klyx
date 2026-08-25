@@ -24,11 +24,28 @@ import {
   SlidersHorizontal,
   UserRound,
 } from "lucide-react";
+
+import KlyxSelect from "@/app/components/KlyxSelect";
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import {
+  formatKlyxSearchBudget,
+  formatKlyxSearchComparedProfiles,
+  formatKlyxSearchExperience,
+  formatKlyxSearchJobs,
+  formatKlyxSearchPricingOption,
+  formatKlyxSearchProviderPrice,
+  formatKlyxSearchResultSummary,
+  formatKlyxSearchReviewCount,
+  formatKlyxSearchScoreLabel,
+  formatKlyxSearchServiceLabel,
+  formatKlyxSearchSortOption,
+  formatKlyxSearchWhen,
+  translateKlyxSearchPage,
+  type KlyxSearchPageMessageKey,
+} from "@/lib/klyx-search-page-i18n";
 import {
   DEFAULT_SERVICE_OPTIONS,
-  formatProviderPrice,
   PRICING_OPTIONS,
-  scoreLabel,
   SORT_OPTIONS,
   type PublicServiceOption,
   type ProviderSearchItem,
@@ -37,7 +54,9 @@ import {
 } from "@/lib/provider-search";
 import MatchExplanation from "./MatchExplanation";
 import SearchRecovery from "./SearchRecovery";
-import KlyxSelect from "@/app/components/KlyxSelect";
+
+// KLYX_SEARCH_PAGE_I18N
+// KLYX_SEARCH_PAGE_READ_ONLY
 
 type DraftFilters = {
   service: string;
@@ -49,6 +68,8 @@ type DraftFilters = {
   pricing: string;
   sort: ProviderSearchSort;
 };
+
+type SearchErrorKey = "loadError" | "invalidTimeRange";
 
 const EMPTY_RESPONSE: ProviderSearchResponse = {
   providers: [],
@@ -65,9 +86,7 @@ function filtersFromParams(params: { get(name: string): string | null }): DraftF
     city: params.get("city")?.trim() || "",
     date: params.get("date")?.trim() || "",
     startTime:
-      params.get("start")?.trim() ||
-      params.get("time")?.trim() ||
-      "",
+      params.get("start")?.trim() || params.get("time")?.trim() || "",
     endTime: params.get("end")?.trim() || "",
     budget: params.get("budget")?.trim() || "",
     pricing: params.get("pricing")?.trim() || "all",
@@ -75,20 +94,6 @@ function filtersFromParams(params: { get(name: string): string | null }): DraftF
       ? (requestedSort as ProviderSearchSort)
       : "recommended",
   };
-}
-
-function dateLabel(value: string): string {
-  if (!value) return "Toutes les dates";
-
-  const date = new Date(`${value}T12:00:00`);
-
-  if (Number.isNaN(date.getTime())) return value;
-
-  return new Intl.DateTimeFormat("fr-BE", {
-    weekday: "short",
-    day: "numeric",
-    month: "short",
-  }).format(date);
 }
 
 function bookingHref(provider: ProviderSearchItem, filters: DraftFilters): string {
@@ -104,6 +109,8 @@ function bookingHref(provider: ProviderSearchItem, filters: DraftFilters): strin
 function SearchContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxSearchPageMessageKey) => translateKlyxSearchPage(locale, key);
   const queryString = searchParams.toString();
   const appliedFilters = useMemo(
     () => filtersFromParams(new URLSearchParams(queryString)),
@@ -114,7 +121,7 @@ function SearchContent() {
   );
   const [result, setResult] = useState<ProviderSearchResponse>(EMPTY_RESPONSE);
   const [loading, setLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [errorKey, setErrorKey] = useState<SearchErrorKey | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [serviceOptions, setServiceOptions] =
@@ -141,7 +148,7 @@ function SearchContent() {
           setServiceOptions(body.services);
         }
       } catch {
-        // "Tous les services" reste disponible si le chargement échoue.
+        // Keep the built-in "all" fallback if public services cannot be loaded.
       }
     }
 
@@ -158,12 +165,11 @@ function SearchContent() {
   }, [queryString]);
 
   useEffect(() => {
-
     const controller = new AbortController();
 
     async function loadProviders() {
       setLoading(true);
-      setErrorMessage("");
+      setErrorKey(null);
 
       try {
         const response = await fetch(
@@ -180,19 +186,15 @@ function SearchContent() {
         };
 
         if (!response.ok) {
-          throw new Error(body.error || "Recherche impossible.");
+          throw new Error("KLYX_SEARCH_LOAD_FAILED");
         }
 
         setResult(body);
-      } catch (error) {
+      } catch {
         if (controller.signal.aborted) return;
 
         setResult(EMPTY_RESPONSE);
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "Impossible de charger les prestataires."
-        );
+        setErrorKey("loadError");
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
@@ -203,9 +205,14 @@ function SearchContent() {
     return () => controller.abort();
   }, [queryString, reloadKey]);
 
-  const serviceTitle =
-    serviceOptions.find((service) => service.value === appliedFilters.service)
-      ?.label ?? "Tous les services";
+  const selectedServiceOption = serviceOptions.find(
+    (service) => service.value === appliedFilters.service
+  );
+  const serviceTitle = formatKlyxSearchServiceLabel(
+    locale,
+    appliedFilters.service,
+    selectedServiceOption?.label ?? appliedFilters.service
+  );
   const hasCommercialFilters = Boolean(
     appliedFilters.city ||
       appliedFilters.date ||
@@ -225,16 +232,12 @@ function SearchContent() {
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (
-      draft.startTime &&
-      draft.endTime &&
-      draft.endTime <= draft.startTime
-    ) {
-      setErrorMessage("L'heure de fin doit être après l'heure de début.");
+    if (draft.startTime && draft.endTime && draft.endTime <= draft.startTime) {
+      setErrorKey("invalidTimeRange");
       return;
     }
 
-    setErrorMessage("");
+    setErrorKey(null);
 
     const params = new URLSearchParams();
 
@@ -266,31 +269,30 @@ function SearchContent() {
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-violet-400">
-              Marketplace KLYX
+              {t("marketplaceEyebrow")}
             </p>
-            <h1 className="mt-3 text-3xl font-bold sm:text-5xl">
-              Trouver un prestataire
-            </h1>
-
+            <h1 className="mt-3 text-3xl font-bold sm:text-5xl">{t("title")}</h1>
           </div>
 
-                    {/* KLYX_SEARCH_ASSISTANT_BRIDGE_13_93 */}<Link
+          {/* KLYX_SEARCH_ASSISTANT_BRIDGE_13_93 */}
+          <Link
             href="/assistant/market"
             className="inline-flex items-center justify-center gap-2 rounded-xl border border-violet-500/30 bg-violet-500/10 px-5 py-3 font-semibold text-violet-700 hover:bg-violet-500/15 dark:border-violet-500/40 dark:text-violet-200 dark:hover:bg-violet-500/20"
           >
             <Search size={18} />
-            Décrire mon besoin à KLYX
+            {t("assistantBridge")}
           </Link>
         </div>
+
         {/* KLYX_AI_FIRST_SEARCH_15_02 */}
-<form
+        <form
           onSubmit={submitSearch}
           className="mt-8 min-w-0 overflow-hidden rounded-3xl border border-border bg-card p-5 sm:p-6"
         >
           <div className="flex items-center justify-between gap-4">
             <h2 className="flex items-center gap-2 text-lg font-bold">
               <SlidersHorizontal size={20} className="text-violet-400" />
-              Critères de recherche
+              {t("criteriaTitle")}
             </h2>
             <button
               type="button"
@@ -298,34 +300,38 @@ function SearchContent() {
               className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
             >
               <RotateCcw size={16} />
-              Réinitialiser
+              {t("reset")}
             </button>
           </div>
 
           <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <FilterField label="Service" icon={<Search size={17} />}>
+            <FilterField label={t("service")} icon={<Search size={17} />}>
               <KlyxSelect
                 value={draft.service}
                 onChange={(value) => updateDraft("service", value)}
                 options={serviceOptions.map((option) => ({
                   value: option.value,
-                  label: option.label,
+                  label: formatKlyxSearchServiceLabel(
+                    locale,
+                    option.value,
+                    option.label
+                  ),
                 }))}
-                ariaLabel="Service"
+                ariaLabel={t("service")}
               />
             </FilterField>
 
-            <FilterField label="Ville ou zone" icon={<MapPin size={17} />}>
+            <FilterField label={t("city")} icon={<MapPin size={17} />}>
               <input
                 value={draft.city}
                 onChange={(event) => updateDraft("city", event.target.value)}
-                placeholder="Bruxelles, Anderlecht..."
+                placeholder={t("cityPlaceholder")}
                 maxLength={80}
                 className="filter-control"
               />
             </FilterField>
 
-            <FilterField label="Date" icon={<CalendarDays size={17} />}>
+            <FilterField label={t("date")} icon={<CalendarDays size={17} />}>
               <input
                 type="date"
                 value={draft.date}
@@ -334,7 +340,7 @@ function SearchContent() {
               />
             </FilterField>
 
-            <FilterField label="Heure de début" icon={<Clock3 size={17} />}>
+            <FilterField label={t("startTime")} icon={<Clock3 size={17} />}>
               <input
                 type="time"
                 value={draft.startTime}
@@ -343,7 +349,7 @@ function SearchContent() {
               />
             </FilterField>
 
-            <FilterField label="Heure de fin" icon={<Clock3 size={17} />}>
+            <FilterField label={t("endTime")} icon={<Clock3 size={17} />}>
               <input
                 type="time"
                 value={draft.endTime}
@@ -362,10 +368,10 @@ function SearchContent() {
               >
                 <span className="flex items-center gap-2">
                   <SlidersHorizontal size={17} />
-                  Filtres avancés
+                  {t("advancedFilters")}
                 </span>
                 <span className="text-muted-foreground dark:text-zinc-500">
-                  {showAdvancedFilters ? "Masquer" : "Afficher"}
+                  {showAdvancedFilters ? t("hide") : t("show")}
                 </span>
               </button>
             </div>
@@ -375,32 +381,36 @@ function SearchContent() {
                 showAdvancedFilters ? "grid" : "hidden md:grid"
               }`}
             >
-              <FilterField label="Prix maximum" icon={<Euro size={17} />}>
-              <input
-                type="number"
-                min="0"
-                max="100000"
-                step="0.01"
-                value={draft.budget}
-                onChange={(event) => updateDraft("budget", event.target.value)}
-                placeholder="80"
-                className="filter-control"
-              />
-            </FilterField>
+              <FilterField label={t("maxPrice")} icon={<Euro size={17} />}>
+                <input
+                  type="number"
+                  min="0"
+                  max="100000"
+                  step="0.01"
+                  value={draft.budget}
+                  onChange={(event) => updateDraft("budget", event.target.value)}
+                  placeholder="80"
+                  className="filter-control"
+                />
+              </FilterField>
 
-            <FilterField label="Type de tarif" icon={<Euro size={17} />}>
-              <KlyxSelect
-                value={draft.pricing}
-                onChange={(value) => updateDraft("pricing", value)}
-                options={PRICING_OPTIONS.map((option) => ({
-                  value: option.value,
-                  label: option.label,
-                }))}
-                ariaLabel="Type de tarif"
-              />
-            </FilterField>
+              <FilterField label={t("pricingType")} icon={<Euro size={17} />}>
+                <KlyxSelect
+                  value={draft.pricing}
+                  onChange={(value) => updateDraft("pricing", value)}
+                  options={PRICING_OPTIONS.map((option) => ({
+                    value: option.value,
+                    label: formatKlyxSearchPricingOption(
+                      locale,
+                      option.value,
+                      option.label
+                    ),
+                  }))}
+                  ariaLabel={t("pricingType")}
+                />
+              </FilterField>
 
-              <FilterField label="Trier par" icon={<ShieldCheck size={17} />}>
+              <FilterField label={t("sortBy")} icon={<ShieldCheck size={17} />}>
                 <KlyxSelect
                   value={draft.sort}
                   onChange={(value) =>
@@ -408,9 +418,13 @@ function SearchContent() {
                   }
                   options={SORT_OPTIONS.map((option) => ({
                     value: option.value,
-                    label: option.label,
+                    label: formatKlyxSearchSortOption(
+                      locale,
+                      option.value,
+                      option.label
+                    ),
                   }))}
-                  ariaLabel="Trier par"
+                  ariaLabel={t("sortBy")}
                 />
               </FilterField>
             </div>
@@ -421,81 +435,73 @@ function SearchContent() {
             className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-6 py-4 font-semibold text-white hover:bg-violet-700"
           >
             <Search size={19} />
-            Rechercher les prestataires
+            {t("searchButton")}
           </button>
         </form>
 
         <section className="mt-4 hidden gap-3 sm:grid sm:grid-cols-2 lg:grid-cols-4">
           <FilterSummary
             icon={<Search size={17} />}
-            label="Service"
+            label={t("service")}
             value={serviceTitle}
           />
           <FilterSummary
             icon={<MapPin size={17} />}
-            label="Zone"
-            value={appliedFilters.city || "Toutes les zones"}
+            label={t("zone")}
+            value={appliedFilters.city || t("allZones")}
           />
           <FilterSummary
             icon={<CalendarDays size={17} />}
-            label="Quand"
-            value={`${dateLabel(appliedFilters.date)}${
-              appliedFilters.startTime
-                ? ` de ${appliedFilters.startTime}${
-                    appliedFilters.endTime
-                      ? ` à ${appliedFilters.endTime}`
-                      : ""
-                  }`
-                : ""
-            }`}
+            label={t("when")}
+            value={formatKlyxSearchWhen(
+              locale,
+              appliedFilters.date,
+              appliedFilters.startTime,
+              appliedFilters.endTime
+            )}
           />
           <FilterSummary
             icon={<Euro size={17} />}
-            label="Budget"
-            value={
-              appliedFilters.budget
-                ? `${Number(appliedFilters.budget).toFixed(2)} € maximum`
-                : "Tous les prix"
-            }
+            label={t("budget")}
+            value={formatKlyxSearchBudget(locale, appliedFilters.budget)}
           />
         </section>
 
         {loading && (
-          <div className="mt-8 rounded-2xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-8 text-center text-muted-foreground dark:text-zinc-400">
-            KLYX vérifie les profils publiés et leurs disponibilités...
+          <div className="mt-8 rounded-2xl border border-border bg-card p-8 text-center text-muted-foreground dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
+            {t("loading")}
           </div>
         )}
 
-        {!loading && errorMessage && (
+        {!loading && errorKey && (
           <div className="mt-8 rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-red-700 dark:text-red-300">
             <div className="flex gap-3">
               <AlertCircle className="mt-0.5 shrink-0" size={20} />
               <div>
-                <p className="font-semibold">Recherche indisponible</p>
-                <p className="mt-1 text-sm">{errorMessage}</p>
-                <button
-                  type="button"
-                  onClick={() => setReloadKey((key) => key + 1)}
-                  className="mt-4 rounded-lg border border-red-400/30 px-4 py-2 text-sm font-semibold hover:bg-red-500/10"
-                >
-                  Réessayer
-                </button>
+                <p className="font-semibold">{t("searchUnavailable")}</p>
+                <p className="mt-1 text-sm">{t(errorKey)}</p>
+                {errorKey === "loadError" && (
+                  <button
+                    type="button"
+                    onClick={() => setReloadKey((key) => key + 1)}
+                    className="mt-4 rounded-lg border border-red-400/30 px-4 py-2 text-sm font-semibold hover:bg-red-500/10"
+                  >
+                    {t("retry")}
+                  </button>
+                )}
               </div>
             </div>
           </div>
         )}
 
-        {!loading && !errorMessage && result.showingAlternatives && (
+        {!loading && !errorKey && result.showingAlternatives && (
           <>
             <div className="mt-8 flex gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 text-amber-800 dark:text-amber-200">
               <AlertCircle className="mt-0.5 shrink-0" size={20} />
               <div>
-                <p className="font-semibold">
-                  Aucun profil ne correspond exactement à tous les critères.
-                </p>
+                <p className="font-semibold">{t("alternativesTitle")}</p>
                 <p className="mt-1 text-sm text-amber-800/80 dark:text-amber-100/80">
-                  KLYX affiche les alternatives les plus proches et peut adapter
-                  la recherche avec ton accord.
+                  {t("alternativesText")}
                 </p>
               </div>
             </div>
@@ -516,7 +522,7 @@ function SearchContent() {
           </>
         )}
 
-        {!loading && !errorMessage && result.providers.length === 0 && (
+        {!loading && !errorKey && result.providers.length === 0 && (
           <>
             <SearchRecovery
               filters={{
@@ -532,82 +538,64 @@ function SearchContent() {
               result={result}
             />
 
-            <div className="mt-8 rounded-3xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-8 text-center">
-            <h2 className="text-2xl font-bold">Aucun prestataire publié</h2>
-            <p className="mx-auto mt-3 max-w-xl text-muted-foreground dark:text-zinc-400">
-              Aucun service actif ne correspond encore à cette recherche. Essaie
-              une autre zone ou retire certains critères.
-            </p>
-            {hasCommercialFilters && (
-              <button
-                type="button"
-                onClick={resetFilters}
-                className="mt-6 rounded-xl bg-violet-600 px-6 py-3 font-semibold text-white hover:bg-violet-700"
-              >
-                Voir tous les prestataires
-              </button>
-            )}
+            <div className="mt-8 rounded-3xl border border-border bg-card p-8 text-center dark:border-zinc-800 dark:bg-zinc-900">
+              <h2 className="text-2xl font-bold">{t("noProvidersTitle")}</h2>
+              <p className="mx-auto mt-3 max-w-xl text-muted-foreground dark:text-zinc-400">
+                {t("noProvidersText")}
+              </p>
+              {hasCommercialFilters && (
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="mt-6 rounded-xl bg-violet-600 px-6 py-3 font-semibold text-white hover:bg-violet-700"
+                >
+                  {t("seeAllProviders")}
+                </button>
+              )}
             </div>
           </>
         )}
 
-        {!loading && !errorMessage && result.providers.length > 0 && (
+        {!loading && !errorKey && result.providers.length > 0 && (
           <>
             <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-muted-foreground dark:text-zinc-400">
                 <strong className="text-foreground dark:text-white">
-                  {result.showingAlternatives
-                    ? result.providers.length
-                    : result.exactCount}
-                </strong>{" "}
-                résultat{result.providers.length > 1 ? "s" : ""}
-                {result.totalCandidates > result.providers.length &&
-                  ` sur ${result.totalCandidates} services publiés`}
+                  {formatKlyxSearchResultSummary(
+                    locale,
+                    result.showingAlternatives
+                      ? result.providers.length
+                      : result.exactCount,
+                    result.totalCandidates
+                  )}
+                </strong>
               </p>
-              <p className="inline-flex items-center gap-2 text-sm text-violet-300">
+              <p className="inline-flex items-center gap-2 text-sm text-violet-600 dark:text-violet-300">
                 <ShieldCheck size={16} />
-                Profils publiés uniquement
+                {t("publishedOnly")}
               </p>
             </div>
+
             {/* KLYX_MARKET_DECISION_SUMMARY_13_75 */}
             {(() => {
-              const highestScore =
-                [...result.providers].sort(
-                  (a, b) => b.klyxScore - a.klyxScore
-                )[0];
-
+              const highestScore = [...result.providers].sort(
+                (a, b) => b.klyxScore - a.klyxScore
+              )[0];
               const bestRated =
                 [...result.providers]
-                  .filter(
-                    (provider) =>
-                      provider.reviewCount > 0
-                  )
+                  .filter((provider) => provider.reviewCount > 0)
                   .sort(
                     (a, b) =>
-                      b.rating - a.rating ||
-                      b.reviewCount - a.reviewCount
+                      b.rating - a.rating || b.reviewCount - a.reviewCount
                   )[0] ?? null;
-
               const cheapest =
                 [...result.providers]
-                  .filter(
-                    (provider) =>
-                      provider.price !== null
-                  )
-                  .sort(
-                    (a, b) =>
-                      Number(a.price) -
-                      Number(b.price)
-                  )[0] ?? null;
-
-              const displayProviderName = (
-                provider: ProviderSearchItem
-              ) =>
+                  .filter((provider) => provider.price !== null)
+                  .sort((a, b) => Number(a.price) - Number(b.price))[0] ?? null;
+              const displayProviderName = (provider: ProviderSearchItem) =>
                 provider.businessName ||
-                [provider.firstName, provider.lastName]
-                  .filter(Boolean)
-                  .join(" ") ||
-                "Prestataire KLYX";
+                [provider.firstName, provider.lastName].filter(Boolean).join(" ") ||
+                t("providerFallback");
 
               return (
                 <section className="mt-5 overflow-hidden rounded-3xl border border-violet-500/20 bg-violet-500/5">
@@ -615,24 +603,21 @@ function SearchContent() {
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
                         <p className="text-xs font-black uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
-                          Comparaison KLYX
+                          {t("comparisonEyebrow")}
                         </p>
-
                         <h2 className="mt-2 text-xl font-black sm:text-2xl">
-                          Les profils qui ressortent
+                          {t("comparisonTitle")}
                         </h2>
-
                         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                          KLYX résume les différences principales.
-                          Ces indications servent à comparer :
-                          aucun prestataire n’est choisi automatiquement.
+                          {t("comparisonText")}
                         </p>
                       </div>
 
                       <span className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-black">
-                        {result.providers.length} profil
-                        {result.providers.length > 1 ? "s" : ""} comparé
-                        {result.providers.length > 1 ? "s" : ""}
+                        {formatKlyxSearchComparedProfiles(
+                          locale,
+                          result.providers.length
+                        )}
                       </span>
                     </div>
 
@@ -642,26 +627,19 @@ function SearchContent() {
                         className="rounded-2xl border border-violet-500/20 bg-background p-4 transition hover:border-violet-500/40"
                       >
                         <p className="text-xs font-black uppercase tracking-wide text-violet-600 dark:text-violet-400">
-                          Meilleur score KLYX
+                          {t("bestScore")}
                         </p>
-
                         <p className="mt-2 truncate font-black">
                           {displayProviderName(highestScore)}
                         </p>
-
                         <div className="mt-3 flex items-center gap-2">
-                          <ShieldCheck
-                            size={17}
-                            className="text-violet-500"
-                          />
-
+                          <ShieldCheck size={17} className="text-violet-500" />
                           <span className="text-xl font-black">
                             {highestScore.klyxScore.toFixed(0)}/100
                           </span>
                         </div>
-
                         <p className="mt-2 text-xs text-muted-foreground">
-                          {scoreLabel(highestScore.klyxScore)}
+                          {formatKlyxSearchScoreLabel(locale, highestScore.klyxScore)}
                         </p>
                       </Link>
 
@@ -671,35 +649,26 @@ function SearchContent() {
                           className="rounded-2xl border border-amber-500/20 bg-background p-4 transition hover:border-amber-500/40"
                         >
                           <p className="text-xs font-black uppercase tracking-wide text-amber-600 dark:text-amber-400">
-                            Mieux noté
+                            {t("bestRated")}
                           </p>
-
                           <p className="mt-2 truncate font-black">
                             {displayProviderName(bestRated)}
                           </p>
-
                           <p className="mt-3 text-xl font-black">
                             {bestRated.rating.toFixed(1)}/5
                           </p>
-
                           <p className="mt-2 text-xs text-muted-foreground">
-                            {bestRated.reviewCount} avis vérifié
-                            {bestRated.reviewCount > 1 ? "s" : ""}
+                            {formatKlyxSearchReviewCount(locale, bestRated.reviewCount)}
                           </p>
                         </Link>
                       ) : (
                         <div className="rounded-2xl border border-border bg-background p-4">
                           <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
-                            Mieux noté
+                            {t("bestRated")}
                           </p>
-
-                          <p className="mt-2 font-black">
-                            Pas encore assez d’avis
-                          </p>
-
+                          <p className="mt-2 font-black">{t("insufficientReviews")}</p>
                           <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                            KLYX attend des missions terminées avant
-                            d’utiliser les avis dans cette comparaison.
+                            {t("insufficientReviewsText")}
                           </p>
                         </div>
                       )}
@@ -710,45 +679,37 @@ function SearchContent() {
                           className="rounded-2xl border border-emerald-500/20 bg-background p-4 transition hover:border-emerald-500/40"
                         >
                           <p className="text-xs font-black uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
-                            Prix le plus bas
+                            {t("lowestPrice")}
                           </p>
-
                           <p className="mt-2 truncate font-black">
                             {displayProviderName(cheapest)}
                           </p>
-
                           <p className="mt-3 text-xl font-black">
-                            {formatProviderPrice(
+                            {formatKlyxSearchProviderPrice(
+                              locale,
                               cheapest.price,
                               cheapest.pricingType
                             )}
                           </p>
-
                           <p className="mt-2 text-xs text-muted-foreground">
-                            Pour les résultats actuellement affichés
+                            {t("currentResults")}
                           </p>
                         </Link>
                       ) : (
                         <div className="rounded-2xl border border-border bg-background p-4">
                           <p className="text-xs font-black uppercase tracking-wide text-muted-foreground">
-                            Prix le plus bas
+                            {t("lowestPrice")}
                           </p>
-
-                          <p className="mt-2 font-black">
-                            Prix à confirmer
-                          </p>
-
+                          <p className="mt-2 font-black">{t("priceConfirm")}</p>
                           <p className="mt-3 text-xs text-muted-foreground">
-                            Aucun tarif comparable n’est disponible.
+                            {t("noComparablePrice")}
                           </p>
                         </div>
                       )}
                     </div>
 
                     <div className="mt-4 rounded-2xl border border-border bg-background/70 px-4 py-3 text-xs leading-5 text-muted-foreground">
-                      Le meilleur score, la meilleure note et le prix le
-                      plus bas peuvent appartenir à des prestataires
-                      différents. La décision finale reste toujours au client.
+                      {t("decisionNotice")}
                     </div>
                   </div>
                 </section>
@@ -802,15 +763,18 @@ function ProviderCardView({
   };
   recommended: boolean;
 }) {
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxSearchPageMessageKey) => translateKlyxSearchPage(locale, key);
   const fullName =
     [provider.firstName, provider.lastName].filter(Boolean).join(" ") ||
-    "Prestataire KLYX";
+    t("providerFallback");
   const displayName = provider.businessName || fullName;
 
   return (
-    <article className="overflow-hidden rounded-3xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900">
+    <article className="overflow-hidden rounded-3xl border border-border bg-card dark:border-zinc-800 dark:bg-zinc-900">
       <div className="relative flex h-52 items-center justify-center bg-muted dark:bg-zinc-800">
         {provider.avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={provider.avatarUrl}
             alt={displayName}
@@ -821,13 +785,13 @@ function ProviderCardView({
         )}
 
         {recommended && (
-          <div className="absolute left-4 top-4 rounded-full bg-violet-600 px-3 py-1 text-xs font-bold shadow-lg">
-            Recommandé par KLYX
+          <div className="absolute left-4 top-4 rounded-full bg-violet-600 px-3 py-1 text-xs font-bold text-white shadow-lg">
+            {t("recommended")}
           </div>
         )}
         {!provider.isExactMatch && (
           <div className="absolute right-4 top-4 rounded-full bg-amber-500 px-3 py-1 text-xs font-bold text-black">
-            Alternative
+            {t("alternative")}
           </div>
         )}
       </div>
@@ -836,16 +800,22 @@ function ProviderCardView({
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
             <p className="text-sm font-semibold uppercase tracking-[0.16em] text-violet-400">
-              {provider.serviceLabel}
+              {formatKlyxSearchServiceLabel(
+                locale,
+                provider.serviceSlug,
+                provider.serviceLabel
+              )}
             </p>
             <h2 className="mt-2 truncate text-2xl font-bold">{displayName}</h2>
             {provider.businessName && (
-              <p className="mt-1 truncate text-sm text-muted-foreground dark:text-zinc-400">{fullName}</p>
+              <p className="mt-1 truncate text-sm text-muted-foreground dark:text-zinc-400">
+                {fullName}
+              </p>
             )}
           </div>
 
           <div className="shrink-0 rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-center">
-            <p className="text-2xl font-bold text-violet-300">
+            <p className="text-2xl font-bold text-violet-700 dark:text-violet-300">
               {provider.klyxScore.toFixed(0)}
             </p>
             <p className="text-xs text-muted-foreground dark:text-zinc-400">/100</p>
@@ -853,24 +823,24 @@ function ProviderCardView({
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-          <span className="font-semibold text-violet-300">
-            {scoreLabel(provider.klyxScore)}
+          <span className="font-semibold text-violet-700 dark:text-violet-300">
+            {formatKlyxSearchScoreLabel(locale, provider.klyxScore)}
           </span>
           {provider.isVerified && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-cyan-500/10 px-2 py-1 text-xs font-semibold text-cyan-300">
-              <BadgeCheck size={14} /> Vérifié
+            <span className="inline-flex items-center gap-1 rounded-full bg-cyan-500/10 px-2 py-1 text-xs font-semibold text-cyan-700 dark:text-cyan-300">
+              <BadgeCheck size={14} /> {t("verified")}
             </span>
           )}
         </div>
 
         <p className="mt-3 line-clamp-2 min-h-10 text-sm text-muted-foreground dark:text-zinc-400">
-          {provider.title || provider.headline || "Service professionnel KLYX"}
+          {provider.title || provider.headline || t("professionalFallback")}
         </p>
 
         <div className="mt-4 space-y-2 text-sm text-foreground/80 dark:text-zinc-300">
           <p className="flex items-center gap-2">
             <MapPin size={16} className="text-muted-foreground dark:text-zinc-500" />
-            {provider.city || provider.serviceArea[0] || "Zone à confirmer"}
+            {provider.city || provider.serviceArea[0] || t("zoneConfirm")}
             {provider.travelRadiusKm > 0 && ` · ${provider.travelRadiusKm} km`}
           </p>
           <p className="flex items-center gap-2">
@@ -879,23 +849,19 @@ function ProviderCardView({
           </p>
           <p className="flex items-center gap-2">
             <CheckCircle2 size={16} className="text-muted-foreground dark:text-zinc-500" />
-            {provider.yearsExperience} an
-            {provider.yearsExperience > 1 ? "s" : ""} d’expérience ·{" "}
-            {provider.completedJobs} prestation
-            {provider.completedJobs > 1 ? "s" : ""}
+            {formatKlyxSearchExperience(locale, provider.yearsExperience)} ·{" "}
+            {formatKlyxSearchJobs(locale, provider.completedJobs)}
           </p>
         </div>
+
         {/* KLYX_MARKET_TRUST_EXPLAINER_13_73 */}
         <div className="mt-5 rounded-2xl border border-violet-500/15 bg-violet-500/5 p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.16em] text-violet-600 dark:text-violet-400">
-                Confiance KLYX
+                {t("trustEyebrow")}
               </p>
-
-              <p className="mt-1 text-sm font-black">
-                Pourquoi ce profil ressort
-              </p>
+              <p className="mt-1 text-sm font-black">{t("whyProfile")}</p>
             </div>
 
             <div className="inline-flex items-center gap-1.5 rounded-full border border-violet-500/20 bg-background px-3 py-1.5 text-xs font-black">
@@ -906,43 +872,35 @@ function ProviderCardView({
 
           <div className="mt-4 grid grid-cols-2 gap-2">
             <TrustSignal
-              label="Identité"
-              value={
-                provider.isVerified
-                  ? "Vérifiée"
-                  : "À confirmer"
-              }
+              label={t("identity")}
+              value={provider.isVerified ? t("verifiedStatus") : t("confirmStatus")}
               positive={provider.isVerified}
             />
-
             <TrustSignal
-              label="Expérience"
-              value={`${provider.yearsExperience} an${
-                provider.yearsExperience > 1 ? "s" : ""
-              }`}
+              label={t("experience")}
+              value={formatKlyxSearchExperience(locale, provider.yearsExperience)}
               positive={provider.yearsExperience > 0}
             />
-
             <TrustSignal
-              label="Prestations"
-              value={`${provider.completedJobs} terminée${
-                provider.completedJobs > 1 ? "s" : ""
-              }`}
+              label={t("jobs")}
+              value={formatKlyxSearchJobs(locale, provider.completedJobs, true)}
               positive={provider.completedJobs > 0}
             />
             {/* KLYX_MARKET_VERIFIED_REVIEWS_13_74 */}
             <TrustSignal
-              label="Avis vérifiés"
+              label={t("verifiedReviews")}
               value={
                 provider.reviewCount > 0
-                  ? `${provider.rating.toFixed(1)}/5 · ${provider.reviewCount} avis`
-                  : "Aucun avis"
+                  ? `${provider.rating.toFixed(1)}/5 · ${formatKlyxSearchReviewCount(
+                      locale,
+                      provider.reviewCount
+                    )}`
+                  : t("noReviews")
               }
               positive={provider.reviewCount > 0}
             />
-
             <TrustSignal
-              label="Disponibilité"
+              label={t("availability")}
               value={provider.availabilitySummary}
               positive={true}
             />
@@ -950,37 +908,34 @@ function ProviderCardView({
 
           {recommended && (
             <div className="mt-3 rounded-xl border border-violet-500/20 bg-violet-500/10 px-3 py-2.5 text-xs leading-5 text-muted-foreground">
-              <strong className="text-foreground">
-                Recommandé par KLYX :
-              </strong>{" "}
-              ce profil est actuellement le mieux classé parmi les
-              résultats correspondant à tes critères. Tu gardes
-              toujours la décision finale.
+              <strong className="text-foreground">{t("recommendedPrefix")}</strong>{" "}
+              {t("recommendedText")}
             </div>
           )}
         </div>
 
-        <p className="mt-5 text-xl font-bold text-violet-400">
-          {formatProviderPrice(provider.price, provider.pricingType)}
+        <p className="mt-5 text-xl font-bold text-violet-600 dark:text-violet-400">
+          {formatKlyxSearchProviderPrice(
+            locale,
+            provider.price,
+            provider.pricingType
+          )}
         </p>
 
-        <MatchExplanation
-          provider={provider}
-          filters={matchingFilters}
-        />
+        <MatchExplanation provider={provider} filters={matchingFilters} />
 
         <div className="mt-5 grid grid-cols-2 gap-3">
           <Link
             href={`/providers/${provider.profileId}`}
-            className="rounded-xl border border-border dark:border-zinc-700 px-4 py-3 text-center font-semibold hover:bg-muted dark:bg-zinc-800"
+            className="rounded-xl border border-border px-4 py-3 text-center font-semibold hover:bg-muted dark:border-zinc-700 dark:bg-zinc-800"
           >
-            Voir le profil
+            {t("viewProfile")}
           </Link>
           <Link
             href={bookingUrl}
             className="rounded-xl bg-white px-4 py-3 text-center font-semibold text-black hover:bg-zinc-200"
           >
-            Réserver
+            {t("book")}
           </Link>
         </div>
       </div>
@@ -1002,7 +957,6 @@ function TrustSignal({
       <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
         {label}
       </p>
-
       <div className="mt-1.5 flex items-start gap-1.5">
         {positive ? (
           <CheckCircle2
@@ -1015,14 +969,12 @@ function TrustSignal({
             className="mt-0.5 shrink-0 text-amber-500"
           />
         )}
-
-        <p className="min-w-0 text-xs font-black leading-5">
-          {value}
-        </p>
+        <p className="min-w-0 text-xs font-black leading-5">{value}</p>
       </div>
     </div>
   );
 }
+
 function FilterField({
   icon,
   label,
@@ -1064,11 +1016,13 @@ function FilterSummary({
 }
 
 export default function SearchPage() {
+  const { locale } = useKlyxLocale();
+
   return (
     <Suspense
       fallback={
         <main className="flex min-h-screen items-center justify-center bg-background text-foreground">
-          Chargement de la recherche...
+          {translateKlyxSearchPage(locale, "searchLoading")}
         </main>
       }
     >
