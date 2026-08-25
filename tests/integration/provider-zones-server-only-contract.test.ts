@@ -42,7 +42,7 @@ describe("provider zones server-only contract", () => {
     const page = readFileSync(join(process.cwd(), zonesPagePath), "utf8");
     const readiness = readFileSync(join(process.cwd(), readinessPath), "utf8");
 
-    expect(page).toContain('fetch(\n        "/api/provider/zones"');
+    expect(page).toContain('fetch("/api/provider/zones"');
     expect(page).toContain('method: "POST"');
     expect(page).toContain('method: "PATCH"');
     expect(page).toContain('method: "DELETE"');
