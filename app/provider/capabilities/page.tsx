@@ -171,6 +171,11 @@ export default function ProviderCapabilitiesPage() {
     [capabilities]
   );
 
+  const draftCapabilities = useMemo(
+    () => capabilities.filter((capability) => capability.status === "draft"),
+    [capabilities]
+  );
+
   const archivedCapabilities = useMemo(
     () => capabilities.filter((capability) => capability.status === "archived"),
     [capabilities]
@@ -292,7 +297,9 @@ export default function ProviderCapabilitiesPage() {
   }
 
   async function changeStatus(capability: Capability) {
+    const draft = capability.status === "draft";
     const restoring = capability.status === "archived";
+    const nextStatus = draft || restoring ? "confirmed" : "archived";
     const key = `status:${capability.id}`;
     setPendingKey(key);
     setMessage("");
@@ -304,7 +311,7 @@ export default function ProviderCapabilitiesPage() {
         headers: await sessionHeaders(true),
         body: JSON.stringify({
           id: capability.id,
-          status: restoring ? "confirmed" : "archived",
+          status: nextStatus,
         }),
       });
       const body = (await response.json()) as {
@@ -319,7 +326,13 @@ export default function ProviderCapabilitiesPage() {
 
       applyCapability(body.capability);
       if (editId === capability.id) cancelEdit();
-      setMessage(restoring ? t("restoredSuccess") : t("archivedSuccess"));
+      setMessage(
+        draft
+          ? t("confirmedSuccess")
+          : restoring
+            ? t("restoredSuccess")
+            : t("archivedSuccess")
+      );
     } catch {
       setErrorMessage(t("saveError"));
     } finally {
@@ -367,6 +380,7 @@ export default function ProviderCapabilitiesPage() {
 
   function capabilityCard(capability: Capability) {
     const editing = editId === capability.id;
+    const draft = capability.status === "draft";
     const confirmed = capability.status === "confirmed";
     const statusPending = pendingKey === `status:${capability.id}`;
 
@@ -380,7 +394,9 @@ export default function ProviderCapabilitiesPage() {
                 className={`rounded-full border px-2.5 py-1 text-xs font-black ${
                   confirmed
                     ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                    : "border-zinc-500/20 bg-zinc-500/10 text-muted-foreground"
+                    : draft
+                      ? "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                      : "border-zinc-500/20 bg-zinc-500/10 text-muted-foreground"
                 }`}
               >
                 {translateKlyxProviderCapabilityStatus(locale, capability.status)}
@@ -414,10 +430,12 @@ export default function ProviderCapabilitiesPage() {
                   <LoaderCircle size={14} className="animate-spin" />
                 ) : confirmed ? (
                   <Archive size={14} />
+                ) : draft ? (
+                  <BadgeCheck size={14} />
                 ) : (
                   <RotateCcw size={14} />
                 )}
-                {confirmed ? t("archive") : t("restore")}
+                {confirmed ? t("archive") : draft ? t("confirm") : t("restore")}
               </button>
             </div>
           )}
@@ -648,6 +666,7 @@ export default function ProviderCapabilitiesPage() {
           ) : (
             <div className="mt-5 grid gap-4">
               {confirmedCapabilities.map(capabilityCard)}
+              {draftCapabilities.map(capabilityCard)}
               {archivedCapabilities.map(capabilityCard)}
             </div>
           )}
