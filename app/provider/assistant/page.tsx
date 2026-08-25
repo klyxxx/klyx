@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  FormEvent,
-  useEffect,
-  useState,
-} from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Bot,
@@ -18,6 +14,15 @@ import {
   Sparkles,
   Trash2,
 } from "lucide-react";
+
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import {
+  getKlyxProviderAssistantExamples,
+  getKlyxProviderAssistantIntlLocale,
+  translateKlyxProviderAssistant,
+  translateKlyxProviderAssistantStatus,
+  type KlyxProviderAssistantMessageKey,
+} from "@/lib/klyx-provider-assistant-i18n";
 import { supabase } from "@/lib/supabase";
 
 type Intent =
@@ -44,13 +49,6 @@ type Draft = {
   created_at: string;
 };
 
-const EXAMPLES = [
-  "Je suis libre jeudi de 9 h à 14 h.",
-  "Prépare un devis pour 3 heures.",
-  "Réponds au client que je suis disponible.",
-  "Prépare un message pour prévenir d’un retard.",
-];
-
 function iconFor(type: Intent) {
   if (type === "availability") return CalendarClock;
   if (type === "quote") return FileText;
@@ -58,18 +56,20 @@ function iconFor(type: Intent) {
 }
 
 export default function ProviderAssistantPage() {
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxProviderAssistantMessageKey) =>
+    translateKlyxProviderAssistant(locale, key);
+  const examples = getKlyxProviderAssistantExamples(locale);
+  const intlLocale = getKlyxProviderAssistantIntlLocale(locale);
+
   const [message, setMessage] = useState("");
-  const [result, setResult] =
-    useState<AssistantResponse | null>(null);
+  const [result, setResult] = useState<AssistantResponse | null>(null);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [loading, setLoading] = useState(false);
-  const [loadingDrafts, setLoadingDrafts] =
-    useState(true);
+  const [loadingDrafts, setLoadingDrafts] = useState(true);
   const [busyId, setBusyId] = useState("");
-  const [errorMessage, setErrorMessage] =
-    useState("");
-  const [successMessage, setSuccessMessage] =
-    useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   async function token(): Promise<string> {
     const {
@@ -77,7 +77,7 @@ export default function ProviderAssistantPage() {
     } = await supabase.auth.getSession();
 
     if (!session?.access_token) {
-      throw new Error("Session manquante.");
+      throw new Error("Provider assistant session unavailable");
     }
 
     return session.access_token;
@@ -88,34 +88,25 @@ export default function ProviderAssistantPage() {
 
     try {
       const accessToken = await token();
-      const response = await fetch(
-        "/api/provider/assistant",
-        {
-          cache: "no-store",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
+      const response = await fetch("/api/provider/assistant", {
+        cache: "no-store",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Provider assistant drafts unavailable");
+      }
 
       const body = (await response.json()) as {
         drafts?: Draft[];
-        error?: string;
       };
 
-      if (!response.ok) {
-        throw new Error(
-          body.error || "Chargement impossible."
-        );
-      }
-
       setDrafts(body.drafts ?? []);
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Impossible de charger les brouillons."
-      );
+      setErrorMessage("");
+    } catch {
+      setErrorMessage(t("loadError"));
     } finally {
       setLoadingDrafts(false);
     }
@@ -127,26 +118,15 @@ export default function ProviderAssistantPage() {
 
   // KLYX_PROVIDER_ASSISTANT_CONTEXT_13_78
   useEffect(() => {
-    const query =
-      new URLSearchParams(
-        window.location.search
-      );
-
-    const missionPrompt =
-      query
-        .get("prompt")
-        ?.trim()
-        .slice(0, 1000) ??
-      "";
+    const query = new URLSearchParams(window.location.search);
+    const missionPrompt = query.get("prompt")?.trim().slice(0, 1000) ?? "";
 
     if (missionPrompt.length > 0) {
       setMessage(missionPrompt);
     }
   }, []);
-  async function submit(
-    event?: FormEvent,
-    forcedMessage?: string
-  ) {
+
+  async function submit(event?: FormEvent, forcedMessage?: string) {
     event?.preventDefault();
 
     const request = (forcedMessage ?? message).trim();
@@ -160,36 +140,26 @@ export default function ProviderAssistantPage() {
 
     try {
       const accessToken = await token();
-      const response = await fetch(
-        "/api/provider/assistant",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({ message: request }),
-        }
-      );
-
-      const body =
-        (await response.json()) as AssistantResponse;
+      const response = await fetch("/api/provider/assistant", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ message: request }),
+      });
 
       if (!response.ok) {
-        throw new Error(
-          body.error || "Analyse impossible."
-        );
+        throw new Error("Provider assistant analysis unavailable");
       }
+
+      const body = (await response.json()) as AssistantResponse;
 
       setResult(body);
       setMessage("");
       await loadDrafts();
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Analyse impossible."
-      );
+    } catch {
+      setErrorMessage(t("submitError"));
     } finally {
       setLoading(false);
     }
@@ -205,42 +175,29 @@ export default function ProviderAssistantPage() {
 
     try {
       const accessToken = await token();
-      const response = await fetch(
-        "/api/provider/assistant",
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({
-            draftId,
-            action,
-          }),
-        }
-      );
-
-      const body = (await response.json()) as {
-        message?: string;
-        error?: string;
-      };
+      const response = await fetch("/api/provider/assistant", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          draftId,
+          action,
+        }),
+      });
 
       if (!response.ok) {
-        throw new Error(
-          body.error || "Action impossible."
-        );
+        throw new Error("Provider assistant draft action unavailable");
       }
 
+      await response.json();
       setSuccessMessage(
-        body.message || "Action enregistrée."
+        action === "apply" ? t("availabilityApplied") : t("draftDiscarded")
       );
       await loadDrafts();
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Action impossible."
-      );
+    } catch {
+      setErrorMessage(t("actionError"));
     } finally {
       setBusyId("");
     }
@@ -250,7 +207,7 @@ export default function ProviderAssistantPage() {
     if (typeof value !== "string") return;
 
     await navigator.clipboard.writeText(value);
-    setSuccessMessage("Texte copié.");
+    setSuccessMessage(t("copied"));
   }
 
   return (
@@ -259,34 +216,30 @@ export default function ProviderAssistantPage() {
         <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#111827,#1d3a62_52%,#172033)] p-7 text-white sm:p-10">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white/70">
             <Bot size={15} />
-            Assistant prestataire uniquement
+            {t("badge")}
           </div>
 
           {/* KLYX_AI_FIRST_PROVIDER_ASSISTANT_15_04 */}
           <h1 className="mt-5 text-3xl font-black sm:text-5xl">
-            Assistant prestataire
+            {t("title")}
           </h1>
-
-
         </section>
 
         <section className="klyx-card mt-8 p-6 sm:p-8">
           <div className="flex items-center gap-3">
             <Sparkles className="text-blue-600" />
             <h2 className="text-2xl font-black">
-              Que veux-tu préparer ?
+              {t("prepareQuestion")}
             </h2>
           </div>
 
           <div className="mt-5 grid gap-3 md:grid-cols-2">
-            {EXAMPLES.map((example) => (
+            {examples.map((example) => (
               <button
                 key={example}
                 type="button"
                 disabled={loading}
-                onClick={() =>
-                  void submit(undefined, example)
-                }
+                onClick={() => void submit(undefined, example)}
                 className="rounded-2xl border border-border bg-background p-4 text-left text-sm font-black transition hover:border-blue-500 hover:bg-blue-500/[0.05] disabled:opacity-50"
               >
                 {example}
@@ -294,7 +247,7 @@ export default function ProviderAssistantPage() {
             ))}
           </div>
 
-                    {message.includes("Mission :") && (
+          {message.includes("Mission :") && (
             <div className="mt-5 rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4">
               <div className="flex items-start gap-3">
                 <Sparkles
@@ -304,17 +257,17 @@ export default function ProviderAssistantPage() {
 
                 <div>
                   <p className="font-black">
-                    Contexte de mission chargé
+                    {t("missionContextTitle")}
                   </p>
-
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Contexte prêt. Modifie puis prépare.
+                    {t("missionContextDescription")}
                   </p>
                 </div>
               </div>
             </div>
           )}
-<form
+
+          <form
             onSubmit={(event) => void submit(event)}
             className="mt-5"
           >
@@ -322,29 +275,22 @@ export default function ProviderAssistantPage() {
               rows={4}
               maxLength={1000}
               value={message}
-              onChange={(event) =>
-                setMessage(event.target.value)
-              }
+              onChange={(event) => setMessage(event.target.value)}
               className="klyx-input resize-none"
-              placeholder="Ex. Je suis libre vendredi de 10 h à 16 h."
+              placeholder={t("placeholder")}
             />
 
             <button
               type="submit"
-              disabled={
-                loading || message.trim().length < 3
-              }
+              disabled={loading || message.trim().length < 3}
               className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 text-sm font-black text-white disabled:opacity-40"
             >
               {loading ? (
-                <LoaderCircle
-                  className="animate-spin"
-                  size={18}
-                />
+                <LoaderCircle className="animate-spin" size={18} />
               ) : (
                 <Send size={18} />
               )}
-              Préparer
+              {t("prepare")}
             </button>
           </form>
         </section>
@@ -371,19 +317,14 @@ export default function ProviderAssistantPage() {
             </p>
 
             {result.intent === "client_reply" &&
-              typeof result.payload?.message ===
-                "string" && (
+              typeof result.payload?.message === "string" && (
                 <button
                   type="button"
-                  onClick={() =>
-                    void copyText(
-                      result.payload?.message
-                    )
-                  }
+                  onClick={() => void copyText(result.payload?.message)}
                   className="mt-5 inline-flex h-11 items-center gap-2 rounded-xl border border-border px-4 text-sm font-black"
                 >
                   <Clipboard size={17} />
-                  Copier la réponse
+                  {t("copyReply")}
                 </button>
               )}
           </section>
@@ -391,10 +332,10 @@ export default function ProviderAssistantPage() {
 
         <section className="mt-8">
           <p className="klyx-eyebrow">
-            Historique professionnel
+            {t("historyEyebrow")}
           </p>
           <h2 className="mt-2 text-2xl font-black">
-            Mes brouillons
+            {t("draftsTitle")}
           </h2>
 
           {loadingDrafts ? (
@@ -406,12 +347,9 @@ export default function ProviderAssistantPage() {
             </div>
           ) : drafts.length === 0 ? (
             <div className="klyx-card mt-5 p-7 text-center">
-              <Bot
-                className="mx-auto text-blue-600"
-                size={38}
-              />
+              <Bot className="mx-auto text-blue-600" size={38} />
               <p className="mt-4 font-black">
-                Aucun brouillon
+                {t("noDrafts")}
               </p>
             </div>
           ) : (
@@ -421,10 +359,7 @@ export default function ProviderAssistantPage() {
                 const isDraft = draft.status === "draft";
 
                 return (
-                  <article
-                    key={draft.id}
-                    className="klyx-card p-5"
-                  >
+                  <article key={draft.id} className="klyx-card p-5">
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                       <div className="flex gap-4">
                         <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-blue-500/10 text-blue-600">
@@ -436,52 +371,39 @@ export default function ProviderAssistantPage() {
                             {draft.title}
                           </h3>
                           <p className="mt-2 text-xs text-muted-foreground">
-                            {new Date(
-                              draft.created_at
-                            ).toLocaleString("fr-BE")}{" "}
-                            · {draft.status}
+                            {new Date(draft.created_at).toLocaleString(intlLocale)}{" "}
+                            · {translateKlyxProviderAssistantStatus(locale, draft.status)}
                           </p>
 
                           <pre className="mt-3 max-w-full overflow-x-auto whitespace-pre-wrap rounded-xl bg-muted/40 p-3 text-xs">
-                            {JSON.stringify(
-                              draft.payload,
-                              null,
-                              2
-                            )}
+                            {JSON.stringify(draft.payload, null, 2)}
                           </pre>
                         </div>
                       </div>
 
                       {isDraft && (
                         <div className="flex shrink-0 gap-2">
-                          {draft.draft_type ===
-                            "availability" && (
+                          {draft.draft_type === "availability" && (
                             <button
                               type="button"
                               disabled={busyId === draft.id}
                               onClick={() =>
-                                void processDraft(
-                                  draft.id,
-                                  "apply"
-                                )
+                                void processDraft(draft.id, "apply")
                               }
                               className="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-600 px-3 text-xs font-black text-white disabled:opacity-50"
                             >
                               <Check size={16} />
-                              Appliquer
+                              {t("apply")}
                             </button>
                           )}
 
-                          {draft.draft_type !==
-                            "availability" &&
-                            typeof draft.payload.message ===
-                              "string" && (
+                          {draft.draft_type !== "availability" &&
+                            typeof draft.payload.message === "string" && (
                               <button
                                 type="button"
+                                aria-label={t("copyReply")}
                                 onClick={() =>
-                                  void copyText(
-                                    draft.payload.message
-                                  )
+                                  void copyText(draft.payload.message)
                                 }
                                 className="grid h-10 w-10 place-items-center rounded-xl border border-border"
                               >
@@ -491,12 +413,10 @@ export default function ProviderAssistantPage() {
 
                           <button
                             type="button"
+                            aria-label={t("discard")}
                             disabled={busyId === draft.id}
                             onClick={() =>
-                              void processDraft(
-                                draft.id,
-                                "discard"
-                              )
+                              void processDraft(draft.id, "discard")
                             }
                             className="grid h-10 w-10 place-items-center rounded-xl border border-rose-500/25 text-rose-600 disabled:opacity-50"
                           >
@@ -517,7 +437,7 @@ export default function ProviderAssistantPage() {
             href="/provider"
             className="text-sm font-black text-blue-600 dark:text-blue-400"
           >
-            Retour à mon activité
+            {t("backToActivity")}
           </Link>
         </div>
       </div>
