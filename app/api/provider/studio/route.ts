@@ -65,11 +65,9 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   return secureStudioResponse("PUT", async () => {
-    const zonePreflight = await providerPublicationZonePreflight(
-      request.clone()
-    );
+    const preflight = await providerPublicationZonePreflight(request.clone());
 
-    if (zonePreflight) return zonePreflight;
+    if (preflight) return preflight;
 
     const qualificationPreflight =
       await providerPublicationQualificationPreflight(request.clone());
