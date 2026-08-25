@@ -43,8 +43,8 @@ describe("provider capability links API contract", () => {
     expect(core).toContain("user_service_id: userServiceId");
     expect(core).toContain('.from("provider_service_capabilities")');
 
-    expect(core).not.toMatch(/\.from\("provider_capabilities"\)\s*\.update\(/s);
-    expect(core).not.toMatch(/\.from\("user_services"\)\s*\.update\(/s);
+    expect(core).not.toContain('.from("provider_capabilities")\n    .update(');
+    expect(core).not.toContain('.from("user_services")\n    .update(');
     expect(core).not.toContain('.from("service_profiles").update');
   });
 
