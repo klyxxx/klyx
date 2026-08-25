@@ -30,6 +30,7 @@ export const KLYX_PROVIDER_CAPABILITIES_PAGE_MESSAGE_KEYS = [
   "duplicateError",
   "addedSuccess",
   "updatedSuccess",
+  "confirmedSuccess",
   "archivedSuccess",
   "restoredSuccess",
   "myCapabilities",
@@ -38,8 +39,10 @@ export const KLYX_PROVIDER_CAPABILITIES_PAGE_MESSAGE_KEYS = [
   "save",
   "saving",
   "cancel",
+  "confirm",
   "archive",
   "restore",
+  "statusDraft",
   "statusConfirmed",
   "statusArchived",
   "statusUnknown",
@@ -69,7 +72,7 @@ const MESSAGES: Record<KlyxProviderCapabilitiesPageLocale, Dictionary> = {
     description:
       "Déclarez librement vos savoir-faire, même s’ils ne correspondent pas encore à un métier ou à une catégorie KLYX. Vous pourrez ensuite les relier à vos offres existantes.",
     ordinarySkillNote:
-      "Une compétence ordinaire est auto-déclarée par défaut. Si une activité est réglementée, KLYX appliquera séparément les justificatifs réellement requis pour ce service et ce pays.",
+      "Déclarer une compétence n’exige pas de diplôme. Les justificatifs éventuellement nécessaires pour une offre sont gérés séparément par ses règles de qualification.",
     addEyebrow: "Nouvelle compétence",
     addTitle: "Ajouter un savoir-faire",
     label: "Ce que vous savez faire",
@@ -85,6 +88,7 @@ const MESSAGES: Record<KlyxProviderCapabilitiesPageLocale, Dictionary> = {
     duplicateError: "Cette compétence est déjà déclarée sur ce profil.",
     addedSuccess: "Compétence ajoutée.",
     updatedSuccess: "Compétence mise à jour.",
+    confirmedSuccess: "Compétence confirmée.",
     archivedSuccess: "Compétence archivée.",
     restoredSuccess: "Compétence réactivée.",
     myCapabilities: "Mes compétences",
@@ -93,8 +97,10 @@ const MESSAGES: Record<KlyxProviderCapabilitiesPageLocale, Dictionary> = {
     save: "Enregistrer",
     saving: "Enregistrement...",
     cancel: "Annuler",
+    confirm: "Confirmer",
     archive: "Archiver",
     restore: "Réactiver",
+    statusDraft: "À confirmer",
     statusConfirmed: "Confirmée",
     statusArchived: "Archivée",
     statusUnknown: "Statut inconnu",
@@ -119,7 +125,7 @@ const MESSAGES: Record<KlyxProviderCapabilitiesPageLocale, Dictionary> = {
     description:
       "Freely declare what you know how to do, even when it does not yet match a profession or KLYX category. You can then link those capabilities to your existing offers.",
     ordinarySkillNote:
-      "An ordinary capability is self-declared by default. If an activity is regulated, KLYX will separately apply the evidence actually required for that service and country.",
+      "Declaring a capability does not require a diploma. Any evidence required for an offer is handled separately by that offer’s qualification rules.",
     addEyebrow: "New capability",
     addTitle: "Add something you can do",
     label: "What you can do",
@@ -135,6 +141,7 @@ const MESSAGES: Record<KlyxProviderCapabilitiesPageLocale, Dictionary> = {
     duplicateError: "This capability is already declared on this profile.",
     addedSuccess: "Capability added.",
     updatedSuccess: "Capability updated.",
+    confirmedSuccess: "Capability confirmed.",
     archivedSuccess: "Capability archived.",
     restoredSuccess: "Capability restored.",
     myCapabilities: "My capabilities",
@@ -143,8 +150,10 @@ const MESSAGES: Record<KlyxProviderCapabilitiesPageLocale, Dictionary> = {
     save: "Save",
     saving: "Saving...",
     cancel: "Cancel",
+    confirm: "Confirm",
     archive: "Archive",
     restore: "Restore",
+    statusDraft: "To confirm",
     statusConfirmed: "Confirmed",
     statusArchived: "Archived",
     statusUnknown: "Unknown status",
@@ -169,7 +178,7 @@ const MESSAGES: Record<KlyxProviderCapabilitiesPageLocale, Dictionary> = {
     description:
       "Geef vrij aan wat u kunt, ook als het nog niet overeenkomt met een beroep of KLYX-categorie. Daarna kunt u deze vaardigheden aan uw bestaande aanbiedingen koppelen.",
     ordinarySkillNote:
-      "Een gewone vaardigheid wordt standaard zelf verklaard. Als een activiteit gereglementeerd is, past KLYX afzonderlijk de bewijsstukken toe die werkelijk voor die dienst en dat land vereist zijn.",
+      "Voor het aangeven van een vaardigheid is geen diploma nodig. Bewijsstukken die eventueel voor een aanbieding nodig zijn, worden afzonderlijk door de kwalificatieregels van die aanbieding beheerd.",
     addEyebrow: "Nieuwe vaardigheid",
     addTitle: "Voeg toe wat u kunt",
     label: "Wat u kunt doen",
@@ -185,6 +194,7 @@ const MESSAGES: Record<KlyxProviderCapabilitiesPageLocale, Dictionary> = {
     duplicateError: "Deze vaardigheid is al op dit profiel gedeclareerd.",
     addedSuccess: "Vaardigheid toegevoegd.",
     updatedSuccess: "Vaardigheid bijgewerkt.",
+    confirmedSuccess: "Vaardigheid bevestigd.",
     archivedSuccess: "Vaardigheid gearchiveerd.",
     restoredSuccess: "Vaardigheid opnieuw geactiveerd.",
     myCapabilities: "Mijn vaardigheden",
@@ -193,8 +203,10 @@ const MESSAGES: Record<KlyxProviderCapabilitiesPageLocale, Dictionary> = {
     save: "Opslaan",
     saving: "Opslaan...",
     cancel: "Annuleren",
+    confirm: "Bevestigen",
     archive: "Archiveren",
     restore: "Heractiveren",
+    statusDraft: "Te bevestigen",
     statusConfirmed: "Bevestigd",
     statusArchived: "Gearchiveerd",
     statusUnknown: "Onbekende status",
@@ -219,7 +231,7 @@ const MESSAGES: Record<KlyxProviderCapabilitiesPageLocale, Dictionary> = {
     description:
       "Geben Sie frei an, was Sie können, auch wenn es noch keinem Beruf oder keiner KLYX-Kategorie entspricht. Anschließend können Sie diese Fähigkeiten mit Ihren bestehenden Angeboten verknüpfen.",
     ordinarySkillNote:
-      "Eine gewöhnliche Fähigkeit wird standardmäßig selbst erklärt. Ist eine Tätigkeit reguliert, wendet KLYX separat die für diesen Dienst und dieses Land tatsächlich erforderlichen Nachweise an.",
+      "Für die Angabe einer Fähigkeit ist kein Abschluss erforderlich. Nachweise, die eventuell für ein Angebot nötig sind, werden separat durch dessen Qualifikationsregeln verwaltet.",
     addEyebrow: "Neue Fähigkeit",
     addTitle: "Fähigkeit hinzufügen",
     label: "Was Sie können",
@@ -235,6 +247,7 @@ const MESSAGES: Record<KlyxProviderCapabilitiesPageLocale, Dictionary> = {
     duplicateError: "Diese Fähigkeit wurde für dieses Profil bereits angegeben.",
     addedSuccess: "Fähigkeit hinzugefügt.",
     updatedSuccess: "Fähigkeit aktualisiert.",
+    confirmedSuccess: "Fähigkeit bestätigt.",
     archivedSuccess: "Fähigkeit archiviert.",
     restoredSuccess: "Fähigkeit reaktiviert.",
     myCapabilities: "Meine Fähigkeiten",
@@ -243,8 +256,10 @@ const MESSAGES: Record<KlyxProviderCapabilitiesPageLocale, Dictionary> = {
     save: "Speichern",
     saving: "Wird gespeichert...",
     cancel: "Abbrechen",
+    confirm: "Bestätigen",
     archive: "Archivieren",
     restore: "Reaktivieren",
+    statusDraft: "Zu bestätigen",
     statusConfirmed: "Bestätigt",
     statusArchived: "Archiviert",
     statusUnknown: "Unbekannter Status",
@@ -287,6 +302,10 @@ export function translateKlyxProviderCapabilityStatus(
   locale: KlyxLocale,
   status: string
 ): string {
+  if (status === "draft") {
+    return translateKlyxProviderCapabilitiesPage(locale, "statusDraft");
+  }
+
   if (status === "confirmed") {
     return translateKlyxProviderCapabilitiesPage(locale, "statusConfirmed");
   }
