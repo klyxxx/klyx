@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  ChangeEvent,
+  type ChangeEvent,
   useEffect,
   useMemo,
   useState,
@@ -19,8 +19,17 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import { getActiveClientProfile } from "@/lib/account-switcher";
+import {
+  formatKlyxProviderVerificationFileSize,
+  getKlyxProviderVerificationDocumentType,
+  translateKlyxProviderVerification,
+  translateKlyxProviderVerificationStatus,
+  type KlyxProviderVerificationMessageKey,
+} from "@/lib/klyx-provider-verification-i18n";
+import { supabase } from "@/lib/supabase";
 
 type DocumentType =
   | "identity"
@@ -53,61 +62,16 @@ type VerificationDocument = {
   uploaded_at: string;
 };
 
-const TYPES: {
+const TYPES: Array<{
   type: DocumentType;
-  title: string;
-  description: string;
   required: boolean;
-}[] = [
-  {
-    type: "identity",
-    title: "Pièce d’identité",
-    description:
-      "Carte d’identité, passeport ou titre de séjour valide.",
-    required: true,
-  },
-  {
-    type: "address",
-    title: "Justificatif d’adresse",
-    description:
-      "Document récent indiquant ton nom et ton adresse.",
-    required: true,
-  },
-  {
-    type: "business",
-    title: "Document d’entreprise",
-    description:
-      "Numéro d’entreprise ou preuve d’activité, si applicable.",
-    required: false,
-  },
-  {
-    type: "insurance",
-    title: "Assurance professionnelle",
-    description:
-      "Attestation d’assurance liée à ton activité.",
-    required: false,
-  },
-  {
-    type: "professional_certificate",
-    title: "Diplôme ou certificat",
-    description:
-      "Document professionnel utile pour les métiers réglementés.",
-    required: false,
-  },
+}> = [
+  { type: "identity", required: true },
+  { type: "address", required: true },
+  { type: "business", required: false },
+  { type: "insurance", required: false },
+  { type: "professional_certificate", required: false },
 ];
-
-const STATUS_LABELS: Record<string, string> = {
-  not_started: "Non commencé",
-  incomplete: "À compléter",
-  submitted: "Envoyé",
-  under_review: "En vérification",
-  approved: "Vérifié",
-  changes_required: "Modifications demandées",
-  rejected: "Refusé",
-  missing: "Manquant",
-  optional: "Facultatif",
-  uploaded: "Envoyé",
-};
 
 function safeFileName(name: string): string {
   const extension = name.includes(".")
@@ -121,6 +85,10 @@ function safeFileName(name: string): string {
 }
 
 export default function ProviderVerificationPage() {
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxProviderVerificationMessageKey) =>
+    translateKlyxProviderVerification(locale, key);
+
   const [profileId, setProfileId] = useState("");
   const [verification, setVerification] =
     useState<Verification | null>(null);
@@ -140,7 +108,7 @@ export default function ProviderVerificationPage() {
     } = await supabase.auth.getSession();
 
     if (!session?.access_token) {
-      throw new Error("Session manquante.");
+      throw new Error("KLYX_PROVIDER_VERIFICATION_SESSION_MISSING");
     }
 
     return session.access_token;
@@ -168,23 +136,17 @@ export default function ProviderVerificationPage() {
       const body = (await response.json()) as {
         verification?: Verification;
         documents?: VerificationDocument[];
-        error?: string;
       };
 
       if (!response.ok || !body.verification) {
-        throw new Error(
-          body.error || "Chargement impossible."
-        );
+        setErrorMessage(t("loadError"));
+        return;
       }
 
       setVerification(body.verification);
       setDocuments(body.documents ?? []);
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Impossible de charger la vérification."
-      );
+    } catch {
+      setErrorMessage(t("loadError"));
     } finally {
       setLoading(false);
     }
@@ -220,7 +182,8 @@ export default function ProviderVerificationPage() {
 
     try {
       if (file.size > 10 * 1024 * 1024) {
-        throw new Error("Le fichier dépasse 10 Mo.");
+        setErrorMessage(t("fileTooLarge"));
+        return;
       }
 
       if (
@@ -231,9 +194,8 @@ export default function ProviderVerificationPage() {
           "application/pdf",
         ].includes(file.type)
       ) {
-        throw new Error(
-          "Utilise un PDF, JPG, PNG ou WEBP."
-        );
+        setErrorMessage(t("invalidFileType"));
+        return;
       }
 
       const path =
@@ -247,7 +209,10 @@ export default function ProviderVerificationPage() {
           contentType: file.type,
         });
 
-      if (uploadError) throw new Error(uploadError.message);
+      if (uploadError) {
+        setErrorMessage(t("uploadError"));
+        return;
+      }
 
       const token = await accessToken();
       const response = await fetch(
@@ -268,37 +233,28 @@ export default function ProviderVerificationPage() {
         }
       );
 
-      const body = (await response.json()) as {
-        error?: string;
-        message?: string;
-      };
+      await response.json();
 
       if (!response.ok) {
         await supabase.storage
           .from("provider-verification")
           .remove([path]);
-
-        throw new Error(
-          body.error || "Enregistrement impossible."
-        );
+        setErrorMessage(t("uploadError"));
+        return;
       }
 
-      setSuccessMessage(
-        body.message || "Document envoyé."
-      );
+      setSuccessMessage(t("documentAdded"));
       await load();
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Envoi impossible."
-      );
+    } catch {
+      setErrorMessage(t("uploadError"));
     } finally {
       setBusyType(null);
     }
   }
 
   async function preview(documentId: string) {
+    setErrorMessage("");
+
     try {
       const token = await accessToken();
       const response = await fetch(
@@ -315,27 +271,24 @@ export default function ProviderVerificationPage() {
 
       const body = (await response.json()) as {
         url?: string;
-        error?: string;
       };
 
       if (!response.ok || !body.url) {
-        throw new Error(
-          body.error || "Ouverture impossible."
-        );
+        setErrorMessage(t("previewError"));
+        return;
       }
 
       window.open(body.url, "_blank", "noopener,noreferrer");
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Ouverture impossible."
-      );
+    } catch {
+      setErrorMessage(t("previewError"));
     }
   }
 
   async function remove(documentId: string) {
-    if (!window.confirm("Supprimer ce document ?")) return;
+    if (!window.confirm(t("confirmDelete"))) return;
+
+    setErrorMessage("");
+    setSuccessMessage("");
 
     try {
       const token = await accessToken();
@@ -351,27 +304,17 @@ export default function ProviderVerificationPage() {
         }
       );
 
-      const body = (await response.json()) as {
-        error?: string;
-        message?: string;
-      };
+      await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          body.error || "Suppression impossible."
-        );
+        setErrorMessage(t("deleteError"));
+        return;
       }
 
-      setSuccessMessage(
-        body.message || "Document supprimé."
-      );
+      setSuccessMessage(t("documentDeleted"));
       await load();
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Suppression impossible."
-      );
+    } catch {
+      setErrorMessage(t("deleteError"));
     }
   }
 
@@ -392,27 +335,17 @@ export default function ProviderVerificationPage() {
         }
       );
 
-      const body = (await response.json()) as {
-        error?: string;
-        message?: string;
-      };
+      await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          body.error || "Envoi impossible."
-        );
+        setErrorMessage(t("submitError"));
+        return;
       }
 
-      setSuccessMessage(
-        body.message || "Dossier envoyé."
-      );
+      setSuccessMessage(t("dossierSubmitted"));
       await load();
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Envoi impossible."
-      );
+    } catch {
+      setErrorMessage(t("submitError"));
     } finally {
       setSubmitting(false);
     }
@@ -435,23 +368,23 @@ export default function ProviderVerificationPage() {
         <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#111827,#1e3157_52%,#0f172a)] p-7 text-white sm:p-10">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white/70">
             <BadgeCheck size={15} />
-            Espace prestataire uniquement
+            {t("providerOnly")}
           </div>
 
           <h1 className="mt-5 text-3xl font-black sm:text-5xl">
-            Vérification prestataire
+            {t("title")}
           </h1>
 
           <p className="mt-4 max-w-2xl text-sm leading-7 text-white/70">
-            Envoie tes documents dans un espace privé. Les clients
-            ne verront jamais les fichiers : uniquement les badges
-            validés.
+            {t("description")}
           </p>
 
           <div className="mt-6 inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black">
             <ShieldCheck size={18} />
-            Statut :{" "}
-            {STATUS_LABELS[verification?.status ?? "not_started"]}
+            {t("statusPrefix")} {translateKlyxProviderVerificationStatus(
+              locale,
+              verification?.status ?? "not_started"
+            )}
           </div>
         </section>
 
@@ -463,11 +396,10 @@ export default function ProviderVerificationPage() {
             />
             <div>
               <p className="font-black">
-                Documents privés et sensibles
+                {t("privacyTitle")}
               </p>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                N’utilise que tes vrais documents. Ne téléverse pas
-                de document appartenant à une autre personne.
+                {t("privacyText")}
               </p>
             </div>
           </div>
@@ -487,6 +419,11 @@ export default function ProviderVerificationPage() {
 
         <section className="mt-8 grid gap-5">
           {TYPES.map((item) => {
+            const copy =
+              getKlyxProviderVerificationDocumentType(
+                locale,
+                item.type
+              );
             const itemDocuments = documents.filter(
               (document) =>
                 document.document_type === item.type
@@ -512,7 +449,7 @@ export default function ProviderVerificationPage() {
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <h2 className="text-lg font-black">
-                          {item.title}
+                          {copy?.title ?? item.type}
                         </h2>
                         <span
                           className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${
@@ -522,13 +459,13 @@ export default function ProviderVerificationPage() {
                           }`}
                         >
                           {item.required
-                            ? "Obligatoire"
-                            : "Facultatif"}
+                            ? t("required")
+                            : t("optional")}
                         </span>
                       </div>
 
                       <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                        {item.description}
+                        {copy?.description ?? ""}
                       </p>
                     </div>
                   </div>
@@ -543,7 +480,7 @@ export default function ProviderVerificationPage() {
                       ) : (
                         <Upload size={17} />
                       )}
-                      Ajouter
+                      {t("add")}
                       <input
                         type="file"
                         hidden
@@ -569,12 +506,15 @@ export default function ProviderVerificationPage() {
                             {document.original_name}
                           </p>
                           <p className="mt-1 text-xs text-muted-foreground">
-                            {Math.ceil(
-                              document.size_bytes / 1024
+                            {formatKlyxProviderVerificationFileSize(
+                              locale,
+                              document.size_bytes
                             )}{" "}
-                            Ko ·{" "}
-                            {STATUS_LABELS[document.status] ??
-                              document.status}
+                            ·{" "}
+                            {translateKlyxProviderVerificationStatus(
+                              locale,
+                              document.status
+                            )}
                           </p>
                           {document.rejection_reason && (
                             <p className="mt-2 text-xs text-rose-600">
@@ -590,7 +530,7 @@ export default function ProviderVerificationPage() {
                               void preview(document.id)
                             }
                             className="grid h-10 w-10 place-items-center rounded-xl border border-border"
-                            aria-label="Voir le document"
+                            aria-label={t("viewDocument")}
                           >
                             <Eye size={17} />
                           </button>
@@ -603,7 +543,7 @@ export default function ProviderVerificationPage() {
                                   void remove(document.id)
                                 }
                                 className="grid h-10 w-10 place-items-center rounded-xl border border-rose-500/25 text-rose-600"
-                                aria-label="Supprimer le document"
+                                aria-label={t("deleteDocument")}
                               >
                                 <Trash2 size={17} />
                               </button>
@@ -630,13 +570,10 @@ export default function ProviderVerificationPage() {
 
             <div>
               <h2 className="text-xl font-black">
-                Envoyer le dossier
+                {t("submitTitle")}
               </h2>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                La pièce d’identité et le justificatif d’adresse
-                sont obligatoires. L’analyse automatique pourra
-                aider, mais la validation finale ne sera pas
-                irréversible ni entièrement automatisée.
+                {t("submitDescription")}
               </p>
             </div>
           </div>
@@ -661,7 +598,7 @@ export default function ProviderVerificationPage() {
             ) : (
               <Send size={18} />
             )}
-            Envoyer pour vérification
+            {t("submitButton")}
           </button>
         </section>
       </div>
