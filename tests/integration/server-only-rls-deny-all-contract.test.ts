@@ -44,6 +44,17 @@ describe("KLYX server-only RLS deny-all backstops", () => {
     );
   });
 
+  it("audits the canonical notification table as well as the locked legacy table", () => {
+    expect(migration).toContain(
+      "create or replace function public.klyx_security_audit()"
+    );
+    expect(migration).toContain("'notifications'");
+    expect(migration).toContain("'user_notifications'");
+    expect(migration).toContain(
+      "grant execute on function public.klyx_security_audit()\n  to service_role;"
+    );
+  });
+
   it("never restores direct browser grants", () => {
     expect(migration).not.toMatch(
       /grant\s+(select|insert|update|delete|all privileges)[^;]*to\s+(anon|authenticated)\s*;/i
