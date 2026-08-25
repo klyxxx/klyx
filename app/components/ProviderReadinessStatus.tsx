@@ -27,12 +27,11 @@ type StudioData = {
     verificationStatus?: string;
   };
   services?: Array<{
+    userServiceId?: string | null;
     enabled?: boolean;
     title?: string;
     description?: string;
     price?: number | null;
-    city?: string;
-    serviceArea?: string[];
     availability?: Array<{
       enabled?: boolean;
     }>;
@@ -117,28 +116,43 @@ export default function ProviderReadinessStatus() {
 
   const items = useMemo<ReadinessItem[]>(() => {
     const services = Array.isArray(studio?.services) ? studio.services : [];
+    const enabledServices = services.filter((service) => service.enabled === true);
 
-    const hasCompleteService = services.some((service) => {
-      const hasAvailability =
-        Array.isArray(service.availability) &&
-        service.availability.some((day) => day.enabled);
+    const hasCompleteService =
+      enabledServices.length > 0 &&
+      enabledServices.every((service) => {
+        const hasAvailability =
+          Array.isArray(service.availability) &&
+          service.availability.some((day) => day.enabled);
 
-      return Boolean(
-        service.enabled &&
+        return Boolean(
           (service.title ?? "").trim().length >= 5 &&
-          (service.description ?? "").trim().length >= 30 &&
-          service.price !== null &&
-          service.price !== undefined &&
-          (service.city ?? "").trim().length > 0 &&
-          Array.isArray(service.serviceArea) &&
-          service.serviceArea.length > 0 &&
-          hasAvailability
-      );
-    });
+            (service.description ?? "").trim().length >= 30 &&
+            service.price !== null &&
+            service.price !== undefined &&
+            hasAvailability
+        );
+      });
+
+    const activeZoneUserServiceIds = new Set(
+      (Array.isArray(zones?.zones) ? zones.zones : [])
+        .filter(
+          (zone) =>
+            zone.is_active !== false &&
+            typeof zone.user_service_id === "string" &&
+            zone.user_service_id.length > 0
+        )
+        .map((zone) => zone.user_service_id as string)
+    );
 
     const hasZone =
-      Array.isArray(zones?.zones) &&
-      zones.zones.some((zone) => zone.is_active !== false);
+      enabledServices.length > 0 &&
+      enabledServices.every(
+        (service) =>
+          typeof service.userServiceId === "string" &&
+          service.userServiceId.length > 0 &&
+          activeZoneUserServiceIds.has(service.userServiceId)
+      );
 
     const isPublished = studio?.providerProfile?.isPublished === true;
 

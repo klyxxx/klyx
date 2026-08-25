@@ -18,16 +18,27 @@ describe("KLYX provider readiness safety and i18n contract", () => {
     expect(source).not.toContain('method: "DELETE"');
   });
 
-  it("preserves the exact provider readiness criteria", () => {
-    expect(source).toContain("service.enabled &&");
+  it("aligns readiness with canonical provider publication criteria", () => {
+    expect(source).toContain(
+      "const enabledServices = services.filter((service) => service.enabled === true);"
+    );
+    expect(source).toContain("enabledServices.length > 0 &&");
+    expect(source).toContain("enabledServices.every((service) => {");
     expect(source).toContain('(service.title ?? "").trim().length >= 5');
     expect(source).toContain('(service.description ?? "").trim().length >= 30');
     expect(source).toContain("service.price !== null &&");
     expect(source).toContain("service.price !== undefined &&");
-    expect(source).toContain('(service.city ?? "").trim().length > 0');
-    expect(source).toContain("service.serviceArea.length > 0 &&");
     expect(source).toContain("service.availability.some((day) => day.enabled)");
-    expect(source).toContain("zone.is_active !== false");
+    expect(source).not.toContain('(service.city ?? "").trim().length > 0');
+    expect(source).not.toContain("service.serviceArea.length > 0");
+
+    expect(source).toContain("const activeZoneUserServiceIds = new Set(");
+    expect(source).toContain("zone.is_active !== false &&");
+    expect(source).toContain('typeof zone.user_service_id === "string"');
+    expect(source).toContain("enabledServices.every(");
+    expect(source).toContain('typeof service.userServiceId === "string"');
+    expect(source).toContain("activeZoneUserServiceIds.has(service.userServiceId)");
+
     expect(source).toContain("studio?.providerProfile?.isPublished === true");
     expect(source).toContain(
       'studio?.providerProfile?.verificationStatus === "verified"'
