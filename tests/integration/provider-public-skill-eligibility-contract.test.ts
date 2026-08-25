@@ -53,11 +53,9 @@ describe("provider public skill eligibility contract", () => {
   });
 
   it("keeps the provider detail page compatible with public-eligible userServiceIds", () => {
+    expect(providerPage).toContain("verifiedServicesBody.userServiceIds ?? []");
     expect(providerPage).toContain(
-      'const verifiedServiceIds = new Set(verifiedPayload.userServiceIds ?? [])'
-    );
-    expect(providerPage).toContain(
-      ".filter((row) => verifiedServiceIds.has(row.id))"
+      ".filter(\n          (item) => approvedUserServiceIds.has(item.id)\n        )"
     );
   });
 
