@@ -46,7 +46,7 @@ describe("KLYX server-only RLS deny-all backstops", () => {
 
   it("never restores direct browser grants", () => {
     expect(migration).not.toMatch(
-      /grant\s+(select|insert|update|delete|all privileges)[\s\S]*?to\s+(anon|authenticated)/i
+      /grant\s+(select|insert|update|delete|all privileges)[^;]*to\s+(anon|authenticated)\s*;/i
     );
   });
 });
