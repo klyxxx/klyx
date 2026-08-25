@@ -236,7 +236,7 @@ describe("KLYX golden path workflow safety", () => {
     );
   });
 
-  it("prepares a bookable provider only after isolation and account proof", () => {
+  it("prepares a bookable self-declared provider only after isolation and account proof", () => {
     const preflightCommand =
       "node scripts/golden-path-preflight.mjs";
     const fixtureCommand =
@@ -260,7 +260,16 @@ describe("KLYX golden path workflow safety", () => {
       'available: true'
     );
     expect(providerFixture).toContain(
+      '.from("provider_skill_verifications")'
+    );
+    expect(providerFixture).toContain(
+      ".delete()"
+    );
+    expect(providerFixture).not.toContain(
       'status: "approved"'
+    );
+    expect(providerFixture).not.toContain(
+      "Golden-path fixture approved only inside the ephemeral local Supabase runner."
     );
     expect(providerFixture).toContain(
       '.from("provider_service_zones")'
