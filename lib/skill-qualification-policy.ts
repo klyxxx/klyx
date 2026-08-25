@@ -51,6 +51,19 @@ export function createDefaultSkillQualificationRule(params: {
   };
 }
 
+export function skillQualificationRequiresApproval(
+  rule: SkillQualificationRule
+): boolean {
+  return (
+    rule.ruleLevel !== "self_declared" ||
+    rule.requiredProofTypes.length > 0 ||
+    rule.minimumYearsExperience > 0 ||
+    rule.identityRequired ||
+    rule.insuranceRequired ||
+    rule.officialRegistrationRequired
+  );
+}
+
 export function evaluateSkillEvidence(params: {
   rule: SkillQualificationRule;
   proofTypes: string[];
