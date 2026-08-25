@@ -18,6 +18,12 @@ import {
   useRouter,
 } from "next/navigation";
 
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import {
+  getKlyxAssistantCommandExamples,
+  translateKlyxAssistantCommand,
+  type KlyxAssistantCommandMessageKey,
+} from "@/lib/klyx-assistant-command-i18n";
 import {
   supabase,
 } from "@/lib/supabase";
@@ -45,14 +51,7 @@ type CommandResponse = {
     | "no_action";
   href?: string;
   action?: AssistantAction;
-  error?: string;
 };
-
-const EXAMPLES = [
-  "J ai besoin d un plombier demain a Bruxelles",
-  "Que dois je faire maintenant ?",
-  "Ou en est ma mission ?",
-];
 
 function ActionIcon({
   kind,
@@ -98,6 +97,10 @@ export default function AssistantCommandBar({
 }: Props) {
   const router =
     useRouter();
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxAssistantCommandMessageKey) =>
+    translateKlyxAssistantCommand(locale, key);
+  const examples = getKlyxAssistantCommandExamples(locale);
 
   const [
     value,
@@ -183,10 +186,7 @@ export default function AssistantCommandBar({
           CommandResponse;
 
       if (!response.ok) {
-        throw new Error(
-          result.error ||
-            "KLYX ne peut pas traiter cette commande."
-        );
+        throw new Error("Command unavailable");
       }
 
       if (
@@ -210,11 +210,9 @@ export default function AssistantCommandBar({
       router.push(
         "/assistant/actions"
       );
-    } catch (error) {
+    } catch {
       setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Commande KLYX indisponible."
+        t("genericError")
       );
 
       setBusy(false);
@@ -232,7 +230,7 @@ export default function AssistantCommandBar({
             size={15}
             className="text-violet-600 dark:text-violet-400"
           />
-          Demande a KLYX
+          {t("eyebrow")}
         </div>
 
         <div className="mt-1 flex flex-col gap-2 sm:flex-row">
@@ -247,7 +245,7 @@ export default function AssistantCommandBar({
             }
             rows={2}
             maxLength={700}
-            placeholder="Nouveau besoin ou prochaine action, ecris simplement ce que tu veux faire..."
+            placeholder={t("placeholder")}
             className="min-h-[74px] flex-1 resize-none rounded-2xl border-0 bg-transparent px-3 py-3 text-base font-semibold text-foreground outline-none placeholder:text-muted-foreground"
           />
 
@@ -266,7 +264,7 @@ export default function AssistantCommandBar({
               />
 
               <span className="hidden md:inline">
-                Photo
+                {t("photo")}
               </span>
             </button>
 
@@ -289,7 +287,7 @@ export default function AssistantCommandBar({
                 />
               )}
 
-              Continuer
+              {t("continue")}
             </button>
           </div>
         </div>
@@ -305,7 +303,7 @@ export default function AssistantCommandBar({
         0 && (
         <div className="mt-3">
           <p className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-muted-foreground">
-            Actions detectees
+            {t("actionsDetected")}
           </p>
 
           <div className="flex flex-wrap gap-2">
@@ -338,7 +336,7 @@ export default function AssistantCommandBar({
       )}
 
       <div className="mt-3 flex flex-wrap gap-2">
-        {EXAMPLES.map(
+        {examples.map(
           (example) => (
             <button
               key={example}
