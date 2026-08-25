@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -11,6 +10,17 @@ import {
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import {
+  formatKlyxProviderPlanningDuration,
+  getKlyxProviderPlanningIntlLocale,
+  translateKlyxProviderPlanning,
+  translateKlyxProviderPlanningStatus,
+  translateKlyxProviderPlanningWarning,
+  type KlyxProviderPlanningMessageKey,
+} from "@/lib/klyx-provider-planning-i18n";
 import { supabase } from "@/lib/supabase";
 
 type Warning = {
@@ -46,43 +56,20 @@ type PlanningResponse = {
     highWarningCount: number;
   };
   automaticChanges?: boolean;
-  error?: string;
 };
-
-const STATUS_LABELS: Record<string, string> = {
-  pending: "En attente",
-  accepted: "Confirmée",
-  completed: "Terminée",
-};
-
-function dateLabel(value: string): string {
-  return new Intl.DateTimeFormat("fr-BE", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  }).format(new Date(`${value}T12:00:00`));
-}
-
-function durationLabel(totalMinutes: number): string {
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-
-  if (hours === 0) return `${minutes} min`;
-  if (minutes === 0) return `${hours} h`;
-
-  return `${hours} h ${minutes} min`;
-}
 
 export default function ProviderPlanningPage() {
-  const [data, setData] =
-    useState<PlanningResponse | null>(null);
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxProviderPlanningMessageKey) =>
+    translateKlyxProviderPlanning(locale, key);
+
+  const [data, setData] = useState<PlanningResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [errorMessage, setErrorMessage] =
-    useState("");
+  const [hasError, setHasError] = useState(false);
 
   async function load() {
     setLoading(true);
-    setErrorMessage("");
+    setHasError(false);
 
     try {
       const {
@@ -90,7 +77,7 @@ export default function ProviderPlanningPage() {
       } = await supabase.auth.getSession();
 
       if (!session?.access_token) {
-        throw new Error("Session manquante.");
+        throw new Error("Provider planning unavailable");
       }
 
       const response = await fetch(
@@ -98,28 +85,20 @@ export default function ProviderPlanningPage() {
         {
           cache: "no-store",
           headers: {
-            Authorization:
-              `Bearer ${session.access_token}`,
+            Authorization: `Bearer ${session.access_token}`,
           },
         }
       );
 
-      const body =
-        (await response.json()) as PlanningResponse;
+      const body = (await response.json()) as PlanningResponse;
 
       if (!response.ok) {
-        throw new Error(
-          body.error || "Chargement impossible."
-        );
+        throw new Error("Provider planning unavailable");
       }
 
       setData(body);
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Impossible de charger le planning."
-      );
+    } catch {
+      setHasError(true);
     } finally {
       setLoading(false);
     }
@@ -135,17 +114,15 @@ export default function ProviderPlanningPage() {
         <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#111827,#193a52_52%,#0f172a)] p-7 text-white sm:p-10">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white/70">
             <CalendarClock size={15} />
-            Planning prestataire uniquement
+            {t("eyebrow")}
           </div>
 
           <h1 className="mt-5 text-3xl font-black sm:text-5xl">
-            Planning intelligent
+            {t("title")}
           </h1>
 
           <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">
-            KLYX analyse les trente prochains jours et signale
-            les créneaux risqués sans déplacer ni annuler aucune
-            mission.
+            {t("description")}
           </p>
 
           <button
@@ -155,7 +132,7 @@ export default function ProviderPlanningPage() {
             className="mt-7 inline-flex h-12 items-center gap-2 rounded-2xl bg-white px-5 text-sm font-black text-zinc-950 disabled:opacity-60"
           >
             <RefreshCw size={17} />
-            Actualiser l’analyse
+            {t("refresh")}
           </button>
         </section>
 
@@ -168,9 +145,9 @@ export default function ProviderPlanningPage() {
           </div>
         )}
 
-        {errorMessage && (
+        {hasError && (
           <div className="mt-6 rounded-2xl border border-rose-500/25 bg-rose-500/10 p-4 text-rose-700 dark:text-rose-300">
-            {errorMessage}
+            {t("genericError")}
           </div>
         )}
 
@@ -178,25 +155,24 @@ export default function ProviderPlanningPage() {
           <>
             <section className="mt-8 grid gap-4 md:grid-cols-3">
               <SummaryCard
-                label="Missions analysées"
+                label={t("missionsAnalyzed")}
                 value={data.summary.bookingCount}
                 icon={<CalendarClock size={21} />}
               />
               <SummaryCard
-                label="Points d’attention"
+                label={t("attentionPoints")}
                 value={data.summary.warningCount}
                 icon={<AlertTriangle size={21} />}
               />
               <SummaryCard
-                label="Conflits prioritaires"
+                label={t("priorityConflicts")}
                 value={data.summary.highWarningCount}
                 icon={<ShieldCheck size={21} />}
               />
             </section>
 
             <div className="mt-6 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-sm text-emerald-700 dark:text-emerald-300">
-              Aucune modification automatique : tu gardes le
-              contrôle de toutes les réservations.
+              {t("noAutomaticChanges")}
             </div>
 
             {(data.planning?.length ?? 0) === 0 ? (
@@ -206,10 +182,10 @@ export default function ProviderPlanningPage() {
                   size={42}
                 />
                 <h2 className="mt-4 text-xl font-black">
-                  Aucun rendez-vous prochain
+                  {t("noAppointments")}
                 </h2>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Les futures missions apparaîtront ici.
+                  {t("noAppointmentsDescription")}
                 </p>
               </section>
             ) : (
@@ -225,20 +201,35 @@ export default function ProviderPlanningPage() {
                           {day.date}
                         </p>
                         <h2 className="mt-2 text-2xl font-black capitalize">
-                          {dateLabel(day.date)}
+                          {new Intl.DateTimeFormat(
+                            getKlyxProviderPlanningIntlLocale(locale),
+                            {
+                              weekday: "long",
+                              day: "numeric",
+                              month: "long",
+                            }
+                          ).format(new Date(`${day.date}T12:00:00`))}
                         </h2>
                       </div>
 
                       <span className="inline-flex w-fit items-center gap-2 rounded-full bg-blue-500/10 px-3 py-2 text-xs font-black text-blue-700 dark:text-blue-300">
                         <Clock3 size={14} />
-                        {durationLabel(day.totalMinutes)}
+                        {formatKlyxProviderPlanningDuration(day.totalMinutes)}
                       </span>
                     </div>
 
                     {day.warnings.length > 0 && (
                       <div className="mt-5 grid gap-3">
-                        {day.warnings.map(
-                          (warning, index) => (
+                        {day.warnings.map((warning, index) => {
+                          const localizedWarning =
+                            translateKlyxProviderPlanningWarning(
+                              locale,
+                              warning,
+                              day.bookings,
+                              day.totalMinutes
+                            );
+
+                          return (
                             <div
                               key={`${warning.code}-${index}`}
                               className={`rounded-2xl border p-4 ${
@@ -256,16 +247,16 @@ export default function ProviderPlanningPage() {
                                 />
                                 <div>
                                   <p className="font-black">
-                                    {warning.title}
+                                    {localizedWarning.title}
                                   </p>
                                   <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                                    {warning.detail}
+                                    {localizedWarning.detail}
                                   </p>
                                 </div>
                               </div>
                             </div>
-                          )
-                        )}
+                          );
+                        })}
                       </div>
                     )}
 
@@ -288,8 +279,10 @@ export default function ProviderPlanningPage() {
                           </div>
 
                           <span className="w-fit rounded-full bg-muted px-3 py-1.5 text-xs font-black">
-                            {STATUS_LABELS[booking.status] ??
-                              booking.status}
+                            {translateKlyxProviderPlanningStatus(
+                              locale,
+                              booking.status
+                            )}
                           </span>
                         </Link>
                       ))}
@@ -312,7 +305,7 @@ function SummaryCard({
 }: {
   label: string;
   value: number;
-  icon: React.ReactNode;
+  icon: ReactNode;
 }) {
   return (
     <article className="klyx-card p-5">
