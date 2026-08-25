@@ -26,6 +26,16 @@ function qualificationRequiredResponse(message: string): Response {
   );
 }
 
+function serviceReadinessRequiredResponse(message: string): Response {
+  return NextResponse.json(
+    {
+      error: message,
+      code: "KLYX_QUOTE_SERVICE_NOT_READY",
+    },
+    { status: 409 }
+  );
+}
+
 export async function quoteTransactionQualificationPreflight(
   request: Request
 ): Promise<Response | null> {
@@ -78,7 +88,7 @@ export async function quoteTransactionQualificationPreflight(
   );
 }
 
-export async function quoteLifecycleQualificationPreflight(
+export async function quoteLifecycleReadinessPreflight(
   request: Request
 ): Promise<Response | null> {
   const body = (await request.json()) as {
@@ -96,8 +106,8 @@ export async function quoteLifecycleQualificationPreflight(
       ? body.action.trim()
       : "";
 
-  // Reject/cancel must remain available so an invalidated quote can always be
-  // closed. Invalid or incomplete payloads stay owned by the core route.
+  // Reject/cancel must remain available so a stale quote can always be closed.
+  // Invalid or incomplete payloads stay owned by the core route.
   if (!quoteId || (action !== "send" && action !== "accept")) return null;
 
   const { profile } = await getAuthenticatedProfile(request);
@@ -119,14 +129,14 @@ export async function quoteLifecycleQualificationPreflight(
     const providerPrice = Number(body.providerPrice);
 
     // Preserve the core route's role, ownership, state and price-validation
-    // responses. Revalidate qualification only immediately before a mutation
-    // would otherwise be allowed.
+    // responses. Revalidate readiness only immediately before a mutation would
+    // otherwise be allowed.
     if (
       profile.accountType !== "provider" ||
       lifecycleQuote.provider_profile_id !== profile.id ||
       lifecycleQuote.status !== "requested" ||
       !Number.isFinite(providerPrice) ||
-      providerPrice < 0 ||
+      providerPrice <= 0 ||
       providerPrice > 1000000
     ) {
       return null;
@@ -144,11 +154,81 @@ export async function quoteLifecycleQualificationPreflight(
   const userServiceId =
     lifecycleQuote.user_service_id?.trim() ?? "";
 
-  // A legacy/corrupt quote that cannot be tied to a current provider service
-  // must fail closed before send/accept rather than bypass qualification.
   if (!providerProfileId || !userServiceId) {
-    return qualificationRequiredResponse(
-      "Ce devis ne peut plus avancer car sa qualification métier actuelle ne peut pas être vérifiée."
+    return serviceReadinessRequiredResponse(
+      "Ce devis ne peut plus avancer car le service prestataire actuel ne peut pas être vérifié."
+    );
+  }
+
+  const [
+    providerProfileResult,
+    userServiceResult,
+    activeZoneResult,
+    serviceProfileResult,
+  ] = await Promise.all([
+    supabaseAdmin
+      .from("provider_profiles")
+      .select("profile_id")
+      .eq("profile_id", providerProfileId)
+      .eq("is_published", true)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("user_services")
+      .select("id")
+      .eq("id", userServiceId)
+      .eq("user_id", providerProfileId)
+      .eq("active", true)
+      .eq("provider_enabled", true)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("provider_service_zones")
+      .select("id")
+      .eq("profile_id", providerProfileId)
+      .eq("user_service_id", userServiceId)
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("service_profiles")
+      .select("available, price")
+      .eq("user_service_id", userServiceId)
+      .eq("available", true)
+      .maybeSingle(),
+  ]);
+
+  const readinessError = [
+    providerProfileResult.error,
+    userServiceResult.error,
+    activeZoneResult.error,
+    serviceProfileResult.error,
+  ].find(Boolean);
+
+  if (readinessError) throw new Error(readinessError.message);
+
+  if (!providerProfileResult.data) {
+    return serviceReadinessRequiredResponse(
+      "La fiche prestataire n’est plus publiée. Ce devis ne peut pas avancer."
+    );
+  }
+
+  if (!userServiceResult.data) {
+    return serviceReadinessRequiredResponse(
+      "Ce métier n’est plus actif chez ce prestataire. Ce devis ne peut pas avancer."
+    );
+  }
+
+  if (!activeZoneResult.data) {
+    return serviceReadinessRequiredResponse(
+      "Ce métier n’a plus de zone d’intervention active. Ce devis ne peut pas avancer."
+    );
+  }
+
+  if (
+    !serviceProfileResult.data ||
+    serviceProfileResult.data.price == null
+  ) {
+    return serviceReadinessRequiredResponse(
+      "Cette offre n’est plus disponible avec un tarif publié. Ce devis ne peut pas avancer."
     );
   }
 
