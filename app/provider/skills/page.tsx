@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  ChangeEvent,
+  type ChangeEvent,
   useEffect,
   useState,
 } from "react";
@@ -20,10 +20,19 @@ import {
   ShieldCheck,
   Upload,
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
-import { getActiveClientProfile } from "@/lib/account-switcher";
+
 import KlyxSelect from "@/app/components/KlyxSelect";
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import SkillRequirementsPanel from "@/app/provider/skills/SkillRequirementsPanel";
+import { getActiveClientProfile } from "@/lib/account-switcher";
+import {
+  translateKlyxProviderSkillDocumentStatus,
+  translateKlyxProviderSkillProofType,
+  translateKlyxProviderSkills,
+  translateKlyxProviderSkillStatus,
+  type KlyxProviderSkillsMessageKey,
+} from "@/lib/klyx-provider-skills-i18n";
+import { supabase } from "@/lib/supabase";
 
 type ProofType =
   | "diploma"
@@ -62,80 +71,47 @@ type Skill = {
   } | null;
 };
 
-const PROOFS: Array<{
-  value: ProofType;
-  label: string;
-}> = [
-  { value: "diploma", label: "Diplôme" },
-  {
-    value: "training_certificate",
-    label: "Certificat de formation",
-  },
-  {
-    value: "professional_license",
-    label: "Licence ou autorisation professionnelle",
-  },
-  {
-    value: "insurance",
-    label: "Assurance professionnelle",
-  },
-  {
-    value: "experience_reference",
-    label: "Référence d’expérience",
-  },
-  {
-    value: "portfolio",
-    label: "Portfolio / preuve de réalisations",
-  },
-  {
-    value: "other",
-    label: "Autre justificatif",
-  },
+const PROOF_TYPES: ProofType[] = [
+  "diploma",
+  "training_certificate",
+  "professional_license",
+  "insurance",
+  "experience_reference",
+  "portfolio",
+  "other",
 ];
-
-const STATUS: Record<string, string> = {
-  not_started: "À compléter",
-  submitted: "Envoyée",
-  under_review: "En vérification",
-  approved: "Compétence vérifiée",
-  changes_required: "Corrections demandées",
-  rejected: "Refusée",
-};
 
 function safeFileName(name: string) {
   const extension = name.includes(".")
     ? name.split(".").pop()?.toLowerCase() ?? "file"
     : "file";
 
-  return `${crypto.randomUUID()}.${extension.replace(
-    /[^a-z0-9]/g,
-    ""
-  )}`;
+  return `${crypto.randomUUID()}.${extension.replace(/[^a-z0-9]/g, "")}`;
 }
 
 export default function ProviderSkillsPage() {
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxProviderSkillsMessageKey) =>
+    translateKlyxProviderSkills(locale, key);
+
+  const proofOptions = PROOF_TYPES.map((proofType) => ({
+    value: proofType,
+    label: translateKlyxProviderSkillProofType(locale, proofType),
+  }));
+
   const [profileId, setProfileId] = useState("");
   const [skills, setSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
-  const [proofTypes, setProofTypes] = useState<
-    Record<string, ProofType>
-  >({});
-  const [statements, setStatements] = useState<
-    Record<string, string>
-  >({});
-  const [years, setYears] = useState<
-    Record<string, number>
-  >({});
+  const [proofTypes, setProofTypes] = useState<Record<string, ProofType>>({});
+  const [statements, setStatements] = useState<Record<string, string>>({});
+  const [years, setYears] = useState<Record<string, number>>({});
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [requirementsReady, setRequirementsReady] =
     useState<Record<string, boolean>>({});
 
-  function handleRequirementReady(
-    userServiceId: string,
-    ready: boolean
-  ) {
+  function handleRequirementReady(userServiceId: string, ready: boolean) {
     setRequirementsReady((current) => {
       if (current[userServiceId] === ready) {
         return current;
@@ -154,7 +130,7 @@ export default function ProviderSkillsPage() {
     } = await supabase.auth.getSession();
 
     if (!session?.access_token) {
-      throw new Error("Session manquante.");
+      throw new Error("KLYX_PROVIDER_SKILLS_SESSION_MISSING");
     }
 
     return session.access_token;
@@ -165,31 +141,23 @@ export default function ProviderSkillsPage() {
     setError("");
 
     try {
-      const profile =
-        await getActiveClientProfile();
+      const profile = await getActiveClientProfile();
       setProfileId(profile.id);
 
       const accessToken = await token();
-
-      const response = await fetch(
-        "/api/provider/skills-verification",
-        {
-          cache: "no-store",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
+      const response = await fetch("/api/provider/skills-verification", {
+        cache: "no-store",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
 
       const body = (await response.json()) as {
         skills?: Skill[];
-        error?: string;
       };
 
       if (!response.ok) {
-        throw new Error(
-          body.error || "Chargement impossible."
-        );
+        throw new Error("KLYX_PROVIDER_SKILLS_LOAD_FAILED");
       }
 
       const nextSkills = body.skills ?? [];
@@ -199,8 +167,7 @@ export default function ProviderSkillsPage() {
         Object.fromEntries(
           nextSkills.map((skill) => [
             skill.userServiceId,
-            skill.verification
-              ?.provider_statement ?? "",
+            skill.verification?.provider_statement ?? "",
           ])
         )
       );
@@ -209,10 +176,7 @@ export default function ProviderSkillsPage() {
         Object.fromEntries(
           nextSkills.map((skill) => [
             skill.userServiceId,
-            Number(
-              skill.verification
-                ?.years_experience ?? 0
-            ),
+            Number(skill.verification?.years_experience ?? 0),
           ])
         )
       );
@@ -221,17 +185,12 @@ export default function ProviderSkillsPage() {
         ...Object.fromEntries(
           nextSkills.map((skill) => [
             skill.userServiceId,
-            current[skill.userServiceId] ??
-              "training_certificate",
+            current[skill.userServiceId] ?? "training_certificate",
           ])
         ),
       }));
-    } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : "Chargement impossible."
-      );
+    } catch {
+      setError(t("loadError"));
     } finally {
       setLoading(false);
     }
@@ -239,6 +198,8 @@ export default function ProviderSkillsPage() {
 
   useEffect(() => {
     void load();
+    // Locale changes presentation only and must not repeat provider reads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function upload(
@@ -256,9 +217,7 @@ export default function ProviderSkillsPage() {
 
     try {
       if (file.size > 10 * 1024 * 1024) {
-        throw new Error(
-          "Le fichier dépasse 10 Mo."
-        );
+        throw new Error("KLYX_PROVIDER_SKILL_FILE_TOO_LARGE");
       }
 
       if (
@@ -269,140 +228,98 @@ export default function ProviderSkillsPage() {
           "application/pdf",
         ].includes(file.type)
       ) {
-        throw new Error(
-          "Utilise un PDF, JPG, PNG ou WEBP."
-        );
+        throw new Error("KLYX_PROVIDER_SKILL_INVALID_FILE_TYPE");
       }
 
-      const path =
-        `${profileId}/skills/${skill.userServiceId}/${safeFileName(file.name)}`;
+      const path = `${profileId}/skills/${skill.userServiceId}/${safeFileName(
+        file.name
+      )}`;
 
-      const { error: uploadError } =
-        await supabase.storage
-          .from("provider-verification")
-          .upload(path, file, {
-            cacheControl: "3600",
-            upsert: false,
-            contentType: file.type,
-          });
+      const { error: uploadError } = await supabase.storage
+        .from("provider-verification")
+        .upload(path, file, {
+          cacheControl: "3600",
+          upsert: false,
+          contentType: file.type,
+        });
 
       if (uploadError) {
-        throw new Error(uploadError.message);
+        throw new Error("KLYX_PROVIDER_SKILL_STORAGE_UPLOAD_FAILED");
       }
 
       const accessToken = await token();
-
-      const response = await fetch(
-        "/api/provider/skills-verification",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({
-            userServiceId:
-              skill.userServiceId,
-            proofType:
-              proofTypes[
-                skill.userServiceId
-              ] ?? "training_certificate",
-            storagePath: path,
-            originalName: file.name,
-            mimeType: file.type,
-            sizeBytes: file.size,
-          }),
-        }
-      );
-
-      const body = (await response.json()) as {
-        message?: string;
-        error?: string;
-      };
+      const response = await fetch("/api/provider/skills-verification", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          userServiceId: skill.userServiceId,
+          proofType:
+            proofTypes[skill.userServiceId] ?? "training_certificate",
+          storagePath: path,
+          originalName: file.name,
+          mimeType: file.type,
+          sizeBytes: file.size,
+        }),
+      });
 
       if (!response.ok) {
-        await supabase.storage
-          .from("provider-verification")
-          .remove([path]);
-
-        throw new Error(
-          body.error ||
-            "Enregistrement impossible."
-        );
+        await supabase.storage.from("provider-verification").remove([path]);
+        throw new Error("KLYX_PROVIDER_SKILL_DOCUMENT_REGISTER_FAILED");
       }
 
-      setMessage(
-        body.message || "Preuve ajoutée."
-      );
-
+      setMessage(t("proofAdded"));
       await load();
-    } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : "Envoi impossible."
-      );
+    } catch (uploadFailure) {
+      if (
+        uploadFailure instanceof Error &&
+        uploadFailure.message === "KLYX_PROVIDER_SKILL_FILE_TOO_LARGE"
+      ) {
+        setError(t("fileTooLarge"));
+      } else if (
+        uploadFailure instanceof Error &&
+        uploadFailure.message === "KLYX_PROVIDER_SKILL_INVALID_FILE_TYPE"
+      ) {
+        setError(t("invalidFileType"));
+      } else {
+        setError(t("uploadError"));
+      }
     } finally {
       setBusy(null);
     }
   }
 
-  async function save(
-    skill: Skill,
-    submit: boolean
-  ) {
+  async function save(skill: Skill, submit: boolean) {
     setBusy(skill.userServiceId);
     setError("");
     setMessage("");
 
     try {
       const accessToken = await token();
-
-      const response = await fetch(
-        "/api/provider/skills-verification",
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({
-            userServiceId:
-              skill.userServiceId,
-            providerStatement:
-              statements[
-                skill.userServiceId
-              ] ?? "",
-            yearsExperience:
-              years[skill.userServiceId] ?? 0,
-            submit,
-          }),
-        }
-      );
-
-      const body = (await response.json()) as {
-        message?: string;
-        error?: string;
-      };
+      const response = await fetch("/api/provider/skills-verification", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          userServiceId: skill.userServiceId,
+          providerStatement: statements[skill.userServiceId] ?? "",
+          yearsExperience: years[skill.userServiceId] ?? 0,
+          submit,
+        }),
+      });
 
       if (!response.ok) {
-        throw new Error(
-          body.error || "Action impossible."
-        );
+        throw new Error("KLYX_PROVIDER_SKILL_SAVE_FAILED");
       }
 
-      setMessage(
-        body.message ||
-          "Informations enregistrées."
-      );
-
+      setMessage(submit ? t("submitted") : t("saved"));
       await load();
-    } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : "Action impossible."
-      );
+    } catch {
+      setError(t("saveError"));
     } finally {
       setBusy(null);
     }
@@ -416,44 +333,31 @@ export default function ProviderSkillsPage() {
           className="inline-flex items-center gap-2 text-sm font-bold text-muted-foreground"
         >
           <ArrowLeft size={17} />
-          Mon activité
+          {t("backProvider")}
         </Link>
 
         <section className="mt-6 rounded-[2rem] bg-[linear-gradient(135deg,#17131f,#2b1452_52%,#111827)] p-8 text-white">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em]">
             <GraduationCap size={15} />
-            Confiance KLYX
+            {t("eyebrow")}
           </div>
 
           <h1 className="mt-5 text-3xl font-black sm:text-5xl">
-            Mes compétences
+            {t("title")}
           </h1>
 
           <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">
-            Tu peux proposer autant de métiers que tu
-            maîtrises. Chaque métier possède son propre
-            dossier de preuves et sa propre validation KLYX.
+            {t("description")}
           </p>
         </section>
 
         <section className="mt-6 rounded-2xl border border-blue-500/20 bg-blue-500/10 p-5">
           <div className="flex gap-3">
-            <ShieldCheck
-              size={21}
-              className="shrink-0 text-blue-600"
-            />
+            <ShieldCheck size={21} className="shrink-0 text-blue-600" />
             <div>
-              <p className="font-black">
-                Une compétence est vérifiée séparément
-              </p>
+              <p className="font-black">{t("trustTitle")}</p>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Selon le métier, une preuve peut être un
-                diplôme, une formation, une licence,
-                une assurance, une référence
-                professionnelle ou un portfolio. KLYX
-                demandera ensuite les justificatifs
-                obligatoires adaptés aux activités
-                réglementées.
+                {t("trustDescription")}
               </p>
             </div>
           </div>
@@ -478,16 +382,13 @@ export default function ProviderSkillsPage() {
             className="inline-flex h-11 items-center gap-2 rounded-xl border border-border px-4 text-sm font-black"
           >
             <RefreshCw size={17} />
-            Actualiser
+            {t("refresh")}
           </button>
         </div>
 
         {loading ? (
           <div className="klyx-card mt-6 grid min-h-56 place-items-center">
-            <LoaderCircle
-              size={38}
-              className="animate-spin"
-            />
+            <LoaderCircle size={38} className="animate-spin" />
           </div>
         ) : skills.length === 0 ? (
           <section className="klyx-card mt-6 p-8 text-center">
@@ -495,57 +396,42 @@ export default function ProviderSkillsPage() {
               size={34}
               className="mx-auto text-muted-foreground"
             />
-            <h2 className="mt-4 text-xl font-black">
-              Aucun métier ajouté
-            </h2>
+            <h2 className="mt-4 text-xl font-black">{t("emptyTitle")}</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Ajoute d'abord un métier dans ton activité.
+              {t("emptyDescription")}
             </p>
             <Link
               href="/provider/services/new"
               className="mt-5 inline-flex h-11 items-center rounded-xl bg-violet-600 px-4 text-sm font-black text-white"
             >
-              Ajouter un métier
+              {t("addSkill")}
             </Link>
           </section>
         ) : (
           <section className="mt-6 grid gap-5">
             {skills.map((skill) => {
-              const verification =
-                skill.verification;
-              const status =
-                verification?.status ??
-                "not_started";
-              const locked = [
-                "submitted",
-                "under_review",
-                "approved",
-              ].includes(status);
+              const verification = skill.verification;
+              const status = verification?.status ?? "not_started";
+              const locked = ["submitted", "under_review", "approved"].includes(
+                status
+              );
 
               return (
-                <article
-                  key={skill.userServiceId}
-                  className="klyx-card p-6"
-                >
+                <article key={skill.userServiceId} className="klyx-card p-6">
                   <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                     <div className="flex gap-4">
                       <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-violet-500/10 text-violet-600">
                         {status === "approved" ? (
                           <BadgeCheck size={23} />
                         ) : (
-                          <BriefcaseBusiness
-                            size={22}
-                          />
+                          <BriefcaseBusiness size={22} />
                         )}
                       </span>
 
                       <div>
-                        <h2 className="text-xl font-black">
-                          {skill.serviceName}
-                        </h2>
+                        <h2 className="text-xl font-black">{skill.serviceName}</h2>
                         <p className="mt-1 text-sm font-bold text-muted-foreground">
-                          {STATUS[status] ??
-                            status}
+                          {translateKlyxProviderSkillStatus(locale, status)}
                         </p>
 
                         {verification?.review_note && (
@@ -558,10 +444,8 @@ export default function ProviderSkillsPage() {
 
                     {status === "approved" && (
                       <span className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-2 text-sm font-black text-emerald-600">
-                        <CheckCircle2
-                          size={17}
-                        />
-                        Compétence vérifiée
+                        <CheckCircle2 size={17} />
+                        {t("verified")}
                       </span>
                     )}
                   </div>
@@ -569,25 +453,18 @@ export default function ProviderSkillsPage() {
                   <div className="mt-6 grid gap-5 lg:grid-cols-2">
                     <label className="block">
                       <span className="text-sm font-black">
-                        Années d'expérience
+                        {t("yearsExperience")}
                       </span>
                       <input
                         type="number"
                         min={0}
                         max={80}
                         disabled={locked}
-                        value={
-                          years[
-                            skill.userServiceId
-                          ] ?? 0
-                        }
+                        value={years[skill.userServiceId] ?? 0}
                         onChange={(event) =>
                           setYears((current) => ({
                             ...current,
-                            [skill.userServiceId]:
-                              Number(
-                                event.target.value
-                              ),
+                            [skill.userServiceId]: Number(event.target.value),
                           }))
                         }
                         className="klyx-input mt-2"
@@ -595,56 +472,43 @@ export default function ProviderSkillsPage() {
                     </label>
 
                     <label className="block">
-                      <span className="text-sm font-black">
-                        Type de preuve
-                      </span>
+                      <span className="text-sm font-black">{t("proofType")}</span>
                       <KlyxSelect
-  disabled={locked}
-  value={
-    proofTypes[
-      skill.userServiceId
-    ] ?? "training_certificate"
-  }
-  onChange={(value) =>
-    setProofTypes(
-      (current) => ({
-        ...current,
-        [skill.userServiceId]:
-          value as ProofType,
-      })
-    )
-  }
-  options={PROOFS}
-  placeholder="Choisir un type de preuve"
-  ariaLabel={`Type de preuve pour ${skill.serviceName}`}
-  className="mt-2"
-/>
+                        disabled={locked}
+                        value={
+                          proofTypes[skill.userServiceId] ??
+                          "training_certificate"
+                        }
+                        onChange={(value) =>
+                          setProofTypes((current) => ({
+                            ...current,
+                            [skill.userServiceId]: value as ProofType,
+                          }))
+                        }
+                        options={proofOptions}
+                        placeholder={t("proofPlaceholder")}
+                        ariaLabel={`${t("proofType")} — ${skill.serviceName}`}
+                        className="mt-2"
+                      />
                     </label>
                   </div>
 
                   <label className="mt-5 block">
                     <span className="text-sm font-black">
-                      Explique ton expérience pour ce métier
+                      {t("statementLabel")}
                     </span>
                     <textarea
                       rows={4}
                       disabled={locked}
-                      value={
-                        statements[
-                          skill.userServiceId
-                        ] ?? ""
-                      }
+                      value={statements[skill.userServiceId] ?? ""}
                       onChange={(event) =>
-                        setStatements(
-                          (current) => ({
-                            ...current,
-                            [skill.userServiceId]:
-                              event.target.value,
-                          })
-                        )
+                        setStatements((current) => ({
+                          ...current,
+                          [skill.userServiceId]: event.target.value,
+                        }))
                       }
                       className="klyx-input mt-2 resize-y"
-                      placeholder="Formation, années d'expérience, types de missions réalisées..."
+                      placeholder={t("statementPlaceholder")}
                     />
                   </label>
 
@@ -659,52 +523,42 @@ export default function ProviderSkillsPage() {
                   />
 
                   <div className="mt-5">
-                    <p className="text-sm font-black">
-                      Preuves ajoutées
-                    </p>
+                    <p className="text-sm font-black">{t("proofsAdded")}</p>
 
-                    {!verification ||
-                    verification.documents.length ===
-                      0 ? (
+                    {!verification || verification.documents.length === 0 ? (
                       <p className="mt-2 text-sm text-muted-foreground">
-                        Aucune preuve pour ce métier.
+                        {t("noProofs")}
                       </p>
                     ) : (
                       <div className="mt-3 grid gap-2">
-                        {verification.documents.map(
-                          (document) => (
-                            <div
-                              key={document.id}
-                              className="flex items-center gap-3 rounded-xl border border-border p-3"
-                            >
-                              <FileText
-                                size={17}
-                                className="text-violet-600"
-                              />
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-black">
-                                  {
-                                    document.original_name
-                                  }
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {PROOFS.find(
-                                    (proof) =>
-                                      proof.value ===
-                                      document.proof_type
-                                  )?.label ??
-                                    document.proof_type}
-                                  {" · "}
-                                  {document.status}
-                                </p>
-                              </div>
-                              <FileCheck2
-                                size={18}
-                                className="text-muted-foreground"
-                              />
+                        {verification.documents.map((document) => (
+                          <div
+                            key={document.id}
+                            className="flex items-center gap-3 rounded-xl border border-border p-3"
+                          >
+                            <FileText size={17} className="text-violet-600" />
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-black">
+                                {document.original_name}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {translateKlyxProviderSkillProofType(
+                                  locale,
+                                  document.proof_type
+                                )}
+                                {" · "}
+                                {translateKlyxProviderSkillDocumentStatus(
+                                  locale,
+                                  document.status
+                                )}
+                              </p>
                             </div>
-                          )
-                        )}
+                            <FileCheck2
+                              size={18}
+                              className="text-muted-foreground"
+                            />
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -712,72 +566,46 @@ export default function ProviderSkillsPage() {
                   {!locked && (
                     <div className="mt-6 flex flex-wrap gap-3">
                       <label className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-xl border border-border px-4 text-sm font-black">
-                        {busy ===
-                        skill.userServiceId ? (
-                          <LoaderCircle
-                            size={17}
-                            className="animate-spin"
-                          />
+                        {busy === skill.userServiceId ? (
+                          <LoaderCircle size={17} className="animate-spin" />
                         ) : (
                           <Upload size={17} />
                         )}
-                        Ajouter une preuve
+                        {t("addProof")}
                         <input
                           type="file"
                           hidden
                           accept=".pdf,.jpg,.jpeg,.png,.webp"
-                          disabled={
-                            busy ===
-                            skill.userServiceId
-                          }
-                          onChange={(event) =>
-                            void upload(
-                              skill,
-                              event
-                            )
-                          }
+                          disabled={busy === skill.userServiceId}
+                          onChange={(event) => void upload(skill, event)}
                         />
                       </label>
 
                       <button
                         type="button"
-                        disabled={
-                          busy ===
-                          skill.userServiceId
-                        }
-                        onClick={() =>
-                          void save(
-                            skill,
-                            false
-                          )
-                        }
+                        disabled={busy === skill.userServiceId}
+                        onClick={() => void save(skill, false)}
                         className="inline-flex h-11 items-center rounded-xl border border-border px-4 text-sm font-black"
                       >
-                        Enregistrer
+                        {t("save")}
                       </button>
 
                       <button
-  type="button"
-  disabled={
-    busy === skill.userServiceId ||
-    requirementsReady[
-      skill.userServiceId
-    ] !== true
-  }
-  title={
-    requirementsReady[
-      skill.userServiceId
-    ] === true
-      ? "Envoyer cette compétence à KLYX"
-      : "Complète d'abord toutes les exigences obligatoires."
-  }
-  onClick={() =>
-    void save(skill, true)
-  }
-  className="inline-flex h-11 items-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45"
->
+                        type="button"
+                        disabled={
+                          busy === skill.userServiceId ||
+                          requirementsReady[skill.userServiceId] !== true
+                        }
+                        title={
+                          requirementsReady[skill.userServiceId] === true
+                            ? t("submitReadyTitle")
+                            : t("submitBlockedTitle")
+                        }
+                        onClick={() => void save(skill, true)}
+                        className="inline-flex h-11 items-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45"
+                      >
                         <Send size={17} />
-                        Envoyer à KLYX
+                        {t("submit")}
                       </button>
                     </div>
                   )}
@@ -790,5 +618,3 @@ export default function ProviderSkillsPage() {
     </main>
   );
 }
-
-
