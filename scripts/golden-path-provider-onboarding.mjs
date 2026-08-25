@@ -261,7 +261,32 @@ async function main() {
     provider.id
   )}`;
 
-  const studioResponse = await fetch(`${appOrigin}/api/provider/studio`, {
+  const studioBaseBody = {
+    businessName: "KLYX Golden Cleaning",
+    headline: "Ménage fiable pour le golden path KLYX",
+    bio:
+      "Prestataire éphémère configuré par la vraie API studio afin de valider le parcours prestataire KLYX de bout en bout.",
+    yearsExperience: 5,
+    services: [
+      {
+        serviceId: service.id,
+        enabled: true,
+        title: "Ménage Golden Path KLYX",
+        description:
+          "Service de ménage éphémère configuré par l’API prestataire pour la recherche, le devis, la réservation et la finance KLYX.",
+        pricingType: "hourly",
+        price: 35,
+        hourlyPrice: 35,
+        fixedPrice: null,
+        city: "Bruxelles",
+        serviceArea: ["Bruxelles"],
+        travelRadiusKm: 30,
+        availability: availabilityPayload(),
+      },
+    ],
+  };
+
+  const draftResponse = await fetch(`${appOrigin}/api/provider/studio`, {
     method: "PUT",
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -269,64 +294,18 @@ async function main() {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      businessName: "KLYX Golden Cleaning",
-      headline: "Ménage fiable pour le golden path KLYX",
-      bio:
-        "Prestataire éphémère configuré par la vraie API studio afin de valider le parcours prestataire KLYX de bout en bout.",
-      yearsExperience: 5,
-      publish: true,
-      services: [
-        {
-          serviceId: service.id,
-          enabled: true,
-          title: "Ménage Golden Path KLYX",
-          description:
-            "Service de ménage éphémère configuré par l’API prestataire pour la recherche, le devis, la réservation et la finance KLYX.",
-          pricingType: "hourly",
-          price: 35,
-          hourlyPrice: 35,
-          fixedPrice: null,
-          city: "Bruxelles",
-          serviceArea: ["Bruxelles"],
-          travelRadiusKm: 30,
-          availability: availabilityPayload(),
-        },
-      ],
+      ...studioBaseBody,
+      publish: false,
     }),
   });
 
-  const studio = await parseJsonResponse(
-    studioResponse,
-    "PUT /api/provider/studio"
+  const draft = await parseJsonResponse(
+    draftResponse,
+    "PUT /api/provider/studio draft"
   );
 
-  expect(studio?.success === true, "Provider studio did not report success.");
-  expect(studio?.published === true, "Provider studio did not publish provider.");
-  expect(
-    studio?.data?.providerProfile?.isPublished === true,
-    "Provider studio response does not expose published provider state."
-  );
-
-  const studioService = Array.isArray(studio?.data?.services)
-    ? studio.data.services.find((item) => item.serviceId === service.id)
-    : null;
-
-  expect(Boolean(studioService), "Provider studio response is missing cleaning service.");
-  expect(
-    studioService.enabled === true &&
-      studioService.pricingType === "hourly" &&
-      Number(studioService.hourlyPrice) === 35 &&
-      studioService.city === "Bruxelles" &&
-      Array.isArray(studioService.serviceArea) &&
-      studioService.serviceArea.includes("Bruxelles") &&
-      Number(studioService.travelRadiusKm) === 30,
-    "Provider studio persisted an unexpected service/tariff/area state."
-  );
-  expect(
-    Array.isArray(studioService.availability) &&
-      studioService.availability.filter((day) => day.enabled).length === 7,
-    "Provider studio must persist seven active golden availability days."
-  );
+  expect(draft?.success === true, "Provider studio draft did not report success.");
+  expect(draft?.published === false, "Provider studio draft must stay unpublished.");
 
   const zoneResponse = await fetch(`${appOrigin}/api/provider/zones`, {
     method: "POST",
@@ -360,6 +339,52 @@ async function main() {
       zone.is_primary === true &&
       zone.is_active === true,
     "Provider zones API persisted an unexpected Brussels service zone."
+  );
+
+  const studioResponse = await fetch(`${appOrigin}/api/provider/studio`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Cookie: cookieHeader,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      ...studioBaseBody,
+      publish: true,
+    }),
+  });
+
+  const studio = await parseJsonResponse(
+    studioResponse,
+    "PUT /api/provider/studio publish"
+  );
+
+  expect(studio?.success === true, "Provider studio did not report success.");
+  expect(studio?.published === true, "Provider studio did not publish provider.");
+  expect(
+    studio?.data?.providerProfile?.isPublished === true,
+    "Provider studio response does not expose published provider state."
+  );
+
+  const studioService = Array.isArray(studio?.data?.services)
+    ? studio.data.services.find((item) => item.serviceId === service.id)
+    : null;
+
+  expect(Boolean(studioService), "Provider studio response is missing cleaning service.");
+  expect(
+    studioService.enabled === true &&
+      studioService.pricingType === "hourly" &&
+      Number(studioService.hourlyPrice) === 35 &&
+      studioService.city === "Bruxelles" &&
+      Array.isArray(studioService.serviceArea) &&
+      studioService.serviceArea.includes("Bruxelles") &&
+      Number(studioService.travelRadiusKm) === 30,
+    "Provider studio persisted an unexpected service/tariff/area state."
+  );
+  expect(
+    Array.isArray(studioService.availability) &&
+      studioService.availability.filter((day) => day.enabled).length === 7,
+    "Provider studio must persist seven active golden availability days."
   );
 
   const { data: persistedUserService, error: persistedUserServiceError } =
