@@ -6,7 +6,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type FounderModeSwitcherProps = {
   currentProfileId: string | null;
@@ -22,7 +22,13 @@ export default function FounderModeSwitcher({
   const router = useRouter();
   const [switching, setSwitching] =
     useState<"client" | "provider" | null>(null);
+  const [activeProfileId, setActiveProfileId] =
+    useState<string | null>(currentProfileId);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    setActiveProfileId(currentProfileId);
+  }, [currentProfileId]);
 
   async function switchTo(
     mode: "client" | "provider",
@@ -32,7 +38,7 @@ export default function FounderModeSwitcher({
       return;
     }
 
-    if (profileId === currentProfileId) {
+    if (profileId === activeProfileId) {
       router.push(
         mode === "provider"
           ? "/provider"
@@ -71,6 +77,8 @@ export default function FounderModeSwitcher({
         );
       }
 
+      setActiveProfileId(profileId);
+
       router.replace(
         mode === "provider"
           ? "/provider"
@@ -84,17 +92,18 @@ export default function FounderModeSwitcher({
           ? switchError.message
           : "Impossible de changer de mode."
       );
+    } finally {
       setSwitching(null);
     }
   }
 
   const clientActive =
     Boolean(clientProfileId) &&
-    clientProfileId === currentProfileId;
+    clientProfileId === activeProfileId;
 
   const providerActive =
     Boolean(providerProfileId) &&
-    providerProfileId === currentProfileId;
+    providerProfileId === activeProfileId;
 
   return (
     <div className="flex flex-col gap-1">

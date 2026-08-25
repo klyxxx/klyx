@@ -74,6 +74,14 @@ export default function AccountSwitcher({
     );
 
   const [
+    activeProfileId,
+    setActiveProfileId,
+  ] =
+    useState(
+      currentProfileId
+    );
+
+  const [
     error,
     setError,
   ] =
@@ -89,6 +97,14 @@ export default function AccountSwitcher({
     );
   }, [
     router,
+  ]);
+
+  useEffect(() => {
+    setActiveProfileId(
+      currentProfileId
+    );
+  }, [
+    currentProfileId,
   ]);
 
   useEffect(() => {
@@ -201,7 +217,7 @@ export default function AccountSwitcher({
   ) {
     if (
       profileId ===
-        currentProfileId ||
+        activeProfileId ||
       switchingId
     ) {
       setOpen(
@@ -219,6 +235,10 @@ export default function AccountSwitcher({
       );
 
       await switchAccount(
+        profileId
+      );
+
+      setActiveProfileId(
         profileId
       );
 
@@ -241,7 +261,7 @@ export default function AccountSwitcher({
           ? switchError.message
           : "Impossible de changer de profil."
       );
-
+    } finally {
       setSwitchingId(
         null
       );
@@ -254,7 +274,7 @@ export default function AccountSwitcher({
         profile
       ) =>
         profile.id ===
-        currentProfileId
+        activeProfileId
     );
 
   const currentName =
@@ -425,7 +445,7 @@ export default function AccountSwitcher({
                 ) => {
                   const isCurrent =
                     profile.id ===
-                    currentProfileId;
+                    activeProfileId;
 
                   const isSwitching =
                     switchingId ===
