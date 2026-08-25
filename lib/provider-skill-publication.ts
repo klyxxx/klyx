@@ -269,6 +269,23 @@ export async function getPublicUserServiceQualificationIds(params: {
   });
 }
 
+export async function isUserServiceTransactionEligible(params: {
+  profileId: string;
+  userServiceId: string;
+}): Promise<boolean> {
+  const profileId = params.profileId.trim();
+  const userServiceId = params.userServiceId.trim();
+
+  if (!profileId || !userServiceId) return false;
+
+  const qualification = await getPublicUserServiceQualificationIds({
+    profileId,
+    userServiceIds: [userServiceId],
+  });
+
+  return qualification.eligibleUserServiceIds.has(userServiceId);
+}
+
 export async function getApprovedUserServiceIds(
   userServiceIds: string[]
 ): Promise<Set<string>> {
@@ -291,7 +308,7 @@ export async function getApprovedUserServiceIds(
   );
 }
 
-export async function isUserServiceApproved(params: {
+export async function isUserServiceKlyxApproved(params: {
   profileId: string;
   userServiceId: string;
 }): Promise<boolean> {
@@ -306,4 +323,16 @@ export async function isUserServiceApproved(params: {
   if (error) throw new Error(error.message);
 
   return Boolean(data);
+}
+
+/**
+ * @deprecated Historical booking compatibility alias. Transaction eligibility
+ * is intentionally broader than literal KLYX approval for free self-declared
+ * skills, while still failing closed for current regulated requirements.
+ */
+export async function isUserServiceApproved(params: {
+  profileId: string;
+  userServiceId: string;
+}): Promise<boolean> {
+  return isUserServiceTransactionEligible(params);
 }

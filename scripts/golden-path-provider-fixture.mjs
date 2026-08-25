@@ -281,26 +281,18 @@ async function main() {
     }
   }
 
-  const { error: skillError } = await admin
+  // The canonical cleaning fixture is intentionally self-declared. Keeping no
+  // approval row here proves the real public flow works without fake KLYX review.
+  const { error: skillCleanupError } = await admin
     .from("provider_skill_verifications")
-    .upsert(
-      {
-        profile_id: provider.id,
-        user_service_id: userService.id,
-        status: "approved",
-        provider_statement:
-          "Golden-path fixture approved only inside the ephemeral local Supabase runner.",
-        years_experience: 5,
-        submitted_at: now,
-        reviewed_at: now,
-        review_note: "Ephemeral E2E fixture",
-        updated_at: now,
-      },
-      { onConflict: "profile_id,user_service_id" }
-    );
+    .delete()
+    .eq("profile_id", provider.id)
+    .eq("user_service_id", userService.id);
 
-  if (skillError) {
-    throw new Error(`Unable to approve provider fixture skill: ${skillError.message}`);
+  if (skillCleanupError) {
+    throw new Error(
+      `Unable to clear artificial provider skill approval: ${skillCleanupError.message}`
+    );
   }
 
   process.stdout.write(
