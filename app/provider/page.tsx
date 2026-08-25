@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import ProviderCapabilitiesEntry from "@/app/components/ProviderCapabilitiesEntry";
 import ProviderStudio from "@/app/components/ProviderStudio";
 import ProviderReadinessStatus from "@/app/components/ProviderReadinessStatus";
 import { getActiveProfile } from "@/lib/active-profile";
@@ -27,9 +28,8 @@ export default async function ProviderPage() {
   return (
     <>
       <ProviderReadinessStatus />
+      <ProviderCapabilitiesEntry />
       <ProviderStudio profileId={profile.id} />
     </>
   );
 }
-
-
