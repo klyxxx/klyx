@@ -18,6 +18,7 @@ const quotePreflight = read(
   "lib/quote-transaction-qualification-preflight.ts"
 );
 const goldenFixture = read("scripts/golden-path-provider-fixture.mjs");
+const goldenLifecycle = read("scripts/golden-path-client-lifecycle.mjs");
 
 describe("transaction live skill eligibility contract", () => {
   it("separates transaction eligibility from literal KLYX approval", () => {
@@ -57,7 +58,7 @@ describe("transaction live skill eligibility contract", () => {
     expect(quoteRoute).toContain("if (preflight) return preflight;");
   });
 
-  it("fails quote eligibility closed for active services that no longer satisfy qualification", () => {
+  it("fails quote creation closed for active services that no longer satisfy qualification", () => {
     expect(quotePreflight).toContain("isUserServiceTransactionEligible");
     expect(quotePreflight).toContain('.eq("active", true)');
     expect(quotePreflight).toContain('.eq("provider_enabled", true)');
@@ -65,6 +66,52 @@ describe("transaction live skill eligibility contract", () => {
       'code: "KLYX_QUOTE_SKILL_QUALIFICATION_REQUIRED"'
     );
     expect(quotePreflight).toContain("{ status: 409 }");
+  });
+
+  it("revalidates live qualification before quote send or accept mutations", () => {
+    expect(quoteRoute).toContain("quoteLifecycleQualificationPreflight");
+
+    const lifecyclePreflightIndex = quoteRoute.indexOf(
+      "const preflight = await quoteLifecycleQualificationPreflight("
+    );
+    const corePatchIndex = quoteRoute.indexOf("corePatch(request)");
+
+    expect(lifecyclePreflightIndex).toBeGreaterThanOrEqual(0);
+    expect(corePatchIndex).toBeGreaterThan(lifecyclePreflightIndex);
+
+    expect(quotePreflight).toContain(
+      'action !== "send" && action !== "accept"'
+    );
+    expect(quotePreflight).toContain(
+      'profile.accountType !== "provider"'
+    );
+    expect(quotePreflight).toContain(
+      'lifecycleQuote.status !== "requested"'
+    );
+    expect(quotePreflight).toContain(
+      'profile.accountType !== "client"'
+    );
+    expect(quotePreflight).toContain(
+      'lifecycleQuote.status !== "sent"'
+    );
+    expect(quotePreflight).toContain(
+      "return qualificationRequiredResponse("
+    );
+  });
+
+  it("preserves core price validation before send qualification revalidation", () => {
+    expect(quotePreflight).toContain("Number(body.providerPrice)");
+    expect(quotePreflight).toContain("!Number.isFinite(providerPrice)");
+    expect(quotePreflight).toContain("providerPrice < 0");
+    expect(quotePreflight).toContain("providerPrice > 1000000");
+  });
+
+  it("never blocks reject or cancel on qualification", () => {
+    expect(quotePreflight).not.toContain('action === "reject"');
+    expect(quotePreflight).not.toContain('action === "cancel"');
+    expect(quotePreflight).toContain(
+      'action !== "send" && action !== "accept"'
+    );
   });
 
   it("proves the golden self-declared flow without an artificial approved verification", () => {
@@ -76,5 +123,8 @@ describe("transaction live skill eligibility contract", () => {
     expect(goldenFixture).not.toContain(
       "Golden-path fixture approved only inside the ephemeral local Supabase runner."
     );
+    expect(goldenLifecycle).toContain('action: "send"');
+    expect(goldenLifecycle).toContain('action: "accept"');
+    expect(goldenLifecycle).toContain('path: "/api/bookings/create"');
   });
 });
