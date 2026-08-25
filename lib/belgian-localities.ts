@@ -64,3 +64,10 @@ export function findBelgianLocality(value: string): BelgianLocality | null {
     ) ?? null
   );
 }
+
+export function isBelgianLocalityPostalCode(
+  locality: BelgianLocality,
+  postalCode: string
+): boolean {
+  return locality.postalCodes.includes(postalCode.trim());
+}
