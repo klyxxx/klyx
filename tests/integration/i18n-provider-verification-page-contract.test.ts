@@ -64,10 +64,8 @@ describe("KLYX provider verification i18n contract", () => {
     expect(page).toContain("originalName: file.name");
     expect(page).toContain("mimeType: file.type");
     expect(page).toContain("sizeBytes: file.size");
-    expect(api).toContain(
-      "const expectedPrefix =\n      `${profile.id}/${documentType}/`;"
-    );
-    expect(api).toContain("storagePath.startsWith(expectedPrefix)");
+    expect(api).toContain('storagePath.startsWith(`${profile.id}/`)');
+    expect(api).toContain('storagePath.includes("..")');
   });
 
   it("preserves failed-registration Storage rollback", () => {
