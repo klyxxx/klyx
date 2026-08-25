@@ -42,6 +42,11 @@ describe(
             "app/provider/jobs/page.tsx"
           );
 
+        const jobsI18n =
+          read(
+            "lib/klyx-provider-jobs-i18n.ts"
+          );
+
         const finance =
           read(
             "app/provider/payments/page.tsx"
@@ -88,7 +93,7 @@ describe(
           "KLYX_AI_FIRST_PROVIDER_FINANCE_15_04"
         );
 
-        expect(jobs).toContain(
+        expect(jobsI18n).toContain(
           "Tous les créneaux doivent être couverts. Une offre = mission complète."
         );
 
