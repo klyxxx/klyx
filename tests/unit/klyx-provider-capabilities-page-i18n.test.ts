@@ -25,6 +25,7 @@ describe("provider capabilities page i18n", () => {
   });
 
   it("translates known capability statuses without exposing unknown backend values", () => {
+    expect(translateKlyxProviderCapabilityStatus("fr", "draft")).toBe("À confirmer");
     expect(translateKlyxProviderCapabilityStatus("fr", "confirmed")).toBe("Confirmée");
     expect(translateKlyxProviderCapabilityStatus("en", "archived")).toBe("Archived");
     expect(translateKlyxProviderCapabilityStatus("nl", "server_private_value")).toBe(
