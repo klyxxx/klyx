@@ -48,7 +48,7 @@ describe("transaction live skill eligibility contract", () => {
     expect(quoteRoute).toContain("request.clone()");
 
     const preflightIndex = quoteRoute.indexOf(
-      "quoteTransactionQualificationPreflight"
+      "const preflight = await quoteTransactionQualificationPreflight("
     );
     const corePostIndex = quoteRoute.indexOf("corePost(request)");
 
