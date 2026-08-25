@@ -1,4 +1,5 @@
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { providerPublicationQualificationPreflight } from "@/lib/provider-publication-qualification-readiness";
 import { providerPublicationZonePreflight } from "@/lib/provider-publication-zone-readiness";
 import {
   DELETE as coreDelete,
@@ -67,6 +68,11 @@ export async function PUT(request: Request) {
     const preflight = await providerPublicationZonePreflight(request.clone());
 
     if (preflight) return preflight;
+
+    const qualificationPreflight =
+      await providerPublicationQualificationPreflight(request.clone());
+
+    if (qualificationPreflight) return qualificationPreflight;
 
     return corePut(request);
   });

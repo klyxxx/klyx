@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createDefaultSkillQualificationRule,
   evaluateSkillEvidence,
+  skillQualificationRequiresApproval,
   type SkillQualificationRule,
 } from "../../lib/skill-qualification-policy";
 
@@ -61,6 +62,43 @@ describe("KLYX provider skill qualification policy", () => {
       experienceOk: true,
       identityOk: true,
     });
+  });
+
+  it("does not require KLYX approval for the unconfigured self-declared fallback", () => {
+    const rule = createDefaultSkillQualificationRule({
+      countryCode: "BE",
+      serviceSlug: "dog-walking",
+    });
+
+    expect(skillQualificationRequiresApproval(rule)).toBe(false);
+  });
+
+  it("requires KLYX approval as soon as an explicit qualification constraint exists", () => {
+    expect(
+      skillQualificationRequiresApproval(
+        regulatedRule({
+          ruleLevel: "self_declared",
+          requiredProofTypes: [],
+          minimumYearsExperience: 0,
+          identityRequired: false,
+          insuranceRequired: true,
+          officialRegistrationRequired: false,
+        })
+      )
+    ).toBe(true);
+
+    expect(
+      skillQualificationRequiresApproval(
+        regulatedRule({
+          ruleLevel: "evidence_required",
+          requiredProofTypes: [],
+          minimumYearsExperience: 0,
+          identityRequired: false,
+          insuranceRequired: false,
+          officialRegistrationRequired: false,
+        })
+      )
+    ).toBe(true);
   });
 
   it("never lets the self-declaration fallback bypass explicit regulated requirements", () => {
