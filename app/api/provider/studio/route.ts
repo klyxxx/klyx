@@ -1,4 +1,5 @@
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { providerPublicationZonePreflight } from "@/lib/provider-publication-zone-readiness";
 import {
   DELETE as coreDelete,
   GET as coreGet,
@@ -62,7 +63,13 @@ export async function GET() {
 }
 
 export async function PUT(request: Request) {
-  return secureStudioResponse("PUT", () => corePut(request));
+  return secureStudioResponse("PUT", async () => {
+    const preflight = await providerPublicationZonePreflight(request.clone());
+
+    if (preflight) return preflight;
+
+    return corePut(request);
+  });
 }
 
 export async function POST(request: Request) {
