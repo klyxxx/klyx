@@ -12,6 +12,13 @@ import {
   Wrench,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import {
+  formatKlyxProviderReadinessCompleted,
+  translateKlyxProviderReadiness,
+  type KlyxProviderReadinessMessageKey,
+} from "@/lib/klyx-provider-readiness-i18n";
 import { supabase } from "@/lib/supabase";
 
 type StudioData = {
@@ -46,15 +53,19 @@ type ReadinessItem = {
 };
 
 export default function ProviderReadinessStatus() {
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxProviderReadinessMessageKey) =>
+    translateKlyxProviderReadiness(locale, key);
+
   const [studio, setStudio] = useState<StudioData | null>(null);
   const [zones, setZones] = useState<ZonesData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [hasError, setHasError] = useState(false);
 
   const load = useCallback(async (manual = false) => {
     manual ? setRefreshing(true) : setLoading(true);
-    setErrorMessage("");
+    setHasError(false);
 
     try {
       const {
@@ -62,7 +73,7 @@ export default function ProviderReadinessStatus() {
       } = await supabase.auth.getSession();
 
       if (!session?.access_token) {
-        throw new Error("Session manquante.");
+        throw new Error("Provider readiness unavailable");
       }
 
       const headers = {
@@ -82,33 +93,18 @@ export default function ProviderReadinessStatus() {
 
       const studioBody = (await studioResponse.json()) as StudioData & {
         data?: StudioData;
-        error?: string;
       };
 
-      const zonesBody = (await zonesResponse.json()) as ZonesData & {
-        error?: string;
-      };
+      const zonesBody = (await zonesResponse.json()) as ZonesData;
 
-      if (!studioResponse.ok) {
-        throw new Error(
-          studioBody.error || "Impossible de charger le profil prestataire."
-        );
-      }
-
-      if (!zonesResponse.ok) {
-        throw new Error(
-          zonesBody.error || "Impossible de charger les zones."
-        );
+      if (!studioResponse.ok || !zonesResponse.ok) {
+        throw new Error("Provider readiness unavailable");
       }
 
       setStudio(studioBody.data ?? studioBody);
       setZones(zonesBody);
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Impossible de vérifier le statut prestataire."
-      );
+    } catch {
+      setHasError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -120,7 +116,7 @@ export default function ProviderReadinessStatus() {
   }, [load]);
 
   const items = useMemo<ReadinessItem[]>(() => {
-    const services = Array.isArray(studio?.services) ? studio?.services : [];
+    const services = Array.isArray(studio?.services) ? studio.services : [];
 
     const hasCompleteService = services.some((service) => {
       const hasAvailability =
@@ -151,34 +147,32 @@ export default function ProviderReadinessStatus() {
 
     return [
       {
-        label: "Profil professionnel publié",
+        label: t("publishedProfile"),
         done: isPublished,
         href: "/provider",
       },
       {
-        label: "Service complet et disponible",
+        label: t("completeService"),
         done: hasCompleteService,
         href: "/provider",
       },
       {
-        label: "Zone d’intervention active",
+        label: t("activeZone"),
         done: Boolean(hasZone),
         href: "/provider/zones",
       },
       {
-        label: "Identité vérifiée",
+        label: t("verifiedIdentity"),
         done: isVerified,
         href: "/provider/verification",
       },
     ];
-  }, [studio, zones]);
+  }, [locale, studio, zones]);
 
   const mandatoryItems = items.slice(0, 3);
   const mandatoryReady =
     mandatoryItems.length > 0 &&
     mandatoryItems.every((item) => item.done);
-
-  const verified = items[3]?.done === true;
 
   const completed = items.filter((item) => item.done).length;
 
@@ -211,15 +205,15 @@ export default function ProviderReadinessStatus() {
 
             <div>
               <p className="text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">
-                Visibilité
+                {t("visibility")}
               </p>
 
               <h2 className="mt-1 text-xl font-black sm:text-2xl">
                 {loading
-                  ? "Vérification de ton activité..."
+                  ? t("checking")
                   : mandatoryReady
-                    ? "Prêt à apparaître dans les recherches"
-                    : "Configuration encore incomplète"}
+                    ? t("ready")
+                    : t("incomplete")}
               </h2>
               {/* KLYX_AI_FIRST_PROVIDER_READINESS_15_02 */}
             </div>
@@ -236,7 +230,7 @@ export default function ProviderReadinessStatus() {
             ) : (
               <RefreshCw size={17} />
             )}
-            Actualiser
+            {t("refresh")}
           </button>
         </div>
 
@@ -275,7 +269,7 @@ export default function ProviderReadinessStatus() {
                         {item.label}
                       </p>
                       <p className="mt-0.5 text-xs text-muted-foreground">
-                        {item.done ? "Terminé" : "À compléter"}
+                        {item.done ? t("done") : t("todo")}
                       </p>
                     </div>
                   </div>
@@ -285,16 +279,16 @@ export default function ProviderReadinessStatus() {
           </div>
         )}
 
-        {errorMessage && (
+        {hasError && (
           <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-700 dark:text-rose-300">
-            {errorMessage}
+            {t("genericError")}
           </div>
         )}
 
         {!loading && (
           <div className="mt-5 flex flex-wrap items-center gap-3 text-sm">
             <span className="font-black">
-              {completed}/4 éléments complétés
+              {formatKlyxProviderReadinessCompleted(locale, completed)}
             </span>
 
             {!mandatoryReady && (
@@ -303,7 +297,7 @@ export default function ProviderReadinessStatus() {
                 prefetch
                 className="inline-flex items-center gap-2 font-black text-blue-600 dark:text-blue-400"
               >
-                Terminer ma configuration
+                {t("finishSetup")}
                 <ArrowRight size={16} />
               </Link>
             )}
