@@ -21,13 +21,22 @@ describe("KLYX search API error sanitization contract", () => {
     expect(source).not.toContain("{ error: message }");
   });
 
-  it("preserves provider ranking and filtering logic in the core", () => {
+  it("preserves provider ranking, filtering and live qualification logic in the core", () => {
     const source = read("app/api/search/providers/providers-route-core.ts");
 
     expect(source).toContain("loadCandidates");
     expect(source).toContain("compareCandidates");
     expect(source).toContain("availabilityMatches");
-    expect(source).toContain("getApprovedUserServiceIds");
+    expect(source).toContain(
+      "getPublicUserServiceQualificationIdsForProfiles"
+    );
+    expect(source).toContain(
+      "qualificationIds.eligibleUserServiceIds.has(item.id)"
+    );
+    expect(source).toContain(
+      "const approvedUserServiceIds = qualificationIds.approvedUserServiceIds"
+    );
+    expect(source).not.toContain("getApprovedUserServiceIds");
   });
 
   it("secures locality coverage 5xx responses", () => {

@@ -80,10 +80,17 @@ describe("KLYX client intent to provider search golden path", () => {
     expect(intentSearch).toContain("Number(matchedProvider.price) !== 35");
   });
 
-  it("proves the public qualification summary without exposing private evidence", () => {
-    expect(intentSearch).toContain("matchedProvider.qualificationApproved !== true");
-    expect(intentSearch).toContain("matchedProvider.qualificationLevel");
-    expect(intentSearch).toContain("matchedProvider.qualificationLabel");
+  it("proves a free self-declared skill stays public without fake KLYX approval", () => {
+    expect(intentSearch).toContain("matchedProvider.qualificationApproved !== false");
+    expect(intentSearch).toContain(
+      'matchedProvider.qualificationLevel !== "self_declared"'
+    );
+    expect(intentSearch).toContain(
+      '"Compétence déclarée par le prestataire"'
+    );
+    expect(intentSearch).not.toContain(
+      'matchedProvider.qualificationApproved !== true'
+    );
     expect(intentSearch).toContain('"provider_statement"');
     expect(intentSearch).toContain('"storage_path"');
     expect(intentSearch).toContain('"review_note"');

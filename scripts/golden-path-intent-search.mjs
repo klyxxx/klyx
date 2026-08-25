@@ -400,14 +400,10 @@ async function main() {
     String(matchedProvider.city ?? "").toLowerCase() !== "bruxelles" ||
     matchedProvider.pricingType !== "hourly" ||
     Number(matchedProvider.price) !== 35 ||
-    matchedProvider.qualificationApproved !== true ||
-    ![
-      "self_declared",
-      "evidence_required",
-      "regulated",
-    ].includes(matchedProvider.qualificationLevel) ||
-    typeof matchedProvider.qualificationLabel !== "string" ||
-    matchedProvider.qualificationLabel.trim().length === 0
+    matchedProvider.qualificationApproved !== false ||
+    matchedProvider.qualificationLevel !== "self_declared" ||
+    matchedProvider.qualificationLabel !==
+      "Compétence déclarée par le prestataire"
   ) {
     throw new Error(
       "Golden-path provider match has unexpected search or qualification data."

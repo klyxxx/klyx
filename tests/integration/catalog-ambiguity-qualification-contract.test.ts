@@ -67,8 +67,17 @@ describe("catalog ambiguity and provider qualification contract", () => {
     expect(qualification).toContain("candidateNeedsOfficialRegistration");
     expect(qualification).toContain('selectedLevel ?? "self_declared"');
 
-    expect(providerSearch).toContain("getApprovedUserServiceIds");
-    expect(providerSearch).toContain("approvedUserServiceIds.has(item.id)");
+    expect(providerSearch).toContain(
+      "getPublicUserServiceQualificationIdsForProfiles"
+    );
+    expect(providerSearch).toContain(
+      "qualificationIds.eligibleUserServiceIds.has(item.id)"
+    );
+    expect(providerSearch).toContain(
+      "const approvedUserServiceIds = qualificationIds.approvedUserServiceIds"
+    );
+    expect(providerSearch).toContain("approvedUserServiceIds,");
+    expect(providerSearch).not.toContain("getApprovedUserServiceIds");
     expect(providerSearch).toContain("country_code");
     expect(providerSearch).toContain("loadPublicProviderQualifications");
   });

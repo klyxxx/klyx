@@ -88,9 +88,15 @@ describe("skill qualification self-declared default contract", () => {
     );
   });
 
-  it("keeps provider verification approval separate from qualification evidence", () => {
-    expect(publicQualification).toContain("approved: true");
+  it("keeps self-declared qualification distinct from live KLYX approval", () => {
+    expect(publicQualification).toContain("approved: boolean");
     expect(publicQualification).toContain(
+      "approvedUserServiceIds?: ReadonlySet<string>"
+    );
+    expect(publicQualification).toContain(
+      'return "Compétence déclarée par le prestataire"'
+    );
+    expect(publicQualification).not.toContain(
       'return "Déclaration métier approuvée par KLYX"'
     );
     expect(publicQualification).not.toMatch(/provider_skill_documents/);

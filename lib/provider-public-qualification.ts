@@ -20,7 +20,7 @@ export type QualificationZoneInput = {
 
 export type PublicProviderQualification = {
   level: ProviderQualificationLevel;
-  approved: true;
+  approved: boolean;
   label: string;
   officialRegistrationLabel: string | null;
 };
@@ -44,22 +44,34 @@ function normalizeCountryCode(value: string): string | null {
   return /^[A-Z]{2}$/.test(normalized) ? normalized : null;
 }
 
-function qualificationLabel(level: ProviderQualificationLevel): string {
-  if (level === "regulated") {
-    return "Dossier réglementé approuvé par KLYX";
-  }
-
+function qualificationLabel(
+  level: ProviderQualificationLevel,
+  approved: boolean
+): string {
   if (level === "self_declared") {
-    return "Déclaration métier approuvée par KLYX";
+    return "Compétence déclarée par le prestataire";
   }
 
-  return "Preuves métier approuvées par KLYX";
+  if (approved && level === "regulated") {
+    return "Qualification réglementée approuvée par KLYX";
+  }
+
+  if (approved) {
+    return "Justificatifs professionnels approuvés par KLYX";
+  }
+
+  if (level === "regulated") {
+    return "Qualification réglementée";
+  }
+
+  return "Compétence avec justificatifs";
 }
 
 export async function loadPublicProviderQualifications(params: {
   userServices: readonly QualificationUserServiceInput[];
   services: readonly QualificationServiceInput[];
   zones: readonly QualificationZoneInput[];
+  approvedUserServiceIds?: ReadonlySet<string>;
 }): Promise<Map<string, PublicProviderQualification>> {
   const serviceById = new Map(
     params.services.map((service) => [service.id, service])
@@ -154,11 +166,13 @@ export async function loadPublicProviderQualifications(params: {
 
     const level: ProviderQualificationLevel =
       selectedLevel ?? "self_declared";
+    const approved =
+      params.approvedUserServiceIds?.has(userService.id) === true;
 
     result.set(userService.id, {
       level,
-      approved: true,
-      label: qualificationLabel(level),
+      approved,
+      label: qualificationLabel(level, approved),
       officialRegistrationLabel:
         selectedRule?.official_registration_required === true
           ? selectedRule.official_registration_label?.trim() || null
