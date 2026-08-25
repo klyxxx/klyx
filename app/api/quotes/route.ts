@@ -1,6 +1,6 @@
 import { secureApiErrorResponse } from "@/lib/api-error";
 import {
-  quoteLifecycleQualificationPreflight,
+  quoteLifecycleReadinessPreflight,
   quoteTransactionQualificationPreflight,
 } from "@/lib/quote-transaction-qualification-preflight";
 import {
@@ -100,7 +100,7 @@ export async function PATCH(request: Request) {
   const startedAt = Date.now();
 
   try {
-    const preflight = await quoteLifecycleQualificationPreflight(
+    const preflight = await quoteLifecycleReadinessPreflight(
       request.clone()
     );
 
