@@ -1,5 +1,8 @@
 import { secureApiErrorResponse } from "@/lib/api-error";
-import { quoteTransactionQualificationPreflight } from "@/lib/quote-transaction-qualification-preflight";
+import {
+  quoteLifecycleQualificationPreflight,
+  quoteTransactionQualificationPreflight,
+} from "@/lib/quote-transaction-qualification-preflight";
 import {
   GET as coreGet,
   PATCH as corePatch,
@@ -97,6 +100,12 @@ export async function PATCH(request: Request) {
   const startedAt = Date.now();
 
   try {
+    const preflight = await quoteLifecycleQualificationPreflight(
+      request.clone()
+    );
+
+    if (preflight) return preflight;
+
     const response = await corePatch(request);
     return secureCoreResponse(response, "PATCH", startedAt);
   } catch (error) {
