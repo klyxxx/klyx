@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { secureApiErrorResponse } from "@/lib/api-error";
-import { getApprovedUserServiceIds } from "@/lib/provider-skill-publication";
+import { getPublicUserServiceQualificationIds } from "@/lib/provider-skill-publication";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function GET(
@@ -24,12 +24,19 @@ export async function GET(
       throw error;
     }
 
-    const approved = await getApprovedUserServiceIds(
-      (data ?? []).map((row) => row.id as string)
-    );
+    const eligibility = await getPublicUserServiceQualificationIds({
+      profileId: providerId,
+      userServiceIds: (data ?? []).map((row) => row.id as string),
+    });
 
     return NextResponse.json({
-      userServiceIds: Array.from(approved),
+      // Compatibility: existing public consumers read userServiceIds. It now
+      // means live public eligibility, which correctly includes free
+      // self-declared skills without pretending they were reviewed by KLYX.
+      userServiceIds: Array.from(eligibility.eligibleUserServiceIds),
+      approvedUserServiceIds: Array.from(
+        eligibility.approvedUserServiceIds
+      ),
     });
   } catch (error) {
     return secureApiErrorResponse({
