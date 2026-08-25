@@ -24,10 +24,11 @@ describe("provider capabilities page contract", () => {
     expect(page).not.toContain("supabase.from(");
   });
 
-  it("supports explicit declare, edit, archive, restore, link and unlink actions", () => {
+  it("supports explicit declare, edit, confirm, archive, restore, link and unlink actions", () => {
     expect(page).toContain('method: "POST"');
     expect(page).toContain('method: "PATCH"');
-    expect(page).toContain('status: restoring ? "confirmed" : "archived"');
+    expect(page).toContain('const draft = capability.status === "draft"');
+    expect(page).toContain('const nextStatus = draft || restoring ? "confirmed" : "archived"');
     expect(page).toContain('method: existing ? "DELETE" : "POST"');
     expect(page).toContain("capabilityId, userServiceId");
   });
