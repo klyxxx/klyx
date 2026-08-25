@@ -94,3 +94,33 @@ export function evaluateSkillEvidence(params: {
     identityOk,
   };
 }
+
+export function evaluateSkillPublicEligibility(params: {
+  rule: SkillQualificationRule;
+  proofTypes: string[];
+  yearsExperience: number;
+  identityApproved: boolean;
+  verificationStatus?: string | null;
+}) {
+  const evidence = evaluateSkillEvidence({
+    rule: params.rule,
+    proofTypes: params.proofTypes,
+    yearsExperience: params.yearsExperience,
+    identityApproved: params.identityApproved,
+  });
+  const approvalRequired = skillQualificationRequiresApproval(params.rule);
+  const approvalOk =
+    !approvalRequired || params.verificationStatus === "approved";
+  const eligible = evidence.ready && approvalOk;
+
+  return {
+    ...evidence,
+    approvalRequired,
+    approvalOk,
+    eligible,
+    approved:
+      approvalRequired &&
+      evidence.ready &&
+      params.verificationStatus === "approved",
+  };
+}
