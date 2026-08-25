@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import {
   DAY_LABELS,
-  normalizeLocation,
   serviceLabel,
   timeToMinutes,
   type ProviderPricingType,
@@ -9,6 +8,10 @@ import {
   type ProviderSearchResponse,
   type ProviderSearchSort,
 } from "@/lib/provider-search";
+import {
+  providerZonesCoverBelgianLocality,
+  type ProviderSearchZoneCoverageInput,
+} from "@/lib/provider-search-zone-coverage";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getApprovedUserServiceIds } from "@/lib/provider-skill-publication";
 import { loadPublicProviderQualifications } from "@/lib/provider-public-qualification";
@@ -73,11 +76,15 @@ type ProviderZoneRow = {
   profile_id: string;
   user_service_id: string;
   country_code: string;
+  locality: string;
+  postal_code: string | null;
+  radius_km: number;
   is_active: boolean;
 };
 
 type Candidate = Omit<ProviderSearchItem, "availabilitySummary" | "isExactMatch"> & {
   slots: AvailabilityRow[];
+  zones: ProviderSearchZoneCoverageInput[];
 };
 
 type Filters = {
@@ -167,18 +174,7 @@ function parseFilters(request: Request): Filters {
 }
 
 function locationMatches(candidate: Candidate, city: string): boolean {
-  if (!city) return true;
-
-  const requested = normalizeLocation(city);
-
-  return [candidate.city, ...candidate.serviceArea].some((location) => {
-    const normalized = normalizeLocation(location);
-
-    return Boolean(
-      normalized &&
-        (normalized.includes(requested) || requested.includes(normalized))
-    );
-  });
+  return providerZonesCoverBelgianLocality(candidate.zones, city);
 }
 
 function availabilityMatches(candidate: Candidate, filters: Filters): boolean {
@@ -303,8 +299,9 @@ function publicItem(
   filters: Filters,
   exact: boolean
 ): ProviderSearchItem {
-  const { slots, ...provider } = candidate;
+  const { slots, zones, ...provider } = candidate;
   void slots;
+  void zones;
 
   return {
     ...provider,
@@ -396,7 +393,9 @@ async function loadCandidates(filters: Filters): Promise<Candidate[]> {
         .eq("is_active", true),
       supabaseAdmin
         .from("provider_service_zones")
-        .select("profile_id, user_service_id, country_code, is_active")
+        .select(
+          "profile_id, user_service_id, country_code, locality, postal_code, radius_km, is_active"
+        )
         .in("profile_id", profileIds)
         .in("user_service_id", userServiceIds)
         .eq("is_active", true),
@@ -448,11 +447,24 @@ async function loadCandidates(filters: Filters): Promise<Candidate[]> {
     serviceProfiles.map((profile) => [profile.user_service_id, profile])
   );
   const slotsByUserService = new Map<string, AvailabilityRow[]>();
+  const zonesByUserService = new Map<string, ProviderSearchZoneCoverageInput[]>();
 
   for (const slot of slots) {
     const current = slotsByUserService.get(slot.user_service_id) ?? [];
     current.push(slot);
     slotsByUserService.set(slot.user_service_id, current);
+  }
+
+  for (const zone of zones) {
+    const current = zonesByUserService.get(zone.user_service_id) ?? [];
+    current.push({
+      countryCode: zone.country_code,
+      locality: zone.locality,
+      postalCode: zone.postal_code,
+      radiusKm: Number(zone.radius_km),
+      isActive: zone.is_active,
+    });
+    zonesByUserService.set(zone.user_service_id, current);
   }
 
   return userServices
@@ -505,6 +517,7 @@ async function loadCandidates(filters: Filters): Promise<Candidate[]> {
         qualificationLabel: qualification.label,
         officialRegistrationLabel: qualification.officialRegistrationLabel,
         slots: slotsByUserService.get(userService.id) ?? [],
+        zones: zonesByUserService.get(userService.id) ?? [],
       };
     })
     .filter((candidate): candidate is Candidate => candidate !== null);
