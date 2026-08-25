@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import {
@@ -13,10 +13,17 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
-import ProactiveAssistantPanel from "@/app/components/ProactiveAssistantPanel";
+
 import AssistantBrief from "@/app/components/AssistantBrief";
 import AssistantCommandBar from "@/app/components/AssistantCommandBar";
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import ProactiveAssistantPanel from "@/app/components/ProactiveAssistantPanel";
+import {
+  formatKlyxAssistantHomeActionCount,
+  translateKlyxAssistantHome,
+  type KlyxAssistantHomeMessageKey,
+} from "@/lib/klyx-assistant-home-i18n";
+import { supabase } from "@/lib/supabase";
 
 type AccountType = "client" | "provider";
 
@@ -49,6 +56,10 @@ async function token(): Promise<string> {
 }
 
 export default function AssistantHomePage() {
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxAssistantHomeMessageKey) =>
+    translateKlyxAssistantHome(locale, key);
+
   const [data, setData] =
     useState<ActionsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -73,29 +84,19 @@ export default function AssistantHomePage() {
           }
         );
 
-        const body = (await response.json()) as
-          | ActionsResponse
-          | { error?: string };
-
         if (!response.ok) {
-          throw new Error(
-            "error" in body
-              ? body.error ||
-                  "Impossible de charger KLYX."
-              : "Impossible de charger KLYX."
-          );
+          throw new Error("Assistant actions unavailable");
         }
 
+        const body = (await response.json()) as ActionsResponse;
+
         if (active) {
-          setData(body as ActionsResponse);
+          setData(body);
+          setErrorMessage("");
         }
-      } catch (error) {
+      } catch {
         if (active) {
-          setErrorMessage(
-            error instanceof Error
-              ? error.message
-              : "Impossible de charger KLYX."
-          );
+          setErrorMessage(t("loadError"));
         }
       } finally {
         if (active) setLoading(false);
@@ -107,7 +108,7 @@ export default function AssistantHomePage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [locale]);
 
   const accountType =
     data?.accountType ?? "client";
@@ -121,17 +122,15 @@ export default function AssistantHomePage() {
         <section className="overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#17131f,#4c1d95_52%,#111827)] p-7 text-white sm:p-10">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white/70">
             <Sparkles size={14} />
-            KLYX Assistant
+            {t("badge")}
           </div>
 
           <h1 className="mt-4 text-3xl font-black sm:text-5xl">
-            Dis-moi ce qu’il faut faire.
+            {t("title")}
           </h1>
 
           <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">
-            KLYX rassemble tes prochaines actions,
-            tes demandes et les outils utiles de ton
-            profil actif au même endroit.
+            {t("description")}
           </p>
 
           <AssistantBrief />
@@ -162,7 +161,7 @@ export default function AssistantHomePage() {
             {topAction ? (
               <section className="klyx-card mt-6 border-violet-500/25 p-6 sm:p-8">
                 <p className="klyx-eyebrow">
-                  Priorité KLYX
+                  {t("priority")}
                 </p>
 
                 <h2 className="mt-2 text-2xl font-black">
@@ -190,13 +189,13 @@ export default function AssistantHomePage() {
 
                   <div>
                     <p className="klyx-eyebrow">
-                      Tout est à jour
+                      {t("upToDate")}
                     </p>
                     <h2 className="mt-1 text-xl font-black">
-                      Aucune action prioritaire
+                      {t("noPriority")}
                     </h2>
                     <p className="mt-2 text-sm text-muted-foreground">
-                      Tu peux lancer une nouvelle action quand tu veux.
+                      {t("noPriorityDescription")}
                     </p>
                   </div>
                 </div>
@@ -209,40 +208,45 @@ export default function AssistantHomePage() {
                   <Card
                     href="/assistant/market"
                     icon={<MessageSquareText size={21} />}
-                    title="Décrire un besoin"
-                    text="Parle normalement à KLYX. Il prépare la demande, puis tu confirmes."
+                    title={t("describeNeedTitle")}
+                    text={t("describeNeedText")}
+                    openLabel={t("open")}
                   />
 
                   <Card
                     href="/assistant/actions"
                     icon={<ListTodo size={21} />}
-                    title="Mes actions"
-                    text={`${data?.count ?? 0} action${
-                      (data?.count ?? 0) > 1 ? "s" : ""
-                    } détectée${
-                      (data?.count ?? 0) > 1 ? "s" : ""
-                    } par KLYX.`}
+                    title={t("actionsTitle")}
+                    text={formatKlyxAssistantHomeActionCount(
+                      locale,
+                      data?.count ?? 0,
+                      "client"
+                    )}
+                    openLabel={t("open")}
                   />
 
                   <Card
                     href="/requests"
                     icon={<BriefcaseBusiness size={21} />}
-                    title="Mes demandes"
-                    text="Suis les offres reçues, compare et choisis ton prestataire."
+                    title={t("requestsTitle")}
+                    text={t("requestsText")}
+                    openLabel={t("open")}
                   />
 
                   <Card
                     href="/search"
                     icon={<Search size={21} />}
-                    title="Trouver directement"
-                    text="Recherche un prestataire et réserve sans publier de demande ouverte."
+                    title={t("searchTitle")}
+                    text={t("searchText")}
+                    openLabel={t("open")}
                   />
 
                   <Card
                     href="/brain"
                     icon={<Bot size={21} />}
-                    title="Assistant général"
-                    text="Retrouve le Brain KLYX et ses recommandations générales."
+                    title={t("brainTitle")}
+                    text={t("brainText")}
+                    openLabel={t("open")}
                   />
                 </>
               ) : (
@@ -250,26 +254,29 @@ export default function AssistantHomePage() {
                   <Card
                     href="/assistant/actions"
                     icon={<ListTodo size={21} />}
-                    title="Mes actions"
-                    text={`${data?.count ?? 0} action${
-                      (data?.count ?? 0) > 1 ? "s" : ""
-                    } prioritaire${
-                      (data?.count ?? 0) > 1 ? "s" : ""
-                    } pour ton activité.`}
+                    title={t("actionsTitle")}
+                    text={formatKlyxAssistantHomeActionCount(
+                      locale,
+                      data?.count ?? 0,
+                      "provider"
+                    )}
+                    openLabel={t("open")}
                   />
 
                   <Card
                     href="/provider/jobs"
                     icon={<BriefcaseBusiness size={21} />}
-                    title="Missions disponibles"
-                    text="Découvre les demandes compatibles classées par KLYX."
+                    title={t("providerJobsTitle")}
+                    text={t("providerJobsText")}
+                    openLabel={t("open")}
                   />
 
                   <Card
                     href="/provider/assistant"
                     icon={<Bot size={21} />}
-                    title="Assistant professionnel"
-                    text="Pilote ton activité, ton planning et tes prochaines décisions."
+                    title={t("providerAssistantTitle")}
+                    text={t("providerAssistantText")}
+                    openLabel={t("open")}
                   />
                 </>
               )}
@@ -286,11 +293,13 @@ function Card({
   icon,
   title,
   text,
+  openLabel,
 }: {
   href: string;
   icon: React.ReactNode;
   title: string;
   text: string;
+  openLabel: string;
 }) {
   return (
     <Link
@@ -310,7 +319,7 @@ function Card({
       </p>
 
       <span className="mt-5 inline-flex items-center gap-2 text-sm font-black text-violet-600">
-        Ouvrir
+        {openLabel}
         <ArrowRight
           size={16}
           className="transition group-hover:translate-x-1"
