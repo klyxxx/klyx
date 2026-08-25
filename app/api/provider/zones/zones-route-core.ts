@@ -184,6 +184,22 @@ export async function POST(request: Request) {
     }
 
     if (
+      localityInput &&
+      postalInput &&
+      !knownLocality.postalCodes.includes(postalInput)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Le code postal ne correspond pas à la commune sélectionnée.",
+          code:
+            "KLYX_POSTAL_LOCALITY_MISMATCH",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (
       !Number.isInteger(radiusKm) ||
       radiusKm < 1 ||
       radiusKm > 100
