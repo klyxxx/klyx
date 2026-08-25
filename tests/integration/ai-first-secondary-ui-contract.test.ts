@@ -57,6 +57,11 @@ describe(
             "app/provider/verification/page.tsx"
           );
 
+        const verificationI18n =
+          read(
+            "lib/klyx-provider-verification-i18n.ts"
+          );
+
         const privacy =
           read(
             "app/settings/PhonePrivacyControls.tsx"
@@ -114,6 +119,10 @@ describe(
         );
 
         expect(verification).toContain(
+          't("privacyTitle")'
+        );
+
+        expect(verificationI18n).toContain(
           "Documents privés et sensibles"
         );
 
