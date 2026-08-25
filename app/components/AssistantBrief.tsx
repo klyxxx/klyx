@@ -9,6 +9,14 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import {
+  formatKlyxAssistantBriefText,
+  formatKlyxAssistantBriefUrgentCount,
+  translateKlyxAssistantBrief,
+  type KlyxAssistantBriefMessageKey,
+} from "@/lib/klyx-assistant-brief-i18n";
 import { supabase } from "@/lib/supabase";
 
 type ActionItem = {
@@ -39,30 +47,11 @@ async function accessToken(): Promise<string> {
   return session.access_token;
 }
 
-function briefText(data: ActionsResponse): string {
-  const actions = data.actions ?? [];
-  const first = actions[0];
-
-  if (!first) {
-    return data.accountType === "provider"
-      ? "Ton activité est à jour. KLYX n’a détecté aucune action prioritaire."
-      : "Tout est à jour. KLYX n’a détecté aucune action prioritaire.";
-  }
-
-  const remaining = Math.max(0, actions.length - 1);
-
-  if (remaining === 0) {
-    return `Ta priorité actuelle : ${first.title}.`;
-  }
-
-  return `Ta priorité actuelle : ${first.title}. ${remaining} autre${
-    remaining > 1 ? "s" : ""
-  } action${remaining > 1 ? "s" : ""} mérite${
-    remaining > 1 ? "nt" : ""
-  } aussi ton attention.`;
-}
-
 export default function AssistantBrief() {
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxAssistantBriefMessageKey) =>
+    translateKlyxAssistantBrief(locale, key);
+
   const [data, setData] = useState<ActionsResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -82,7 +71,7 @@ export default function AssistantBrief() {
       const body = (await response.json()) as ActionsResponse;
       setData(body);
     } catch {
-      // Le brief ne doit jamais bloquer l'assistant.
+      // The brief must never block the assistant.
     } finally {
       setLoading(false);
     }
@@ -96,7 +85,7 @@ export default function AssistantBrief() {
     }, 30000);
 
     return () => window.clearInterval(interval);
-  }, [load]);
+  }, [load, locale]);
 
   const urgentCount = useMemo(
     () =>
@@ -110,7 +99,7 @@ export default function AssistantBrief() {
     return (
       <div className="mt-5 flex items-center gap-2 text-sm text-white/60">
         <LoaderCircle className="animate-spin" size={16} />
-        Préparation de ton brief...
+        {t("loading")}
       </div>
     );
   }
@@ -118,6 +107,7 @@ export default function AssistantBrief() {
   if (!data) return null;
 
   const first = data.actions?.[0] ?? null;
+  const remaining = Math.max(0, (data.actions?.length ?? 0) - 1);
 
   return (
     <div className="mt-6 rounded-3xl border border-white/10 bg-black/15 p-5 backdrop-blur">
@@ -126,26 +116,31 @@ export default function AssistantBrief() {
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-white/60">
               <Sparkles size={14} />
-              Brief KLYX
+              {t("eyebrow")}
             </span>
 
             {urgentCount > 0 && (
               <span className="inline-flex items-center gap-1 rounded-full bg-rose-500 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-white">
                 <BellRing size={11} />
-                {urgentCount} urgente{urgentCount > 1 ? "s" : ""}
+                {formatKlyxAssistantBriefUrgentCount(locale, urgentCount)}
               </span>
             )}
 
             {!first && (
               <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-300">
                 <CheckCircle2 size={14} />
-                À jour
+                {t("upToDate")}
               </span>
             )}
           </div>
 
           <p className="mt-2 text-sm font-semibold leading-6 text-white/90">
-            {briefText(data)}
+            {formatKlyxAssistantBriefText(
+              locale,
+              data.accountType,
+              first?.title ?? null,
+              remaining
+            )}
           </p>
         </div>
 
@@ -167,8 +162,8 @@ export default function AssistantBrief() {
             className="inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl border border-white/15 bg-white/5 px-4 py-2.5 text-sm font-black text-white transition hover:bg-white/10"
           >
             {data.accountType === "provider"
-              ? "Voir les missions"
-              : "Nouveau besoin"}
+              ? t("providerFallbackCta")
+              : t("clientFallbackCta")}
             <ArrowRight size={16} />
           </Link>
         )}
