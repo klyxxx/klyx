@@ -15,6 +15,7 @@ const quoteRoute = readRepoFile("app/api/quotes/quote-route-core.ts");
 const draftCore = readRepoFile(
   "app/api/provider/quotes/draft/quote-draft-route-core.ts"
 );
+const draftHelper = readRepoFile("lib/provider-quote-draft.ts");
 
 describe("KLYX provider quotes page i18n contract", () => {
   it("uses the shared locale provider and explicit French fallback dictionary", () => {
@@ -33,7 +34,10 @@ describe("KLYX provider quotes page i18n contract", () => {
     expect(page).toContain('method: "POST"');
     expect(page).toContain("body: JSON.stringify({ quoteId })");
     expect(draftCore).toContain('requireAccountType(profile, "provider")');
-    expect(draftCore).toContain("requiresConfirmation");
+    expect(draftCore).toContain("const draft = buildProviderQuoteDraft({");
+    expect(draftCore).toContain("...draft,");
+    expect(draftHelper).toContain("requiresConfirmation: true");
+    expect(draftHelper).toContain('riskLevel: "review_required"');
   });
 
   it("keeps quote sending behind an explicit form submit and the canonical PATCH payload", () => {
