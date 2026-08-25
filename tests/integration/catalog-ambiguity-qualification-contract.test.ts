@@ -54,16 +54,18 @@ describe("catalog ambiguity and provider qualification contract", () => {
     expect(analyzer).toContain("memoryFields.push(\"preferred_service_slugs\")");
   });
 
-  it("keeps provider qualification server-side and fail-closed across active countries", () => {
+  it("keeps provider qualification server-side while explicit stricter country rules stay dominant", () => {
     expect(qualification).toContain('import "server-only"');
     expect(qualification).toContain('.from("skill_qualification_rules")');
     expect(qualification).toContain('.eq("enabled", true)');
     expect(qualification).toContain("RULE_PRIORITY");
+    expect(qualification).toContain("self_declared: 1");
+    expect(qualification).toContain("evidence_required: 2");
     expect(qualification).toContain("regulated: 3");
-    expect(qualification).toContain('rule?.rule_level ?? "evidence_required"');
+    expect(qualification).toContain('rule?.rule_level ?? "self_declared"');
     expect(qualification).toContain("candidatePriority > selectedPriority");
     expect(qualification).toContain("candidateNeedsOfficialRegistration");
-    expect(qualification).toContain('selectedLevel ?? "evidence_required"');
+    expect(qualification).toContain('selectedLevel ?? "self_declared"');
 
     expect(providerSearch).toContain("getApprovedUserServiceIds");
     expect(providerSearch).toContain("approvedUserServiceIds.has(item.id)");

@@ -126,12 +126,11 @@ export async function loadPublicProviderQualifications(params: {
           `${countryCode}|${service.slug}`
         );
 
-        // Same fail-closed default as getSkillQualificationRule(): every active
-        // country without a configured rule counts as evidence_required. This
-        // matters for multi-country providers: a self-declared country must not
-        // weaken another active country whose rule has not been configured yet.
+        // An active country without an explicit qualification rule is
+        // self-declared. Explicit evidence_required or regulated rules keep
+        // their higher priority, including for multi-country providers.
         const candidateLevel: ProviderQualificationLevel =
-          rule?.rule_level ?? "evidence_required";
+          rule?.rule_level ?? "self_declared";
         const candidatePriority = RULE_PRIORITY[candidateLevel];
         const selectedPriority = selectedLevel
           ? RULE_PRIORITY[selectedLevel]
@@ -154,7 +153,7 @@ export async function loadPublicProviderQualifications(params: {
     }
 
     const level: ProviderQualificationLevel =
-      selectedLevel ?? "evidence_required";
+      selectedLevel ?? "self_declared";
 
     result.set(userService.id, {
       level,

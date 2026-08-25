@@ -66,15 +66,15 @@ export async function getSkillQualificationRule(params: {
     return {
       countryCode,
       serviceSlug: params.serviceSlug,
-      ruleLevel: "evidence_required",
-      requiredProofTypes: ["experience_reference"],
+      ruleLevel: "self_declared",
+      requiredProofTypes: [],
       acceptedProofTypes: ["experience_reference","training_certificate","diploma","portfolio"],
       minimumYearsExperience: 0,
-      identityRequired: true,
+      identityRequired: false,
       insuranceRequired: false,
       officialRegistrationRequired: false,
       officialRegistrationLabel: null,
-      legalNote: "Aucune règle spécifique configurée : KLYX demande au minimum une preuve d'expérience.",
+      legalNote: "Aucune règle spécifique configurée : cette compétence peut être auto-déclarée.",
       sourceUrl: null,
     };
   }
