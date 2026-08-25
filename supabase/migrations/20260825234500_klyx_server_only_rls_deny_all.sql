@@ -4,8 +4,8 @@
 -- These tables are intentionally not exposed to browser roles. Their direct
 -- privileges remain revoked, and explicit deny-all RLS policies add a second
 -- fail-closed layer in case a future migration accidentally restores a grant.
--- The policies also let the Founder RLS audit distinguish "closed on purpose"
--- from "RLS enabled but left without any policy".
+-- The Founder audit also includes user_notifications, the canonical KLYX
+-- notification store, while the historical notifications table stays locked.
 -- ============================================================
 
 begin;
@@ -51,5 +51,56 @@ create policy "klyx_server_only_deny_all"
   to anon, authenticated
   using (false)
   with check (false);
+
+create or replace function public.klyx_security_audit()
+returns table(
+  table_name text,
+  rls_enabled boolean,
+  policy_count bigint
+)
+language sql
+security definer
+set search_path = public, pg_catalog
+as $$
+  select
+    c.relname::text as table_name,
+    c.relrowsecurity as rls_enabled,
+    count(p.policyname)::bigint as policy_count
+  from pg_catalog.pg_class c
+  join pg_catalog.pg_namespace n
+    on n.oid = c.relnamespace
+  left join pg_catalog.pg_policies p
+    on p.schemaname = n.nspname
+   and p.tablename = c.relname
+  where
+    n.nspname = 'public'
+    and c.relkind = 'r'
+    and c.relname in (
+      'profiles',
+      'user_services',
+      'service_profiles',
+      'provider_profiles',
+      'provider_service_zones',
+      'availability_slots',
+      'favorites',
+      'bookings',
+      'service_quotes',
+      'messages',
+      'reviews',
+      'disputes',
+      'notifications',
+      'user_notifications'
+    )
+  group by
+    c.relname,
+    c.relrowsecurity
+  order by c.relname;
+$$;
+
+alter function public.klyx_security_audit() owner to postgres;
+revoke all on function public.klyx_security_audit()
+  from public, anon, authenticated;
+grant execute on function public.klyx_security_audit()
+  to service_role;
 
 commit;
