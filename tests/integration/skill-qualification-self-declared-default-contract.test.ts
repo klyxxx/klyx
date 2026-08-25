@@ -7,6 +7,11 @@ const skillQualification = readFileSync(
   "utf8"
 );
 
+const skillQualificationPolicy = readFileSync(
+  join(process.cwd(), "lib/skill-qualification-policy.ts"),
+  "utf8"
+);
+
 const publicQualification = readFileSync(
   join(process.cwd(), "lib/provider-public-qualification.ts"),
   "utf8"
@@ -26,25 +31,44 @@ describe("skill qualification self-declared default contract", () => {
   it("does not invent documentary requirements when no explicit rule exists", () => {
     const fallback = fallbackBlock(skillQualification);
 
-    expect(fallback).toContain('ruleLevel: "self_declared"');
-    expect(fallback).toContain("requiredProofTypes: []");
-    expect(fallback).toContain("minimumYearsExperience: 0");
-    expect(fallback).toContain("identityRequired: false");
-    expect(fallback).toContain("insuranceRequired: false");
-    expect(fallback).toContain("officialRegistrationRequired: false");
-    expect(fallback).not.toContain('ruleLevel: "evidence_required"');
+    expect(fallback).toContain(
+      "return createDefaultSkillQualificationRule({"
+    );
+    expect(skillQualificationPolicy).toContain(
+      'ruleLevel: "self_declared"'
+    );
+    expect(skillQualificationPolicy).toContain(
+      "requiredProofTypes: []"
+    );
+    expect(skillQualificationPolicy).toContain(
+      "minimumYearsExperience: 0"
+    );
+    expect(skillQualificationPolicy).toContain(
+      "identityRequired: false"
+    );
+    expect(skillQualificationPolicy).toContain(
+      "insuranceRequired: false"
+    );
+    expect(skillQualificationPolicy).toContain(
+      "officialRegistrationRequired: false"
+    );
+    expect(fallback).not.toContain(
+      'ruleLevel: "evidence_required"'
+    );
   });
 
   it("keeps explicit database qualification rules authoritative", () => {
-    expect(skillQualification).toContain("ruleLevel: data.rule_level");
+    expect(skillQualification).toContain(
+      "ruleLevel: data.rule_level"
+    );
     expect(skillQualification).toContain(
       "requiredProofTypes: (data.required_proof_types ?? []) as SkillProofType[]"
     );
     expect(skillQualification).toContain(
       "identityRequired: data.identity_required !== false"
     );
-    expect(skillQualification).toContain(
-      "officialRegistrationRequired: data.official_registration_required === true"
+    expect(skillQualification).toMatch(
+      /officialRegistrationRequired:\s*data\.official_registration_required === true/
     );
     expect(skillQualification).toContain('.eq("enabled", true)');
   });
