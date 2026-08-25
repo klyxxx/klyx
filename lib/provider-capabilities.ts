@@ -27,7 +27,7 @@ export function normalizeKlyxProviderCapabilityLabel(value: string): string {
   return value
     .trim()
     .normalize("NFKD")
-    .replace(/\p{Diacritic}/gu, "")
+    .replace(/\p{M}+/gu, "")
     .toLocaleLowerCase("und")
     .replace(/[’']/g, " ")
     .replace(/[^\p{L}\p{N}]+/gu, " ")
