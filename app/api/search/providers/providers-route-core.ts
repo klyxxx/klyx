@@ -13,7 +13,7 @@ import {
   type ProviderSearchZoneCoverageInput,
 } from "@/lib/provider-search-zone-coverage";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { getApprovedUserServiceIds } from "@/lib/provider-skill-publication";
+import { getPublicUserServiceQualificationIdsForProfiles } from "@/lib/provider-skill-publication";
 import { loadPublicProviderQualifications } from "@/lib/provider-public-qualification";
 
 const SORT_VALUES: ProviderSearchSort[] = [
@@ -343,15 +343,18 @@ async function loadCandidates(filters: Filters): Promise<Candidate[]> {
 
   if (allUserServices.length === 0) return [];
 
-  const approvedUserServiceIds =
-    await getApprovedUserServiceIds(
-      allUserServices.map((item) => item.id)
-    );
-
-  const userServices =
-    allUserServices.filter((item) =>
-      approvedUserServiceIds.has(item.id)
-    );
+  const qualificationIds =
+    await getPublicUserServiceQualificationIdsForProfiles({
+      userServices: allUserServices.map((item) => ({
+        id: item.id,
+        profileId: item.user_id,
+        serviceId: item.service_id,
+      })),
+    });
+  const approvedUserServiceIds = qualificationIds.approvedUserServiceIds;
+  const userServices = allUserServices.filter((item) =>
+    qualificationIds.eligibleUserServiceIds.has(item.id)
+  );
 
   if (userServices.length === 0) return [];
 
@@ -436,6 +439,7 @@ async function loadCandidates(filters: Filters): Promise<Candidate[]> {
       userServiceId: zone.user_service_id,
       countryCode: zone.country_code,
     })),
+    approvedUserServiceIds,
   });
 
   const serviceById = new Map(services.map((service) => [service.id, service]));
