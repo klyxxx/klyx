@@ -13,6 +13,13 @@ const verifiedServicesRoute = readFileSync(
   ),
   "utf8"
 );
+const providerSearchSource = readFileSync(
+  join(
+    process.cwd(),
+    "app/api/search/providers/providers-route-core.ts"
+  ),
+  "utf8"
+);
 const publicQualificationSource = readFileSync(
   join(process.cwd(), "lib/provider-public-qualification.ts"),
   "utf8"
@@ -25,9 +32,9 @@ const providerPage = readFileSync(
 describe("provider public skill eligibility contract", () => {
   it("re-evaluates public eligibility from the current rule and evidence", () => {
     expect(publicationSource).toContain(
-      "getPublicUserServiceQualificationIds"
+      "getPublicUserServiceQualificationIdsForProfiles"
     );
-    expect(publicationSource).toContain("getSkillQualificationRule({");
+    expect(publicationSource).toContain("getSkillQualificationRule(request)");
     expect(publicationSource).toContain("evaluateSkillPublicEligibility({");
     expect(publicationSource).toContain(
       '.from("provider_skill_documents")'
@@ -49,6 +56,22 @@ describe("provider public skill eligibility contract", () => {
     expect(verifiedServicesRoute).toContain("approvedUserServiceIds: Array.from(");
     expect(verifiedServicesRoute).toContain(
       "eligibility.approvedUserServiceIds"
+    );
+  });
+
+  it("uses the same live eligibility and approval split in provider search", () => {
+    expect(providerSearchSource).toContain(
+      "getPublicUserServiceQualificationIdsForProfiles({"
+    );
+    expect(providerSearchSource).toContain(
+      "qualificationIds.eligibleUserServiceIds.has(item.id)"
+    );
+    expect(providerSearchSource).toContain(
+      "const approvedUserServiceIds = qualificationIds.approvedUserServiceIds"
+    );
+    expect(providerSearchSource).toContain("approvedUserServiceIds,");
+    expect(providerSearchSource).not.toContain(
+      "await getApprovedUserServiceIds("
     );
   });
 
