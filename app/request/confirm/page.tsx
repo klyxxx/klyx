@@ -21,11 +21,21 @@ import {
   Search,
   Sparkles,
 } from "lucide-react";
+
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import {
   isPastBookingStart,
   minimumFutureTimeForDate,
   todayInBrussels,
 } from "@/lib/brussels-time";
+import {
+  formatKlyxRequestConfirmService,
+  translateKlyxRequestConfirm,
+  type KlyxRequestConfirmMessageKey,
+} from "@/lib/klyx-request-confirm-i18n";
+
+// KLYX_REQUEST_CONFIRM_I18N
+// KLYX_REQUEST_CONFIRM_NAVIGATION_ONLY
 
 type ConfirmedRequest = {
   service: string;
@@ -35,16 +45,17 @@ type ConfirmedRequest = {
   budget: string;
 };
 
-const serviceLabels: Record<string, string> = {
-  babysitting: "Baby-sitting",
-  cleaning: "Ménage",
-  moving: "Déménagement",
-  handyman: "Bricolage",
-};
+type ConfirmErrorKey =
+  | "pastInterpretedDate"
+  | "pastDate"
+  | "pastTodayTime";
 
 function ConfirmRequestContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxRequestConfirmMessageKey) =>
+    translateKlyxRequestConfirm(locale, key);
   const minimumDate = todayInBrussels();
 
   // KLYX_CONFIRMATION_PROOF_12_64
@@ -65,7 +76,7 @@ function ConfirmRequestContent() {
   );
 
   const [request, setRequest] = useState(initialRequest);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [errorKey, setErrorKey] = useState<ConfirmErrorKey | null>(null);
 
   useEffect(() => {
     if (request.date && request.date < minimumDate) {
@@ -74,9 +85,7 @@ function ConfirmRequestContent() {
         date: "",
         time: "",
       }));
-      setErrorMessage(
-        "La date comprise par KLYX était déjà passée. Choisis une nouvelle date."
-      );
+      setErrorKey("pastInterpretedDate");
     }
   }, [minimumDate, request.date]);
 
@@ -84,7 +93,7 @@ function ConfirmRequestContent() {
     key: Key,
     value: ConfirmedRequest[Key]
   ) {
-    setErrorMessage("");
+    setErrorKey(null);
 
     setRequest((current) => {
       if (key === "date") {
@@ -106,17 +115,15 @@ function ConfirmRequestContent() {
 
   function continueToSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setErrorMessage("");
+    setErrorKey(null);
 
     if (request.date < minimumDate) {
-      setErrorMessage("Il est impossible de réserver une date passée.");
+      setErrorKey("pastDate");
       return;
     }
 
     if (isPastBookingStart(request.date, request.time)) {
-      setErrorMessage(
-        "Pour aujourd’hui, choisis une heure qui n’est pas déjà passée."
-      );
+      setErrorKey("pastTodayTime");
       return;
     }
 
@@ -131,21 +138,18 @@ function ConfirmRequestContent() {
       params.set("budget", request.budget);
     }
 
-        if (conversationId) {
+    if (conversationId) {
       params.set("conversationId", conversationId);
     }
 
     if (confirmationId) {
       params.set("confirmationId", confirmationId);
     }
-router.push(`/recommendations?${params.toString()}`);
+
+    router.push(`/recommendations?${params.toString()}`);
   }
 
-  const serviceLabel =
-    serviceLabels[request.service] ||
-    request.service ||
-    "Service à préciser";
-
+  const serviceLabel = formatKlyxRequestConfirmService(locale, request.service);
   const minimumTime = minimumFutureTimeForDate(request.date);
 
   return (
@@ -156,7 +160,7 @@ router.push(`/recommendations?${params.toString()}`);
           className="inline-flex items-center gap-2 text-sm font-bold text-muted-foreground transition hover:text-foreground"
         >
           <ArrowLeft size={17} />
-          Revenir à l’assistant
+          {t("backToAssistant")}
         </Link>
 
         <section className="relative mt-6 overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#17131f_0%,#2b1452_52%,#111827_100%)] p-7 text-white shadow-[0_28px_90px_rgba(44,20,85,0.25)] sm:p-10">
@@ -165,16 +169,15 @@ router.push(`/recommendations?${params.toString()}`);
           <div className="relative max-w-3xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/7 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-white/70">
               <Sparkles size={15} />
-              Vérification rapide
+              {t("eyebrow")}
             </div>
 
             <h1 className="mt-5 text-3xl font-black tracking-[-0.045em] sm:text-5xl">
-              Confirme ta demande
+              {t("title")}
             </h1>
 
             <p className="mt-4 max-w-2xl text-sm leading-7 text-white/70 sm:text-base">
-              Corrige seulement ce qui est nécessaire. KLYX bloque
-              automatiquement les dates et heures déjà passées.
+              {t("description")}
             </p>
           </div>
         </section>
@@ -183,42 +186,42 @@ router.push(`/recommendations?${params.toString()}`);
           onSubmit={continueToSearch}
           className="klyx-card mt-8 p-6 sm:p-8"
         >
-          {errorMessage && (
+          {errorKey && (
             <div className="mb-6 flex items-start gap-3 rounded-2xl border border-rose-500/25 bg-rose-500/10 p-4 text-sm text-rose-700 dark:text-rose-300">
               <AlertCircle className="mt-0.5 shrink-0" size={19} />
-              {errorMessage}
+              {t(errorKey)}
             </div>
           )}
 
           <div className="grid gap-5 md:grid-cols-2">
-            <Field icon={<Search size={18} />} label="Service" summary={serviceLabel}>
+            <Field icon={<Search size={18} />} label={t("service")} summary={serviceLabel}>
               <input
                 value={request.service}
                 onChange={(event) => update("service", event.target.value)}
                 className="klyx-input"
-                placeholder="babysitting, cleaning..."
+                placeholder={t("servicePlaceholder")}
                 required
               />
             </Field>
 
             <Field
               icon={<MapPin size={18} />}
-              label="Ville"
-              summary={request.city || "À préciser"}
+              label={t("city")}
+              summary={request.city || t("toSpecify")}
             >
               <input
                 value={request.city}
                 onChange={(event) => update("city", event.target.value)}
                 className="klyx-input"
-                placeholder="Bruxelles"
+                placeholder={t("cityPlaceholder")}
                 required
               />
             </Field>
 
             <Field
               icon={<CalendarDays size={18} />}
-              label="Date"
-              summary={request.date || "À préciser"}
+              label={t("date")}
+              summary={request.date || t("toSpecify")}
             >
               <input
                 type="date"
@@ -232,8 +235,8 @@ router.push(`/recommendations?${params.toString()}`);
 
             <Field
               icon={<Clock3 size={18} />}
-              label="Heure"
-              summary={request.time || "À préciser"}
+              label={t("time")}
+              summary={request.time || t("toSpecify")}
             >
               <input
                 type="time"
@@ -247,8 +250,8 @@ router.push(`/recommendations?${params.toString()}`);
 
             <Field
               icon={<Euro size={18} />}
-              label="Budget maximum"
-              summary={request.budget ? `${request.budget} €` : "Aucun maximum"}
+              label={t("budget")}
+              summary={request.budget ? `${request.budget} €` : t("noMaximum")}
             >
               <input
                 type="number"
@@ -257,7 +260,7 @@ router.push(`/recommendations?${params.toString()}`);
                 value={request.budget}
                 onChange={(event) => update("budget", event.target.value)}
                 className="klyx-input"
-                placeholder="Facultatif"
+                placeholder={t("optional")}
               />
             </Field>
 
@@ -269,11 +272,10 @@ router.push(`/recommendations?${params.toString()}`);
                 />
                 <div>
                   <p className="font-black text-emerald-800 dark:text-emerald-200">
-                    Aucun paiement maintenant
+                    {t("noPaymentTitle")}
                   </p>
                   <p className="mt-2 text-sm leading-6 text-emerald-700 dark:text-emerald-300">
-                    Le paiement ne sera proposé qu’après l’acceptation réelle
-                    de la demande par le prestataire.
+                    {t("noPaymentText")}
                   </p>
                 </div>
               </div>
@@ -284,7 +286,7 @@ router.push(`/recommendations?${params.toString()}`);
             type="submit"
             className="mt-7 inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-violet-600 px-6 text-sm font-bold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-violet-500"
           >
-            Afficher la sélection KLYX
+            {t("continue")}
             <ArrowRight size={18} />
           </button>
         </form>
@@ -320,12 +322,14 @@ function Field({
 }
 
 export default function ConfirmRequestPage() {
+  const { locale } = useKlyxLocale();
+
   return (
     <Suspense
       fallback={
         <main className="klyx-page">
           <div className="mx-auto max-w-5xl rounded-3xl border border-border bg-card p-8 text-center text-muted-foreground">
-            Préparation de ta demande...
+            {translateKlyxRequestConfirm(locale, "loading")}
           </div>
         </main>
       }
