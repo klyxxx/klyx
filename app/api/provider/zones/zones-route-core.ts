@@ -9,6 +9,7 @@ import {
 import {
   BELGIAN_LOCALITIES_COUNTRY_CODE,
   findBelgianLocality,
+  isBelgianLocalityPostalCode,
 } from "@/lib/belgian-localities";
 
 async function providerServices(profileId: string) {
@@ -178,6 +179,20 @@ export async function POST(request: Request) {
         {
           error:
             "Choisis une commune belge proposée dans la liste.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (
+      postalInput &&
+      !isBelgianLocalityPostalCode(knownLocality, postalInput)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Le code postal ne correspond pas à la commune sélectionnée.",
+          code: "KLYX_LOCALITY_POSTAL_MISMATCH",
         },
         { status: 400 }
       );
