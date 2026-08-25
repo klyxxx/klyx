@@ -16,6 +16,7 @@ const route = readRepoFile(
   "app/api/provider/quotes/draft/route.ts"
 );
 const page = readRepoFile("app/provider/quotes/page.tsx");
+const pageI18n = readRepoFile("lib/klyx-provider-quotes-i18n.ts");
 const helper = readRepoFile("lib/provider-quote-draft.ts");
 const quoteRoute = readRepoFile("app/api/quotes/quote-route-core.ts");
 const privilegeMigration = readRepoFile(
@@ -83,9 +84,18 @@ describe("KLYX provider smart quote draft contract", () => {
     expect(page).toContain('"/api/provider/quotes/draft"');
     expect(page).toContain('"/api/quotes"');
     expect(page).toContain('action: "send"');
-    expect(page).toContain("Vérifier et envoyer le devis");
-    expect(page).toContain("Rien n’a été envoyé au client.");
-    expect(page).toContain("Seul le bouton ci-dessous envoie réellement le devis au client.");
+    expect(page).toContain('t("send")');
+    expect(page).toContain('t("approvalRequired")');
+    expect(page).toContain('t("editableNotice")');
+
+    // The transactional safety copy is now locale-aware. Keep the original
+    // French guarantees in the dictionary while allowing the page to render
+    // the active locale instead of pinning French literals in JSX.
+    expect(pageI18n).toContain('send: "Vérifier et envoyer le devis"');
+    expect(pageI18n).toContain("Rien n’a été envoyé au client.");
+    expect(pageI18n).toContain(
+      "Seul le bouton ci-dessous envoie réellement le devis au client."
+    );
 
     expect(quoteRoute).toContain('if (action === "send")');
     expect(quoteRoute).toContain('requireAccountType(profile, "provider")');
