@@ -12,9 +12,12 @@ import {
 } from "@/lib/klyx-provider-quotes-i18n";
 import { supabase } from "@/lib/supabase";
 
+// KLYX_PROVIDER_QUOTE_CURRENCY_UI_15_06
 type QuoteProfile = { id: string; first_name: string | null; last_name: string | null };
 type Quote = {
   id: string;
+  country_code: string;
+  currency: string;
   title: string;
   description: string;
   requested_date: string | null;
@@ -187,7 +190,7 @@ export default function ProviderQuotesPage() {
                     {quote.requested_date && <span>{t("date")} : {formatKlyxProviderQuoteDate(locale, quote.requested_date)}</span>}
                     {quote.requested_time && <span>{t("time")} : {quote.requested_time.slice(0, 5)}</span>}
                     {quote.duration_hours && <span>{t("duration")} : {quote.duration_hours} h</span>}
-                    <span>{t("estimate")} : {quote.estimated_total == null ? t("toConfirm") : formatKlyxProviderQuoteMoney(locale, Number(quote.estimated_total))}</span>
+                    <span>{t("estimate")} : {quote.estimated_total == null ? t("toConfirm") : formatKlyxProviderQuoteMoney(locale, Number(quote.estimated_total), quote.currency)}</span>
                   </div>
 
                   {quote.status === "requested" && (
@@ -206,7 +209,7 @@ export default function ProviderQuotesPage() {
                         </div>
                       )}
 
-                      <label><span className="mb-2 block text-sm font-black">{t("priceLabel")}</span><input type="number" min="0" step="0.01" value={prices[quote.id] ?? ""} onChange={(event) => setPrices((current) => ({ ...current, [quote.id]: event.target.value }))} className="klyx-input" /></label>
+                      <label><span className="mb-2 block text-sm font-black">{t("priceLabel")} ({quote.currency})</span><input type="number" min="0" step="0.01" value={prices[quote.id] ?? ""} onChange={(event) => setPrices((current) => ({ ...current, [quote.id]: event.target.value }))} className="klyx-input" /></label>
                       <label><span className="mb-2 block text-sm font-black">{t("messageLabel")}</span><textarea rows={4} maxLength={1500} value={messages[quote.id] ?? ""} onChange={(event) => setMessages((current) => ({ ...current, [quote.id]: event.target.value }))} className="klyx-input resize-none" placeholder={t("messagePlaceholder")} /></label>
                       <div className="rounded-2xl border border-border bg-background/60 p-4 text-xs leading-5 text-muted-foreground">{t("editableNotice")}</div>
                       <button type="submit" disabled={busyId === quote.id || draftBusyId === quote.id} className="klyx-button w-full">{busyId === quote.id ? <LoaderCircle className="animate-spin" size={18} /> : <Send size={18} />}{t("send")}</button>
@@ -215,7 +218,7 @@ export default function ProviderQuotesPage() {
 
                   {quote.status !== "requested" && (
                     <div className="mt-5 rounded-2xl border border-border bg-background/60 p-4">
-                      <p className="text-sm font-black">{t("sentPrice")} : {quote.provider_price == null ? "—" : formatKlyxProviderQuoteMoney(locale, Number(quote.provider_price))}</p>
+                      <p className="text-sm font-black">{t("sentPrice")} : {quote.provider_price == null ? "—" : formatKlyxProviderQuoteMoney(locale, Number(quote.provider_price), quote.currency)}</p>
                       {quote.provider_message && <p className="mt-2 text-sm text-muted-foreground">{quote.provider_message}</p>}
                     </div>
                   )}
