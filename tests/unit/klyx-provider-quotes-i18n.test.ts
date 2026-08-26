@@ -61,13 +61,17 @@ describe("KLYX provider quotes i18n", () => {
     expect(translateKlyxProviderQuoteStatus("en", "future_status")).toBe("future_status");
   });
 
-  it("formats dates and EUR amounts per locale without converting stored values", () => {
+  it("formats dates and the explicit quote currency per locale without converting stored values", () => {
     for (const locale of CERTIFIED_LOCALES) {
-      const money = formatKlyxProviderQuoteMoney(locale, 1234.56);
+      const euro = formatKlyxProviderQuoteMoney(locale, 1234.56, "EUR");
+      const dollar = formatKlyxProviderQuoteMoney(locale, 1234.56, "USD");
+      const pound = formatKlyxProviderQuoteMoney(locale, 1234.56, "GBP");
       const date = formatKlyxProviderQuoteDate(locale, "2026-08-25");
 
-      expect(money).toContain("1");
-      expect(money).toContain("€");
+      expect(euro).toContain("1");
+      expect(euro).toContain("€");
+      expect(dollar).toMatch(/\$|USD/);
+      expect(pound).toMatch(/£|GBP/);
       expect(date.length).toBeGreaterThan(4);
     }
 
