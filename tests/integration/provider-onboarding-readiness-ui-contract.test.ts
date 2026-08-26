@@ -29,12 +29,18 @@ describe("KLYX provider onboarding readiness UI contract", () => {
     expect(source).toMatch(/zone\.is_active\s*!==\s*false/);
   });
 
-  it("keeps verification and Stripe completion fail-closed", () => {
+  it("keeps verification and live payment completion fail-closed", () => {
     expect(source).toContain('["approved", "verified"].includes(verificationStatus)');
     for (const status of ["incomplete", "submitted", "under_review", "pending"]) {
       expect(source).toContain(`"${status}"`);
     }
-    expect(source).toMatch(/stripe\?\.connected[\s\S]*stripe\.onboardingComplete[\s\S]*stripe\.chargesEnabled[\s\S]*stripe\.payoutsEnabled/);
+
+    expect(source).toMatch(/const stripeDone\s*=\s*Boolean\(stripe\?\.livePaymentsOperational\)/);
+    expect(source).toMatch(/const stripeConfigured\s*=\s*Boolean\(stripe\?\.stripeConfigured\)/);
+    expect(source).toMatch(/id:\s*["']payments["'][\s\S]*state:[\s\S]*stripeDone[\s\S]*["']done["']/);
+    expect(source).not.toMatch(
+      /const stripeDone\s*=\s*Boolean\([\s\S]*stripe\?\.connected\s*&&\s*stripe\.onboardingComplete\s*&&\s*stripe\.chargesEnabled\s*&&\s*stripe\.payoutsEnabled/
+    );
   });
 
   it("keeps readiness based only on all required steps being done", () => {

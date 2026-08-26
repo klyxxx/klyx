@@ -20,6 +20,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import {
+  translateKlyxProviderPaymentReadiness,
+} from "@/lib/klyx-provider-payment-readiness-i18n";
+import type { KlyxProviderPaymentBlockReason } from "@/lib/klyx-provider-payment-readiness";
+import {
   formatKlyxProviderProgress,
   translateKlyxProviderProgress,
   type KlyxProviderProgressMessageKey,
@@ -27,6 +31,7 @@ import {
 import { supabase } from "@/lib/supabase";
 
 // KLYX_PROVIDER_PROGRESS_I18N_16_03
+// KLYX_PROVIDER_LIVE_PAYMENT_PROGRESS_16_04
 
 type ProgressState = "loading" | "todo" | "progress" | "done";
 
@@ -60,6 +65,9 @@ type StripeState = {
   onboardingComplete: boolean;
   chargesEnabled: boolean;
   payoutsEnabled: boolean;
+  stripeConfigured: boolean;
+  livePaymentsOperational: boolean;
+  paymentBlockReason: KlyxProviderPaymentBlockReason | null;
 };
 
 type Step = {
@@ -174,7 +182,6 @@ export default function ProviderOnboardingProgress() {
     );
 
     const hasService = enabledServices.length > 0;
-
     const hasPrice = enabledServices.some((service) =>
       [service.price, service.hourlyPrice, service.fixedPrice].some(
         (price) =>
@@ -184,18 +191,15 @@ export default function ProviderOnboardingProgress() {
           Number(price) >= 0
       )
     );
-
     const hasAvailability = enabledServices.some(
       (service) =>
         Array.isArray(service.availability) &&
         service.availability.some((day) => day.enabled === true)
     );
-
     const hasZone = zones.some((zone) => zone.is_active !== false);
 
     const verificationStatus =
       verification?.status ?? provider?.verificationStatus ?? "not_started";
-
     const verificationDone = ["approved", "verified"].includes(verificationStatus);
     const verificationStarted =
       documents.length > 0 ||
@@ -203,14 +207,18 @@ export default function ProviderOnboardingProgress() {
         verificationStatus
       );
 
-    const stripeDone = Boolean(
-      stripe?.connected &&
-        stripe.onboardingComplete &&
-        stripe.chargesEnabled &&
-        stripe.payoutsEnabled
+    const stripeDone = Boolean(stripe?.livePaymentsOperational);
+    const stripeConfigured = Boolean(stripe?.stripeConfigured);
+    const stripeStarted = Boolean(
+      stripe?.connected || stripe?.onboardingComplete || stripeConfigured
     );
-
-    const stripeStarted = Boolean(stripe?.connected || stripe?.onboardingComplete);
+    const paymentReadinessDescription =
+      !stripeDone && stripe?.paymentBlockReason
+        ? translateKlyxProviderPaymentReadiness(
+            locale,
+            stripe.paymentBlockReason
+          )
+        : null;
     const published = provider?.isPublished === true;
 
     return [
@@ -320,11 +328,12 @@ export default function ProviderOnboardingProgress() {
         title: t("paymentsTitle"),
         description: stripeDone
           ? t("paymentsDoneDescription")
-          : stripeStarted
-            ? t("paymentsStartedDescription")
-            : t("paymentsTodoDescription"),
+          : paymentReadinessDescription ??
+            (stripeStarted
+              ? t("paymentsStartedDescription")
+              : t("paymentsTodoDescription")),
         href: "/provider/payments",
-        button: stripeDone
+        button: stripeConfigured
           ? t("paymentsDoneButton")
           : stripeStarted
             ? t("paymentsStartedButton")
@@ -361,7 +370,7 @@ export default function ProviderOnboardingProgress() {
         required: true,
       },
     ];
-  }, [documents, loading, studio, stripe, t, verification, zones]);
+  }, [documents, loading, locale, studio, stripe, t, verification, zones]);
 
   const requiredSteps = steps.filter((step) => step.required);
   const completedRequired = requiredSteps.filter((step) => step.state === "done").length;
