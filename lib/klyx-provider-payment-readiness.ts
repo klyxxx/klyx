@@ -1,4 +1,5 @@
 // KLYX_PROVIDER_LIVE_PAYMENT_READINESS_16_05
+// KLYX_CONNECT_ONBOARDING_BEFORE_LIVE_SWITCH_16_08
 export type KlyxProviderPaymentBlockReason =
   | "TEST_MODE"
   | "LIVE_PAYMENTS_DISABLED"
@@ -32,9 +33,10 @@ export function assessKlyxProviderPaymentReadiness(
       input.payoutsEnabled
   );
 
-  const connectSetupAllowed =
-    input.runtimeMode === "test" ||
-    (input.livePaymentsEnabled && input.marketCommerciallyReady);
+  // Connect onboarding/KYC is preparatory configuration. Providers may finish
+  // identity and payout setup before KLYX opens real charges in their market.
+  // Country validation still happens in the onboarding route and Stripe itself.
+  const connectSetupAllowed = true;
 
   let blockReason: KlyxProviderPaymentBlockReason | null = null;
 
