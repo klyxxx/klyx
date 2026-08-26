@@ -10,10 +10,7 @@ import {
   requireAccountType,
 } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
-import {
-  assessKlyxMarketReadiness,
-  getKlyxMarketReadiness,
-} from "@/lib/klyx-market-readiness";
+import { getKlyxMarketReadiness } from "@/lib/klyx-market-readiness";
 
 function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();
@@ -66,20 +63,20 @@ export async function POST(request: Request) {
       );
     }
 
-    // Test mode stays available for launch certification. In live mode, the
-    // reviewed market-readiness matrix is the source of truth and fails closed.
+    // Provider onboarding is preparatory. KLYX may collect Stripe's KYC and
+    // payout setup before a market is commercially opened. We still require a
+    // known monetary market here; Stripe remains authoritative for whether the
+    // requested country can create the requested Connect capabilities.
     if (stripeRuntime.mode === "live") {
       const marketReadiness = getKlyxMarketReadiness(accountCountry);
-      const marketAssessment = assessKlyxMarketReadiness(marketReadiness);
 
-      if (!marketAssessment.ready) {
+      if (marketReadiness.monetarySupport !== "supported") {
         return NextResponse.json(
           {
             error:
-              "KLYX n'est pas encore ouvert aux paiements réels dans ce pays.",
-            code: "KLYX_MARKET_NOT_COMMERCIALLY_READY",
+              "Ce pays n'est pas encore pris en charge pour la configuration des paiements KLYX.",
+            code: "KLYX_STRIPE_COUNTRY_UNSUPPORTED",
             countryCode: accountCountry,
-            blockers: marketAssessment.blockers,
           },
           { status: 409 }
         );
