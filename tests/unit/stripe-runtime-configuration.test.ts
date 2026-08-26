@@ -50,10 +50,14 @@ describe("KLYX Stripe runtime configuration assertion", () => {
 
   it("allows status diagnostics when only the live payment switch is disabled", () => {
     const report = assertStripeRuntimeConfigured();
+    const nonLiveSwitchChecks = report.checks.filter(
+      (check) => check.key !== "live_switch"
+    );
 
     expect(report.mode).toBe("live");
     expect(report.livePaymentsEnabled).toBe(false);
     expect(report.ready).toBe(false);
+    expect(nonLiveSwitchChecks.every((check) => check.ok)).toBe(true);
     expect(report.checks.find((check) => check.key === "live_switch")?.ok).toBe(
       false
     );
