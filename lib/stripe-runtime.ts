@@ -165,7 +165,13 @@ function assertStripeRuntimeChecks(
   return report;
 }
 
-export function assertStripeRuntimeConfigured(): StripeRuntimeReport {
+/**
+ * Diagnostic/read-only surfaces only.
+ * Validates Stripe configuration while deliberately leaving the live-payment
+ * switch observable so the UI can explain that real payments are disabled.
+ * Transactional routes must use assertStripeRuntimeReady().
+ */
+export function assertStripeRuntimeConfiguredForDiagnostics(): StripeRuntimeReport {
   const report = inspectStripeRuntime();
 
   return assertStripeRuntimeChecks(
