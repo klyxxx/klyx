@@ -46,6 +46,8 @@ import { formatKlyxBookingServiceFromSlug } from "@/lib/klyx-bookings-service-i1
 import { getActiveClientProfile, type SavedAccount } from "@/lib/account-switcher";
 import { supabase } from "@/lib/supabase";
 
+// KLYX_BOOKING_STRIPE_READINESS_UI_15_05
+
 type BookingRow = {
   id: string;
   parent_id: string;
@@ -101,6 +103,13 @@ type TimelineEvent = StatusEventRow & {
   actorName: string;
 };
 
+type BookingStripeReadinessResponse = {
+  checkoutReady: boolean;
+  paymentInfrastructureReady: boolean;
+  blockReason: string | null;
+  stripeReadinessComplete: boolean;
+};
+
 type BookingStatusAction = "accepted" | "rejected" | "cancelled";
 type JourneyState = "done" | "current" | "upcoming" | "stopped";
 
@@ -137,6 +146,8 @@ export default function BookingDetailsPage() {
   const [otherProfile, setOtherProfile] = useState<ProfileRow | null>(null);
   const [serviceSlug, setServiceSlug] = useState<string | null>(null);
   const [events, setEvents] = useState<TimelineEvent[]>([]);
+  const [stripeReadiness, setStripeReadiness] =
+    useState<BookingStripeReadinessResponse | null>(null);
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(true);
   const [activeAction, setActiveAction] = useState<string | null>(null);
@@ -154,13 +165,14 @@ export default function BookingDetailsPage() {
   const loadBooking = useCallback(async () => {
     setLoading(true);
     setErrorKey(null);
+    setStripeReadiness(null);
 
     try {
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
-      if (!session?.user) {
+      if (!session?.user || !session.access_token) {
         router.replace("/login");
         return;
       }
@@ -191,6 +203,48 @@ export default function BookingDetailsPage() {
         bookingData.parent_id === profile.id || providerId === profile.id;
 
       if (!participant) throw new Error(BOOKING_ACCESS_DENIED);
+
+      const paymentBusinessEligible =
+        bookingData.parent_id === profile.id &&
+        bookingData.status === "accepted" &&
+        bookingData.payment_status !== "paid" &&
+        bookingData.payment_status !== "refunded";
+
+      if (paymentBusinessEligible) {
+        try {
+          const readinessResponse = await fetch(
+            `/api/bookings/${encodeURIComponent(bookingId)}/stripe-readiness`,
+            {
+              cache: "no-store",
+              headers: {
+                Authorization: `Bearer ${session.access_token}`,
+              },
+            }
+          );
+          const readinessBody = (await readinessResponse.json()) as
+            | BookingStripeReadinessResponse
+            | { error?: string };
+
+          if (!readinessResponse.ok) {
+            throw new Error(
+              "error" in readinessBody
+                ? readinessBody.error || "Stripe readiness unavailable"
+                : "Stripe readiness unavailable"
+            );
+          }
+
+          setStripeReadiness(
+            readinessBody as BookingStripeReadinessResponse
+          );
+        } catch {
+          setStripeReadiness({
+            checkoutReady: false,
+            paymentInfrastructureReady: false,
+            blockReason: "STRIPE_READINESS_UNAVAILABLE",
+            stripeReadinessComplete: false,
+          });
+        }
+      }
 
       const otherProfileId =
         bookingData.parent_id === profile.id ? providerId : bookingData.parent_id;
@@ -312,6 +366,11 @@ export default function BookingDetailsPage() {
   }
 
   async function payBooking() {
+    if (!stripeReadiness?.checkoutReady) {
+      setErrorKey("paymentFailed");
+      return;
+    }
+
     setActiveAction("pay");
     setErrorKey(null);
     setSuccessKey(null);
@@ -401,11 +460,12 @@ export default function BookingDetailsPage() {
   const canCancel =
     ["pending", "accepted"].includes(booking.status) &&
     !(role === "provider" && booking.status === "pending");
-  const canPay =
+  const paymentEligible =
     role === "client" &&
     booking.status === "accepted" &&
     booking.payment_status !== "paid" &&
     booking.payment_status !== "refunded";
+  const canPay = paymentEligible && stripeReadiness?.checkoutReady === true;
   const canTrack =
     booking.status === "accepted" && booking.payment_status === "paid";
   const otherName = profileName(otherProfile) || t("userFallback");
@@ -540,8 +600,13 @@ export default function BookingDetailsPage() {
                   {t("actionPayment")}
                 </span>
               )}
+              {paymentEligible && !canPay && (
+                <span className="rounded-full border border-amber-500/25 bg-amber-500/10 px-3 py-1.5 text-amber-700 dark:text-amber-300">
+                  {t("paymentFailed")}
+                </span>
+              )}
               {canTrack && (
-                <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1.5 text-xs font-bold text-emerald-700 dark:text-emerald-300">
                   {t("serviceReady")}
                 </span>
               )}
@@ -817,6 +882,12 @@ export default function BookingDetailsPage() {
               </button>
             )}
 
+            {paymentEligible && !canPay && (
+              <div className="mt-5 rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 text-sm font-semibold text-amber-700 dark:text-amber-300">
+                {t("paymentFailed")}
+              </div>
+            )}
+
             {canTrack && (
               <Link
                 href={`/tracking/${booking.id}`}
@@ -844,11 +915,14 @@ export default function BookingDetailsPage() {
               </button>
             )}
 
-            {!canProviderAnswer && !canPay && !canTrack && !canCancel && (
-              <div className="mt-5 rounded-xl border border-border bg-background p-4 text-sm text-muted-foreground dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
-                {t("noMoreActions")}
-              </div>
-            )}
+            {!canProviderAnswer &&
+              !paymentEligible &&
+              !canTrack &&
+              !canCancel && (
+                <div className="mt-5 rounded-xl border border-border bg-background p-4 text-sm text-muted-foreground dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
+                  {t("noMoreActions")}
+                </div>
+              )}
           </aside>
         </div>
 
