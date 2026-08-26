@@ -17,13 +17,16 @@ const onboardingRoute = read(
 const checkoutRoute = read(
   "app/api/stripe/create-checkout-session/route.ts"
 );
+const groupCheckoutRoute = read(
+  "app/api/stripe/create-group-checkout-session/route.ts"
+);
 
 describe("KLYX Stripe Connect onboarding before live payment activation", () => {
-  it("allows a market-ready provider to complete Connect setup while real charges stay disabled", () => {
+  it("allows a provider to complete Connect setup while real charges stay disabled", () => {
     const readiness = assessKlyxProviderPaymentReadiness({
       runtimeMode: "live",
       livePaymentsEnabled: false,
-      marketCommerciallyReady: true,
+      marketCommerciallyReady: false,
       connected: false,
       onboardingComplete: false,
       chargesEnabled: false,
@@ -38,19 +41,20 @@ describe("KLYX Stripe Connect onboarding before live payment activation", () => 
     });
   });
 
-  it("keeps Connect setup closed for a market that KLYX has not approved", () => {
+  it("still blocks real payments after setup when the market is not commercially ready", () => {
     const readiness = assessKlyxProviderPaymentReadiness({
       runtimeMode: "live",
-      livePaymentsEnabled: false,
+      livePaymentsEnabled: true,
       marketCommerciallyReady: false,
-      connected: false,
-      onboardingComplete: false,
-      chargesEnabled: false,
-      payoutsEnabled: false,
+      connected: true,
+      onboardingComplete: true,
+      chargesEnabled: true,
+      payoutsEnabled: true,
     });
 
-    expect(readiness.connectSetupAllowed).toBe(false);
+    expect(readiness.connectSetupAllowed).toBe(true);
     expect(readiness.livePaymentsOperational).toBe(false);
+    expect(readiness.blockReason).toBe("MARKET_NOT_COMMERCIALLY_READY");
   });
 
   it("treats onboarding as configuration rather than a live charge", () => {
@@ -59,9 +63,14 @@ describe("KLYX Stripe Connect onboarding before live payment activation", () => 
     );
     expect(onboardingRoute).not.toContain("assertStripeRuntimeReady()");
     expect(onboardingRoute).toContain('type: "account_onboarding"');
+    expect(onboardingRoute).toContain(
+      'marketReadiness.monetarySupport !== "supported"'
+    );
+    expect(onboardingRoute).not.toContain("assessKlyxMarketReadiness");
   });
 
-  it("still requires full live runtime readiness for client checkout", () => {
+  it("still requires full live runtime readiness for every client checkout", () => {
     expect(checkoutRoute).toContain("assertStripeRuntimeReady()");
+    expect(groupCheckoutRoute).toContain("assertStripeRuntimeReady");
   });
 });
