@@ -19,12 +19,16 @@ import {
   Send,
   UserRound,
 } from "lucide-react";
+import { formatKlyxMoney } from "@/lib/klyx-money";
 import { supabase } from "@/lib/supabase";
 
+// KLYX_QUOTE_BOOKING_CURRENCY_UI_15_06
 type QuoteData = {
   id: string;
   provider_profile_id: string;
   user_service_id: string;
+  country_code: string;
+  currency: string;
   title: string;
   description: string;
   requested_date: string | null;
@@ -512,9 +516,11 @@ export default function QuoteBookingPage() {
               <p className="mt-2 text-3xl font-black text-emerald-600">
                 {quote.provider_price == null
                   ? "—"
-                  : `${Number(
-                      quote.provider_price
-                    ).toFixed(2)} €`}
+                  : formatKlyxMoney(
+                      Number(quote.provider_price),
+                      quote.country_code,
+                      quote.currency
+                    )}
               </p>
             </div>
           </div>
@@ -745,9 +751,11 @@ export default function QuoteBookingPage() {
                     <p className="mt-1 font-black">
                       {quote.provider_price == null
                         ? "—"
-                        : `${Number(
-                            quote.provider_price
-                          ).toFixed(2)} €`}
+                        : formatKlyxMoney(
+                            Number(quote.provider_price),
+                            quote.country_code,
+                            quote.currency
+                          )}
                     </p>
                   </div>
 
@@ -803,4 +811,3 @@ export default function QuoteBookingPage() {
     </main>
   );
 }
-
