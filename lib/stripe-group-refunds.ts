@@ -12,6 +12,7 @@ import {
 } from "@/lib/supabase-admin";
 
 // KLYX_GROUP_REFUND_HELPER_12_90
+// KLYX_GROUP_REFUND_MONOTONE_RECONCILIATION_16_11
 
 type GroupRow = {
   id: string;
@@ -25,6 +26,7 @@ type GroupRow = {
   currency: string;
   stripe_payment_intent_id: string | null;
   stripe_refund_id: string | null;
+  refund_status: string | null;
   cancellation_resolved_by: string | null;
 };
 
@@ -62,7 +64,7 @@ async function findGroup(
     } = await supabaseAdmin
       .from("booking_groups")
       .select(
-        "id, market_request_id, client_profile_id, provider_profile_id, status, payment_status, payment_mode, total_amount_cents, currency, stripe_payment_intent_id, stripe_refund_id, cancellation_resolved_by"
+        "id, market_request_id, client_profile_id, provider_profile_id, status, payment_status, payment_mode, total_amount_cents, currency, stripe_payment_intent_id, stripe_refund_id, refund_status, cancellation_resolved_by"
       )
       .eq(
         "id",
@@ -96,7 +98,7 @@ async function findGroup(
   } = await supabaseAdmin
     .from("booking_groups")
     .select(
-      "id, market_request_id, client_profile_id, provider_profile_id, status, payment_status, payment_mode, total_amount_cents, currency, stripe_payment_intent_id, stripe_refund_id, cancellation_resolved_by"
+      "id, market_request_id, client_profile_id, provider_profile_id, status, payment_status, payment_mode, total_amount_cents, currency, stripe_payment_intent_id, stripe_refund_id, refund_status, cancellation_resolved_by"
     )
     .eq(
       "stripe_payment_intent_id",
@@ -169,6 +171,109 @@ function normalizeRefundStatus(
   }
 
   return "processing";
+}
+
+async function groupRefundIsTerminal(
+  groupId: string
+): Promise<boolean> {
+  const {
+    data,
+    error,
+  } = await supabaseAdmin
+    .from("booking_groups")
+    .select("refund_status")
+    .eq("id", groupId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      error.message
+    );
+  }
+
+  return data?.refund_status === "refunded";
+}
+
+async function recordGroupRefundAudit(params: {
+  groupId: string;
+  actorProfileId: string;
+  action: "refund_succeeded" | "refund_failed";
+  reason: string;
+  stripeRefundId: string;
+}): Promise<boolean> {
+  const {
+    data,
+    error,
+  } = await supabaseAdmin
+    .from(
+      "booking_group_cancellation_events"
+    )
+    .upsert(
+      {
+        booking_group_id:
+          params.groupId,
+        actor_profile_id:
+          params.actorProfileId,
+        actor_role:
+          "system",
+        action:
+          params.action,
+        reason:
+          params.reason,
+        stripe_refund_id:
+          params.stripeRefundId,
+      },
+      {
+        onConflict:
+          "booking_group_id,action,stripe_refund_id",
+        ignoreDuplicates:
+          true,
+      }
+    )
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      error.message
+    );
+  }
+
+  if (data) {
+    return true;
+  }
+
+  const {
+    data: existing,
+    error: existingError,
+  } = await supabaseAdmin
+    .from(
+      "booking_group_cancellation_events"
+    )
+    .select("id")
+    .eq(
+      "booking_group_id",
+      params.groupId
+    )
+    .eq(
+      "action",
+      params.action
+    )
+    .eq(
+      "stripe_refund_id",
+      params.stripeRefundId
+    )
+    .maybeSingle();
+
+  if (existingError) {
+    throw new Error(
+      existingError.message
+    );
+  }
+
+  return Boolean(
+    existing
+  );
 }
 
 async function notify(
@@ -249,6 +354,13 @@ export async function tryReconcileBookingGroupStripeRefund(
       refund
     );
 
+  if (
+    state !== "refunded" &&
+    group.refund_status === "refunded"
+  ) {
+    return true;
+  }
+
   const now =
     new Date()
       .toISOString();
@@ -266,10 +378,7 @@ export async function tryReconcileBookingGroupStripeRefund(
     );
   }
 
-  const {
-    error:
-      groupError,
-  } = await supabaseAdmin
+  const groupUpdate = supabaseAdmin
     .from(
       "booking_groups"
     )
@@ -308,9 +417,38 @@ export async function tryReconcileBookingGroupStripeRefund(
       group.id
     );
 
+  const guardedGroupUpdate =
+    state === "refunded"
+      ? groupUpdate
+      : groupUpdate.or(
+          "refund_status.is.null,refund_status.neq.refunded"
+        );
+
+  const {
+    data: updatedGroup,
+    error: groupError,
+  } = await guardedGroupUpdate
+    .select("id")
+    .maybeSingle();
+
   if (groupError) {
     throw new Error(
       groupError.message
+    );
+  }
+
+  if (!updatedGroup) {
+    if (
+      state !== "refunded" &&
+      await groupRefundIsTerminal(
+        group.id
+      )
+    ) {
+      return true;
+    }
+
+    throw new Error(
+      "KLYX_GROUP_REFUND_STATE_UPDATE_LOST"
     );
   }
 
@@ -503,6 +641,26 @@ export async function tryReconcileBookingGroupStripeRefund(
       });
     }
 
+    const auditRecorded =
+      await recordGroupRefundAudit({
+        groupId:
+          group.id,
+        actorProfileId:
+          actorId,
+        action:
+          "refund_succeeded",
+        reason:
+          "Remboursement Stripe groupe confirme.",
+        stripeRefundId:
+          refund.id,
+      });
+
+    if (!auditRecorded) {
+      throw new Error(
+        "KLYX_GROUP_REFUND_SUCCESS_AUDIT_MISSING"
+      );
+    }
+
     const refundCurrency =
       String(
         group.currency ??
@@ -572,27 +730,6 @@ export async function tryReconcileBookingGroupStripeRefund(
       }),
     ]);
 
-    await supabaseAdmin
-      .from(
-        "booking_group_cancellation_events"
-      )
-      .insert({
-        booking_group_id:
-          group.id,
-
-        actor_profile_id:
-          actorId,
-
-        actor_role:
-          "system",
-
-        action:
-          "refund_succeeded",
-
-        reason:
-          "Remboursement Stripe groupe confirme.",
-      });
-
     return true;
   }
 
@@ -603,6 +740,30 @@ export async function tryReconcileBookingGroupStripeRefund(
     const failure =
       refund.failure_reason ||
       "Stripe n a pas finalise le remboursement groupe.";
+
+    const failureAuditRecorded =
+      await recordGroupRefundAudit({
+        groupId:
+          group.id,
+        actorProfileId:
+          group.cancellation_resolved_by ??
+          group.client_profile_id,
+        action:
+          "refund_failed",
+        reason:
+          failure,
+        stripeRefundId:
+          refund.id,
+      });
+
+    if (
+      !failureAuditRecorded ||
+      await groupRefundIsTerminal(
+        group.id
+      )
+    ) {
+      return true;
+    }
 
     await Promise.all([
       notify({
@@ -647,28 +808,6 @@ export async function tryReconcileBookingGroupStripeRefund(
           ":refund-failed:provider",
       }),
     ]);
-
-    await supabaseAdmin
-      .from(
-        "booking_group_cancellation_events"
-      )
-      .insert({
-        booking_group_id:
-          group.id,
-
-        actor_profile_id:
-          group.cancellation_resolved_by ??
-          group.client_profile_id,
-
-        actor_role:
-          "system",
-
-        action:
-          "refund_failed",
-
-        reason:
-          failure,
-      });
   }
 
   return true;
