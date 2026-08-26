@@ -253,9 +253,8 @@ export async function reconcileStripeRefund(
   const guardedBookingUpdate =
     refundStatus === "succeeded"
       ? bookingUpdate
-      : bookingUpdate.neq(
-          "refund_status",
-          "succeeded"
+      : bookingUpdate.or(
+          "refund_status.is.null,refund_status.neq.succeeded"
         );
 
   const {
