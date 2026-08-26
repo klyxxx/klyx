@@ -58,15 +58,20 @@ describe("KLYX Stripe webhook retry lease contract", () => {
     expect(events).toMatch(
       /markStripeWebhookFailed\([\s\S]*\.eq\("status", "processing"\)[\s\S]*\.eq\("attempt_count", attemptCount\)/
     );
+    expect(events).toMatch(/"recorded"[\s\S]*"superseded"[\s\S]*"record_failed"/);
+    expect(events).toMatch(/return data[\s\S]*\? "recorded"[\s\S]*: "superseded"/);
   });
 
-  it("threads the claim lease through the webhook route and handles superseded workers", () => {
+  it("threads the claim lease through the webhook route and acknowledges superseded workers", () => {
     const route = source("app/api/stripe/webhook/route.ts");
 
     expect(route).toMatch(/claim\.attemptCount/);
     expect(route).toMatch(/markStripeWebhookProcessed\(\s*event\.id,\s*attemptCount/);
     expect(route).toMatch(
       /markStripeWebhookFailed\(\s*event\.id,\s*claimAttemptCount,\s*"stripe_webhook_processing_failed"/
+    );
+    expect(route).toMatch(
+      /failureMarkResult ===[\s\S]*"superseded"[\s\S]*return supersededClaimResponse/
     );
     expect(route).toMatch(/claim_superseded/);
   });
