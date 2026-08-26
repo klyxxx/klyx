@@ -33,11 +33,10 @@ export function assessKlyxProviderPaymentReadiness(
       input.payoutsEnabled
   );
 
-  // Connect onboarding/KYC must be completable before KLYX opens real charges.
-  // The commercial market gate still fails closed in live mode, while the
-  // transactional live switch remains enforced by livePaymentsOperational.
-  const connectSetupAllowed =
-    input.runtimeMode === "test" || input.marketCommerciallyReady;
+  // Connect onboarding/KYC is preparatory configuration. Providers may finish
+  // identity and payout setup before KLYX opens real charges in their market.
+  // Country validation still happens in the onboarding route and Stripe itself.
+  const connectSetupAllowed = true;
 
   let blockReason: KlyxProviderPaymentBlockReason | null = null;
 
