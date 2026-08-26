@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
-  assertStripeRuntimeConfigured,
+  assertStripeRuntimeConfiguredForDiagnostics,
   assertStripeRuntimeReady,
 } from "../../lib/stripe-runtime";
 
@@ -18,7 +18,7 @@ const ENV_KEYS = [
 
 const previousEnv = new Map<string, string | undefined>();
 
-describe("KLYX Stripe runtime configuration assertion", () => {
+describe("KLYX Stripe runtime diagnostic assertion", () => {
   beforeEach(() => {
     previousEnv.clear();
 
@@ -48,8 +48,8 @@ describe("KLYX Stripe runtime configuration assertion", () => {
     }
   });
 
-  it("allows status diagnostics when only the live payment switch is disabled", () => {
-    const report = assertStripeRuntimeConfigured();
+  it("allows read-only diagnostics when only the live payment switch is disabled", () => {
+    const report = assertStripeRuntimeConfiguredForDiagnostics();
     const nonLiveSwitchChecks = report.checks.filter(
       (check) => check.key !== "live_switch"
     );
@@ -69,7 +69,7 @@ describe("KLYX Stripe runtime configuration assertion", () => {
   it("still rejects malformed Stripe configuration", () => {
     process.env.STRIPE_SECRET_KEY = "sk_test_wrong_mode";
 
-    expect(() => assertStripeRuntimeConfigured()).toThrow(
+    expect(() => assertStripeRuntimeConfiguredForDiagnostics()).toThrow(
       /Cle secrete Stripe/
     );
   });
