@@ -24,10 +24,6 @@ import {
   type KlyxPublicHomeMessageKey,
 } from "@/lib/klyx-page-i18n";
 
-// KLYX_PUBLIC_PRODUCT_JOURNEY_13_84
-// KLYX_PUBLIC_DUAL_ENTRY_13_85
-// KLYX_PUBLIC_HOME_I18N_16_10
-
 export default function PublicHomeContent() {
   const { locale } = useKlyxLocale();
 
@@ -207,7 +203,6 @@ export default function PublicHomeContent() {
         </div>
       </section>
 
-      {/* KLYX_PUBLIC_PRODUCT_JOURNEY_13_84 */}
       <section className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28">
         <div className="mx-auto max-w-3xl text-center">
           <p className="text-sm font-black uppercase tracking-[0.2em] text-violet-400">
@@ -299,7 +294,6 @@ export default function PublicHomeContent() {
         </div>
       </section>
 
-      {/* KLYX_PUBLIC_DUAL_ENTRY_13_85 */}
       <section className="mx-auto max-w-7xl px-5 pb-20 sm:px-8 sm:pb-28">
         <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.025] p-7 sm:p-10">
           <div className="mx-auto max-w-3xl text-center">
