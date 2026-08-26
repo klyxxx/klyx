@@ -10,6 +10,7 @@ import {
 
 // KLYX_SPLIT_STRIPE_WEBHOOK_13_27
 // KLYX_SPLIT_REFUND_RECONCILIATION_13_28
+// KLYX_SPLIT_PAID_RETRY_REPAIR_16_09
 
 type UnitRow = {
   id:
@@ -530,6 +531,9 @@ async function markPaid(
     unit.status ===
     "paid"
   ) {
+    await refreshRunPaymentStatus(
+      unit.run_id
+    );
     return;
   }
 
