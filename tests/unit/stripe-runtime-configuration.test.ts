@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  assertStripeConnectRuntimeConfigured,
   assertStripeRuntimeConfiguredForDiagnostics,
   assertStripeRuntimeReady,
 } from "../../lib/stripe-runtime";
@@ -66,9 +67,30 @@ describe("KLYX Stripe runtime diagnostic assertion", () => {
     );
   });
 
-  it("still rejects malformed Stripe configuration", () => {
+  it("lets Connect onboarding proceed when unrelated payment configuration is incomplete", () => {
+    delete process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+    delete process.env.STRIPE_WEBHOOK_SECRET;
+    delete process.env.NEXT_PUBLIC_APP_URL;
+    process.env.KLYX_COMMISSION_PERCENT = "not-a-number";
+    process.env.KLYX_ALLOW_PLATFORM_ONLY_TEST_PAYMENTS = "true";
+
+    const report = assertStripeConnectRuntimeConfigured();
+
+    expect(report.mode).toBe("live");
+    expect(report.livePaymentsEnabled).toBe(false);
+    expect(report.checks.find((check) => check.key === "secret_key")?.ok).toBe(
+      true
+    );
+    expect(() => assertStripeRuntimeConfiguredForDiagnostics()).toThrow();
+    expect(() => assertStripeRuntimeReady()).toThrow();
+  });
+
+  it("still rejects a Connect secret from the wrong Stripe mode", () => {
     process.env.STRIPE_SECRET_KEY = "sk_test_wrong_mode";
 
+    expect(() => assertStripeConnectRuntimeConfigured()).toThrow(
+      /Cle secrete Stripe/
+    );
     expect(() => assertStripeRuntimeConfiguredForDiagnostics()).toThrow(
       /Cle secrete Stripe/
     );
