@@ -48,6 +48,12 @@ describe("KLYX provider Stripe financial visibility", () => {
     expect(route).not.toMatch(/accountId\s*:/);
   });
 
+  it("keeps Stripe balance visibility independent from the legacy finance audit", () => {
+    expect(providerFinanceUi).toContain("let stripeFinanceResolved = false;");
+    expect(providerFinanceUi).toContain("stripeFinanceResolved = true;");
+    expect(providerFinanceUi).toContain("if (!stripeFinanceResolved)");
+  });
+
   it("keeps the provider inside KLYX for balance and payout visibility", () => {
     expect(providerFinanceUi).toContain("Solde Stripe Connect");
     expect(providerFinanceUi).toContain("Solde disponible");
