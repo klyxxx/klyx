@@ -33,23 +33,36 @@ describe("KLYX split mission Stripe readiness i18n contract", () => {
     expect(component).not.toContain("method:");
   });
 
-  it("keeps provider states and server block reasons exact", () => {
+  it("keeps provider states and server block reasons exact through the shared mapper", () => {
     const component = read(
       "app/bookings/split/[id]/SplitMissionStripeReadiness.tsx"
     );
+    const mapper = read("lib/klyx-split-mission-stripe-readiness.ts");
 
-    for (const state of ["ready", "missing_account", "restricted", "lookup_failed"]) {
+    for (const state of [
+      "ready",
+      "missing_profile",
+      "market_not_ready",
+      "missing_account",
+      "restricted",
+      "lookup_failed",
+    ]) {
       expect(component).toContain(`\"${state}\"`);
     }
+
+    expect(component).toContain("splitMissionStripeProviderStateMessageKey");
+    expect(component).toContain("splitMissionStripeBlockMessageKey");
 
     for (const reason of [
       "PRICE_CONFIRMATION_REQUIRED",
       "PAYMENT_PLAN_REVALIDATION_REQUIRED",
       "STRIPE_SERVER_CONFIGURATION_REQUIRED",
+      "CLIENT_MARKET_NOT_READY",
+      "PROVIDER_MARKET_NOT_READY",
       "PROVIDER_STRIPE_NOT_READY",
       "MULTI_PROVIDER_REQUIRED",
     ]) {
-      expect(component).toContain(reason);
+      expect(mapper).toContain(reason);
     }
   });
 
