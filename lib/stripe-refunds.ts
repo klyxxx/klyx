@@ -1,4 +1,5 @@
 // KLYX_REFUND_CURRENCY_PHASE_5G
+// KLYX_REFUND_MONOTONE_RECONCILIATION_16_11
 import type Stripe from "stripe";
 import {
   tryReconcileBookingGroupStripeRefund,
@@ -67,6 +68,22 @@ async function findBookingFromRefund(
   if (error) throw new Error(error.message);
 
   return data ? (data as RefundBooking) : null;
+}
+
+async function bookingRefundSucceeded(
+  bookingId: string
+): Promise<boolean> {
+  const { data, error } = await supabaseAdmin
+    .from("bookings")
+    .select("refund_status")
+    .eq("id", bookingId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data?.refund_status === "succeeded";
 }
 
 async function notifyRefundStatus(params: {
@@ -210,9 +227,16 @@ export async function reconcileStripeRefund(
         ? "failed"
         : "processing";
 
+  if (
+    refundStatus !== "succeeded" &&
+    booking.refund_status === "succeeded"
+  ) {
+    return;
+  }
+
   const now = new Date().toISOString();
 
-  const { error: bookingError } = await supabaseAdmin
+  const bookingUpdate = supabaseAdmin
     .from("bookings")
     .update({
       refund_status: refundStatus,
@@ -226,8 +250,38 @@ export async function reconcileStripeRefund(
     })
     .eq("id", booking.id);
 
+  const guardedBookingUpdate =
+    refundStatus === "succeeded"
+      ? bookingUpdate
+      : bookingUpdate.neq(
+          "refund_status",
+          "succeeded"
+        );
+
+  const {
+    data: updatedBooking,
+    error: bookingError,
+  } = await guardedBookingUpdate
+    .select("id")
+    .maybeSingle();
+
   if (bookingError) {
     throw new Error(bookingError.message);
+  }
+
+  if (!updatedBooking) {
+    if (
+      refundStatus !== "succeeded" &&
+      await bookingRefundSucceeded(
+        booking.id
+      )
+    ) {
+      return;
+    }
+
+    throw new Error(
+      "KLYX_REFUND_STATE_UPDATE_LOST"
+    );
   }
 
   await upsertFinancialLedgerEntry({
@@ -253,6 +307,15 @@ export async function reconcileStripeRefund(
         ? "Stripe n'a pas pu finaliser ce remboursement."
         : null,
   });
+
+  if (
+    refundStatus === "failed" &&
+    await bookingRefundSucceeded(
+      booking.id
+    )
+  ) {
+    return;
+  }
 
   if (
     refundStatus === "succeeded" ||
