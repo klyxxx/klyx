@@ -14,11 +14,11 @@ function readRoute() {
 }
 
 describe("KLYX live Stripe Connect market gate", () => {
-  it("uses diagnostic runtime configuration for preparatory Connect onboarding", () => {
+  it("uses the dedicated runtime configuration for preparatory Connect onboarding", () => {
     const source = readRoute();
 
     expect(source).toContain(
-      "const stripeRuntime = assertStripeRuntimeConfiguredForDiagnostics()"
+      "const stripeRuntime = assertStripeConnectRuntimeConfigured()"
     );
     expect(source).toContain('stripeRuntime.mode === "live"');
     expect(source).toContain("getKlyxMarketReadiness(accountCountry)");

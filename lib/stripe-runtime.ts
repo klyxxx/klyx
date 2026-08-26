@@ -166,10 +166,26 @@ function assertStripeRuntimeChecks(
 }
 
 /**
+ * Stripe Connect onboarding/status only.
+ * Creating or inspecting a connected account only needs a mode-compatible
+ * server secret. Webhook, publishable key, commission and live-charge gates
+ * remain mandatory for transactional payment routes, but must not prevent a
+ * provider from completing regulated KYC and payout-bank setup first.
+ */
+export function assertStripeConnectRuntimeConfigured(): StripeRuntimeReport {
+  const report = inspectStripeRuntime();
+
+  return assertStripeRuntimeChecks(
+    report,
+    (check) => check.key === "secret_key"
+  );
+}
+
+/**
  * Diagnostic/read-only surfaces only.
- * Validates Stripe configuration while deliberately leaving the live-payment
- * switch observable so the UI can explain that real payments are disabled.
- * Transactional routes must use assertStripeRuntimeReady().
+ * Validates the full Stripe configuration while deliberately leaving the
+ * live-payment switch observable so the UI can explain that real payments are
+ * disabled. Transactional routes must use assertStripeRuntimeReady().
  */
 export function assertStripeRuntimeConfiguredForDiagnostics(): StripeRuntimeReport {
   const report = inspectStripeRuntime();

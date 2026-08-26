@@ -1,7 +1,7 @@
 // KLYX_STRIPE_CONNECT_COUNTRY_PHASE_5G
 // KLYX_CONNECT_ONBOARDING_BEFORE_LIVE_SWITCH_16_08
 import { NextResponse } from "next/server";
-import { assertStripeRuntimeConfiguredForDiagnostics } from "@/lib/stripe-runtime";
+import { assertStripeConnectRuntimeConfigured } from "@/lib/stripe-runtime";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
@@ -44,10 +44,10 @@ export async function POST(request: Request) {
       await getAuthenticatedProfile(request);
     requireAccountType(activeProfile, "provider");
 
-    // Onboarding/KYC is a configuration action, not a charge. It must work
-    // before KLYX_LIVE_PAYMENTS_ENABLED is opened. Transactional checkout
-    // routes continue to require assertStripeRuntimeReady().
-    const stripeRuntime = assertStripeRuntimeConfiguredForDiagnostics();
+    // Connect onboarding/KYC is preparatory configuration, not a charge.
+    // Only a mode-compatible server secret is required here. Client checkout
+    // routes continue to require the complete transactional runtime gate.
+    const stripeRuntime = assertStripeConnectRuntimeConfigured();
     const stripe = new Stripe(requiredEnv("STRIPE_SECRET_KEY"));
 
     const accountCountry = activeProfile.countryCode.trim().toUpperCase();
