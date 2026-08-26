@@ -20,6 +20,9 @@ import {
   getKlyxCommissionPercent,
 } from "@/lib/klyx-economics";
 import {
+  assessKlyxStripeMarketAccess,
+} from "@/lib/klyx-stripe-market-access";
+import {
   markBookingGroupPaidFromSession,
 } from "@/lib/stripe-group-payments";
 import {
@@ -134,7 +137,34 @@ export async function POST(
       "client"
     );
 
-    assertStripeRuntimeReady();
+    const stripeRuntime =
+      assertStripeRuntimeReady();
+
+    const clientMarketAccess =
+      assessKlyxStripeMarketAccess(
+        profile.countryCode,
+        stripeRuntime.mode
+      );
+
+    if (!clientMarketAccess.allowed) {
+      return NextResponse.json(
+        {
+          error:
+            "KLYX n'est pas encore ouvert aux paiements reels dans le pays de ce profil client.",
+          code:
+            "KLYX_GROUP_CHECKOUT_MARKET_NOT_READY",
+          participant:
+            "client",
+          countryCode:
+            clientMarketAccess.countryCode,
+          blockers:
+            clientMarketAccess.blockers,
+        },
+        {
+          status: 409,
+        }
+      );
+    }
 
     const stripeKey =
       requiredEnv(
@@ -420,7 +450,7 @@ export async function POST(
       supabaseAdmin
         .from("profiles")
         .select(
-          "stripe_account_id, stripe_onboarding_complete, stripe_charges_enabled, stripe_payouts_enabled"
+          "country_code, stripe_account_id, stripe_onboarding_complete, stripe_charges_enabled, stripe_payouts_enabled"
         )
         .eq(
           "id",
@@ -469,6 +499,33 @@ export async function POST(
 
     const service =
       serviceResult.data;
+
+    const providerMarketAccess =
+      assessKlyxStripeMarketAccess(
+        provider?.country_code ??
+          "",
+        stripeRuntime.mode
+      );
+
+    if (!providerMarketAccess.allowed) {
+      return NextResponse.json(
+        {
+          error:
+            "KLYX n'est pas encore ouvert aux paiements reels dans le pays de ce prestataire.",
+          code:
+            "KLYX_GROUP_CHECKOUT_MARKET_NOT_READY",
+          participant:
+            "provider",
+          countryCode:
+            providerMarketAccess.countryCode,
+          blockers:
+            providerMarketAccess.blockers,
+        },
+        {
+          status: 409,
+        }
+      );
+    }
 
     const providerReady =
       Boolean(
