@@ -324,7 +324,6 @@ describe(
         const transactionalStripeRoutes = [
           "app/api/stripe/create-checkout-session/route.ts",
           "app/api/stripe/create-group-checkout-session/route.ts",
-          "app/api/stripe/connect/create-account/route.ts",
           "app/api/bookings/split-missions/[id]/checkout/route.ts",
         ];
 
@@ -341,18 +340,23 @@ describe(
             );
         }
 
-        const connectStatus = read(
-          "app/api/stripe/connect/status/route.ts"
-        );
+        const connectRoutes = [
+          "app/api/stripe/connect/create-account/route.ts",
+          "app/api/stripe/connect/status/route.ts",
+        ];
 
-        expect(connectStatus)
-          .toMatch(
-            /try\s*\{[\s\S]*assertStripeRuntimeConfiguredForDiagnostics\(\)/
-          );
-        expect(connectStatus)
-          .not.toMatch(
-            /assertStripeRuntimeReady\(\)/
-          );
+        for (const relativePath of connectRoutes) {
+          const source = read(relativePath);
+
+          expect(source)
+            .toMatch(
+              /try\s*\{[\s\S]*assertStripeConnectRuntimeConfigured\(\)/
+            );
+          expect(source)
+            .not.toMatch(
+              /assertStripeRuntimeReady\(\)/
+            );
+        }
       }
     );
 
