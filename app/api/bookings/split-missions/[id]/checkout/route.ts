@@ -25,6 +25,10 @@ import {
 } from "@/lib/klyx-economics";
 
 import {
+  assessKlyxStripeMarketAccess,
+} from "@/lib/klyx-stripe-market-access";
+
+import {
   supabaseAdmin,
 } from "@/lib/supabase-admin";
 
@@ -1004,7 +1008,8 @@ export async function POST(
     Date.now();
 
   try {
-    assertStripeRuntimeReady();
+    const stripeRuntime =
+      assertStripeRuntimeReady();
 
     const {
       user,
@@ -1043,6 +1048,39 @@ export async function POST(
         {
           status:
             400,
+        }
+      );
+    }
+
+    const clientMarketAccess =
+      assessKlyxStripeMarketAccess(
+        profile.countryCode,
+        stripeRuntime.mode
+      );
+
+    if (
+      !clientMarketAccess.allowed
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "KLYX n'est pas encore ouvert aux paiements réels dans le pays de ce profil client.",
+
+          code:
+            "SPLIT_CHECKOUT_MARKET_NOT_READY",
+
+          participant:
+            "client",
+
+          countryCode:
+            clientMarketAccess.countryCode,
+
+          blockers:
+            clientMarketAccess.blockers,
+        },
+        {
+          status:
+            409,
         }
       );
     }
@@ -1566,6 +1604,41 @@ export async function POST(
 
             code:
               "SPLIT_PROVIDER_NOT_FOUND",
+          },
+          {
+            status:
+              409,
+          }
+        );
+      }
+
+      const providerMarketAccess =
+        assessKlyxStripeMarketAccess(
+          text(
+            provider.country_code
+          ),
+          stripeRuntime.mode
+        );
+
+      if (
+        !providerMarketAccess.allowed
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "KLYX n'est pas encore ouvert aux paiements réels dans le pays de ce prestataire.",
+
+            code:
+              "SPLIT_CHECKOUT_MARKET_NOT_READY",
+
+            participant:
+              "provider",
+
+            countryCode:
+              providerMarketAccess.countryCode,
+
+            blockers:
+              providerMarketAccess.blockers,
           },
           {
             status:
