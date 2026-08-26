@@ -1,13 +1,21 @@
 import { NextResponse } from "next/server";
-import { assertStripeRuntimeReady } from "@/lib/stripe-runtime";
 import Stripe from "stripe";
-import { supabaseAdmin } from "@/lib/supabase-admin";
+
 import {
   apiErrorStatus,
   getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import {
+  assessKlyxMarketReadiness,
+  getKlyxMarketReadiness,
+} from "@/lib/klyx-market-readiness";
+import { assessKlyxProviderPaymentReadiness } from "@/lib/klyx-provider-payment-readiness";
+import { assertStripeRuntimeReady } from "@/lib/stripe-runtime";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+
+// KLYX_PROVIDER_LIVE_PAYMENT_READINESS_STATUS_15_06
 
 function requiredEnv(name: string): string {
   const value = process.env[name];
@@ -27,8 +35,12 @@ export async function GET(request: Request) {
       await getAuthenticatedProfile(request);
     requireAccountType(activeProfile, "provider");
 
-    assertStripeRuntimeReady();
+    const stripeRuntime = assertStripeRuntimeReady();
     const stripe = new Stripe(requiredEnv("STRIPE_SECRET_KEY"));
+    const marketReadiness = getKlyxMarketReadiness(
+      activeProfile.countryCode
+    );
+    const marketAssessment = assessKlyxMarketReadiness(marketReadiness);
 
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
@@ -41,11 +53,29 @@ export async function GET(request: Request) {
     }
 
     if (!profile?.stripe_account_id) {
+      const readiness = assessKlyxProviderPaymentReadiness({
+        runtimeMode: stripeRuntime.mode,
+        livePaymentsEnabled: stripeRuntime.livePaymentsEnabled,
+        marketCommerciallyReady: marketAssessment.ready,
+        connected: false,
+        onboardingComplete: false,
+        chargesEnabled: false,
+        payoutsEnabled: false,
+      });
+
       return NextResponse.json({
         connected: false,
         onboardingComplete: false,
         chargesEnabled: false,
         payoutsEnabled: false,
+        accountId: null,
+        runtimeMode: stripeRuntime.mode,
+        livePaymentsEnabled: stripeRuntime.livePaymentsEnabled,
+        countryCode: marketReadiness.countryCode,
+        marketCommerciallyReady: marketAssessment.ready,
+        marketBlockers: marketAssessment.blockers,
+        ...readiness,
+        paymentBlockReason: readiness.blockReason,
       });
     }
 
@@ -68,12 +98,29 @@ export async function GET(request: Request) {
       throw new Error(updateError.message);
     }
 
+    const readiness = assessKlyxProviderPaymentReadiness({
+      runtimeMode: stripeRuntime.mode,
+      livePaymentsEnabled: stripeRuntime.livePaymentsEnabled,
+      marketCommerciallyReady: marketAssessment.ready,
+      connected: true,
+      onboardingComplete,
+      chargesEnabled,
+      payoutsEnabled,
+    });
+
     return NextResponse.json({
       connected: true,
       onboardingComplete,
       chargesEnabled,
       payoutsEnabled,
       accountId: account.id,
+      runtimeMode: stripeRuntime.mode,
+      livePaymentsEnabled: stripeRuntime.livePaymentsEnabled,
+      countryCode: marketReadiness.countryCode,
+      marketCommerciallyReady: marketAssessment.ready,
+      marketBlockers: marketAssessment.blockers,
+      ...readiness,
+      paymentBlockReason: readiness.blockReason,
     });
   } catch (error) {
     const message =
