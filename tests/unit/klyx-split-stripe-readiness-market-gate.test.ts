@@ -47,7 +47,8 @@ describe("KLYX split Stripe readiness live market alignment", () => {
     );
     expect(source).toContain("paymentInfrastructureReady: checkoutReady");
     expect(source).toContain("clientMarketReady: clientMarketAccess.allowed");
-    expect(source).toContain('state: "market_not_ready"');
+    expect(source).toContain('"market_not_ready"');
+    expect(source).toContain('"PROVIDER_MARKET_NOT_READY"');
   });
 
   it("does not turn this informative endpoint into the full Stripe runtime barrier", () => {
