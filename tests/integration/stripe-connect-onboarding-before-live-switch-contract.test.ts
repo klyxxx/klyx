@@ -14,6 +14,7 @@ function read(relativePath: string) {
 const onboardingRoute = read(
   "app/api/stripe/connect/create-account/route.ts"
 );
+const statusRoute = read("app/api/stripe/connect/status/route.ts");
 const connectPage = read("app/connect/page.tsx");
 const checkoutRoute = read(
   "app/api/stripe/create-checkout-session/route.ts"
@@ -58,10 +59,11 @@ describe("KLYX Stripe Connect onboarding before live payment activation", () => 
     expect(readiness.blockReason).toBe("MARKET_NOT_COMMERCIALLY_READY");
   });
 
-  it("treats onboarding as configuration rather than a live charge", () => {
+  it("treats onboarding and Connect status as configuration rather than a live charge", () => {
     expect(onboardingRoute).toContain(
-      "assertStripeRuntimeConfiguredForDiagnostics()"
+      "assertStripeConnectRuntimeConfigured()"
     );
+    expect(statusRoute).toContain("assertStripeConnectRuntimeConfigured()");
     expect(onboardingRoute).not.toMatch(
       /import\s*\{[^}]*assertStripeRuntimeReady[^}]*\}\s*from\s*["']@\/lib\/stripe-runtime["']/
     );
