@@ -8,6 +8,7 @@ import {
 } from "vitest";
 
 // KLYX_GROUP_PAYMENT_READINESS_CONTRACT_15_03
+// KLYX_GROUP_PAYMENT_ACTION_COPY_CONTRACT_15_05
 
 const pageSource = fs.readFileSync(
   path.join(process.cwd(), "app/booking-groups/[id]/page.tsx"),
@@ -26,6 +27,14 @@ const checkoutSource = fs.readFileSync(
   path.join(
     process.cwd(),
     "app/api/stripe/create-group-checkout-session/route.ts"
+  ),
+  "utf8"
+);
+
+const paymentActionCopySource = fs.readFileSync(
+  path.join(
+    process.cwd(),
+    "lib/booking-group-payment-action-copy.ts"
   ),
   "utf8"
 );
@@ -57,5 +66,20 @@ describe("KLYX grouped booking payment readiness contract", () => {
     expect(checkoutSource).toContain("providerMarketAccess.allowed");
     expect(checkoutSource).toContain("providerReady");
     expect(checkoutSource).toContain("klyx_claim_booking_group_payment");
+  });
+
+  it("presents processing as resume and failed as retry without changing the checkout endpoint", () => {
+    expect(pageSource).toContain("KLYX_GROUP_PAYMENT_ACTION_COPY_UI_15_05");
+    expect(pageSource).toContain("getBookingGroupPaymentActionCopy");
+    expect(pageSource).toContain("paymentActionCopy.actionLabel");
+    expect(pageSource).toContain("paymentActionCopy.note");
+    expect(pageSource).toContain(
+      '"/api/stripe/create-group-checkout-session"'
+    );
+    expect(paymentActionCopySource).toContain('paymentStatus === "processing"');
+    expect(paymentActionCopySource).toContain('actionLabel: "Reprendre le paiement"');
+    expect(paymentActionCopySource).toContain('paymentStatus === "failed"');
+    expect(paymentActionCopySource).toContain('actionLabel: "Reessayer le paiement"');
+    expect(paymentActionCopySource).toContain('actionLabel: "Payer"');
   });
 });
