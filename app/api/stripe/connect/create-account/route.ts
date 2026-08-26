@@ -46,7 +46,7 @@ export async function POST(request: Request) {
 
     // Connect onboarding/KYC is preparatory configuration, not a charge.
     // Only a mode-compatible server secret is required here. Client checkout
-    // routes continue to require the complete assertStripeRuntimeReady() gate.
+    // routes continue to require the complete transactional runtime gate.
     const stripeRuntime = assertStripeConnectRuntimeConfigured();
     const stripe = new Stripe(requiredEnv("STRIPE_SECRET_KEY"));
 
