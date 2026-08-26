@@ -6,6 +6,7 @@ import {
   requireAccountType,
 } from "@/lib/api-auth";
 
+// KLYX_QUOTE_TRANSACTION_CURRENCY_API_15_06
 export async function GET(
   request: Request,
   context: { params: Promise<{ id: string }> }
@@ -23,7 +24,7 @@ export async function GET(
       await supabaseAdmin
         .from("service_quotes")
         .select(
-          "id, client_profile_id, provider_profile_id, user_service_id, title, description, requested_date, requested_time, duration_hours, pricing_type, estimated_total, provider_price, provider_message, status, expires_at, accepted_at"
+          "id, client_profile_id, provider_profile_id, user_service_id, country_code, currency, title, description, requested_date, requested_time, duration_hours, pricing_type, estimated_total, provider_price, provider_message, status, expires_at, accepted_at"
         )
         .eq("id", quoteId)
         .eq("client_profile_id", profile.id)
