@@ -181,10 +181,11 @@ export function translateKlyxProviderQuotes(
   return DICTIONARIES[normalizeKlyxProviderQuotesLocale(locale)][key];
 }
 
+// KLYX_PROVIDER_QUOTE_TRANSACTION_CURRENCY_15_06
 export function formatKlyxProviderQuoteMoney(
   locale: string,
   amount: number,
-  currency = "EUR"
+  currency: string
 ): string {
   const localeMap: Record<KlyxProviderQuotesLocale, string> = {
     fr: "fr-BE",
@@ -195,7 +196,7 @@ export function formatKlyxProviderQuoteMoney(
 
   return new Intl.NumberFormat(localeMap[normalizeKlyxProviderQuotesLocale(locale)], {
     style: "currency",
-    currency,
+    currency: currency.trim().toUpperCase(),
   }).format(amount);
 }
 
