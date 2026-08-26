@@ -63,4 +63,37 @@ describe("KLYX Stripe webhook retry lease contract", () => {
     );
     expect(route).toMatch(/claim_superseded/);
   });
+
+  it("replays simple booking payment ledger effects after a partial success", () => {
+    const simple = source("lib/stripe-payments.ts");
+
+    expect(simple).toMatch(
+      /async function ensurePaymentSucceededSideEffects\([\s\S]*upsertFinancialLedgerEntry/
+    );
+    expect(simple).toMatch(
+      /if \(booking\.payment_status === "paid"\) \{[\s\S]*ensurePaymentSucceededSideEffects\(/
+    );
+    expect(simple).toMatch(
+      /refreshedBooking\.payment_status ===[\s\S]*"paid"[\s\S]*ensurePaymentSucceededSideEffects\(/
+    );
+  });
+
+  it("always replays grouped payment ledger upserts and surfaces parent update errors", () => {
+    const group = source("lib/stripe-group-payments.ts");
+
+    expect(group).not.toMatch(/data:\s*updated/);
+    expect(group).not.toMatch(/if \(updated\) \{[\s\S]*upsertFinancialLedgerEntry/);
+    expect(group).toMatch(
+      /\.from\("booking_groups"\)[\s\S]*\.neq\([\s\S]*"payment_status"[\s\S]*"paid"[\s\S]*if \(error\) \{[\s\S]*throw new Error/
+    );
+    expect(group).toMatch(/upsertFinancialLedgerEntry\(/);
+  });
+
+  it("repairs split run aggregation when a paid unit webhook is retried", () => {
+    const split = source("lib/split-stripe-payments.ts");
+
+    expect(split).toMatch(
+      /if \([\s\S]*unit\.status ===[\s\S]*"paid"[\s\S]*\) \{[\s\S]*await refreshRunPaymentStatus\([\s\S]*unit\.run_id[\s\S]*\);[\s\S]*return;/
+    );
+  });
 });
