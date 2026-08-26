@@ -14,6 +14,7 @@ function read(relativePath: string) {
 const onboardingRoute = read(
   "app/api/stripe/connect/create-account/route.ts"
 );
+const connectPage = read("app/connect/page.tsx");
 const checkoutRoute = read(
   "app/api/stripe/create-checkout-session/route.ts"
 );
@@ -67,6 +68,12 @@ describe("KLYX Stripe Connect onboarding before live payment activation", () => 
       'marketReadiness.monetarySupport !== "supported"'
     );
     expect(onboardingRoute).not.toContain("assessKlyxMarketReadiness");
+  });
+
+  it("keeps a dedicated KLYX entry point for provider KYC and payout setup", () => {
+    expect(connectPage).toContain('/api/stripe/connect/create-account');
+    expect(connectPage).toContain("Configurer mes versements");
+    expect(connectPage).toContain("Stripe vérifie ton identité et tes coordonnées bancaires");
   });
 
   it("still requires full live runtime readiness for every client checkout", () => {
