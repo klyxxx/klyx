@@ -1,4 +1,5 @@
 // KLYX_BOOKING_STRIPE_READINESS_15_05
+// KLYX_BOOKING_READINESS_PARITY_15_06
 
 export type BookingStripeBlockReason =
   | "GROUP_PAYMENT_REQUIRED"
@@ -9,6 +10,14 @@ export type BookingStripeBlockReason =
   | "CLIENT_MARKET_NOT_READY"
   | "PROVIDER_MISSING"
   | "PROVIDER_MARKET_NOT_READY"
+  | "BOOKING_SERVICE_INCOMPLETE"
+  | "SERVICE_NOT_FOUND"
+  | "PROVIDER_SERVICE_INACTIVE"
+  | "SERVICE_PROFILE_MISSING"
+  | "SERVICE_PRICE_REQUIRED"
+  | "BOOKING_DURATION_INVALID"
+  | "PAYMENT_AMOUNT_INVALID"
+  | "BOOKING_CURRENCY_INVALID"
   | "PROVIDER_STRIPE_NOT_READY";
 
 export type BookingStripeReadinessInput = {
@@ -20,6 +29,14 @@ export type BookingStripeReadinessInput = {
   clientMarketReady: boolean;
   providerPresent: boolean;
   providerMarketReady: boolean;
+  serviceReferencesPresent: boolean;
+  serviceExists: boolean;
+  providerServiceActive: boolean;
+  serviceProfilePresent: boolean;
+  servicePricePresent: boolean;
+  durationValid: boolean;
+  paymentAmountValid: boolean;
+  currencyValid: boolean;
   providerStripeReady: boolean;
   platformOnlyTestPaymentAllowed: boolean;
 };
@@ -58,6 +75,22 @@ export function assessBookingStripeReadiness(
     blockReason = "PROVIDER_MISSING";
   } else if (!input.providerMarketReady) {
     blockReason = "PROVIDER_MARKET_NOT_READY";
+  } else if (!input.serviceReferencesPresent) {
+    blockReason = "BOOKING_SERVICE_INCOMPLETE";
+  } else if (!input.serviceExists) {
+    blockReason = "SERVICE_NOT_FOUND";
+  } else if (!input.providerServiceActive) {
+    blockReason = "PROVIDER_SERVICE_INACTIVE";
+  } else if (!input.serviceProfilePresent) {
+    blockReason = "SERVICE_PROFILE_MISSING";
+  } else if (!input.servicePricePresent) {
+    blockReason = "SERVICE_PRICE_REQUIRED";
+  } else if (!input.durationValid) {
+    blockReason = "BOOKING_DURATION_INVALID";
+  } else if (!input.paymentAmountValid) {
+    blockReason = "PAYMENT_AMOUNT_INVALID";
+  } else if (!input.currencyValid) {
+    blockReason = "BOOKING_CURRENCY_INVALID";
   } else if (!providerPaymentReady) {
     blockReason = "PROVIDER_STRIPE_NOT_READY";
   }

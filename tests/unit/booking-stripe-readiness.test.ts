@@ -10,6 +10,7 @@ import {
 } from "../../lib/booking-stripe-readiness";
 
 // KLYX_BOOKING_STRIPE_READINESS_UNIT_15_05
+// KLYX_BOOKING_READINESS_PARITY_UNIT_15_06
 
 function readyInput(
   overrides: Partial<BookingStripeReadinessInput> = {}
@@ -23,6 +24,14 @@ function readyInput(
     clientMarketReady: true,
     providerPresent: true,
     providerMarketReady: true,
+    serviceReferencesPresent: true,
+    serviceExists: true,
+    providerServiceActive: true,
+    serviceProfilePresent: true,
+    servicePricePresent: true,
+    durationValid: true,
+    paymentAmountValid: true,
+    currencyValid: true,
     providerStripeReady: true,
     platformOnlyTestPaymentAllowed: false,
     ...overrides,
@@ -97,5 +106,51 @@ describe("booking Stripe readiness", () => {
 
     expect(result.checkoutReady).toBe(false);
     expect(result.blockReason).toBe("STRIPE_RUNTIME_NOT_READY");
+  });
+
+  it("blocks stale or incomplete service configuration", () => {
+    expect(
+      assessBookingStripeReadiness(
+        readyInput({ serviceReferencesPresent: false })
+      ).blockReason
+    ).toBe("BOOKING_SERVICE_INCOMPLETE");
+    expect(
+      assessBookingStripeReadiness(
+        readyInput({ serviceExists: false })
+      ).blockReason
+    ).toBe("SERVICE_NOT_FOUND");
+    expect(
+      assessBookingStripeReadiness(
+        readyInput({ providerServiceActive: false })
+      ).blockReason
+    ).toBe("PROVIDER_SERVICE_INACTIVE");
+    expect(
+      assessBookingStripeReadiness(
+        readyInput({ serviceProfilePresent: false })
+      ).blockReason
+    ).toBe("SERVICE_PROFILE_MISSING");
+    expect(
+      assessBookingStripeReadiness(
+        readyInput({ servicePricePresent: false })
+      ).blockReason
+    ).toBe("SERVICE_PRICE_REQUIRED");
+  });
+
+  it("blocks invalid duration, amount and transaction currency", () => {
+    expect(
+      assessBookingStripeReadiness(
+        readyInput({ durationValid: false })
+      ).blockReason
+    ).toBe("BOOKING_DURATION_INVALID");
+    expect(
+      assessBookingStripeReadiness(
+        readyInput({ paymentAmountValid: false })
+      ).blockReason
+    ).toBe("PAYMENT_AMOUNT_INVALID");
+    expect(
+      assessBookingStripeReadiness(
+        readyInput({ currencyValid: false })
+      ).blockReason
+    ).toBe("BOOKING_CURRENCY_INVALID");
   });
 });

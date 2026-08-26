@@ -8,6 +8,7 @@ import {
 } from "vitest";
 
 // KLYX_BOOKING_STRIPE_READINESS_CONTRACT_15_05
+// KLYX_BOOKING_READINESS_PARITY_CONTRACT_15_06
 
 const pageSource = fs.readFileSync(
   path.join(process.cwd(), "app/bookings/[id]/page.tsx"),
@@ -48,10 +49,24 @@ describe("KLYX single-booking Stripe readiness contract", () => {
     expect(readinessSource).toContain("split_booking_batch_items");
   });
 
+  it("matches checkout integrity prerequisites before advertising payment", () => {
+    expect(readinessSource).toContain("KLYX_BOOKING_READINESS_PARITY_API_15_06");
+    expect(readinessSource).toContain("serviceReferencesPresent");
+    expect(readinessSource).toContain('from("user_services")');
+    expect(readinessSource).toContain('from("service_profiles")');
+    expect(readinessSource).toContain("durationValid");
+    expect(readinessSource).toContain("paymentAmountValid");
+    expect(readinessSource).toContain("currencyValid");
+  });
+
   it("keeps the POST checkout as the independent final authority", () => {
     expect(checkoutSource).toContain("assertStripeRuntimeReady()");
     expect(checkoutSource).toContain("clientMarketAccess.allowed");
     expect(checkoutSource).toContain("providerMarketAccess.allowed");
+    expect(checkoutSource).toContain("resolveService(");
+    expect(checkoutSource).toContain("durationMinutes <= 0");
+    expect(checkoutSource).toContain("amountTotal < 50");
+    expect(checkoutSource).toContain("checkoutCurrency");
     expect(checkoutSource).toContain("providerReady");
     expect(checkoutSource).toContain("klyx_claim_booking_payment");
   });
