@@ -11,8 +11,10 @@ describe("KLYX provider live payment readiness contract", () => {
     const route = source("app/api/stripe/connect/status/route.ts");
     const readiness = source("lib/klyx-provider-payment-readiness.ts");
 
-    expect(route).toMatch(/assertStripeRuntimeConfigured/);
+    expect(route).toMatch(/assertStripeRuntimeConfiguredForDiagnostics/);
     expect(route).not.toMatch(/assertStripeRuntimeReady/);
+    expect(route).toMatch(/export async function GET/);
+    expect(route).not.toMatch(/export async function POST/);
     expect(route).toMatch(/getKlyxMarketReadiness/);
     expect(route).toMatch(/assessKlyxMarketReadiness/);
     expect(route).toMatch(/assessKlyxProviderPaymentReadiness/);
@@ -49,12 +51,21 @@ describe("KLYX provider live payment readiness contract", () => {
     );
   });
 
-  it("transactional Connect account creation keeps the strict live switch authority", () => {
-    const route = source("app/api/stripe/connect/create-account/route.ts");
+  it("transactional Stripe routes keep the strict runtime authority", () => {
+    const transactionalRoutes = [
+      source("app/api/stripe/connect/create-account/route.ts"),
+      source("app/api/stripe/create-checkout-session/route.ts"),
+      source("app/api/stripe/create-group-checkout-session/route.ts"),
+    ];
 
-    expect(route).toMatch(/assertStripeRuntimeReady/);
-    expect(route).toMatch(/KLYX_MARKET_NOT_COMMERCIALLY_READY/);
-    expect(route).toMatch(/assessKlyxMarketReadiness/);
-    expect(route).toMatch(/stripeRuntime\.mode === "live"/);
+    for (const route of transactionalRoutes) {
+      expect(route).toMatch(/assertStripeRuntimeReady/);
+      expect(route).not.toMatch(/assertStripeRuntimeConfiguredForDiagnostics/);
+    }
+
+    const connectCreate = transactionalRoutes[0];
+    expect(connectCreate).toMatch(/KLYX_MARKET_NOT_COMMERCIALLY_READY/);
+    expect(connectCreate).toMatch(/assessKlyxMarketReadiness/);
+    expect(connectCreate).toMatch(/stripeRuntime\.mode === "live"/);
   });
 });
