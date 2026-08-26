@@ -63,7 +63,7 @@ describe("KLYX Stripe Connect onboarding before live payment activation", () => 
       "assertStripeRuntimeConfiguredForDiagnostics()"
     );
     expect(onboardingRoute).not.toMatch(
-      /import\s*\{[^}]*assertStripeRuntimeReady[^}]*\}\s*from\s*["']@\/lib\/stripe-runtime["']/s
+      /import\s*\{[^}]*assertStripeRuntimeReady[^}]*\}\s*from\s*["']@\/lib\/stripe-runtime["']/
     );
     expect(onboardingRoute).toContain('type: "account_onboarding"');
     expect(onboardingRoute).toContain(
