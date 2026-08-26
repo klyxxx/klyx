@@ -58,15 +58,21 @@ describe("KLYX Stripe webhook retry lease contract", () => {
     expect(events).toMatch(
       /markStripeWebhookFailed\([\s\S]*\.eq\("status", "processing"\)[\s\S]*\.eq\("attempt_count", attemptCount\)/
     );
-    expect(events).toMatch(/"recorded"[\s\S]*"superseded"[\s\S]*"record_failed"/);
-    expect(events).toMatch(/return data[\s\S]*\? "recorded"[\s\S]*: "superseded"/);
+    expect(events).toMatch(
+      /"recorded"[\s\S]*"superseded"[\s\S]*"record_failed"/
+    );
+    expect(events).toMatch(
+      /return data[\s\S]*\? "recorded"[\s\S]*: "superseded"/
+    );
   });
 
   it("threads the claim lease through the webhook route and acknowledges superseded workers", () => {
     const route = source("app/api/stripe/webhook/route.ts");
 
     expect(route).toMatch(/claim\.attemptCount/);
-    expect(route).toMatch(/markStripeWebhookProcessed\(\s*event\.id,\s*attemptCount/);
+    expect(route).toMatch(
+      /markStripeWebhookProcessed\(\s*event\.id,\s*attemptCount/
+    );
     expect(route).toMatch(
       /markStripeWebhookFailed\(\s*event\.id,\s*claimAttemptCount,\s*"stripe_webhook_processing_failed"/
     );
@@ -76,29 +82,66 @@ describe("KLYX Stripe webhook retry lease contract", () => {
     expect(route).toMatch(/claim_superseded/);
   });
 
-  it("replays simple booking payment ledger effects after a partial success", () => {
+  it("replays the simple payment ledger after partial success", () => {
     const simple = source("lib/stripe-payments.ts");
 
     expect(simple).toMatch(
-      /async function ensurePaymentSucceededSideEffects\([\s\S]*upsertFinancialLedgerEntry/
+      /async function ensurePaymentSucceededLedger\([\s\S]*upsertFinancialLedgerEntry/
     );
     expect(simple).toMatch(
-      /if \(booking\.payment_status === "paid"\) \{[\s\S]*ensurePaymentSucceededSideEffects\(/
+      /async function ensurePaymentSucceededSideEffects\([\s\S]*ensurePaymentSucceededLedger\([\s\S]*notifyPaymentSucceeded\(/
+    );
+    expect(simple).toMatch(
+      /booking\.payment_status ===[\s\S]*"paid"[\s\S]*ensurePaymentSucceededSideEffects\(/
     );
     expect(simple).toMatch(
       /refreshedBooking\.payment_status ===[\s\S]*"paid"[\s\S]*ensurePaymentSucceededSideEffects\(/
     );
   });
 
-  it("always replays grouped payment ledger upserts and surfaces parent update errors", () => {
+  it("keeps refunded simple payments terminal while repairing payment history", () => {
+    const simple = source("lib/stripe-payments.ts");
+
+    expect(simple).toMatch(
+      /booking\.payment_status ===[\s\S]*"refunded"[\s\S]*ensurePaymentSucceededLedger\([\s\S]*return;/
+    );
+    expect(simple).toMatch(
+      /refreshedBooking\.payment_status ===[\s\S]*"refunded"[\s\S]*ensurePaymentSucceededLedger\(/
+    );
+    expect(simple).toMatch(
+      /\.neq\([\s\S]*"payment_status"[\s\S]*"paid"[\s\S]*\.neq\([\s\S]*"payment_status"[\s\S]*"refunded"/
+    );
+  });
+
+  it("replays grouped ledgers without reviving refunded groups", () => {
     const group = source("lib/stripe-group-payments.ts");
 
-    expect(group).not.toMatch(/data:\s*updated/);
-    expect(group).not.toMatch(/if \(updated\) \{[\s\S]*upsertFinancialLedgerEntry/);
     expect(group).toMatch(
-      /\.from\("booking_groups"\)[\s\S]*\.neq\([\s\S]*"payment_status"[\s\S]*"paid"[\s\S]*if \(error\) \{[\s\S]*throw new Error/
+      /async function upsertGroupPaymentLedgers\([\s\S]*upsertFinancialLedgerEntry/
     );
-    expect(group).toMatch(/upsertFinancialLedgerEntry\(/);
+    expect(group).toMatch(
+      /group\.payment_status ===[\s\S]*"refunded"[\s\S]*upsertGroupPaymentLedgers\([\s\S]*return;/
+    );
+    expect(group).toMatch(
+      /\.from\("booking_groups"\)[\s\S]*\.neq\([\s\S]*"payment_status"[\s\S]*"paid"[\s\S]*\.neq\([\s\S]*"payment_status"[\s\S]*"refunded"[\s\S]*\.select\("id"\)[\s\S]*\.maybeSingle\(\)/
+    );
+    expect(group).toMatch(
+      /\.from\("bookings"\)[\s\S]*\.neq\([\s\S]*"payment_status"[\s\S]*"paid"[\s\S]*\.neq\([\s\S]*"payment_status"[\s\S]*"refunded"/
+    );
+    expect(group).toMatch(
+      /finalGroup\.payment_status ===[\s\S]*"refunded"[\s\S]*return;[\s\S]*Promise\.all\(/
+    );
+  });
+
+  it("keeps refunded grouped payments terminal for late failure events", () => {
+    const group = source("lib/stripe-group-payments.ts");
+
+    expect(group).toMatch(
+      /markBookingGroupFailedFromSession\([\s\S]*group\.payment_status ===[\s\S]*"paid"[\s\S]*group\.payment_status ===[\s\S]*"refunded"[\s\S]*return;/
+    );
+    expect(group).toMatch(
+      /recordBookingGroupPaymentFailure\([\s\S]*group\.payment_status ===[\s\S]*"paid"[\s\S]*group\.payment_status ===[\s\S]*"refunded"[\s\S]*return;/
+    );
   });
 
   it("repairs split run aggregation when a paid unit webhook is retried", () => {
