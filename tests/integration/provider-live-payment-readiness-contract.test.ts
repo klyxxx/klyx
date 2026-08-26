@@ -1,55 +1,57 @@
-import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import test from "node:test";
+
+import { describe, expect, it } from "vitest";
 
 function source(path: string) {
   return readFileSync(path, "utf8");
 }
 
-test("Connect status combines Stripe runtime, market readiness and Stripe flags", () => {
-  const route = source("app/api/stripe/connect/status/route.ts");
+describe("KLYX provider live payment readiness contract", () => {
+  it("Connect status combines Stripe runtime, market readiness and provider payment readiness", () => {
+    const route = source("app/api/stripe/connect/status/route.ts");
+    const readiness = source("lib/klyx-provider-payment-readiness.ts");
 
-  assert.match(route, /getKlyxMarketReadiness/);
-  assert.match(route, /assessKlyxMarketReadiness/);
-  assert.match(route, /assessKlyxProviderPaymentReadiness/);
-  assert.match(route, /marketCommerciallyReady/);
-  assert.match(route, /marketBlockers/);
-  assert.match(route, /connectSetupAllowed/);
-  assert.match(route, /livePaymentsOperational/);
-  assert.match(route, /paymentBlockReason/);
-});
+    expect(route).toMatch(/getKlyxMarketReadiness/);
+    expect(route).toMatch(/assessKlyxMarketReadiness/);
+    expect(route).toMatch(/assessKlyxProviderPaymentReadiness/);
+    expect(route).toMatch(/marketCommerciallyReady/);
+    expect(route).toMatch(/marketBlockers/);
+    expect(route).toMatch(/\.\.\.readiness/);
+    expect(route).toMatch(/paymentBlockReason/);
+    expect(readiness).toMatch(/connectSetupAllowed/);
+    expect(readiness).toMatch(/livePaymentsOperational/);
+  });
 
-test("provider payments uses live KLYX readiness for the global payment state", () => {
-  const page = source("app/provider/payments/page.tsx");
+  it("provider payments uses live KLYX readiness for the global payment state", () => {
+    const page = source("app/provider/payments/page.tsx");
 
-  assert.match(page, /status\.livePaymentsOperational/);
-  assert.match(page, /status\.connectSetupAllowed/);
-  assert.match(page, /Paiements réels pas encore ouverts dans ce pays/);
-  assert.match(page, /Stripe configuré en mode test/);
-  assert.match(page, /Paiements Stripe/);
-  assert.match(page, /Virements Stripe/);
-  assert.doesNotMatch(
-    page,
-    /const fullyReady\s*=\s*status\.connected\s*&&\s*status\.onboardingComplete\s*&&\s*status\.chargesEnabled\s*&&\s*status\.payoutsEnabled/
-  );
-});
+    expect(page).toMatch(/status\.livePaymentsOperational/);
+    expect(page).toMatch(/status\.connectSetupAllowed/);
+    expect(page).toMatch(/Paiements réels pas encore ouverts dans ce pays/);
+    expect(page).toMatch(/Stripe configuré en mode test/);
+    expect(page).toMatch(/Paiements Stripe/);
+    expect(page).toMatch(/Virements Stripe/);
+    expect(page).not.toMatch(
+      /const fullyReady\s*=\s*status\.connected\s*&&\s*status\.onboardingComplete\s*&&\s*status\.chargesEnabled\s*&&\s*status\.payoutsEnabled/
+    );
+  });
 
-test("provider onboarding cannot complete payments from raw Stripe flags alone", () => {
-  const progress = source("app/onboarding/ProviderOnboardingProgress.tsx");
+  it("provider onboarding cannot complete payments from raw Stripe flags alone", () => {
+    const progress = source("app/onboarding/ProviderOnboardingProgress.tsx");
 
-  assert.match(progress, /stripe\?\.livePaymentsOperational/);
-  assert.match(progress, /stripe\?\.stripeConfigured/);
-  assert.match(progress, /translateKlyxProviderPaymentReadiness/);
-  assert.doesNotMatch(
-    progress,
-    /stripe\?\.connected\s*&&\s*stripe\.onboardingComplete\s*&&\s*stripe\.chargesEnabled\s*&&\s*stripe\.payoutsEnabled/
-  );
-});
+    expect(progress).toMatch(/stripe\?\.livePaymentsOperational/);
+    expect(progress).toMatch(/stripe\?\.stripeConfigured/);
+    expect(progress).toMatch(/translateKlyxProviderPaymentReadiness/);
+    expect(progress).not.toMatch(
+      /stripe\?\.connected\s*&&\s*stripe\.onboardingComplete\s*&&\s*stripe\.chargesEnabled\s*&&\s*stripe\.payoutsEnabled/
+    );
+  });
 
-test("Connect account creation remains the final live-market authority", () => {
-  const route = source("app/api/stripe/connect/create-account/route.ts");
+  it("Connect account creation remains the final live-market authority", () => {
+    const route = source("app/api/stripe/connect/create-account/route.ts");
 
-  assert.match(route, /KLYX_MARKET_NOT_COMMERCIALLY_READY/);
-  assert.match(route, /assessKlyxMarketReadiness/);
-  assert.match(route, /stripeRuntime\.mode === "live"/);
+    expect(route).toMatch(/KLYX_MARKET_NOT_COMMERCIALLY_READY/);
+    expect(route).toMatch(/assessKlyxMarketReadiness/);
+    expect(route).toMatch(/stripeRuntime\.mode === "live"/);
+  });
 });
