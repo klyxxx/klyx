@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  AlertTriangle,
   CheckCircle2,
   CreditCard,
   ExternalLink,
@@ -18,10 +19,16 @@ import {
   translateKlyxSplitMissionCheckout,
   type KlyxSplitMissionCheckoutMessageKey,
 } from "@/lib/klyx-split-mission-checkout-i18n";
+import { splitMissionStripeBlockMessageKey } from "@/lib/klyx-split-mission-stripe-readiness";
+import {
+  translateKlyxSplitMissionStripeReadiness,
+  type KlyxSplitMissionStripeReadinessMessageKey,
+} from "@/lib/klyx-split-mission-stripe-readiness-i18n";
 import { supabase } from "@/lib/supabase";
 
 // KLYX_SPLIT_CHECKOUT_UI_13_27
 // KLYX_SPLIT_MISSION_CHECKOUT_I18N
+// KLYX_SPLIT_CHECKOUT_READINESS_GATE_15_05
 
 type Unit = {
   id: string;
@@ -43,6 +50,14 @@ type Result = {
   paymentUnitCount?: number;
   paidUnitCount?: number;
   units?: Unit[];
+  error?: string;
+};
+
+type StripeReadinessResult = {
+  stripeReadinessComplete?: boolean;
+  checkoutReady?: boolean;
+  paymentInfrastructureReady?: boolean;
+  blockReason?: string | null;
   error?: string;
 };
 
@@ -83,11 +98,20 @@ export default function SplitMissionCheckout({
       translateKlyxSplitMissionCheckout(locale, key),
     [locale]
   );
+  const readinessT = useCallback(
+    (key: KlyxSplitMissionStripeReadinessMessageKey) =>
+      translateKlyxSplitMissionStripeReadiness(locale, key),
+    [locale]
+  );
 
   const [result, setResult] = useState<Result | null>(null);
+  const [stripeReadiness, setStripeReadiness] =
+    useState<StripeReadinessResult | null>(null);
   const [loading, setLoading] = useState(true);
+  const [readinessLoading, setReadinessLoading] = useState(true);
   const [preparing, setPreparing] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [readinessErrorMessage, setReadinessErrorMessage] = useState("");
 
   const accessToken = useCallback(async (): Promise<string | null> => {
     const { data } = await supabase.auth.getSession();
@@ -96,7 +120,10 @@ export default function SplitMissionCheckout({
 
   const load = useCallback(async () => {
     setLoading(true);
+    setReadinessLoading(true);
     setErrorMessage("");
+    setReadinessErrorMessage("");
+    setStripeReadiness(null);
 
     try {
       const token = await accessToken();
@@ -124,19 +151,48 @@ export default function SplitMissionCheckout({
       }
 
       setResult(body);
+
+      try {
+        const readinessResponse = await fetch(
+          "/api/bookings/split-missions/" +
+            encodeURIComponent(batchId) +
+            "/stripe-readiness",
+          {
+            cache: "no-store",
+            headers: {
+              Authorization: "Bearer " + token,
+            },
+          }
+        );
+        const readinessBody =
+          (await readinessResponse.json()) as StripeReadinessResult;
+
+        if (!readinessResponse.ok) {
+          setReadinessErrorMessage(readinessT("loadError"));
+        } else {
+          setStripeReadiness(readinessBody);
+        }
+      } catch {
+        setReadinessErrorMessage(readinessT("loadError"));
+      }
     } catch {
       setErrorMessage(t("loadError"));
     } finally {
+      setReadinessLoading(false);
       setLoading(false);
     }
-  }, [accessToken, batchId, t]);
+  }, [accessToken, batchId, readinessT, t]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   async function prepare() {
-    if (preparing) {
+    if (
+      preparing ||
+      stripeReadiness?.stripeReadinessComplete !== true ||
+      stripeReadiness.checkoutReady !== true
+    ) {
       return;
     }
 
@@ -193,6 +249,16 @@ export default function SplitMissionCheckout({
   const paidCount = units.filter((unit) => unit.paid).length;
   const formatMoney = (cents: number, currency: string) =>
     money(cents, currency, presentationLocale, t("currencyUnavailable"));
+  const checkoutPreparationReady =
+    stripeReadiness?.stripeReadinessComplete === true &&
+    stripeReadiness.checkoutReady === true;
+  const blockedMessage = readinessErrorMessage
+    ? readinessErrorMessage
+    : readinessLoading
+      ? readinessT("loading")
+      : readinessT(
+          splitMissionStripeBlockMessageKey(stripeReadiness?.blockReason)
+        );
 
   return (
     <section className="klyx-card mt-8 p-6 sm:p-7">
@@ -227,19 +293,31 @@ export default function SplitMissionCheckout({
             </div>
           </div>
 
-          <button
-            type="button"
-            disabled={preparing}
-            onClick={() => void prepare()}
-            className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-violet-600 px-5 py-3 font-black text-white disabled:opacity-50"
-          >
-            {preparing ? (
-              <LoaderCircle size={18} className="animate-spin" />
-            ) : (
-              <CreditCard size={18} />
-            )}
-            {t("preparePayments")}
-          </button>
+          {checkoutPreparationReady ? (
+            <button
+              type="button"
+              disabled={preparing}
+              onClick={() => void prepare()}
+              className="mt-5 inline-flex items-center gap-2 rounded-2xl bg-violet-600 px-5 py-3 font-black text-white disabled:opacity-50"
+            >
+              {preparing ? (
+                <LoaderCircle size={18} className="animate-spin" />
+              ) : (
+                <CreditCard size={18} />
+              )}
+              {t("preparePayments")}
+            </button>
+          ) : (
+            <div className="mt-5 flex gap-3 rounded-2xl border border-amber-500/25 bg-amber-500/10 p-4">
+              <AlertTriangle size={20} className="shrink-0 text-amber-600" />
+              <div>
+                <p className="font-black">{readinessT("blockedTitle")}</p>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  {blockedMessage}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <>
