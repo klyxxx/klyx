@@ -51,21 +51,24 @@ describe("KLYX provider live payment readiness contract", () => {
     );
   });
 
-  it("transactional Stripe routes keep the strict runtime authority", () => {
+  it("keeps Connect onboarding preparatory while transactional routes stay strict", () => {
+    const connectCreate = source("app/api/stripe/connect/create-account/route.ts");
     const transactionalRoutes = [
-      source("app/api/stripe/connect/create-account/route.ts"),
       source("app/api/stripe/create-checkout-session/route.ts"),
       source("app/api/stripe/create-group-checkout-session/route.ts"),
     ];
+
+    expect(connectCreate).toMatch(/assertStripeRuntimeConfiguredForDiagnostics/);
+    expect(connectCreate).not.toMatch(
+      /import\s*\{[^}]*assertStripeRuntimeReady[^}]*\}\s*from\s*["']@\/lib\/stripe-runtime["']/s
+    );
+    expect(connectCreate).toMatch(/type:\s*"account_onboarding"/);
+    expect(connectCreate).toMatch(/KLYX_STRIPE_COUNTRY_UNSUPPORTED/);
+    expect(connectCreate).toMatch(/stripeRuntime\.mode === "live"/);
 
     for (const route of transactionalRoutes) {
       expect(route).toMatch(/assertStripeRuntimeReady/);
       expect(route).not.toMatch(/assertStripeRuntimeConfiguredForDiagnostics/);
     }
-
-    const connectCreate = transactionalRoutes[0];
-    expect(connectCreate).toMatch(/KLYX_MARKET_NOT_COMMERCIALLY_READY/);
-    expect(connectCreate).toMatch(/assessKlyxMarketReadiness/);
-    expect(connectCreate).toMatch(/stripeRuntime\.mode === "live"/);
   });
 });
