@@ -1,3 +1,4 @@
+// KLYX_PROVIDER_LIVE_PAYMENT_READINESS_16_05
 export type KlyxProviderPaymentBlockReason =
   | "TEST_MODE"
   | "LIVE_PAYMENTS_DISABLED"
