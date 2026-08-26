@@ -7,6 +7,30 @@ function source(path: string) {
 }
 
 describe("KLYX Stripe webhook retry lease contract", () => {
+  it("keeps the durable webhook schema compatible with retry leasing", () => {
+    const schema = source("supabase/step-8-0-stripe-webhook-events.sql");
+    const privilegeHardening = source(
+      "supabase/migrations/20260819181000_klyx_server_audit_table_privileges.sql"
+    );
+
+    expect(schema).toMatch(/stripe_event_id text not null unique/);
+    expect(schema).toMatch(/status text not null default 'processing'/);
+    expect(schema).toMatch(
+      /check \(status in \('processing', 'processed', 'failed'\)\)/
+    );
+    expect(schema).toMatch(/attempt_count integer not null default 1/);
+    expect(schema).toMatch(/check \(attempt_count >= 1\)/);
+    expect(schema).toMatch(/updated_at timestamptz not null default now\(\)/);
+    expect(schema).toMatch(/enable row level security/);
+
+    expect(privilegeHardening).toMatch(
+      /revoke all privileges on table public\.stripe_webhook_events[\s\S]*from public, anon, authenticated/
+    );
+    expect(privilegeHardening).toMatch(
+      /grant all privileges on table public\.stripe_webhook_events to service_role/
+    );
+  });
+
   it("reclaims failed or stale webhook events with an optimistic compare-and-swap", () => {
     const events = source("lib/stripe-webhook-events.ts");
 
