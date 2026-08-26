@@ -17,22 +17,21 @@ describe("KLYX full public homepage i18n contract", () => {
       'import PublicHomeContent from "@/app/components/PublicHomeContent"'
     );
     expect(page).toContain("<PublicHomeContent />");
-    expect(page).toContain("KLYX_PUBLIC_HOME_SERVER_BOUNDARY_16_10");
 
     expect(content).toContain('"use client"');
-    expect(content).toContain("KLYX_PUBLIC_HOME_I18N_16_10");
     expect(content).toContain("useKlyxLocale()");
     expect(content).toContain("translateKlyxPublicHome(locale, key)");
   });
 
-  it("preserves product journey, dual-entry markers and explicit signup destinations", () => {
+  it("preserves the product journey and explicit signup destinations without internal evolution markers", () => {
     const page = read("app/page.tsx");
     const content = read("app/components/PublicHomeContent.tsx");
 
-    expect(page).toContain("KLYX_PUBLIC_PRODUCT_JOURNEY_13_84");
-    expect(page).toContain("KLYX_PUBLIC_DUAL_ENTRY_13_85");
-    expect(content).toContain("KLYX_PUBLIC_PRODUCT_JOURNEY_13_84");
-    expect(content).toContain("KLYX_PUBLIC_DUAL_ENTRY_13_85");
+    expect(page).not.toMatch(/KLYX_PUBLIC_[A-Z0-9_]*\d+_\d+/);
+    expect(content).not.toMatch(/KLYX_PUBLIC_[A-Z0-9_]*\d+_\d+/);
+    expect(content).toContain("<JourneyStep");
+    expect(content).toContain('number="01"');
+    expect(content).toContain('number="04"');
     expect(content).toContain('href="/signup?type=client"');
     expect(content).toContain('href="/signup?type=provider"');
     expect(content).toContain('href="/login"');
