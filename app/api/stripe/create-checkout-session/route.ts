@@ -5,6 +5,7 @@ import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { markBookingPaidFromSession } from "@/lib/stripe-payments";
 import { calculateKlyxEconomics, getKlyxCommissionPercent } from "@/lib/klyx-economics";
+import { assessKlyxStripeMarketAccess } from "@/lib/klyx-stripe-market-access";
 import {
   apiErrorStatus,
   getAuthenticatedProfile,
@@ -46,6 +47,7 @@ type PaymentClaimRow = {
 };
 
 type ProviderRow = {
+  country_code: string | null;
   stripe_account_id: string | null;
   stripe_onboarding_complete: boolean | null;
   stripe_charges_enabled: boolean | null;
@@ -230,7 +232,25 @@ export async function POST(request: Request) {
     const { user, profile } = await getAuthenticatedProfile(request);
     requireAccountType(profile, "client");
 
-    assertStripeRuntimeReady();
+    const stripeRuntime = assertStripeRuntimeReady();
+    const clientMarketAccess = assessKlyxStripeMarketAccess(
+      profile.countryCode,
+      stripeRuntime.mode
+    );
+
+    if (!clientMarketAccess.allowed) {
+      return NextResponse.json(
+        {
+          error:
+            "KLYX n'est pas encore ouvert aux paiements réels dans le pays de ce profil client.",
+          code: "KLYX_CHECKOUT_MARKET_NOT_READY",
+          participant: "client",
+          countryCode: clientMarketAccess.countryCode,
+          blockers: clientMarketAccess.blockers,
+        },
+        { status: 409 }
+      );
+    }
 
     const stripeSecretKey = requiredEnv("STRIPE_SECRET_KEY");
     const stripe = new Stripe(stripeSecretKey);
@@ -350,7 +370,7 @@ export async function POST(request: Request) {
       await supabaseAdmin
         .from("profiles")
         .select(
-          "stripe_account_id, stripe_onboarding_complete, stripe_charges_enabled, stripe_payouts_enabled"
+          "country_code, stripe_account_id, stripe_onboarding_complete, stripe_charges_enabled, stripe_payouts_enabled"
         )
         .eq("id", providerId)
         .maybeSingle();
@@ -361,6 +381,25 @@ export async function POST(request: Request) {
 
     const provider =
       (providerData as ProviderRow | null) ?? null;
+
+    const providerMarketAccess = assessKlyxStripeMarketAccess(
+      provider?.country_code ?? "",
+      stripeRuntime.mode
+    );
+
+    if (!providerMarketAccess.allowed) {
+      return NextResponse.json(
+        {
+          error:
+            "KLYX n'est pas encore ouvert aux paiements réels dans le pays de ce prestataire.",
+          code: "KLYX_CHECKOUT_MARKET_NOT_READY",
+          participant: "provider",
+          countryCode: providerMarketAccess.countryCode,
+          blockers: providerMarketAccess.blockers,
+        },
+        { status: 409 }
+      );
+    }
 
     const {
       service,
