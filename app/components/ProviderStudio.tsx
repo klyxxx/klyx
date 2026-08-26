@@ -18,6 +18,7 @@ import {
   MapPin,
   Plus,
   Save,
+  Search,
   Send,
   ShieldCheck,
   Trash2,
@@ -62,6 +63,14 @@ function inputClassName(): string {
   return "w-full rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 px-4 py-3 text-foreground dark:text-white outline-none transition placeholder:text-zinc-600 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20";
 }
 
+function normalizeServiceSearch(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 async function readApiResponse(response: Response): Promise<ProviderStudioData> {
   const result = (await response.json()) as ProviderStudioData & ApiResult;
 
@@ -80,6 +89,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
   const [yearsExperience, setYearsExperience] = useState("0");
   const [services, setServices] = useState<ProviderServiceDraft[]>([]);
   const [selectedServiceId, setSelectedServiceId] = useState("");
+  const [serviceSearch, setServiceSearch] = useState("");
   const [zoneInputs, setZoneInputs] = useState<Record<string, string>>({});
   const [documentType, setDocumentType] = useState("identity");
   const [loading, setLoading] = useState(true);
@@ -140,6 +150,19 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
     () => services.filter((service) => service.enabled),
     [services]
   );
+
+  const availableServiceMatches = useMemo(() => {
+    const query = normalizeServiceSearch(serviceSearch);
+
+    if (!query) return [];
+
+    return services
+      .filter((service) => !service.enabled)
+      .filter((service) =>
+        normalizeServiceSearch(serviceLabel(service.slug, service.name)).includes(query)
+      )
+      .slice(0, 8);
+  }, [serviceSearch, services]);
 
   const selectedService = useMemo(
     () => services.find((service) => service.serviceId === selectedServiceId) ?? null,
@@ -215,15 +238,20 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
     );
   }
 
-  function toggleService(serviceId: string) {
-    setServices((current) =>
-      current.map((service) =>
-        service.serviceId === serviceId
-          ? { ...service, enabled: !service.enabled }
-          : service
-      )
-    );
+  function activateService(serviceId: string) {
+    updateService(serviceId, { enabled: true });
     setSelectedServiceId(serviceId);
+    setServiceSearch("");
+  }
+
+  function deactivateService(serviceId: string) {
+    updateService(serviceId, { enabled: false });
+
+    if (selectedServiceId === serviceId) {
+      setSelectedServiceId(
+        enabledServices.find((service) => service.serviceId !== serviceId)?.serviceId ?? ""
+      );
+    }
   }
 
   function addZone(serviceId: string) {
@@ -562,56 +590,97 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
             <SectionCard
               icon={<BriefcaseBusiness size={22} />}
               title="Services proposés"
-              description="Choisis tes services actifs."
+              description="Recherche puis ajoute les services que tu proposes."
             >
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {services.map((service) => (
-                  <button
-                    key={service.serviceId}
-                    type="button"
-                    onClick={() => toggleService(service.serviceId)}
-                    className={`rounded-2xl border p-4 text-left transition ${
-                      service.enabled
-                        ? "border-violet-500 bg-violet-500/10"
-                        : "border-border dark:border-zinc-800 bg-background dark:bg-zinc-950 hover:border-border dark:border-zinc-700"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold">
-                        {serviceLabel(service.slug, service.name)}
-                      </span>
-                      <span
-                        className={`flex h-6 w-6 items-center justify-center rounded-full ${
-                          service.enabled ? "bg-violet-500" : "bg-muted dark:bg-zinc-800"
-                        }`}
-                      >
-                        {service.enabled ? <Check size={15} /> : <Plus size={15} />}
-                      </span>
-                    </div>
-                    <p className="mt-2 text-xs text-muted-foreground dark:text-zinc-500">
-                      {service.enabled ? "Activé" : "Cliquer pour ajouter"}
-                    </p>
-                  </button>
-                ))}
+              {/* KLYX_PROVIDER_SERVICE_SEARCH_16_13 */}
+              <div className="relative">
+                <Search
+                  size={20}
+                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground dark:text-zinc-500"
+                />
+                <input
+                  type="search"
+                  value={serviceSearch}
+                  onChange={(event) => setServiceSearch(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && availableServiceMatches[0]) {
+                      event.preventDefault();
+                      activateService(availableServiceMatches[0].serviceId);
+                    }
+
+                    if (event.key === "Escape") {
+                      setServiceSearch("");
+                    }
+                  }}
+                  placeholder="Rechercher un service..."
+                  aria-label="Rechercher un service à proposer"
+                  autoComplete="off"
+                  className={`${inputClassName()} pl-12`}
+                />
+
+                {serviceSearch.trim() && (
+                  <div className="absolute z-30 mt-2 max-h-80 w-full overflow-y-auto rounded-2xl border border-border bg-card p-2 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900">
+                    {availableServiceMatches.length > 0 ? (
+                      availableServiceMatches.map((service) => (
+                        <button
+                          key={service.serviceId}
+                          type="button"
+                          onClick={() => activateService(service.serviceId)}
+                          className="flex w-full items-center justify-between gap-3 rounded-xl px-4 py-3 text-left transition hover:bg-violet-500/10 focus-visible:bg-violet-500/10 focus-visible:outline-none"
+                        >
+                          <span className="font-semibold">
+                            {serviceLabel(service.slug, service.name)}
+                          </span>
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet-500 text-white">
+                            <Plus size={16} />
+                          </span>
+                        </button>
+                      ))
+                    ) : (
+                      <p className="px-4 py-4 text-sm text-muted-foreground dark:text-zinc-400">
+                        Aucun autre service trouvé.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
+              <p className="mt-2 text-xs text-muted-foreground dark:text-zinc-500">
+                Tape le nom d’un métier ou d’un service, puis sélectionne-le pour l’ajouter.
+              </p>
 
               {enabledServices.length > 0 && (
                 <div className="mt-7 border-t border-border dark:border-zinc-800 pt-7">
                   <div className="mb-6 flex flex-wrap gap-2">
-                    {enabledServices.map((service) => (
-                      <button
-                        key={service.serviceId}
-                        type="button"
-                        onClick={() => setSelectedServiceId(service.serviceId)}
-                        className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                          selectedServiceId === service.serviceId
-                            ? "bg-white text-black"
-                            : "bg-muted dark:bg-zinc-800 text-foreground/80 dark:text-zinc-300 hover:bg-zinc-700"
-                        }`}
-                      >
-                        {serviceLabel(service.slug, service.name)}
-                      </button>
-                    ))}
+                    {enabledServices.map((service) => {
+                      const active = selectedServiceId === service.serviceId;
+
+                      return (
+                        <div
+                          key={service.serviceId}
+                          className={`inline-flex items-center overflow-hidden rounded-full text-sm font-semibold transition ${
+                            active
+                              ? "bg-white text-black"
+                              : "bg-muted text-foreground/80 dark:bg-zinc-800 dark:text-zinc-300"
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setSelectedServiceId(service.serviceId)}
+                            className="px-4 py-2"
+                          >
+                            {serviceLabel(service.slug, service.name)}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deactivateService(service.serviceId)}
+                            aria-label={`Retirer ${serviceLabel(service.slug, service.name)}`}
+                            className="mr-1 grid h-7 w-7 place-items-center rounded-full transition hover:bg-black/10 dark:hover:bg-white/10"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
 
                   {selectedService?.enabled && (
@@ -769,9 +838,9 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
           <aside className="space-y-5 xl:sticky xl:top-6 xl:self-start">
             <div className="rounded-3xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-6">
               <h2 className="text-lg font-bold">Publication</h2>
-                              <p className="mt-2 text-sm text-muted-foreground dark:text-zinc-400">
-                  Brouillon privé ou fiche publiée.
-                </p>
+              <p className="mt-2 text-sm text-muted-foreground dark:text-zinc-400">
+                Brouillon privé ou fiche publiée.
+              </p>
 
               <button
                 type="button"
