@@ -13,7 +13,6 @@ import {
   CheckCircle2,
   Clock3,
   CreditCard,
-  Euro,
   LoaderCircle,
   MapPin,
   Navigation,
@@ -26,11 +25,13 @@ import {
   useRouter,
 } from "next/navigation";
 
+import { formatKlyxCurrencyAmount } from "@/lib/klyx-currency-display";
 import { supabase } from "@/lib/supabase";
 
 import GroupCancellationCard from "./GroupCancellationCard";
 // KLYX_GROUP_MISSION_PAGE_12_87
 // KLYX_GROUP_PAYMENT_READINESS_UI_15_03
+// KLYX_GROUP_TRANSACTION_CURRENCY_UI_15_04
 
 type BookingItem = {
   id: string;
@@ -561,12 +562,12 @@ export default function BookingGroupPage() {
                     }
                   />
                   <Info
-                    icon={<Euro size={17} />}
+                    icon={<CreditCard size={17} />}
                     label="Part du prix"
-                    value={
-                      ((booking.amount_total ?? 0) / 100).toFixed(2) +
-                      " EUR"
-                    }
+                    value={formatKlyxCurrencyAmount(
+                      booking.amount_total ?? 0,
+                      booking.currency ?? data.group.currency
+                    )}
                   />
                 </div>
 
@@ -592,8 +593,10 @@ export default function BookingGroupPage() {
             <div>
               <p className="klyx-eyebrow">Total du groupe</p>
               <p className="mt-2 text-3xl font-black text-violet-600">
-                {(data.group.totalAmountCents / 100).toFixed(2)}
-                {" EUR"}
+                {formatKlyxCurrencyAmount(
+                  data.group.totalAmountCents,
+                  data.group.currency
+                )}
               </p>
             </div>
 
@@ -701,9 +704,11 @@ export default function BookingGroupPage() {
                       ) : (
                         <CreditCard size={19} />
                       )}
-                      Payer {(
-                        data.group.totalAmountCents / 100
-                      ).toFixed(2)} EUR
+                      Payer{" "}
+                      {formatKlyxCurrencyAmount(
+                        data.group.totalAmountCents,
+                        data.group.currency
+                      )}
                     </button>
 
                     <p className="mt-3 text-center text-xs text-muted-foreground">
