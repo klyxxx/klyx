@@ -27,6 +27,7 @@ import {
 } from "@/lib/stripe-refunds";
 
 // KLYX_GROUP_WEBHOOK_12_86
+// KLYX_STRIPE_WEBHOOK_RETRY_LEASE_16_07
 
 function getStripeWebhookConfig() {
   const stripeSecretKey =
@@ -136,6 +137,23 @@ function isGroupIntent(
   );
 }
 
+function supersededClaimResponse(
+  event: Stripe.Event
+) {
+  return NextResponse.json(
+    {
+      received: true,
+      duplicate: true,
+      reason: "claim_superseded",
+      eventId: event.id,
+      eventType: event.type,
+    },
+    {
+      status: 200,
+    }
+  );
+}
+
 export async function POST(
   request: Request
 ) {
@@ -218,6 +236,9 @@ export async function POST(
 
   let claimed =
     false;
+  let claimAttemptCount:
+    number | null =
+    null;
 
   try {
     const claim =
@@ -247,8 +268,22 @@ export async function POST(
       );
     }
 
+    if (
+      claim.attemptCount ===
+      null
+    ) {
+      throw new Error(
+        "Stripe webhook claim attempt missing."
+      );
+    }
+
+    const attemptCount =
+      claim.attemptCount;
+
     claimed =
       true;
+    claimAttemptCount =
+      attemptCount;
 
     // KLYX_SPLIT_STRIPE_WEBHOOK_WIRING_13_27
     const splitPaymentHandled =
@@ -258,9 +293,17 @@ export async function POST(
       );
 
     if (splitPaymentHandled) {
-      await markStripeWebhookProcessed(
-        event.id
-      );
+      const finalized =
+        await markStripeWebhookProcessed(
+          event.id,
+          attemptCount
+        );
+
+      if (!finalized) {
+        return supersededClaimResponse(
+          event
+        );
+      }
 
       return NextResponse.json(
         {
@@ -449,9 +492,17 @@ export async function POST(
         break;
     }
 
-    await markStripeWebhookProcessed(
-      event.id
-    );
+    const finalized =
+      await markStripeWebhookProcessed(
+        event.id,
+        attemptCount
+      );
+
+    if (!finalized) {
+      return supersededClaimResponse(
+        event
+      );
+    }
 
     return NextResponse.json(
       {
@@ -469,9 +520,14 @@ export async function POST(
       }
     );
   } catch (error) {
-    if (claimed) {
+    if (
+      claimed &&
+      claimAttemptCount !==
+        null
+    ) {
       await markStripeWebhookFailed(
         event.id,
+        claimAttemptCount,
         "stripe_webhook_processing_failed"
       );
     }
