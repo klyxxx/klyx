@@ -14,6 +14,10 @@ import {
 
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import {
+  splitMissionStripeBlockMessageKey,
+  splitMissionStripeProviderStateMessageKey,
+} from "@/lib/klyx-split-mission-stripe-readiness";
+import {
   translateKlyxSplitMissionStripeReadiness,
   type KlyxSplitMissionStripeReadinessMessageKey,
 } from "@/lib/klyx-split-mission-stripe-readiness-i18n";
@@ -21,9 +25,12 @@ import { supabase } from "@/lib/supabase";
 
 // KLYX_SPLIT_STRIPE_READINESS_UI_13_25
 // KLYX_SPLIT_MISSION_STRIPE_READINESS_I18N
+// KLYX_SPLIT_STRIPE_READINESS_UI_CONTRACT_15_05
 
 type ProviderStripeState =
   | "ready"
+  | "missing_profile"
+  | "market_not_ready"
   | "missing_account"
   | "restricted"
   | "lookup_failed";
@@ -44,6 +51,7 @@ type StripeReadinessResult = {
   stripeReadinessComplete?: boolean;
   allProvidersStripeReady?: boolean;
   paymentInfrastructureReady?: boolean;
+  checkoutReady?: boolean;
   blockReason?: string | null;
   providerCount?: number;
   readyProviderCount?: number;
@@ -116,35 +124,11 @@ export default function SplitMissionStripeReadiness({
   }, [load]);
 
   function stateLabel(state: ProviderStripeState): string {
-    if (state === "ready") {
-      return t("stateReady");
-    }
-    if (state === "missing_account") {
-      return t("stateMissingAccount");
-    }
-    if (state === "lookup_failed") {
-      return t("stateLookupFailed");
-    }
-    return t("stateRestricted");
+    return t(splitMissionStripeProviderStateMessageKey(state));
   }
 
   function blockLabel(value: string | null | undefined): string {
-    if (value === "PRICE_CONFIRMATION_REQUIRED") {
-      return t("blockPriceConfirmationRequired");
-    }
-    if (value === "PAYMENT_PLAN_REVALIDATION_REQUIRED") {
-      return t("blockPaymentPlanRevalidationRequired");
-    }
-    if (value === "STRIPE_SERVER_CONFIGURATION_REQUIRED") {
-      return t("blockStripeServerConfigurationRequired");
-    }
-    if (value === "PROVIDER_STRIPE_NOT_READY") {
-      return t("blockProviderStripeNotReady");
-    }
-    if (value === "MULTI_PROVIDER_REQUIRED") {
-      return t("blockMultiProviderRequired");
-    }
-    return t("blockDefault");
+    return t(splitMissionStripeBlockMessageKey(value));
   }
 
   if (loading) {
@@ -273,7 +257,7 @@ export default function SplitMissionStripeReadiness({
         </div>
       )}
 
-      {result?.allProvidersStripeReady ? (
+      {result?.checkoutReady ? (
         <div className="mt-6 flex gap-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-5">
           <ShieldCheck size={22} className="shrink-0 text-emerald-600" />
           <div>

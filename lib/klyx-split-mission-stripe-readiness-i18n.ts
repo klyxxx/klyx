@@ -23,6 +23,8 @@ export const KLYX_SPLIT_MISSION_STRIPE_READINESS_MESSAGE_KEYS = [
   "providersChecked",
   "readyForStripe",
   "stateReady",
+  "stateMissingProfile",
+  "stateMarketNotReady",
   "stateMissingAccount",
   "stateLookupFailed",
   "stateRestricted",
@@ -38,6 +40,8 @@ export const KLYX_SPLIT_MISSION_STRIPE_READINESS_MESSAGE_KEYS = [
   "blockPriceConfirmationRequired",
   "blockPaymentPlanRevalidationRequired",
   "blockStripeServerConfigurationRequired",
+  "blockClientMarketNotReady",
+  "blockProviderMarketNotReady",
   "blockProviderStripeNotReady",
   "blockMultiProviderRequired",
   "blockDefault",
@@ -66,6 +70,8 @@ const MESSAGES: Record<KlyxSplitMissionStripeReadinessLocale, Dictionary> = {
     providersChecked: "Prestataires vérifiés",
     readyForStripe: "Prêts pour Stripe",
     stateReady: "Stripe prêt",
+    stateMissingProfile: "Profil prestataire introuvable",
+    stateMarketNotReady: "Marché KLYX non ouvert",
     stateMissingAccount: "Compte Stripe manquant",
     stateLookupFailed: "Vérification impossible",
     stateRestricted: "Compte Stripe incomplet",
@@ -77,7 +83,7 @@ const MESSAGES: Record<KlyxSplitMissionStripeReadinessLocale, Dictionary> = {
     no: "non",
     readyTitle: "Infrastructure Stripe prête",
     readyDescription:
-      "Tous les prestataires disposent actuellement d'un compte Stripe Connect opérationnel.",
+      "Le marché client et tous les prestataires sont actuellement prêts pour Stripe.",
     blockedTitle: "Paiement toujours bloqué",
     blockPriceConfirmationRequired:
       "Les prix doivent être confirmés avant la vérification Stripe.",
@@ -85,6 +91,10 @@ const MESSAGES: Record<KlyxSplitMissionStripeReadinessLocale, Dictionary> = {
       "Le contrat de paiement doit être revalidé.",
     blockStripeServerConfigurationRequired:
       "La configuration Stripe serveur est indisponible.",
+    blockClientMarketNotReady:
+      "KLYX n'est pas encore ouvert aux paiements Stripe dans le marché du client.",
+    blockProviderMarketNotReady:
+      "Au moins un prestataire se trouve dans un marché KLYX qui n'est pas encore ouvert aux paiements Stripe.",
     blockProviderStripeNotReady:
       "Au moins un prestataire n'est pas encore prêt à recevoir un paiement.",
     blockMultiProviderRequired:
@@ -110,6 +120,8 @@ const MESSAGES: Record<KlyxSplitMissionStripeReadinessLocale, Dictionary> = {
     providersChecked: "Providers checked",
     readyForStripe: "Ready for Stripe",
     stateReady: "Stripe ready",
+    stateMissingProfile: "Provider profile missing",
+    stateMarketNotReady: "KLYX market not open",
     stateMissingAccount: "Stripe account missing",
     stateLookupFailed: "Verification unavailable",
     stateRestricted: "Stripe account incomplete",
@@ -121,7 +133,7 @@ const MESSAGES: Record<KlyxSplitMissionStripeReadinessLocale, Dictionary> = {
     no: "no",
     readyTitle: "Stripe infrastructure ready",
     readyDescription:
-      "Every provider currently has an operational Stripe Connect account.",
+      "The client market and every provider are currently ready for Stripe.",
     blockedTitle: "Payment still blocked",
     blockPriceConfirmationRequired:
       "Prices must be confirmed before Stripe verification.",
@@ -129,6 +141,10 @@ const MESSAGES: Record<KlyxSplitMissionStripeReadinessLocale, Dictionary> = {
       "The payment contract must be revalidated.",
     blockStripeServerConfigurationRequired:
       "Server-side Stripe configuration is unavailable.",
+    blockClientMarketNotReady:
+      "KLYX is not yet open for Stripe payments in the client's market.",
+    blockProviderMarketNotReady:
+      "At least one provider is in a KLYX market that is not yet open for Stripe payments.",
     blockProviderStripeNotReady:
       "At least one provider is not yet ready to receive a payment.",
     blockMultiProviderRequired:
@@ -154,6 +170,8 @@ const MESSAGES: Record<KlyxSplitMissionStripeReadinessLocale, Dictionary> = {
     providersChecked: "Gecontroleerde dienstverleners",
     readyForStripe: "Klaar voor Stripe",
     stateReady: "Stripe klaar",
+    stateMissingProfile: "Profiel van dienstverlener ontbreekt",
+    stateMarketNotReady: "KLYX-markt nog niet open",
     stateMissingAccount: "Stripe-account ontbreekt",
     stateLookupFailed: "Controle niet mogelijk",
     stateRestricted: "Stripe-account onvolledig",
@@ -165,7 +183,7 @@ const MESSAGES: Record<KlyxSplitMissionStripeReadinessLocale, Dictionary> = {
     no: "nee",
     readyTitle: "Stripe-infrastructuur klaar",
     readyDescription:
-      "Alle dienstverleners hebben momenteel een operationeel Stripe Connect-account.",
+      "De markt van de klant en alle dienstverleners zijn momenteel klaar voor Stripe.",
     blockedTitle: "Betaling blijft geblokkeerd",
     blockPriceConfirmationRequired:
       "De prijzen moeten worden bevestigd vóór de Stripe-controle.",
@@ -173,6 +191,10 @@ const MESSAGES: Record<KlyxSplitMissionStripeReadinessLocale, Dictionary> = {
       "Het betalingscontract moet opnieuw worden gevalideerd.",
     blockStripeServerConfigurationRequired:
       "De Stripe-serverconfiguratie is niet beschikbaar.",
+    blockClientMarketNotReady:
+      "KLYX is nog niet geopend voor Stripe-betalingen in de markt van de klant.",
+    blockProviderMarketNotReady:
+      "Minstens één dienstverlener bevindt zich in een KLYX-markt die nog niet open is voor Stripe-betalingen.",
     blockProviderStripeNotReady:
       "Minstens één dienstverlener is nog niet klaar om een betaling te ontvangen.",
     blockMultiProviderRequired:
@@ -198,6 +220,8 @@ const MESSAGES: Record<KlyxSplitMissionStripeReadinessLocale, Dictionary> = {
     providersChecked: "Geprüfte Dienstleister",
     readyForStripe: "Bereit für Stripe",
     stateReady: "Stripe bereit",
+    stateMissingProfile: "Dienstleisterprofil fehlt",
+    stateMarketNotReady: "KLYX-Markt noch nicht geöffnet",
     stateMissingAccount: "Stripe-Konto fehlt",
     stateLookupFailed: "Überprüfung nicht möglich",
     stateRestricted: "Stripe-Konto unvollständig",
@@ -209,7 +233,7 @@ const MESSAGES: Record<KlyxSplitMissionStripeReadinessLocale, Dictionary> = {
     no: "nein",
     readyTitle: "Stripe-Infrastruktur bereit",
     readyDescription:
-      "Alle Dienstleister verfügen derzeit über ein funktionsfähiges Stripe-Connect-Konto.",
+      "Der Kundenmarkt und alle Dienstleister sind derzeit für Stripe bereit.",
     blockedTitle: "Zahlung weiterhin blockiert",
     blockPriceConfirmationRequired:
       "Die Preise müssen vor der Stripe-Prüfung bestätigt werden.",
@@ -217,6 +241,10 @@ const MESSAGES: Record<KlyxSplitMissionStripeReadinessLocale, Dictionary> = {
       "Der Zahlungsvertrag muss erneut validiert werden.",
     blockStripeServerConfigurationRequired:
       "Die serverseitige Stripe-Konfiguration ist nicht verfügbar.",
+    blockClientMarketNotReady:
+      "KLYX ist im Markt des Kunden noch nicht für Stripe-Zahlungen geöffnet.",
+    blockProviderMarketNotReady:
+      "Mindestens ein Dienstleister befindet sich in einem KLYX-Markt, der noch nicht für Stripe-Zahlungen geöffnet ist.",
     blockProviderStripeNotReady:
       "Mindestens ein Dienstleister ist noch nicht bereit, eine Zahlung zu erhalten.",
     blockMultiProviderRequired:
