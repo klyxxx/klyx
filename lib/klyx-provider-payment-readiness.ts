@@ -1,4 +1,5 @@
 // KLYX_PROVIDER_LIVE_PAYMENT_READINESS_16_05
+// KLYX_CONNECT_ONBOARDING_BEFORE_LIVE_SWITCH_16_08
 export type KlyxProviderPaymentBlockReason =
   | "TEST_MODE"
   | "LIVE_PAYMENTS_DISABLED"
@@ -32,9 +33,11 @@ export function assessKlyxProviderPaymentReadiness(
       input.payoutsEnabled
   );
 
+  // Connect onboarding/KYC must be completable before KLYX opens real charges.
+  // The commercial market gate still fails closed in live mode, while the
+  // transactional live switch remains enforced by livePaymentsOperational.
   const connectSetupAllowed =
-    input.runtimeMode === "test" ||
-    (input.livePaymentsEnabled && input.marketCommerciallyReady);
+    input.runtimeMode === "test" || input.marketCommerciallyReady;
 
   let blockReason: KlyxProviderPaymentBlockReason | null = null;
 
