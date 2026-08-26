@@ -11,6 +11,8 @@ describe("KLYX provider live payment readiness contract", () => {
     const route = source("app/api/stripe/connect/status/route.ts");
     const readiness = source("lib/klyx-provider-payment-readiness.ts");
 
+    expect(route).toMatch(/assertStripeRuntimeConfigured/);
+    expect(route).not.toMatch(/assertStripeRuntimeReady/);
     expect(route).toMatch(/getKlyxMarketReadiness/);
     expect(route).toMatch(/assessKlyxMarketReadiness/);
     expect(route).toMatch(/assessKlyxProviderPaymentReadiness/);
@@ -47,9 +49,10 @@ describe("KLYX provider live payment readiness contract", () => {
     );
   });
 
-  it("Connect account creation remains the final live-market authority", () => {
+  it("transactional Connect account creation keeps the strict live switch authority", () => {
     const route = source("app/api/stripe/connect/create-account/route.ts");
 
+    expect(route).toMatch(/assertStripeRuntimeReady/);
     expect(route).toMatch(/KLYX_MARKET_NOT_COMMERCIALLY_READY/);
     expect(route).toMatch(/assessKlyxMarketReadiness/);
     expect(route).toMatch(/stripeRuntime\.mode === "live"/);
