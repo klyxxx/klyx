@@ -13,6 +13,7 @@ import type {
 } from "@/lib/stripe-payments";
 
 // KLYX_GROUP_STRIPE_HELPER_12_86
+// KLYX_GROUP_PAYMENT_RETRY_REPAIR_16_08
 
 type GroupRow = {
   id: string;
@@ -433,7 +434,6 @@ export async function markBookingGroupPaidFromSession(
       .toISOString();
 
   const {
-    data: updated,
     error,
   } = await supabaseAdmin
     .from("booking_groups")
@@ -472,9 +472,13 @@ export async function markBookingGroupPaidFromSession(
     .neq(
       "payment_status",
       "paid"
-    )
-    .select(groupSelection)
-    .maybeSingle();
+    );
+
+  if (error) {
+    throw new Error(
+      error.message
+    );
+  }
 
   const childRows =
     await children(
@@ -514,6 +518,7 @@ export async function markBookingGroupPaidFromSession(
       );
     }
   }
+
   const {
     error:
       childrenUpdateError,
@@ -547,79 +552,77 @@ export async function markBookingGroupPaidFromSession(
     );
   }
 
-  if (updated) {
-    let distributedFee = 0;
+  let distributedFee = 0;
 
-    for (
-      let index = 0;
-      index <
-      childRows.length;
-      index += 1
-    ) {
-      const child =
-        childRows[index];
+  for (
+    let index = 0;
+    index <
+    childRows.length;
+    index += 1
+  ) {
+    const child =
+      childRows[index];
 
-      const gross =
-        Number(
-          child.amount_total ??
-          0
-        );
+    const gross =
+      Number(
+        child.amount_total ??
+        0
+      );
 
-      const fee =
-        index ===
-        childRows.length - 1
-          ? Math.max(
-              platformFee -
-                distributedFee,
-              0
+    const fee =
+      index ===
+      childRows.length - 1
+        ? Math.max(
+            platformFee -
+              distributedFee,
+            0
+          )
+        : amountTotal > 0
+          ? Math.floor(
+              platformFee *
+                gross /
+                amountTotal
             )
-          : amountTotal > 0
-            ? Math.floor(
-                platformFee *
-                  gross /
-                  amountTotal
-              )
-            : 0;
+          : 0;
 
-      distributedFee +=
-        fee;
+    distributedFee +=
+      fee;
 
-      const childProviderAmount =
-        paymentMode ===
-        "connect_destination"
-          ? Math.max(
-              gross - fee,
-              0
-            )
-          : null;
+    const childProviderAmount =
+      paymentMode ===
+      "connect_destination"
+        ? Math.max(
+            gross - fee,
+            0
+          )
+        : null;
 
-      await upsertFinancialLedgerEntry({
-        bookingId:
-          child.id,
-        entryKey:
-          "booking:" +
-          child.id +
-          ":group-payment:" +
-          session.id,
-        entryType:
-          "payment_succeeded",
-        status:
-          "succeeded",
-        currency:
-          childCurrencyCode(child, canonicalGroupCurrency),
-        grossAmountCents:
-          gross,
-        platformFeeCents:
-          fee,
-        providerAmountCents:
-          childProviderAmount,
-        paymentMode,
-        stripeCheckoutSessionId:
-          session.id,
-        stripePaymentIntentId:
-          incomingIntent,
-      });
-    }
+    await upsertFinancialLedgerEntry({
+      bookingId:
+        child.id,
+      entryKey:
+        "booking:" +
+        child.id +
+        ":group-payment:" +
+        session.id,
+      entryType:
+        "payment_succeeded",
+      status:
+        "succeeded",
+      currency:
+        childCurrencyCode(child, canonicalGroupCurrency),
+      grossAmountCents:
+        gross,
+      platformFeeCents:
+        fee,
+      providerAmountCents:
+        childProviderAmount,
+      paymentMode,
+      stripeCheckoutSessionId:
+        session.id,
+      stripePaymentIntentId:
+        incomingIntent,
+    });
   }
 
   const firstChild =
