@@ -24,7 +24,7 @@ describe("KLYX provider payment readiness", () => {
     expect(result.blockReason).toBeNull();
   });
 
-  it("live closed market stays fail-closed even when Stripe is configured", () => {
+  it("live closed market permits setup but keeps real payments fail-closed", () => {
     const result = assessKlyxProviderPaymentReadiness({
       runtimeMode: "live",
       livePaymentsEnabled: true,
@@ -33,7 +33,7 @@ describe("KLYX provider payment readiness", () => {
     });
 
     expect(result.stripeConfigured).toBe(true);
-    expect(result.connectSetupAllowed).toBe(false);
+    expect(result.connectSetupAllowed).toBe(true);
     expect(result.livePaymentsOperational).toBe(false);
     expect(result.blockReason).toBe("MARKET_NOT_COMMERCIALLY_READY");
   });
@@ -69,7 +69,7 @@ describe("KLYX provider payment readiness", () => {
     expect(result.blockReason).toBe("STRIPE_NOT_CONFIGURED");
   });
 
-  it("disabled live payments block operation and setup", () => {
+  it("disabled live payments still permit setup but block all real payment operation", () => {
     const result = assessKlyxProviderPaymentReadiness({
       runtimeMode: "live",
       livePaymentsEnabled: false,
@@ -77,7 +77,7 @@ describe("KLYX provider payment readiness", () => {
       ...configuredStripe,
     });
 
-    expect(result.connectSetupAllowed).toBe(false);
+    expect(result.connectSetupAllowed).toBe(true);
     expect(result.livePaymentsOperational).toBe(false);
     expect(result.blockReason).toBe("LIVE_PAYMENTS_DISABLED");
   });
