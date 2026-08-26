@@ -176,15 +176,12 @@ export default function ProviderFinanceAudit() {
           : "Audit financier indisponible.";
 
       setErrorMessage(message);
-
-      if (!stripeFinance) {
-        setStripeFinanceError((current) => current || message);
-      }
+      setStripeFinanceError((current) => current || message);
     } finally {
       setLoading(false);
       setStripeFinanceLoading(false);
     }
-  }, [stripeFinance]);
+  }, []);
 
   useEffect(() => {
     void load();
