@@ -14,6 +14,7 @@ import type {
 
 // KLYX_GROUP_STRIPE_HELPER_12_86
 // KLYX_GROUP_PAYMENT_RETRY_REPAIR_16_08
+// KLYX_GROUP_REFUNDED_TERMINAL_GUARD_16_10
 
 type GroupRow = {
   id: string;
@@ -39,12 +40,19 @@ type ChildBooking = {
   currency_code: string | null;
 };
 
+type GroupPaymentEconomics = {
+  amountTotal: number;
+  paymentMode: string;
+  platformFee: number;
+  providerAmount: number | null;
+};
+
 const groupSelection =
   "id, market_request_id, client_profile_id, provider_profile_id, status, payment_status, total_amount_cents, currency, payment_mode, application_fee_amount, platform_fee_amount, provider_amount, stripe_checkout_session_id, stripe_payment_intent_id";
 
 function paymentIntentId(
   session: Stripe.Checkout.Session
-) {
+): string | null {
   if (
     typeof session.payment_intent ===
     "string"
@@ -120,6 +128,7 @@ function formatGroupAmount(
     amountCents / 100
   );
 }
+
 async function findGroupFromSession(
   session: Stripe.Checkout.Session
 ): Promise<GroupRow> {
@@ -263,7 +272,10 @@ function verifySession(
     );
   }
 
-  const currency = groupCurrencyCode(group).toLowerCase();
+  const currency =
+    groupCurrencyCode(
+      group
+    ).toLowerCase();
 
   if (
     session.currency &&
@@ -272,6 +284,22 @@ function verifySession(
   ) {
     throw new Error(
       "La devise Stripe ne correspond pas au groupe."
+    );
+  }
+
+  const incomingIntent =
+    paymentIntentId(
+      session
+    );
+
+  if (
+    group.stripe_payment_intent_id &&
+    incomingIntent &&
+    group.stripe_payment_intent_id !==
+      incomingIntent
+  ) {
+    throw new Error(
+      "Le paiement Stripe ne correspond pas au groupe."
     );
   }
 }
@@ -362,28 +390,9 @@ async function notification(
   }
 }
 
-export async function markBookingGroupPaidFromSession(
-  session: Stripe.Checkout.Session
-) {
-  const group =
-    await findGroupFromSession(
-      session
-    );
-
-  verifySession(
-    group,
-    session
-  );
-
-  if (
-    session.payment_status !==
-    "paid"
-  ) {
-    throw new Error(
-      "Stripe n a pas confirme le paiement groupe."
-    );
-  }
-
+function groupPaymentEconomics(
+  group: GroupRow
+): GroupPaymentEconomics {
   const amountTotal =
     Number(
       group.total_amount_cents
@@ -424,61 +433,157 @@ export async function markBookingGroupPaidFromSession(
         )
       : null;
 
+  return {
+    amountTotal,
+    paymentMode,
+    platformFee,
+    providerAmount,
+  };
+}
+
+function validateChildCurrencies(
+  childRows: ChildBooking[],
+  canonicalGroupCurrency: string
+) {
+  for (
+    const child
+    of childRows
+  ) {
+    const childCurrency =
+      childCurrencyCode(
+        child,
+        canonicalGroupCurrency
+      );
+
+    if (
+      childCurrency !==
+      canonicalGroupCurrency
+    ) {
+      throw new Error(
+        "La devise d'une réservation ne correspond pas à la devise du groupe."
+      );
+    }
+  }
+}
+
+async function upsertGroupPaymentLedgers(
+  params: {
+    childRows: ChildBooking[];
+    session: Stripe.Checkout.Session;
+    incomingIntent: string | null;
+    canonicalGroupCurrency: string;
+    economics: GroupPaymentEconomics;
+  }
+) {
+  let distributedFee = 0;
+
+  for (
+    let index = 0;
+    index <
+    params.childRows.length;
+    index += 1
+  ) {
+    const child =
+      params.childRows[index];
+
+    const gross =
+      Number(
+        child.amount_total ??
+        0
+      );
+
+    const fee =
+      index ===
+      params.childRows.length - 1
+        ? Math.max(
+            params.economics.platformFee -
+              distributedFee,
+            0
+          )
+        : params.economics.amountTotal > 0
+          ? Math.floor(
+              params.economics.platformFee *
+                gross /
+                params.economics.amountTotal
+            )
+          : 0;
+
+    distributedFee +=
+      fee;
+
+    const childProviderAmount =
+      params.economics.paymentMode ===
+      "connect_destination"
+        ? Math.max(
+            gross - fee,
+            0
+          )
+        : null;
+
+    await upsertFinancialLedgerEntry({
+      bookingId:
+        child.id,
+      entryKey:
+        "booking:" +
+        child.id +
+        ":group-payment:" +
+        params.session.id,
+      entryType:
+        "payment_succeeded",
+      status:
+        "succeeded",
+      currency:
+        childCurrencyCode(
+          child,
+          params.canonicalGroupCurrency
+        ),
+      grossAmountCents:
+        gross,
+      platformFeeCents:
+        fee,
+      providerAmountCents:
+        childProviderAmount,
+      paymentMode:
+        params.economics.paymentMode,
+      stripeCheckoutSessionId:
+        params.session.id,
+      stripePaymentIntentId:
+        params.incomingIntent,
+    });
+  }
+}
+
+export async function markBookingGroupPaidFromSession(
+  session: Stripe.Checkout.Session
+) {
+  const group =
+    await findGroupFromSession(
+      session
+    );
+
+  verifySession(
+    group,
+    session
+  );
+
+  if (
+    session.payment_status !==
+    "paid"
+  ) {
+    throw new Error(
+      "Stripe n a pas confirme le paiement groupe."
+    );
+  }
+
+  const economics =
+    groupPaymentEconomics(
+      group
+    );
+
   const incomingIntent =
     paymentIntentId(
       session
     );
-
-  const now =
-    new Date()
-      .toISOString();
-
-  const {
-    error,
-  } = await supabaseAdmin
-    .from("booking_groups")
-    .update({
-      payment_status:
-        "paid",
-      stripe_checkout_session_id:
-        session.id,
-      stripe_payment_intent_id:
-        incomingIntent,
-      application_fee_amount:
-        platformFee,
-      platform_fee_amount:
-        platformFee,
-      provider_amount:
-        providerAmount,
-      payment_attempt_token:
-        null,
-      payment_checkout_started_at:
-        null,
-      payment_failure_code:
-        null,
-      payment_failure_message:
-        null,
-      payment_failed_at:
-        null,
-      paid_at:
-        now,
-      updated_at:
-        now,
-    })
-    .eq(
-      "id",
-      group.id
-    )
-    .neq(
-      "payment_status",
-      "paid"
-    );
-
-  if (error) {
-    throw new Error(
-      error.message
-    );
-  }
 
   const childRows =
     await children(
@@ -499,23 +604,117 @@ export async function markBookingGroupPaidFromSession(
       group
     );
 
-  for (
-    const child
-    of childRows
-  ) {
-    const childCurrency =
-      childCurrencyCode(
-        child,
-        canonicalGroupCurrency
-      );
+  validateChildCurrencies(
+    childRows,
+    canonicalGroupCurrency
+  );
 
-    if (
-      childCurrency !==
-      canonicalGroupCurrency
-    ) {
+  if (
+    group.payment_status ===
+    "refunded"
+  ) {
+    await upsertGroupPaymentLedgers({
+      childRows,
+      session,
+      incomingIntent,
+      canonicalGroupCurrency,
+      economics,
+    });
+
+    return;
+  }
+
+  const now =
+    new Date()
+      .toISOString();
+
+  if (
+    group.payment_status !==
+    "paid"
+  ) {
+    const {
+      data: transition,
+      error,
+    } = await supabaseAdmin
+      .from("booking_groups")
+      .update({
+        payment_status:
+          "paid",
+        stripe_checkout_session_id:
+          session.id,
+        stripe_payment_intent_id:
+          incomingIntent,
+        application_fee_amount:
+          economics.platformFee,
+        platform_fee_amount:
+          economics.platformFee,
+        provider_amount:
+          economics.providerAmount,
+        payment_attempt_token:
+          null,
+        payment_checkout_started_at:
+          null,
+        payment_failure_code:
+          null,
+        payment_failure_message:
+          null,
+        payment_failed_at:
+          null,
+        paid_at:
+          now,
+        updated_at:
+          now,
+      })
+      .eq(
+        "id",
+        group.id
+      )
+      .neq(
+        "payment_status",
+        "paid"
+      )
+      .neq(
+        "payment_status",
+        "refunded"
+      )
+      .select("id")
+      .maybeSingle();
+
+    if (error) {
       throw new Error(
-        "La devise d'une réservation ne correspond pas à la devise du groupe."
+        error.message
       );
+    }
+
+    if (!transition) {
+      const currentGroup =
+        await findGroupFromSession(
+          session
+        );
+
+      if (
+        currentGroup.payment_status ===
+        "refunded"
+      ) {
+        await upsertGroupPaymentLedgers({
+          childRows,
+          session,
+          incomingIntent,
+          canonicalGroupCurrency,
+          economics,
+        });
+
+        return;
+      }
+
+      if (
+        currentGroup.payment_status !==
+        "paid"
+      ) {
+        throw new Error(
+          "Etat de paiement groupe modifie pendant la confirmation Stripe."
+        );
+      }
     }
   }
 
@@ -528,7 +727,7 @@ export async function markBookingGroupPaidFromSession(
       payment_status:
         "paid",
       payment_mode:
-        paymentMode,
+        economics.paymentMode,
       paid_at:
         now,
       updated_at:
@@ -541,6 +740,10 @@ export async function markBookingGroupPaidFromSession(
     .neq(
       "payment_status",
       "paid"
+    )
+    .neq(
+      "payment_status",
+      "refunded"
     );
 
   if (
@@ -552,77 +755,33 @@ export async function markBookingGroupPaidFromSession(
     );
   }
 
-  let distributedFee = 0;
+  await upsertGroupPaymentLedgers({
+    childRows,
+    session,
+    incomingIntent,
+    canonicalGroupCurrency,
+    economics,
+  });
 
-  for (
-    let index = 0;
-    index <
-    childRows.length;
-    index += 1
+  const finalGroup =
+    await findGroupFromSession(
+      session
+    );
+
+  if (
+    finalGroup.payment_status ===
+    "refunded"
   ) {
-    const child =
-      childRows[index];
+    return;
+  }
 
-    const gross =
-      Number(
-        child.amount_total ??
-        0
-      );
-
-    const fee =
-      index ===
-      childRows.length - 1
-        ? Math.max(
-            platformFee -
-              distributedFee,
-            0
-          )
-        : amountTotal > 0
-          ? Math.floor(
-              platformFee *
-                gross /
-                amountTotal
-            )
-          : 0;
-
-    distributedFee +=
-      fee;
-
-    const childProviderAmount =
-      paymentMode ===
-      "connect_destination"
-        ? Math.max(
-            gross - fee,
-            0
-          )
-        : null;
-
-    await upsertFinancialLedgerEntry({
-      bookingId:
-        child.id,
-      entryKey:
-        "booking:" +
-        child.id +
-        ":group-payment:" +
-        session.id,
-      entryType:
-        "payment_succeeded",
-      status:
-        "succeeded",
-      currency:
-        childCurrencyCode(child, canonicalGroupCurrency),
-      grossAmountCents:
-        gross,
-      platformFeeCents:
-        fee,
-      providerAmountCents:
-        childProviderAmount,
-      paymentMode,
-      stripeCheckoutSessionId:
-        session.id,
-      stripePaymentIntentId:
-        incomingIntent,
-    });
+  if (
+    finalGroup.payment_status !==
+    "paid"
+  ) {
+    throw new Error(
+      "Le groupe n est plus dans un etat de paiement finalisable."
+    );
   }
 
   const firstChild =
@@ -631,39 +790,41 @@ export async function markBookingGroupPaidFromSession(
 
   await Promise.all([
     notification({
-      group,
+      group:
+        finalGroup,
       bookingId:
         firstChild,
       userId:
-        group.client_profile_id,
+        finalGroup.client_profile_id,
       title:
         "Paiement groupe confirme",
       message:
         "Le paiement unique de " +
         formatGroupAmount(
-          amountTotal,
+          economics.amountTotal,
           canonicalGroupCurrency
         ) +
         " couvre tous les creneaux.",
       key:
         "booking-group:" +
-        group.id +
+        finalGroup.id +
         ":payment-success:client",
     }),
 
     notification({
-      group,
+      group:
+        finalGroup,
       bookingId:
         firstChild,
       userId:
-        group.provider_profile_id,
+        finalGroup.provider_profile_id,
       title:
         "Paiement groupe recu",
       message:
         "Le paiement de la reservation groupee est confirme.",
       key:
         "booking-group:" +
-        group.id +
+        finalGroup.id +
         ":payment-success:provider",
     }),
   ]);
@@ -685,7 +846,9 @@ export async function markBookingGroupFailedFromSession(
 
   if (
     group.payment_status ===
-    "paid"
+      "paid" ||
+    group.payment_status ===
+      "refunded"
   ) {
     return;
   }
@@ -695,6 +858,7 @@ export async function markBookingGroupFailedFromSession(
       .toISOString();
 
   const {
+    data: transition,
     error,
   } = await supabaseAdmin
     .from("booking_groups")
@@ -729,12 +893,22 @@ export async function markBookingGroupFailedFromSession(
     .neq(
       "payment_status",
       "paid"
-    );
+    )
+    .neq(
+      "payment_status",
+      "refunded"
+    )
+    .select("id")
+    .maybeSingle();
 
   if (error) {
     throw new Error(
       error.message
     );
+  }
+
+  if (!transition) {
+    return;
   }
 
   const childRows =
@@ -778,7 +952,9 @@ export async function recordBookingGroupPaymentFailure(
 
   if (
     group.payment_status ===
-    "paid"
+      "paid" ||
+    group.payment_status ===
+      "refunded"
   ) {
     return;
   }
@@ -831,6 +1007,10 @@ export async function recordBookingGroupPaymentFailure(
     .neq(
       "payment_status",
       "paid"
+    )
+    .neq(
+      "payment_status",
+      "refunded"
     );
 
   if (error) {
