@@ -17,6 +17,11 @@ type StripeWebhookClaim = {
   attemptCount: number | null;
 };
 
+export type StripeWebhookFailureMarkResult =
+  | "recorded"
+  | "superseded"
+  | "record_failed";
+
 const STALE_PROCESSING_MS = 10 * 60 * 1000;
 
 function stripeObjectId(event: Stripe.Event): string | null {
@@ -168,7 +173,7 @@ export async function markStripeWebhookFailed(
   eventId: string,
   attemptCount: number,
   failureCode: string
-): Promise<boolean> {
+): Promise<StripeWebhookFailureMarkResult> {
   const safeFailureCode =
     failureCode
       .trim()
@@ -209,8 +214,10 @@ export async function markStripeWebhookFailed(
       error,
     });
 
-    return false;
+    return "record_failed";
   }
 
-  return Boolean(data);
+  return data
+    ? "recorded"
+    : "superseded";
 }
