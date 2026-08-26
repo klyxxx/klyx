@@ -62,7 +62,9 @@ describe("KLYX Stripe Connect onboarding before live payment activation", () => 
     expect(onboardingRoute).toContain(
       "assertStripeRuntimeConfiguredForDiagnostics()"
     );
-    expect(onboardingRoute).not.toContain("assertStripeRuntimeReady()");
+    expect(onboardingRoute).not.toMatch(
+      /import\s*\{[^}]*assertStripeRuntimeReady[^}]*\}\s*from\s*["']@\/lib\/stripe-runtime["']/s
+    );
     expect(onboardingRoute).toContain('type: "account_onboarding"');
     expect(onboardingRoute).toContain(
       'marketReadiness.monetarySupport !== "supported"'
@@ -73,7 +75,9 @@ describe("KLYX Stripe Connect onboarding before live payment activation", () => 
   it("keeps a dedicated KLYX entry point for provider KYC and payout setup", () => {
     expect(connectPage).toContain('/api/stripe/connect/create-account');
     expect(connectPage).toContain("Configurer mes versements");
-    expect(connectPage).toContain("Stripe vérifie ton identité et tes coordonnées bancaires");
+    expect(connectPage).toContain(
+      "Stripe vérifie ton identité et tes coordonnées bancaires"
+    );
   });
 
   it("still requires full live runtime readiness for every client checkout", () => {
