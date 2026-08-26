@@ -25,6 +25,7 @@ import {
   useRouter,
 } from "next/navigation";
 
+import { getBookingGroupPaymentActionCopy } from "@/lib/booking-group-payment-action-copy";
 import { formatKlyxCurrencyAmount } from "@/lib/klyx-currency-display";
 import { supabase } from "@/lib/supabase";
 
@@ -32,6 +33,7 @@ import GroupCancellationCard from "./GroupCancellationCard";
 // KLYX_GROUP_MISSION_PAGE_12_87
 // KLYX_GROUP_PAYMENT_READINESS_UI_15_03
 // KLYX_GROUP_TRANSACTION_CURRENCY_UI_15_04
+// KLYX_GROUP_PAYMENT_ACTION_COPY_UI_15_05
 
 type BookingItem = {
   id: string;
@@ -427,6 +429,9 @@ export default function BookingGroupPage() {
     data.paymentActionAvailable &&
       stripeReadiness?.checkoutReady
   );
+  const paymentActionCopy = getBookingGroupPaymentActionCopy(
+    data.group.payment_status
+  );
 
   return (
     <main className="klyx-page">
@@ -704,7 +709,7 @@ export default function BookingGroupPage() {
                       ) : (
                         <CreditCard size={19} />
                       )}
-                      Payer{" "}
+                      {paymentActionCopy.actionLabel}{" "}
                       {formatKlyxCurrencyAmount(
                         data.group.totalAmountCents,
                         data.group.currency
@@ -712,7 +717,7 @@ export default function BookingGroupPage() {
                     </button>
 
                     <p className="mt-3 text-center text-xs text-muted-foreground">
-                      Aucun paiement sans ton clic.
+                      {paymentActionCopy.note}
                     </p>
                   </>
                 ) : (
