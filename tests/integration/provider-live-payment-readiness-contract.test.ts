@@ -11,7 +11,7 @@ describe("KLYX provider live payment readiness contract", () => {
     const route = source("app/api/stripe/connect/status/route.ts");
     const readiness = source("lib/klyx-provider-payment-readiness.ts");
 
-    expect(route).toMatch(/assertStripeRuntimeConfiguredForDiagnostics/);
+    expect(route).toMatch(/assertStripeConnectRuntimeConfigured/);
     expect(route).not.toMatch(/assertStripeRuntimeReady/);
     expect(route).toMatch(/export async function GET/);
     expect(route).not.toMatch(/export async function POST/);
@@ -52,14 +52,14 @@ describe("KLYX provider live payment readiness contract", () => {
       source("app/api/stripe/create-group-checkout-session/route.ts"),
     ];
 
-    expect(connectCreate).toMatch(/assertStripeRuntimeConfiguredForDiagnostics/);
+    expect(connectCreate).toMatch(/assertStripeConnectRuntimeConfigured/);
     expect(connectCreate).toMatch(/type:\s*"account_onboarding"/);
     expect(connectCreate).toMatch(/KLYX_STRIPE_COUNTRY_UNSUPPORTED/);
     expect(connectCreate).toMatch(/stripeRuntime\.mode === "live"/);
 
     for (const route of checkoutRoutes) {
       expect(route).toMatch(/assertStripeRuntimeReady/);
-      expect(route).not.toMatch(/assertStripeRuntimeConfiguredForDiagnostics/);
+      expect(route).not.toMatch(/assertStripeConnectRuntimeConfigured/);
     }
   });
 });
