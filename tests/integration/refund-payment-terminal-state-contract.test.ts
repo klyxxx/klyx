@@ -66,7 +66,9 @@ describe("KLYX refunded payment terminal state", () => {
   });
 
   it("makes refunded a no-op in late payment success and failure handlers", () => {
-    expect(paymentWebhooks).toContain('booking.payment_status === "refunded"');
+    expect(paymentWebhooks).toMatch(
+      /booking\.payment_status\s*===\s*"refunded"/
+    );
     expect(paymentWebhooks).toContain('.neq("payment_status", "refunded")');
     expect(paymentWebhooks).toContain("if (!updatedBooking) {");
     expect(paymentWebhooks).toContain('payment_status: "paid"');
