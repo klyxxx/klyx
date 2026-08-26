@@ -14,8 +14,10 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { formatKlyxMoney } from "@/lib/klyx-money";
 import { supabase } from "@/lib/supabase";
 
+// KLYX_CLIENT_QUOTE_CURRENCY_UI_15_06
 type QuoteProfile = {
   id: string;
   first_name: string | null;
@@ -25,6 +27,8 @@ type QuoteProfile = {
 
 type Quote = {
   id: string;
+  country_code: string;
+  currency: string;
   title: string;
   description: string;
   requested_date: string | null;
@@ -61,10 +65,18 @@ function name(profile: QuoteProfile | null): string {
   );
 }
 
-function money(value: number | null): string {
+function money(
+  value: number | null,
+  countryCode: string,
+  currency: string
+): string {
   return value == null
     ? "À confirmer"
-    : `${Number(value).toFixed(2)} €`;
+    : formatKlyxMoney(
+        Number(value),
+        countryCode,
+        currency
+      );
 }
 
 export default function QuotesPage() {
@@ -285,7 +297,9 @@ export default function QuotesPage() {
                     </p>
                     <p className="mt-2 text-2xl font-black">
                       {money(
-                        quote.estimated_total
+                        quote.estimated_total,
+                        quote.country_code,
+                        quote.currency
                       )}
                     </p>
 
@@ -296,7 +310,9 @@ export default function QuotesPage() {
                         </p>
                         <p className="mt-2 text-2xl font-black text-emerald-600">
                           {money(
-                            quote.provider_price
+                            quote.provider_price,
+                            quote.country_code,
+                            quote.currency
                           )}
                         </p>
                       </>
