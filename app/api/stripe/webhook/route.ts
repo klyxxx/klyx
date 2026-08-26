@@ -525,11 +525,21 @@ export async function POST(
       claimAttemptCount !==
         null
     ) {
-      await markStripeWebhookFailed(
-        event.id,
-        claimAttemptCount,
-        "stripe_webhook_processing_failed"
-      );
+      const failureMarkResult =
+        await markStripeWebhookFailed(
+          event.id,
+          claimAttemptCount,
+          "stripe_webhook_processing_failed"
+        );
+
+      if (
+        failureMarkResult ===
+        "superseded"
+      ) {
+        return supersededClaimResponse(
+          event
+        );
+      }
     }
 
     return secureApiErrorResponse({
