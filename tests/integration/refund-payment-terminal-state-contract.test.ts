@@ -69,9 +69,15 @@ describe("KLYX refunded payment terminal state", () => {
     expect(paymentWebhooks).toMatch(
       /booking\.payment_status\s*===\s*"refunded"/
     );
-    expect(paymentWebhooks).toContain('.neq("payment_status", "refunded")');
+    expect(paymentWebhooks).toMatch(
+      /\.neq\(\s*"payment_status"\s*,\s*"refunded"\s*\)/
+    );
     expect(paymentWebhooks).toContain("if (!updatedBooking) {");
-    expect(paymentWebhooks).toContain('payment_status: "paid"');
-    expect(paymentWebhooks).toContain('payment_status: "failed"');
+    expect(paymentWebhooks).toMatch(
+      /payment_status\s*:\s*"paid"/
+    );
+    expect(paymentWebhooks).toMatch(
+      /payment_status\s*:\s*"failed"/
+    );
   });
 });
