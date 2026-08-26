@@ -11,6 +11,12 @@ type StoredEvent = {
   updated_at: string;
 };
 
+type StripeWebhookClaim = {
+  shouldProcess: boolean;
+  reason: string;
+  attemptCount: number | null;
+};
+
 const STALE_PROCESSING_MS = 10 * 60 * 1000;
 
 function stripeObjectId(event: Stripe.Event): string | null {
@@ -19,9 +25,15 @@ function stripeObjectId(event: Stripe.Event): string | null {
   return typeof object?.id === "string" ? object.id : null;
 }
 
+function normalizedAttemptCount(value: unknown): number {
+  const count = Number(value);
+
+  return Number.isInteger(count) && count >= 1 ? count : 1;
+}
+
 export async function claimStripeWebhookEvent(
   event: Stripe.Event
-): Promise<{ shouldProcess: boolean; reason: string }> {
+): Promise<StripeWebhookClaim> {
   const now = new Date().toISOString();
 
   const { error: insertError } = await supabaseAdmin
@@ -42,6 +54,7 @@ export async function claimStripeWebhookEvent(
     return {
       shouldProcess: true,
       reason: "new_event",
+      attemptCount: 1,
     };
   }
 
@@ -65,6 +78,7 @@ export async function claimStripeWebhookEvent(
     return {
       shouldProcess: false,
       reason: "already_processed",
+      attemptCount: null,
     };
   }
 
@@ -78,22 +92,39 @@ export async function claimStripeWebhookEvent(
       return {
         shouldProcess: false,
         reason: "already_processing",
+        attemptCount: null,
       };
     }
   }
 
-  const { error: retryError } = await supabaseAdmin
+  const currentAttemptCount = normalizedAttemptCount(stored.attempt_count);
+  const nextAttemptCount = currentAttemptCount + 1;
+
+  const { data: reclaimed, error: retryError } = await supabaseAdmin
     .from("stripe_webhook_events")
     .update({
       status: "processing",
-      attempt_count: Math.max(Number(stored.attempt_count) || 1, 1) + 1,
+      attempt_count: nextAttemptCount,
       last_error: null,
       updated_at: now,
     })
-    .eq("stripe_event_id", event.id);
+    .eq("stripe_event_id", event.id)
+    .eq("status", stored.status)
+    .eq("attempt_count", stored.attempt_count)
+    .eq("updated_at", stored.updated_at)
+    .select("stripe_event_id, attempt_count")
+    .maybeSingle();
 
   if (retryError) {
     throw new Error(retryError.message);
+  }
+
+  if (!reclaimed) {
+    return {
+      shouldProcess: false,
+      reason: "retry_claim_lost",
+      attemptCount: null,
+    };
   }
 
   return {
@@ -102,15 +133,17 @@ export async function claimStripeWebhookEvent(
       stored.status === "failed"
         ? "retry_failed_event"
         : "retry_stale_event",
+    attemptCount: normalizedAttemptCount(reclaimed.attempt_count),
   };
 }
 
 export async function markStripeWebhookProcessed(
-  eventId: string
-): Promise<void> {
+  eventId: string,
+  attemptCount: number
+): Promise<boolean> {
   const now = new Date().toISOString();
 
-  const { error } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from("stripe_webhook_events")
     .update({
       status: "processed",
@@ -118,17 +151,24 @@ export async function markStripeWebhookProcessed(
       last_error: null,
       updated_at: now,
     })
-    .eq("stripe_event_id", eventId);
+    .eq("stripe_event_id", eventId)
+    .eq("status", "processing")
+    .eq("attempt_count", attemptCount)
+    .select("stripe_event_id")
+    .maybeSingle();
 
   if (error) {
     throw new Error(error.message);
   }
+
+  return Boolean(data);
 }
 
 export async function markStripeWebhookFailed(
   eventId: string,
+  attemptCount: number,
   failureCode: string
-): Promise<void> {
+): Promise<boolean> {
   const safeFailureCode =
     failureCode
       .trim()
@@ -142,7 +182,7 @@ export async function markStripeWebhookFailed(
       .slice(0, 120) ||
     "stripe_webhook_failed";
 
-  const { error } = await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from("stripe_webhook_events")
     .update({
       status: "failed",
@@ -150,7 +190,11 @@ export async function markStripeWebhookFailed(
         safeFailureCode,
       updated_at: new Date().toISOString(),
     })
-    .eq("stripe_event_id", eventId);
+    .eq("stripe_event_id", eventId)
+    .eq("status", "processing")
+    .eq("attempt_count", attemptCount)
+    .select("stripe_event_id")
+    .maybeSingle();
 
   if (error) {
     logServerError({
@@ -164,5 +208,9 @@ export async function markStripeWebhookFailed(
         "stripe_webhook_failure_record_failed",
       error,
     });
+
+    return false;
   }
+
+  return Boolean(data);
 }
