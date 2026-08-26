@@ -212,9 +212,29 @@ jobs:
             performance/k6/klyx-readonly.js
 
       - name: Install ApacheBench
+        shell: bash
         run: |
+          set -euo pipefail
+
+          if command -v ab >/dev/null 2>&1; then
+            ab -V
+            exit 0
+          fi
+
+          # GitHub-hosted runners may include unrelated Microsoft apt sources.
+          # If one of those sources is temporarily unavailable, apt-get update
+          # must not block installing apache2-utils from Ubuntu repositories.
+          for source in /etc/apt/sources.list.d/*; do
+            [ -f "$source" ] || continue
+            if grep -q "packages.microsoft.com" "$source"; then
+              echo "Disabling unrelated runner apt source: $source"
+              sudo mv "$source" "$source.disabled"
+            fi
+          done
+
           sudo apt-get update
-          sudo apt-get install -y apache2-utils
+          sudo apt-get install -y --no-install-recommends apache2-utils
+          ab -V
 
       - name: Run ApacheBench quick diagnostic
         shell: bash
