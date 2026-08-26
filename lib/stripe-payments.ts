@@ -21,6 +21,13 @@ export type PaymentFailureDetails = {
   message: string;
 };
 
+type PaymentSuccessEconomics = {
+  amountTotal: number;
+  paymentMode: string;
+  platformFeeAmount: number;
+  providerAmount: number | null;
+};
+
 const bookingSelection =
   "id, parent_id, provider_id, babysitter_id, payment_status, amount_total, currency, payment_mode, application_fee_amount, stripe_checkout_session_id, stripe_payment_intent_id";
 
@@ -358,6 +365,84 @@ async function notifyPaymentSucceeded(
   await Promise.all(notifications);
 }
 
+function getPaymentSuccessEconomics(
+  booking: BookingPaymentRow,
+  session: Stripe.Checkout.Session
+): PaymentSuccessEconomics {
+  const amountTotal =
+    booking.amount_total ??
+    session.amount_total ??
+    0;
+
+  if (amountTotal <= 0) {
+    throw new Error(
+      "Montant total de la réservation invalide."
+    );
+  }
+
+  const paymentMode =
+    booking.payment_mode ??
+    "platform_test_only";
+
+  const calculatedFee = Math.round(
+    amountTotal *
+      (getCommissionPercent() / 100)
+  );
+
+  const platformFeeAmount =
+    paymentMode === "connect_destination"
+      ? booking.application_fee_amount ??
+        calculatedFee
+      : 0;
+
+  const providerAmount =
+    paymentMode === "connect_destination"
+      ? Math.max(
+          amountTotal - platformFeeAmount,
+          0
+        )
+      : null;
+
+  return {
+    amountTotal,
+    paymentMode,
+    platformFeeAmount,
+    providerAmount,
+  };
+}
+
+async function ensurePaymentSucceededSideEffects(
+  booking: BookingPaymentRow,
+  session: Stripe.Checkout.Session,
+  economics: PaymentSuccessEconomics
+) {
+  await upsertFinancialLedgerEntry({
+    bookingId: booking.id,
+    entryKey:
+      `booking:${booking.id}:payment:${session.id}`,
+    entryType:
+      "payment_succeeded",
+    status: "succeeded",
+    currency: bookingCurrencyCode(booking),
+    grossAmountCents:
+      economics.amountTotal,
+    platformFeeCents:
+      economics.platformFeeAmount,
+    providerAmountCents:
+      economics.providerAmount,
+    paymentMode:
+      economics.paymentMode,
+    stripeCheckoutSessionId:
+      session.id,
+    stripePaymentIntentId:
+      paymentIntentId(session),
+  });
+
+  await notifyPaymentSucceeded(
+    booking
+  );
+}
+
 export function getPaymentFailureDetails(
   intent: Stripe.PaymentIntent
 ): PaymentFailureDetails {
@@ -401,44 +486,20 @@ export async function markBookingPaidFromSession(
     return;
   }
 
+  const economics =
+    getPaymentSuccessEconomics(
+      booking,
+      session
+    );
+
   if (booking.payment_status === "paid") {
-    await notifyPaymentSucceeded(booking);
+    await ensurePaymentSucceededSideEffects(
+      booking,
+      session,
+      economics
+    );
     return;
   }
-
-  const amountTotal =
-    booking.amount_total ??
-    session.amount_total ??
-    0;
-
-  if (amountTotal <= 0) {
-    throw new Error(
-      "Montant total de la réservation invalide."
-    );
-  }
-
-  const paymentMode =
-    booking.payment_mode ??
-    "platform_test_only";
-
-  const calculatedFee = Math.round(
-    amountTotal *
-      (getCommissionPercent() / 100)
-  );
-
-  const platformFeeAmount =
-    paymentMode === "connect_destination"
-      ? booking.application_fee_amount ??
-        calculatedFee
-      : 0;
-
-  const providerAmount =
-    paymentMode === "connect_destination"
-      ? Math.max(
-          amountTotal - platformFeeAmount,
-          0
-        )
-      : null;
 
   const {
     data: updatedBooking,
@@ -447,12 +508,13 @@ export async function markBookingPaidFromSession(
     .from("bookings")
     .update({
       payment_status: "paid",
-      amount_total: amountTotal,
+      amount_total: economics.amountTotal,
       application_fee_amount:
-        platformFeeAmount,
+        economics.platformFeeAmount,
       platform_fee_amount:
-        platformFeeAmount,
-      provider_amount: providerAmount,
+        economics.platformFeeAmount,
+      provider_amount:
+        economics.providerAmount,
       stripe_checkout_session_id:
         session.id,
       stripe_payment_intent_id:
@@ -475,30 +537,11 @@ export async function markBookingPaidFromSession(
   }
 
   if (updatedBooking) {
-    await upsertFinancialLedgerEntry({
-      bookingId: booking.id,
-      entryKey:
-        `booking:${booking.id}:payment:${session.id}`,
-      entryType:
-        "payment_succeeded",
-      status: "succeeded",
-      currency: bookingCurrencyCode(booking),
-      grossAmountCents: amountTotal,
-      platformFeeCents:
-        platformFeeAmount,
-      providerAmountCents:
-        providerAmount,
-      paymentMode,
-      stripeCheckoutSessionId:
-        session.id,
-      stripePaymentIntentId:
-        paymentIntentId(session),
-    });
-
-    await notifyPaymentSucceeded(
-      updatedBooking as BookingPaymentRow
+    await ensurePaymentSucceededSideEffects(
+      updatedBooking as BookingPaymentRow,
+      session,
+      economics
     );
-
     return;
   }
 
@@ -509,8 +552,13 @@ export async function markBookingPaidFromSession(
     refreshedBooking.payment_status ===
     "paid"
   ) {
-    await notifyPaymentSucceeded(
-      refreshedBooking
+    await ensurePaymentSucceededSideEffects(
+      refreshedBooking,
+      session,
+      getPaymentSuccessEconomics(
+        refreshedBooking,
+        session
+      )
     );
   }
 }
