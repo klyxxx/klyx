@@ -12,7 +12,7 @@ import {
   getKlyxMarketReadiness,
 } from "@/lib/klyx-market-readiness";
 import { assessKlyxProviderPaymentReadiness } from "@/lib/klyx-provider-payment-readiness";
-import { assertStripeRuntimeConfiguredForDiagnostics } from "@/lib/stripe-runtime";
+import { assertStripeConnectRuntimeConfigured } from "@/lib/stripe-runtime";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 // KLYX_PROVIDER_LIVE_PAYMENT_READINESS_STATUS_15_06
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
       await getAuthenticatedProfile(request);
     requireAccountType(activeProfile, "provider");
 
-    const stripeRuntime = assertStripeRuntimeConfiguredForDiagnostics();
+    const stripeRuntime = assertStripeConnectRuntimeConfigured();
     const stripe = new Stripe(requiredEnv("STRIPE_SECRET_KEY"));
     const marketReadiness = getKlyxMarketReadiness(
       activeProfile.countryCode
