@@ -9,6 +9,10 @@ import {
   requireAccountType,
 } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import {
+  assessKlyxMarketReadiness,
+  getKlyxMarketReadiness,
+} from "@/lib/klyx-market-readiness";
 
 function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();
@@ -42,7 +46,7 @@ export async function POST(request: Request) {
       await getAuthenticatedProfile(request);
     requireAccountType(activeProfile, "provider");
 
-    assertStripeRuntimeReady();
+    const stripeRuntime = assertStripeRuntimeReady();
     const stripe = new Stripe(requiredEnv("STRIPE_SECRET_KEY"));
 
     const accountCountry = activeProfile.countryCode.trim().toUpperCase();
@@ -56,6 +60,26 @@ export async function POST(request: Request) {
         },
         { status: 409 }
       );
+    }
+
+    // Test mode stays available for launch certification. In live mode, the
+    // reviewed market-readiness matrix is the source of truth and fails closed.
+    if (stripeRuntime.mode === "live") {
+      const marketReadiness = getKlyxMarketReadiness(accountCountry);
+      const marketAssessment = assessKlyxMarketReadiness(marketReadiness);
+
+      if (!marketAssessment.ready) {
+        return NextResponse.json(
+          {
+            error:
+              "KLYX n'est pas encore ouvert aux paiements réels dans ce pays.",
+            code: "KLYX_MARKET_NOT_COMMERCIALLY_READY",
+            countryCode: accountCountry,
+            blockers: marketAssessment.blockers,
+          },
+          { status: 409 }
+        );
+      }
     }
 
     const { data: profile, error: profileError } = await supabaseAdmin
