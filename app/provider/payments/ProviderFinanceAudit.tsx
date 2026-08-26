@@ -111,6 +111,8 @@ export default function ProviderFinanceAudit() {
     setErrorMessage("");
     setStripeFinanceError("");
 
+    let stripeFinanceResolved = false;
+
     try {
       const supabase = createClient();
       const {
@@ -154,6 +156,7 @@ export default function ProviderFinanceAudit() {
       }
 
       if (stripeResponse.ok && stripeBody) {
+        stripeFinanceResolved = true;
         setStripeFinance(stripeBody);
       } else {
         setStripeFinance(null);
@@ -176,7 +179,10 @@ export default function ProviderFinanceAudit() {
           : "Audit financier indisponible.";
 
       setErrorMessage(message);
-      setStripeFinanceError((current) => current || message);
+
+      if (!stripeFinanceResolved) {
+        setStripeFinanceError((current) => current || message);
+      }
     } finally {
       setLoading(false);
       setStripeFinanceLoading(false);
