@@ -9,6 +9,9 @@ function source(path: string) {
 describe("KLYX Stripe webhook retry lease contract", () => {
   it("keeps the durable webhook schema compatible with retry leasing", () => {
     const schema = source("supabase/step-8-0-stripe-webhook-events.sql");
+    const canonicalBaseline = source(
+      "supabase/migrations/20260814000000_klyx_canonical_baseline.sql"
+    );
     const privilegeHardening = source(
       "supabase/migrations/20260819181000_klyx_server_audit_table_privileges.sql"
     );
@@ -22,6 +25,10 @@ describe("KLYX Stripe webhook retry lease contract", () => {
     expect(schema).toMatch(/check \(attempt_count >= 1\)/);
     expect(schema).toMatch(/updated_at timestamptz not null default now\(\)/);
     expect(schema).toMatch(/enable row level security/);
+
+    expect(canonicalBaseline).toMatch(
+      /ADD CONSTRAINT "booking_financial_ledger_entry_key_key" UNIQUE \("entry_key"\)/
+    );
 
     expect(privilegeHardening).toMatch(
       /revoke all privileges on table public\.stripe_webhook_events[\s\S]*from public, anon, authenticated/
