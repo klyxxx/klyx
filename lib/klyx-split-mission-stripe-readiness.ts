@@ -21,6 +21,10 @@ export function splitMissionStripeProviderStateMessageKey(
     return "stateMissingAccount";
   }
 
+  if (state === "country_mismatch") {
+    return "stateCountryMismatch";
+  }
+
   if (state === "lookup_failed") {
     return "stateLookupFailed";
   }
