@@ -28,16 +28,15 @@ describe("split checkout authority invariants", () => {
     }
   });
 
-  it("checks live Stripe country before any split checkout session is created", () => {
-    const countryCheck = source.indexOf("assessStripeConnectCountry");
-    const providerCountryCheck = source.indexOf(
+  it("checks live Stripe country before split checkout creation is invoked", () => {
+    const postSource = source.slice(source.indexOf("export async function POST"));
+    const providerCountryCheck = postSource.indexOf(
       "const countryAssessment = assessStripeConnectCountry"
     );
-    const checkoutCreate = source.indexOf("stripe.checkout.sessions.create");
+    const checkoutInvocation = postSource.indexOf("createCheckoutSession({");
 
-    expect(countryCheck).toBeGreaterThan(-1);
     expect(providerCountryCheck).toBeGreaterThan(-1);
-    expect(checkoutCreate).toBeGreaterThan(-1);
-    expect(providerCountryCheck).toBeLessThan(checkoutCreate);
+    expect(checkoutInvocation).toBeGreaterThan(-1);
+    expect(providerCountryCheck).toBeLessThan(checkoutInvocation);
   });
 });
