@@ -60,6 +60,7 @@ type ProviderStripeState =
   | "missing_profile"
   | "market_not_ready"
   | "missing_account"
+  | "country_mismatch"
   | "restricted"
   | "lookup_failed";
 
@@ -422,9 +423,10 @@ export async function GET(request: Request, context: RouteContext) {
             );
           }
 
+          const liveAccount = account as Stripe.Account;
           const countryAssessment = assessStripeConnectCountry({
             klyxCountryCode: text(providerProfile.country_code),
-            stripeCountryCode: account.country,
+            stripeCountryCode: liveAccount.country,
           });
 
           if (!countryAssessment.matches) {
@@ -437,16 +439,17 @@ export async function GET(request: Request, context: RouteContext) {
                   STRIPE_ACCOUNT_COUNTRY_MISMATCH,
                 ],
               },
-              "restricted",
+              "country_mismatch",
               maskedStripeAccount(accountId),
               STRIPE_ACCOUNT_COUNTRY_MISMATCH
             );
           }
 
-          const requirementsDue = account.requirements?.currently_due?.length ?? 0;
-          const chargesEnabled = account.charges_enabled === true;
-          const payoutsEnabled = account.payouts_enabled === true;
-          const detailsSubmitted = account.details_submitted === true;
+          const requirementsDue =
+            liveAccount.requirements?.currently_due?.length ?? 0;
+          const chargesEnabled = liveAccount.charges_enabled === true;
+          const payoutsEnabled = liveAccount.payouts_enabled === true;
+          const detailsSubmitted = liveAccount.details_submitted === true;
           const ready =
             chargesEnabled &&
             payoutsEnabled &&
