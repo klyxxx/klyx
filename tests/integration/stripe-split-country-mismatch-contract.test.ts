@@ -33,7 +33,7 @@ describe("KLYX split Connect country invariant", () => {
   it("fails closed in split readiness when the Stripe country differs", () => {
     expect(readinessRoute).toContain("assessStripeConnectCountry");
     expect(readinessRoute).toContain("STRIPE_ACCOUNT_COUNTRY_MISMATCH");
-    expect(readinessRoute).toContain("account.country");
+    expect(readinessRoute).toContain("liveAccount.country");
     expect(readinessRoute).toContain('"country_mismatch"');
   });
 
@@ -51,6 +51,6 @@ describe("KLYX split Connect country invariant", () => {
       'value === "STRIPE_ACCOUNT_COUNTRY_MISMATCH"'
     );
     expect(readinessI18n).toContain('"stateCountryMismatch"');
-    expect(readinessI18n).toContain('"blockStripeAccountCountryMismatch"');
+    expect(readinessI18n).toContain('"blockProviderCountryMismatch"');
   });
 });
