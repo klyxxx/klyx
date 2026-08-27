@@ -36,6 +36,33 @@ function getAppOrigin(request: Request): string {
   return parsed.origin;
 }
 
+function isMissingStripeAccount(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+
+  const candidate = error as {
+    code?: unknown;
+    param?: unknown;
+    raw?: {
+      code?: unknown;
+      param?: unknown;
+    };
+  };
+  const code =
+    typeof candidate.code === "string"
+      ? candidate.code
+      : typeof candidate.raw?.code === "string"
+        ? candidate.raw.code
+        : null;
+  const param =
+    typeof candidate.param === "string"
+      ? candidate.param
+      : typeof candidate.raw?.param === "string"
+        ? candidate.raw.param
+        : null;
+
+  return code === "resource_missing" && (param === null || param === "account");
+}
+
 export async function POST(request: Request) {
   const startedAt = Date.now();
 
@@ -100,9 +127,7 @@ export async function POST(request: Request) {
       );
     }
 
-    let accountId = profile.stripe_account_id as string | null;
-
-    if (!accountId) {
+    async function createAndPersistAccount(): Promise<string> {
       const account = await stripe.accounts.create({
         type: "express",
         country:
@@ -119,8 +144,6 @@ export async function POST(request: Request) {
         },
       });
 
-      accountId = account.id;
-
       const { error: updateError } = await supabaseAdmin
         .from("profiles")
         .update({
@@ -134,16 +157,43 @@ export async function POST(request: Request) {
       if (updateError) {
         throw new Error(updateError.message);
       }
+
+      return account.id;
     }
 
     const origin = getAppOrigin(request);
 
-    const accountLink = await stripe.accountLinks.create({
-      account: accountId,
-      refresh_url: `${origin}/connect?refresh=1`,
-      return_url: `${origin}/connect?return=1`,
-      type: "account_onboarding",
-    });
+    async function createAccountLink(accountId: string) {
+      return stripe.accountLinks.create({
+        account: accountId,
+        refresh_url: `${origin}/connect?refresh=1`,
+        return_url: `${origin}/connect?return=1`,
+        type: "account_onboarding",
+      });
+    }
+
+    let accountId = profile.stripe_account_id as string | null;
+
+    if (!accountId) {
+      accountId = await createAndPersistAccount();
+    }
+
+    let accountLink: Stripe.AccountLink;
+
+    try {
+      accountLink = await createAccountLink(accountId);
+    } catch (error) {
+      // A stored Connect id can become unusable after a Stripe account is
+      // deleted or when KLYX intentionally switches Stripe environments. Only
+      // Stripe's definitive resource_missing signal is recoverable here;
+      // every transient/auth/configuration error still fails closed.
+      if (!isMissingStripeAccount(error)) {
+        throw error;
+      }
+
+      accountId = await createAndPersistAccount();
+      accountLink = await createAccountLink(accountId);
+    }
 
     return NextResponse.json({ url: accountLink.url });
   } catch (error) {
