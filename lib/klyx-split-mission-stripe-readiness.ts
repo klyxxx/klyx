@@ -21,6 +21,10 @@ export function splitMissionStripeProviderStateMessageKey(
     return "stateMissingAccount";
   }
 
+  if (state === "country_mismatch") {
+    return "stateCountryMismatch";
+  }
+
   if (state === "lookup_failed") {
     return "stateLookupFailed";
   }
@@ -49,6 +53,10 @@ export function splitMissionStripeBlockMessageKey(
 
   if (value === "PROVIDER_MARKET_NOT_READY") {
     return "blockProviderMarketNotReady";
+  }
+
+  if (value === "STRIPE_ACCOUNT_COUNTRY_MISMATCH") {
+    return "blockProviderCountryMismatch";
   }
 
   if (value === "PROVIDER_STRIPE_NOT_READY") {

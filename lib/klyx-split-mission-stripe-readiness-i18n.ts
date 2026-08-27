@@ -26,6 +26,7 @@ export const KLYX_SPLIT_MISSION_STRIPE_READINESS_MESSAGE_KEYS = [
   "stateMissingProfile",
   "stateMarketNotReady",
   "stateMissingAccount",
+  "stateCountryMismatch",
   "stateLookupFailed",
   "stateRestricted",
   "chargesEnabled",
@@ -42,6 +43,7 @@ export const KLYX_SPLIT_MISSION_STRIPE_READINESS_MESSAGE_KEYS = [
   "blockStripeServerConfigurationRequired",
   "blockClientMarketNotReady",
   "blockProviderMarketNotReady",
+  "blockProviderCountryMismatch",
   "blockProviderStripeNotReady",
   "blockMultiProviderRequired",
   "blockDefault",
@@ -73,6 +75,7 @@ const MESSAGES: Record<KlyxSplitMissionStripeReadinessLocale, Dictionary> = {
     stateMissingProfile: "Profil prestataire introuvable",
     stateMarketNotReady: "Marché KLYX non ouvert",
     stateMissingAccount: "Compte Stripe manquant",
+    stateCountryMismatch: "Pays du compte incohérent",
     stateLookupFailed: "Vérification impossible",
     stateRestricted: "Compte Stripe incomplet",
     chargesEnabled: "Paiements activés",
@@ -95,6 +98,8 @@ const MESSAGES: Record<KlyxSplitMissionStripeReadinessLocale, Dictionary> = {
       "KLYX n'est pas encore ouvert aux paiements Stripe dans le marché du client.",
     blockProviderMarketNotReady:
       "Au moins un prestataire se trouve dans un marché KLYX qui n'est pas encore ouvert aux paiements Stripe.",
+    blockProviderCountryMismatch:
+      "Le pays KLYX d'au moins un prestataire ne correspond plus au pays de son compte Stripe. Le paiement reste bloqué jusqu'à régularisation.",
     blockProviderStripeNotReady:
       "Au moins un prestataire n'est pas encore prêt à recevoir un paiement.",
     blockMultiProviderRequired:
@@ -123,6 +128,7 @@ const MESSAGES: Record<KlyxSplitMissionStripeReadinessLocale, Dictionary> = {
     stateMissingProfile: "Provider profile missing",
     stateMarketNotReady: "KLYX market not open",
     stateMissingAccount: "Stripe account missing",
+    stateCountryMismatch: "Account country mismatch",
     stateLookupFailed: "Verification unavailable",
     stateRestricted: "Stripe account incomplete",
     chargesEnabled: "Charges enabled",
@@ -145,6 +151,8 @@ const MESSAGES: Record<KlyxSplitMissionStripeReadinessLocale, Dictionary> = {
       "KLYX is not yet open for Stripe payments in the client's market.",
     blockProviderMarketNotReady:
       "At least one provider is in a KLYX market that is not yet open for Stripe payments.",
+    blockProviderCountryMismatch:
+      "At least one provider's KLYX country no longer matches their Stripe account country. Payment stays blocked until this is resolved.",
     blockProviderStripeNotReady:
       "At least one provider is not yet ready to receive a payment.",
     blockMultiProviderRequired:
@@ -173,6 +181,7 @@ const MESSAGES: Record<KlyxSplitMissionStripeReadinessLocale, Dictionary> = {
     stateMissingProfile: "Profiel van dienstverlener ontbreekt",
     stateMarketNotReady: "KLYX-markt nog niet open",
     stateMissingAccount: "Stripe-account ontbreekt",
+    stateCountryMismatch: "Land van account komt niet overeen",
     stateLookupFailed: "Controle niet mogelijk",
     stateRestricted: "Stripe-account onvolledig",
     chargesEnabled: "Betalingen geactiveerd",
@@ -195,6 +204,8 @@ const MESSAGES: Record<KlyxSplitMissionStripeReadinessLocale, Dictionary> = {
       "KLYX is nog niet geopend voor Stripe-betalingen in de markt van de klant.",
     blockProviderMarketNotReady:
       "Minstens één dienstverlener bevindt zich in een KLYX-markt die nog niet open is voor Stripe-betalingen.",
+    blockProviderCountryMismatch:
+      "Het KLYX-land van minstens één dienstverlener komt niet meer overeen met het land van diens Stripe-account. De betaling blijft geblokkeerd tot dit is opgelost.",
     blockProviderStripeNotReady:
       "Minstens één dienstverlener is nog niet klaar om een betaling te ontvangen.",
     blockMultiProviderRequired:
@@ -223,6 +234,7 @@ const MESSAGES: Record<KlyxSplitMissionStripeReadinessLocale, Dictionary> = {
     stateMissingProfile: "Dienstleisterprofil fehlt",
     stateMarketNotReady: "KLYX-Markt noch nicht geöffnet",
     stateMissingAccount: "Stripe-Konto fehlt",
+    stateCountryMismatch: "Kontoland stimmt nicht überein",
     stateLookupFailed: "Überprüfung nicht möglich",
     stateRestricted: "Stripe-Konto unvollständig",
     chargesEnabled: "Zahlungen aktiviert",
@@ -245,6 +257,8 @@ const MESSAGES: Record<KlyxSplitMissionStripeReadinessLocale, Dictionary> = {
       "KLYX ist im Markt des Kunden noch nicht für Stripe-Zahlungen geöffnet.",
     blockProviderMarketNotReady:
       "Mindestens ein Dienstleister befindet sich in einem KLYX-Markt, der noch nicht für Stripe-Zahlungen geöffnet ist.",
+    blockProviderCountryMismatch:
+      "Das KLYX-Land mindestens eines Dienstleisters stimmt nicht mehr mit dem Land seines Stripe-Kontos überein. Die Zahlung bleibt bis zur Klärung gesperrt.",
     blockProviderStripeNotReady:
       "Mindestens ein Dienstleister ist noch nicht bereit, eine Zahlung zu erhalten.",
     blockMultiProviderRequired:
