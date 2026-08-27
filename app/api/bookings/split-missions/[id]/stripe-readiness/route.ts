@@ -8,6 +8,10 @@ import {
 } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { assessKlyxStripeMarketAccess } from "@/lib/klyx-stripe-market-access";
+import {
+  assessStripeConnectCountry,
+  STRIPE_ACCOUNT_COUNTRY_MISMATCH,
+} from "@/lib/stripe-connect-country";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getStripeRuntimeMode } from "@/lib/stripe-runtime";
 
@@ -93,10 +97,6 @@ function stripeAccountId(profile: JsonRow | undefined): string | null {
     return null;
   }
 
-  /*
-   * Compatibilité avec les différentes versions
-   * historiques possibles du profil KLYX.
-   */
   const candidateKeys = [
     "stripe_account_id",
     "stripe_connect_account_id",
@@ -217,12 +217,8 @@ export async function GET(request: Request, context: RouteContext) {
     const batch = batchData as unknown as BatchRow | null;
     if (!batch) {
       return NextResponse.json(
-        {
-          error: "Mission multi-prestataires introuvable.",
-        },
-        {
-          status: 404,
-        }
+        { error: "Mission multi-prestataires introuvable." },
+        { status: 404 }
       );
     }
 
@@ -414,7 +410,6 @@ export async function GET(request: Request, context: RouteContext) {
 
         try {
           const account = await stripe.accounts.retrieve(accountId);
-          // KLYX_STRIPE_DELETED_ACCOUNT_TS_FIX_13_25A
           const deletedAccount =
             (account as unknown as { deleted?: boolean }).deleted === true;
 
@@ -424,6 +419,27 @@ export async function GET(request: Request, context: RouteContext) {
               "restricted",
               maskedStripeAccount(accountId),
               "PROVIDER_STRIPE_NOT_READY"
+            );
+          }
+
+          const countryAssessment = assessStripeConnectCountry({
+            klyxCountryCode: text(providerProfile.country_code),
+            stripeCountryCode: account.country,
+          });
+
+          if (!countryAssessment.matches) {
+            return blockedProviderState(
+              {
+                ...providerBase,
+                marketReady: false,
+                marketBlockers: [
+                  ...providerBase.marketBlockers,
+                  STRIPE_ACCOUNT_COUNTRY_MISMATCH,
+                ],
+              },
+              "restricted",
+              maskedStripeAccount(accountId),
+              STRIPE_ACCOUNT_COUNTRY_MISMATCH
             );
           }
 
@@ -465,6 +481,10 @@ export async function GET(request: Request, context: RouteContext) {
     const providerMarketBlocked = providers.some(
       (provider) => provider.state === "market_not_ready"
     );
+    const providerCountryMismatch = providers.some(
+      (provider) =>
+        provider.readinessBlockReason === STRIPE_ACCOUNT_COUNTRY_MISMATCH
+    );
     const checkoutReady = clientMarketAccess.allowed && allProvidersStripeReady;
 
     let blockReason: string | null = null;
@@ -475,6 +495,8 @@ export async function GET(request: Request, context: RouteContext) {
       blockReason = "CLIENT_MARKET_NOT_READY";
     } else if (providerMarketBlocked) {
       blockReason = "PROVIDER_MARKET_NOT_READY";
+    } else if (providerCountryMismatch) {
+      blockReason = STRIPE_ACCOUNT_COUNTRY_MISMATCH;
     } else if (!allProvidersStripeReady) {
       blockReason = "PROVIDER_STRIPE_NOT_READY";
     }
