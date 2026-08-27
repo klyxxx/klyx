@@ -20,8 +20,8 @@ describe("KLYX group checkout live market gates", () => {
     expect(source).toContain("assessKlyxStripeMarketAccess");
     expect(source).toContain("profile.countryCode");
     expect(source).toContain("provider?.country_code");
-    expect(source).toContain('participant:\n            "client"');
-    expect(source).toContain('participant:\n            "provider"');
+    expect(source).toMatch(/participant:\s*"client"/);
+    expect(source).toMatch(/participant:\s*"provider"/);
     expect(
       source.match(/KLYX_GROUP_CHECKOUT_MARKET_NOT_READY/g)?.length
     ).toBe(2);
@@ -31,7 +31,7 @@ describe("KLYX group checkout live market gates", () => {
     const source = readRoute();
     const clientGate = source.indexOf("clientMarketAccess.allowed");
     const providerGate = source.indexOf("providerMarketAccess.allowed");
-    const checkoutCreate = source.indexOf(".sessions\n        .create(");
+    const checkoutCreate = source.indexOf("stripe.checkout.sessions.create(");
 
     expect(clientGate).toBeGreaterThan(-1);
     expect(providerGate).toBeGreaterThan(-1);
