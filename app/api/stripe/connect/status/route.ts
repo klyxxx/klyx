@@ -12,6 +12,7 @@ import {
   getKlyxMarketReadiness,
 } from "@/lib/klyx-market-readiness";
 import { assessKlyxProviderPaymentReadiness } from "@/lib/klyx-provider-payment-readiness";
+import { isMissingStripeConnectAccount } from "@/lib/stripe-connect-account-recovery";
 import { assertStripeConnectRuntimeConfigured } from "@/lib/stripe-runtime";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -43,17 +44,7 @@ export async function GET(request: Request) {
     );
     const marketAssessment = assessKlyxMarketReadiness(marketReadiness);
 
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from("profiles")
-      .select("stripe_account_id")
-      .eq("id", activeProfile.id)
-      .maybeSingle();
-
-    if (profileError) {
-      throw new Error(profileError.message);
-    }
-
-    if (!profile?.stripe_account_id) {
+    const disconnectedResponse = (accountUnavailable = false) => {
       const readiness = assessKlyxProviderPaymentReadiness({
         runtimeMode: stripeRuntime.mode,
         livePaymentsEnabled: stripeRuntime.livePaymentsEnabled,
@@ -70,6 +61,7 @@ export async function GET(request: Request) {
         chargesEnabled: false,
         payoutsEnabled: false,
         accountId: null,
+        accountUnavailable,
         runtimeMode: stripeRuntime.mode,
         livePaymentsEnabled: stripeRuntime.livePaymentsEnabled,
         countryCode: marketReadiness.countryCode,
@@ -78,9 +70,36 @@ export async function GET(request: Request) {
         ...readiness,
         paymentBlockReason: readiness.blockReason,
       });
+    };
+
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .select("stripe_account_id")
+      .eq("id", activeProfile.id)
+      .maybeSingle();
+
+    if (profileError) {
+      throw new Error(profileError.message);
     }
 
-    const account = await stripe.accounts.retrieve(profile.stripe_account_id);
+    if (!profile?.stripe_account_id) {
+      return disconnectedResponse(false);
+    }
+
+    let account: Stripe.Account;
+
+    try {
+      account = await stripe.accounts.retrieve(profile.stripe_account_id);
+    } catch (error) {
+      // GET remains read-only for account identity. A definitively missing
+      // Stripe account is exposed as recoverable disconnected state so the UI
+      // can offer onboarding again; POST owns replacement creation.
+      if (isMissingStripeConnectAccount(error)) {
+        return disconnectedResponse(true);
+      }
+
+      throw error;
+    }
 
     const onboardingComplete = Boolean(account.details_submitted);
     const chargesEnabled = Boolean(account.charges_enabled);
@@ -115,6 +134,7 @@ export async function GET(request: Request) {
       chargesEnabled,
       payoutsEnabled,
       accountId: account.id,
+      accountUnavailable: false,
       runtimeMode: stripeRuntime.mode,
       livePaymentsEnabled: stripeRuntime.livePaymentsEnabled,
       countryCode: marketReadiness.countryCode,

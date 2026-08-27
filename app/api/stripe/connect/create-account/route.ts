@@ -11,6 +11,7 @@ import {
 } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { getKlyxMarketReadiness } from "@/lib/klyx-market-readiness";
+import { isMissingStripeConnectAccount } from "@/lib/stripe-connect-account-recovery";
 
 function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();
@@ -100,9 +101,7 @@ export async function POST(request: Request) {
       );
     }
 
-    let accountId = profile.stripe_account_id as string | null;
-
-    if (!accountId) {
+    async function createAndPersistAccount(): Promise<string> {
       const account = await stripe.accounts.create({
         type: "express",
         country:
@@ -119,8 +118,6 @@ export async function POST(request: Request) {
         },
       });
 
-      accountId = account.id;
-
       const { error: updateError } = await supabaseAdmin
         .from("profiles")
         .update({
@@ -134,16 +131,43 @@ export async function POST(request: Request) {
       if (updateError) {
         throw new Error(updateError.message);
       }
+
+      return account.id;
     }
 
     const origin = getAppOrigin(request);
 
-    const accountLink = await stripe.accountLinks.create({
-      account: accountId,
-      refresh_url: `${origin}/connect?refresh=1`,
-      return_url: `${origin}/connect?return=1`,
-      type: "account_onboarding",
-    });
+    async function createAccountLink(accountId: string) {
+      return stripe.accountLinks.create({
+        account: accountId,
+        refresh_url: `${origin}/connect?refresh=1`,
+        return_url: `${origin}/connect?return=1`,
+        type: "account_onboarding",
+      });
+    }
+
+    let accountId = profile.stripe_account_id as string | null;
+
+    if (!accountId) {
+      accountId = await createAndPersistAccount();
+    }
+
+    let accountLink: Stripe.AccountLink;
+
+    try {
+      accountLink = await createAccountLink(accountId);
+    } catch (error) {
+      // A stored Connect id can become unusable after a Stripe account is
+      // deleted or when KLYX intentionally switches Stripe environments. Only
+      // Stripe's definitive resource_missing signal is recoverable here;
+      // every transient/auth/configuration error still fails closed.
+      if (!isMissingStripeConnectAccount(error)) {
+        throw error;
+      }
+
+      accountId = await createAndPersistAccount();
+      accountLink = await createAccountLink(accountId);
+    }
 
     return NextResponse.json({ url: accountLink.url });
   } catch (error) {
