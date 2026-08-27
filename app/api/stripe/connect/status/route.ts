@@ -12,6 +12,10 @@ import {
   getKlyxMarketReadiness,
 } from "@/lib/klyx-market-readiness";
 import { assessKlyxProviderPaymentReadiness } from "@/lib/klyx-provider-payment-readiness";
+import {
+  assessStripeConnectCountry,
+  STRIPE_ACCOUNT_COUNTRY_MISMATCH,
+} from "@/lib/stripe-connect-country";
 import { isMissingStripeConnectAccount } from "@/lib/stripe-connect-account-recovery";
 import { assertStripeConnectRuntimeConfigured } from "@/lib/stripe-runtime";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -65,6 +69,8 @@ export async function GET(request: Request) {
         runtimeMode: stripeRuntime.mode,
         livePaymentsEnabled: stripeRuntime.livePaymentsEnabled,
         countryCode: marketReadiness.countryCode,
+        stripeAccountCountryCode: null,
+        stripeAccountCountryMismatch: false,
         marketCommerciallyReady: marketAssessment.ready,
         marketBlockers: marketAssessment.blockers,
         ...readiness,
@@ -101,6 +107,11 @@ export async function GET(request: Request) {
       throw error;
     }
 
+    const countryAssessment = assessStripeConnectCountry({
+      klyxCountryCode: activeProfile.countryCode,
+      stripeCountryCode: account.country,
+    });
+    const countryMismatch = !countryAssessment.matches;
     const onboardingComplete = Boolean(account.details_submitted);
     const chargesEnabled = Boolean(account.charges_enabled);
     const payoutsEnabled = Boolean(account.payouts_enabled);
@@ -121,12 +132,15 @@ export async function GET(request: Request) {
     const readiness = assessKlyxProviderPaymentReadiness({
       runtimeMode: stripeRuntime.mode,
       livePaymentsEnabled: stripeRuntime.livePaymentsEnabled,
-      marketCommerciallyReady: marketAssessment.ready,
+      marketCommerciallyReady: marketAssessment.ready && !countryMismatch,
       connected: true,
       onboardingComplete,
       chargesEnabled,
       payoutsEnabled,
     });
+    const marketBlockers = countryMismatch
+      ? [...marketAssessment.blockers, STRIPE_ACCOUNT_COUNTRY_MISMATCH]
+      : marketAssessment.blockers;
 
     return NextResponse.json({
       connected: true,
@@ -138,10 +152,17 @@ export async function GET(request: Request) {
       runtimeMode: stripeRuntime.mode,
       livePaymentsEnabled: stripeRuntime.livePaymentsEnabled,
       countryCode: marketReadiness.countryCode,
-      marketCommerciallyReady: marketAssessment.ready,
-      marketBlockers: marketAssessment.blockers,
+      stripeAccountCountryCode: countryAssessment.stripeCountryCode,
+      stripeAccountCountryMismatch: countryMismatch,
+      marketCommerciallyReady: marketAssessment.ready && !countryMismatch,
+      marketBlockers,
       ...readiness,
-      paymentBlockReason: readiness.blockReason,
+      livePaymentsOperational:
+        countryMismatch ? false : readiness.livePaymentsOperational,
+      paymentBlockReason:
+        countryMismatch
+          ? STRIPE_ACCOUNT_COUNTRY_MISMATCH
+          : readiness.blockReason,
     });
   } catch (error) {
     const message =
