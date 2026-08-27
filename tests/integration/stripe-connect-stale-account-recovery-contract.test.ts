@@ -33,14 +33,19 @@ describe("Stripe Connect stale account recovery contract", () => {
     const missingGuard = createAccount.indexOf(
       "isMissingStripeConnectAccount(error)"
     );
-    const replacement = createAccount.indexOf(
-      "accountId = await createAndPersistAccount();",
+    const staleCapture = createAccount.indexOf(
+      "const staleAccountId = accountId;",
       missingGuard
+    );
+    const replacement = createAccount.indexOf(
+      "accountId = await createAndPersistAccount({ staleAccountId });",
+      staleCapture
     );
 
     expect(linkAttempt).toBeGreaterThanOrEqual(0);
     expect(missingGuard).toBeGreaterThan(linkAttempt);
-    expect(replacement).toBeGreaterThan(missingGuard);
+    expect(staleCapture).toBeGreaterThan(missingGuard);
+    expect(replacement).toBeGreaterThan(staleCapture);
     expect(createAccount).toContain("stripe_account_id: account.id");
     expect(createAccount).toContain("stripe_onboarding_complete: false");
     expect(createAccount).toContain("stripe_charges_enabled: false");
