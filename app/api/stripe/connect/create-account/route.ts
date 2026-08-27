@@ -120,7 +120,8 @@ export async function POST(request: Request) {
             card_payments: { requested: true },
             transfers: { requested: true },
           },
-          business_type: "individual",
+          // Stripe-hosted onboarding must collect the provider's actual legal
+          // entity type instead of KLYX forcing every provider to individual.
           metadata: {
             klyx_profile_id: activeProfile.id,
             klyx_owner_user_id: user.id,
