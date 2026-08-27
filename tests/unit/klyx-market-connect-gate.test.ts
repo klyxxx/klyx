@@ -14,19 +14,24 @@ function readRoute() {
 }
 
 describe("KLYX live Stripe Connect market gate", () => {
-  it("uses the reviewed market readiness matrix only for live Stripe mode", () => {
+  it("uses the dedicated runtime configuration for preparatory Connect onboarding", () => {
     const source = readRoute();
 
-    expect(source).toContain("const stripeRuntime = assertStripeRuntimeReady()");
+    expect(source).toContain(
+      "const stripeRuntime = assertStripeConnectRuntimeConfigured()"
+    );
     expect(source).toContain('stripeRuntime.mode === "live"');
     expect(source).toContain("getKlyxMarketReadiness(accountCountry)");
-    expect(source).toContain("assessKlyxMarketReadiness(marketReadiness)");
-    expect(source).toContain("KLYX_MARKET_NOT_COMMERCIALLY_READY");
+    expect(source).toContain(
+      'marketReadiness.monetarySupport !== "supported"'
+    );
+    expect(source).toContain("KLYX_STRIPE_COUNTRY_UNSUPPORTED");
+    expect(source).not.toContain("assessKlyxMarketReadiness(marketReadiness)");
   });
 
-  it("fails closed before creating a live Connect account", () => {
+  it("fails closed on an unsupported monetary country before creating a live Connect account", () => {
     const source = readRoute();
-    const guardIndex = source.indexOf("KLYX_MARKET_NOT_COMMERCIALLY_READY");
+    const guardIndex = source.indexOf("KLYX_STRIPE_COUNTRY_UNSUPPORTED");
     const accountCreationIndex = source.indexOf("stripe.accounts.create");
 
     expect(guardIndex).toBeGreaterThan(-1);

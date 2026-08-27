@@ -1,6 +1,7 @@
 import type Stripe from "stripe";
-import { supabaseAdmin } from "@/lib/supabase-admin";
+
 import { upsertFinancialLedgerEntry } from "@/lib/payment-ledger";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 
 type BookingPaymentRow = {
   id: string;
@@ -19,6 +20,13 @@ type BookingPaymentRow = {
 export type PaymentFailureDetails = {
   code: string;
   message: string;
+};
+
+type PaymentSuccessEconomics = {
+  amountTotal: number;
+  paymentMode: string;
+  platformFeeAmount: number;
+  providerAmount: number | null;
 };
 
 const bookingSelection =
@@ -60,9 +68,16 @@ const FAILURE_MESSAGES: Record<string, string> = {
 };
 
 function getCommissionPercent(): number {
-  const value = Number(process.env.KLYX_COMMISSION_PERCENT || "15");
+  const value = Number(
+    process.env.KLYX_COMMISSION_PERCENT ||
+      "15"
+  );
 
-  if (Number.isNaN(value) || value < 0 || value > 100) {
+  if (
+    Number.isNaN(value) ||
+    value < 0 ||
+    value > 100
+  ) {
     throw new Error(
       "KLYX_COMMISSION_PERCENT doit être compris entre 0 et 100."
     );
@@ -74,11 +89,17 @@ function getCommissionPercent(): number {
 function paymentIntentId(
   session: Stripe.Checkout.Session
 ): string | null {
-  if (typeof session.payment_intent === "string") {
+  if (
+    typeof session.payment_intent ===
+    "string"
+  ) {
     return session.payment_intent;
   }
 
-  return session.payment_intent?.id ?? null;
+  return (
+    session.payment_intent?.id ??
+    null
+  );
 }
 
 // KLYX_PAYMENT_CURRENCY_INTEGRITY_14_26
@@ -111,62 +132,97 @@ function bookingCurrencyCode(
     booking.currency
   );
 }
+
 function formatAmount(
   amount: number,
   currency: string | null
 ): string {
-  return new Intl.NumberFormat("fr-BE", {
-    style: "currency",
-    currency: normalizeKlyxPaymentCurrency(currency),
-  }).format(amount / 100);
+  return new Intl.NumberFormat(
+    "fr-BE",
+    {
+      style: "currency",
+      currency:
+        normalizeKlyxPaymentCurrency(
+          currency
+        ),
+    }
+  ).format(
+    amount / 100
+  );
 }
 
-async function createPaymentNotification(params: {
-  userId: string;
-  bookingId: string;
-  type: string;
-  title: string;
-  message: string;
-  deduplicationKey: string;
-  replaceExisting?: boolean;
-}) {
-  const { error } = await supabaseAdmin
+async function createPaymentNotification(
+  params: {
+    userId: string;
+    bookingId: string;
+    type: string;
+    title: string;
+    message: string;
+    deduplicationKey: string;
+    replaceExisting?: boolean;
+  }
+) {
+  const {
+    error,
+  } = await supabaseAdmin
     .from("user_notifications")
     .upsert(
       {
-        user_id: params.userId,
-        booking_id: params.bookingId,
-        type: params.type,
-        title: params.title,
-        message: params.message,
-        href: `/bookings/${params.bookingId}`,
-        deduplication_key: params.deduplicationKey,
+        user_id:
+          params.userId,
+        booking_id:
+          params.bookingId,
+        type:
+          params.type,
+        title:
+          params.title,
+        message:
+          params.message,
+        href:
+          `/bookings/${params.bookingId}`,
+        deduplication_key:
+          params.deduplicationKey,
       },
       {
-        onConflict: "deduplication_key",
-        ignoreDuplicates: !params.replaceExisting,
+        onConflict:
+          "deduplication_key",
+        ignoreDuplicates:
+          !params.replaceExisting,
       }
     );
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(
+      error.message
+    );
   }
 }
 
 async function findBooking(
   session: Stripe.Checkout.Session
 ): Promise<BookingPaymentRow> {
-  const bookingId = session.metadata?.booking_id ?? null;
+  const bookingId =
+    session.metadata
+      ?.booking_id ??
+    null;
 
   if (bookingId) {
-    const { data, error } = await supabaseAdmin
+    const {
+      data,
+      error,
+    } = await supabaseAdmin
       .from("bookings")
       .select(bookingSelection)
-      .eq("id", bookingId)
+      .eq(
+        "id",
+        bookingId
+      )
       .maybeSingle();
 
     if (error) {
-      throw new Error(error.message);
+      throw new Error(
+        error.message
+      );
     }
 
     if (data) {
@@ -174,14 +230,22 @@ async function findBooking(
     }
   }
 
-  const { data, error } = await supabaseAdmin
+  const {
+    data,
+    error,
+  } = await supabaseAdmin
     .from("bookings")
     .select(bookingSelection)
-    .eq("stripe_checkout_session_id", session.id)
+    .eq(
+      "stripe_checkout_session_id",
+      session.id
+    )
     .maybeSingle();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(
+      error.message
+    );
   }
 
   if (!data) {
@@ -196,17 +260,28 @@ async function findBooking(
 async function findBookingFromPaymentIntent(
   intent: Stripe.PaymentIntent
 ): Promise<BookingPaymentRow> {
-  const bookingId = intent.metadata?.booking_id ?? null;
+  const bookingId =
+    intent.metadata
+      ?.booking_id ??
+    null;
 
   if (bookingId) {
-    const { data, error } = await supabaseAdmin
+    const {
+      data,
+      error,
+    } = await supabaseAdmin
       .from("bookings")
       .select(bookingSelection)
-      .eq("id", bookingId)
+      .eq(
+        "id",
+        bookingId
+      )
       .maybeSingle();
 
     if (error) {
-      throw new Error(error.message);
+      throw new Error(
+        error.message
+      );
     }
 
     if (data) {
@@ -214,14 +289,22 @@ async function findBookingFromPaymentIntent(
     }
   }
 
-  const { data, error } = await supabaseAdmin
+  const {
+    data,
+    error,
+  } = await supabaseAdmin
     .from("bookings")
     .select(bookingSelection)
-    .eq("stripe_payment_intent_id", intent.id)
+    .eq(
+      "stripe_payment_intent_id",
+      intent.id
+    )
     .maybeSingle();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(
+      error.message
+    );
   }
 
   if (!data) {
@@ -239,7 +322,8 @@ function verifySessionMatchesBooking(
 ) {
   if (
     booking.stripe_checkout_session_id &&
-    booking.stripe_checkout_session_id !== session.id
+    booking.stripe_checkout_session_id !==
+      session.id
   ) {
     throw new Error(
       "La session Stripe ne correspond pas à cette réservation."
@@ -249,18 +333,23 @@ function verifySessionMatchesBooking(
   if (
     booking.amount_total != null &&
     session.amount_total != null &&
-    booking.amount_total !== session.amount_total
+    booking.amount_total !==
+      session.amount_total
   ) {
     throw new Error(
       "Le montant Stripe ne correspond pas à la réservation."
     );
   }
 
-  const expectedCurrency = bookingCurrencyCode(booking).toLowerCase();
+  const expectedCurrency =
+    bookingCurrencyCode(
+      booking
+    ).toLowerCase();
 
   if (
     session.currency &&
-    session.currency !== expectedCurrency
+    session.currency !==
+      expectedCurrency
   ) {
     throw new Error(
       "La devise Stripe ne correspond pas à la réservation."
@@ -268,7 +357,9 @@ function verifySessionMatchesBooking(
   }
 
   const incomingPaymentIntentId =
-    paymentIntentId(session);
+    paymentIntentId(
+      session
+    );
 
   if (
     booking.stripe_payment_intent_id &&
@@ -288,16 +379,23 @@ function verifyIntentMatchesBooking(
 ) {
   if (
     booking.amount_total != null &&
-    booking.amount_total !== intent.amount
+    booking.amount_total !==
+      intent.amount
   ) {
     throw new Error(
       "Le montant Stripe ne correspond pas à la réservation."
     );
   }
 
-  const expectedCurrency = bookingCurrencyCode(booking).toLowerCase();
+  const expectedCurrency =
+    bookingCurrencyCode(
+      booking
+    ).toLowerCase();
 
-  if (intent.currency !== expectedCurrency) {
+  if (
+    intent.currency !==
+    expectedCurrency
+  ) {
     throw new Error(
       "La devise Stripe ne correspond pas à la réservation."
     );
@@ -305,7 +403,8 @@ function verifyIntentMatchesBooking(
 
   if (
     booking.stripe_payment_intent_id &&
-    booking.stripe_payment_intent_id !== intent.id
+    booking.stripe_payment_intent_id !==
+      intent.id
   ) {
     throw new Error(
       "Cette réservation possède déjà un autre paiement Stripe."
@@ -316,24 +415,38 @@ function verifyIntentMatchesBooking(
 async function notifyPaymentSucceeded(
   booking: BookingPaymentRow
 ) {
-  const amount = booking.amount_total ?? 0;
+  const amount =
+    booking.amount_total ??
+    0;
+
   const amountLabel =
     amount > 0
-      ? formatAmount(amount, bookingCurrencyCode(booking))
+      ? formatAmount(
+          amount,
+          bookingCurrencyCode(
+            booking
+          )
+        )
       : null;
 
   const providerId =
-    booking.provider_id ?? booking.babysitter_id;
+    booking.provider_id ??
+    booking.babysitter_id;
 
   const notifications = [
     createPaymentNotification({
-      userId: booking.parent_id,
-      bookingId: booking.id,
-      type: "payment_received",
-      title: "Paiement effectué avec succès",
-      message: amountLabel
-        ? `Ton paiement de ${amountLabel} a été confirmé.`
-        : "Ton paiement a été confirmé.",
+      userId:
+        booking.parent_id,
+      bookingId:
+        booking.id,
+      type:
+        "payment_received",
+      title:
+        "Paiement effectué avec succès",
+      message:
+        amountLabel
+          ? `Ton paiement de ${amountLabel} a été confirmé.`
+          : "Ton paiement a été confirmé.",
       deduplicationKey:
         `booking:${booking.id}:payment-success:client`,
     }),
@@ -342,26 +455,140 @@ async function notifyPaymentSucceeded(
   if (providerId) {
     notifications.push(
       createPaymentNotification({
-        userId: providerId,
-        bookingId: booking.id,
-        type: "payment_received",
-        title: "Paiement reçu avec succès",
-        message: amountLabel
-          ? `Le paiement de ${amountLabel} pour cette réservation est confirmé.`
-          : "Le paiement de cette réservation est confirmé.",
+        userId:
+          providerId,
+        bookingId:
+          booking.id,
+        type:
+          "payment_received",
+        title:
+          "Paiement reçu avec succès",
+        message:
+          amountLabel
+            ? `Le paiement de ${amountLabel} pour cette réservation est confirmé.`
+            : "Le paiement de cette réservation est confirmé.",
         deduplicationKey:
           `booking:${booking.id}:payment-success:provider`,
       })
     );
   }
 
-  await Promise.all(notifications);
+  await Promise.all(
+    notifications
+  );
+}
+
+function getPaymentSuccessEconomics(
+  booking: BookingPaymentRow,
+  session: Stripe.Checkout.Session
+): PaymentSuccessEconomics {
+  const amountTotal =
+    booking.amount_total ??
+    session.amount_total ??
+    0;
+
+  if (
+    amountTotal <= 0
+  ) {
+    throw new Error(
+      "Montant total de la réservation invalide."
+    );
+  }
+
+  const paymentMode =
+    booking.payment_mode ??
+    "platform_test_only";
+
+  const calculatedFee =
+    Math.round(
+      amountTotal *
+        (
+          getCommissionPercent() /
+          100
+        )
+    );
+
+  const platformFeeAmount =
+    paymentMode ===
+    "connect_destination"
+      ? booking.application_fee_amount ??
+        calculatedFee
+      : 0;
+
+  const providerAmount =
+    paymentMode ===
+    "connect_destination"
+      ? Math.max(
+          amountTotal -
+            platformFeeAmount,
+          0
+        )
+      : null;
+
+  return {
+    amountTotal,
+    paymentMode,
+    platformFeeAmount,
+    providerAmount,
+  };
+}
+
+async function ensurePaymentSucceededLedger(
+  booking: BookingPaymentRow,
+  session: Stripe.Checkout.Session,
+  economics: PaymentSuccessEconomics
+) {
+  await upsertFinancialLedgerEntry({
+    bookingId:
+      booking.id,
+    entryKey:
+      `booking:${booking.id}:payment:${session.id}`,
+    entryType:
+      "payment_succeeded",
+    status:
+      "succeeded",
+    currency:
+      bookingCurrencyCode(
+        booking
+      ),
+    grossAmountCents:
+      economics.amountTotal,
+    platformFeeCents:
+      economics.platformFeeAmount,
+    providerAmountCents:
+      economics.providerAmount,
+    paymentMode:
+      economics.paymentMode,
+    stripeCheckoutSessionId:
+      session.id,
+    stripePaymentIntentId:
+      paymentIntentId(
+        session
+      ),
+  });
+}
+
+async function ensurePaymentSucceededSideEffects(
+  booking: BookingPaymentRow,
+  session: Stripe.Checkout.Session,
+  economics: PaymentSuccessEconomics
+) {
+  await ensurePaymentSucceededLedger(
+    booking,
+    session,
+    economics
+  );
+
+  await notifyPaymentSucceeded(
+    booking
+  );
 }
 
 export function getPaymentFailureDetails(
   intent: Stripe.PaymentIntent
 ): PaymentFailureDetails {
-  const lastError = intent.last_payment_error;
+  const lastError =
+    intent.last_payment_error;
 
   const code =
     lastError?.decline_code ||
@@ -370,9 +597,13 @@ export function getPaymentFailureDetails(
 
   const message =
     FAILURE_MESSAGES[code] ||
-    (lastError?.code
-      ? FAILURE_MESSAGES[lastError.code]
-      : undefined) ||
+    (
+      lastError?.code
+        ? FAILURE_MESSAGES[
+            lastError.code
+          ]
+        : undefined
+    ) ||
     "Le paiement a été refusé. Aucun montant n’a été débité. Vérifie ton moyen de paiement.";
 
   return {
@@ -384,133 +615,159 @@ export function getPaymentFailureDetails(
 export async function markBookingPaidFromSession(
   session: Stripe.Checkout.Session
 ) {
-  const booking = await findBooking(session);
+  const booking =
+    await findBooking(
+      session
+    );
 
   verifySessionMatchesBooking(
     booking,
     session
   );
 
-  if (session.payment_status !== "paid") {
+  if (
+    session.payment_status !==
+    "paid"
+  ) {
     throw new Error(
       "Stripe n'a pas confirmé le paiement."
     );
   }
 
-  if (booking.payment_status === "refunded") {
-    return;
-  }
-
-  if (booking.payment_status === "paid") {
-    await notifyPaymentSucceeded(booking);
-    return;
-  }
-
-  const amountTotal =
-    booking.amount_total ??
-    session.amount_total ??
-    0;
-
-  if (amountTotal <= 0) {
-    throw new Error(
-      "Montant total de la réservation invalide."
+  const economics =
+    getPaymentSuccessEconomics(
+      booking,
+      session
     );
+
+  if (
+    booking.payment_status ===
+    "refunded"
+  ) {
+    await ensurePaymentSucceededLedger(
+      booking,
+      session,
+      economics
+    );
+
+    return;
   }
 
-  const paymentMode =
-    booking.payment_mode ??
-    "platform_test_only";
+  if (
+    booking.payment_status ===
+    "paid"
+  ) {
+    await ensurePaymentSucceededSideEffects(
+      booking,
+      session,
+      economics
+    );
 
-  const calculatedFee = Math.round(
-    amountTotal *
-      (getCommissionPercent() / 100)
-  );
-
-  const platformFeeAmount =
-    paymentMode === "connect_destination"
-      ? booking.application_fee_amount ??
-        calculatedFee
-      : 0;
-
-  const providerAmount =
-    paymentMode === "connect_destination"
-      ? Math.max(
-          amountTotal - platformFeeAmount,
-          0
-        )
-      : null;
+    return;
+  }
 
   const {
-    data: updatedBooking,
+    data:
+      updatedBooking,
     error,
   } = await supabaseAdmin
     .from("bookings")
     .update({
-      payment_status: "paid",
-      amount_total: amountTotal,
+      payment_status:
+        "paid",
+      amount_total:
+        economics.amountTotal,
       application_fee_amount:
-        platformFeeAmount,
+        economics.platformFeeAmount,
       platform_fee_amount:
-        platformFeeAmount,
-      provider_amount: providerAmount,
+        economics.platformFeeAmount,
+      provider_amount:
+        economics.providerAmount,
       stripe_checkout_session_id:
         session.id,
       stripe_payment_intent_id:
-        paymentIntentId(session),
-      payment_attempt_token: null,
-      payment_checkout_started_at: null,
-      payment_failure_code: null,
-      payment_failure_message: null,
-      payment_failed_at: null,
-      paid_at: new Date().toISOString(),
+        paymentIntentId(
+          session
+        ),
+      payment_attempt_token:
+        null,
+      payment_checkout_started_at:
+        null,
+      payment_failure_code:
+        null,
+      payment_failure_message:
+        null,
+      payment_failed_at:
+        null,
+      paid_at:
+        new Date()
+          .toISOString(),
     })
-    .eq("id", booking.id)
-    .neq("payment_status", "paid")
-    .neq("payment_status", "refunded")
-    .select(bookingSelection)
+    .eq(
+      "id",
+      booking.id
+    )
+    .neq(
+      "payment_status",
+      "paid"
+    )
+    .neq(
+      "payment_status",
+      "refunded"
+    )
+    .select(
+      bookingSelection
+    )
     .maybeSingle();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(
+      error.message
+    );
   }
 
   if (updatedBooking) {
-    await upsertFinancialLedgerEntry({
-      bookingId: booking.id,
-      entryKey:
-        `booking:${booking.id}:payment:${session.id}`,
-      entryType:
-        "payment_succeeded",
-      status: "succeeded",
-      currency: bookingCurrencyCode(booking),
-      grossAmountCents: amountTotal,
-      platformFeeCents:
-        platformFeeAmount,
-      providerAmountCents:
-        providerAmount,
-      paymentMode,
-      stripeCheckoutSessionId:
-        session.id,
-      stripePaymentIntentId:
-        paymentIntentId(session),
-    });
-
-    await notifyPaymentSucceeded(
-      updatedBooking as BookingPaymentRow
+    await ensurePaymentSucceededSideEffects(
+      updatedBooking as BookingPaymentRow,
+      session,
+      economics
     );
 
     return;
   }
 
   const refreshedBooking =
-    await findBooking(session);
+    await findBooking(
+      session
+    );
+
+  const refreshedEconomics =
+    getPaymentSuccessEconomics(
+      refreshedBooking,
+      session
+    );
 
   if (
     refreshedBooking.payment_status ===
     "paid"
   ) {
-    await notifyPaymentSucceeded(
-      refreshedBooking
+    await ensurePaymentSucceededSideEffects(
+      refreshedBooking,
+      session,
+      refreshedEconomics
+    );
+
+    return;
+  }
+
+  if (
+    refreshedBooking.payment_status ===
+    "refunded"
+  ) {
+    await ensurePaymentSucceededLedger(
+      refreshedBooking,
+      session,
+      refreshedEconomics
     );
   }
 }
@@ -548,12 +805,17 @@ export async function recordBookingPaymentFailure(
   );
 
   const failure =
-    getPaymentFailureDetails(intent);
+    getPaymentFailureDetails(
+      intent
+    );
 
   const now =
-    new Date().toISOString();
+    new Date()
+      .toISOString();
 
-  const { error } = await supabaseAdmin
+  const {
+    error,
+  } = await supabaseAdmin
     .from("bookings")
     .update({
       stripe_payment_intent_id:
@@ -562,24 +824,43 @@ export async function recordBookingPaymentFailure(
         failure.code,
       payment_failure_message:
         failure.message,
-      payment_failed_at: now,
+      payment_failed_at:
+        now,
     })
-    .eq("id", booking.id)
-    .neq("payment_status", "paid")
-    .neq("payment_status", "refunded");
+    .eq(
+      "id",
+      booking.id
+    )
+    .neq(
+      "payment_status",
+      "paid"
+    )
+    .neq(
+      "payment_status",
+      "refunded"
+    );
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(
+      error.message
+    );
   }
 
   await upsertFinancialLedgerEntry({
-    bookingId: booking.id,
+    bookingId:
+      booking.id,
     entryKey:
       `booking:${booking.id}:payment-failed:${intent.id}`,
-    entryType: "payment_failed",
-    status: "failed",
-    currency: bookingCurrencyCode(booking),
-    grossAmountCents: intent.amount,
+    entryType:
+      "payment_failed",
+    status:
+      "failed",
+    currency:
+      bookingCurrencyCode(
+        booking
+      ),
+    grossAmountCents:
+      intent.amount,
     paymentMode:
       booking.payment_mode,
     stripeCheckoutSessionId:
@@ -593,27 +874,36 @@ export async function recordBookingPaymentFailure(
   });
 
   await createPaymentNotification({
-    userId: booking.parent_id,
-    bookingId: booking.id,
-    type: "system",
-    title: "Paiement refusé",
-    message: failure.message,
+    userId:
+      booking.parent_id,
+    bookingId:
+      booking.id,
+    type:
+      "system",
+    title:
+      "Paiement refusé",
+    message:
+      failure.message,
     deduplicationKey:
       `booking:${booking.id}:payment-failed:${intent.id}`,
-    replaceExisting: true,
+    replaceExisting:
+      true,
   });
 }
 
 export async function markBookingFailedFromSession(
   session: Stripe.Checkout.Session,
   failure: PaymentFailureDetails = {
-    code: "payment_failed",
+    code:
+      "payment_failed",
     message:
       "Le paiement a été refusé. Aucun montant n’a été débité. Vérifie ton moyen de paiement.",
   }
 ) {
   const booking =
-    await findBooking(session);
+    await findBooking(
+      session
+    );
 
   verifySessionMatchesBooking(
     booking,
@@ -621,45 +911,69 @@ export async function markBookingFailedFromSession(
   );
 
   if (
-    booking.payment_status === "paid" ||
-    booking.payment_status === "refunded"
+    booking.payment_status ===
+      "paid" ||
+    booking.payment_status ===
+      "refunded"
   ) {
     return;
   }
 
   const incomingPaymentIntentId =
-    paymentIntentId(session);
+    paymentIntentId(
+      session
+    );
 
   const now =
-    new Date().toISOString();
+    new Date()
+      .toISOString();
 
-  const { data: updatedBooking, error } = await supabaseAdmin
+  const {
+    data:
+      updatedBooking,
+    error,
+  } = await supabaseAdmin
     .from("bookings")
     .update({
-      payment_status: "failed",
+      payment_status:
+        "failed",
       stripe_payment_intent_id:
         incomingPaymentIntentId ??
         booking.stripe_payment_intent_id,
-      payment_attempt_token: null,
-      payment_checkout_started_at: null,
+      payment_attempt_token:
+        null,
+      payment_checkout_started_at:
+        null,
       payment_failure_code:
         failure.code,
       payment_failure_message:
         failure.message,
-      payment_failed_at: now,
+      payment_failed_at:
+        now,
     })
-    .eq("id", booking.id)
+    .eq(
+      "id",
+      booking.id
+    )
     .eq(
       "stripe_checkout_session_id",
       session.id
     )
-    .neq("payment_status", "paid")
-    .neq("payment_status", "refunded")
+    .neq(
+      "payment_status",
+      "paid"
+    )
+    .neq(
+      "payment_status",
+      "refunded"
+    )
     .select("id")
     .maybeSingle();
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(
+      error.message
+    );
   }
 
   if (!updatedBooking) {
@@ -667,12 +981,18 @@ export async function markBookingFailedFromSession(
   }
 
   await upsertFinancialLedgerEntry({
-    bookingId: booking.id,
+    bookingId:
+      booking.id,
     entryKey:
       `booking:${booking.id}:payment-failed:${incomingPaymentIntentId ?? session.id}`,
-    entryType: "payment_failed",
-    status: "failed",
-    currency: bookingCurrencyCode(booking),
+    entryType:
+      "payment_failed",
+    status:
+      "failed",
+    currency:
+      bookingCurrencyCode(
+        booking
+      ),
     grossAmountCents:
       session.amount_total ??
       booking.amount_total ??
@@ -690,13 +1010,19 @@ export async function markBookingFailedFromSession(
   });
 
   await createPaymentNotification({
-    userId: booking.parent_id,
-    bookingId: booking.id,
-    type: "system",
-    title: "Paiement refusé",
-    message: failure.message,
+    userId:
+      booking.parent_id,
+    bookingId:
+      booking.id,
+    type:
+      "system",
+    title:
+      "Paiement refusé",
+    message:
+      failure.message,
     deduplicationKey:
       `booking:${booking.id}:payment-failed:${incomingPaymentIntentId ?? session.id}`,
-    replaceExisting: true,
+    replaceExisting:
+      true,
   });
 }

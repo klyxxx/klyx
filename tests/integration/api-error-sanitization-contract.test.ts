@@ -321,16 +321,14 @@ describe(
     it(
       "keeps Stripe runtime assertions inside observed try blocks",
       () => {
-        const stripeRoutes = [
+        const transactionalStripeRoutes = [
           "app/api/stripe/create-checkout-session/route.ts",
           "app/api/stripe/create-group-checkout-session/route.ts",
-          "app/api/stripe/connect/create-account/route.ts",
-          "app/api/stripe/connect/status/route.ts",
           "app/api/bookings/split-missions/[id]/checkout/route.ts",
         ];
 
         for (
-          const relativePath of stripeRoutes
+          const relativePath of transactionalStripeRoutes
         ) {
           const source = read(
             relativePath
@@ -339,6 +337,24 @@ describe(
           expect(source)
             .toMatch(
               /try\s*\{[\s\S]*assertStripeRuntimeReady\(\)/
+            );
+        }
+
+        const connectRoutes = [
+          "app/api/stripe/connect/create-account/route.ts",
+          "app/api/stripe/connect/status/route.ts",
+        ];
+
+        for (const relativePath of connectRoutes) {
+          const source = read(relativePath);
+
+          expect(source)
+            .toMatch(
+              /try\s*\{[\s\S]*assertStripeConnectRuntimeConfigured\(\)/
+            );
+          expect(source)
+            .not.toMatch(
+              /assertStripeRuntimeReady\(\)/
             );
         }
       }

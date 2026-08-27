@@ -24,12 +24,23 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import ProviderFinanceAudit from "./ProviderFinanceAudit";
 
+// KLYX_PROVIDER_LIVE_PAYMENT_READINESS_UI_15_06
+
 type StripeStatus = {
   connected: boolean;
   onboardingComplete: boolean;
   chargesEnabled: boolean;
   payoutsEnabled: boolean;
-  accountId?: string;
+  accountId?: string | null;
+  runtimeMode?: "test" | "live";
+  livePaymentsEnabled?: boolean;
+  countryCode?: string;
+  marketCommerciallyReady?: boolean;
+  marketBlockers?: string[];
+  stripeConfigured?: boolean;
+  connectSetupAllowed?: boolean;
+  livePaymentsOperational?: boolean;
+  paymentBlockReason?: string | null;
   error?: string;
 };
 
@@ -294,11 +305,52 @@ export default function ProviderPaymentsPage() {
     }
   }
 
-  const fullyReady =
-    status.connected &&
-    status.onboardingComplete &&
-    status.chargesEnabled &&
-    status.payoutsEnabled;
+  const fullyReady = Boolean(status.livePaymentsOperational);
+  const stripeConfigured = Boolean(status.stripeConfigured);
+  const testMode = status.runtimeMode === "test";
+  const livePaymentsDisabled =
+    status.runtimeMode === "live" &&
+    status.livePaymentsEnabled === false;
+  const marketBlocked =
+    status.runtimeMode === "live" &&
+    status.livePaymentsEnabled !== false &&
+    status.marketCommerciallyReady === false;
+
+  const readinessTitle = fullyReady
+    ? "Compte prêt à recevoir des paiements"
+    : testMode
+      ? stripeConfigured
+        ? "Stripe configuré en mode test"
+        : "Configuration Stripe de test"
+      : livePaymentsDisabled
+        ? "Paiements réels KLYX désactivés"
+        : marketBlocked
+          ? "Paiements réels pas encore ouverts dans ce pays"
+          : status.connected
+            ? "Vérification Stripe à terminer"
+            : "Compte Stripe à configurer";
+
+  const readinessDescription = fullyReady
+    ? "Paiements et virements réels activés."
+    : testMode
+      ? "Cette configuration sert aux tests KLYX. Elle ne signifie pas que les paiements réels sont ouverts."
+      : livePaymentsDisabled
+        ? "KLYX garde les paiements réels fermés pour le moment."
+        : marketBlocked
+          ? `Stripe peut être configuré, mais KLYX n'a pas encore ouvert commercialement les paiements réels${
+              status.countryCode ? ` en ${status.countryCode}` : " dans ce pays"
+            }.`
+          : "Ouvre Stripe pour corriger ou compléter les informations demandées.";
+
+  const stripeButtonLabel = testMode
+    ? stripeConfigured
+      ? "Gérer Stripe test"
+      : status.connected
+        ? "Continuer Stripe test"
+        : "Configurer Stripe test"
+    : status.connected
+      ? "Continuer la vérification"
+      : "Configurer les paiements";
 
   const netAfterRefunds = Math.max(
     summary.providerAmountCents - summary.refundedCents,
@@ -326,8 +378,6 @@ export default function ProviderPaymentsPage() {
           <h1 className="mt-5 text-3xl font-black sm:text-5xl">
             Mes finances KLYX
           </h1>
-
-
         </section>
 
         {errorMessage && (
@@ -453,42 +503,36 @@ export default function ProviderPaymentsPage() {
 
                   <div>
                     <h2 className="text-xl font-black">
-                      {fullyReady
-                        ? "Compte prêt à recevoir des paiements"
-                        : status.connected
-                          ? "Vérification Stripe à terminer"
-                          : "Compte Stripe à configurer"}
+                      {readinessTitle}
                     </h2>
 
                     <p className="mt-2 text-sm text-muted-foreground">
-                      {fullyReady
-                        ? "Paiements et virements activés."
-                        : "Ouvre Stripe pour corriger ou compléter les informations demandées."}
+                      {readinessDescription}
                     </p>
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    void continueVerification()
-                  }
-                  disabled={openingStripe}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-violet-600 px-5 text-sm font-bold text-white transition hover:bg-violet-500 disabled:opacity-60"
-                >
-                  {openingStripe ? (
-                    <LoaderCircle
-                      size={18}
-                      className="animate-spin"
-                    />
-                  ) : (
-                    <ExternalLink size={18} />
-                  )}
+                {!fullyReady && status.connectSetupAllowed && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void continueVerification()
+                    }
+                    disabled={openingStripe}
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-violet-600 px-5 text-sm font-bold text-white transition hover:bg-violet-500 disabled:opacity-60"
+                  >
+                    {openingStripe ? (
+                      <LoaderCircle
+                        size={18}
+                        className="animate-spin"
+                      />
+                    ) : (
+                      <ExternalLink size={18} />
+                    )}
 
-                  {status.connected
-                    ? "Continuer la vérification"
-                    : "Configurer les paiements"}
-                </button>
+                    {stripeButtonLabel}
+                  </button>
+                )}
               </div>
             </section>
 
@@ -511,18 +555,18 @@ export default function ProviderPaymentsPage() {
 
               <StatusCard
                 icon={<Banknote size={20} />}
-                title="Paiements"
+                title="Paiements Stripe"
                 ready={status.chargesEnabled}
-                readyText="Activés"
-                waitingText="Non activés"
+                readyText="Activés chez Stripe"
+                waitingText="Non activés chez Stripe"
               />
 
               <StatusCard
                 icon={<WalletCards size={20} />}
-                title="Virements"
+                title="Virements Stripe"
                 ready={status.payoutsEnabled}
-                readyText="Activés"
-                waitingText="Non activés"
+                readyText="Activés chez Stripe"
+                waitingText="Non activés chez Stripe"
               />
             </section>
 

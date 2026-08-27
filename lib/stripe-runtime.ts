@@ -148,19 +148,56 @@ export function inspectStripeRuntime(): StripeRuntimeReport {
   };
 }
 
-export function assertStripeRuntimeReady(): StripeRuntimeReport {
-  const report = inspectStripeRuntime();
+function assertStripeRuntimeChecks(
+  report: StripeRuntimeReport,
+  includeCheck: (check: StripeRuntimeReport["checks"][number]) => boolean
+): StripeRuntimeReport {
+  const failed = report.checks
+    .filter((check) => includeCheck(check) && !check.ok)
+    .map((check) => check.label);
 
-  if (!report.ready) {
-    const failed = report.checks
-      .filter((check) => !check.ok)
-      .map((check) => check.label)
-      .join(", ");
-
+  if (failed.length > 0) {
     throw new Error(
-      `Configuration Stripe KLYX bloquee : ${failed}.`
+      `Configuration Stripe KLYX bloquee : ${failed.join(", ")}.`
     );
   }
 
   return report;
+}
+
+/**
+ * Stripe Connect onboarding/status only.
+ * Creating or inspecting a connected account only needs a mode-compatible
+ * server secret. Webhook, publishable key, commission and live-charge gates
+ * remain mandatory for transactional payment routes, but must not prevent a
+ * provider from completing regulated KYC and payout-bank setup first.
+ */
+export function assertStripeConnectRuntimeConfigured(): StripeRuntimeReport {
+  const report = inspectStripeRuntime();
+
+  return assertStripeRuntimeChecks(
+    report,
+    (check) => check.key === "secret_key"
+  );
+}
+
+/**
+ * Diagnostic/read-only surfaces only.
+ * Validates the full Stripe configuration while deliberately leaving the
+ * live-payment switch observable so the UI can explain that real payments are
+ * disabled. Transactional routes must use assertStripeRuntimeReady().
+ */
+export function assertStripeRuntimeConfiguredForDiagnostics(): StripeRuntimeReport {
+  const report = inspectStripeRuntime();
+
+  return assertStripeRuntimeChecks(
+    report,
+    (check) => check.key !== "live_switch"
+  );
+}
+
+export function assertStripeRuntimeReady(): StripeRuntimeReport {
+  const report = inspectStripeRuntime();
+
+  return assertStripeRuntimeChecks(report, () => true);
 }

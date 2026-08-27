@@ -141,6 +141,115 @@ function stripeClient(): Stripe {
   return new Stripe(key);
 }
 
+// KLYX_REFUND_CREATE_SIDE_EFFECT_BOUNDARY_16_12
+async function recordRefundCreationFailure(params: {
+  booking: BookingRow;
+  error: unknown;
+}) {
+  const { booking, error } = params;
+
+  const { data: failedBooking, error: stateError } =
+    await supabaseAdmin
+      .from("bookings")
+      .update({
+        refund_status: "failed",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", booking.id)
+      .eq("refund_status", "processing")
+      .select("id")
+      .maybeSingle();
+
+  if (stateError) {
+    throw new Error(stateError.message);
+  }
+
+  if (!failedBooking) {
+    return;
+  }
+
+  const failureMessage =
+    error instanceof Error
+      ? error.message
+      : "Remboursement Stripe impossible.";
+
+  await upsertFinancialLedgerEntry({
+    bookingId: booking.id,
+    entryKey: `booking:${booking.id}:refund-failed`,
+    entryType: "refund_failed",
+    status: "failed",
+    currency: booking.currency,
+    grossAmountCents: booking.amount_total,
+    refundAmountCents: booking.amount_total,
+    paymentMode: booking.payment_mode,
+    stripePaymentIntentId: booking.stripe_payment_intent_id,
+    failureCode: "refund_failed",
+    failureMessage,
+  });
+}
+
+async function createStripeRefundOrRecordFailure(params: {
+  booking: BookingRow;
+  actorId: string;
+}): Promise<Stripe.Refund> {
+  const { booking, actorId } = params;
+
+  try {
+    const stripe = stripeClient();
+
+    const refundParameters: Stripe.RefundCreateParams = {
+      payment_intent: booking.stripe_payment_intent_id ?? undefined,
+      amount: booking.amount_total ?? undefined,
+      reason: "requested_by_customer",
+      metadata: {
+        booking_id: booking.id,
+        requested_by: actorId,
+      },
+    };
+
+    if (booking.payment_mode === "connect_destination") {
+      refundParameters.reverse_transfer = true;
+      refundParameters.refund_application_fee = true;
+    }
+
+    const refund = await stripe.refunds.create(
+      refundParameters,
+      {
+        idempotencyKey: `klyx-booking-refund-${booking.id}`,
+      }
+    );
+
+    if (refund.status === "failed" || refund.status === "canceled") {
+      throw new Error(
+        "Stripe n’a pas pu terminer le remboursement."
+      );
+    }
+
+    return refund;
+  } catch (error) {
+    try {
+      await recordRefundCreationFailure({
+        booking,
+        error,
+      });
+    } catch (recordError) {
+      logServerError({
+        event:
+          "refund_creation_failure_record_failed",
+        route:
+          "/api/bookings/status",
+        method: "POST",
+        status: 500,
+        code:
+          "refund_creation_failure_record_failed",
+        error: recordError,
+      });
+    }
+
+    throw error;
+  }
+}
+
 async function refundPaidBooking(params: {
   booking: BookingRow;
   actorId: string;
@@ -206,108 +315,55 @@ async function refundPaidBooking(params: {
     );
   }
 
-  try {
-    const stripe = stripeClient();
-
-    const refundParameters: Stripe.RefundCreateParams = {
-      payment_intent: booking.stripe_payment_intent_id,
-      amount: booking.amount_total,
-      reason: "requested_by_customer",
-      metadata: {
-        booking_id: booking.id,
-        requested_by: actorId,
-      },
-    };
-
-    if (booking.payment_mode === "connect_destination") {
-      refundParameters.reverse_transfer = true;
-      refundParameters.refund_application_fee = true;
-    }
-
-    const refund = await stripe.refunds.create(
-      refundParameters,
-      {
-        idempotencyKey: `klyx-booking-refund-${booking.id}`,
-      }
-    );
-
-    if (refund.status === "failed" || refund.status === "canceled") {
-      throw new Error(
-        "Stripe n’a pas pu terminer le remboursement."
-      );
-    }
-
-    const now = new Date().toISOString();
-
-    const { error: updateError } = await supabaseAdmin
-      .from("bookings")
-      .update({
-        refund_status:
-          refund.status === "succeeded" ? "succeeded" : "processing",
-        stripe_refund_id: refund.id,
-        refunded_amount_cents: refund.amount,
-        refunded_at:
-          refund.status === "succeeded" ? now : null,
-        refund_reason: reason,
-        refund_requested_by: actorId,
-        updated_at: now,
-      })
-      .eq("id", booking.id);
-
-    if (updateError) throw new Error(updateError.message);
-
-    await upsertFinancialLedgerEntry({
-      bookingId: booking.id,
-      entryKey: `booking:${booking.id}:refund:${refund.id}`,
-      entryType: "refund_succeeded",
-      status:
-        refund.status === "succeeded"
-          ? "succeeded"
-          : "processing",
-      currency: booking.currency,
-      grossAmountCents: booking.amount_total,
-      refundAmountCents: refund.amount,
-      paymentMode: booking.payment_mode,
-      stripePaymentIntentId: booking.stripe_payment_intent_id,
-      stripeRefundId: refund.id,
+  const refund =
+    await createStripeRefundOrRecordFailure({
+      booking,
+      actorId,
     });
 
-    return {
-      refundId: refund.id,
-      amount: refund.amount,
-      alreadyRefunded: false,
-    };
-  } catch (error) {
-    await supabaseAdmin
-      .from("bookings")
-      .update({
-        refund_status: "failed",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", booking.id)
-      .eq("refund_status", "processing");
+  // Stripe has accepted this refund. From this boundary onward, failures are
+  // KLYX persistence/reconciliation failures and must never be relabelled as a
+  // Stripe refund failure. The signed webhook can safely replay these effects.
+  const now = new Date().toISOString();
 
-    const failureMessage =
-      error instanceof Error
-        ? error.message
-        : "Remboursement Stripe impossible.";
+  const { error: updateError } = await supabaseAdmin
+    .from("bookings")
+    .update({
+      refund_status:
+        refund.status === "succeeded" ? "succeeded" : "processing",
+      stripe_refund_id: refund.id,
+      refunded_amount_cents: refund.amount,
+      refunded_at:
+        refund.status === "succeeded" ? now : null,
+      refund_reason: reason,
+      refund_requested_by: actorId,
+      updated_at: now,
+    })
+    .eq("id", booking.id);
 
-    await upsertFinancialLedgerEntry({
-      bookingId: booking.id,
-      entryKey: `booking:${booking.id}:refund-failed`,
-      entryType: "refund_failed",
-      status: "failed",
-      currency: booking.currency,
-      grossAmountCents: booking.amount_total,
-      refundAmountCents: booking.amount_total,
-      paymentMode: booking.payment_mode,
-      stripePaymentIntentId: booking.stripe_payment_intent_id,
-      failureCode: "refund_failed",
-      failureMessage,
-    });
+  if (updateError) throw new Error(updateError.message);
 
-    throw error;
-  }
+  await upsertFinancialLedgerEntry({
+    bookingId: booking.id,
+    entryKey: `booking:${booking.id}:refund:${refund.id}`,
+    entryType: "refund_succeeded",
+    status:
+      refund.status === "succeeded"
+        ? "succeeded"
+        : "processing",
+    currency: booking.currency,
+    grossAmountCents: booking.amount_total,
+    refundAmountCents: refund.amount,
+    paymentMode: booking.payment_mode,
+    stripePaymentIntentId: booking.stripe_payment_intent_id,
+    stripeRefundId: refund.id,
+  });
+
+  return {
+    refundId: refund.id,
+    amount: refund.amount,
+    alreadyRefunded: false,
+  };
 }
 
 export async function POST(request: Request) {
@@ -682,4 +738,3 @@ export async function POST(request: Request) {
     });
   }
 }
-
