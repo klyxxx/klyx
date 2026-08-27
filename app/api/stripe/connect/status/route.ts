@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { assertStripeRuntimeReady } from "@/lib/stripe-runtime";
+import { assessKlyxStripeMarketAccess } from "@/lib/klyx-stripe-market-access";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
@@ -27,7 +28,11 @@ export async function GET(request: Request) {
       await getAuthenticatedProfile(request);
     requireAccountType(activeProfile, "provider");
 
-    assertStripeRuntimeReady();
+    const stripeRuntime = assertStripeRuntimeReady();
+    const marketAccess = assessKlyxStripeMarketAccess(
+      activeProfile.countryCode,
+      stripeRuntime.mode
+    );
     const stripe = new Stripe(requiredEnv("STRIPE_SECRET_KEY"));
 
     const { data: profile, error: profileError } = await supabaseAdmin
@@ -46,6 +51,11 @@ export async function GET(request: Request) {
         onboardingComplete: false,
         chargesEnabled: false,
         payoutsEnabled: false,
+        marketCountryCode: marketAccess.countryCode,
+        marketReady: marketAccess.allowed,
+        marketReason: marketAccess.reason,
+        marketBlockers: marketAccess.blockers,
+        commerciallyReady: false,
       });
     }
 
@@ -54,6 +64,11 @@ export async function GET(request: Request) {
     const onboardingComplete = Boolean(account.details_submitted);
     const chargesEnabled = Boolean(account.charges_enabled);
     const payoutsEnabled = Boolean(account.payouts_enabled);
+    const commerciallyReady =
+      marketAccess.allowed &&
+      onboardingComplete &&
+      chargesEnabled &&
+      payoutsEnabled;
 
     const { error: updateError } = await supabaseAdmin
       .from("profiles")
@@ -74,6 +89,11 @@ export async function GET(request: Request) {
       chargesEnabled,
       payoutsEnabled,
       accountId: account.id,
+      marketCountryCode: marketAccess.countryCode,
+      marketReady: marketAccess.allowed,
+      marketReason: marketAccess.reason,
+      marketBlockers: marketAccess.blockers,
+      commerciallyReady,
     });
   } catch (error) {
     const message =
