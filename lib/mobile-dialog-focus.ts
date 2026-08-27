@@ -7,14 +7,19 @@ export const MOBILE_DIALOG_FOCUSABLE_SELECTOR = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(',');
 
-export function getDialogFocusableElements(container: HTMLElement) {
+export function getDialogFocusableElements(container: HTMLElement | null) {
+  if (!container) return [];
+
   return Array.from(
     container.querySelectorAll<HTMLElement>(MOBILE_DIALOG_FOCUSABLE_SELECTOR)
   ).filter((element) => !element.hasAttribute('hidden'));
 }
 
-export function trapDialogTabKey(event: KeyboardEvent, container: HTMLElement) {
-  if (event.key !== 'Tab') return false;
+export function trapDialogTabKey(
+  event: KeyboardEvent,
+  container: HTMLElement | null
+) {
+  if (event.key !== 'Tab' || !container) return false;
 
   const focusable = getDialogFocusableElements(container);
   if (focusable.length === 0) {
