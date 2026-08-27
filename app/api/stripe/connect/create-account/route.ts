@@ -11,6 +11,7 @@ import {
 } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { getKlyxMarketReadiness } from "@/lib/klyx-market-readiness";
+import { stripeConnectAccountCreateIdempotencyKey } from "@/lib/stripe-connect-account-idempotency";
 import { isMissingStripeConnectAccount } from "@/lib/stripe-connect-account-recovery";
 
 function requiredEnv(name: string): string {
@@ -101,22 +102,32 @@ export async function POST(request: Request) {
       );
     }
 
-    async function createAndPersistAccount(): Promise<string> {
-      const account = await stripe.accounts.create({
-        type: "express",
-        country:
-          accountCountry as Stripe.AccountCreateParams["country"],
-        email: user.email ?? undefined,
-        capabilities: {
-          card_payments: { requested: true },
-          transfers: { requested: true },
-        },
-        business_type: "individual",
-        metadata: {
-          klyx_profile_id: activeProfile.id,
-          klyx_owner_user_id: user.id,
-        },
+    async function createAndPersistAccount(params: {
+      staleAccountId?: string | null;
+    } = {}): Promise<string> {
+      const idempotencyKey = stripeConnectAccountCreateIdempotencyKey({
+        profileId: activeProfile.id,
+        runtimeMode: stripeRuntime.mode,
+        staleAccountId: params.staleAccountId,
       });
+      const account = await stripe.accounts.create(
+        {
+          type: "express",
+          country:
+            accountCountry as Stripe.AccountCreateParams["country"],
+          email: user.email ?? undefined,
+          capabilities: {
+            card_payments: { requested: true },
+            transfers: { requested: true },
+          },
+          business_type: "individual",
+          metadata: {
+            klyx_profile_id: activeProfile.id,
+            klyx_owner_user_id: user.id,
+          },
+        },
+        { idempotencyKey }
+      );
 
       const { error: updateError } = await supabaseAdmin
         .from("profiles")
@@ -165,7 +176,8 @@ export async function POST(request: Request) {
         throw error;
       }
 
-      accountId = await createAndPersistAccount();
+      const staleAccountId = accountId;
+      accountId = await createAndPersistAccount({ staleAccountId });
       accountLink = await createAccountLink(accountId);
     }
 
