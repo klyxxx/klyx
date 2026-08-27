@@ -11,6 +11,7 @@ import {
 } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { getKlyxMarketReadiness } from "@/lib/klyx-market-readiness";
+import { isMissingStripeConnectAccount } from "@/lib/stripe-connect-account-recovery";
 
 function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();
@@ -34,33 +35,6 @@ function getAppOrigin(request: Request): string {
   }
 
   return parsed.origin;
-}
-
-function isMissingStripeAccount(error: unknown): boolean {
-  if (!error || typeof error !== "object") return false;
-
-  const candidate = error as {
-    code?: unknown;
-    param?: unknown;
-    raw?: {
-      code?: unknown;
-      param?: unknown;
-    };
-  };
-  const code =
-    typeof candidate.code === "string"
-      ? candidate.code
-      : typeof candidate.raw?.code === "string"
-        ? candidate.raw.code
-        : null;
-  const param =
-    typeof candidate.param === "string"
-      ? candidate.param
-      : typeof candidate.raw?.param === "string"
-        ? candidate.raw.param
-        : null;
-
-  return code === "resource_missing" && (param === null || param === "account");
 }
 
 export async function POST(request: Request) {
@@ -187,7 +161,7 @@ export async function POST(request: Request) {
       // deleted or when KLYX intentionally switches Stripe environments. Only
       // Stripe's definitive resource_missing signal is recoverable here;
       // every transient/auth/configuration error still fails closed.
-      if (!isMissingStripeAccount(error)) {
+      if (!isMissingStripeConnectAccount(error)) {
         throw error;
       }
 
