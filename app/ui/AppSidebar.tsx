@@ -49,6 +49,7 @@ import {
   searchKlyxNavigation,
   type KlyxNavItem,
 } from "@/lib/klyx-navigation";
+import { trapDialogTabKey } from "@/lib/mobile-dialog-focus";
 import { createClient } from "@/lib/supabase/client";
 
 type AccountType = "client" | "provider";
@@ -138,6 +139,8 @@ export default function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement>(null);
+  const mobileMenuTriggerRef = useRef<HTMLButtonElement>(null);
+  const mobileDialogRef = useRef<HTMLElement>(null);
   const { locale, t } = useKlyxLocale();
 
   const [mobileOpen, setMobileOpen] =
@@ -228,6 +231,7 @@ export default function AppSidebar() {
 
       if (
         event.key === "Escape" &&
+        !mobileOpen &&
         document.activeElement ===
           searchRef.current
       ) {
@@ -247,7 +251,42 @@ export default function AppSidebar() {
         onKeyDown
       );
     };
-  }, []);
+  }, [mobileOpen]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+
+    const dialog = mobileDialogRef.current;
+    if (!dialog) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function onDialogKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMobileOpen(false);
+        return;
+      }
+
+      trapDialogTabKey(event, dialog);
+    }
+
+    document.addEventListener("keydown", onDialogKeyDown);
+
+    window.requestAnimationFrame(() => {
+      const firstFocusable = dialog.querySelector<HTMLElement>(
+        'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      (firstFocusable ?? dialog).focus();
+    });
+
+    return () => {
+      document.removeEventListener("keydown", onDialogKeyDown);
+      document.body.style.overflow = previousOverflow;
+      mobileMenuTriggerRef.current?.focus();
+    };
+  }, [mobileOpen]);
 
   const menu = useMemo<MenuItem[]>(() => {
     if (accountType === "provider") {
@@ -500,12 +539,15 @@ export default function AppSidebar() {
         <KlyxLogo href="/dashboard" />
 
         <button
+          ref={mobileMenuTriggerRef}
           type="button"
           onClick={() =>
             setMobileOpen(true)
           }
           className="grid h-11 w-11 place-items-center rounded-2xl border border-border bg-card text-foreground dark:border-white/10 dark:bg-white/5 dark:text-white"
           aria-label={t("sidebar.openMenu")}
+          aria-expanded={mobileOpen}
+          aria-controls="klyx-mobile-navigation-dialog"
         >
           <Menu size={22} />
         </button>
@@ -526,20 +568,29 @@ export default function AppSidebar() {
         <div className="fixed inset-0 z-50 lg:hidden">
           <button
             type="button"
-            aria-label={t("sidebar.closeMenu")}
+            tabIndex={-1}
+            aria-hidden="true"
             onClick={() =>
               setMobileOpen(false)
             }
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
           />
 
-          <aside className="relative flex h-full w-[min(88vw,330px)] flex-col bg-card text-foreground shadow-2xl dark:bg-[linear-gradient(180deg,#15131d_0%,#0b0a0f_100%)] dark:text-white">
+          <aside
+            id="klyx-mobile-navigation-dialog"
+            ref={mobileDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={t("sidebar.openMenu")}
+            tabIndex={-1}
+            className="relative flex h-full w-[min(88vw,330px)] flex-col bg-card text-foreground shadow-2xl outline-none dark:bg-[linear-gradient(180deg,#15131d_0%,#0b0a0f_100%)] dark:text-white"
+          >
             <button
               type="button"
               onClick={() =>
                 setMobileOpen(false)
               }
-              className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-xl bg-muted text-foreground dark:bg-white/7 dark:text-white"
+              className="absolute right-4 top-4 grid h-11 w-11 place-items-center rounded-xl bg-muted text-foreground dark:bg-white/7 dark:text-white"
               aria-label={t("sidebar.closeMenu")}
             >
               <X size={20} />
