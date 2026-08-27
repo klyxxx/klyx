@@ -51,6 +51,10 @@ export function splitMissionStripeBlockMessageKey(
     return "blockProviderMarketNotReady";
   }
 
+  if (value === "STRIPE_ACCOUNT_COUNTRY_MISMATCH") {
+    return "blockProviderCountryMismatch";
+  }
+
   if (value === "PROVIDER_STRIPE_NOT_READY") {
     return "blockProviderStripeNotReady";
   }
