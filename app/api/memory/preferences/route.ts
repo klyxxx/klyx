@@ -5,6 +5,7 @@ import {
   apiErrorStatus,
   getAuthenticatedProfile,
 } from "@/lib/api-auth";
+import { parseMemoryPreferencesInput } from "@/lib/memory-preferences-input";
 import { logServerError } from "@/lib/server-log";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -17,9 +18,16 @@ function publicMessageFor(error: unknown): {
       ? error.message
       : "Erreur inconnue.";
 
+  const authStatus = apiErrorStatus(message);
+  const validationError =
+    message.startsWith("Champ ") ||
+    message.includes("invalide") ||
+    message.includes("hors limites") ||
+    message.startsWith("Trop de ");
+
   return {
     message,
-    status: apiErrorStatus(message),
+    status: authStatus >= 500 && validationError ? 400 : authStatus,
   };
 }
 
@@ -73,25 +81,16 @@ export async function POST(request: Request) {
 
   try {
     const { profile } = await getAuthenticatedProfile(request);
-
-    const body = (await request.json()) as {
-      defaultCity?: string;
-      defaultBudget?: number | null;
-      preferredServiceSlugs?: string[];
-      householdNotes?: string;
-      schedulingNotes?: string;
-      aiMemoryEnabled?: boolean;
-    };
+    const body = parseMemoryPreferencesInput(await request.json());
 
     const payload = {
       user_id: profile.id,
-      default_city: body.defaultCity?.trim() || null,
-      default_budget:
-        body.defaultBudget == null ? null : Number(body.defaultBudget),
-      preferred_service_slugs: body.preferredServiceSlugs ?? [],
-      household_notes: body.householdNotes?.trim() || null,
-      scheduling_notes: body.schedulingNotes?.trim() || null,
-      ai_memory_enabled: body.aiMemoryEnabled ?? true,
+      default_city: body.defaultCity,
+      default_budget: body.defaultBudget,
+      preferred_service_slugs: body.preferredServiceSlugs,
+      household_notes: body.householdNotes,
+      scheduling_notes: body.schedulingNotes,
+      ai_memory_enabled: body.aiMemoryEnabled,
       updated_at: new Date().toISOString(),
     };
 
