@@ -40,13 +40,16 @@ describe("KLYX split Connect country invariant", () => {
   it("keeps the POST checkout as an independent country authority", () => {
     expect(checkoutRoute).toContain("assessStripeConnectCountry");
     expect(checkoutRoute).toContain("STRIPE_ACCOUNT_COUNTRY_MISMATCH");
-    expect(checkoutRoute).toContain("account.country");
-    expect(checkoutRoute).toContain('participant:\n              "provider"');
+    expect(checkoutRoute).toContain("liveAccount.country");
+    expect(checkoutRoute).toMatch(/participant\s*:\s*"provider"/);
+    expect(checkoutRoute).toContain("stripe.accounts.retrieve");
   });
 
   it("surfaces a dedicated translated mismatch explanation", () => {
     expect(readinessMessages).toContain('state === "country_mismatch"');
-    expect(readinessMessages).toContain('value === "STRIPE_ACCOUNT_COUNTRY_MISMATCH"');
+    expect(readinessMessages).toContain(
+      'value === "STRIPE_ACCOUNT_COUNTRY_MISMATCH"'
+    );
     expect(readinessI18n).toContain('"stateCountryMismatch"');
     expect(readinessI18n).toContain('"blockStripeAccountCountryMismatch"');
   });
