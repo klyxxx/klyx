@@ -1,3 +1,5 @@
+import { after } from "next/server";
+
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { recordAggregateProductMetric } from "@/lib/product-analytics";
 import { GET as providerSearchCore } from "./providers-route-core";
@@ -37,7 +39,9 @@ export async function GET(request: Request) {
     const response = await providerSearchCore(request);
 
     if (response.status < 500) {
-      await recordSearchOutcome(request, response);
+      after(async () => {
+        await recordSearchOutcome(request, response);
+      });
       return response;
     }
 
