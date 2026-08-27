@@ -7,6 +7,10 @@ import { markBookingPaidFromSession } from "@/lib/stripe-payments";
 import { calculateKlyxEconomics, getKlyxCommissionPercent } from "@/lib/klyx-economics";
 import { assessKlyxStripeMarketAccess } from "@/lib/klyx-stripe-market-access";
 import {
+  assessStripeConnectCountry,
+  STRIPE_ACCOUNT_COUNTRY_MISMATCH,
+} from "@/lib/stripe-connect-country";
+import {
   apiErrorStatus,
   getAuthenticatedProfile,
   requireAccountType,
@@ -401,6 +405,33 @@ export async function POST(request: Request) {
       );
     }
 
+    let providerStripeAccount: Stripe.Account | null = null;
+
+    if (provider?.stripe_account_id) {
+      providerStripeAccount = await stripe.accounts.retrieve(
+        provider.stripe_account_id
+      );
+
+      const countryAssessment = assessStripeConnectCountry({
+        klyxCountryCode: provider.country_code,
+        stripeCountryCode: providerStripeAccount.country,
+      });
+
+      if (!countryAssessment.matches) {
+        return NextResponse.json(
+          {
+            error:
+              "Le pays du compte de paiement du prestataire ne correspond plus à son pays KLYX. Le paiement est bloqué jusqu'à régularisation.",
+            code: STRIPE_ACCOUNT_COUNTRY_MISMATCH,
+            participant: "provider",
+            countryCode: countryAssessment.klyxCountryCode,
+            stripeCountryCode: countryAssessment.stripeCountryCode,
+          },
+          { status: 409 }
+        );
+      }
+    }
+
     const {
       service,
       userServiceId,
@@ -464,9 +495,9 @@ export async function POST(request: Request) {
 
     const providerReady = Boolean(
       provider?.stripe_account_id &&
-        provider.stripe_onboarding_complete &&
-        provider.stripe_charges_enabled &&
-        provider.stripe_payouts_enabled
+        providerStripeAccount?.details_submitted &&
+        providerStripeAccount.charges_enabled &&
+        providerStripeAccount.payouts_enabled
     );
 
     const platformOnlyTestAllowed =
