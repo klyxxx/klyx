@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { isUserServiceApproved } from "@/lib/provider-skill-publication";
 import {
@@ -766,40 +766,42 @@ export async function POST(request: Request) {
       throw new Error(bookingError.message);
     }
 
-    const { error: eventError } =
-      await supabaseAdmin
-        .from("booking_status_events")
-        .insert({
-          booking_id: booking.id,
-          actor_id: profile.id,
-          previous_status: null,
-          new_status: "pending",
-          note: acceptedQuote
-            ? "Demande créée depuis un devis accepté."
-            : "Demande envoyée par le client.",
+    after(async () => {
+      const { error: eventError } =
+        await supabaseAdmin
+          .from("booking_status_events")
+          .insert({
+            booking_id: booking.id,
+            actor_id: profile.id,
+            previous_status: null,
+            new_status: "pending",
+            note: acceptedQuote
+              ? "Demande créée depuis un devis accepté."
+              : "Demande envoyée par le client.",
+          });
+
+      if (eventError) {
+        logServerError({
+          event:
+            "booking_event_write_failed",
+          route:
+            "/api/bookings/create",
+          method: "POST",
+          status: 500,
+          code:
+            "booking_event_write_failed",
+          error: eventError,
         });
+      }
 
-    if (eventError) {
-      logServerError({
-        event:
-          "booking_event_write_failed",
-        route:
-          "/api/bookings/create",
-        method: "POST",
-        status: 500,
-        code:
-          "booking_event_write_failed",
-        error: eventError,
+      await createNotification({
+        userId: providerId,
+        bookingId: booking.id,
+        title: "Nouvelle demande reçue",
+        message: `${serviceLabel(
+          service.slug
+        )} demandé pour le ${bookingDate} de ${startTime} à ${endTime}.`,
       });
-    }
-
-    await createNotification({
-      userId: providerId,
-      bookingId: booking.id,
-      title: "Nouvelle demande reçue",
-      message: `${serviceLabel(
-        service.slug
-      )} demandé pour le ${bookingDate} de ${startTime} à ${endTime}.`,
     });
 
     return NextResponse.json({
