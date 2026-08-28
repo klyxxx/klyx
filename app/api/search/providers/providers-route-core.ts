@@ -19,6 +19,7 @@ import { loadPublicProviderQualifications } from "@/lib/provider-public-qualific
 const SORT_VALUES: ProviderSearchSort[] = [
   "recommended",
   "price_asc",
+  "rating_desc",
   "score_desc",
   "experience_desc",
 ];
