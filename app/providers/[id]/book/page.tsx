@@ -13,6 +13,12 @@ import {
   UserRound,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import {
+  translateKlyxProviderBooking,
+  type KlyxProviderBookingMessageKey,
+  type KlyxProviderBookingMessageValues,
+} from "@/lib/klyx-provider-booking-i18n";
 
 type ProfileRow = {
   id: string;
@@ -34,15 +40,21 @@ type AvailabilityRow = {
   end_time: string;
 };
 
-const DAY_LABELS = [
-  "dimanche",
-  "lundi",
-  "mardi",
-  "mercredi",
-  "jeudi",
-  "vendredi",
-  "samedi",
-];
+const DAY_KEYS = [
+  "sunday",
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+] as const satisfies readonly KlyxProviderBookingMessageKey[];
+
+class BookingPageError extends Error {
+  constructor(readonly key: KlyxProviderBookingMessageKey) {
+    super(key);
+  }
+}
 
 function validRequestedDate(value: string | null): string {
   return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
@@ -85,18 +97,33 @@ function endTimeFromRequest(startTime: string, durationText: string | null): str
   ).padStart(2, "0")}`;
 }
 
-function formatPrice(price: number | null, pricingType: string | null): string {
-  if (price == null) return "Prix à confirmer";
+function formatPrice(
+  price: number | null,
+  pricingType: string | null,
+  locale: string
+): string {
+  if (price == null) {
+    return translateKlyxProviderBooking(locale, "priceToConfirm");
+  }
 
-  return pricingType === "fixed"
-    ? `${Number(price).toFixed(2)} € forfait`
-    : `${Number(price).toFixed(2)} €/h`;
+  const formattedPrice = Number(price).toFixed(2);
+
+  return translateKlyxProviderBooking(
+    locale,
+    pricingType === "fixed" ? "fixedPrice" : "hourlyPrice",
+    { price: formattedPrice }
+  );
 }
 
 export default function ProviderBookingPage() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { locale } = useKlyxLocale();
+  const t = (
+    key: KlyxProviderBookingMessageKey,
+    values?: KlyxProviderBookingMessageValues
+  ) => translateKlyxProviderBooking(locale, key, values);
 
   const providerId = params.id;
   const serviceSlug = searchParams.get("service")?.trim() || "";
@@ -119,17 +146,19 @@ export default function ProviderBookingPage() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [errorKey, setErrorKey] =
+    useState<KlyxProviderBookingMessageKey | null>(null);
 
   useEffect(() => {
     async function loadData() {
       setLoading(true);
-      setErrorMessage("");
+      setErrorKey(null);
 
       try {
         if (!serviceSlug) {
-          throw new Error("Aucun service n’a été sélectionné.");
+          throw new BookingPageError("noServiceSelected");
         }
+
         const [{ data: profileData, error: profileError }, serviceResult] =
           await Promise.all([
             supabase
@@ -144,10 +173,15 @@ export default function ProviderBookingPage() {
               .maybeSingle(),
           ]);
 
-        if (profileError) throw new Error(profileError.message);
-        if (serviceResult.error) throw new Error(serviceResult.error.message);
-        if (!profileData) throw new Error("Prestataire introuvable.");
-        if (!serviceResult.data) throw new Error("Service introuvable.");
+        if (profileError || serviceResult.error) {
+          throw new BookingPageError("loadFailed");
+        }
+        if (!profileData) {
+          throw new BookingPageError("providerNotFound");
+        }
+        if (!serviceResult.data) {
+          throw new BookingPageError("serviceNotFound");
+        }
 
         const { data: userService, error: userServiceError } = await supabase
           .from("user_services")
@@ -158,8 +192,12 @@ export default function ProviderBookingPage() {
           .eq("provider_enabled", true)
           .maybeSingle();
 
-        if (userServiceError) throw new Error(userServiceError.message);
-        if (!userService) throw new Error("Ce prestataire ne propose pas ce service.");
+        if (userServiceError) {
+          throw new BookingPageError("loadFailed");
+        }
+        if (!userService) {
+          throw new BookingPageError("providerDoesNotOffer");
+        }
 
         const [serviceProfileResult, availabilityResult] = await Promise.all([
           supabase
@@ -175,16 +213,12 @@ export default function ProviderBookingPage() {
             .order("day_of_week", { ascending: true }),
         ]);
 
-        if (serviceProfileResult.error) {
-          throw new Error(serviceProfileResult.error.message);
-        }
-
-        if (availabilityResult.error) {
-          throw new Error(availabilityResult.error.message);
+        if (serviceProfileResult.error || availabilityResult.error) {
+          throw new BookingPageError("loadFailed");
         }
 
         if (!serviceProfileResult.data?.available) {
-          throw new Error("Ce service n’est pas disponible actuellement.");
+          throw new BookingPageError("serviceUnavailable");
         }
 
         setProfile(profileData as ProfileRow);
@@ -197,10 +231,8 @@ export default function ProviderBookingPage() {
         setServiceProfile(serviceProfileResult.data as ServiceProfileRow);
         setAvailability((availabilityResult.data ?? []) as AvailabilityRow[]);
       } catch (error) {
-        setErrorMessage(
-          error instanceof Error
-            ? error.message
-            : "Impossible de charger la réservation."
+        setErrorKey(
+          error instanceof BookingPageError ? error.key : "loadFailed"
         );
       } finally {
         setLoading(false);
@@ -212,7 +244,9 @@ export default function ProviderBookingPage() {
 
   const estimatedAmount = useMemo(() => {
     if (serviceProfile?.price == null) return null;
-    if (serviceProfile.pricing_type === "fixed") return Number(serviceProfile.price);
+    if (serviceProfile.pricing_type === "fixed") {
+      return Number(serviceProfile.price);
+    }
 
     const start = timeToMinutes(startTime);
     const end = timeToMinutes(endTime);
@@ -233,7 +267,7 @@ export default function ProviderBookingPage() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSubmitting(true);
-    setErrorMessage("");
+    setErrorKey(null);
 
     try {
       const startMinutes = timeToMinutes(startTime);
@@ -245,15 +279,11 @@ export default function ProviderBookingPage() {
         endMinutes === null ||
         endMinutes <= startMinutes
       ) {
-        throw new Error(
-          "Le créneau choisi n'est pas valide. Vérifie la date, l'heure de début et l'heure de fin."
-        );
+        throw new BookingPageError("invalidSlot");
       }
 
       if (selectedDayAvailability.length === 0) {
-        throw new Error(
-          "Le prestataire n'a déclaré aucune disponibilité pour ce jour."
-        );
+        throw new BookingPageError("noAvailability");
       }
 
       const fitsAvailability = selectedDayAvailability.some((slot) => {
@@ -269,9 +299,7 @@ export default function ProviderBookingPage() {
       });
 
       if (!fitsAvailability) {
-        throw new Error(
-          "Ce créneau est en dehors des horaires déclarés par le prestataire."
-        );
+        throw new BookingPageError("outsideAvailability");
       }
 
       const {
@@ -301,17 +329,16 @@ export default function ProviderBookingPage() {
 
       const result = (await response.json()) as {
         bookingId?: string;
-        error?: string;
       };
 
       if (!response.ok || !result.bookingId) {
-        throw new Error(result.error || "Impossible de créer la réservation.");
+        throw new BookingPageError("createFailed");
       }
 
       router.push(`/bookings/${result.bookingId}?created=1`);
     } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Une erreur est survenue."
+      setErrorKey(
+        error instanceof BookingPageError ? error.key : "genericError"
       );
     } finally {
       setSubmitting(false);
@@ -321,16 +348,16 @@ export default function ProviderBookingPage() {
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 text-foreground dark:text-white">
-        Chargement...
+        {t("loading")}
       </main>
     );
   }
 
-  if (errorMessage && !profile) {
+  if (errorKey && !profile) {
     return (
       <main className="min-h-screen overflow-x-hidden bg-background dark:bg-zinc-950 px-3 py-5 text-foreground dark:text-white sm:px-5 sm:py-8">
         <div className="mx-auto max-w-3xl rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-red-300">
-          {errorMessage}
+          {t(errorKey)}
         </div>
       </main>
     );
@@ -338,18 +365,26 @@ export default function ProviderBookingPage() {
 
   const fullName =
     [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") ||
-    "Prestataire KLYX";
+    t("providerDefault");
   const minimumDate = new Date().toISOString().slice(0, 10);
+  const formattedPrice = formatPrice(
+    serviceProfile?.price ?? null,
+    serviceProfile?.pricing_type ?? null,
+    locale
+  );
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-background dark:bg-zinc-950 px-3 py-5 text-foreground dark:text-white sm:px-5 sm:py-8">
+    <main
+      className="min-h-screen overflow-x-hidden bg-background dark:bg-zinc-950 px-3 py-5 text-foreground dark:text-white sm:px-5 sm:py-8"
+      data-klyx-contract="KLYX_PROVIDER_BOOKING_I18N_16_07"
+    >
       <div className="mx-auto max-w-5xl">
         <Link
           href={`/providers/${providerId}`}
           className="inline-flex items-center gap-2 text-sm text-muted-foreground dark:text-zinc-400 hover:text-foreground dark:text-white"
         >
           <ArrowLeft size={17} />
-          Retour au profil
+          {t("backProfile")}
         </Link>
 
         <section className="mt-8 grid overflow-hidden rounded-3xl border border-border dark:border-zinc-800 bg-card/70 dark:bg-zinc-900/70 md:grid-cols-[280px_1fr]">
@@ -371,15 +406,15 @@ export default function ProviderBookingPage() {
             </p>
             <h1 className="mt-3 text-3xl font-bold">{fullName}</h1>
             <p className="mt-3 text-muted-foreground dark:text-zinc-400">
-              {serviceProfile?.city || "Ville non renseignée"}
+              {serviceProfile?.city || t("cityUnknown")}
             </p>
             <p className="mt-4 text-2xl font-bold text-violet-400">
-              {formatPrice(serviceProfile?.price ?? null, serviceProfile?.pricing_type ?? null)}
+              {formattedPrice}
             </p>
 
             <div className="mt-5 flex items-start gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-200">
               <CheckCircle2 className="mt-0.5 shrink-0" size={18} />
-              Le prix affiché est enregistré avec ta demande. Une future modification du tarif ne changera pas cette réservation.
+              {t("priceSnapshotNotice")}
             </div>
           </div>
         </section>
@@ -389,12 +424,12 @@ export default function ProviderBookingPage() {
           className="mt-8 grid gap-8 lg:grid-cols-[1fr_320px]"
         >
           <section className="rounded-3xl border border-border dark:border-zinc-800 bg-card/70 dark:bg-zinc-900/70 p-6 sm:p-8">
-            <h2 className="text-2xl font-bold">Choisis ton créneau</h2>
+            <h2 className="text-2xl font-bold">{t("chooseSlot")}</h2>
 
             <div className="mt-6 grid gap-5 sm:grid-cols-3">
               <label>
                 <span className="mb-2 flex items-center gap-2 text-sm text-foreground/80 dark:text-zinc-300">
-                  <CalendarDays size={17} /> Date
+                  <CalendarDays size={17} /> {t("date")}
                 </span>
                 <input
                   type="date"
@@ -408,7 +443,7 @@ export default function ProviderBookingPage() {
 
               <label>
                 <span className="mb-2 flex items-center gap-2 text-sm text-foreground/80 dark:text-zinc-300">
-                  <Clock3 size={17} /> Début
+                  <Clock3 size={17} /> {t("start")}
                 </span>
                 <input
                   type="time"
@@ -421,7 +456,7 @@ export default function ProviderBookingPage() {
 
               <label>
                 <span className="mb-2 flex items-center gap-2 text-sm text-foreground/80 dark:text-zinc-300">
-                  <Clock3 size={17} /> Fin
+                  <Clock3 size={17} /> {t("end")}
                 </span>
                 <input
                   type="time"
@@ -435,32 +470,34 @@ export default function ProviderBookingPage() {
 
             {bookingDate && (
               <div className="mt-4 rounded-xl border border-border dark:border-zinc-800 bg-background dark:bg-zinc-950 p-4 text-sm text-muted-foreground dark:text-zinc-400">
-                {selectedDayAvailability.length > 0 ? (
-                  <>
-                    Disponible {DAY_LABELS[new Date(`${bookingDate}T12:00:00Z`).getUTCDay()]} :{" "}
-                    {selectedDayAvailability
-                      .map(
-                        (slot) =>
-                          `${slot.start_time.slice(0, 5)}–${slot.end_time.slice(0, 5)}`
-                      )
-                      .join(", ")}
-                  </>
-                ) : (
-                  "Aucune disponibilité déclarée pour ce jour."
-                )}
+                {selectedDayAvailability.length > 0
+                  ? t("available", {
+                      day: t(
+                        DAY_KEYS[
+                          new Date(`${bookingDate}T12:00:00Z`).getUTCDay()
+                        ] ?? "sunday"
+                      ),
+                      slots: selectedDayAvailability
+                        .map(
+                          (slot) =>
+                            `${slot.start_time.slice(0, 5)}–${slot.end_time.slice(0, 5)}`
+                        )
+                        .join(", "),
+                    })
+                  : t("noAvailabilityDay")}
               </div>
             )}
 
             <label className="mt-5 block">
               <span className="mb-2 block text-sm text-foreground/80 dark:text-zinc-300">
-                Détails de la demande
+                {t("requestDetails")}
               </span>
               <textarea
                 rows={6}
                 maxLength={2000}
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
-                placeholder="Décris précisément ce dont tu as besoin."
+                placeholder={t("requestPlaceholder")}
                 className="w-full resize-none rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 p-4 outline-none focus:border-violet-500"
               />
               <p className="mt-2 text-right text-xs text-muted-foreground dark:text-zinc-500">
@@ -468,43 +505,45 @@ export default function ProviderBookingPage() {
               </p>
             </label>
 
-            {errorMessage && (
+            {errorKey && (
               <div className="mt-5 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">
-                {errorMessage}
+                {t(errorKey)}
               </div>
             )}
           </section>
 
           <aside className="h-fit rounded-3xl border border-border dark:border-zinc-800 bg-card/70 dark:bg-zinc-900/70 p-6 lg:sticky lg:top-6">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground dark:text-zinc-500">
-              Récapitulatif
+              {t("summary")}
             </p>
-            <h2 className="mt-3 text-xl font-bold">
-              {serviceName}
-            </h2>
+            <h2 className="mt-3 text-xl font-bold">{serviceName}</h2>
 
             <div className="mt-5 space-y-3 border-y border-border dark:border-zinc-800 py-5 text-sm">
               <p className="flex justify-between gap-3">
-                <span className="text-muted-foreground dark:text-zinc-500">Prestataire</span>
+                <span className="text-muted-foreground dark:text-zinc-500">
+                  {t("provider")}
+                </span>
                 <span className="text-right font-semibold">{fullName}</span>
               </p>
               <p className="flex justify-between gap-3">
-                <span className="text-muted-foreground dark:text-zinc-500">Créneau</span>
+                <span className="text-muted-foreground dark:text-zinc-500">
+                  {t("slot")}
+                </span>
                 <span className="text-right font-semibold">
-                  {startTime && endTime ? `${startTime}–${endTime}` : "À choisir"}
+                  {startTime && endTime ? `${startTime}–${endTime}` : t("choose")}
                 </span>
               </p>
               <p className="flex justify-between gap-3">
-                <span className="text-muted-foreground dark:text-zinc-500">Tarif</span>
-                <span className="text-right font-semibold">
-                  {formatPrice(serviceProfile?.price ?? null, serviceProfile?.pricing_type ?? null)}
+                <span className="text-muted-foreground dark:text-zinc-500">
+                  {t("rate")}
                 </span>
+                <span className="text-right font-semibold">{formattedPrice}</span>
               </p>
             </div>
 
             <div className="mt-5 flex items-center justify-between gap-3">
               <span className="flex items-center gap-2 text-muted-foreground dark:text-zinc-400">
-                <Euro size={18} /> Total estimé
+                <Euro size={18} /> {t("estimatedTotal")}
               </span>
               <strong className="text-2xl text-violet-300">
                 {estimatedAmount == null ? "—" : `${estimatedAmount.toFixed(2)} €`}
@@ -517,11 +556,11 @@ export default function ProviderBookingPage() {
               className="mt-6 flex w-full items-center justify-center gap-3 rounded-xl bg-violet-600 px-6 py-4 font-semibold hover:bg-violet-700 disabled:opacity-50"
             >
               <Send size={20} />
-              {submitting ? "Envoi en cours..." : "Envoyer la demande"}
+              {submitting ? t("submitting") : t("sendRequest")}
             </button>
 
             <p className="mt-4 text-center text-xs leading-5 text-muted-foreground dark:text-zinc-500">
-              Aucun paiement n’est débité avant l’acceptation du prestataire.
+              {t("noChargeBeforeAcceptance")}
             </p>
           </aside>
         </form>
