@@ -21,6 +21,7 @@ type KlyxServerErrorInput =
   };
 
 const MAX_TEXT_LENGTH = 120;
+const MAX_ERROR_IDENTIFIER_LENGTH = 80;
 
 function sanitizeText(
   value: string | undefined
@@ -66,6 +67,74 @@ function safeErrorName(
   }
 
   return "UnknownError";
+}
+
+function safeErrorIdentifier(
+  value: unknown
+): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.trim();
+
+  if (
+    !normalized ||
+    normalized.length > MAX_ERROR_IDENTIFIER_LENGTH ||
+    !/^[A-Za-z0-9][A-Za-z0-9_.:/-]*$/.test(normalized)
+  ) {
+    return undefined;
+  }
+
+  return normalized;
+}
+
+function safeErrorMetadata(
+  error: unknown
+): {
+  errorType?: string;
+  errorCode?: string;
+  errorParam?: string;
+  errorStatusCode?: number;
+} {
+  if (!error || typeof error !== "object") {
+    return {};
+  }
+
+  const candidate = error as {
+    type?: unknown;
+    code?: unknown;
+    param?: unknown;
+    statusCode?: unknown;
+    raw?: {
+      type?: unknown;
+      code?: unknown;
+      param?: unknown;
+      statusCode?: unknown;
+    };
+  };
+
+  const raw = candidate.raw;
+  const statusCodeValue =
+    typeof candidate.statusCode === "number"
+      ? candidate.statusCode
+      : typeof raw?.statusCode === "number"
+        ? raw.statusCode
+        : undefined;
+
+  return {
+    errorType:
+      safeErrorIdentifier(candidate.type) ??
+      safeErrorIdentifier(raw?.type),
+    errorCode:
+      safeErrorIdentifier(candidate.code) ??
+      safeErrorIdentifier(raw?.code),
+    errorParam:
+      safeErrorIdentifier(candidate.param) ??
+      safeErrorIdentifier(raw?.param),
+    errorStatusCode:
+      safeInteger(statusCodeValue),
+  };
 }
 
 function createBaseRecord(
@@ -141,6 +210,9 @@ export function logServerError(
         safeErrorName(
           input.error
         ),
+      ...safeErrorMetadata(
+        input.error
+      ),
     })
   );
 }
