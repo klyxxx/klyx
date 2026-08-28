@@ -44,6 +44,10 @@ export function parseKlyxAcceptLanguage(
         ? Math.max(0, Math.min(1, parsedQuality))
         : 0;
 
+      if (quality <= 0) {
+        return null;
+      }
+
       return {
         tag,
         quality,
