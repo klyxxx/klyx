@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useState,
-} from "react";
-
+import { useCallback, useEffect, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -14,9 +9,14 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import {
-  supabase,
-} from "@/lib/supabase";
+  klyxProviderFinanceIntlLocale,
+  translateKlyxProviderFinance,
+  type KlyxProviderFinanceMessageKey,
+  type KlyxProviderFinanceMessageValues,
+} from "@/lib/klyx-provider-finance-i18n";
+import { supabase } from "@/lib/supabase";
 
 // KLYX_FINANCE_RECONCILIATION_UI_13_13
 
@@ -27,270 +27,127 @@ type DifferenceKey =
   | "refundedCents"
   | "refundsProcessingCents";
 
-type DifferenceMap = Record<
-  DifferenceKey,
-  number
->;
+type DifferenceMap = Record<DifferenceKey, number>;
 
 type Reconciliation = {
-  checked:
-    boolean;
-
-  reconciled:
-    boolean;
-
-  status:
-    "ok" |
-    "review_required" |
-    string;
-
-  source:
-    string;
-
-  differenceCents:
-    DifferenceMap;
-
-  commercialEventsChecked:
-    number;
-
-  commercialEventsReturned:
-    number;
-
-  historyTruncatedForDisplay:
-    boolean;
-
-  readOnly:
-    boolean;
-
-  ledgerModified:
-    boolean;
-
-  stripeModified:
-    boolean;
-
-  automaticCorrection:
-    boolean;
+  checked: boolean;
+  reconciled: boolean;
+  status: "ok" | "review_required" | string;
+  source: string;
+  differenceCents: DifferenceMap;
+  commercialEventsChecked: number;
+  commercialEventsReturned: number;
+  historyTruncatedForDisplay: boolean;
+  readOnly: boolean;
+  ledgerModified: boolean;
+  stripeModified: boolean;
+  automaticCorrection: boolean;
 };
 
 type FinanceResponse = {
-  reconciliation?:
-    Reconciliation;
-
-  error?:
-    string;
+  reconciliation?: Reconciliation;
+  summary?: {
+    currency?: string;
+  };
+  error?: string;
 };
 
-const DIFFERENCE_LABELS:
-  Record<
-    DifferenceKey,
-    string
-  > = {
-    grossPaidCents:
-      "Montant brut",
-
-    platformFeeCents:
-      "Commission KLYX",
-
-    providerAmountCents:
-      "Montant prestataire",
-
-    refundedCents:
-      "Remboursements",
-
-    refundsProcessingCents:
-      "Remboursements en cours",
-  };
-
 function formatDifference(
-  cents:
-    number
+  cents: number,
+  currency: string,
+  intlLocale: string
 ): string {
-  const sign =
-    cents > 0
-      ? "+"
-      : "";
+  const code = /^[A-Z]{3}$/.test(currency.trim().toUpperCase())
+    ? currency.trim().toUpperCase()
+    : "EUR";
 
-  return (
-    sign +
-    (
-      cents /
-      100
-    ).toFixed(
-      2
-    ) +
-    " €"
-  );
+  return new Intl.NumberFormat(intlLocale, {
+    style: "currency",
+    currency: code,
+    signDisplay: "exceptZero",
+  }).format(cents / 100);
 }
 
 export default function FinanceReconciliationStatus() {
-  const [
-    data,
-    setData,
-  ] =
-    useState<
-      Reconciliation |
-      null
-    >(
-      null
-    );
-
-  const [
-    loading,
-    setLoading,
-  ] =
-    useState(
-      true
-    );
-
-  const [
-    refreshing,
-    setRefreshing,
-  ] =
-    useState(
-      false
-    );
-
-  const [
-    errorMessage,
-    setErrorMessage,
-  ] =
-    useState(
-      ""
-    );
-
-  const load =
-    useCallback(
-      async (
-        manual =
-          false
-      ) => {
-        if (manual) {
-          setRefreshing(
-            true
-          );
-        }
-        else {
-          setLoading(
-            true
-          );
-        }
-
-        setErrorMessage(
-          ""
-        );
-
-        try {
-          const {
-            data:
-              sessionData,
-          } =
-            await supabase.auth.getSession();
-
-          const accessToken =
-            sessionData.session?.access_token;
-
-          if (
-            !accessToken
-          ) {
-            throw new Error(
-              "Session KLYX manquante."
-            );
-          }
-
-          const response =
-            await fetch(
-              "/api/provider/finance",
-              {
-                cache:
-                  "no-store",
-
-                headers: {
-                  Authorization:
-                    "Bearer " +
-                    accessToken,
-                },
-              }
-            );
-
-          const body =
-            (
-              await response.json()
-            ) as FinanceResponse;
-
-          if (
-            !response.ok
-          ) {
-            throw new Error(
-              body.error ||
-              "Impossible de verifier les finances."
-            );
-          }
-
-          if (
-            !body.reconciliation
-          ) {
-            throw new Error(
-              "Etat de reconciliation indisponible."
-            );
-          }
-
-          setData(
-            body.reconciliation
-          );
-        }
-        catch (
-          error
-        ) {
-          setData(
-            null
-          );
-
-          setErrorMessage(
-            error instanceof Error
-              ? error.message
-              : "Verification financiere impossible."
-          );
-        }
-        finally {
-          setLoading(
-            false
-          );
-
-          setRefreshing(
-            false
-          );
-        }
-      },
-      []
-    );
-
-  useEffect(
-    () => {
-      void load();
-    },
-    [
-      load,
-    ]
+  const { locale } = useKlyxLocale();
+  const intlLocale = klyxProviderFinanceIntlLocale(locale);
+  const t = useCallback(
+    (
+      key: KlyxProviderFinanceMessageKey,
+      values: KlyxProviderFinanceMessageValues = {}
+    ) => translateKlyxProviderFinance(locale, key, values),
+    [locale]
   );
 
-  if (
-    loading
-  ) {
+  const [data, setData] = useState<Reconciliation | null>(null);
+  const [currency, setCurrency] = useState("EUR");
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const load = useCallback(
+    async (manual = false) => {
+      if (manual) setRefreshing(true);
+      else setLoading(true);
+      setErrorMessage("");
+
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+
+        if (!accessToken) {
+          throw new Error("KLYX_AUTH_REQUIRED");
+        }
+
+        const response = await fetch("/api/provider/finance", {
+          cache: "no-store",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        });
+        const body = (await response.json()) as FinanceResponse;
+
+        if (!response.ok || !body.reconciliation) {
+          throw new Error("KLYX_FINANCE_RECONCILIATION_FAILED");
+        }
+
+        const responseCurrency = body.summary?.currency?.trim().toUpperCase();
+        if (responseCurrency && /^[A-Z]{3}$/.test(responseCurrency)) {
+          setCurrency(responseCurrency);
+        }
+        setData(body.reconciliation);
+      } catch {
+        setData(null);
+        setErrorMessage(t("genericReconciliationError"));
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [t]
+  );
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const differenceLabels: Record<DifferenceKey, string> = {
+    grossPaidCents: t("reconciliationGross"),
+    platformFeeCents: t("reconciliationFee"),
+    providerAmountCents: t("reconciliationProvider"),
+    refundedCents: t("reconciliationRefunds"),
+    refundsProcessingCents: t("reconciliationRefundsProcessing"),
+  };
+
+  if (loading) {
     return (
       <section className="klyx-card mt-6 p-6 sm:p-8">
         <div className="flex items-center gap-3">
-          <LoaderCircle
-            className="animate-spin text-violet-600"
-            size={22}
-          />
-
+          <LoaderCircle className="animate-spin text-violet-600" size={22} />
           <div>
-            <p className="font-black">
-              Vérification financière
-            </p>
-
+            <p className="font-black">{t("reconciliationLoadingTitle")}</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              KLYX compare le résumé financier avec les transactions commerciales.
+              {t("reconciliationLoadingDescription")}
             </p>
           </div>
         </div>
@@ -298,10 +155,7 @@ export default function FinanceReconciliationStatus() {
     );
   }
 
-  if (
-    errorMessage ||
-    !data
-  ) {
+  if (errorMessage || !data) {
     return (
       <section className="mt-6 rounded-[2rem] border border-amber-500/25 bg-amber-500/10 p-6 sm:p-8">
         <div className="flex items-start gap-4">
@@ -309,41 +163,25 @@ export default function FinanceReconciliationStatus() {
             className="mt-0.5 shrink-0 text-amber-600"
             size={24}
           />
-
           <div className="flex-1">
             <p className="font-black text-amber-800 dark:text-amber-200">
-              Réconciliation indisponible
+              {t("reconciliationUnavailable")}
             </p>
-
             <p className="mt-2 text-sm leading-6 text-amber-800/80 dark:text-amber-200/80">
-              {errorMessage ||
-                "KLYX ne peut pas verifier les finances actuellement."}
+              {errorMessage || t("reconciliationUnavailableDescription")}
             </p>
-
             <button
               type="button"
-              onClick={() =>
-                void load(
-                  true
-                )
-              }
-              disabled={
-                refreshing
-              }
+              onClick={() => void load(true)}
+              disabled={refreshing}
               className="mt-4 inline-flex h-10 items-center gap-2 rounded-xl border border-amber-500/25 bg-background px-4 text-sm font-black disabled:opacity-50"
             >
               {refreshing ? (
-                <LoaderCircle
-                  className="animate-spin"
-                  size={16}
-                />
+                <LoaderCircle className="animate-spin" size={16} />
               ) : (
-                <RefreshCw
-                  size={16}
-                />
+                <RefreshCw size={16} />
               )}
-
-              Réessayer
+              {t("retry")}
             </button>
           </div>
         </div>
@@ -351,111 +189,68 @@ export default function FinanceReconciliationStatus() {
     );
   }
 
-  const differences =
-    (
-      Object.entries(
-        data.differenceCents
-      ) as Array<
-        [
-          DifferenceKey,
-          number,
-        ]
-      >
-    ).filter(
-      (
-        [
-          ,
-          value,
-        ]
-      ) =>
-        value !==
-        0
-    );
+  const differences = (
+    Object.entries(data.differenceCents) as Array<[DifferenceKey, number]>
+  ).filter(([, value]) => value !== 0);
 
-  if (
-    data.reconciled
-  ) {
+  if (data.reconciled) {
     return (
       <section className="mt-6 rounded-[2rem] border border-emerald-500/25 bg-emerald-500/10 p-6 sm:p-8">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-4">
             <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-emerald-600 text-white">
-              <CheckCircle2
-                size={24}
-              />
+              <CheckCircle2 size={24} />
             </div>
-
             <div>
               <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-300">
-                Contrôle financier KLYX
+                {t("reconciliationEyebrow")}
               </p>
-
               <h2 className="mt-2 text-xl font-black">
-                Finances cohérentes
+                {t("reconciliationHealthyTitle")}
               </h2>
-
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                Le résumé financier correspond exactement aux transactions commerciales canoniques.
+                {t("reconciliationHealthyDescription")}
               </p>
             </div>
           </div>
 
           <button
             type="button"
-            onClick={() =>
-              void load(
-                true
-              )
-            }
-            disabled={
-              refreshing
-            }
+            onClick={() => void load(true)}
+            disabled={refreshing}
             className="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border border-emerald-500/25 bg-background px-4 text-sm font-black disabled:opacity-50"
           >
             {refreshing ? (
-              <LoaderCircle
-                className="animate-spin"
-                size={16}
-              />
+              <LoaderCircle className="animate-spin" size={16} />
             ) : (
-              <RefreshCw
-                size={16}
-              />
+              <RefreshCw size={16} />
             )}
-
-            Vérifier
+            {t("verify")}
           </button>
         </div>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
           <article className="rounded-2xl border border-emerald-500/15 bg-background/70 p-4">
             <p className="text-xs font-bold text-muted-foreground">
-              Événements vérifiés
+              {t("checkedEvents")}
             </p>
-
             <p className="mt-1 text-2xl font-black">
               {data.commercialEventsChecked}
             </p>
           </article>
-
           <article className="rounded-2xl border border-emerald-500/15 bg-background/70 p-4">
             <p className="text-xs font-bold text-muted-foreground">
-              Différence
+              {t("difference")}
             </p>
-
             <p className="mt-1 text-2xl font-black text-emerald-600">
-              0,00 €
+              {formatDifference(0, currency, intlLocale)}
             </p>
           </article>
-
           <article className="rounded-2xl border border-emerald-500/15 bg-background/70 p-4">
             <p className="text-xs font-bold text-muted-foreground">
-              Correction automatique
+              {t("automaticCorrection")}
             </p>
-
-            <p className="mt-1 text-sm font-black">
-              Désactivée
-            </p>
+            <p className="mt-1 text-sm font-black">{t("disabled")}</p>
           </article>
         </div>
 
@@ -464,11 +259,10 @@ export default function FinanceReconciliationStatus() {
             className="mt-0.5 shrink-0 text-emerald-600"
             size={18}
           />
-
           <p className="text-xs leading-5 text-muted-foreground">
-            Contrôle en lecture seule : KLYX ne modifie ni Stripe, ni le ledger financier, ni les montants.
+            {t("reconciliationReadOnly")}
             {data.historyTruncatedForDisplay
-              ? " L'historique complet est vérifié même si seulement les 100 dernières transactions sont affichées."
+              ? ` ${t("reconciliationHistoryChecked")}`
               : ""}
           </p>
         </div>
@@ -481,98 +275,62 @@ export default function FinanceReconciliationStatus() {
       <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-4">
           <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-rose-600 text-white">
-            <AlertTriangle
-              size={24}
-            />
+            <AlertTriangle size={24} />
           </div>
-
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-rose-700 dark:text-rose-300">
-              Contrôle financier KLYX
+              {t("reconciliationEyebrow")}
             </p>
-
             <h2 className="mt-2 text-xl font-black">
-              Vérification nécessaire
+              {t("reconciliationReviewTitle")}
             </h2>
-
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Une différence existe entre le résumé canonique et les transactions commerciales. Aucun montant n'a été corrigé automatiquement.
+              {t("reconciliationReviewDescription")}
             </p>
           </div>
         </div>
 
         <button
           type="button"
-          onClick={() =>
-            void load(
-              true
-            )
-          }
-          disabled={
-            refreshing
-          }
+          onClick={() => void load(true)}
+          disabled={refreshing}
           className="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border border-rose-500/25 bg-background px-4 text-sm font-black disabled:opacity-50"
         >
           {refreshing ? (
-            <LoaderCircle
-              className="animate-spin"
-              size={16}
-            />
+            <LoaderCircle className="animate-spin" size={16} />
           ) : (
-            <RefreshCw
-              size={16}
-            />
+            <RefreshCw size={16} />
           )}
-
-          Revérifier
+          {t("reverify")}
         </button>
       </div>
 
       <div className="mt-6 grid gap-3">
-        {differences.length ===
-        0 ? (
+        {differences.length === 0 ? (
           <article className="rounded-2xl border border-rose-500/15 bg-background/70 p-4">
             <p className="text-sm font-bold">
-              Une incohérence structurelle a été signalée sans différence monétaire explicite.
+              {t("reconciliationStructuralMismatch")}
             </p>
           </article>
         ) : (
-          differences.map(
-            (
-              [
-                key,
-                value,
-              ]
-            ) => (
-              <article
-                key={key}
-                className="flex items-center justify-between gap-4 rounded-2xl border border-rose-500/15 bg-background/70 p-4"
-              >
-                <p className="text-sm font-bold">
-                  {DIFFERENCE_LABELS[
-                    key
-                  ]}
-                </p>
-
-                <p className="font-black text-rose-600 dark:text-rose-300">
-                  {formatDifference(
-                    value
-                  )}
-                </p>
-              </article>
-            )
-          )
+          differences.map(([key, value]) => (
+            <article
+              key={key}
+              className="flex items-center justify-between gap-4 rounded-2xl border border-rose-500/15 bg-background/70 p-4"
+            >
+              <p className="text-sm font-bold">{differenceLabels[key]}</p>
+              <p className="font-black text-rose-600 dark:text-rose-300">
+                {formatDifference(value, currency, intlLocale)}
+              </p>
+            </article>
+          ))
         )}
       </div>
 
       <div className="mt-5 flex items-start gap-3 rounded-2xl border border-border/60 bg-background/60 p-4">
-        <ShieldCheck
-          className="mt-0.5 shrink-0 text-rose-600"
-          size={18}
-        />
-
+        <ShieldCheck className="mt-0.5 shrink-0 text-rose-600" size={18} />
         <p className="text-xs leading-5 text-muted-foreground">
-          Cette alerte est uniquement diagnostique. Consulte l'audit financier détaillé avant toute action manuelle. Stripe et le ledger restent inchangés.
+          {t("reconciliationDiagnostic")}
         </p>
       </div>
     </section>
