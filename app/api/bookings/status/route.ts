@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
@@ -631,69 +631,71 @@ export async function POST(request: Request) {
       });
     }
 
-    if (nextStatus === "accepted") {
-      await createNotification({
-        userId: booking.parent_id,
-        bookingId: booking.id,
-        type: "booking_accepted",
-        title: "Réservation acceptée",
-        message:
-          "Le prestataire a accepté ta demande. Tu peux maintenant payer.",
-        deduplicationKey:
-          `booking:${booking.id}:accepted`,
-      });
-    }
-
-    if (nextStatus === "rejected") {
-      await createNotification({
-        userId: booking.parent_id,
-        bookingId: booking.id,
-        type: "booking_rejected",
-        title: "Réservation refusée",
-        message:
-          note ||
-          "Le prestataire n’est pas disponible pour cette demande.",
-        deduplicationKey:
-          `booking:${booking.id}:rejected`,
-      });
-    }
-
-    if (nextStatus === "cancelled") {
-      const recipientId = isClient
-        ? providerId
-        : booking.parent_id;
-
-      if (recipientId) {
-        await createNotification({
-          userId: recipientId,
-          bookingId: booking.id,
-          type: "booking_cancelled",
-          title: "Réservation annulée",
-          message: refundCompleted
-            ? `${note} Le paiement a été remboursé automatiquement.`
-            : note || "La réservation a été annulée.",
-          deduplicationKey:
-            `booking:${booking.id}:cancelled:${profile.id}`,
-        });
-      }
-
-      if (refundCompleted) {
+    after(async () => {
+      if (nextStatus === "accepted") {
         await createNotification({
           userId: booking.parent_id,
           bookingId: booking.id,
-          type: "system",
-          title: refundConfirmed
-            ? "Remboursement confirmé"
-            : "Remboursement lancé",
-          message: refundConfirmed
-            ? "Stripe a confirmé le remboursement de cette réservation."
-            : "Stripe a reçu la demande de remboursement. Le délai bancaire peut varier.",
-          deduplicationKey: refundConfirmed
-            ? `booking:${booking.id}:refund-confirmed`
-            : `booking:${booking.id}:refund`,
+          type: "booking_accepted",
+          title: "Réservation acceptée",
+          message:
+            "Le prestataire a accepté ta demande. Tu peux maintenant payer.",
+          deduplicationKey:
+            `booking:${booking.id}:accepted`,
         });
       }
-    }
+
+      if (nextStatus === "rejected") {
+        await createNotification({
+          userId: booking.parent_id,
+          bookingId: booking.id,
+          type: "booking_rejected",
+          title: "Réservation refusée",
+          message:
+            note ||
+            "Le prestataire n’est pas disponible pour cette demande.",
+          deduplicationKey:
+            `booking:${booking.id}:rejected`,
+        });
+      }
+
+      if (nextStatus === "cancelled") {
+        const recipientId = isClient
+          ? providerId
+          : booking.parent_id;
+
+        if (recipientId) {
+          await createNotification({
+            userId: recipientId,
+            bookingId: booking.id,
+            type: "booking_cancelled",
+            title: "Réservation annulée",
+            message: refundCompleted
+              ? `${note} Le paiement a été remboursé automatiquement.`
+              : note || "La réservation a été annulée.",
+            deduplicationKey:
+              `booking:${booking.id}:cancelled:${profile.id}`,
+          });
+        }
+
+        if (refundCompleted) {
+          await createNotification({
+            userId: booking.parent_id,
+            bookingId: booking.id,
+            type: "system",
+            title: refundConfirmed
+              ? "Remboursement confirmé"
+              : "Remboursement lancé",
+            message: refundConfirmed
+              ? "Stripe a confirmé le remboursement de cette réservation."
+              : "Stripe a reçu la demande de remboursement. Le délai bancaire peut varier.",
+            deduplicationKey: refundConfirmed
+              ? `booking:${booking.id}:refund-confirmed`
+              : `booking:${booking.id}:refund`,
+          });
+        }
+      }
+    });
 
     return NextResponse.json({
       status: nextStatus,
