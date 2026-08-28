@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       target_url:
-        description: "Canonical KLYX production origin (optional if repository variable is configured)"
+        description: "Canonical KLYX production origin (optional; repository variable overrides the built-in fallback)"
         required: false
         type: string
 
@@ -21,12 +21,12 @@ concurrency:
 jobs:
   public-smoke:
     name: Read-only canonical production smoke
-    if: ${{ github.event_name == 'workflow_dispatch' || vars.KLYX_OPERATIONAL_SENTINEL_ENABLED == 'true' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
     env:
-      KLYX_PRODUCTION_URL: ${{ inputs.target_url || vars.KLYX_PRODUCTION_URL }}
+      KLYX_PRODUCTION_URL: ${{ inputs.target_url || vars.KLYX_PRODUCTION_URL || 'https://klyx-ten.vercel.app' }}
 
     steps:
       - name: Checkout repository
