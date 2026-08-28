@@ -34,6 +34,22 @@ describe("Stripe Connect stale account recovery contract", () => {
     expect(createAccount).toContain("throw error;");
   });
 
+  it("surfaces Stripe platform activation as a safe actionable conflict", () => {
+    expect(recovery).toContain(
+      "Your account must be activated in order to create accounts."
+    );
+    expect(createAccount).toContain(
+      "isStripePlatformActivationRequired(error)"
+    );
+    expect(createAccount).toContain(
+      'code: "KLYX_STRIPE_PLATFORM_ACTIVATION_REQUIRED"'
+    );
+    expect(createAccount).toContain("status: 409");
+    expect(createAccount).toContain(
+      "Le compte Stripe principal KLYX doit être activé"
+    );
+  });
+
   it("replaces a stale stored account only inside the onboarding POST", () => {
     const linkAttempt = createAccount.indexOf(
       "accountLink = await createAccountLink(accountId)"
