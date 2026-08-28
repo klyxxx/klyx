@@ -4,6 +4,7 @@ import {
   isMissingStripeConnectAccount,
   isRecoverableStripeConnectAccountForOnboarding,
   isStripeConnectAccountModeMismatch,
+  isStripePlatformActivationRequired,
 } from "../../lib/stripe-connect-account-recovery";
 
 describe("Stripe Connect stale account recovery", () => {
@@ -40,6 +41,30 @@ describe("Stripe Connect stale account recovery", () => {
     ).toBe(true);
   });
 
+  it("recognizes only Stripe's exact platform activation blocker", () => {
+    expect(
+      isStripePlatformActivationRequired({
+        message:
+          "Your account must be activated in order to create accounts. You can activate your accounts at https://dashboard.stripe.com/account/onboarding.",
+      })
+    ).toBe(true);
+
+    expect(
+      isStripePlatformActivationRequired({
+        raw: {
+          message:
+            "Your account must be activated in order to create accounts. You can activate your accounts at https://dashboard.stripe.com/account/onboarding.",
+        },
+      })
+    ).toBe(true);
+
+    expect(
+      isStripePlatformActivationRequired({
+        message: "Your account must be activated.",
+      })
+    ).toBe(false);
+  });
+
   it("does not broaden mode-mismatch recovery to arbitrary 400 errors", () => {
     expect(
       isStripeConnectAccountModeMismatch({
@@ -71,6 +96,13 @@ describe("Stripe Connect stale account recovery", () => {
           "You tried to create a live mode account link for an account that was created in test mode.",
       })
     ).toBe(true);
+
+    expect(
+      isRecoverableStripeConnectAccountForOnboarding({
+        message:
+          "Your account must be activated in order to create accounts. You can activate your accounts at https://dashboard.stripe.com/account/onboarding.",
+      })
+    ).toBe(false);
 
     expect(
       isRecoverableStripeConnectAccountForOnboarding({
