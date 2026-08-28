@@ -1,10 +1,8 @@
 // KLYX_PROVIDER_PAYMENTS_UI_CURRENCY_PHASE_5C
 "use client";
 
-import FinanceExportButton from "./FinanceExportButton";
-import FinanceReconciliationStatus from "./FinanceReconciliationStatus";
-import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   AlertCircle,
   ArrowLeft,
@@ -21,7 +19,18 @@ import {
   WalletCards,
   XCircle,
 } from "lucide-react";
+
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import {
+  klyxProviderFinanceIntlLocale,
+  translateKlyxProviderFinance,
+  type KlyxProviderFinanceMessageKey,
+  type KlyxProviderFinanceMessageValues,
+} from "@/lib/klyx-provider-finance-i18n";
 import { createClient } from "@/lib/supabase/client";
+
+import FinanceExportButton from "./FinanceExportButton";
+import FinanceReconciliationStatus from "./FinanceReconciliationStatus";
 import ProviderFinanceAudit from "./ProviderFinanceAudit";
 
 // KLYX_PROVIDER_LIVE_PAYMENT_READINESS_UI_15_06
@@ -105,98 +114,71 @@ const EMPTY_SUMMARY: FinanceSummary = {
   successfulRefunds: 0,
 };
 
-function money(
-  cents: number,
-  currency: string
-) {
-  const code =
-    currency
-      ?.trim()
-      .toUpperCase();
+function money(cents: number, currency: string, intlLocale: string) {
+  const code = currency?.trim().toUpperCase();
 
-  if (
-    !/^[A-Z]{3}$/.test(
-      code
-    )
-  ) {
-    return (cents / 100).toFixed(2);
+  if (!/^[A-Z]{3}$/.test(code)) {
+    return new Intl.NumberFormat(intlLocale, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(cents / 100);
   }
 
-  return new Intl.NumberFormat(
-    "fr-BE",
-    {
-      style:
-        "currency",
-      currency:
-        code,
-    }
-  ).format(
-    cents / 100
-  );
+  return new Intl.NumberFormat(intlLocale, {
+    style: "currency",
+    currency: code,
+  }).format(cents / 100);
 }
 
-function dateTime(value: string) {
-  return new Intl.DateTimeFormat("fr-BE", {
+function dateTime(value: string, intlLocale: string) {
+  return new Intl.DateTimeFormat(intlLocale, {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
 }
 
-function transactionLabel(entry: FinanceTransaction) {
-  if (entry.entryType === "payment_succeeded") {
-    return "Paiement reçu";
-  }
-
-  if (entry.entryType === "payment_failed") {
-    return "Paiement refusé";
-  }
-
-  if (
-    entry.entryType === "refund_succeeded" &&
-    entry.status === "processing"
-  ) {
-    return "Remboursement en cours";
-  }
-
-  if (entry.entryType === "refund_succeeded") {
-    return "Remboursement confirmé";
-  }
-
-  return "Remboursement échoué";
-}
-
-function statusLabel(status: FinanceTransaction["status"]) {
-  if (status === "succeeded") return "Confirmé";
-  if (status === "processing") return "En cours";
-  return "Échec";
-}
-
 export default function ProviderPaymentsPage() {
-  const [status, setStatus] =
-    useState<StripeStatus>(EMPTY_STATUS);
-  const [summary, setSummary] =
-    useState<FinanceSummary>(EMPTY_SUMMARY);
-  const [transactions, setTransactions] =
-    useState<FinanceTransaction[]>([]);
+  const { locale } = useKlyxLocale();
+  const intlLocale = klyxProviderFinanceIntlLocale(locale);
+  const t = (
+    key: KlyxProviderFinanceMessageKey,
+    values: KlyxProviderFinanceMessageValues = {}
+  ) => translateKlyxProviderFinance(locale, key, values);
+
+  const [status, setStatus] = useState<StripeStatus>(EMPTY_STATUS);
+  const [summary, setSummary] = useState<FinanceSummary>(EMPTY_SUMMARY);
+  const [transactions, setTransactions] = useState<FinanceTransaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [openingStripe, setOpeningStripe] =
-    useState(false);
-  const [errorMessage, setErrorMessage] =
-    useState("");
+  const [openingStripe, setOpeningStripe] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  function transactionLabel(entry: FinanceTransaction) {
+    if (entry.entryType === "payment_succeeded") return t("paymentReceived");
+    if (entry.entryType === "payment_failed") return t("paymentDeclined");
+    if (
+      entry.entryType === "refund_succeeded" &&
+      entry.status === "processing"
+    ) {
+      return t("refundProcessingLabel");
+    }
+    if (entry.entryType === "refund_succeeded") return t("refundConfirmed");
+    return t("refundFailed");
+  }
+
+  function statusLabel(entryStatus: FinanceTransaction["status"]) {
+    if (entryStatus === "succeeded") return t("statusConfirmed");
+    if (entryStatus === "processing") return t("statusProcessing");
+    return t("statusFailed");
+  }
 
   async function getAccessToken(): Promise<string> {
     const supabase = createClient();
     const {
       data: { session },
-      error,
     } = await supabase.auth.getSession();
 
-    if (error) throw new Error(error.message);
-
     if (!session?.access_token) {
-      throw new Error(
-        "Session manquante. Reconnecte-toi puis réessaie."
-      );
+      throw new Error("KLYX_AUTH_REQUIRED");
     }
 
     return session.access_token;
@@ -208,54 +190,32 @@ export default function ProviderPaymentsPage() {
 
     try {
       const accessToken = await getAccessToken();
+      const headers = { Authorization: `Bearer ${accessToken}` };
+      const [stripeResponse, financeResponse] = await Promise.all([
+        fetch("/api/stripe/connect/status", {
+          method: "GET",
+          cache: "no-store",
+          headers,
+        }),
+        fetch("/api/provider/finance", {
+          method: "GET",
+          cache: "no-store",
+          headers,
+        }),
+      ]);
 
-      const headers = {
-        Authorization: `Bearer ${accessToken}`,
-      };
+      const stripeResult = (await stripeResponse.json()) as StripeStatus;
+      const financeResult = (await financeResponse.json()) as FinanceResponse;
 
-      const [stripeResponse, financeResponse] =
-        await Promise.all([
-          fetch("/api/stripe/connect/status", {
-            method: "GET",
-            cache: "no-store",
-            headers,
-          }),
-          fetch("/api/provider/finance", {
-            method: "GET",
-            cache: "no-store",
-            headers,
-          }),
-        ]);
-
-      const stripeResult =
-        (await stripeResponse.json()) as StripeStatus;
-
-      const financeResult =
-        (await financeResponse.json()) as FinanceResponse;
-
-      if (!stripeResponse.ok) {
-        throw new Error(
-          stripeResult.error ||
-            "Impossible de vérifier le compte Stripe."
-        );
-      }
-
-      if (!financeResponse.ok) {
-        throw new Error(
-          financeResult.error ||
-            "Impossible de charger les finances."
-        );
+      if (!stripeResponse.ok || !financeResponse.ok) {
+        throw new Error("KLYX_PROVIDER_FINANCE_LOAD_FAILED");
       }
 
       setStatus(stripeResult);
       setSummary(financeResult.summary ?? EMPTY_SUMMARY);
       setTransactions(financeResult.transactions ?? []);
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Impossible de charger les paiements."
-      );
+    } catch {
+      setErrorMessage(t("genericLoadError"));
     } finally {
       setLoading(false);
     }
@@ -263,6 +223,8 @@ export default function ProviderPaymentsPage() {
 
   useEffect(() => {
     void loadAll();
+    // Locale changes intentionally re-render formatting/copy without refetching.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function continueVerification() {
@@ -271,36 +233,22 @@ export default function ProviderPaymentsPage() {
 
     try {
       const accessToken = await getAccessToken();
-
-      const response = await fetch(
-        "/api/stripe/connect/create-account",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
-
+      const response = await fetch("/api/stripe/connect/create-account", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
       const result = (await response.json()) as {
         url?: string;
         error?: string;
       };
 
       if (!response.ok || !result.url) {
-        throw new Error(
-          result.error ||
-            "Impossible d’ouvrir la vérification Stripe."
-        );
+        throw new Error("KLYX_STRIPE_CONNECT_OPEN_FAILED");
       }
 
       window.location.assign(result.url);
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Impossible d’ouvrir Stripe."
-      );
+    } catch {
+      setErrorMessage(t("genericStripeOpenError"));
       setOpeningStripe(false);
     }
   }
@@ -309,48 +257,49 @@ export default function ProviderPaymentsPage() {
   const stripeConfigured = Boolean(status.stripeConfigured);
   const testMode = status.runtimeMode === "test";
   const livePaymentsDisabled =
-    status.runtimeMode === "live" &&
-    status.livePaymentsEnabled === false;
+    status.runtimeMode === "live" && status.livePaymentsEnabled === false;
   const marketBlocked =
     status.runtimeMode === "live" &&
     status.livePaymentsEnabled !== false &&
     status.marketCommerciallyReady === false;
 
   const readinessTitle = fullyReady
-    ? "Compte prêt à recevoir des paiements"
+    ? t("readinessReadyTitle")
     : testMode
       ? stripeConfigured
-        ? "Stripe configuré en mode test"
-        : "Configuration Stripe de test"
+        ? t("readinessTestReadyTitle")
+        : t("readinessTestSetupTitle")
       : livePaymentsDisabled
-        ? "Paiements réels KLYX désactivés"
+        ? t("readinessLiveDisabledTitle")
         : marketBlocked
-          ? "Paiements réels pas encore ouverts dans ce pays"
+          ? t("readinessMarketBlockedTitle")
           : status.connected
-            ? "Vérification Stripe à terminer"
-            : "Compte Stripe à configurer";
+            ? t("readinessVerificationTitle")
+            : t("readinessSetupTitle");
 
   const readinessDescription = fullyReady
-    ? "Paiements et virements réels activés."
+    ? t("readinessReadyDescription")
     : testMode
-      ? "Cette configuration sert aux tests KLYX. Elle ne signifie pas que les paiements réels sont ouverts."
+      ? t("readinessTestDescription")
       : livePaymentsDisabled
-        ? "KLYX garde les paiements réels fermés pour le moment."
+        ? t("readinessLiveDisabledDescription")
         : marketBlocked
-          ? `Stripe peut être configuré, mais KLYX n'a pas encore ouvert commercialement les paiements réels${
-              status.countryCode ? ` en ${status.countryCode}` : " dans ce pays"
-            }.`
-          : "Ouvre Stripe pour corriger ou compléter les informations demandées.";
+          ? status.countryCode
+            ? t("readinessMarketBlockedCountry", {
+                country: status.countryCode,
+              })
+            : t("readinessMarketBlockedGeneric")
+          : t("readinessVerificationDescription");
 
   const stripeButtonLabel = testMode
     ? stripeConfigured
-      ? "Gérer Stripe test"
+      ? t("stripeManageTest")
       : status.connected
-        ? "Continuer Stripe test"
-        : "Configurer Stripe test"
+        ? t("stripeContinueTest")
+        : t("stripeConfigureTest")
     : status.connected
-      ? "Continuer la vérification"
-      : "Configurer les paiements";
+      ? t("stripeContinueVerification")
+      : t("stripeConfigurePayments");
 
   const netAfterRefunds = Math.max(
     summary.providerAmountCents - summary.refundedCents,
@@ -365,85 +314,69 @@ export default function ProviderPaymentsPage() {
           className="inline-flex items-center gap-2 text-sm font-bold text-muted-foreground transition hover:text-foreground"
         >
           <ArrowLeft size={17} />
-          Espace prestataire
+          {t("backProvider")}
         </Link>
 
         <section className="mt-6 rounded-[2rem] bg-[linear-gradient(135deg,#17131f,#2b1452_52%,#111827)] p-8 text-white">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em]">
             <WalletCards size={15} />
-            Paiements prestataire
+            {t("pageEyebrow")}
           </div>
 
           {/* KLYX_AI_FIRST_PROVIDER_FINANCE_15_04 */}
           <h1 className="mt-5 text-3xl font-black sm:text-5xl">
-            Mes finances KLYX
+            {t("pageTitle")}
           </h1>
         </section>
 
         {errorMessage && (
           <div className="mt-6 flex items-start gap-3 rounded-2xl border border-rose-500/25 bg-rose-500/10 p-4 text-sm text-rose-700 dark:text-rose-300">
-            <AlertCircle
-              className="mt-0.5 shrink-0"
-              size={19}
-            />
+            <AlertCircle className="mt-0.5 shrink-0" size={19} />
             {errorMessage}
           </div>
         )}
 
         {loading ? (
           <section className="klyx-card mt-8 grid min-h-56 place-items-center">
-            <LoaderCircle
-              className="animate-spin text-violet-600"
-              size={38}
-            />
+            <LoaderCircle className="animate-spin text-violet-600" size={38} />
           </section>
         ) : (
           <>
             <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <MoneyCard
                 icon={<TrendingUp size={21} />}
-                title="Payé par les clients"
-                value={money(
-                  summary.grossPaidCents,
-                  summary.currency
-                )}
-                detail={`${summary.successfulPayments} paiement(s) confirmé(s)`}
+                title={t("paidByClients")}
+                value={money(summary.grossPaidCents, summary.currency, intlLocale)}
+                detail={t("confirmedPayments", {
+                  count: summary.successfulPayments,
+                })}
               />
-
               <MoneyCard
                 icon={<Banknote size={21} />}
-                title="Commission KLYX"
-                value={money(
-                  summary.platformFeeCents,
-                  summary.currency
-                )}
-                detail="Commission enregistrée"
+                title={t("platformFee")}
+                value={money(summary.platformFeeCents, summary.currency, intlLocale)}
+                detail={t("platformFeeRecorded")}
               />
-
               <MoneyCard
                 icon={<WalletCards size={21} />}
-                title="Montant prestataire"
-                value={money(
-                  summary.providerAmountCents,
-                  summary.currency
-                )}
-                detail="Avant remboursements"
+                title={t("providerAmount")}
+                value={money(summary.providerAmountCents, summary.currency, intlLocale)}
+                detail={t("beforeRefunds")}
               />
-
               <MoneyCard
                 icon={<RotateCcw size={21} />}
-                title="Remboursé"
-                value={money(
-                  summary.refundedCents,
-                  summary.currency
-                )}
+                title={t("refunded")}
+                value={money(summary.refundedCents, summary.currency, intlLocale)}
                 detail={
                   summary.refundsProcessingCents > 0
-                    ? `${money(
-                        summary.refundsProcessingCents,
-                        summary.currency
-                      )} en cours`
-                    : `${summary.successfulRefunds} remboursement(s)`
+                    ? t("refundProcessing", {
+                        amount: money(
+                          summary.refundsProcessingCents,
+                          summary.currency,
+                          intlLocale
+                        ),
+                      })
+                    : t("refundCount", { count: summary.successfulRefunds })
                 }
               />
             </section>
@@ -452,28 +385,24 @@ export default function ProviderPaymentsPage() {
               <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-xs font-black uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
-                    Situation financière
+                    {t("financialSituation")}
                   </p>
-
                   <h2 className="mt-2 text-2xl font-black">
-                    {money(
-                      netAfterRefunds,
-                      summary.currency
-                    )} après remboursements
+                    {t("afterRefunds", {
+                      amount: money(netAfterRefunds, summary.currency, intlLocale),
+                    })}
                   </h2>
-
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Journal KLYX · paiements traités par Stripe.
+                    {t("canonicalJournal")}
                   </p>
                 </div>
-
                 <button
                   type="button"
                   onClick={() => void loadAll()}
                   className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-border px-4 text-sm font-bold transition hover:bg-muted"
                 >
                   <RefreshCw size={17} />
-                  Actualiser
+                  {t("refresh")}
                 </button>
               </div>
             </section>
@@ -489,23 +418,13 @@ export default function ProviderPaymentsPage() {
                 <div className="flex gap-4">
                   <div
                     className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-foreground dark:text-white ${
-                      fullyReady
-                        ? "bg-emerald-600"
-                        : "bg-amber-500"
+                      fullyReady ? "bg-emerald-600" : "bg-amber-500"
                     }`}
                   >
-                    {fullyReady ? (
-                      <BadgeCheck />
-                    ) : (
-                      <Clock3 />
-                    )}
+                    {fullyReady ? <BadgeCheck /> : <Clock3 />}
                   </div>
-
                   <div>
-                    <h2 className="text-xl font-black">
-                      {readinessTitle}
-                    </h2>
-
+                    <h2 className="text-xl font-black">{readinessTitle}</h2>
                     <p className="mt-2 text-sm text-muted-foreground">
                       {readinessDescription}
                     </p>
@@ -515,21 +434,15 @@ export default function ProviderPaymentsPage() {
                 {!fullyReady && status.connectSetupAllowed && (
                   <button
                     type="button"
-                    onClick={() =>
-                      void continueVerification()
-                    }
+                    onClick={() => void continueVerification()}
                     disabled={openingStripe}
                     className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-violet-600 px-5 text-sm font-bold text-white transition hover:bg-violet-500 disabled:opacity-60"
                   >
                     {openingStripe ? (
-                      <LoaderCircle
-                        size={18}
-                        className="animate-spin"
-                      />
+                      <LoaderCircle size={18} className="animate-spin" />
                     ) : (
                       <ExternalLink size={18} />
                     )}
-
                     {stripeButtonLabel}
                   </button>
                 )}
@@ -539,34 +452,31 @@ export default function ProviderPaymentsPage() {
             <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <StatusCard
                 icon={<ShieldCheck size={20} />}
-                title="Compte Stripe"
+                title={t("stripeAccount")}
                 ready={status.connected}
-                readyText="Connecté"
-                waitingText="Non configuré"
+                readyText={t("connected")}
+                waitingText={t("notConfigured")}
               />
-
               <StatusCard
                 icon={<BadgeCheck size={20} />}
-                title="Identité et informations"
+                title={t("identityInformation")}
                 ready={status.onboardingComplete}
-                readyText="Informations envoyées"
-                waitingText="À compléter ou en examen"
+                readyText={t("informationSubmitted")}
+                waitingText={t("informationReview")}
               />
-
               <StatusCard
                 icon={<Banknote size={20} />}
-                title="Paiements Stripe"
+                title={t("stripePayments")}
                 ready={status.chargesEnabled}
-                readyText="Activés chez Stripe"
-                waitingText="Non activés chez Stripe"
+                readyText={t("enabledAtStripe")}
+                waitingText={t("disabledAtStripe")}
               />
-
               <StatusCard
                 icon={<WalletCards size={20} />}
-                title="Virements Stripe"
+                title={t("stripePayouts")}
                 ready={status.payoutsEnabled}
-                readyText="Activés chez Stripe"
-                waitingText="Non activés chez Stripe"
+                readyText={t("enabledAtStripe")}
+                waitingText={t("disabledAtStripe")}
               />
             </section>
 
@@ -581,27 +491,26 @@ export default function ProviderPaymentsPage() {
 
             <section className="klyx-card mt-6 overflow-hidden">
               <div className="border-b border-border p-6">
-                <h2 className="text-xl font-black">
-                  Transactions récentes
-                </h2>
+                <h2 className="text-xl font-black">{t("recentTransactions")}</h2>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Paiements et remboursements de tes réservations.
+                  {t("recentTransactionsDescription")}
                 </p>
               </div>
 
               {transactions.length === 0 ? (
                 <div className="p-8 text-center text-sm text-muted-foreground">
-                  Aucune transaction financière pour le moment.
+                  {t("noTransactions")}
                 </div>
               ) : (
                 <div className="divide-y divide-border">
                   {transactions.map((entry) => {
-                    const isRefund =
-                      entry.entryType.startsWith("refund");
-
+                    const isRefund = entry.entryType.startsWith("refund");
                     const mainAmount = isRefund
                       ? entry.refundAmountCents
                       : entry.grossAmountCents;
+                    const hasFailureDetail = Boolean(
+                      entry.failureCode || entry.failureMessage
+                    );
 
                     return (
                       <article
@@ -610,10 +519,7 @@ export default function ProviderPaymentsPage() {
                       >
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-black">
-                              {transactionLabel(entry)}
-                            </p>
-
+                            <p className="font-black">{transactionLabel(entry)}</p>
                             <span
                               className={`rounded-full px-2.5 py-1 text-xs font-black ${
                                 entry.status === "succeeded"
@@ -628,36 +534,36 @@ export default function ProviderPaymentsPage() {
                           </div>
 
                           <p className="mt-1 text-xs text-muted-foreground">
-                            {dateTime(entry.createdAt)}
+                            {dateTime(entry.createdAt, intlLocale)}
                             {" · "}
-                            Réservation{" "}
-                            {entry.bookingId.slice(0, 8)}
+                            {t("bookingShort", {
+                              id: entry.bookingId.slice(0, 8),
+                            })}
                           </p>
 
-                          {entry.failureMessage && (
+                          {hasFailureDetail && entry.status === "failed" && (
                             <p className="mt-2 text-sm text-rose-600 dark:text-rose-400">
-                              {entry.failureMessage}
+                              {t("genericTransactionFailure")}
                             </p>
                           )}
 
-                          {!isRefund &&
-                            entry.status === "succeeded" && (
-                              <p className="mt-2 text-xs text-muted-foreground">
-                                Commission KLYX :{" "}
-                                {money(
-                                  entry.platformFeeCents,
-                                  entry.currency
-                                )}
-                                {" · "}
-                                Prestataire :{" "}
-                                {entry.providerAmountCents == null
-                                  ? "non calculé"
-                                  : money(
-                                      entry.providerAmountCents,
-                                      entry.currency
-                                    )}
-                              </p>
-                            )}
+                          {!isRefund && entry.status === "succeeded" && (
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              {t("platformFee")}: {money(
+                                entry.platformFeeCents,
+                                entry.currency,
+                                intlLocale
+                              )}
+                              {" · "}
+                              {t("providerShare")}: {entry.providerAmountCents == null
+                                ? t("notCalculated")
+                                : money(
+                                    entry.providerAmountCents,
+                                    entry.currency,
+                                    intlLocale
+                                  )}
+                            </p>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-4 sm:text-right">
@@ -671,17 +577,14 @@ export default function ProviderPaymentsPage() {
                             }`}
                           >
                             {isRefund ? "−" : ""}
-                            {money(
-                              mainAmount,
-                              entry.currency
-                            )}
+                            {money(mainAmount, entry.currency, intlLocale)}
                           </p>
 
                           <Link
                             href={`/bookings/${entry.bookingId}`}
                             className="text-sm font-black text-violet-600 dark:text-violet-400"
                           >
-                            Voir
+                            {t("view")}
                           </Link>
                         </div>
                       </article>
@@ -713,16 +616,9 @@ function MoneyCard({
       <span className="grid h-11 w-11 place-items-center rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
         {icon}
       </span>
-
-      <p className="mt-5 text-sm font-bold text-muted-foreground">
-        {title}
-      </p>
-
+      <p className="mt-5 text-sm font-bold text-muted-foreground">{title}</p>
       <p className="mt-1 text-2xl font-black">{value}</p>
-
-      <p className="mt-2 text-xs text-muted-foreground">
-        {detail}
-      </p>
+      <p className="mt-2 text-xs text-muted-foreground">{detail}</p>
     </article>
   );
 }
@@ -747,7 +643,6 @@ function StatusCard({
           <span className="grid h-10 w-10 place-items-center rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
             {icon}
           </span>
-
           <div>
             <p className="font-black">{title}</p>
             <p className="mt-1 text-xs text-muted-foreground">
@@ -755,17 +650,10 @@ function StatusCard({
             </p>
           </div>
         </div>
-
         {ready ? (
-          <CheckCircle2
-            className="text-emerald-500"
-            size={21}
-          />
+          <CheckCircle2 className="text-emerald-500" size={21} />
         ) : (
-          <XCircle
-            className="text-amber-500"
-            size={21}
-          />
+          <XCircle className="text-amber-500" size={21} />
         )}
       </div>
     </article>
