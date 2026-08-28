@@ -3,10 +3,10 @@ type StripeRuntimeMode = "test" | "live";
 // Rotate this deterministic revision only when KLYX must intentionally escape
 // a previously cached Stripe account-creation result. Stripe can replay the
 // original response for an idempotency key, including a 400 produced before
-// the platform was activated. Keeping the revision deterministic preserves
-// duplicate-account protection while allowing a fresh request after that
-// platform state changes.
-const STRIPE_CONNECT_ACCOUNT_CREATE_KEY_REVISION = "v2";
+// required platform configuration was completed. Keeping the revision
+// deterministic preserves duplicate-account protection while allowing a fresh
+// request after Stripe platform state changes.
+const STRIPE_CONNECT_ACCOUNT_CREATE_KEY_REVISION = "v3";
 
 function normalizeToken(value: string): string {
   return value.trim().replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 96);
