@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import {
   AlertTriangle,
   Banknote,
@@ -9,8 +10,14 @@ import {
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
 
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import {
+  klyxProviderFinanceIntlLocale,
+  translateKlyxProviderFinance,
+  type KlyxProviderFinanceMessageKey,
+  type KlyxProviderFinanceMessageValues,
+} from "@/lib/klyx-provider-finance-i18n";
 import { createClient } from "@/lib/supabase/client";
 
 // KLYX_GROUP_FINANCE_AUDIT_UI_13_03
@@ -56,47 +63,47 @@ type StripeFinancialStatus = {
   error?: string;
 };
 
-function money(cents: number, currency: string) {
+function money(cents: number, currency: string, intlLocale: string) {
   const code = currency.trim().toUpperCase();
 
   if (!/^[A-Z]{3}$/.test(code)) {
-    return (cents / 100).toFixed(2);
+    return new Intl.NumberFormat(intlLocale, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(cents / 100);
   }
 
-  return new Intl.NumberFormat("fr-BE", {
+  return new Intl.NumberFormat(intlLocale, {
     style: "currency",
     currency: code,
   }).format(cents / 100);
 }
 
-function amountsLabel(amounts: StripeAmount[], fallbackCurrency: string) {
+function amountsLabel(
+  amounts: StripeAmount[],
+  fallbackCurrency: string,
+  intlLocale: string
+) {
   if (amounts.length === 0) {
-    return money(0, fallbackCurrency || "eur");
+    return money(0, fallbackCurrency || "eur", intlLocale);
   }
 
   return amounts
-    .map((entry) => money(entry.amountCents, entry.currency))
+    .map((entry) => money(entry.amountCents, entry.currency, intlLocale))
     .join(" · ");
 }
 
-function dateLabel(value: string | null) {
-  if (!value) return "Date non disponible";
-
-  return new Intl.DateTimeFormat("fr-BE", {
-    dateStyle: "medium",
-  }).format(new Date(value));
-}
-
-function payoutStatusLabel(status: string) {
-  if (status === "paid") return "Versé";
-  if (status === "in_transit") return "En route";
-  if (status === "pending") return "En attente";
-  if (status === "failed") return "Échec";
-  if (status === "canceled") return "Annulé";
-  return status;
-}
-
 export default function ProviderFinanceAudit() {
+  const { locale } = useKlyxLocale();
+  const intlLocale = klyxProviderFinanceIntlLocale(locale);
+  const t = useCallback(
+    (
+      key: KlyxProviderFinanceMessageKey,
+      values: KlyxProviderFinanceMessageValues = {}
+    ) => translateKlyxProviderFinance(locale, key, values),
+    [locale]
+  );
+
   const [audit, setAudit] = useState<FinanceAudit | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -104,6 +111,23 @@ export default function ProviderFinanceAudit() {
     useState<StripeFinancialStatus | null>(null);
   const [stripeFinanceLoading, setStripeFinanceLoading] = useState(true);
   const [stripeFinanceError, setStripeFinanceError] = useState("");
+
+  function dateLabel(value: string | null) {
+    if (!value) return t("dateUnavailable");
+
+    return new Intl.DateTimeFormat(intlLocale, {
+      dateStyle: "medium",
+    }).format(new Date(value));
+  }
+
+  function payoutStatusLabel(status: string) {
+    if (status === "paid") return t("payoutPaid");
+    if (status === "in_transit") return t("payoutTransit");
+    if (status === "pending") return t("payoutPending");
+    if (status === "failed") return t("payoutFailed");
+    if (status === "canceled") return t("payoutCanceled");
+    return status;
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -117,15 +141,10 @@ export default function ProviderFinanceAudit() {
       const supabase = createClient();
       const {
         data: { session },
-        error: sessionError,
       } = await supabase.auth.getSession();
 
-      if (sessionError) {
-        throw new Error(sessionError.message);
-      }
-
       if (!session?.access_token) {
-        throw new Error("Session KLYX manquante.");
+        throw new Error("KLYX_AUTH_REQUIRED");
       }
 
       const headers = {
@@ -148,7 +167,6 @@ export default function ProviderFinanceAudit() {
       };
 
       let stripeBody: StripeFinancialStatus | null = null;
-
       try {
         stripeBody = (await stripeResponse.json()) as StripeFinancialStatus;
       } catch {
@@ -160,40 +178,40 @@ export default function ProviderFinanceAudit() {
         setStripeFinance(stripeBody);
       } else {
         setStripeFinance(null);
-        setStripeFinanceError(
-          stripeBody?.error || "Solde Stripe temporairement indisponible."
-        );
+        setStripeFinanceError(t("genericStripeBalanceError"));
       }
 
       if (!auditResponse.ok) {
-        throw new Error(
-          auditBody.error || "Audit financier indisponible."
-        );
+        throw new Error("KLYX_PROVIDER_FINANCE_AUDIT_FAILED");
       }
 
       setAudit(auditBody);
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Audit financier indisponible.";
-
-      setErrorMessage(message);
+    } catch {
+      setAudit(null);
+      setErrorMessage(t("genericAuditError"));
 
       if (!stripeFinanceResolved) {
-        setStripeFinanceError((current) => current || message);
+        setStripeFinanceError((current) =>
+          current || t("genericStripeBalanceError")
+        );
       }
     } finally {
       setLoading(false);
       setStripeFinanceLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   const latestPayout = stripeFinance?.payouts?.[0] ?? null;
+  const latestPayoutFailed = Boolean(
+    latestPayout &&
+      (latestPayout.status === "failed" ||
+        latestPayout.failureCode ||
+        latestPayout.failureMessage)
+  );
 
   return (
     <section className="klyx-card mt-6 p-5 sm:p-6">
@@ -202,17 +220,11 @@ export default function ProviderFinanceAudit() {
           <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
             <ShieldCheck size={21} />
           </div>
-
           <div>
-            <p className="klyx-eyebrow">KLYX Finance</p>
-
-            <h2 className="mt-1 text-xl font-black">
-              Audit paiements groupés
-            </h2>
-
+            <p className="klyx-eyebrow">{t("auditEyebrow")}</p>
+            <h2 className="mt-1 text-xl font-black">{t("auditTitle")}</h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              KLYX vérifie que plusieurs créneaux d’une même mission ne créent
-              pas artificiellement plusieurs événements financiers.
+              {t("auditDescription")}
             </p>
           </div>
         </div>
@@ -227,7 +239,7 @@ export default function ProviderFinanceAudit() {
             size={14}
             className={loading || stripeFinanceLoading ? "animate-spin" : ""}
           />
-          Actualiser
+          {t("refresh")}
         </button>
       </div>
 
@@ -236,12 +248,10 @@ export default function ProviderFinanceAudit() {
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
             <Banknote size={19} />
           </div>
-
           <div>
-            <p className="font-black">Solde Stripe Connect</p>
+            <p className="font-black">{t("stripeBalanceTitle")}</p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              KLYX affiche ici le solde réel du compte prestataire et ses
-              derniers virements, sans exposer ses coordonnées bancaires.
+              {t("stripeBalanceDescription")}
             </p>
           </div>
         </div>
@@ -249,7 +259,7 @@ export default function ProviderFinanceAudit() {
         {stripeFinanceLoading ? (
           <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
             <LoaderCircle className="animate-spin" size={17} />
-            Lecture du solde Stripe...
+            {t("stripeBalanceLoading")}
           </div>
         ) : stripeFinanceError ? (
           <div className="mt-4 rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
@@ -257,28 +267,28 @@ export default function ProviderFinanceAudit() {
           </div>
         ) : !stripeFinance?.connected ? (
           <p className="mt-4 text-sm text-muted-foreground">
-            Configure ton compte de paiement pour afficher ton solde et tes
-            virements ici.
+            {t("stripeBalanceConfigure")}
           </p>
         ) : (
           <>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <StripeMetric
-                label="Solde disponible"
+                label={t("availableBalance")}
                 value={amountsLabel(
                   stripeFinance.available,
-                  stripeFinance.defaultCurrency
+                  stripeFinance.defaultCurrency,
+                  intlLocale
                 )}
-                detail="Montant actuellement disponible chez Stripe"
+                detail={t("availableBalanceDetail")}
               />
-
               <StripeMetric
-                label="En attente"
+                label={t("pendingBalance")}
                 value={amountsLabel(
                   stripeFinance.pending,
-                  stripeFinance.defaultCurrency
+                  stripeFinance.defaultCurrency,
+                  intlLocale
                 )}
-                detail="Paiements encore en cours de disponibilité"
+                detail={t("pendingBalanceDetail")}
               />
             </div>
 
@@ -288,28 +298,32 @@ export default function ProviderFinanceAudit() {
                   size={18}
                   className="mt-0.5 shrink-0 text-violet-600 dark:text-violet-400"
                 />
-
                 <div className="min-w-0">
-                  <p className="text-sm font-black">Dernier virement</p>
-
+                  <p className="text-sm font-black">{t("latestPayout")}</p>
                   {latestPayout ? (
                     <>
                       <p className="mt-1 text-sm">
-                        {money(latestPayout.amountCents, latestPayout.currency)} ·{" "}
-                        {payoutStatusLabel(latestPayout.status)}
+                        {money(
+                          latestPayout.amountCents,
+                          latestPayout.currency,
+                          intlLocale
+                        )}{" "}
+                        · {payoutStatusLabel(latestPayout.status)}
                       </p>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        Arrivée prévue : {dateLabel(latestPayout.arrivalDate)}
+                        {t("expectedArrival", {
+                          date: dateLabel(latestPayout.arrivalDate),
+                        })}
                       </p>
-                      {latestPayout.failureMessage ? (
+                      {latestPayoutFailed ? (
                         <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">
-                          {latestPayout.failureMessage}
+                          {t("genericPayoutFailure")}
                         </p>
                       ) : null}
                     </>
                   ) : (
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Aucun virement Stripe enregistré pour le moment.
+                      {t("noPayout")}
                     </p>
                   )}
                 </div>
@@ -322,7 +336,7 @@ export default function ProviderFinanceAudit() {
       {loading && !audit ? (
         <div className="mt-5 flex items-center gap-2 text-sm text-muted-foreground">
           <LoaderCircle className="animate-spin" size={17} />
-          Analyse du ledger...
+          {t("ledgerAnalysis")}
         </div>
       ) : null}
 
@@ -354,17 +368,12 @@ export default function ProviderFinanceAudit() {
                   className="mt-0.5 shrink-0 text-amber-600"
                 />
               )}
-
               <div>
                 <p className="font-black">
-                  {audit.healthy
-                    ? "Aucun double comptage suspect détecté"
-                    : "Une incohérence financière potentielle doit être vérifiée"}
+                  {audit.healthy ? t("auditHealthy") : t("auditReview")}
                 </p>
-
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  Audit 13.03 en lecture seule. Aucun paiement, remboursement ou
-                  montant n’est corrigé automatiquement.
+                  {t("auditReadOnly")}
                 </p>
               </div>
             </div>
@@ -373,19 +382,19 @@ export default function ProviderFinanceAudit() {
           {/* KLYX_GROUP_FINANCE_AUDIT_METRICS_13_03 */}
           <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Metric
-              label="Missions groupées"
+              label={t("groupedMissions")}
               value={audit.summary.bookingGroupCount}
             />
             <Metric
-              label="Paiements Stripe groupe"
+              label={t("groupedStripePayments")}
               value={audit.summary.distinctGroupPaymentIntents}
             />
             <Metric
-              label="Remboursements groupe"
+              label={t("groupedRefunds")}
               value={audit.summary.distinctGroupRefunds}
             />
             <Metric
-              label="Anomalies suspectes"
+              label={t("suspiciousAnomalies")}
               value={
                 audit.summary.suspiciousPaymentEvents +
                 audit.summary.suspiciousRefundEvents
@@ -395,10 +404,9 @@ export default function ProviderFinanceAudit() {
 
           {audit.summary.duplicatedStripeEvents > 0 ? (
             <p className="mt-4 text-xs leading-5 text-muted-foreground">
-              {audit.summary.duplicatedStripeEvents}
-              {" événement(s) Stripe apparaissent sur plusieurs lignes du ledger. "}
-              KLYX distingue maintenant les répartitions normales entre créneaux
-              des répétitions réellement suspectes.
+              {t("duplicatedStripeEvents", {
+                count: audit.summary.duplicatedStripeEvents,
+              })}
             </p>
           ) : null}
         </>
