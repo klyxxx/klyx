@@ -180,12 +180,13 @@ describe("KLYX operational sentinel contract", () => {
     }
   });
 
-  it("keeps the scheduled workflow opt-in, Node-aligned and read-only", () => {
+  it("keeps the scheduled workflow active, overridable, Node-aligned and read-only", () => {
     expect(workflow).toContain("name: KLYX Operational Sentinel");
     expect(workflow).toContain('cron: "17,47 * * * *"');
     expect(workflow).toContain("permissions:\n  contents: read");
-    expect(workflow).toContain("KLYX_OPERATIONAL_SENTINEL_ENABLED");
-    expect(workflow).toContain("KLYX_PRODUCTION_URL");
+    expect(workflow).toContain("github.event_name == 'schedule'");
+    expect(workflow).toContain("inputs.target_url || vars.KLYX_PRODUCTION_URL");
+    expect(workflow).toContain("https://klyx-ten.vercel.app");
     expect(workflow).toContain("node-version: 22");
     expect(workflow).toContain("run: npm run ops:smoke");
     expect(workflow).toContain("Method: GET only");
