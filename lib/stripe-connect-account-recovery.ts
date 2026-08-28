@@ -1,3 +1,24 @@
+function stripeErrorMessage(error: unknown): string | null {
+  if (!error || typeof error !== "object") return null;
+
+  const candidate = error as {
+    message?: unknown;
+    raw?: {
+      message?: unknown;
+    };
+  };
+
+  if (typeof candidate.message === "string") {
+    return candidate.message;
+  }
+
+  if (typeof candidate.raw?.message === "string") {
+    return candidate.raw.message;
+  }
+
+  return null;
+}
+
 export function isMissingStripeConnectAccount(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
 
@@ -23,4 +44,24 @@ export function isMissingStripeConnectAccount(error: unknown): boolean {
         : null;
 
   return code === "resource_missing" && (param === null || param === "account");
+}
+
+export function isStripeConnectAccountModeMismatch(error: unknown): boolean {
+  const message = stripeErrorMessage(error);
+
+  return (
+    message ===
+      "You tried to create a live mode account link for an account that was created in test mode." ||
+    message ===
+      "You tried to create a test mode account link for an account that was created in live mode."
+  );
+}
+
+export function isRecoverableStripeConnectAccountForOnboarding(
+  error: unknown
+): boolean {
+  return (
+    isMissingStripeConnectAccount(error) ||
+    isStripeConnectAccountModeMismatch(error)
+  );
 }
