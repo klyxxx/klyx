@@ -16,6 +16,7 @@ describe("KLYX SSR locale shell contract", () => {
     expect(source).toContain("KLYX_LANGUAGE_COOKIE_KEY");
     expect(source).toContain('requestHeaders.get("accept-language")');
     expect(source).toContain("resolveKlyxLocale(browserLanguages)");
+    expect(source).toContain("if (quality <= 0)");
     expect(source).toContain('import "server-only"');
   });
 
