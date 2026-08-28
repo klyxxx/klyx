@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 
 import {
@@ -9,6 +11,12 @@ import {
   UserRound,
 } from "lucide-react";
 
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import {
+  translateKlyxDashboard,
+  type KlyxDashboardMessageKey,
+  type KlyxDashboardMessageValues,
+} from "@/lib/klyx-dashboard-i18n";
 import NotificationBell from "./NotificationBell";
 
 type HeaderProps = {
@@ -24,9 +32,16 @@ export default function Header({
   isFounder = false,
   accountType = "client",
 }: HeaderProps) {
+  const { locale } = useKlyxLocale();
+  const t = (
+    key: KlyxDashboardMessageKey,
+    values?: KlyxDashboardMessageValues
+  ) => translateKlyxDashboard(locale, key, values);
   const provider = accountType === "provider";
   const primaryHref = provider ? "/provider/jobs" : "/assistant/market";
-  const primaryLabel = provider ? "Voir mes opportunités" : "Organiser un besoin";
+  const primaryLabel = t(
+    provider ? "headerProviderPrimary" : "headerClientPrimary"
+  );
 
   return (
     <header className="min-w-0">
@@ -58,16 +73,18 @@ export default function Header({
           }`}
         >
           {provider ? <BriefcaseBusiness size={15} /> : <UserRound size={15} />}
-          Profil actif · {provider ? "Prestataire" : "Client"}
+          {t(provider ? "headerActiveProvider" : "headerActiveClient")}
         </span>
       </div>
 
       <h1 className="mt-4 text-3xl font-black tracking-[-0.04em] text-foreground">
-        Tableau de bord
+        {t("headerTitle")}
       </h1>
 
       <p className="mt-1 text-muted-foreground">
-        Bienvenue{displayName ? `, ${displayName}` : ""}.
+        {t("headerWelcome", {
+          name: displayName ? `, ${displayName}` : "",
+        })}
       </p>
 
       <div className="mt-5 flex flex-wrap items-center gap-3">
@@ -88,16 +105,16 @@ export default function Header({
 
       <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <span className="max-w-[280px] truncate rounded-full border border-border bg-muted px-3 py-1.5">
-          {email || "Utilisateur KLYX"}
+          {email || t("headerUserFallback")}
         </span>
         <span className="rounded-full border border-border bg-muted px-3 py-1.5 font-bold">
-          {provider ? "Espace professionnel" : "Espace services"}
+          {t(provider ? "headerProviderSpace" : "headerClientSpace")}
         </span>
         <Link href="/accounts" className="font-bold underline-offset-4 hover:underline">
-          Gérer mes profils
+          {t("headerManageProfiles")}
         </Link>
         <Link href="/settings" className="font-bold underline-offset-4 hover:underline">
-          Paramètres
+          {t("headerSettings")}
         </Link>
       </div>
 
@@ -108,14 +125,14 @@ export default function Header({
             className="inline-flex h-10 items-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-black text-white transition hover:bg-violet-700"
           >
             <Crown size={16} />
-            Console Founder
+            {t("headerFounderConsole")}
           </Link>
           <Link
             href="/admin"
             className="inline-flex h-10 items-center gap-2 rounded-xl border border-border bg-card px-4 text-sm font-black text-foreground transition hover:bg-muted"
           >
             <ShieldCheck size={16} />
-            Admin
+            {t("headerAdmin")}
           </Link>
         </div>
       )}
