@@ -13,9 +13,11 @@ const route = fs
 
 describe("split mission booking projection", () => {
   it("keeps the bookings read explicitly projected", () => {
-    expect(route).not.toContain('.from("bookings")\n        .select("*")');
-    expect(route).toContain(
-      '.select("id, provider_id, babysitter_id, status, service_status")'
+    expect(route).not.toMatch(
+      /\.from\(\s*"bookings"\s*\)\s*\.select\(\s*"\*"\s*\)/
+    );
+    expect(route).toMatch(
+      /\.from\(\s*"bookings"\s*\)\s*\.select\(\s*"id, provider_id, babysitter_id, status, service_status"\s*\)/
     );
   });
 });
