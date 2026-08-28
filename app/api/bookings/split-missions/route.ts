@@ -825,7 +825,7 @@ export async function GET(
             "bookings"
           )
           .select(
-            "*"
+            "id, provider_id, babysitter_id, status, service_status"
           )
           .in(
             "id",
