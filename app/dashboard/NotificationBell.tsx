@@ -17,8 +17,17 @@ import {
   XCircle,
 } from "lucide-react";
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
-import { supabase } from "@/lib/supabase";
+
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import { getActiveClientProfile } from "@/lib/account-switcher";
+import {
+  klyxDashboardDateLocale,
+  resolveKlyxDashboardLocale,
+  translateKlyxDashboard,
+  type KlyxDashboardMessageKey,
+  type KlyxDashboardMessageValues,
+} from "@/lib/klyx-dashboard-i18n";
+import { supabase } from "@/lib/supabase";
 
 type NotificationRow = {
   id: string;
@@ -33,12 +42,18 @@ type NotificationRow = {
 
 export default function NotificationBell() {
   const router = useRouter();
+  const { locale } = useKlyxLocale();
+  const resolvedLocale = resolveKlyxDashboardLocale(locale);
+  const t = (
+    key: KlyxDashboardMessageKey,
+    values?: KlyxDashboardMessageValues
+  ) => translateKlyxDashboard(locale, key, values);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [userId, setUserId] = useState("");
   const [notifications, setNotifications] = useState<NotificationRow[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [loadFailed, setLoadFailed] = useState(false);
 
   const unreadCount = useMemo(
     () => notifications.filter((item) => item.read_at === null).length,
@@ -47,7 +62,7 @@ export default function NotificationBell() {
 
   const loadNotifications = useCallback(async () => {
     setLoading(true);
-    setErrorMessage("");
+    setLoadFailed(false);
 
     try {
       const {
@@ -55,7 +70,11 @@ export default function NotificationBell() {
         error: userError,
       } = await supabase.auth.getUser();
 
-      if (userError || !user) {
+      if (userError) {
+        throw new Error("notification-auth-failed");
+      }
+
+      if (!user) {
         setUserId("");
         setNotifications([]);
         return;
@@ -72,15 +91,13 @@ export default function NotificationBell() {
         .order("created_at", { ascending: false })
         .limit(30);
 
-      if (error) throw new Error(error.message);
+      if (error) {
+        throw new Error("notification-load-failed");
+      }
 
       setNotifications((data ?? []) as NotificationRow[]);
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Impossible de charger les notifications."
-      );
+    } catch {
+      setLoadFailed(true);
     } finally {
       setLoading(false);
     }
@@ -121,7 +138,6 @@ export default function NotificationBell() {
           }
 
           const notification = payload.new as NotificationRow;
-
           if (!notification.id) return;
 
           setNotifications((current) => {
@@ -155,16 +171,13 @@ export default function NotificationBell() {
     }
 
     document.addEventListener("mousedown", handleOutsideClick);
-
-    return () => {
-      document.removeEventListener("mousedown", handleOutsideClick);
-    };
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, []);
 
   async function markAsRead(notificationId: string) {
     if (!userId) return;
 
-    setErrorMessage("");
+    setLoadFailed(false);
     const readAt = new Date().toISOString();
     const { error } = await supabase
       .from("user_notifications")
@@ -173,7 +186,7 @@ export default function NotificationBell() {
       .eq("user_id", userId);
 
     if (error) {
-      setErrorMessage(error.message);
+      setLoadFailed(true);
       return;
     }
 
@@ -187,7 +200,7 @@ export default function NotificationBell() {
   async function markAllAsRead() {
     if (!userId || unreadCount === 0) return;
 
-    setErrorMessage("");
+    setLoadFailed(false);
     const readAt = new Date().toISOString();
     const { error } = await supabase
       .from("user_notifications")
@@ -196,7 +209,7 @@ export default function NotificationBell() {
       .is("read_at", null);
 
     if (error) {
-      setErrorMessage(error.message);
+      setLoadFailed(true);
       return;
     }
 
@@ -225,8 +238,8 @@ export default function NotificationBell() {
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="relative flex h-11 w-11 items-center justify-center rounded-full border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 text-foreground dark:text-zinc-100 transition hover:bg-muted dark:bg-zinc-800"
-        aria-label="Notifications"
+        className="relative flex h-11 w-11 items-center justify-center rounded-full border border-border bg-card text-foreground transition hover:bg-muted dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100"
+        aria-label={t("notificationsLabel")}
         aria-expanded={open}
         aria-haspopup="dialog"
       >
@@ -240,12 +253,16 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 z-50 mt-3 w-[min(92vw,380px)] overflow-hidden rounded-2xl border border-border dark:border-zinc-800 bg-background dark:bg-zinc-950 shadow-2xl">
-          <div className="flex items-center justify-between border-b border-border dark:border-zinc-800 px-4 py-4">
+        <div className="absolute right-0 z-50 mt-3 w-[min(92vw,380px)] overflow-hidden rounded-2xl border border-border bg-background shadow-2xl dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="flex items-center justify-between border-b border-border px-4 py-4 dark:border-zinc-800">
             <div>
-              <h2 className="font-semibold">Notifications</h2>
+              <h2 className="font-semibold">{t("notificationsLabel")}</h2>
               <p className="text-xs text-muted-foreground dark:text-zinc-500">
-                {unreadCount} non lue{unreadCount > 1 ? "s" : ""}
+                {t("notificationsUnread", {
+                  count: unreadCount,
+                  suffix:
+                    resolvedLocale === "fr" && unreadCount > 1 ? "s" : "",
+                })}
               </p>
             </div>
 
@@ -255,24 +272,24 @@ export default function NotificationBell() {
               disabled={unreadCount === 0}
               className="text-sm font-medium text-violet-400 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Tout lire
+              {t("notificationsMarkAllRead")}
             </button>
           </div>
 
-          {errorMessage && (
+          {loadFailed && (
             <div className="border-b border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-              {errorMessage}
+              {t("notificationsLoadFailed")}
             </div>
           )}
 
           <div className="max-h-[430px] overflow-y-auto">
             {loading ? (
               <div className="p-6 text-center text-sm text-muted-foreground dark:text-zinc-500">
-                Chargement...
+                {t("notificationsLoading")}
               </div>
             ) : notifications.length === 0 ? (
               <div className="p-8 text-center text-sm text-muted-foreground dark:text-zinc-500">
-                Aucune notification.
+                {t("notificationsEmpty")}
               </div>
             ) : (
               notifications.map((notification) => (
@@ -280,7 +297,7 @@ export default function NotificationBell() {
                   key={notification.id}
                   type="button"
                   onClick={() => void openNotification(notification)}
-                  className={`block w-full border-b border-zinc-900 px-4 py-4 text-left transition hover:bg-card dark:bg-zinc-900 ${
+                  className={`block w-full border-b border-zinc-900 px-4 py-4 text-left transition hover:bg-card dark:hover:bg-zinc-900 ${
                     notification.read_at ? "opacity-60" : "bg-violet-500/5"
                   }`}
                 >
@@ -307,7 +324,7 @@ export default function NotificationBell() {
                       )}
 
                       <p className="mt-2 text-xs text-zinc-600">
-                        {formatDate(notification.created_at)}
+                        {formatDate(notification.created_at, locale)}
                       </p>
                     </div>
                   </div>
@@ -335,8 +352,8 @@ function notificationIcon(type: string | null) {
   return <Bell size={19} />;
 }
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("fr-BE", {
+function formatDate(value: string, locale: string) {
+  return new Intl.DateTimeFormat(klyxDashboardDateLocale(locale), {
     day: "2-digit",
     month: "short",
     hour: "2-digit",
