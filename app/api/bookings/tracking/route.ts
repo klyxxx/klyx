@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getBookingTrackingTimingError } from "@/lib/booking-tracking-time";
 import {
@@ -275,15 +275,17 @@ export async function POST(request: Request) {
           "Le prestataire déclare la mission terminée. Confirmation du client attendue.",
       });
 
-      await createNotification({
-        userId: booking.parent_id,
-        bookingId: booking.id,
-        type: "tracking_updated",
-        title: "Mission à confirmer",
-        message:
-          "Le prestataire a terminé la mission. Confirme la fin après vérification.",
-        deduplicationKey:
-          `booking:${booking.id}:provider-finished`,
+      after(async () => {
+        await createNotification({
+          userId: booking.parent_id,
+          bookingId: booking.id,
+          type: "tracking_updated",
+          title: "Mission à confirmer",
+          message:
+            "Le prestataire a terminé la mission. Confirme la fin après vérification.",
+          deduplicationKey:
+            `booking:${booking.id}:provider-finished`,
+        });
       });
 
       return NextResponse.json({
@@ -387,35 +389,37 @@ export async function POST(request: Request) {
         });
       }
 
-      const notifications = [
-        createNotification({
-          userId: booking.parent_id,
-          bookingId: booking.id,
-          type: "review_required",
-          title: "Donne ton avis",
-          message:
-            "La mission est terminée. Ton avis aidera les prochains utilisateurs.",
-          deduplicationKey:
-            `booking:${booking.id}:review-client`,
-        }),
-      ];
-
-      if (providerId) {
-        notifications.push(
+      after(async () => {
+        const notifications = [
           createNotification({
-            userId: providerId,
+            userId: booking.parent_id,
             bookingId: booking.id,
-            type: "system",
-            title: "Mission confirmée",
+            type: "review_required",
+            title: "Donne ton avis",
             message:
-              "Le client a confirmé la fin de la mission.",
+              "La mission est terminée. Ton avis aidera les prochains utilisateurs.",
             deduplicationKey:
-              `booking:${booking.id}:completed-provider`,
-          })
-        );
-      }
+              `booking:${booking.id}:review-client`,
+          }),
+        ];
 
-      await Promise.all(notifications);
+        if (providerId) {
+          notifications.push(
+            createNotification({
+              userId: providerId,
+              bookingId: booking.id,
+              type: "system",
+              title: "Mission confirmée",
+              message:
+                "Le client a confirmé la fin de la mission.",
+              deduplicationKey:
+                `booking:${booking.id}:completed-provider`,
+            })
+          );
+        }
+
+        await Promise.all(notifications);
+      });
 
       if (booking.booking_group_id) {
         await syncBookingGroupLifecycle(
@@ -512,19 +516,21 @@ export async function POST(request: Request) {
       note,
     });
 
-    await createNotification({
-      userId: booking.parent_id,
-      bookingId: booking.id,
-      type: "tracking_updated",
-      title: "Suivi de mission mis à jour",
-      message:
-        nextStatus === "en_route"
-          ? "Le prestataire est en route."
-          : nextStatus === "arrived"
-            ? "Le prestataire indique être arrivé."
-            : "La prestation vient de commencer.",
-      deduplicationKey:
-        `booking:${booking.id}:tracking:${nextStatus}`,
+    after(async () => {
+      await createNotification({
+        userId: booking.parent_id,
+        bookingId: booking.id,
+        type: "tracking_updated",
+        title: "Suivi de mission mis à jour",
+        message:
+          nextStatus === "en_route"
+            ? "Le prestataire est en route."
+            : nextStatus === "arrived"
+              ? "Le prestataire indique être arrivé."
+              : "La prestation vient de commencer.",
+        deduplicationKey:
+          `booking:${booking.id}:tracking:${nextStatus}`,
+      });
     });
 
     return NextResponse.json({
