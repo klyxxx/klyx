@@ -133,6 +133,115 @@ describe(
     );
 
     it(
+      "logs only allowlisted Stripe-style error metadata",
+      () => {
+        const spy =
+          vi
+            .spyOn(
+              console,
+              "error"
+            )
+            .mockImplementation(
+              () => undefined
+            );
+
+        const secret =
+          "sk_live_should_never_be_logged";
+        const error = Object.assign(
+          new Error(
+            `Stripe failure ${secret}`
+          ),
+          {
+            type:
+              "invalid_request_error",
+            code:
+              "account_invalid",
+            param: "account",
+            statusCode: 400,
+            raw: {
+              message:
+                `Raw ${secret}`,
+            },
+          }
+        );
+
+        logServerError({
+          event:
+            "stripe_connect_account_failed",
+          route:
+            "/api/stripe/connect/create-account",
+          method: "POST",
+          status: 500,
+          code:
+            "stripe_connect_account_failed",
+          error,
+        });
+
+        const serialized =
+          String(
+            spy.mock.calls[0][0]
+          );
+        const payload =
+          JSON.parse(serialized);
+
+        expect(serialized)
+          .not.toContain(secret);
+        expect(serialized)
+          .not.toContain(error.message);
+        expect(payload)
+          .toMatchObject({
+            errorType:
+              "invalid_request_error",
+            errorCode:
+              "account_invalid",
+            errorParam: "account",
+            errorStatusCode: 400,
+          });
+      }
+    );
+
+    it(
+      "rejects unsafe arbitrary error metadata",
+      () => {
+        const spy =
+          vi
+            .spyOn(
+              console,
+              "error"
+            )
+            .mockImplementation(
+              () => undefined
+            );
+
+        logServerError({
+          event: "unsafe_error",
+          error: {
+            type:
+              "invalid request with spaces",
+            code:
+              "secret=value",
+            param:
+              "account\nprivate",
+          },
+        });
+
+        const payload =
+          JSON.parse(
+            String(
+              spy.mock.calls[0][0]
+            )
+          );
+
+        expect(payload.errorType)
+          .toBeUndefined();
+        expect(payload.errorCode)
+          .toBeUndefined();
+        expect(payload.errorParam)
+          .toBeUndefined();
+      }
+    );
+
+    it(
       "writes structured warning logs",
       () => {
         const spy =
