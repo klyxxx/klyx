@@ -10,10 +10,11 @@ const bookingCreatePath =
   "app/api/bookings/create/route.ts";
 const groupBookingCorePath =
   "app/api/market/requests/[id]/group-booking/group-booking-core.ts";
-const bookingPages = [
+const activeBookingPages = [
   "app/providers/[id]/book/page.tsx",
-  "app/book/page.tsx",
+  "app/babysitters/[id]/page.tsx",
 ] as const;
+const legacyBookingPage = "app/book/page.tsx";
 
 describe("booking table select-only contract", () => {
   it("keeps authenticated browser access read-only", () => {
@@ -78,8 +79,8 @@ describe("booking table select-only contract", () => {
     expect(source).toContain("await supabaseAdmin");
   });
 
-  it("keeps booking UI pages off raw booking inserts", () => {
-    for (const pagePath of bookingPages) {
+  it("keeps active booking UI pages off raw booking inserts", () => {
+    for (const pagePath of activeBookingPages) {
       const source = readFileSync(
         join(process.cwd(), pagePath),
         "utf8"
@@ -88,5 +89,15 @@ describe("booking table select-only contract", () => {
       expect(source).toContain('/api/bookings/create');
       expect(source).not.toContain('.from("bookings")');
     }
+  });
+
+  it("keeps the retired legacy booking page off raw booking inserts", () => {
+    const source = readFileSync(
+      join(process.cwd(), legacyBookingPage),
+      "utf8"
+    );
+
+    expect(source).toContain('redirect("/babysitters")');
+    expect(source).not.toContain('.from("bookings")');
   });
 });
