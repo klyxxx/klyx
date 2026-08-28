@@ -912,79 +912,85 @@ export async function GET(
       );
     }
 
-    let profiles:
-      ProfileRow[] =
-      [];
+    const [
+      profiles,
+      services,
+    ] =
+      await Promise.all([
+        (async () => {
+          if (
+            profileIds.size ===
+            0
+          ) {
+            return [] as
+              ProfileRow[];
+          }
 
-    if (
-      profileIds.size >
-      0
-    ) {
-      const {
-        data,
-        error,
-      } = await supabaseAdmin
-        .from("profiles")
-        .select(
-          "id, first_name, last_name, avatar_url"
-        )
-        .in(
-          "id",
-          Array.from(
-            profileIds
-          )
-        );
+          const {
+            data,
+            error,
+          } = await supabaseAdmin
+            .from("profiles")
+            .select(
+              "id, first_name, last_name, avatar_url"
+            )
+            .in(
+              "id",
+              Array.from(
+                profileIds
+              )
+            );
 
-      if (error) {
-        throw new Error(
-          error.message
-        );
-      }
+          if (error) {
+            throw new Error(
+              error.message
+            );
+          }
 
-      profiles =
-        (
-          data ??
-          []
-        ) as unknown as
-          ProfileRow[];
-    }
+          return (
+            data ??
+            []
+          ) as unknown as
+            ProfileRow[];
+        })(),
 
-    let services:
-      ServiceRow[] =
-      [];
+        (async () => {
+          if (
+            serviceIds.size ===
+            0
+          ) {
+            return [] as
+              ServiceRow[];
+          }
 
-    if (
-      serviceIds.size >
-      0
-    ) {
-      const {
-        data,
-        error,
-      } = await supabaseAdmin
-        .from("services")
-        .select(
-          "id, slug, name"
-        )
-        .in(
-          "id",
-          Array.from(
-            serviceIds
-          )
-        );
+          const {
+            data,
+            error,
+          } = await supabaseAdmin
+            .from("services")
+            .select(
+              "id, slug, name"
+            )
+            .in(
+              "id",
+              Array.from(
+                serviceIds
+              )
+            );
 
-      if (error) {
-        throw new Error(
-          error.message
-        );
-      }
+          if (error) {
+            throw new Error(
+              error.message
+            );
+          }
 
-      services =
-        (
-          data ??
-          []
-        ) as unknown as
-          ServiceRow[];
-    }
+          return (
+            data ??
+            []
+          ) as unknown as
+            ServiceRow[];
+        })(),
+      ]);
 
     const profileMap =
       new Map(
