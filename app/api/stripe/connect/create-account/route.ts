@@ -12,7 +12,10 @@ import {
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { getKlyxMarketReadiness } from "@/lib/klyx-market-readiness";
 import { stripeConnectAccountCreateIdempotencyKey } from "@/lib/stripe-connect-account-idempotency";
-import { isRecoverableStripeConnectAccountForOnboarding } from "@/lib/stripe-connect-account-recovery";
+import {
+  isRecoverableStripeConnectAccountForOnboarding,
+  isStripePlatformActivationRequired,
+} from "@/lib/stripe-connect-account-recovery";
 
 function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();
@@ -184,6 +187,20 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ url: accountLink.url });
   } catch (error) {
+    if (isStripePlatformActivationRequired(error)) {
+      return secureApiErrorResponse({
+        error,
+        event: "stripe_connect_platform_activation_required",
+        route: "/api/stripe/connect/create-account",
+        method: "POST",
+        code: "KLYX_STRIPE_PLATFORM_ACTIVATION_REQUIRED",
+        status: 409,
+        publicMessage:
+          "Le compte Stripe principal KLYX doit être activé avant de pouvoir créer les comptes de versement des prestataires.",
+        startedAt,
+      });
+    }
+
     const message =
       error instanceof Error
         ? error.message
