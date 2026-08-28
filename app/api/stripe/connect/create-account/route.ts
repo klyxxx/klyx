@@ -12,7 +12,7 @@ import {
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { getKlyxMarketReadiness } from "@/lib/klyx-market-readiness";
 import { stripeConnectAccountCreateIdempotencyKey } from "@/lib/stripe-connect-account-idempotency";
-import { isMissingStripeConnectAccount } from "@/lib/stripe-connect-account-recovery";
+import { isRecoverableStripeConnectAccountForOnboarding } from "@/lib/stripe-connect-account-recovery";
 
 function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();
@@ -169,11 +169,11 @@ export async function POST(request: Request) {
     try {
       accountLink = await createAccountLink(accountId);
     } catch (error) {
-      // A stored Connect id can become unusable after a Stripe account is
-      // deleted or when KLYX intentionally switches Stripe environments. Only
-      // Stripe's definitive resource_missing signal is recoverable here;
-      // every transient/auth/configuration error still fails closed.
-      if (!isMissingStripeConnectAccount(error)) {
+      // A stored Connect id can become unusable after deletion or after KLYX
+      // switches Stripe environments. Recovery is limited to Stripe's
+      // definitive missing-account signal and its explicit account-link
+      // live/test mismatch. Every other auth/config/network error fails closed.
+      if (!isRecoverableStripeConnectAccountForOnboarding(error)) {
         throw error;
       }
 
