@@ -19,10 +19,18 @@ const recovery = read("lib/stripe-connect-account-recovery.ts");
 const checkout = read("app/api/stripe/create-checkout-session/route.ts");
 
 describe("Stripe Connect stale account recovery contract", () => {
-  it("recovers only Stripe's definitive missing-account signal", () => {
+  it("keeps recovery narrow to missing accounts and explicit link-mode mismatch", () => {
     expect(recovery).toContain('code === "resource_missing"');
     expect(recovery).toContain('param === "account"');
-    expect(createAccount).toContain("isMissingStripeConnectAccount(error)");
+    expect(recovery).toContain(
+      "You tried to create a live mode account link for an account that was created in test mode."
+    );
+    expect(recovery).toContain(
+      "You tried to create a test mode account link for an account that was created in live mode."
+    );
+    expect(createAccount).toContain(
+      "isRecoverableStripeConnectAccountForOnboarding(error)"
+    );
     expect(createAccount).toContain("throw error;");
   });
 
@@ -30,12 +38,12 @@ describe("Stripe Connect stale account recovery contract", () => {
     const linkAttempt = createAccount.indexOf(
       "accountLink = await createAccountLink(accountId)"
     );
-    const missingGuard = createAccount.indexOf(
-      "isMissingStripeConnectAccount(error)"
+    const recoveryGuard = createAccount.indexOf(
+      "isRecoverableStripeConnectAccountForOnboarding(error)"
     );
     const staleCapture = createAccount.indexOf(
       "const staleAccountId = accountId;",
-      missingGuard
+      recoveryGuard
     );
     const replacement = createAccount.indexOf(
       "accountId = await createAndPersistAccount({ staleAccountId });",
@@ -43,8 +51,8 @@ describe("Stripe Connect stale account recovery contract", () => {
     );
 
     expect(linkAttempt).toBeGreaterThanOrEqual(0);
-    expect(missingGuard).toBeGreaterThan(linkAttempt);
-    expect(staleCapture).toBeGreaterThan(missingGuard);
+    expect(recoveryGuard).toBeGreaterThan(linkAttempt);
+    expect(staleCapture).toBeGreaterThan(recoveryGuard);
     expect(replacement).toBeGreaterThan(staleCapture);
     expect(createAccount).toContain("stripe_account_id: account.id");
     expect(createAccount).toContain("stripe_onboarding_complete: false");
@@ -52,10 +60,13 @@ describe("Stripe Connect stale account recovery contract", () => {
     expect(createAccount).toContain("stripe_payouts_enabled: false");
   });
 
-  it("keeps status read-only for account identity and exposes recovery state", () => {
+  it("keeps status read-only and conservative for account identity", () => {
     expect(statusRoute).toContain("isMissingStripeConnectAccount(error)");
     expect(statusRoute).toContain("return disconnectedResponse(true);");
     expect(statusRoute).toContain("accountUnavailable");
+    expect(statusRoute).not.toContain(
+      "isRecoverableStripeConnectAccountForOnboarding(error)"
+    );
     expect(statusRoute).not.toContain("stripe_account_id: null");
   });
 
