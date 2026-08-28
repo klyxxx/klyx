@@ -64,6 +64,13 @@ export function isStripePlatformActivationRequired(error: unknown): boolean {
   );
 }
 
+export function isStripePlatformProfileRequired(error: unknown): boolean {
+  return (
+    stripeErrorMessage(error) ===
+    "You must complete your platform profile to use Connect and create live connected accounts. Visit your dashboard at https://dashboard.stripe.com/connect/accounts/overview to answer the questionnaire."
+  );
+}
+
 export function isRecoverableStripeConnectAccountForOnboarding(
   error: unknown
 ): boolean {
