@@ -5,6 +5,7 @@ import {
   isRecoverableStripeConnectAccountForOnboarding,
   isStripeConnectAccountModeMismatch,
   isStripePlatformActivationRequired,
+  isStripePlatformProfileRequired,
 } from "../../lib/stripe-connect-account-recovery";
 
 describe("Stripe Connect stale account recovery", () => {
@@ -65,6 +66,19 @@ describe("Stripe Connect stale account recovery", () => {
     ).toBe(false);
   });
 
+  it("recognizes only Stripe's exact Connect platform-profile blocker", () => {
+    const message =
+      "You must complete your platform profile to use Connect and create live connected accounts. Visit your dashboard at https://dashboard.stripe.com/connect/accounts/overview to answer the questionnaire.";
+
+    expect(isStripePlatformProfileRequired({ message })).toBe(true);
+    expect(isStripePlatformProfileRequired({ raw: { message } })).toBe(true);
+    expect(
+      isStripePlatformProfileRequired({
+        message: "You must complete your platform profile to use Connect.",
+      })
+    ).toBe(false);
+  });
+
   it("does not broaden mode-mismatch recovery to arbitrary 400 errors", () => {
     expect(
       isStripeConnectAccountModeMismatch({
@@ -101,6 +115,13 @@ describe("Stripe Connect stale account recovery", () => {
       isRecoverableStripeConnectAccountForOnboarding({
         message:
           "Your account must be activated in order to create accounts. You can activate your accounts at https://dashboard.stripe.com/account/onboarding.",
+      })
+    ).toBe(false);
+
+    expect(
+      isRecoverableStripeConnectAccountForOnboarding({
+        message:
+          "You must complete your platform profile to use Connect and create live connected accounts. Visit your dashboard at https://dashboard.stripe.com/connect/accounts/overview to answer the questionnaire.",
       })
     ).toBe(false);
 
