@@ -64,7 +64,10 @@ describe("KLYX provider finance i18n and safe-error contract", () => {
   });
 
   it("keeps finance tools read-only where they were already read-only", () => {
-    expect(exportButton).toContain("Export manuel uniquement");
+    expect(exportButton).toContain('t("exportReadOnly")');
+    expect(reconciliation).toContain('t("reconciliationReadOnly")');
+    expect(audit).toContain('t("auditReadOnly")');
+    expect(dictionary).toContain("Export manuel uniquement");
     expect(dictionary).toContain("Read-only control");
     expect(dictionary).toContain("Read-only audit");
     expect(page).toContain("<FinanceReconciliationStatus />");
