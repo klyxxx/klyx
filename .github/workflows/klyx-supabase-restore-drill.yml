@@ -222,6 +222,7 @@ jobs:
           const inputPath = process.argv[2];
           const outputPath = process.argv[3];
           const source = fs.readFileSync(inputPath, "utf8");
+          const roleStatement = /\b(?:CREATE|ALTER) ROLE\b/;
           const roleSetting = /^ALTER ROLE (?:(?:"(?:[^"]|"")*")|(?:[^\s;]+)) (?:SET|RESET)\b.*;\s*$/;
           const lines = source.split(/\r?\n/);
           let strippedRoleSettings = 0;
@@ -232,17 +233,33 @@ jobs:
             return false;
           });
 
-          if (!/\b(?:CREATE|ALTER) ROLE\b/.test(source)) {
-            throw new Error("Role dump does not contain role definitions.");
+          if (!roleStatement.test(source)) {
+            throw new Error("Role dump does not contain any role statements.");
           }
 
-          const output = portable.join("\n");
-          if (!/\b(?:CREATE|ALTER) ROLE\b/.test(output)) {
-            throw new Error("Portable role dump lost all role definitions.");
+          let output = portable.join("\n");
+          const hasPortableRoleStatements = roleStatement.test(output);
+
+          if (!hasPortableRoleStatements) {
+            if (strippedRoleSettings === 0) {
+              throw new Error(
+                "Portable role dump unexpectedly contains no replayable role statements."
+              );
+            }
+
+            output = [
+              "-- KLYX restore drill: no portable role definitions were present.",
+              "-- Production role GUC defaults were intentionally omitted; existing local Supabase roles are retained.",
+              "",
+            ].join("\n");
           }
 
           fs.writeFileSync(outputPath, output, { mode: 0o600 });
-          process.stdout.write(`Prepared portable role dump; omitted ${strippedRoleSettings} role GUC default statement(s).\n`);
+          process.stdout.write(
+            `Prepared portable role dump; omitted ${strippedRoleSettings} role GUC default statement(s); replay=${
+              hasPortableRoleStatements ? "portable_definitions" : "existing_local_roles"
+            }.\n`
+          );
           NODE
 
           test -s "$dump_dir/roles.portable.sql"
@@ -314,6 +331,7 @@ jobs:
             "target=ephemeral_loopback_supabase" \
             "critical_table_fingerprints_match=true" \
             "role_guc_defaults_replayed=false" \
+            "role_replay_mode=portable_definitions_or_existing_local_roles" \
             "sensitive_dump_uploaded=false" \
             "auth_storage_objects_claimed=false" \
             "verified_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
