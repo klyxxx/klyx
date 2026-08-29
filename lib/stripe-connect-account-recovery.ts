@@ -57,6 +57,13 @@ export function isStripeConnectAccountModeMismatch(error: unknown): boolean {
   );
 }
 
+export function isStripePlatformActivationRequired(error: unknown): boolean {
+  return (
+    stripeErrorMessage(error) ===
+    "Your account must be activated in order to create accounts. You can activate your accounts at https://dashboard.stripe.com/account/onboarding."
+  );
+}
+
 export function isRecoverableStripeConnectAccountForOnboarding(
   error: unknown
 ): boolean {
