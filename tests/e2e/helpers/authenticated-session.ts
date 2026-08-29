@@ -38,7 +38,24 @@ export async function loginKlyxE2E(page: Page) {
   }
 
   await page.goto("/login");
-  await page.getByPlaceholder("vous@exemple.com").fill(e2eEmail);
+
+  const emailInput = page.getByPlaceholder("vous@exemple.com");
+  const loginState = await Promise.race([
+    page
+      .waitForURL(/\/dashboard(?:\?|$)/, { timeout: 20_000 })
+      .then(() => "authenticated" as const),
+    emailInput
+      .waitFor({ state: "visible", timeout: 20_000 })
+      .then(() => "login" as const),
+  ]);
+
+  // Shared authenticated projects already carry a Supabase browser session.
+  // In that case /login redirects to /dashboard and no password request is made.
+  if (loginState === "authenticated") {
+    return;
+  }
+
+  await emailInput.fill(e2eEmail);
   await page.getByPlaceholder("Votre mot de passe").fill(e2ePassword);
 
   try {
