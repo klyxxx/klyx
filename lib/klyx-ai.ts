@@ -1,6 +1,12 @@
 import "server-only";
 
-export type KlyxAiMode = "openai" | "fallback";
+import {
+  getKlyxLlmProvider,
+} from "@/lib/brain/llm/provider";
+
+export type KlyxAiMode =
+  | "openai"
+  | "fallback";
 
 export type KlyxAiReply = {
   mode: KlyxAiMode;
@@ -16,41 +22,36 @@ type GenerateReplyInput = {
 };
 
 const KLYX_SYSTEM_PROMPT = `
-Tu es l’assistant officiel de KLYX, une plateforme de services du quotidien.
+Tu es la voix conversationnelle officielle de KLYX.
+KLYX organise les services du quotidien en supprimant la complexité inutile.
 
-Ton objectif est de faire disparaître la complexité :
-- comprendre le besoin réel de l’utilisateur ;
-- répondre en français clair, naturel et rassurant ;
+Exigences de réponse :
+- comprendre l’intention réelle avant de répondre ;
+- écrire dans la langue de l’utilisateur avec une formulation naturelle et précise ;
+- être bref sans être sec ;
 - poser au maximum une question utile à la fois ;
-- éviter les longs textes ;
-- ne jamais inventer un prestataire, un prix, une disponibilité ou une réservation ;
-- distinguer ce que KLYX sait déjà de ce qui doit encore être confirmé ;
-- proposer l’action suivante la plus simple ;
-- ne jamais confirmer un paiement, remboursement ou rendez-vous sans résultat réel du système ;
-- ne jamais donner de conseil médical, juridique ou financier personnalisé comme une certitude ;
-- signaler lorsqu’un métier peut être réglementé ;
+- ne jamais inventer un prestataire, un tarif, une disponibilité, une réservation ou un résultat système ;
+- ne jamais annoncer qu’une action transactionnelle est exécutée ;
+- conserver les faits fournis par KLYX sans les modifier ;
 - protéger les données personnelles et les secrets ;
-- utiliser uniquement le contexte mémoire explicitement fourni par KLYX et ne jamais en inventer ;
-- quand ce contexte mémoire influence la réponse, le signaler brièvement et clairement à l’utilisateur.
+- signaler clairement lorsqu’une information doit être confirmée ;
+- produire une microcopie premium : simple, humaine, confiante, sans jargon ni remplissage.
 
-Style KLYX :
-minimaliste, élégant, intuitif, rapide, rassurant, intelligent, premium et cohérent.
-
-Quand l’utilisateur décrit un besoin de service, cherche à identifier :
-le service, la ville, la date, l’heure, le budget et les contraintes importantes.
-
-Réponds sans markdown complexe. Utilise des paragraphes courts.
+Niveau KLYX : chaque phrase doit être utile, élégante et immédiatement compréhensible.
 `.trim();
 
-function fallbackReply(message: string): string {
-  const normalized = message.toLowerCase();
+function fallbackReply(
+  message: string
+): string {
+  const normalized =
+    message.toLowerCase();
 
   if (
     normalized.includes("bonjour") ||
     normalized.includes("salut") ||
     normalized.includes("bonsoir")
   ) {
-    return "Bonjour. Décris simplement ce dont tu as besoin, par exemple : « Je cherche quelqu’un pour nettoyer mon appartement demain à Bruxelles. »";
+    return "Bonjour. Dis-moi simplement ce que tu veux organiser et KLYX te guide jusqu’à la prochaine action utile.";
   }
 
   if (
@@ -58,89 +59,86 @@ function fallbackReply(message: string): string {
     normalized.includes("combien") ||
     normalized.includes("budget")
   ) {
-    return "Je peux t’aider à comparer les prix, mais je dois d’abord connaître le service, la ville et la date souhaitée.";
+    return "Je peux t’aider à cadrer le budget. Indique d’abord le service, la ville et le moment souhaité.";
   }
 
-  return "J’ai compris ta demande. Pour trouver la meilleure solution, indique le service recherché, la ville et le moment souhaité.";
+  return "J’ai compris. Indique le service, la ville et le moment souhaité pour que KLYX puisse avancer précisément.";
 }
 
-function extractOutputText(payload: unknown): string {
-  if (!payload || typeof payload !== "object") return "";
-
-  const record = payload as Record<string, unknown>;
-
-  if (typeof record.output_text === "string") {
-    return record.output_text.trim();
+function normalizedMemorySummary(
+  value: string[] | undefined
+): string[] {
+  if (!Array.isArray(value)) {
+    return [];
   }
 
-  const output = Array.isArray(record.output) ? record.output : [];
-
-  for (const item of output) {
-    if (!item || typeof item !== "object") continue;
-
-    const content = Array.isArray(
-      (item as Record<string, unknown>).content
+  return value
+    .filter(
+      (item): item is string =>
+        typeof item === "string" &&
+        item.trim().length > 0
     )
-      ? ((item as Record<string, unknown>).content as unknown[])
-      : [];
-
-    for (const part of content) {
-      if (!part || typeof part !== "object") continue;
-
-      const text = (part as Record<string, unknown>).text;
-
-      if (typeof text === "string" && text.trim()) {
-        return text.trim();
-      }
-    }
-  }
-
-  return "";
+    .map((item) =>
+      item.trim().slice(0, 500)
+    )
+    .slice(0, 7);
 }
 
 export function isKlyxAiEnabled(): boolean {
+  if (
+    process.env.KLYX_OPENAI_ENABLED !==
+    "1"
+  ) {
+    return false;
+  }
+
   return (
-    process.env.KLYX_OPENAI_ENABLED === "1" &&
-    Boolean(process.env.OPENAI_API_KEY?.trim())
+    getKlyxLlmProvider()
+      .getStatus()
+      .available
   );
 }
 
 export async function generateKlyxAiReply(
   input: GenerateReplyInput
 ): Promise<KlyxAiReply> {
-  const message = input.message.trim().slice(0, 4000);
+  const message =
+    input.message
+      .trim()
+      .slice(0, 4000);
 
   if (!message) {
     return {
       mode: "fallback",
-      text: "Décris simplement ce dont tu as besoin.",
+      text:
+        "Dis-moi simplement ce que tu veux organiser.",
     };
   }
 
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-
-  if (!apiKey || !isKlyxAiEnabled()) {
+  if (!isKlyxAiEnabled()) {
     return {
       mode: "fallback",
       text: fallbackReply(message),
     };
   }
 
-  const memorySummary = Array.isArray(input.memorySummary)
-    ? input.memorySummary
-        .filter(
-          (item): item is string =>
-            typeof item === "string" && item.trim().length > 0
-        )
-        .map((item) => item.trim().slice(0, 500))
-        .slice(0, 7)
-    : [];
+  const memorySummary =
+    normalizedMemorySummary(
+      input.memorySummary
+    );
+
   const userContext = [
-    input.firstName ? `Prénom : ${input.firstName}` : "",
-    input.city ? `Ville du profil : ${input.city}` : "",
-    input.accountType ? `Type de compte : ${input.accountType}` : "",
+    input.firstName
+      ? `Prénom : ${input.firstName}`
+      : "",
+    input.city
+      ? `Ville du profil : ${input.city}`
+      : "",
+    input.accountType
+      ? `Type de compte : ${input.accountType}`
+      : "",
     memorySummary.length > 0
-      ? `Mémoire KLYX autorisée :\n${memorySummary
+      ? `Mémoire KLYX explicitement autorisée :\n${memorySummary
           .map((item) => `- ${item}`)
           .join("\n")}`
       : "",
@@ -149,30 +147,59 @@ export async function generateKlyxAiReply(
     .join("\n");
 
   try {
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: process.env.KLYX_OPENAI_MODEL?.trim() || "gpt-5-mini",
-        instructions: KLYX_SYSTEM_PROMPT,
-        input: `${userContext}\n\nMessage utilisateur :\n${message}`,
-        max_output_tokens: 500,
-      }),
-      signal: AbortSignal.timeout(20000),
-    });
+    const response =
+      await getKlyxLlmProvider()
+        .generate({
+          messages: [
+            {
+              role: "system",
+              content:
+                KLYX_SYSTEM_PROMPT,
+            },
+            {
+              role: "user",
+              content:
+                [
+                  userContext,
+                  userContext
+                    ? ""
+                    : null,
+                  "Message utilisateur :",
+                  message,
+                ]
+                  .filter(
+                    (
+                      item
+                    ): item is string =>
+                      typeof item ===
+                        "string"
+                  )
+                  .join("\n"),
+            },
+          ],
+          context: {
+            locale: null,
+            memory:
+              memorySummary.length > 0
+                ? {
+                    summary:
+                      memorySummary,
+                  }
+                : null,
+            metadata: {
+              surface:
+                "klyx_assistant",
+              accountType:
+                input.accountType ??
+                null,
+            },
+          },
+          maxOutputCharacters:
+            2200,
+        });
 
-    if (!response.ok) {
-      return {
-        mode: "fallback",
-        text: fallbackReply(message),
-      };
-    }
-
-    const payload = (await response.json()) as unknown;
-    const text = extractOutputText(payload);
+    const text =
+      response.text.trim();
 
     if (!text) {
       return {
