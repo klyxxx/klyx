@@ -23,6 +23,7 @@ const PRIVATE_PREFIXES = [
 export default function robots(): MetadataRoute.Robots {
   const appUrl =
     process.env.NEXT_PUBLIC_APP_URL?.trim() || "http://localhost:3000";
+  const baseUrl = new URL(appUrl);
 
   return {
     rules: {
@@ -30,6 +31,7 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       disallow: [...PRIVATE_PREFIXES],
     },
-    host: appUrl,
+    sitemap: new URL("/sitemap.xml", baseUrl).toString(),
+    host: baseUrl.origin,
   };
 }
