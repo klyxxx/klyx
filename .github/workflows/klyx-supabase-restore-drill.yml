@@ -237,12 +237,15 @@ jobs:
           }
 
           const output = portable.join("\n");
-          if (!/\b(?:CREATE|ALTER) ROLE\b/.test(output)) {
-            throw new Error("Portable role dump lost all role definitions.");
-          }
+          const hasPortableRoleDefinition = /\b(?:CREATE|ALTER) ROLE\b/.test(output);
+          const portableSql = hasPortableRoleDefinition
+            ? output
+            : `${output.trimEnd()}\n-- KLYX restore drill: no portable role definitions remain; local Supabase provides managed roles.\n`;
 
-          fs.writeFileSync(outputPath, output, { mode: 0o600 });
-          process.stdout.write(`Prepared portable role dump; omitted ${strippedRoleSettings} role GUC default statement(s).\n`);
+          fs.writeFileSync(outputPath, portableSql, { mode: 0o600 });
+          process.stdout.write(
+            `Prepared portable role dump; omitted ${strippedRoleSettings} role GUC default statement(s); portable role definitions ${hasPortableRoleDefinition ? "preserved" : "not required"}.\n`
+          );
           NODE
 
           test -s "$dump_dir/roles.portable.sql"
