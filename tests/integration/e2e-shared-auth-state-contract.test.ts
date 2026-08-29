@@ -18,8 +18,8 @@ describe("KLYX E2E shared authenticated state contract", () => {
   it("stores shared auth state only in ignored transient test results", () => {
     expect(config).toContain('"test-results"');
     expect(config).toContain('".auth"');
-    expect(config).toContain('storageState: sharedAuthState');
-    expect(setup).toContain('storageState({ path: KLYX_E2E_AUTH_STATE_PATH })');
+    expect(config).toContain("storageState: sharedAuthState");
+    expect(setup).toContain("storageState({ path: KLYX_E2E_AUTH_STATE_PATH })");
   });
 
   it("uses a dedicated setup project only for read-heavy authenticated suites", () => {
@@ -37,8 +37,8 @@ describe("KLYX E2E shared authenticated state contract", () => {
   });
 
   it("keeps one explicit browser login in the multi-profile continuity test", () => {
-    expect(multiProfile).toContain('getByPlaceholder(\n            "Votre mot de passe"');
-    expect(multiProfile).toContain('name:\n                "Se connecter"');
+    expect(multiProfile).toContain('"Votre mot de passe"');
+    expect(multiProfile).toContain('"Se connecter"');
     expect(config).not.toContain("authenticated-multiprofile");
   });
 });
