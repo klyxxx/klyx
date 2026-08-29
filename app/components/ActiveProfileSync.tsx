@@ -1,71 +1,48 @@
 "use client";
 
-import {
-  useEffect,
-  useRef,
-} from "react";
-import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+
 import {
   KLYX_ACTIVE_PROFILE_CHANGED,
   type ActiveProfileChangedDetail,
 } from "@/lib/account-switcher";
 
+/*
+ * Switching a KLYX profile changes an httpOnly cookie that is consumed by
+ * Server Components and by several client pages with their own initial data.
+ * A router.refresh() alone can leave already-mounted client state showing the
+ * previous profile. A single document navigation is intentional here: it is
+ * the reliable boundary that makes identity, role, sidebar and page data move
+ * together. The profile POST already completed before this event is emitted.
+ */
 export default function ActiveProfileSync() {
-  const router = useRouter();
-  const refreshTimer =
-    useRef<ReturnType<
-      typeof setTimeout
-    > | null>(null);
-
   useEffect(() => {
-    function refreshApplication(
-      event: Event
-    ) {
+    function synchronizeApplication(event: Event) {
       const customEvent =
         event as CustomEvent<ActiveProfileChangedDetail>;
+      const profileId = customEvent.detail?.profileId;
 
-      if (
-        !customEvent.detail?.profileId
-      ) {
-        return;
-      }
+      if (!profileId) return;
 
-      /*
-       * Petit délai volontaire :
-       * laisse la navigation Next.js démarrer avant de
-       * rafraîchir les Server Components et la sidebar.
-       * Cela évite un rechargement navigateur complet.
-       */
-      if (refreshTimer.current) {
-        clearTimeout(
-          refreshTimer.current
-        );
-      }
+      const target = new URL("/dashboard", window.location.origin);
+      target.searchParams.set("profile", profileId);
+      target.searchParams.set("switched", String(customEvent.detail.changedAt));
 
-      refreshTimer.current =
-        setTimeout(() => {
-          router.refresh();
-        }, 30);
+      window.location.replace(target.toString());
     }
 
     window.addEventListener(
       KLYX_ACTIVE_PROFILE_CHANGED,
-      refreshApplication
+      synchronizeApplication
     );
 
     return () => {
       window.removeEventListener(
         KLYX_ACTIVE_PROFILE_CHANGED,
-        refreshApplication
+        synchronizeApplication
       );
-
-      if (refreshTimer.current) {
-        clearTimeout(
-          refreshTimer.current
-        );
-      }
     };
-  }, [router]);
+  }, []);
 
   return null;
 }
