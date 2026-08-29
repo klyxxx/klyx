@@ -21,6 +21,10 @@ type OpenAiErrorPayload = {
 type OpenAiSuccessPayload = {
   output_text?: unknown;
   output?: unknown;
+  status?: unknown;
+  incomplete_details?: {
+    reason?: unknown;
+  };
 };
 
 function safeString(
@@ -165,7 +169,7 @@ export async function GET() {
               input:
                 "Réponds uniquement avec le mot OK.",
               max_output_tokens:
-                32,
+                256,
             }),
             signal:
               AbortSignal.timeout(
@@ -259,10 +263,21 @@ export async function GET() {
       );
     }
 
+    const successPayload =
+      payload as OpenAiSuccessPayload;
     const output =
       extractOutputText(
-        payload as
-          OpenAiSuccessPayload
+        successPayload
+      );
+    const responseStatus =
+      safeString(
+        successPayload.status
+      );
+    const incompleteReason =
+      safeString(
+        successPayload
+          .incomplete_details
+          ?.reason
       );
 
     return NextResponse.json(
@@ -273,6 +288,8 @@ export async function GET() {
         model,
         apiStatus:
           response.status,
+        responseStatus,
+        incompleteReason,
         outputReceived:
           Boolean(output),
         outputPreview:
