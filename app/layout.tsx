@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import "./globals.css";
 import "./klyx-visual-system.css";
 import "./klyx-accessibility.css";
+import "./klyx-quality-system.css";
 
 const inter = Inter({
   subsets: ["latin"],

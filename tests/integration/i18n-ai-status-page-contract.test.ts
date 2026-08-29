@@ -67,10 +67,17 @@ describe("KLYX AI status page i18n contract", () => {
     );
   });
 
-  it("leaves the server-side OpenAI readiness gate unchanged", () => {
+  it("keeps server-side OpenAI readiness fail-closed through the shared provider", () => {
     const ai = read("lib/klyx-ai.ts");
+    const provider = read("lib/brain/llm/provider.ts");
 
-    expect(ai).toContain('process.env.KLYX_OPENAI_ENABLED === "1"');
-    expect(ai).toContain("Boolean(process.env.OPENAI_API_KEY?.trim())");
+    expect(ai).toMatch(
+      /process\.env\.KLYX_OPENAI_ENABLED\s*!==\s*"1"/
+    );
+    expect(ai).toContain("getKlyxLlmProvider()");
+    expect(ai).toContain(".getStatus()");
+    expect(ai).toContain(".available");
+    expect(provider).toContain("process.env.OPENAI_API_KEY?.trim()");
+    expect(provider).toContain("if (!apiKey)");
   });
 });

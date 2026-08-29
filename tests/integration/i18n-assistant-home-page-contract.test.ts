@@ -29,18 +29,19 @@ describe("KLYX assistant home read-only i18n contract", () => {
     expect(source).toContain("{topAction.label}");
   });
 
-  it("preserves client and provider navigation destinations", () => {
+  it("preserves canonical client and provider navigation destinations", () => {
     for (const href of [
       "/assistant/market",
       "/assistant/actions",
       "/requests",
       "/search",
-      "/brain",
       "/provider/jobs",
       "/provider/assistant",
     ]) {
       expect(source).toContain(`href="${href}"`);
     }
+
+    expect(source).not.toContain('href="/brain"');
   });
 
   it("keeps assistant subcomponents present", () => {

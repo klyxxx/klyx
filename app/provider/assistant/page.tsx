@@ -37,6 +37,7 @@ type AssistantResponse = {
   title?: string;
   reply?: string;
   payload?: Record<string, unknown>;
+  aiMode?: "openai" | "fallback";
   error?: string;
 };
 
@@ -53,6 +54,93 @@ function iconFor(type: Intent) {
   if (type === "availability") return CalendarClock;
   if (type === "quote") return FileText;
   return MessageCircle;
+}
+
+function textValue(
+  value: unknown
+): string | null {
+  if (
+    typeof value === "string" &&
+    value.trim()
+  ) {
+    return value.trim();
+  }
+
+  if (
+    typeof value === "number" &&
+    Number.isFinite(value)
+  ) {
+    return String(value);
+  }
+
+  return null;
+}
+
+function draftPreview(
+  draft: Draft
+): string {
+  if (
+    draft.draft_type ===
+    "availability"
+  ) {
+    const day =
+      textValue(
+        draft.payload.dayLabel
+      );
+    const start =
+      textValue(
+        draft.payload.startTime
+      );
+    const end =
+      textValue(
+        draft.payload.endTime
+      );
+
+    return [
+      day,
+      start && end
+        ? `${start} – ${end}`
+        : start ?? end,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  }
+
+  if (draft.draft_type === "quote") {
+    const hours =
+      textValue(
+        draft.payload.hours
+      );
+    const hourlyRate =
+      textValue(
+        draft.payload.hourlyRate
+      );
+    const total =
+      textValue(
+        draft.payload.estimatedTotal
+      );
+
+    return [
+      hours
+        ? `${hours} h`
+        : null,
+      hourlyRate
+        ? `${hourlyRate} €/h`
+        : null,
+      total
+        ? `${total} €`
+        : null,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  }
+
+  return (
+    textValue(
+      draft.payload.message
+    ) ??
+    "Brouillon prêt à vérifier."
+  );
 }
 
 export default function ProviderAssistantPage() {
@@ -116,7 +204,6 @@ export default function ProviderAssistantPage() {
     void loadDrafts();
   }, []);
 
-  // KLYX_PROVIDER_ASSISTANT_CONTEXT_13_78
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
     const missionPrompt = query.get("prompt")?.trim().slice(0, 1000) ?? "";
@@ -213,13 +300,12 @@ export default function ProviderAssistantPage() {
   return (
     <main className="klyx-page">
       <div className="mx-auto max-w-6xl">
-        <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#111827,#1d3a62_52%,#172033)] p-7 text-white sm:p-10">
+        <section className="klyx-premium-hero overflow-hidden rounded-[2rem] p-7 text-white sm:p-10">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white/70">
             <Bot size={15} />
             {t("badge")}
           </div>
 
-          {/* KLYX_AI_FIRST_PROVIDER_ASSISTANT_15_04 */}
           <h1 className="mt-5 text-3xl font-black sm:text-5xl">
             {t("title")}
           </h1>
@@ -227,7 +313,7 @@ export default function ProviderAssistantPage() {
 
         <section className="klyx-card mt-8 p-6 sm:p-8">
           <div className="flex items-center gap-3">
-            <Sparkles className="text-blue-600" />
+            <Sparkles className="text-violet-600" />
             <h2 className="text-2xl font-black">
               {t("prepareQuestion")}
             </h2>
@@ -240,7 +326,7 @@ export default function ProviderAssistantPage() {
                 type="button"
                 disabled={loading}
                 onClick={() => void submit(undefined, example)}
-                className="rounded-2xl border border-border bg-background p-4 text-left text-sm font-black transition hover:border-blue-500 hover:bg-blue-500/[0.05] disabled:opacity-50"
+                className="klyx-premium-interactive rounded-2xl border border-border bg-background p-4 text-left text-sm font-black disabled:opacity-50"
               >
                 {example}
               </button>
@@ -248,11 +334,11 @@ export default function ProviderAssistantPage() {
           </div>
 
           {message.includes("Mission :") && (
-            <div className="mt-5 rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4">
+            <div className="mt-5 rounded-2xl border border-violet-500/20 bg-violet-500/5 p-4">
               <div className="flex items-start gap-3">
                 <Sparkles
                   size={18}
-                  className="mt-0.5 shrink-0 text-blue-600"
+                  className="mt-0.5 shrink-0 text-violet-600"
                 />
 
                 <div>
@@ -283,7 +369,7 @@ export default function ProviderAssistantPage() {
             <button
               type="submit"
               disabled={loading || message.trim().length < 3}
-              className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 text-sm font-black text-white disabled:opacity-40"
+              className="klyx-button mt-4 w-full"
             >
               {loading ? (
                 <LoaderCircle className="animate-spin" size={18} />
@@ -296,23 +382,33 @@ export default function ProviderAssistantPage() {
         </section>
 
         {errorMessage && (
-          <div className="mt-6 rounded-2xl border border-rose-500/25 bg-rose-500/10 p-4 text-rose-700 dark:text-rose-300">
+          <div
+            role="alert"
+            className="klyx-feedback klyx-feedback-error mt-6"
+          >
             {errorMessage}
           </div>
         )}
 
         {successMessage && (
-          <div className="mt-6 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-emerald-700 dark:text-emerald-300">
+          <div
+            role="status"
+            className="klyx-feedback klyx-feedback-success mt-6"
+          >
             {successMessage}
           </div>
         )}
 
         {result?.reply && (
-          <section className="klyx-card mt-6 p-6">
-            <h2 className="text-xl font-black">
+          <section className="klyx-card klyx-premium-interactive mt-6 p-6">
+            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-violet-600">
+              <Sparkles size={14} />
+              KLYX
+            </div>
+            <h2 className="mt-3 text-xl font-black">
               {result.title}
             </h2>
-            <p className="mt-3 text-sm leading-7 text-muted-foreground">
+            <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-muted-foreground">
               {result.reply}
             </p>
 
@@ -321,7 +417,7 @@ export default function ProviderAssistantPage() {
                 <button
                   type="button"
                   onClick={() => void copyText(result.payload?.message)}
-                  className="mt-5 inline-flex h-11 items-center gap-2 rounded-xl border border-border px-4 text-sm font-black"
+                  className="klyx-button-secondary mt-5"
                 >
                   <Clipboard size={17} />
                   {t("copyReply")}
@@ -339,15 +435,21 @@ export default function ProviderAssistantPage() {
           </h2>
 
           {loadingDrafts ? (
-            <div className="mt-5 grid min-h-40 place-items-center">
+            <div
+              className="mt-5 grid min-h-40 place-items-center"
+              aria-live="polite"
+            >
               <LoaderCircle
-                className="animate-spin text-blue-600"
+                className="animate-spin text-violet-600"
                 size={34}
               />
+              <span className="sr-only">
+                Chargement des brouillons
+              </span>
             </div>
           ) : drafts.length === 0 ? (
             <div className="klyx-card mt-5 p-7 text-center">
-              <Bot className="mx-auto text-blue-600" size={38} />
+              <Bot className="mx-auto text-violet-600" size={38} />
               <p className="mt-4 font-black">
                 {t("noDrafts")}
               </p>
@@ -357,16 +459,20 @@ export default function ProviderAssistantPage() {
               {drafts.map((draft) => {
                 const Icon = iconFor(draft.draft_type);
                 const isDraft = draft.status === "draft";
+                const preview = draftPreview(draft);
 
                 return (
-                  <article key={draft.id} className="klyx-card p-5">
+                  <article
+                    key={draft.id}
+                    className="klyx-card klyx-premium-interactive p-5"
+                  >
                     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="flex gap-4">
-                        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-blue-500/10 text-blue-600">
+                      <div className="flex min-w-0 gap-4">
+                        <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-violet-500/10 text-violet-600">
                           <Icon size={21} />
                         </div>
 
-                        <div>
+                        <div className="min-w-0">
                           <h3 className="font-black">
                             {draft.title}
                           </h3>
@@ -375,9 +481,9 @@ export default function ProviderAssistantPage() {
                             · {translateKlyxProviderAssistantStatus(locale, draft.status)}
                           </p>
 
-                          <pre className="mt-3 max-w-full overflow-x-auto whitespace-pre-wrap rounded-xl bg-muted/40 p-3 text-xs">
-                            {JSON.stringify(draft.payload, null, 2)}
-                          </pre>
+                          <p className="mt-3 max-w-3xl whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
+                            {preview}
+                          </p>
                         </div>
                       </div>
 
@@ -435,7 +541,7 @@ export default function ProviderAssistantPage() {
         <div className="mt-8 flex justify-end">
           <Link
             href="/provider"
-            className="text-sm font-black text-blue-600 dark:text-blue-400"
+            className="text-sm font-black text-violet-600 dark:text-violet-400"
           >
             {t("backToActivity")}
           </Link>

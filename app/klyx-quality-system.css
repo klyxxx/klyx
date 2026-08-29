@@ -1,0 +1,154 @@
+/*
+ * KLYX PRODUCT QUALITY SYSTEM
+ * Shared polish layer for every product surface.
+ * Keep business rules out of this file: it standardizes perceived quality,
+ * accessibility, motion and media presentation across the application.
+ */
+
+:root {
+  --klyx-premium-radius: 2rem;
+  --klyx-premium-border: color-mix(in oklab, var(--border) 82%, white 18%);
+  --klyx-premium-shadow: 0 24px 80px rgba(37, 24, 67, 0.1);
+  --klyx-premium-shadow-hover: 0 30px 96px rgba(76, 29, 149, 0.16);
+  --klyx-focus: rgba(124, 58, 237, 0.48);
+}
+
+.dark {
+  --klyx-premium-border: rgba(255, 255, 255, 0.1);
+  --klyx-premium-shadow: 0 28px 90px rgba(0, 0, 0, 0.34);
+  --klyx-premium-shadow-hover: 0 34px 110px rgba(0, 0, 0, 0.44);
+  --klyx-focus: rgba(167, 139, 250, 0.58);
+}
+
+.klyx-app-content {
+  text-rendering: optimizeLegibility;
+  font-kerning: normal;
+  font-synthesis: none;
+}
+
+.klyx-app-content :where(h1, h2, h3) {
+  text-wrap: balance;
+  letter-spacing: -0.025em;
+}
+
+.klyx-app-content :where(p, li, figcaption) {
+  text-wrap: pretty;
+}
+
+.klyx-app-content :where(button, a, input, textarea, select):focus-visible {
+  outline: 2px solid transparent;
+  box-shadow:
+    0 0 0 2px var(--background),
+    0 0 0 5px var(--klyx-focus);
+}
+
+.klyx-app-content :where(button, a)[aria-disabled="true"],
+.klyx-app-content :where(button, input, textarea, select):disabled {
+  cursor: not-allowed;
+}
+
+.klyx-premium-hero {
+  position: relative;
+  isolation: isolate;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    radial-gradient(circle at 82% 12%, rgba(96, 165, 250, 0.2), transparent 28rem),
+    radial-gradient(circle at 8% 92%, rgba(167, 139, 250, 0.24), transparent 24rem),
+    linear-gradient(135deg, #111018 0%, #342064 52%, #111827 100%);
+  box-shadow: 0 26px 90px rgba(30, 18, 60, 0.24);
+}
+
+.klyx-premium-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(115deg, rgba(255, 255, 255, 0.07), transparent 32%, transparent 70%, rgba(255, 255, 255, 0.035));
+}
+
+.klyx-premium-interactive {
+  border-color: var(--klyx-premium-border);
+  box-shadow: var(--klyx-premium-shadow);
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background-color 180ms ease;
+}
+
+.klyx-premium-interactive:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--primary) 35%, var(--border));
+  box-shadow: var(--klyx-premium-shadow-hover);
+}
+
+.klyx-feedback {
+  border-radius: 1rem;
+  border: 1px solid var(--border);
+  padding: 0.9rem 1rem;
+  font-size: 0.875rem;
+  line-height: 1.5rem;
+  font-weight: 650;
+  backdrop-filter: blur(16px);
+}
+
+.klyx-feedback-error {
+  border-color: color-mix(in oklab, #f43f5e 28%, transparent);
+  background: color-mix(in oklab, #f43f5e 9%, transparent);
+  color: color-mix(in oklab, #be123c 86%, var(--foreground));
+}
+
+.dark .klyx-feedback-error {
+  color: #fda4af;
+}
+
+.klyx-feedback-success {
+  border-color: color-mix(in oklab, #10b981 28%, transparent);
+  background: color-mix(in oklab, #10b981 9%, transparent);
+  color: color-mix(in oklab, #047857 86%, var(--foreground));
+}
+
+.dark .klyx-feedback-success {
+  color: #6ee7b7;
+}
+
+/* Media should feel deliberate, never blurry or stretched by presentation CSS. */
+.klyx-app-content :where(img, video, canvas) {
+  display: block;
+  max-width: 100%;
+}
+
+.klyx-app-content img {
+  image-rendering: auto;
+  object-position: center;
+}
+
+.klyx-premium-media {
+  overflow: hidden;
+  border-radius: 1.5rem;
+  border: 1px solid var(--klyx-premium-border);
+  background: var(--muted);
+  box-shadow: var(--klyx-premium-shadow);
+}
+
+.klyx-premium-media > :where(img, video) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .klyx-app-content *,
+  .klyx-app-content *::before,
+  .klyx-app-content *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .klyx-premium-interactive:hover {
+    transform: none;
+  }
+}
