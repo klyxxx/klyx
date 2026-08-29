@@ -9,6 +9,9 @@ import {
   analyzeProviderAssistantMessage,
   type ProviderAssistantIntent,
 } from "@/lib/provider-assistant";
+import {
+  generateKlyxAiReply,
+} from "@/lib/klyx-ai";
 
 async function getHourlyRate(
   profileId: string
@@ -42,6 +45,34 @@ async function getHourlyRate(
   if (error) throw new Error(error.message);
 
   return data?.price == null ? null : Number(data.price);
+}
+
+async function improveUnknownProviderReply(
+  message: string,
+  fallback: string
+): Promise<{
+  reply: string;
+  aiMode: "openai" | "fallback";
+}> {
+  const ai = await generateKlyxAiReply({
+    message: [
+      "Tu réponds à un prestataire KLYX dans son assistant professionnel.",
+      "La demande ne correspond pas encore à une disponibilité, un devis ou une réponse client structurée.",
+      "Réponds utilement et brièvement sans prétendre avoir exécuté une action.",
+      "Si une précision est nécessaire, pose une seule question.",
+      "",
+      `Message du prestataire : ${message}`,
+    ].join("\n"),
+    accountType: "provider",
+  });
+
+  return {
+    reply:
+      ai.mode === "openai"
+        ? ai.text
+        : fallback,
+    aiMode: ai.mode,
+  };
 }
 
 export async function GET(request: Request) {
@@ -107,6 +138,26 @@ export async function POST(request: Request) {
       hourlyRate
     );
 
+    let reply = result.reply;
+    let aiMode: "openai" | "fallback" = "fallback";
+
+    /*
+     * KLYX_SINGLE_AI_GATEWAY
+     * Structured provider actions stay deterministic. The shared LLM is
+     * used only for non-transactional conversation, so it can never change
+     * a draft payload, a quote amount or an availability before confirmation.
+     */
+    if (result.intent === "unknown") {
+      const improved =
+        await improveUnknownProviderReply(
+          message,
+          result.reply
+        );
+
+      reply = improved.reply;
+      aiMode = improved.aiMode;
+    }
+
     let draftId: string | null = null;
 
     if (result.intent !== "unknown") {
@@ -130,6 +181,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       draftId,
       ...result,
+      reply,
+      aiMode,
     });
   } catch (error) {
     const message =
