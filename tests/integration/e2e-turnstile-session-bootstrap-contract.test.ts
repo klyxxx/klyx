@@ -31,8 +31,17 @@ describe("KLYX E2E Turnstile session bootstrap contract", () => {
     expect(helper).toContain(
       "Dedicated KLYX E2E user does not already exist; refusing admin magic-link bootstrap."
     );
+    expect(helper).toContain("expectedUserId: existing.id");
     expect(helper).toContain("admin.auth.admin.generateLink");
     expect(helper).toContain('type: "magiclink"');
+  });
+
+  it("binds the verified session to the exact pre-existing E2E user identity", () => {
+    expect(helper).toContain("const { admin, expectedUserId }");
+    expect(helper).toContain("verified.user.id !== expectedUserId");
+    expect(helper).toContain(
+      "Dedicated E2E bootstrap resolved an unexpected user identity."
+    );
   });
 
   it("exchanges only the one-time token through the public auth client and lets SSR emit cookies", () => {
