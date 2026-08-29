@@ -7,7 +7,7 @@ const source = fs.readFileSync(
   "utf8"
 );
 
-describe("KLYX assistant home read-only i18n contract", () => {
+describe("KLYX unified assistant home read-only i18n contract", () => {
   it("keeps the exact authenticated GET-only action source", () => {
     expect(source).toContain('fetch(\n          "/api/brain/actions"');
     expect(source).toContain('cache: "no-store"');
@@ -44,10 +44,13 @@ describe("KLYX assistant home read-only i18n contract", () => {
     expect(source).not.toContain('href="/brain"');
   });
 
-  it("keeps assistant subcomponents present", () => {
-    expect(source).toContain("<AssistantBrief />");
-    expect(source).toContain("<AssistantCommandBar");
-    expect(source).toContain("<ProactiveAssistantPanel />");
+  it("keeps one primary conversational composer and role-aware shortcuts", () => {
+    expect(source).toContain("KLYX_UNIFIED_ASSISTANT_HOME_16_01");
+    expect(source).toContain("<AssistantCommandBar actions={data?.actions ?? []} />");
+    expect(source).toContain('accountType === "client"');
+    expect(source).toContain('title="Préparer côté pro"');
+    expect(source).not.toContain("<AssistantBrief />");
+    expect(source).not.toContain("<ProactiveAssistantPanel />");
   });
 
   it("does not reflect backend or network error details", () => {
