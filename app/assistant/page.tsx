@@ -3,9 +3,9 @@
 import Link from "next/link";
 import {
   ArrowRight,
-  Bot,
   BriefcaseBusiness,
   Camera,
+  FilePenLine,
   ListTodo,
   LoaderCircle,
   MessageSquareText,
@@ -22,6 +22,8 @@ import {
   type KlyxAssistantHomeMessageKey,
 } from "@/lib/klyx-assistant-home-i18n";
 import { supabase } from "@/lib/supabase";
+
+// KLYX_UNIFIED_ASSISTANT_HOME_16_01
 
 type AccountType = "client" | "provider";
 
@@ -65,10 +67,16 @@ export default function AssistantHomePage() {
     async function load() {
       try {
         const accessToken = await token();
-        const response = await fetch("/api/brain/actions", {
-          cache: "no-store",
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
+        const response = await fetch(
+          "/api/brain/actions",
+          {
+            cache: "no-store",
+            headers: {
+              Authorization:
+                `Bearer ${accessToken}`,
+            },
+          }
+        );
 
         if (!response.ok) throw new Error("Assistant actions unavailable");
 
@@ -147,6 +155,9 @@ export default function AssistantHomePage() {
                     {topAction.description}
                   </span>
                 </span>
+                <span className="hidden text-xs font-bold text-violet-600 dark:text-violet-300 sm:inline">
+                  {topAction.label}
+                </span>
                 <ArrowRight
                   size={17}
                   className="shrink-0 text-muted-foreground transition group-hover:translate-x-1 group-hover:text-foreground"
@@ -184,6 +195,12 @@ export default function AssistantHomePage() {
                     )}
                   />
                   <QuickLink
+                    href="/requests"
+                    icon={<FilePenLine size={17} />}
+                    title="Mes demandes"
+                    text="Retrouver les besoins déjà préparés avec KLYX."
+                  />
+                  <QuickLink
                     href="/search"
                     icon={<Search size={17} />}
                     title={t("searchTitle")}
@@ -194,8 +211,8 @@ export default function AssistantHomePage() {
                 <>
                   <QuickLink
                     href="/provider/assistant"
-                    icon={<Bot size={17} />}
-                    title="Assistant KLYX"
+                    icon={<FilePenLine size={17} />}
+                    title="Préparer côté pro"
                     text={t("providerAssistantText")}
                   />
                   <QuickLink
