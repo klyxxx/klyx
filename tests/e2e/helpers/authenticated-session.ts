@@ -75,7 +75,12 @@ async function createVerifiedE2EAdminClient() {
       (user) => user.email?.trim().toLowerCase() === normalizedEmail
     );
 
-    if (existing) return admin;
+    if (existing) {
+      return {
+        admin,
+        expectedUserId: existing.id,
+      };
+    }
 
     if (data.users.length < USERS_PAGE_SIZE) break;
   }
@@ -107,7 +112,7 @@ async function createAuthenticatedSessionCookies(): Promise<SessionCookie[]> {
    * token through the normal public Auth API and lets @supabase/ssr produce
    * the exact session cookies consumed by KLYX middleware/server clients.
    */
-  const admin = await createVerifiedE2EAdminClient();
+  const { admin, expectedUserId } = await createVerifiedE2EAdminClient();
 
   const { data: linkData, error: linkError } =
     await admin.auth.admin.generateLink({
@@ -162,9 +167,12 @@ async function createAuthenticatedSessionCookies(): Promise<SessionCookie[]> {
   }
 
   if (
+    verified.user.id !== expectedUserId ||
     verified.user.email?.trim().toLowerCase() !== e2eEmail.toLowerCase()
   ) {
-    throw new Error("Dedicated E2E bootstrap resolved an unexpected user.");
+    throw new Error(
+      "Dedicated E2E bootstrap resolved an unexpected user identity."
+    );
   }
 
   if (cookiesToSet.length === 0) {
