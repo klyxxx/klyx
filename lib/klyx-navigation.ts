@@ -19,11 +19,25 @@ export type KlyxNavItem = {
 
 export const KLYX_NAV_ITEMS: KlyxNavItem[] = [
   {
-    title: "Vue d’ensemble",
-    href: "/dashboard",
+    title: "Centre KLYX",
+    href: "/assistant",
     role: "all",
     group: "Principal",
+    keywords: ["centre", "assistant", "accueil", "klyx"],
+  },
+  {
+    title: "Vue d’ensemble",
+    href: "/dashboard",
+    role: "client",
+    group: "Principal",
     keywords: ["accueil", "dashboard", "tableau de bord"],
+  },
+  {
+    title: "Tableau professionnel",
+    href: "/dashboard",
+    role: "provider",
+    group: "Principal",
+    keywords: ["accueil", "dashboard", "tableau de bord", "professionnel"],
   },
   {
     title: "Assistant KLYX",
@@ -75,6 +89,13 @@ export const KLYX_NAV_ITEMS: KlyxNavItem[] = [
     keywords: ["reservation", "réservation", "mission", "payer", "annuler"],
   },
   {
+    title: "Mes demandes",
+    href: "/requests",
+    role: "client",
+    group: "Réservations",
+    keywords: ["demande", "requête", "requete", "besoin"],
+  },
+  {
     title: "Mes devis",
     href: "/quotes",
     role: "client",
@@ -112,7 +133,7 @@ export const KLYX_NAV_ITEMS: KlyxNavItem[] = [
   {
     title: "Mon profil",
     href: "/profile",
-    role: "all",
+    role: "client",
     group: "Compte",
     keywords: ["profil", "compte"],
   },
@@ -145,6 +166,13 @@ export const KLYX_NAV_ITEMS: KlyxNavItem[] = [
     keywords: ["reservation", "mission", "accepter", "refuser"],
   },
   {
+    title: "Missions disponibles",
+    href: "/provider/jobs",
+    role: "provider",
+    group: "Prestataire",
+    keywords: ["mission", "job", "travail", "disponible"],
+  },
+  {
     title: "Demandes de devis",
     href: "/provider/quotes",
     role: "provider",
@@ -164,6 +192,13 @@ export const KLYX_NAV_ITEMS: KlyxNavItem[] = [
     role: "provider",
     group: "Prestataire",
     keywords: ["zone", "ville", "rayon", "intervention"],
+  },
+  {
+    title: "Messagerie clients",
+    href: "/messages",
+    role: "provider",
+    group: "Prestataire",
+    keywords: ["message", "messagerie", "client", "chat", "conversation"],
   },
   {
     title: "Ajouter un métier",
@@ -214,6 +249,13 @@ export const KLYX_NAV_ITEMS: KlyxNavItem[] = [
     role: "provider",
     group: "Confiance",
     keywords: ["confiance", "litige", "sécurité", "securite"],
+  },
+  {
+    title: "Profil public",
+    href: "/profile",
+    role: "provider",
+    group: "Compte",
+    keywords: ["profil", "public", "compte", "prestataire"],
   },
   {
     title: "Centre Admin KLYX",
