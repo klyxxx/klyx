@@ -36,7 +36,6 @@ test.describe("KLYX authenticated client surfaces", () => {
       "/memory",
       "/assistant",
       "/agent",
-      "/brain",
       "/messages",
       "/notifications",
       "/security",
@@ -45,6 +44,10 @@ test.describe("KLYX authenticated client surfaces", () => {
     ] as const) {
       await expectHealthyPrivateRoute(page, route);
     }
+
+    await page.goto("/brain");
+    await page.waitForURL((url) => url.pathname === "/assistant");
+    expect(new URL(page.url()).pathname).toBe("/assistant");
   });
 
   test("client pages complete their authenticated API reads", async ({ page }) => {
