@@ -125,6 +125,15 @@ describe(
         expect(adminHealth).toContain(
           '"/api/admin/openai-health"'
         );
+        expect(adminHealth).toMatch(
+          /max_output_tokens:\s*256/
+        );
+        expect(adminHealth).toContain(
+          "incomplete_details"
+        );
+        expect(adminHealth).toContain(
+          "incompleteReason"
+        );
 
         expect(photoVision).toContain(
           'process.env.KLYX_VISION_ENABLED === "1"'
