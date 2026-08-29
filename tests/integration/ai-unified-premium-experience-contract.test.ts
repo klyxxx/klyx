@@ -56,7 +56,7 @@ describe(
   "KLYX unified AI and premium experience",
   () => {
     it(
-      "keeps a single OpenAI transport",
+      "centralizes conversational OpenAI access and inventories specialized transports",
       () => {
         const sources = [
           ...collectSourceFiles("app"),
@@ -64,25 +64,44 @@ describe(
         ];
 
         const directTransports =
-          sources.filter((file) =>
-            read(file).includes(
-              "api.openai.com"
+          sources
+            .filter((file) =>
+              read(file).includes(
+                "api.openai.com"
+              )
             )
-          );
+            .sort();
 
         expect(
           directTransports
-        ).toEqual([
-          path.join(
-            "lib",
-            "brain",
-            "llm",
-            "openai-provider.ts"
-          ),
-        ]);
+        ).toEqual(
+          [
+            path.join(
+              "app",
+              "api",
+              "admin",
+              "openai-health",
+              "route.ts"
+            ),
+            path.join(
+              "lib",
+              "brain",
+              "llm",
+              "openai-provider.ts"
+            ),
+            path.join(
+              "lib",
+              "photo-vision-analysis.ts"
+            ),
+          ].sort()
+        );
 
         const compatibilityFacade =
           read("lib/klyx-ai.ts");
+        const adminHealth =
+          read("app/api/admin/openai-health/route.ts");
+        const photoVision =
+          read("lib/photo-vision-analysis.ts");
 
         expect(
           compatibilityFacade
@@ -98,6 +117,20 @@ describe(
           compatibilityFacade
         ).not.toContain(
           "api.openai.com"
+        );
+
+        expect(adminHealth).toContain(
+          "requireKlyxAdmin"
+        );
+        expect(adminHealth).toContain(
+          '"/api/admin/openai-health"'
+        );
+
+        expect(photoVision).toContain(
+          'process.env.KLYX_VISION_ENABLED === "1"'
+        );
+        expect(photoVision).toContain(
+          'type: "input_image"'
         );
       }
     );
