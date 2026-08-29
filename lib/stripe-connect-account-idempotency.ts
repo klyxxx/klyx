@@ -6,7 +6,7 @@ type StripeRuntimeMode = "test" | "live";
 // the platform was activated. Keeping the revision deterministic preserves
 // duplicate-account protection while allowing a fresh request after that
 // platform state changes.
-const STRIPE_CONNECT_ACCOUNT_CREATE_KEY_REVISION = "v2";
+const STRIPE_CONNECT_ACCOUNT_CREATE_KEY_REVISION = "v3";
 
 function normalizeToken(value: string): string {
   return value.trim().replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 96);
