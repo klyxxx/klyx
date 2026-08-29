@@ -33,7 +33,7 @@ jobs:
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       KLYX_E2E_EMAIL: ${{ secrets.KLYX_E2E_EMAIL }}
-      KLYX_E2E_PASSWORD: ${{ secrets.KLYX_E2E_PASSWORD }}
+      KLYX_E2E_SESSION_BOOTSTRAP: "1"
       KLYX_PLAYWRIGHT_SYSTEM_CHROME: "1"
 
     steps:
@@ -71,11 +71,6 @@ jobs:
 
           if [ -z "$KLYX_E2E_EMAIL" ]; then
             echo "KLYX_E2E_EMAIL is missing"
-            exit 1
-          fi
-
-          if [ -z "$KLYX_E2E_PASSWORD" ]; then
-            echo "KLYX_E2E_PASSWORD is missing"
             exit 1
           fi
 
@@ -125,14 +120,14 @@ jobs:
           import zipfile
           from pathlib import Path
 
-          password_text = os.environ.get(
-              "KLYX_E2E_PASSWORD",
+          service_role_text = os.environ.get(
+              "SUPABASE_SERVICE_ROLE_KEY",
               "",
           )
 
-          if not password_text:
+          if not service_role_text:
               print(
-                  "E2E credential unavailable for artifact guard."
+                  "E2E service-role credential unavailable for artifact guard."
               )
 
               shutil.rmtree(
@@ -147,9 +142,9 @@ jobs:
 
               sys.exit(1)
 
-          password = password_text.encode(
-              "utf-8"
-          )
+          sensitive_values = [
+              service_role_text.encode("utf-8"),
+          ]
 
           roots = [
               Path("playwright-report"),
@@ -161,9 +156,9 @@ jobs:
           def contains_secret(
               data: bytes
           ) -> bool:
-              return (
-                  bool(password)
-                  and password in data
+              return any(
+                  value and value in data
+                  for value in sensitive_values
               )
 
           def scan_zip(
