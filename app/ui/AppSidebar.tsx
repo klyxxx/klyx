@@ -14,8 +14,15 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import KlyxLogo from "@/app/ui/KlyxLogo";
 import { KLYX_ACTIVE_PROFILE_CHANGED } from "@/lib/account-switcher";
+import {
+  translateKlyxNavigationLabel,
+  translateKlyxUi,
+  type KlyxLocale,
+  type KlyxUiMessageKey,
+} from "@/lib/klyx-i18n";
 import { createClient } from "@/lib/supabase/client";
 
 type AccountType = "client" | "provider";
@@ -32,6 +39,7 @@ type ProfilesResponse = {
 
 type MenuItem = {
   title: string;
+  translationLabel: string;
   href: string;
   icon: typeof Sparkles;
 };
@@ -51,17 +59,52 @@ const routesWithoutNavigation = [
 ];
 
 const clientItems: MenuItem[] = [
-  { title: "KLYX", href: "/assistant", icon: Sparkles },
-  { title: "Activité", href: "/bookings", icon: CalendarDays },
-  { title: "Messages", href: "/messages", icon: MessageCircle },
-  { title: "Profil", href: "/profile", icon: UserRound },
+  { title: "KLYX", translationLabel: "KLYX", href: "/assistant", icon: Sparkles },
+  {
+    title: "Activité",
+    translationLabel: "Mon activité",
+    href: "/bookings",
+    icon: CalendarDays,
+  },
+  {
+    title: "Messages",
+    translationLabel: "Messages",
+    href: "/messages",
+    icon: MessageCircle,
+  },
+  {
+    title: "Profil",
+    translationLabel: "Mon profil",
+    href: "/profile",
+    icon: UserRound,
+  },
 ];
 
 const providerItems: MenuItem[] = [
-  { title: "Missions", href: "/provider/jobs", icon: BriefcaseBusiness },
-  { title: "Services", href: "/provider", icon: Wrench },
-  { title: "Finances", href: "/provider/payments", icon: CircleDollarSign },
-  { title: "Profil", href: "/profile", icon: UserRound },
+  {
+    title: "Missions",
+    translationLabel: "Missions disponibles",
+    href: "/provider/jobs",
+    icon: BriefcaseBusiness,
+  },
+  {
+    title: "Services",
+    translationLabel: "Services",
+    href: "/provider",
+    icon: Wrench,
+  },
+  {
+    title: "Finances",
+    translationLabel: "Paiements",
+    href: "/provider/payments",
+    icon: CircleDollarSign,
+  },
+  {
+    title: "Profil",
+    translationLabel: "Mon profil",
+    href: "/profile",
+    icon: UserRound,
+  },
 ];
 
 function matchesRoute(pathname: string, route: string) {
@@ -74,9 +117,16 @@ function activeHrefFor(pathname: string, items: MenuItem[]) {
     .sort((left, right) => right.href.length - left.href.length)[0]?.href ?? null;
 }
 
+function translatedMenuTitle(locale: KlyxLocale, item: MenuItem) {
+  if (locale === "fr") return item.title;
+  return translateKlyxNavigationLabel(locale, item.translationLabel);
+}
+
 export default function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxUiMessageKey) => translateKlyxUi(locale, key);
   const [accountType, setAccountType] = useState<AccountType | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
 
@@ -167,10 +217,10 @@ export default function AppSidebar() {
           <KlyxLogo href={homeHref} />
           <p className="mt-3 text-[11px] font-semibold text-muted-foreground">
             {accountType === "provider"
-              ? "Espace prestataire"
+              ? t("sidebar.providerAccount")
               : accountType === "client"
-                ? "Espace client"
-                : "Chargement du profil…"}
+                ? t("sidebar.clientAccount")
+                : t("sidebar.loadingProfile")}
           </p>
         </div>
 
@@ -195,7 +245,7 @@ export default function AppSidebar() {
                     size={19}
                     className={active ? "text-blue-600 dark:text-blue-400" : ""}
                   />
-                  <span>{item.title}</span>
+                  <span>{translatedMenuTitle(locale, item)}</span>
                 </Link>
               );
             })}
@@ -210,7 +260,7 @@ export default function AppSidebar() {
             className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:cursor-wait disabled:opacity-50"
           >
             <LogOut size={17} />
-            {loggingOut ? "Déconnexion…" : "Déconnexion"}
+            {loggingOut ? t("sidebar.loggingOut") : t("sidebar.logout")}
           </button>
         </div>
       </aside>
@@ -219,9 +269,9 @@ export default function AppSidebar() {
         <KlyxLogo href={homeHref} />
         <span className="text-[11px] font-semibold text-muted-foreground">
           {accountType === "provider"
-            ? "Prestataire"
+            ? t("sidebar.providerAccount")
             : accountType === "client"
-              ? "Client"
+              ? t("sidebar.clientAccount")
               : "KLYX"}
         </span>
       </header>
@@ -251,7 +301,9 @@ export default function AppSidebar() {
                     size={20}
                     className={active ? "text-blue-600 dark:text-blue-400" : ""}
                   />
-                  <span className="max-w-full truncate">{item.title}</span>
+                  <span className="max-w-full truncate">
+                    {translatedMenuTitle(locale, item)}
+                  </span>
                 </Link>
               );
             })}

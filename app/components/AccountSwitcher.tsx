@@ -131,12 +131,13 @@ export default function AccountSwitcher({
       setOpen(false);
       // ActiveProfileSync owns the full-document role transition.
     } catch (switchError) {
-      setSwitchingId(null);
       setError(
         switchError instanceof Error
           ? switchError.message
           : "Impossible de changer de profil."
       );
+    } finally {
+      setSwitchingId(null);
     }
   }
 
