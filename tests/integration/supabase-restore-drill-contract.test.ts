@@ -45,14 +45,27 @@ describe("KLYX Supabase restore drill safety contract", () => {
     expect(workflow).toContain('-x "storage.vector_indexes"');
   });
 
-  it("keeps role definitions but omits non-portable role GUC defaults", () => {
+  it("replays portable role definitions or safely keeps local roles for GUC-only dumps", () => {
     expect(workflow).toContain("Prepare portable role dump");
     expect(workflow).toContain("roles.portable.sql");
     expect(workflow).toContain("(?:SET|RESET)\\b");
-    expect(workflow).toContain("Portable role dump lost all role definitions.");
+    expect(workflow).toContain("const roleStatement =");
+    expect(workflow).toContain("const hasPortableRoleStatements =");
+    expect(workflow).toContain(
+      "no portable role definitions were present"
+    );
+    expect(workflow).toContain(
+      "existing local Supabase roles are retained"
+    );
+    expect(workflow).toContain(
+      "role_replay_mode=portable_definitions_or_existing_local_roles"
+    );
     expect(workflow).toContain("role_guc_defaults_replayed=false");
     expect(workflow).toContain("scope=public_schema_data_portable_roles");
     expect(workflow).toContain('--file "$dump_dir/roles.portable.sql"');
+    expect(workflow).not.toContain(
+      "Portable role dump lost all role definitions."
+    );
     expect(workflow).not.toContain("ON_ERROR_STOP=0");
   });
 
