@@ -48,8 +48,10 @@ describe("KLYX provider finance i18n and safe-error contract", () => {
 
     expect(page).not.toContain("{entry.failureMessage}");
     expect(audit).not.toContain("{latestPayout.failureMessage}");
+    expect(audit).not.toContain("return status;");
     expect(page).toContain('t("genericTransactionFailure")');
     expect(audit).toContain('t("genericPayoutFailure")');
+    expect(audit).toContain('return t("statusProcessing")');
   });
 
   it("preserves the canonical finance, Stripe and booking routes", () => {
