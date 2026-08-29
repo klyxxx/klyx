@@ -47,39 +47,53 @@ type SpeechRecognitionLike = {
 
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 
-const VOICE_COPY = {
-  fr: {
+type VoiceSettings = {
+  voice: string;
+  stop: string;
+  unavailable: string;
+  failed: string;
+  speechLocale: string;
+};
+
+function getVoiceSettings(locale: string): VoiceSettings {
+  if (locale === "en") {
+    return {
+      voice: "Voice",
+      stop: "Stop",
+      unavailable: "Voice input is not supported by this browser.",
+      failed: "Voice input is unavailable right now.",
+      speechLocale: "en-GB",
+    };
+  }
+
+  if (locale === "nl") {
+    return {
+      voice: "Spraak",
+      stop: "Stoppen",
+      unavailable: "Spraakinvoer wordt niet ondersteund door deze browser.",
+      failed: "Spraakinvoer is momenteel niet beschikbaar.",
+      speechLocale: "nl-BE",
+    };
+  }
+
+  if (locale === "de") {
+    return {
+      voice: "Sprache",
+      stop: "Stoppen",
+      unavailable: "Spracheingabe wird von diesem Browser nicht unterstützt.",
+      failed: "Spracheingabe ist derzeit nicht verfügbar.",
+      speechLocale: "de-DE",
+    };
+  }
+
+  return {
     voice: "Voix",
     stop: "Arrêter",
     unavailable: "La saisie vocale n’est pas prise en charge par ce navigateur.",
     failed: "Impossible d’utiliser la saisie vocale pour le moment.",
-  },
-  en: {
-    voice: "Voice",
-    stop: "Stop",
-    unavailable: "Voice input is not supported by this browser.",
-    failed: "Voice input is unavailable right now.",
-  },
-  nl: {
-    voice: "Spraak",
-    stop: "Stoppen",
-    unavailable: "Spraakinvoer wordt niet ondersteund door deze browser.",
-    failed: "Spraakinvoer is momenteel niet beschikbaar.",
-  },
-  de: {
-    voice: "Sprache",
-    stop: "Stoppen",
-    unavailable: "Spracheingabe wird von diesem Browser nicht unterstützt.",
-    failed: "Spracheingabe ist derzeit nicht verfügbar.",
-  },
-} as const;
-
-const SPEECH_LOCALES = {
-  fr: "fr-BE",
-  en: "en-GB",
-  nl: "nl-BE",
-  de: "de-DE",
-} as const;
+    speechLocale: "fr-BE",
+  };
+}
 
 function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | null {
   if (typeof window === "undefined") return null;
@@ -101,7 +115,7 @@ export default function AssistantCommandBar(_props: Props) {
   const { locale } = useKlyxLocale();
   const t = (key: KlyxAssistantCommandMessageKey) =>
     translateKlyxAssistantCommand(locale, key);
-  const voiceCopy = VOICE_COPY[locale] ?? VOICE_COPY.fr;
+  const voiceSettings = getVoiceSettings(locale);
 
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const [value, setValue] = useState("");
@@ -176,13 +190,13 @@ export default function AssistantCommandBar(_props: Props) {
     const Recognition = getSpeechRecognitionConstructor();
     if (!Recognition) {
       setVoiceSupported(false);
-      setErrorMessage(voiceCopy.unavailable);
+      setErrorMessage(voiceSettings.unavailable);
       return;
     }
 
     try {
       const recognition = new Recognition();
-      recognition.lang = SPEECH_LOCALES[locale] ?? SPEECH_LOCALES.fr;
+      recognition.lang = voiceSettings.speechLocale;
       recognition.interimResults = false;
       recognition.continuous = false;
 
@@ -197,7 +211,7 @@ export default function AssistantCommandBar(_props: Props) {
       };
 
       recognition.onerror = () => {
-        setErrorMessage(voiceCopy.failed);
+        setErrorMessage(voiceSettings.failed);
       };
 
       recognition.onend = () => {
@@ -212,7 +226,7 @@ export default function AssistantCommandBar(_props: Props) {
     } catch {
       recognitionRef.current = null;
       setListening(false);
-      setErrorMessage(voiceCopy.failed);
+      setErrorMessage(voiceSettings.failed);
     }
   }
 
@@ -255,7 +269,7 @@ export default function AssistantCommandBar(_props: Props) {
               onClick={toggleVoice}
               disabled={!voiceSupported && !listening}
               aria-pressed={listening}
-              title={!voiceSupported ? voiceCopy.unavailable : undefined}
+              title={!voiceSupported ? voiceSettings.unavailable : undefined}
               className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-45 ${
                 listening
                   ? "border-blue-600/25 bg-blue-600/10 text-blue-700 dark:text-blue-300"
@@ -263,7 +277,7 @@ export default function AssistantCommandBar(_props: Props) {
               }`}
             >
               {listening ? <Square size={15} /> : <Mic size={17} />}
-              {listening ? voiceCopy.stop : voiceCopy.voice}
+              {listening ? voiceSettings.stop : voiceSettings.voice}
             </button>
           </div>
 
