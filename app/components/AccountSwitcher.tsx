@@ -126,22 +126,10 @@ export default function AccountSwitcher({
     try {
       setError("");
       setSwitchingId(profileId);
-
       await switchAccount(profileId);
       setActiveProfileId(profileId);
       setOpen(false);
-
-      const destination =
-        targetProfile.accountType === "provider"
-          ? "/provider/jobs"
-          : "/assistant";
-
-      // A role switch must reset the complete UI/data tree, not only refresh
-      // React server components. A document navigation guarantees that no
-      // previous-role client state, cache or navigation survives the switch.
-      window.location.assign(
-        `${destination}?profile=${encodeURIComponent(profileId)}`
-      );
+      // ActiveProfileSync owns the full-document role transition.
     } catch (switchError) {
       setSwitchingId(null);
       setError(
