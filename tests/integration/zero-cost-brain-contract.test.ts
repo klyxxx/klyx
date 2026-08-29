@@ -48,7 +48,35 @@ describe(
     );
 
     it(
-      "preserves deterministic Brain replies when OpenAI is unavailable",
+      "preserves deterministic AI fallback when OpenAI is unavailable",
+      () => {
+        const ai =
+          source(
+            "lib/klyx-ai.ts"
+          );
+
+        expect(
+          ai
+        ).toContain(
+          "function fallbackReply("
+        );
+
+        expect(
+          ai
+        ).toContain(
+          'mode: "fallback"'
+        );
+
+        expect(
+          ai
+        ).toContain(
+          "text: fallbackReply(message)"
+        );
+      }
+    );
+
+    it(
+      "keeps Brain as a compatibility alias for the canonical assistant",
       () => {
         const page =
           source(
@@ -58,25 +86,19 @@ describe(
         expect(
           page
         ).toContain(
+          'import { redirect } from "next/navigation"'
+        );
+
+        expect(
+          page
+        ).toContain(
+          'redirect("/assistant")'
+        );
+
+        expect(
+          page
+        ).not.toContain(
           'aiResult.mode === "openai"'
-        );
-
-        expect(
-          page
-        ).toContain(
-          "KLYX_ZERO_COST_READINESS_SYNC_12B_7B"
-        );
-
-        expect(
-          page
-        ).toContain(
-          'missing.push('
-        );
-
-        expect(
-          page
-        ).toContain(
-          '"heure"'
         );
       }
     );
