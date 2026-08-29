@@ -1,9 +1,25 @@
 import { expect, type Page } from "@playwright/test";
+import { createServerClient } from "@supabase/ssr";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 export const e2eEmail = process.env.KLYX_E2E_EMAIL?.trim();
-export const e2ePassword = process.env.KLYX_E2E_PASSWORD;
 
-export const hasE2ECredentials = Boolean(e2eEmail && e2ePassword);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+const supabasePublicKey =
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() ??
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+const supabaseServiceRoleKey =
+  process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+const sessionBootstrapEnabled =
+  process.env.KLYX_E2E_SESSION_BOOTSTRAP === "1";
+
+export const hasE2ECredentials = Boolean(
+  sessionBootstrapEnabled &&
+    e2eEmail &&
+    supabaseUrl &&
+    supabasePublicKey &&
+    supabaseServiceRoleKey
+);
 
 export type KlyxE2EProfile = {
   id: string;
@@ -16,6 +32,144 @@ type ProfilesState = {
   profiles: KlyxE2EProfile[];
   activeProfileId: string | null;
 };
+
+type SessionCookie = {
+  name: string;
+  value: string;
+};
+
+const USERS_PAGE_SIZE = 1000;
+const MAX_USER_PAGES = 100;
+
+async function assertDedicatedE2EUserExists(
+  admin: ReturnType<typeof createSupabaseClient>
+) {
+  const normalizedEmail = e2eEmail!.toLowerCase();
+
+  for (let page = 1; page <= MAX_USER_PAGES; page += 1) {
+    const { data, error } = await admin.auth.admin.listUsers({
+      page,
+      perPage: USERS_PAGE_SIZE,
+    });
+
+    if (error) {
+      throw new Error(`Unable to read dedicated E2E user: ${error.message}`);
+    }
+
+    const existing = data.users.find(
+      (user) => user.email?.trim().toLowerCase() === normalizedEmail
+    );
+
+    if (existing) return;
+
+    if (data.users.length < USERS_PAGE_SIZE) break;
+  }
+
+  throw new Error(
+    "Dedicated KLYX E2E user does not already exist; refusing admin magic-link bootstrap."
+  );
+}
+
+async function createAuthenticatedSessionCookies(): Promise<SessionCookie[]> {
+  if (
+    !hasE2ECredentials ||
+    !e2eEmail ||
+    !supabaseUrl ||
+    !supabasePublicKey ||
+    !supabaseServiceRoleKey
+  ) {
+    throw new Error(
+      "Dedicated KLYX E2E session bootstrap is not configured."
+    );
+  }
+
+  /*
+   * Turnstile is intentionally enforced by production Supabase Auth.
+   * The protected E2E suite must therefore never weaken CAPTCHA or expose
+   * a public bypass route. Instead, the Node-only test process uses the
+   * already-required service-role secret to generate a one-time magic-link
+   * token for the pre-existing dedicated E2E account, then verifies that
+   * token through the normal public Auth API and lets @supabase/ssr produce
+   * the exact session cookies consumed by KLYX middleware/server clients.
+   */
+  const admin = createSupabaseClient(
+    supabaseUrl,
+    supabaseServiceRoleKey,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+        detectSessionInUrl: false,
+      },
+    }
+  );
+
+  await assertDedicatedE2EUserExists(admin);
+
+  const { data: linkData, error: linkError } =
+    await admin.auth.admin.generateLink({
+      type: "magiclink",
+      email: e2eEmail,
+    });
+
+  if (linkError) {
+    throw new Error(
+      `Unable to generate dedicated E2E magic link: ${linkError.message}`
+    );
+  }
+
+  const tokenHash = linkData.properties?.hashed_token?.trim();
+
+  if (!tokenHash) {
+    throw new Error("Dedicated E2E magic link did not return a token hash.");
+  }
+
+  let cookiesToSet: SessionCookie[] = [];
+
+  const authClient = createServerClient(
+    supabaseUrl,
+    supabasePublicKey,
+    {
+      cookies: {
+        getAll() {
+          return [];
+        },
+        setAll(nextCookies) {
+          cookiesToSet = nextCookies.map(({ name, value }) => ({
+            name,
+            value,
+          }));
+        },
+      },
+    }
+  );
+
+  const { data: verified, error: verifyError } =
+    await authClient.auth.verifyOtp({
+      token_hash: tokenHash,
+      type: "email",
+    });
+
+  if (verifyError || !verified.session || !verified.user) {
+    throw new Error(
+      `Unable to verify dedicated E2E magic link: ${
+        verifyError?.message ?? "session missing"
+      }`
+    );
+  }
+
+  if (
+    verified.user.email?.trim().toLowerCase() !== e2eEmail.toLowerCase()
+  ) {
+    throw new Error("Dedicated E2E bootstrap resolved an unexpected user.");
+  }
+
+  if (cookiesToSet.length === 0) {
+    throw new Error("Supabase SSR did not emit authenticated session cookies.");
+  }
+
+  return cookiesToSet;
+}
 
 export async function clearSensitivePassword(page: Page) {
   try {
@@ -33,20 +187,26 @@ export async function clearSensitivePassword(page: Page) {
 }
 
 export async function loginKlyxE2E(page: Page) {
-  if (!e2eEmail || !e2ePassword) {
-    throw new Error("Dedicated KLYX E2E credentials are not configured.");
+  if (!hasE2ECredentials) {
+    throw new Error(
+      "Dedicated KLYX E2E session bootstrap is not configured."
+    );
   }
 
-  await page.goto("/login");
-  await page.getByPlaceholder("vous@exemple.com").fill(e2eEmail);
-  await page.getByPlaceholder("Votre mot de passe").fill(e2ePassword);
+  /* Resolve the actual Playwright origin before attaching SSR cookies. */
+  await page.goto("/login", { waitUntil: "domcontentloaded" });
+  const origin = new URL(page.url()).origin;
+  const sessionCookies = await createAuthenticatedSessionCookies();
 
-  try {
-    await page.getByRole("button", { name: "Se connecter" }).click();
-  } finally {
-    await clearSensitivePassword(page);
-  }
+  await page.context().addCookies(
+    sessionCookies.map(({ name, value }) => ({
+      name,
+      value,
+      url: origin,
+    }))
+  );
 
+  await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
   await expect(page).toHaveURL(/\/dashboard(?:\?|$)/, { timeout: 20_000 });
 }
 
