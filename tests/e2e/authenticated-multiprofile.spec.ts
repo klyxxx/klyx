@@ -1,20 +1,17 @@
+import { expect, test, type Page } from "@playwright/test";
 import {
-  expect,
-  test,
-  type Page,
-} from "@playwright/test";
-
-const email =
-  process.env.KLYX_E2E_EMAIL?.trim();
-
-const password =
-  process.env.KLYX_E2E_PASSWORD;
+  activateKlyxE2EProfile,
+  clearSensitivePassword,
+  hasE2ECredentials,
+  loginKlyxE2E,
+  readKlyxE2EProfiles,
+  type KlyxE2EProfile,
+} from "./helpers/authenticated-session";
 
 /*
- * KLYX_E2E_SENSITIVE_ARTIFACT_GUARD_PHASE_7D_1
- *
- * Ce fichier manipule un mot de passe E2E.
- * Aucun screenshot, trace ou video.
+ * Authenticated E2E uses a Node-only admin-generated one-time token for the
+ * dedicated test user. No password, service-role key or session token is
+ * rendered into Playwright traces, screenshots or videos.
  */
 test.use({
   trace: "off",
@@ -22,396 +19,84 @@ test.use({
   video: "off",
 });
 
-type Profile = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  accountType:
-    | "client"
-    | "provider";
-};
-
-type ProfilesState = {
-  profiles: Profile[];
-  activeProfileId: string | null;
-};
-
-function fullName(
-  profile: Profile
-) {
+function fullName(profile: KlyxE2EProfile) {
   return `${profile.firstName} ${profile.lastName}`.trim();
 }
 
-function escapeRegExp(
-  value: string
-) {
-  return value.replace(
-    /[.*+?^${}()|[\]\\]/g,
-    "\\$&"
-  );
-}
-
-async function clearSensitivePassword(
-  page: Page
-) {
-  try {
-    await page
-      .locator(
-        'input[type="password"]'
-      )
-      .evaluateAll(
-        (inputs) => {
-          for (
-            const input of inputs
-          ) {
-            const element =
-              input as HTMLInputElement;
-
-            element.value = "";
-
-            element.removeAttribute(
-              "value"
-            );
-
-            element.dispatchEvent(
-              new Event(
-                "input",
-                {
-                  bubbles: true,
-                }
-              )
-            );
-          }
-        }
-      );
-  } catch {
-    // Le champ peut déjà avoir disparu.
-  }
-}
-
-async function readProfiles(
-  page: Page
-): Promise<ProfilesState> {
-  return page.evaluate(
-    async () => {
-      const response =
-        await fetch(
-          "/api/profiles/active",
-          {
-            cache:
-              "no-store",
-          }
-        );
-
-      const body =
-        await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          body.error ??
-            "Profiles API failed."
-        );
-      }
-
-      return body;
-    }
-  );
-}
-
-async function forceActiveProfile(
-  page: Page,
-  profileId: string
-) {
-  await page.evaluate(
-    async (id) => {
-      const response =
-        await fetch(
-          "/api/profiles/active",
-          {
-            method:
-              "POST",
-
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-
-            body:
-              JSON.stringify({
-                profileId:
-                  id,
-              }),
-          }
-        );
-
-      const body =
-        await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          body.error ??
-            "Profile switch failed."
-        );
-      }
-    },
-    profileId
-  );
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 async function switchThroughUi(
   page: Page,
-  current: Profile,
-  target: Profile
+  current: KlyxE2EProfile,
+  target: KlyxE2EProfile
 ) {
-  const currentPattern =
-    new RegExp(
-      escapeRegExp(
-        fullName(current)
-      ),
-      "i"
-    );
-
-  const targetPattern =
-    new RegExp(
-      escapeRegExp(
-        fullName(target)
-      ),
-      "i"
-    );
+  const currentPattern = new RegExp(escapeRegExp(fullName(current)), "i");
+  const targetPattern = new RegExp(escapeRegExp(fullName(target)), "i");
 
   await page
-    .getByRole(
-      "button",
-      {
-        name:
-          currentPattern,
-      }
-    )
+    .getByRole("button", { name: currentPattern })
     .first()
     .click();
 
   await page
-    .getByRole(
-      "menuitem",
-      {
-        name:
-          targetPattern,
-      }
-    )
+    .getByRole("menuitem", { name: targetPattern })
     .click();
 }
 
-test.describe(
-  "KLYX authenticated multi-profile",
-  () => {
-    test.skip(
-      !email || !password,
-      "Dedicated KLYX E2E credentials are not configured."
+test.describe("KLYX authenticated multi-profile", () => {
+  test.skip(
+    !hasE2ECredentials,
+    "Dedicated KLYX E2E session bootstrap is not configured."
+  );
+
+  test.afterEach(async ({ page }) => {
+    await clearSensitivePassword(page);
+  });
+
+  test("switch client/provider and keep one authenticated session", async ({ page }) => {
+    test.setTimeout(120_000);
+
+    await loginKlyxE2E(page);
+
+    const initial = await readKlyxE2EProfiles(page);
+    const client = initial.profiles.find(
+      (profile) => profile.accountType === "client"
+    );
+    const provider = initial.profiles.find(
+      (profile) => profile.accountType === "provider"
     );
 
-    test.afterEach(
-      async ({ page }) => {
-        await clearSensitivePassword(
-          page
-        );
-      }
-    );
+    expect(client, "Dedicated E2E client profile is missing.").toBeTruthy();
+    expect(provider, "Dedicated E2E provider profile is missing.").toBeTruthy();
 
-    test(
-      "login, switch client/provider and keep the session",
-      async ({ page }) => {
-        /*
-         * KLYX_AUTH_E2E_TIMEOUT_PHASE_7D_1
-         *
-         * Le parcours authentifié traverse
-         * plusieurs routes/API réelles Supabase.
-         * Les compilations à froid Next.js
-         * peuvent dépasser 30 secondes.
-         *
-         * Les tests publics restent à 30 s.
-         */
-        test.setTimeout(
-          120_000
-        );
+    await activateKlyxE2EProfile(page, "client");
+    await page.goto("/dashboard");
+    await expect(
+      page.getByText("Organise ton prochain besoin.")
+    ).toBeVisible();
 
-        await page.goto(
-          "/login"
-        );
+    await switchThroughUi(page, client!, provider!);
+    await expect(
+      page.getByText("Trouve ta prochaine mission.")
+    ).toBeVisible();
 
-        const emailInput =
-          page.getByPlaceholder(
-            "vous@exemple.com"
-          );
+    const providerState = await readKlyxE2EProfiles(page);
+    expect(providerState.activeProfileId).toBe(provider!.id);
 
-        const passwordInput =
-          page.getByPlaceholder(
-            "Votre mot de passe"
-          );
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
+    await expect(
+      page.getByText("Trouve ta prochaine mission.")
+    ).toBeVisible();
 
-        const loginButton =
-          page.getByRole(
-            "button",
-            {
-              name:
-                "Se connecter",
-            }
-          );
+    await switchThroughUi(page, provider!, client!);
+    await expect(
+      page.getByText("Organise ton prochain besoin.")
+    ).toBeVisible();
 
-        await emailInput.fill(
-          email!
-        );
-
-        await passwordInput.fill(
-          password!
-        );
-
-        try {
-          await loginButton.click();
-        } finally {
-          await clearSensitivePassword(
-            page
-          );
-        }
-
-        await expect(
-          page
-        ).toHaveURL(
-          /\/dashboard(?:\?|$)/,
-          {
-            timeout:
-              20_000,
-          }
-        );
-
-        const initial =
-          await readProfiles(
-            page
-          );
-
-        const client =
-          initial.profiles.find(
-            (profile) =>
-              profile.accountType ===
-              "client"
-          );
-
-        const provider =
-          initial.profiles.find(
-            (profile) =>
-              profile.accountType ===
-              "provider"
-          );
-
-        expect(
-          client,
-          "Dedicated E2E client profile is missing."
-        ).toBeTruthy();
-
-        expect(
-          provider,
-          "Dedicated E2E provider profile is missing."
-        ).toBeTruthy();
-
-        await forceActiveProfile(
-          page,
-          client!.id
-        );
-
-        await page.goto(
-          "/dashboard"
-        );
-
-        await expect(
-          page.getByText(
-            "Organise ton prochain besoin."
-          )
-        ).toBeVisible();
-
-        await switchThroughUi(
-          page,
-          client!,
-          provider!
-        );
-
-        await expect(
-          page.getByText(
-            "Trouve ta prochaine mission."
-          )
-        ).toBeVisible({
-          timeout:
-            20_000,
-        });
-
-        const providerState =
-          await readProfiles(
-            page
-          );
-
-        expect(
-          providerState.activeProfileId
-        ).toBe(
-          provider!.id
-        );
-
-        await page.reload();
-
-        await expect(
-          page.getByText(
-            "Trouve ta prochaine mission."
-          )
-        ).toBeVisible();
-
-        const afterReload =
-          await readProfiles(
-            page
-          );
-
-        expect(
-          afterReload.activeProfileId
-        ).toBe(
-          provider!.id
-        );
-
-        await page.goto(
-          "/login"
-        );
-
-        await expect(
-          page
-        ).toHaveURL(
-          /\/dashboard(?:\?|$)/,
-          {
-            timeout:
-              20_000,
-          }
-        );
-
-        await switchThroughUi(
-          page,
-          provider!,
-          client!
-        );
-
-        await expect(
-          page.getByText(
-            "Organise ton prochain besoin."
-          )
-        ).toBeVisible({
-          timeout:
-            20_000,
-        });
-
-        const finalState =
-          await readProfiles(
-            page
-          );
-
-        expect(
-          finalState.activeProfileId
-        ).toBe(
-          client!.id
-        );
-      }
-    );
-  }
-);
+    const clientState = await readKlyxE2EProfiles(page);
+    expect(clientState.activeProfileId).toBe(client!.id);
+  });
+});
