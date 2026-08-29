@@ -87,7 +87,10 @@ describe(
         );
 
         expect(assistant).toContain(
-          "klyx-premium-hero"
+          'placeholder="Demander à KLYX…"'
+        );
+        expect(assistant).toContain(
+          "Rien n’est appliqué ni envoyé sans ta confirmation."
         );
 
         expect(jobs).toContain(
