@@ -126,7 +126,7 @@ export default function ProviderFinanceAudit() {
     if (status === "pending") return t("payoutPending");
     if (status === "failed") return t("payoutFailed");
     if (status === "canceled") return t("payoutCanceled");
-    return status;
+    return t("statusProcessing");
   }
 
   const load = useCallback(async () => {
