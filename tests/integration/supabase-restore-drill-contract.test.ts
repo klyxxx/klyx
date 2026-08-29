@@ -36,12 +36,24 @@ describe("KLYX Supabase restore drill safety contract", () => {
   it("uses the Supabase logical dump flow for roles, schema and data", () => {
     expect(workflow).toContain("supabase db dump");
     expect(workflow).toContain("--role-only");
+    expect(workflow).toContain('roles.sql"');
     expect(workflow).toContain('schema.sql"');
     expect(workflow).toContain('data.sql"');
     expect(workflow).toContain("--use-copy");
     expect(workflow).toContain("--data-only");
     expect(workflow).toContain('-x "storage.buckets_vectors"');
     expect(workflow).toContain('-x "storage.vector_indexes"');
+  });
+
+  it("keeps role definitions but omits non-portable role GUC defaults", () => {
+    expect(workflow).toContain("Prepare portable role dump");
+    expect(workflow).toContain("roles.portable.sql");
+    expect(workflow).toContain("(?:SET|RESET)\\b");
+    expect(workflow).toContain("Portable role dump lost all role definitions.");
+    expect(workflow).toContain("role_guc_defaults_replayed=false");
+    expect(workflow).toContain("scope=public_schema_data_portable_roles");
+    expect(workflow).toContain('--file "$dump_dir/roles.portable.sql"');
+    expect(workflow).not.toContain("ON_ERROR_STOP=0");
   });
 
   it("restores only after clearing public on the ephemeral target and disables triggers during data load", () => {
@@ -85,6 +97,7 @@ describe("KLYX Supabase restore drill safety contract", () => {
     );
 
     expect(uploadSection).not.toContain("roles.sql");
+    expect(uploadSection).not.toContain("roles.portable.sql");
     expect(uploadSection).not.toContain("schema.sql");
     expect(uploadSection).not.toContain("data.sql");
     expect(uploadSection).not.toContain("KLYX_RESTORE_DRILL_DUMP_DIR");
