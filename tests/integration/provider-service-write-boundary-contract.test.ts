@@ -85,6 +85,7 @@ describe("provider service write boundary contract", () => {
       join(process.cwd(), accountSwitcherPath),
       "utf8"
     );
+    const compactAccountSwitcher = accountSwitcher.replace(/\s+/g, " ");
 
     expect(profileManage).toContain('supabase.rpc(\n      "klyx_create_profile"');
     expect(baseline).toContain(
@@ -93,7 +94,9 @@ describe("provider service write boundary contract", () => {
     expect(baseline).toContain("insert into public.user_services");
     expect(baseline).toContain("insert into public.service_profiles");
 
-    expect(accountSwitcher).toContain('fetch(\n    "/api/profiles/manage"');
+    expect(compactAccountSwitcher).toMatch(
+      /fetch\("\/api\/profiles\/manage", \{ method: "POST"/
+    );
     expect(accountSwitcher).not.toContain('.from("user_services")');
     expect(accountSwitcher).not.toContain('.from("service_profiles")');
   });
