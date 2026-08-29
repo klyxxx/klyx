@@ -53,7 +53,7 @@ describe("KLYX provider assistant i18n safety contract", () => {
     expect(routeSource).toContain('.from("availability_slots")');
   });
 
-  it("keeps stored assistant content verbatim while localizing chrome and status", () => {
+  it("keeps stored assistant content readable while localizing chrome and status", () => {
     expect(pageSource).toContain("useKlyxLocale()");
     expect(pageSource).toContain(
       "translateKlyxProviderAssistant(locale, key)"
@@ -61,7 +61,9 @@ describe("KLYX provider assistant i18n safety contract", () => {
     expect(pageSource).toContain("{result.title}");
     expect(pageSource).toContain("{result.reply}");
     expect(pageSource).toContain("{draft.title}");
-    expect(pageSource).toContain("JSON.stringify(draft.payload, null, 2)");
+    expect(pageSource).toContain("draftPreview(draft)");
+    expect(pageSource).toContain("{preview}");
+    expect(pageSource).not.toContain("JSON.stringify(draft.payload, null, 2)");
     expect(pageSource).toContain("translateKlyxProviderAssistantStatus(");
   });
 

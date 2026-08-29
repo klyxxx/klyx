@@ -87,7 +87,7 @@ describe(
         );
 
         expect(assistant).toContain(
-          "KLYX_AI_FIRST_PROVIDER_ASSISTANT_15_04"
+          "klyx-premium-hero"
         );
 
         expect(jobs).toContain(
