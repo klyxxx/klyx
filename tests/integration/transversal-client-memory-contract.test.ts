@@ -94,7 +94,7 @@ describe("KLYX transversal client memory", () => {
     expect(assistant).toContain("requestedMemorySummary = buildClientMemorySummary(memory)");
     expect(assistant).toContain('reply.mode === "openai" && requestedMemorySummary.length > 0');
     expect(aiProvider).toContain("memorySummary?: string[]");
-    expect(aiProvider).toContain("Mémoire KLYX autorisée");
+    expect(aiProvider).toContain("Mémoire KLYX explicitement autorisée");
     expect(aiProvider).toContain("utiliser uniquement le contexte mémoire explicitement fourni par KLYX");
   });
 
