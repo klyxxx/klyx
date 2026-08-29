@@ -35,8 +35,8 @@ describe(
 
         expect(
           ai
-        ).toContain(
-          'process.env.KLYX_OPENAI_ENABLED === "1"'
+        ).toMatch(
+          /process\.env\.KLYX_OPENAI_ENABLED\s*!==\s*"1"/
         );
 
         expect(
