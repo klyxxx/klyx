@@ -206,8 +206,46 @@ jobs:
             -x "storage.buckets_vectors" \
             -x "storage.vector_indexes"
 
+          test -s "$dump_dir/roles.sql"
           test -s "$dump_dir/schema.sql"
           test -s "$dump_dir/data.sql"
+
+      - name: Prepare portable role dump
+        shell: bash
+        run: |
+          set -euo pipefail
+          dump_dir="$KLYX_RESTORE_DRILL_DUMP_DIR"
+
+          node - "$dump_dir/roles.sql" "$dump_dir/roles.portable.sql" <<'NODE'
+          const fs = require("node:fs");
+
+          const inputPath = process.argv[2];
+          const outputPath = process.argv[3];
+          const source = fs.readFileSync(inputPath, "utf8");
+          const roleSetting = /^ALTER ROLE (?:(?:"(?:[^"]|"")*")|(?:[^\s;]+)) (?:SET|RESET)\b.*;\s*$/;
+          const lines = source.split(/\r?\n/);
+          let strippedRoleSettings = 0;
+
+          const portable = lines.filter((line) => {
+            if (!roleSetting.test(line)) return true;
+            strippedRoleSettings += 1;
+            return false;
+          });
+
+          if (!/\b(?:CREATE|ALTER) ROLE\b/.test(source)) {
+            throw new Error("Role dump does not contain role definitions.");
+          }
+
+          const output = portable.join("\n");
+          if (!/\b(?:CREATE|ALTER) ROLE\b/.test(output)) {
+            throw new Error("Portable role dump lost all role definitions.");
+          }
+
+          fs.writeFileSync(outputPath, output, { mode: 0o600 });
+          process.stdout.write(`Prepared portable role dump; omitted ${strippedRoleSettings} role GUC default statement(s).\n`);
+          NODE
+
+          test -s "$dump_dir/roles.portable.sql"
 
       - name: Clear only public schema on ephemeral target
         shell: bash
@@ -239,7 +277,7 @@ jobs:
             --no-psqlrc \
             --single-transaction \
             --variable ON_ERROR_STOP=1 \
-            --file "$dump_dir/roles.sql" \
+            --file "$dump_dir/roles.portable.sql" \
             --file "$dump_dir/schema.sql" \
             --command 'SET session_replication_role = replica' \
             --file "$dump_dir/data.sql" \
@@ -271,10 +309,11 @@ jobs:
           printf '%s\n' \
             "commit=${GITHUB_SHA}" \
             "run=${GITHUB_RUN_ID}" \
-            "scope=public_schema_roles_schema_data" \
+            "scope=public_schema_data_portable_roles" \
             "source=production_read_only_dump" \
             "target=ephemeral_loopback_supabase" \
             "critical_table_fingerprints_match=true" \
+            "role_guc_defaults_replayed=false" \
             "sensitive_dump_uploaded=false" \
             "auth_storage_objects_claimed=false" \
             "verified_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
