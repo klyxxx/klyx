@@ -13,7 +13,7 @@ const sidebar = fs.readFileSync(
   "utf8"
 );
 
-describe("mobile sidebar accessibility contract", () => {
+describe("mobile navigation accessibility contract", () => {
   it("provides a reusable keyboard focus trap", () => {
     expect(helper).toContain("MOBILE_DIALOG_FOCUSABLE_SELECTOR");
     expect(helper).toContain("event.key !== 'Tab'");
@@ -21,11 +21,13 @@ describe("mobile sidebar accessibility contract", () => {
     expect(helper).toContain("container.focus()");
   });
 
-  it("renders the mobile drawer as a modal dialog with focus management", () => {
-    expect(sidebar).toContain('role="dialog"');
-    expect(sidebar).toContain('aria-modal="true"');
-    expect(sidebar).toContain("trapDialogTabKey");
-    expect(sidebar).toContain('event.key === "Escape"');
-    expect(sidebar).toContain("mobileMenuTriggerRef.current?.focus()");
+  it("uses a fixed four-entry mobile navigation instead of a modal drawer", () => {
+    expect(sidebar).toContain('aria-label="Navigation mobile KLYX"');
+    expect(sidebar).toContain("grid-cols-4");
+    expect(sidebar).toContain("min-h-14");
+    expect(sidebar).not.toContain('role="dialog"');
+    expect(sidebar).not.toContain('aria-modal="true"');
+    expect(sidebar).not.toContain("trapDialogTabKey");
+    expect(sidebar).not.toContain("mobileMenuTriggerRef");
   });
 });

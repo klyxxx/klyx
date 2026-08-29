@@ -8,11 +8,6 @@ import {
   type KlyxE2EProfile,
 } from "./helpers/authenticated-session";
 
-/*
- * Authenticated E2E uses a Node-only admin-generated one-time token for the
- * dedicated test user. No password, service-role key or session token is
- * rendered into Playwright traces, screenshots or videos.
- */
 test.use({
   trace: "off",
   screenshot: "off",
@@ -55,7 +50,7 @@ test.describe("KLYX authenticated multi-profile", () => {
     await clearSensitivePassword(page);
   });
 
-  test("switch client/provider and keep one authenticated session", async ({ page }) => {
+  test("switch client/provider with a full role workspace reload", async ({ page }) => {
     test.setTimeout(120_000);
 
     await loginKlyxE2E(page);
@@ -73,27 +68,31 @@ test.describe("KLYX authenticated multi-profile", () => {
 
     await activateKlyxE2EProfile(page, "client");
     await page.goto("/dashboard");
-    await expect(
-      page.getByText("Organise ton prochain besoin.")
-    ).toBeVisible();
+    await expect(page.getByText("Organise ton prochain besoin.")).toBeVisible();
 
     await switchThroughUi(page, client!, provider!);
+    await page.waitForURL((url) => url.pathname === "/provider/jobs");
     await expect(
-      page.getByText("Trouve ta prochaine mission.")
+      page.getByRole("link", { name: "Missions", exact: true }).first()
     ).toBeVisible();
 
     const providerState = await readKlyxE2EProfiles(page);
     expect(providerState.activeProfileId).toBe(provider!.id);
 
     await page.reload({ waitUntil: "domcontentloaded" });
-    await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
+    await expect(page).toHaveURL(/\/provider\/jobs(?:\?|$)/);
     await expect(
-      page.getByText("Trouve ta prochaine mission.")
+      page.getByRole("link", { name: "Services", exact: true }).first()
     ).toBeVisible();
 
+    // The profile switcher currently lives on the dashboard header. Returning
+    // there is intentional; the next switch must still replace the complete
+    // document with the client KLYX workspace.
+    await page.goto("/dashboard");
     await switchThroughUi(page, provider!, client!);
+    await page.waitForURL((url) => url.pathname === "/assistant");
     await expect(
-      page.getByText("Organise ton prochain besoin.")
+      page.getByRole("heading", { name: "Que puis-je organiser pour vous ?" })
     ).toBeVisible();
 
     const clientState = await readKlyxE2EProfiles(page);

@@ -1,6 +1,4 @@
-import {
-  NextResponse,
-} from "next/server";
+import { NextResponse } from "next/server";
 
 import {
   ACTIVE_PROFILE_COOKIE,
@@ -8,9 +6,7 @@ import {
   getOwnedProfiles,
 } from "@/lib/active-profile";
 import { secureApiErrorResponse } from "@/lib/api-error";
-import {
-  createClient,
-} from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 
 type SelectProfileBody = {
   profileId?: unknown;
@@ -20,42 +16,28 @@ function setActiveProfileCookie(
   response: NextResponse,
   profileId: string
 ) {
-  response.cookies.set(
-    ACTIVE_PROFILE_COOKIE,
-    profileId,
-    {
-      httpOnly: true,
-      sameSite: "lax",
-      secure:
-        process.env.NODE_ENV ===
-        "production",
-      path: "/",
-      maxAge:
-        60 *
-        60 *
-        24 *
-        365,
-    }
-  );
+  response.cookies.set(ACTIVE_PROFILE_COOKIE, profileId, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+  });
 }
 
 export async function GET() {
   const startedAt = Date.now();
 
   try {
-    const supabase =
-      await createClient();
-
+    const supabase = await createClient();
     const {
       data: { user },
-    } =
-      await supabase.auth.getUser();
+    } = await supabase.auth.getUser();
 
     if (!user) {
       return NextResponse.json(
         {
-          error:
-            "Non connecté.",
+          error: "Non connecté.",
         },
         {
           status: 401,
@@ -63,18 +45,14 @@ export async function GET() {
       );
     }
 
-    const profiles =
-      await getOwnedProfiles();
+    const profiles = await getOwnedProfiles();
 
-    if (
-      profiles.length === 0
-    ) {
+    if (profiles.length === 0) {
       return NextResponse.json(
         {
           profiles: [],
           activeProfileId: null,
-          error:
-            "Aucun profil KLYX associé à ce compte.",
+          error: "Aucun profil KLYX associé à ce compte.",
         },
         {
           status: 404,
@@ -82,8 +60,7 @@ export async function GET() {
       );
     }
 
-    const activeProfile =
-      await getActiveProfile();
+    const activeProfile = await getActiveProfile();
 
     /*
      * KLYX_ACTIVE_PROFILE_READ_ONLY_12B_10L
@@ -95,9 +72,7 @@ export async function GET() {
      */
     return NextResponse.json({
       profiles,
-      activeProfileId:
-        activeProfile?.id ??
-        profiles[0].id,
+      activeProfileId: activeProfile?.id ?? profiles[0].id,
     });
   } catch (error) {
     return secureApiErrorResponse({
@@ -112,25 +87,19 @@ export async function GET() {
   }
 }
 
-export async function POST(
-  request: Request
-) {
+export async function POST(request: Request) {
   const startedAt = Date.now();
 
   try {
-    const supabase =
-      await createClient();
-
+    const supabase = await createClient();
     const {
       data: { user },
-    } =
-      await supabase.auth.getUser();
+    } = await supabase.auth.getUser();
 
     if (!user) {
       return NextResponse.json(
         {
-          error:
-            "Non connecté.",
+          error: "Non connecté.",
         },
         {
           status: 401,
@@ -141,13 +110,11 @@ export async function POST(
     let body: SelectProfileBody;
 
     try {
-      body =
-        (await request.json()) as SelectProfileBody;
+      body = (await request.json()) as SelectProfileBody;
     } catch {
       return NextResponse.json(
         {
-          error:
-            "Requête invalide.",
+          error: "Requête invalide.",
         },
         {
           status: 400,
@@ -156,16 +123,12 @@ export async function POST(
     }
 
     const profileId =
-      typeof body.profileId ===
-        "string"
-        ? body.profileId.trim()
-        : "";
+      typeof body.profileId === "string" ? body.profileId.trim() : "";
 
     if (!profileId) {
       return NextResponse.json(
         {
-          error:
-            "Identifiant de profil invalide.",
+          error: "Identifiant de profil invalide.",
         },
         {
           status: 400,
@@ -173,21 +136,13 @@ export async function POST(
       );
     }
 
-    const profiles =
-      await getOwnedProfiles();
-
-    const profile =
-      profiles.find(
-        (item) =>
-          item.id ===
-          profileId
-      );
+    const profiles = await getOwnedProfiles();
+    const profile = profiles.find((item) => item.id === profileId);
 
     if (!profile) {
       return NextResponse.json(
         {
-          error:
-            "Ce profil ne t’appartient pas.",
+          error: "Ce profil ne t’appartient pas.",
         },
         {
           status: 403,
@@ -195,17 +150,13 @@ export async function POST(
       );
     }
 
-    const response =
-      NextResponse.json({
-        success: true,
-        profileId:
-          profile.id,
-      });
+    const response = NextResponse.json({
+      success: true,
+      profileId: profile.id,
+      accountType: profile.accountType,
+    });
 
-    setActiveProfileCookie(
-      response,
-      profile.id
-    );
+    setActiveProfileCookie(response, profile.id);
 
     return response;
   } catch (error) {

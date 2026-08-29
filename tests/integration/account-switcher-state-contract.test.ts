@@ -9,26 +9,38 @@ function read(relativePath: string): string {
     .replace(/\r\n/g, "\n");
 }
 
+function compact(source: string) {
+  return source.replace(/\s+/g, " ");
+}
+
 const accountSwitcher = read("app/components/AccountSwitcher.tsx");
+const activeProfileSync = read("app/components/ActiveProfileSync.tsx");
 const founderModeSwitcher = read("app/components/FounderModeSwitcher.tsx");
 
 describe("KLYX profile switch UI state", () => {
-  it("optimistically tracks the confirmed active profile instead of waiting for a server remount", () => {
-    expect(accountSwitcher).toContain("activeProfileId");
-    expect(accountSwitcher).toContain("setActiveProfileId(\n        profileId\n      );");
-    expect(accountSwitcher).toContain("profile.id ===\n        activeProfileId");
-    expect(accountSwitcher).toContain("profile.id ===\n                    activeProfileId");
+  it("optimistically tracks the confirmed active profile without depending on formatting", () => {
+    const source = compact(accountSwitcher);
+
+    expect(source).toContain("activeProfileId");
+    expect(source).toContain("setActiveProfileId(profileId);");
+    expect(source).toContain("profile.id === activeProfileId");
   });
 
   it("always releases the account switch spinner after success or failure", () => {
-    const finallyIndex = accountSwitcher.indexOf("} finally {");
-    const releaseIndex = accountSwitcher.indexOf(
-      "setSwitchingId(\n        null\n      );",
-      finallyIndex
-    );
+    const source = compact(accountSwitcher);
 
-    expect(finallyIndex).toBeGreaterThanOrEqual(0);
-    expect(releaseIndex).toBeGreaterThan(finallyIndex);
+    expect(source).toContain("} finally { setSwitchingId(null); }");
+  });
+
+  it("hands successful role changes to the full-document profile synchronizer", () => {
+    expect(accountSwitcher).toContain(
+      "ActiveProfileSync owns the full-document role transition."
+    );
+    expect(accountSwitcher).not.toContain("window.location");
+    expect(activeProfileSync).toContain('detail.accountType === "provider"');
+    expect(activeProfileSync).toContain('? "/provider/jobs"');
+    expect(activeProfileSync).toContain(': "/assistant"');
+    expect(activeProfileSync).toContain("window.location.replace(target.toString());");
   });
 
   it("lets the founder client/provider switcher recover the same way", () => {

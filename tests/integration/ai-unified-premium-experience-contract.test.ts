@@ -145,7 +145,7 @@ describe(
     );
 
     it(
-      "retires the duplicate brain UI without breaking old links",
+      "keeps one canonical client assistant surface while retiring duplicate UI shortcuts",
       () => {
         const brain =
           read("app/brain/page.tsx");
@@ -155,13 +155,22 @@ describe(
         expect(brain).toContain(
           'redirect("/assistant")'
         );
+        expect(assistant).toContain(
+          "<ClientRouteGuard>"
+        );
+        expect(assistant).toContain(
+          "Que puis-je organiser pour vous ?"
+        );
+        expect(assistant).toContain(
+          "<AssistantCommandBar />"
+        );
         expect(assistant).not.toContain(
           'href="/brain"'
         );
-        expect(assistant).toContain(
+        expect(assistant).not.toContain(
           'href="/assistant/market"'
         );
-        expect(assistant).toContain(
+        expect(assistant).not.toContain(
           'href="/provider/assistant"'
         );
       }

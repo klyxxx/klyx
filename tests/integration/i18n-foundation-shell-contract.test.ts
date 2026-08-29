@@ -58,14 +58,17 @@ describe("KLYX i18n foundation shell contract", () => {
     expect(provider).toContain('window.addEventListener("storage", onStorage)');
   });
 
-  it("wires locale context through the global application shell", () => {
+  it("wires locale context through the compact role-first application shell", () => {
     expect(layout).toContain("<KlyxLocaleProvider initialLocale={locale}>");
     expect(layout).toContain("lang={localeMetadata.htmlLang}");
     expect(layout).toContain("dir={localeMetadata.dir}");
     expect(layout).toContain("<KlyxSkipLink />");
     expect(sidebar).toContain("useKlyxLocale()");
-    expect(sidebar).toContain("translateKlyxNavigationLabel(locale, item.title)");
-    expect(sidebar).toContain('t("sidebar.searchPlaceholder")');
+    expect(sidebar).toContain("translateKlyxNavigationLabel(locale, item.translationLabel)");
+    expect(sidebar).toContain('title: "Activité"');
+    expect(sidebar).toContain('title: "Missions"');
+    expect(sidebar).not.toContain('t("sidebar.searchPlaceholder")');
+    expect(sidebar).not.toContain("searchPlaceholder");
   });
 
   it("makes the settings selector use the canonical locale catalog immediately", () => {
