@@ -59,6 +59,11 @@ describe("KLYX global language batch 3 contract", () => {
   it("keeps the Nordic batch documented without claiming full-site translation", () => {
     expect(documentation).toContain("### Batch 3 — Nordics");
     expect(documentation).toContain("not** full-site internationalization");
-    expect(documentation).toContain("Most page-level copy");
+    expect(documentation).toContain(
+      "Significant page-level coverage is still incomplete"
+    );
+    expect(documentation).toContain(
+      "FR/EN/NL/DE currently have the deepest reviewed page-level coverage"
+    );
   });
 });
