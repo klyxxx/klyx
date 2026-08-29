@@ -6,7 +6,12 @@ type StripeRuntimeMode = "test" | "live";
 // the platform was activated. Keeping the revision deterministic preserves
 // duplicate-account protection while allowing a fresh request after that
 // platform state changes.
-const STRIPE_CONNECT_ACCOUNT_CREATE_KEY_REVISION = "v2";
+//
+// v3 is intentionally rotated after the live Connect platform profile was
+// completed. The previous v2 replacement key is already bound by Stripe to the
+// earlier platform-profile-incomplete 400 and would otherwise replay that
+// stale response even after Stripe accepted the questionnaire.
+const STRIPE_CONNECT_ACCOUNT_CREATE_KEY_REVISION = "v3";
 
 function normalizeToken(value: string): string {
   return value.trim().replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 96);
