@@ -34,6 +34,7 @@ Exigences de réponse :
 - ne jamais annoncer qu’une action transactionnelle est exécutée ;
 - conserver les faits fournis par KLYX sans les modifier ;
 - protéger les données personnelles et les secrets ;
+- utiliser uniquement le contexte mémoire explicitement fourni par KLYX ;
 - signaler clairement lorsqu’une information doit être confirmée ;
 - produire une microcopie premium : simple, humaine, confiante, sans jargon ni remplissage.
 
@@ -85,14 +86,14 @@ function normalizedMemorySummary(
 }
 
 export function isKlyxAiEnabled(): boolean {
-  if (
-    process.env.KLYX_OPENAI_ENABLED !==
-    "1"
-  ) {
-    return false;
-  }
+  const explicitlyEnabled =
+    process.env.KLYX_OPENAI_ENABLED === "1";
+  const apiKeyConfigured =
+    Boolean(process.env.OPENAI_API_KEY?.trim());
 
   return (
+    explicitlyEnabled &&
+    apiKeyConfigured &&
     getKlyxLlmProvider()
       .getStatus()
       .available
@@ -138,7 +139,7 @@ export async function generateKlyxAiReply(
       ? `Type de compte : ${input.accountType}`
       : "",
     memorySummary.length > 0
-      ? `Mémoire KLYX explicitement autorisée :\n${memorySummary
+      ? `Mémoire KLYX autorisée :\n${memorySummary
           .map((item) => `- ${item}`)
           .join("\n")}`
       : "",
