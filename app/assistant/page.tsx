@@ -119,7 +119,7 @@ export default function AssistantHomePage() {
   return (
     <main className="klyx-page">
       <div className="mx-auto max-w-6xl">
-        <section className="overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#17131f,#4c1d95_52%,#111827)] p-7 text-white sm:p-10">
+        <section className="klyx-premium-hero overflow-hidden rounded-[2rem] p-7 text-white sm:p-10">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white/70">
             <Sparkles size={14} />
             {t("badge")}
@@ -135,7 +135,6 @@ export default function AssistantHomePage() {
 
           <AssistantBrief />
 
-          {/* KLYX_SMART_COMMAND_HOME_12_79 */}
           <AssistantCommandBar
             actions={data?.actions ?? []}
           />
@@ -144,17 +143,26 @@ export default function AssistantHomePage() {
         <ProactiveAssistantPanel />
 
         {errorMessage && (
-          <div className="mt-5 rounded-2xl border border-rose-500/25 bg-rose-500/10 p-4 text-sm text-rose-700 dark:text-rose-300">
+          <div
+            role="alert"
+            className="klyx-feedback klyx-feedback-error mt-5"
+          >
             {errorMessage}
           </div>
         )}
 
         {loading ? (
-          <div className="grid min-h-56 place-items-center">
+          <div
+            className="grid min-h-56 place-items-center"
+            aria-live="polite"
+          >
             <LoaderCircle
               className="animate-spin text-violet-600"
               size={34}
             />
+            <span className="sr-only">
+              Chargement de KLYX
+            </span>
           </div>
         ) : (
           <>
@@ -240,14 +248,6 @@ export default function AssistantHomePage() {
                     text={t("searchText")}
                     openLabel={t("open")}
                   />
-
-                  <Card
-                    href="/brain"
-                    icon={<Bot size={21} />}
-                    title={t("brainTitle")}
-                    text={t("brainText")}
-                    openLabel={t("open")}
-                  />
                 </>
               ) : (
                 <>
@@ -304,7 +304,7 @@ function Card({
   return (
     <Link
       href={href}
-      className="klyx-card group p-6 transition hover:-translate-y-0.5 hover:border-violet-500/25"
+      className="klyx-card klyx-premium-interactive group p-6"
     >
       <div className="grid h-11 w-11 place-items-center rounded-2xl bg-violet-500/10 text-violet-600">
         {icon}
