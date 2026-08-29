@@ -33,7 +33,7 @@ describe("KLYX Supabase restore drill safety contract", () => {
     expect(workflow).toContain('supabase stop --no-backup || true');
   });
 
-  it("uses the Supabase logical dump flow for roles, schema and data", () => {
+  it("dumps roles plus public-only schema and data", () => {
     expect(workflow).toContain("supabase db dump");
     expect(workflow).toContain("--role-only");
     expect(workflow).toContain('roles.sql"');
@@ -41,8 +41,12 @@ describe("KLYX Supabase restore drill safety contract", () => {
     expect(workflow).toContain('data.sql"');
     expect(workflow).toContain("--use-copy");
     expect(workflow).toContain("--data-only");
-    expect(workflow).toContain('-x "storage.buckets_vectors"');
-    expect(workflow).toContain('-x "storage.vector_indexes"');
+    expect((workflow.match(/--schema public/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    expect(workflow).toContain(
+      "Public-only data dump unexpectedly contains managed Supabase schema rows."
+    );
+    expect(workflow).toContain("^COPY (auth|storage)\\.");
+    expect(workflow).toContain("managed_schema_rows_replayed=false");
   });
 
   it("replays portable role definitions or safely keeps local roles for GUC-only dumps", () => {
