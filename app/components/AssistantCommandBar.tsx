@@ -72,7 +72,9 @@ export default function AssistantCommandBar({ actions = [] }: Props) {
   async function submit(event: FormEvent) {
     event.preventDefault();
 
-    const message = value.trim();
+    const message =
+      value.trim();
+
     if (!message || busy) return;
 
     setBusy(true);
@@ -88,27 +90,43 @@ export default function AssistantCommandBar({ actions = [] }: Props) {
         return;
       }
 
-      const response = await fetch("/api/brain/command", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        // Command routing never executes transactional actions from the browser.
-        body: JSON.stringify({ message }),
-      });
+      const response =
+        await fetch(
+          "/api/brain/command",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type":
+                "application/json",
+              Authorization:
+                "Bearer " +
+                session.access_token,
+            },
+
+            // KLYX 12.81:
+            // NO actions from browser.
+            body:
+              JSON.stringify({
+                message,
+              }),
+          }
+        );
 
       const result = (await response.json()) as CommandResponse;
 
       if (!response.ok) throw new Error("Command unavailable");
 
       if (result.mode === "existing_action" && result.action?.href) {
-        router.push(result.action.href);
+        router.push(
+          result.action.href
+        );
         return;
       }
 
       if (result.href) {
-        router.push(result.href);
+        router.push(
+          result.href
+        );
         return;
       }
 
@@ -143,7 +161,11 @@ export default function AssistantCommandBar({ actions = [] }: Props) {
         <div className="flex items-center justify-between gap-3 px-1 pb-1">
           <button
             type="button"
-            onClick={() => router.push("/request/photo")}
+            onClick={() =>
+              router.push(
+                  "/request/photo"
+                )
+            }
             className="inline-flex h-10 items-center gap-2 rounded-full border border-border px-3.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground dark:border-white/10"
           >
             <Camera size={16} />
@@ -180,7 +202,11 @@ export default function AssistantCommandBar({ actions = [] }: Props) {
             <button
               key={action.id}
               type="button"
-              onClick={() => router.push(action.href)}
+              onClick={() =>
+                router.push(
+                      action.href
+                    )
+              }
               className="inline-flex items-center gap-2 rounded-full border border-violet-500/15 bg-violet-500/[0.05] px-3 py-2 text-xs font-semibold text-violet-700 transition hover:bg-violet-500/[0.09] dark:text-violet-300"
             >
               <ActionIcon kind={action.kind} />
@@ -195,7 +221,11 @@ export default function AssistantCommandBar({ actions = [] }: Props) {
           <button
             key={example}
             type="button"
-            onClick={() => setValue(example)}
+            onClick={() =>
+              setValue(
+                  example
+                )
+            }
             className="rounded-full border border-border bg-background/60 px-3 py-2 text-xs font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground dark:border-white/10 dark:bg-white/[0.025]"
           >
             {example}
