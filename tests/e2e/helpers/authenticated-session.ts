@@ -41,10 +41,25 @@ type SessionCookie = {
 const USERS_PAGE_SIZE = 1000;
 const MAX_USER_PAGES = 100;
 
-async function assertDedicatedE2EUserExists(
-  admin: ReturnType<typeof createSupabaseClient>
-) {
-  const normalizedEmail = e2eEmail!.toLowerCase();
+async function createVerifiedE2EAdminClient() {
+  if (!e2eEmail || !supabaseUrl || !supabaseServiceRoleKey) {
+    throw new Error(
+      "Dedicated KLYX E2E admin bootstrap is not configured."
+    );
+  }
+
+  const admin = createSupabaseClient(
+    supabaseUrl,
+    supabaseServiceRoleKey,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+        detectSessionInUrl: false,
+      },
+    }
+  );
+  const normalizedEmail = e2eEmail.toLowerCase();
 
   for (let page = 1; page <= MAX_USER_PAGES; page += 1) {
     const { data, error } = await admin.auth.admin.listUsers({
@@ -60,7 +75,7 @@ async function assertDedicatedE2EUserExists(
       (user) => user.email?.trim().toLowerCase() === normalizedEmail
     );
 
-    if (existing) return;
+    if (existing) return admin;
 
     if (data.users.length < USERS_PAGE_SIZE) break;
   }
@@ -92,19 +107,7 @@ async function createAuthenticatedSessionCookies(): Promise<SessionCookie[]> {
    * token through the normal public Auth API and lets @supabase/ssr produce
    * the exact session cookies consumed by KLYX middleware/server clients.
    */
-  const admin = createSupabaseClient(
-    supabaseUrl,
-    supabaseServiceRoleKey,
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-        detectSessionInUrl: false,
-      },
-    }
-  );
-
-  await assertDedicatedE2EUserExists(admin);
+  const admin = await createVerifiedE2EAdminClient();
 
   const { data: linkData, error: linkError } =
     await admin.auth.admin.generateLink({
