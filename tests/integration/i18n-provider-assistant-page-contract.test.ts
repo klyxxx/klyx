@@ -16,14 +16,13 @@ const routeSource = fs.readFileSync(
 );
 
 describe("KLYX provider assistant i18n safety contract", () => {
-  it("keeps the authenticated GET/POST/PATCH surface and exact payloads", () => {
+  it("keeps the authenticated GET/POST/PATCH surface and bounded payloads", () => {
     expect(pageSource).toContain('fetch("/api/provider/assistant", {');
     expect(pageSource).toContain('cache: "no-store"');
     expect(pageSource).toContain('method: "POST"');
     expect(pageSource).toContain('body: JSON.stringify({ message: request })');
     expect(pageSource).toContain('method: "PATCH"');
-    expect(pageSource).toContain("draftId,");
-    expect(pageSource).toContain("action,");
+    expect(pageSource).toContain('body: JSON.stringify({ draftId, action })');
     expect(pageSource).toContain(
       "Authorization: `Bearer ${accessToken}`"
     );
@@ -53,13 +52,14 @@ describe("KLYX provider assistant i18n safety contract", () => {
     expect(routeSource).toContain('.from("availability_slots")');
   });
 
-  it("keeps stored assistant content readable while localizing chrome and status", () => {
+  it("keeps conversational content readable while localizing chrome and status", () => {
     expect(pageSource).toContain("useKlyxLocale()");
     expect(pageSource).toContain(
       "translateKlyxProviderAssistant(locale, key)"
     );
-    expect(pageSource).toContain("{result.title}");
-    expect(pageSource).toContain("{result.reply}");
+    expect(pageSource).toContain('{entry.role === "assistant" && entry.title');
+    expect(pageSource).toContain("{entry.title}");
+    expect(pageSource).toContain("{entry.text}");
     expect(pageSource).toContain("{draft.title}");
     expect(pageSource).toContain("draftPreview(draft)");
     expect(pageSource).toContain("{preview}");
@@ -67,8 +67,11 @@ describe("KLYX provider assistant i18n safety contract", () => {
     expect(pageSource).toContain("translateKlyxProviderAssistantStatus(");
   });
 
-  it("does not reflect backend/network errors or add transactional execution", () => {
-    expect(pageSource).not.toContain("body.error");
+  it("keeps backend failures generic in presentation and forbids transactional execution", () => {
+    expect(pageSource).toContain('setErrorMessage(t("submitError"))');
+    expect(pageSource).toContain('setErrorMessage(t("actionError"))');
+    expect(pageSource).not.toContain("setErrorMessage(body.error");
+    expect(pageSource).not.toContain("{body.error}");
     expect(pageSource).not.toContain("error.message");
     expect(pageSource).not.toContain("/api/stripe");
     expect(pageSource).not.toContain("/api/bookings");
