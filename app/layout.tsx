@@ -120,6 +120,9 @@ export async function generateMetadata(): Promise<Metadata> {
       template: "%s | KLYX",
     },
     description: copy.description,
+    alternates: {
+      canonical: appUrl,
+    },
     applicationName: "KLYX",
     keywords: copy.keywords,
     authors: [{ name: "KLYX" }],
