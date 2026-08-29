@@ -15,6 +15,7 @@ import { stripeConnectAccountCreateIdempotencyKey } from "@/lib/stripe-connect-a
 import {
   isRecoverableStripeConnectAccountForOnboarding,
   isStripePlatformActivationRequired,
+  isStripePlatformProfileRequired,
 } from "@/lib/stripe-connect-account-recovery";
 
 function requiredEnv(name: string): string {
@@ -187,6 +188,20 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ url: accountLink.url });
   } catch (error) {
+    if (isStripePlatformProfileRequired(error)) {
+      return secureApiErrorResponse({
+        error,
+        event: "stripe_connect_platform_profile_required",
+        route: "/api/stripe/connect/create-account",
+        method: "POST",
+        code: "KLYX_STRIPE_PLATFORM_PROFILE_REQUIRED",
+        status: 409,
+        publicMessage:
+          "Le profil de plateforme Stripe Connect de KLYX doit être complété avant de pouvoir créer les comptes de versement des prestataires.",
+        startedAt,
+      });
+    }
+
     if (isStripePlatformActivationRequired(error)) {
       return secureApiErrorResponse({
         error,

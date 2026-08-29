@@ -5,6 +5,7 @@ import {
   isRecoverableStripeConnectAccountForOnboarding,
   isStripeConnectAccountModeMismatch,
   isStripePlatformActivationRequired,
+  isStripePlatformProfileRequired,
 } from "../../lib/stripe-connect-account-recovery";
 
 describe("Stripe Connect stale account recovery", () => {
@@ -24,10 +25,12 @@ describe("Stripe Connect stale account recovery", () => {
   });
 
   it("accepts Stripe's explicit live/test account-link mismatch", () => {
+    const liveTestMismatch =
+      "You tried to create a live mode account link for an account that was created in test mode.";
+
     expect(
       isStripeConnectAccountModeMismatch({
-        message:
-          "You tried to create a live mode account link for an account that was created in test mode.",
+        message: liveTestMismatch,
       })
     ).toBe(true);
 
@@ -39,28 +42,60 @@ describe("Stripe Connect stale account recovery", () => {
         },
       })
     ).toBe(true);
+
+    expect(
+      isStripeConnectAccountModeMismatch({
+        message: "Invalid request",
+        raw: { message: liveTestMismatch },
+      })
+    ).toBe(true);
   });
 
   it("recognizes only Stripe's exact platform activation blocker", () => {
+    const activationMessage =
+      "Your account must be activated in order to create accounts. You can activate your accounts at https://dashboard.stripe.com/account/onboarding.";
+
     expect(
       isStripePlatformActivationRequired({
-        message:
-          "Your account must be activated in order to create accounts. You can activate your accounts at https://dashboard.stripe.com/account/onboarding.",
+        message: activationMessage,
       })
     ).toBe(true);
 
     expect(
       isStripePlatformActivationRequired({
-        raw: {
-          message:
-            "Your account must be activated in order to create accounts. You can activate your accounts at https://dashboard.stripe.com/account/onboarding.",
-        },
+        raw: { message: activationMessage },
+      })
+    ).toBe(true);
+
+    expect(
+      isStripePlatformActivationRequired({
+        message: "Invalid request",
+        raw: { message: activationMessage },
       })
     ).toBe(true);
 
     expect(
       isStripePlatformActivationRequired({
         message: "Your account must be activated.",
+      })
+    ).toBe(false);
+  });
+
+  it("recognizes only Stripe's exact Connect platform-profile blocker", () => {
+    const message =
+      "You must complete your platform profile to use Connect and create live connected accounts. Visit your dashboard at https://dashboard.stripe.com/connect/accounts/overview to answer the questionnaire.";
+
+    expect(isStripePlatformProfileRequired({ message })).toBe(true);
+    expect(isStripePlatformProfileRequired({ raw: { message } })).toBe(true);
+    expect(
+      isStripePlatformProfileRequired({
+        message: "Invalid request",
+        raw: { message },
+      })
+    ).toBe(true);
+    expect(
+      isStripePlatformProfileRequired({
+        message: "You must complete your platform profile to use Connect.",
       })
     ).toBe(false);
   });
@@ -101,6 +136,13 @@ describe("Stripe Connect stale account recovery", () => {
       isRecoverableStripeConnectAccountForOnboarding({
         message:
           "Your account must be activated in order to create accounts. You can activate your accounts at https://dashboard.stripe.com/account/onboarding.",
+      })
+    ).toBe(false);
+
+    expect(
+      isRecoverableStripeConnectAccountForOnboarding({
+        message:
+          "You must complete your platform profile to use Connect and create live connected accounts. Visit your dashboard at https://dashboard.stripe.com/connect/accounts/overview to answer the questionnaire.",
       })
     ).toBe(false);
 

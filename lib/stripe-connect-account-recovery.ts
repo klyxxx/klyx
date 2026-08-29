@@ -1,5 +1,5 @@
-function stripeErrorMessage(error: unknown): string | null {
-  if (!error || typeof error !== "object") return null;
+function stripeErrorMessages(error: unknown): string[] {
+  if (!error || typeof error !== "object") return [];
 
   const candidate = error as {
     message?: unknown;
@@ -7,16 +7,24 @@ function stripeErrorMessage(error: unknown): string | null {
       message?: unknown;
     };
   };
+  const messages: string[] = [];
 
   if (typeof candidate.message === "string") {
-    return candidate.message;
+    messages.push(candidate.message);
   }
 
-  if (typeof candidate.raw?.message === "string") {
-    return candidate.raw.message;
+  if (
+    typeof candidate.raw?.message === "string" &&
+    !messages.includes(candidate.raw.message)
+  ) {
+    messages.push(candidate.raw.message);
   }
 
-  return null;
+  return messages;
+}
+
+function hasStripeErrorMessage(error: unknown, expected: string): boolean {
+  return stripeErrorMessages(error).includes(expected);
 }
 
 export function isMissingStripeConnectAccount(error: unknown): boolean {
@@ -47,20 +55,28 @@ export function isMissingStripeConnectAccount(error: unknown): boolean {
 }
 
 export function isStripeConnectAccountModeMismatch(error: unknown): boolean {
-  const message = stripeErrorMessage(error);
+  const messages = stripeErrorMessages(error);
 
-  return (
-    message ===
-      "You tried to create a live mode account link for an account that was created in test mode." ||
-    message ===
-      "You tried to create a test mode account link for an account that was created in live mode."
+  return messages.some(
+    (message) =>
+      message ===
+        "You tried to create a live mode account link for an account that was created in test mode." ||
+      message ===
+        "You tried to create a test mode account link for an account that was created in live mode."
   );
 }
 
 export function isStripePlatformActivationRequired(error: unknown): boolean {
-  return (
-    stripeErrorMessage(error) ===
+  return hasStripeErrorMessage(
+    error,
     "Your account must be activated in order to create accounts. You can activate your accounts at https://dashboard.stripe.com/account/onboarding."
+  );
+}
+
+export function isStripePlatformProfileRequired(error: unknown): boolean {
+  return hasStripeErrorMessage(
+    error,
+    "You must complete your platform profile to use Connect and create live connected accounts. Visit your dashboard at https://dashboard.stripe.com/connect/accounts/overview to answer the questionnaire."
   );
 }
 

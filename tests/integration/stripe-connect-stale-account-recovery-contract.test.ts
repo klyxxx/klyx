@@ -50,6 +50,19 @@ describe("Stripe Connect stale account recovery contract", () => {
     );
   });
 
+  it("surfaces incomplete Stripe Connect platform profile safely", () => {
+    expect(recovery).toContain(
+      "You must complete your platform profile to use Connect and create live connected accounts."
+    );
+    expect(createAccount).toContain("isStripePlatformProfileRequired(error)");
+    expect(createAccount).toContain(
+      'code: "KLYX_STRIPE_PLATFORM_PROFILE_REQUIRED"'
+    );
+    expect(createAccount).toContain(
+      "Le profil de plateforme Stripe Connect de KLYX doit être complété"
+    );
+  });
+
   it("replaces a stale stored account only inside the onboarding POST", () => {
     const linkAttempt = createAccount.indexOf(
       "accountLink = await createAccountLink(accountId)"
