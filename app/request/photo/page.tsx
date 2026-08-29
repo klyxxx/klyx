@@ -26,6 +26,8 @@ import {
 import { getActiveClientProfile } from "@/lib/account-switcher";
 import { supabase } from "@/lib/supabase";
 
+// KLYX_PREMIUM_PHOTO_ASSISTANT_16_01
+
 type Candidate = {
   slug: string;
   label: string;
@@ -93,10 +95,8 @@ export default function PhotoRequestPage() {
       try {
         const profile = await getActiveClientProfile();
         setProfileId(profile.id);
-      } catch (error) {
-        setErrorMessage(
-          error instanceof Error ? error.message : "Profil client introuvable."
-        );
+      } catch {
+        setErrorMessage("Profil client introuvable pour le moment.");
       }
     }
 
@@ -170,31 +170,33 @@ export default function PhotoRequestPage() {
           contentType: file.type,
         });
 
-      if (uploadError) throw new Error(uploadError.message);
+      if (uploadError) throw new Error("Photo upload unavailable");
 
       const accessToken = await token();
-      const response = await fetch("/api/requests/photo", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          storagePath: uploadedPath,
-          originalName: file.name,
-          mimeType: file.type,
-          sizeBytes: file.size,
-          width: dimensions.width,
-          height: dimensions.height,
-          description,
-          useVision,
-        }),
-      });
+      const response = await fetch(
+        "/api/requests/photo",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            storagePath: uploadedPath,
+            originalName: file.name,
+            mimeType: file.type,
+            sizeBytes: file.size,
+            width: dimensions.width,
+            height: dimensions.height,
+            description,
+            useVision,
+          }),
+        }
+      );
 
       const body = (await response.json()) as {
         requestId?: string;
         analysis?: Analysis;
-        error?: string;
       };
 
       if (!response.ok || !body.requestId || !body.analysis) {
@@ -202,15 +204,18 @@ export default function PhotoRequestPage() {
           .from("client-service-photos")
           .remove([uploadedPath]);
 
-        throw new Error(body.error || "Analyse impossible.");
+        throw new Error("Photo analysis unavailable");
       }
 
       setRequestId(body.requestId);
       setAnalysis(body.analysis);
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Analyse impossible."
-      );
+    } catch {
+      if (uploadedPath) {
+        await supabase.storage
+          .from("client-service-photos")
+          .remove([uploadedPath]);
+      }
+      setErrorMessage("KLYX ne peut pas analyser cette photo pour le moment.");
     } finally {
       setUploading(false);
     }
@@ -246,19 +251,20 @@ export default function PhotoRequestPage() {
 
     try {
       const accessToken = await token();
-      const response = await fetch("/api/requests/photo", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ requestId }),
-      });
-
-      const body = (await response.json()) as { error?: string };
+      const response = await fetch(
+        "/api/requests/photo",
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ requestId }),
+        }
+      );
 
       if (!response.ok) {
-        throw new Error(body.error || "Suppression impossible.");
+        throw new Error("Photo deletion unavailable");
       }
 
       setFile(null);
@@ -270,10 +276,8 @@ export default function PhotoRequestPage() {
         URL.revokeObjectURL(previewUrl);
         setPreviewUrl("");
       }
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Suppression impossible."
-      );
+    } catch {
+      setErrorMessage("KLYX ne peut pas supprimer cette photo pour le moment.");
     } finally {
       setDeleting(false);
     }
@@ -302,7 +306,7 @@ export default function PhotoRequestPage() {
             Montre-moi ce qu’il faut faire.
           </h1>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            Ajoute une photo et quelques mots. KLYX t’aide à identifier le bon métier sans transformer la page en formulaire compliqué.
+            Ajoute une photo et quelques mots. KLYX t’aide à identifier le bon métier dans une interface compacte.
           </p>
         </header>
 
@@ -395,10 +399,10 @@ export default function PhotoRequestPage() {
                 <span className="min-w-0">
                   <span className="flex items-center gap-1.5 text-xs font-bold">
                     <Eye size={14} className="text-violet-500" />
-                    Vision IA
+                    Autoriser l’analyse visuelle IA de cette photo
                   </span>
                   <span className="mt-0.5 block text-[10px] leading-4 text-muted-foreground">
-                    Autoriser l’analyse visuelle de cette photo uniquement.
+                    Autorisation valable uniquement pour cette photo. Sans accord, KLYX utilise uniquement ta description.
                   </span>
                 </span>
               </label>
@@ -426,7 +430,7 @@ export default function PhotoRequestPage() {
             <div className="mt-3 flex items-start gap-2 border-t border-border/60 pt-3 text-[10px] leading-4 text-muted-foreground dark:border-white/6">
               <LockKeyhole size={13} className="mt-0.5 shrink-0" />
               <p>
-                Photo privée. Évite les visages, pièces d’identité, plaques et informations personnelles. Sans ton accord Vision IA, KLYX utilise uniquement ton texte.
+                Photo privée. Évite les visages, pièces d’identité, plaques et informations personnelles visibles.
               </p>
             </div>
           </div>
@@ -442,7 +446,7 @@ export default function PhotoRequestPage() {
         )}
 
         {analysis && (
-          <section className="mx-auto mt-8 max-w-3xl pb-12">
+          <section className="mx-auto mt-8 max-w-3xl pb-10">
             <div className="flex gap-3 sm:gap-4">
               <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-violet-500 text-white">
                 <Sparkles size={17} />
@@ -458,8 +462,8 @@ export default function PhotoRequestPage() {
                       <CheckCircle2 size={11} />
                     )}
                     {analysis.analysisMode === "vision_ai"
-                      ? "Vision utilisée"
-                      : "Analyse du texte"}
+                      ? "Vision KLYX"
+                      : "Analyse de la description"}
                   </span>
                 </div>
 
@@ -467,20 +471,27 @@ export default function PhotoRequestPage() {
                   {analysis.summary}
                 </p>
 
+                {analysis.analysisMode === "vision_ai" &&
+                  analysis.visionConfidence != null && (
+                    <div className="mt-4 rounded-2xl border border-violet-500/15 bg-violet-500/[0.045] p-4">
+                      <p className="text-xs font-bold text-foreground">
+                        Confiance des indices visuels : {analysis.visionConfidence} %
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                        {analysis.visionContributed
+                          ? "Les indices visuels ont contribué au classement des métiers proposés."
+                          : "Les indices visuels n’étaient pas assez fiables pour modifier le classement des métiers."}
+                      </p>
+                    </div>
+                  )}
+
                 {analysis.serviceLabel && (
                   <div className="mt-4 rounded-2xl border border-border bg-card/65 p-4 dark:border-white/8 dark:bg-white/[0.025]">
                     <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
                       Service recommandé
                     </p>
                     <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="font-bold">{analysis.serviceLabel}</p>
-                        {analysis.visionConfidence != null && (
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            Confiance visuelle : {Math.round(analysis.visionConfidence * 100)} %
-                          </p>
-                        )}
-                      </div>
+                      <p className="font-bold">{analysis.serviceLabel}</p>
 
                       {analysis.serviceSlug && (
                         <button
@@ -496,20 +507,32 @@ export default function PhotoRequestPage() {
                   </div>
                 )}
 
-                {analysis.candidates.length > 1 && (
+                {analysis.candidates.length > 0 && (
                   <div className="mt-4">
-                    <p className="mb-2 text-xs font-semibold text-muted-foreground">Autres possibilités</p>
-                    <div className="flex flex-wrap gap-2">
-                      {analysis.candidates.slice(1, 4).map((candidate) => (
+                    <p className="mb-2 text-xs font-semibold text-muted-foreground">
+                      Compatibilité KLYX
+                    </p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {analysis.candidates.slice(0, 4).map((candidate) => (
                         <button
                           key={candidate.slug}
                           type="button"
                           onClick={() => openSearch(candidate.slug)}
-                          className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-2 text-xs font-semibold transition hover:border-violet-500/30 hover:bg-violet-500/[0.05] dark:border-white/10"
+                          className="rounded-2xl border border-border bg-background px-3 py-3 text-left text-xs transition hover:border-violet-500/30 hover:bg-violet-500/[0.05] dark:border-white/10"
                           title={candidate.reason}
                         >
-                          <ImageIcon size={13} />
-                          {candidate.label}
+                          <span className="flex items-center justify-between gap-3 font-semibold">
+                            <span className="inline-flex items-center gap-2">
+                              <ImageIcon size={13} />
+                              {candidate.label}
+                            </span>
+                            <span className="text-muted-foreground">
+                              {candidate.confidence} %
+                            </span>
+                          </span>
+                          <span className="mt-1.5 block leading-5 text-muted-foreground">
+                            {candidate.reason}
+                          </span>
                         </button>
                       ))}
                     </div>
@@ -524,6 +547,13 @@ export default function PhotoRequestPage() {
             </div>
           </section>
         )}
+
+        <div className="mx-auto mt-6 flex max-w-3xl items-start gap-2 pb-8 text-xs leading-6 text-muted-foreground">
+          <ShieldCheck className="mt-1 shrink-0" size={15} />
+          <p>
+            La vision n’est utilisée que si tu l’autorises pour cette photo. L’analyse aide à choisir un service : elle ne publie, ne réserve et ne paie rien automatiquement.
+          </p>
+        </div>
       </div>
     </main>
   );
