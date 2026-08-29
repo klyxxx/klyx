@@ -113,7 +113,7 @@ The user preference reuses the existing `klyx_language` browser-storage key. The
 
 ## What is not complete yet
 
-This tranche is **not** full-site internationalization. Significant page-level coverage is still incomplete outside the deliberately migrated surfaces, especially across the long-tail of the 64 selectable shell locales. E-mails, notification content stored by backend workflows, country-specific legal/compliance content and some product screens still require deliberate translation and review.
+This tranche is **not** full-site internationalization. Significant page-level coverage is still incomplete outside the deliberately migrated surfaces, especially across the long-tail of the 64 selectable shell locales. Most page-level copy outside the reviewed surfaces still requires deliberate translation and review. E-mails, notification content stored by backend workflows, country-specific legal/compliance content and some product screens still require deliberate translation and review.
 
 FR/EN/NL/DE currently have the deepest reviewed page-level coverage. The other selectable locales have a translated global shell/navigation foundation, but that must not be presented as equivalent full-product translation coverage.
 
