@@ -59,7 +59,7 @@ const clientItems: MenuItem[] = [
 
 const providerItems: MenuItem[] = [
   { title: "Missions", href: "/provider/jobs", icon: BriefcaseBusiness },
-  { title: "Services", href: "/provider/services", icon: Wrench },
+  { title: "Services", href: "/provider", icon: Wrench },
   { title: "Finances", href: "/provider/payments", icon: CircleDollarSign },
   { title: "Profil", href: "/profile", icon: UserRound },
 ];
