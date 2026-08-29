@@ -59,7 +59,9 @@ describe("KLYX i18n foundation shell contract", () => {
   });
 
   it("wires locale context through the global application shell", () => {
-    expect(layout).toContain("<KlyxLocaleProvider>");
+    expect(layout).toContain("<KlyxLocaleProvider initialLocale={locale}>");
+    expect(layout).toContain("lang={localeMetadata.htmlLang}");
+    expect(layout).toContain("dir={localeMetadata.dir}");
     expect(layout).toContain("<KlyxSkipLink />");
     expect(sidebar).toContain("useKlyxLocale()");
     expect(sidebar).toContain("translateKlyxNavigationLabel(locale, item.title)");
@@ -76,8 +78,8 @@ describe("KLYX i18n foundation shell contract", () => {
 
   it("keeps the rollout honest about incomplete page-level translation", () => {
     expect(documentation).toContain("not** full-site internationalization");
-    expect(documentation).toContain("Most page-level copy");
-    expect(documentation).toContain("metadata remain French");
+    expect(documentation).toContain("page-level coverage is still incomplete");
+    expect(documentation).toContain("FR/EN/NL/DE");
     expect(documentation).toContain("Do not mark KLYX “fully internationalized”");
   });
 });

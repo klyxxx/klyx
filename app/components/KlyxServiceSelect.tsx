@@ -14,6 +14,8 @@ import {
   useState,
 } from "react";
 
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+
 export type KlyxServiceSearchOption = {
   value: string;
   label: string;
@@ -31,11 +33,75 @@ type KlyxServiceSelectProps = {
   ariaLabel?: string;
 };
 
+type ServiceSelectCopy = {
+  placeholder: string;
+  searchPlaceholder: string;
+  ariaLabel: string;
+  clearSearch: string;
+  resultLabel: (count: number) => string;
+  servicesLabel: (count: number) => string;
+  typeToSearch: string;
+  noService: string;
+  noServiceHint: string;
+  clearSelected: string;
+};
+
+const COPY: Record<"fr" | "en" | "nl" | "de", ServiceSelectCopy> = {
+  fr: {
+    placeholder: "Choisir un métier",
+    searchPlaceholder: "Rechercher un métier...",
+    ariaLabel: "Métier",
+    clearSearch: "Effacer la recherche",
+    resultLabel: (count) => `${count} résultat${count > 1 ? "s" : ""}`,
+    servicesLabel: (count) => `${count} métiers disponibles`,
+    typeToSearch: "Tape pour rechercher",
+    noService: "Aucun métier trouvé",
+    noServiceHint: "Essaie un autre mot ou recherche « Autre métier ».",
+    clearSelected: "Effacer le métier sélectionné",
+  },
+  en: {
+    placeholder: "Choose a service",
+    searchPlaceholder: "Search for a service...",
+    ariaLabel: "Service",
+    clearSearch: "Clear search",
+    resultLabel: (count) => `${count} result${count === 1 ? "" : "s"}`,
+    servicesLabel: (count) => `${count} services available`,
+    typeToSearch: "Type to search",
+    noService: "No service found",
+    noServiceHint: "Try another term or search for “Other service”.",
+    clearSelected: "Clear selected service",
+  },
+  nl: {
+    placeholder: "Kies een dienst",
+    searchPlaceholder: "Zoek een dienst...",
+    ariaLabel: "Dienst",
+    clearSearch: "Zoekopdracht wissen",
+    resultLabel: (count) => `${count} resulta${count === 1 ? "at" : "ten"}`,
+    servicesLabel: (count) => `${count} diensten beschikbaar`,
+    typeToSearch: "Typ om te zoeken",
+    noService: "Geen dienst gevonden",
+    noServiceHint: "Probeer een andere term of zoek naar ‘Andere dienst’.",
+    clearSelected: "Geselecteerde dienst wissen",
+  },
+  de: {
+    placeholder: "Dienstleistung auswählen",
+    searchPlaceholder: "Dienstleistung suchen...",
+    ariaLabel: "Dienstleistung",
+    clearSearch: "Suche löschen",
+    resultLabel: (count) => `${count} Ergebnis${count === 1 ? "" : "se"}`,
+    servicesLabel: (count) => `${count} Dienstleistungen verfügbar`,
+    typeToSearch: "Zum Suchen tippen",
+    noService: "Keine Dienstleistung gefunden",
+    noServiceHint: "Versuche einen anderen Begriff oder suche nach „Andere Dienstleistung“.",
+    clearSelected: "Ausgewählte Dienstleistung löschen",
+  },
+};
+
 function normalizeSearch(value: string) {
   return value
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .toLocaleLowerCase("fr")
+    .toLocaleLowerCase()
     .trim();
 }
 
@@ -44,85 +110,66 @@ export default function KlyxServiceSelect({
   value,
   options,
   onChange,
-  placeholder = "Choisir un métier",
-  searchPlaceholder = "Rechercher un métier...",
+  placeholder,
+  searchPlaceholder,
   required = false,
   disabled = false,
-  ariaLabel = "Métier",
+  ariaLabel,
 }: KlyxServiceSelectProps) {
+  const { locale } = useKlyxLocale();
+  const copy =
+    locale === "fr" || locale === "nl" || locale === "de"
+      ? COPY[locale]
+      : COPY.en;
+
+  const resolvedPlaceholder = placeholder ?? copy.placeholder;
+  const resolvedSearchPlaceholder =
+    searchPlaceholder ?? copy.searchPlaceholder;
+  const resolvedAriaLabel = ariaLabel ?? copy.ariaLabel;
+
   const id = useId();
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
 
-  const rootRef =
-    useRef<HTMLDivElement | null>(null);
+  const selectedOption = useMemo(
+    () => options.find((option) => option.value === value) ?? null,
+    [options, value]
+  );
 
-  const searchRef =
-    useRef<HTMLInputElement | null>(null);
+  const filteredOptions = useMemo(() => {
+    const normalizedQuery = normalizeSearch(query);
 
-  const [open, setOpen] =
-    useState(false);
+    if (!normalizedQuery) {
+      return options.slice(0, 60);
+    }
 
-  const [query, setQuery] =
-    useState("");
+    return options
+      .filter((option) => {
+        const haystack = normalizeSearch(
+          `${option.label} ${option.keywords ?? ""}`
+        );
 
-  const selectedOption =
-    useMemo(
-      () =>
-        options.find(
-          (option) =>
-            option.value === value
-        ) ?? null,
-      [options, value]
-    );
-
-  const filteredOptions =
-    useMemo(() => {
-      const normalizedQuery =
-        normalizeSearch(query);
-
-      if (!normalizedQuery) {
-        return options.slice(0, 60);
-      }
-
-      return options
-        .filter((option) => {
-          const haystack =
-            normalizeSearch(
-              `${option.label} ${
-                option.keywords ?? ""
-              }`
-            );
-
-          return haystack.includes(
-            normalizedQuery
-          );
-        })
-        .slice(0, 60);
-    }, [options, query]);
+        return haystack.includes(normalizedQuery);
+      })
+      .slice(0, 60);
+  }, [options, query]);
 
   useEffect(() => {
-    function handlePointerDown(
-      event: MouseEvent
-    ) {
+    function handlePointerDown(event: MouseEvent) {
       if (
         rootRef.current &&
-        !rootRef.current.contains(
-          event.target as Node
-        )
+        !rootRef.current.contains(event.target as Node)
       ) {
         setOpen(false);
       }
     }
 
-    document.addEventListener(
-      "mousedown",
-      handlePointerDown
-    );
+    document.addEventListener("mousedown", handlePointerDown);
 
     return () =>
-      document.removeEventListener(
-        "mousedown",
-        handlePointerDown
-      );
+      document.removeEventListener("mousedown", handlePointerDown);
   }, []);
 
   useEffect(() => {
@@ -131,18 +178,14 @@ export default function KlyxServiceSelect({
       return;
     }
 
-    const timer =
-      window.setTimeout(() => {
-        searchRef.current?.focus();
-      }, 0);
+    const timer = window.setTimeout(() => {
+      searchRef.current?.focus();
+    }, 0);
 
-    return () =>
-      window.clearTimeout(timer);
+    return () => window.clearTimeout(timer);
   }, [open]);
 
-  function choose(
-    option: KlyxServiceSearchOption
-  ) {
+  function choose(option: KlyxServiceSearchOption) {
     onChange(option.value);
     setQuery("");
     setOpen(false);
@@ -154,10 +197,7 @@ export default function KlyxServiceSelect({
   }
 
   return (
-    <div
-      ref={rootRef}
-      className="relative min-w-0"
-    >
+    <div ref={rootRef} className="relative min-w-0">
       {required && (
         <input
           tabIndex={-1}
@@ -173,14 +213,11 @@ export default function KlyxServiceSelect({
         id={id}
         type="button"
         role="combobox"
-        aria-label={ariaLabel}
+        aria-label={resolvedAriaLabel}
         aria-expanded={open}
         aria-controls={`${id}-services`}
         disabled={disabled}
-        onClick={() =>
-          !disabled &&
-          setOpen((current) => !current)
-        }
+        onClick={() => !disabled && setOpen((current) => !current)}
         className={`flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl border px-4 text-left text-sm font-semibold shadow-sm outline-none transition ${
           disabled
             ? "cursor-not-allowed border-border bg-muted/60 text-muted-foreground"
@@ -196,8 +233,7 @@ export default function KlyxServiceSelect({
               : "min-w-0 truncate text-muted-foreground"
           }
         >
-          {selectedOption?.label ??
-            placeholder}
+          {selectedOption?.label ?? resolvedPlaceholder}
         </span>
 
         <ChevronDown
@@ -224,45 +260,30 @@ export default function KlyxServiceSelect({
               <input
                 ref={searchRef}
                 value={query}
-                onChange={(event) =>
-                  setQuery(
-                    event.target.value
-                  )
-                }
+                onChange={(event) => setQuery(event.target.value)}
                 onKeyDown={(event) => {
-                  if (
-                    event.key ===
-                    "Escape"
-                  ) {
+                  if (event.key === "Escape") {
                     setOpen(false);
                   }
 
                   if (
-                    event.key ===
-                      "Enter" &&
-                    filteredOptions.length ===
-                      1
+                    event.key === "Enter" &&
+                    filteredOptions.length === 1
                   ) {
                     event.preventDefault();
-                    choose(
-                      filteredOptions[0]
-                    );
+                    choose(filteredOptions[0]);
                   }
                 }}
-                placeholder={
-                  searchPlaceholder
-                }
+                placeholder={resolvedSearchPlaceholder}
                 className="min-h-11 min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
               />
 
               {query && (
                 <button
                   type="button"
-                  onClick={() =>
-                    setQuery("")
-                  }
+                  onClick={() => setQuery("")}
                   className="rounded-lg p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                  aria-label="Effacer la recherche"
+                  aria-label={copy.clearSearch}
                 >
                   <X size={16} />
                 </button>
@@ -272,69 +293,48 @@ export default function KlyxServiceSelect({
             <div className="mt-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
               <span>
                 {query
-                  ? `${filteredOptions.length} résultat${
-                      filteredOptions.length >
-                      1
-                        ? "s"
-                        : ""
-                    }`
-                  : `${options.length} métiers disponibles`}
+                  ? copy.resultLabel(filteredOptions.length)
+                  : copy.servicesLabel(options.length)}
               </span>
 
-              {!query &&
-                options.length > 60 && (
-                  <span>
-                    Tape pour rechercher
-                  </span>
-                )}
+              {!query && options.length > 60 && (
+                <span>{copy.typeToSearch}</span>
+              )}
             </div>
           </div>
 
           <div className="klyx-scrollbar max-h-72 overflow-y-auto p-2">
-            {filteredOptions.length >
-            0 ? (
-              filteredOptions.map(
-                (option) => {
-                  const selected =
-                    option.value ===
-                    value;
+            {filteredOptions.length > 0 ? (
+              filteredOptions.map((option) => {
+                const selected = option.value === value;
 
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() =>
-                        choose(option)
-                      }
-                      className={`flex w-full items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-left text-sm transition ${
-                        selected
-                          ? "bg-violet-600 font-black text-white"
-                          : "hover:bg-muted"
-                      }`}
-                    >
-                      <span className="min-w-0 truncate">
-                        {option.label}
-                      </span>
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => choose(option)}
+                    className={`flex w-full items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-left text-sm transition ${
+                      selected
+                        ? "bg-violet-600 font-black text-white"
+                        : "hover:bg-muted"
+                    }`}
+                  >
+                    <span className="min-w-0 truncate">
+                      {option.label}
+                    </span>
 
-                      {selected && (
-                        <Check
-                          size={17}
-                          className="shrink-0"
-                        />
-                      )}
-                    </button>
-                  );
-                }
-              )
+                    {selected && (
+                      <Check size={17} className="shrink-0" />
+                    )}
+                  </button>
+                );
+              })
             ) : (
               <div className="p-5 text-center">
-                <p className="text-sm font-bold">
-                  Aucun métier trouvé
-                </p>
+                <p className="text-sm font-bold">{copy.noService}</p>
 
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  Essaie un autre mot ou
-                  recherche “Autre métier”.
+                  {copy.noServiceHint}
                 </p>
               </div>
             )}
@@ -347,7 +347,7 @@ export default function KlyxServiceSelect({
                 onClick={clearSelection}
                 className="w-full rounded-xl px-3 py-2 text-left text-xs font-bold text-muted-foreground transition hover:bg-muted hover:text-foreground"
               >
-                Effacer le métier sélectionné
+                {copy.clearSelected}
               </button>
             </div>
           )}

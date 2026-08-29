@@ -15,7 +15,6 @@ import {
   KLYX_LANGUAGE_STORAGE_KEY,
   getKlyxLocaleMetadata,
   normalizeKlyxLocale,
-  resolveKlyxLocale,
   translateKlyxUi,
   type KlyxLocale,
   type KlyxUiMessageKey,
@@ -25,6 +24,11 @@ type KlyxLocaleContextValue = {
   locale: KlyxLocale;
   setLocale: (locale: string) => void;
   t: (key: KlyxUiMessageKey) => string;
+};
+
+type KlyxLocaleProviderProps = {
+  children: React.ReactNode;
+  initialLocale?: KlyxLocale;
 };
 
 const KlyxLocaleContext =
@@ -50,28 +54,21 @@ function writeLocalePreference(locale: KlyxLocale) {
 
 export default function KlyxLocaleProvider({
   children,
-}: {
-  children: React.ReactNode;
-}) {
-  const [locale, setLocaleState] =
-    useState<KlyxLocale>(KLYX_DEFAULT_LOCALE);
+  initialLocale = KLYX_DEFAULT_LOCALE,
+}: KlyxLocaleProviderProps) {
+  const [locale, setLocaleState] = useState<KlyxLocale>(() =>
+    normalizeKlyxLocale(initialLocale)
+  );
 
   useEffect(() => {
-    const saved = localStorage.getItem(
-      KLYX_LANGUAGE_STORAGE_KEY
-    );
-
-    const initial = saved
+    const saved = localStorage.getItem(KLYX_LANGUAGE_STORAGE_KEY);
+    const next = saved
       ? normalizeKlyxLocale(saved)
-      : resolveKlyxLocale(
-          navigator.languages?.length
-            ? navigator.languages
-            : [navigator.language]
-        );
+      : normalizeKlyxLocale(initialLocale);
 
-    setLocaleState(initial);
-    writeLocalePreference(initial);
-  }, []);
+    setLocaleState(next);
+    writeLocalePreference(next);
+  }, [initialLocale]);
 
   useEffect(() => {
     function onStorage(event: StorageEvent) {
@@ -82,9 +79,7 @@ export default function KlyxLocaleProvider({
         return;
       }
 
-      const next = normalizeKlyxLocale(
-        event.newValue
-      );
+      const next = normalizeKlyxLocale(event.newValue);
 
       setLocaleState(next);
       applyDocumentLocale(next);
@@ -93,22 +88,16 @@ export default function KlyxLocaleProvider({
     window.addEventListener("storage", onStorage);
 
     return () => {
-      window.removeEventListener(
-        "storage",
-        onStorage
-      );
+      window.removeEventListener("storage", onStorage);
     };
   }, []);
 
-  const setLocale = useCallback(
-    (value: string) => {
-      const next = normalizeKlyxLocale(value);
+  const setLocale = useCallback((value: string) => {
+    const next = normalizeKlyxLocale(value);
 
-      setLocaleState(next);
-      writeLocalePreference(next);
-    },
-    []
-  );
+    setLocaleState(next);
+    writeLocalePreference(next);
+  }, []);
 
   const value = useMemo<KlyxLocaleContextValue>(
     () => ({
