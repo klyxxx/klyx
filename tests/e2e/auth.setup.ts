@@ -6,6 +6,7 @@ import { test as setup } from "@playwright/test";
 import {
   hasE2ECredentials,
   loginKlyxE2E,
+  readKlyxE2EProfiles,
 } from "./helpers/authenticated-session";
 
 export const KLYX_E2E_AUTH_STATE_PATH = path.join(
@@ -26,6 +27,11 @@ setup("prepare dedicated KLYX E2E authenticated state", async ({ page }) => {
 
   if (hasE2ECredentials) {
     await loginKlyxE2E(page);
+
+    // Prove that the freshly issued Supabase session is accepted by a private
+    // KLYX API before sharing it with the authenticated projects. This turns a
+    // transient/rejected JWT into one setup failure instead of many test falls.
+    await readKlyxE2EProfiles(page);
   }
 
   // test-results/ is gitignored and is never uploaded by the CI artifact step.
