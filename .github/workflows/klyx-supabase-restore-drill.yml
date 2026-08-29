@@ -196,19 +196,24 @@ jobs:
 
           supabase db dump \
             --db-url "$KLYX_RESTORE_DRILL_SOURCE_DB_URL" \
-            -f "$dump_dir/schema.sql"
+            -f "$dump_dir/schema.sql" \
+            --schema public
 
           supabase db dump \
             --db-url "$KLYX_RESTORE_DRILL_SOURCE_DB_URL" \
             -f "$dump_dir/data.sql" \
             --use-copy \
             --data-only \
-            -x "storage.buckets_vectors" \
-            -x "storage.vector_indexes"
+            --schema public
 
           test -s "$dump_dir/roles.sql"
           test -s "$dump_dir/schema.sql"
           test -s "$dump_dir/data.sql"
+
+          if grep -Eq '^COPY (auth|storage)\.' "$dump_dir/data.sql"; then
+            echo "::error::Public-only data dump unexpectedly contains managed Supabase schema rows."
+            exit 1
+          fi
 
       - name: Prepare portable role dump
         shell: bash
@@ -332,6 +337,7 @@ jobs:
             "critical_table_fingerprints_match=true" \
             "role_guc_defaults_replayed=false" \
             "role_replay_mode=portable_definitions_or_existing_local_roles" \
+            "managed_schema_rows_replayed=false" \
             "sensitive_dump_uploaded=false" \
             "auth_storage_objects_claimed=false" \
             "verified_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
