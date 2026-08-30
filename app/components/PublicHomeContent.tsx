@@ -353,9 +353,12 @@ export default function PublicHomeContent() {
                   <BadgeCheck size={22} />
                 </span>
 
-                <p className="mt-6 text-xs font-black uppercase tracking-[0.18em] text-blue-300">
+                <Link
+                  href="/signup?type=provider"
+                  className="mt-6 inline-flex text-xs font-black uppercase tracking-[0.18em] text-blue-300 transition hover:text-blue-200"
+                >
                   {t("providerLabel")}
-                </p>
+                </Link>
 
                 <h3 className="mt-2 text-2xl font-black">
                   {t("providerTitle")}
