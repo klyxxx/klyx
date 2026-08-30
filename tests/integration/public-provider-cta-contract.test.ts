@@ -12,7 +12,7 @@ describe("KLYX public provider CTA", () => {
     const source = read("app/components/PublicHomeContent.tsx");
 
     expect(source).toMatch(
-      /<Link\s+href="\/signup\?type=provider"\s+className="mt-6 inline-flex[^"]*">\s+\{t\("providerLabel"\)\}\s+<\/Link>/
+      /<Link\s+href="\/signup\?type=provider"\s+className="mt-6 inline-flex[^"]*"\s*>\s+\{t\("providerLabel"\)\}\s+<\/Link>/
     );
 
     expect(source).not.toMatch(
