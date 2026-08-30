@@ -26,4 +26,10 @@ describe("provider management hub", () => {
     expect(source).toContain('import ProviderStudio from "@/app/components/ProviderStudio"');
     expect(source).toContain("<ProviderStudio profileId={profile.id} />");
   });
+
+  it("sends readiness service actions to the dedicated studio", () => {
+    const source = read("app/components/ProviderReadinessStatus.tsx");
+
+    expect(source.match(/href: "\/provider\/studio"/g)?.length).toBe(2);
+  });
 });
