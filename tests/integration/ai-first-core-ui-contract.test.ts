@@ -55,6 +55,18 @@ describe(
         expect(
           dashboard
         ).toContain(
+          "redirect(getKlyxAccountHome(profile.accountType));"
+        );
+
+        expect(
+          dashboard
+        ).not.toContain(
+          "<main"
+        );
+
+        expect(
+          dashboard
+        ).not.toContain(
           "KLYX_AI_FIRST_DASHBOARD_15_02"
         );
 

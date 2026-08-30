@@ -10,7 +10,7 @@ export type KlyxProfilePageLocale =
 
 export const KLYX_PROFILE_PAGE_MESSAGE_KEYS = [
   "loading",
-  "dashboard",
+  "home",
   "providerProfile",
   "clientProfile",
   "title",
@@ -51,7 +51,7 @@ type Dictionary = Record<KlyxProfilePageMessageKey, string>;
 const dictionaries: Record<KlyxProfilePageLocale, Dictionary> = {
   fr: {
     loading: "Chargement du profil...",
-    dashboard: "Tableau de bord",
+    home: "Accueil",
     providerProfile: "Profil prestataire",
     clientProfile: "Profil client",
     title: "Mes informations",
@@ -85,7 +85,7 @@ const dictionaries: Record<KlyxProfilePageLocale, Dictionary> = {
   },
   en: {
     loading: "Loading profile...",
-    dashboard: "Dashboard",
+    home: "Home",
     providerProfile: "Provider profile",
     clientProfile: "Client profile",
     title: "My information",
@@ -119,7 +119,7 @@ const dictionaries: Record<KlyxProfilePageLocale, Dictionary> = {
   },
   nl: {
     loading: "Profiel laden...",
-    dashboard: "Dashboard",
+    home: "Start",
     providerProfile: "Dienstverlenerprofiel",
     clientProfile: "Klantprofiel",
     title: "Mijn gegevens",
@@ -153,7 +153,7 @@ const dictionaries: Record<KlyxProfilePageLocale, Dictionary> = {
   },
   de: {
     loading: "Profil wird geladen...",
-    dashboard: "Dashboard",
+    home: "Start",
     providerProfile: "Anbieterprofil",
     clientProfile: "Kundenprofil",
     title: "Meine Angaben",

@@ -18,10 +18,13 @@ describe("KLYX messages overview contract", () => {
     expect(overview).not.toContain("ConversationPage");
   });
 
-  it("scopes the overview to the active profile and reads only conversation data", () => {
+  it("scopes the overview to the active client or provider profile and reads only conversation data", () => {
     const overview = read("app/messages/page.tsx");
+    const switcher = read("lib/account-switcher.ts");
 
-    expect(overview).toContain("getActiveClientProfile");
+    expect(overview).toContain("getActiveProfileAccount");
+    expect(overview).not.toContain("getActiveClientProfile");
+    expect(switcher).toContain("export async function getActiveProfileAccount");
     expect(overview).toContain('.from("messages")');
     expect(overview).toContain('.from("bookings")');
     expect(overview).toContain('.from("profiles")');

@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
-import { getActiveClientProfile } from "@/lib/account-switcher";
+import { getActiveProfileAccount } from "@/lib/account-switcher";
 import {
   resolveKlyxMessagesPageLocale,
   translateKlyxMessagesPage,
@@ -147,7 +147,7 @@ export default function MessagesPage() {
         return;
       }
 
-      const activeProfile = await getActiveClientProfile();
+      const activeProfile = await getActiveProfileAccount();
       const profileId = activeProfile.id;
 
       const { data: messageData, error: messageError } = await supabase
@@ -276,14 +276,7 @@ export default function MessagesPage() {
   return (
     <main className="klyx-page">
       <div className="mx-auto max-w-4xl">
-        <Link
-          href="/dashboard"
-          className="text-sm font-bold text-violet-600"
-        >
-          ← {t("backDashboard")}
-        </Link>
-
-        <div className="mt-8 flex items-start gap-4">
+        <div className="flex items-start gap-4">
           <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-violet-500/10 text-violet-600">
             <MessageCircle size={24} />
           </span>

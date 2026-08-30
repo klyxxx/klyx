@@ -68,31 +68,34 @@ test.describe("KLYX authenticated multi-profile", () => {
 
     await activateKlyxE2EProfile(page, "client");
     await page.goto("/dashboard");
-    await expect(page.getByText("Organise ton prochain besoin.")).toBeVisible();
-
-    await switchThroughUi(page, client!, provider!);
-    await page.waitForURL((url) => url.pathname === "/provider/jobs");
+    await page.waitForURL((url) => url.pathname === "/assistant");
     await expect(
-      page.getByRole("link", { name: "Missions", exact: true }).first()
+      page.getByRole("heading", { name: "Que dois-je organiser pour vous ?" })
+    ).toBeVisible();
+
+    await page.goto("/profile");
+    await expect(page.getByTestId("account-switcher")).toBeVisible();
+    await switchThroughUi(page, client!, provider!);
+    await page.waitForURL((url) => url.pathname === "/provider/assistant");
+    await expect(
+      page.getByRole("link", { name: "KLYX", exact: true }).first()
     ).toBeVisible();
 
     const providerState = await readKlyxE2EProfiles(page);
     expect(providerState.activeProfileId).toBe(provider!.id);
 
     await page.reload({ waitUntil: "domcontentloaded" });
-    await expect(page).toHaveURL(/\/provider\/jobs(?:\?|$)/);
+    await expect(page).toHaveURL(/\/provider\/assistant(?:\?|$)/);
     await expect(
-      page.getByRole("link", { name: "Services", exact: true }).first()
+      page.getByRole("link", { name: "Gestion", exact: true }).first()
     ).toBeVisible();
 
-    // The profile switcher currently lives on the dashboard header. Returning
-    // there is intentional; the next switch must still replace the complete
-    // document with the client KLYX workspace.
-    await page.goto("/dashboard");
+    await page.goto("/profile");
+    await expect(page.getByTestId("account-switcher")).toBeVisible();
     await switchThroughUi(page, provider!, client!);
     await page.waitForURL((url) => url.pathname === "/assistant");
     await expect(
-      page.getByRole("heading", { name: "Que puis-je organiser pour vous ?" })
+      page.getByRole("heading", { name: "Que dois-je organiser pour vous ?" })
     ).toBeVisible();
 
     const clientState = await readKlyxE2EProfiles(page);

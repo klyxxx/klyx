@@ -147,7 +147,7 @@ export default function AccountSwitcher({
   const currentName = profileName(currentProfile);
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} data-testid="account-switcher" className="relative">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}

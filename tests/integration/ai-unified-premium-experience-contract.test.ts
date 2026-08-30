@@ -159,7 +159,7 @@ describe(
           "<ClientRouteGuard>"
         );
         expect(assistant).toContain(
-          "Que puis-je organiser pour vous ?"
+          "Que dois-je organiser pour vous ?"
         );
         expect(assistant).toContain(
           "<AssistantCommandBar />"

@@ -110,7 +110,7 @@ export async function getProfiles(): Promise<SavedAccount[]> {
   return result.profiles;
 }
 
-export async function getActiveClientProfile(): Promise<SavedAccount> {
+export async function getActiveProfileAccount(): Promise<SavedAccount> {
   const result = await getProfilesState();
 
   const profile = result.profiles.find(
@@ -122,6 +122,10 @@ export async function getActiveClientProfile(): Promise<SavedAccount> {
   }
 
   return profile;
+}
+
+export async function getActiveClientProfile(): Promise<SavedAccount> {
+  return getActiveProfileAccount();
 }
 
 export async function switchAccount(profileId: string): Promise<void> {

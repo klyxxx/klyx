@@ -218,7 +218,9 @@ export async function loginKlyxE2E(page: Page) {
   );
 
   await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
-  await expect(page).toHaveURL(/\/dashboard(?:\?|$)/, { timeout: 20_000 });
+  await expect(page).toHaveURL(/\/(?:assistant|provider\/assistant)(?:\?|$)/, {
+    timeout: 20_000,
+  });
 }
 
 export async function readKlyxE2EProfiles(page: Page): Promise<ProfilesState> {
@@ -271,6 +273,15 @@ export async function expectHealthyPrivateRoute(page: Page, route: string) {
 
   const current = new URL(page.url());
   expect(current.pathname, `${route} bounced to login`).not.toBe("/login");
+
+  if (route === "/dashboard") {
+    expect(
+      ["/assistant", "/provider/assistant"],
+      `/dashboard unexpectedly navigated to ${current.pathname}`
+    ).toContain(current.pathname);
+    return;
+  }
+
   expect(
     current.pathname === route || current.pathname.startsWith(`${route}/`),
     `${route} unexpectedly navigated to ${current.pathname}`
