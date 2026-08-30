@@ -68,8 +68,7 @@ describe("KLYX provider jobs i18n safety contract", () => {
     expect(offerRouteSource).toContain("MULTI_SLOT_LIVE_COVERAGE_REQUIRED");
   });
 
-  it("keeps provider-authored and request data verbatim", () => {
-    expect(pageSource).toContain("{request.title}");
+  it("keeps provider-authored and request data verbatim in the reusable mission card", () => {
     expect(pageSource).toContain("{item.title}");
     expect(pageSource).toContain("{item.city}");
     expect(pageSource).toContain("{item.description}");

@@ -94,7 +94,10 @@ describe(
         );
 
         expect(jobs).toContain(
-          "KLYX_AI_FIRST_PROVIDER_JOBS_15_04"
+          "recommendedRequest"
+        );
+        expect(jobs).toContain(
+          't("offerNotBookingPayment")'
         );
 
         expect(finance).toContain(
