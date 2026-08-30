@@ -21,7 +21,16 @@ test.describe(
             "heading",
             {
               name:
-                "KLYX organise les services du quotidien à ta place.",
+                "Que dois-je organiser pour vous ?",
+            }
+          )
+        ).toBeVisible();
+
+        await expect(
+          page.getByText(
+            "KLYX organise les services du quotidien à ta place.",
+            {
+              exact: true,
             }
           )
         ).toBeVisible();
