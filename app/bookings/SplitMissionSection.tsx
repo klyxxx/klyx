@@ -15,7 +15,6 @@ import {
 
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import {
-  formatKlyxSplitMissionAdditionalSlots,
   formatKlyxSplitMissionDate,
   formatKlyxSplitMissionService,
   formatKlyxSplitMissionStatus,
@@ -265,15 +264,6 @@ export default function SplitMissionSection({
                     </div>
                   ))}
                 </div>
-
-                {mission.slots.length > 3 && (
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    {formatKlyxSplitMissionAdditionalSlots(
-                      locale,
-                      mission.slots.length - 3
-                    )}
-                  </p>
-                )}
 
                 <p className="mt-4 text-xs leading-5 text-muted-foreground">
                   {t("paymentNotice")}
