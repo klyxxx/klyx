@@ -276,58 +276,69 @@ export default function MessagesPage() {
   return (
     <main className="klyx-page">
       <div className="mx-auto max-w-4xl">
-        <div className="flex items-start gap-4">
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-violet-500/10 text-violet-600">
-            <MessageCircle size={24} />
-          </span>
+        <header className="flex flex-wrap items-start justify-between gap-5">
           <div>
-            <h1 className="text-3xl font-black tracking-[-0.04em] sm:text-5xl">
+            <h1 className="text-3xl font-bold tracking-[-0.04em] sm:text-5xl">
               {t("title")}
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground">
               {t("description")}
             </p>
           </div>
-        </div>
+
+          <button
+            type="button"
+            onClick={() => void loadConversations()}
+            disabled={loading}
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-semibold transition hover:bg-muted disabled:opacity-50"
+          >
+            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+            {t("retry")}
+          </button>
+        </header>
 
         {loading ? (
-          <section className="klyx-card mt-8 flex items-center gap-3 p-6">
-            <LoaderCircle className="animate-spin text-violet-500" size={20} />
-            <p className="text-sm font-bold text-muted-foreground">
+          <section className="mt-8 flex min-h-32 items-center justify-center gap-3 rounded-2xl border border-border bg-card p-6">
+            <LoaderCircle className="animate-spin text-blue-600" size={20} />
+            <p className="text-sm font-medium text-muted-foreground">
               {t("loading")}
             </p>
           </section>
         ) : errorMessage ? (
-          <section className="mt-8 rounded-3xl border border-rose-500/25 bg-rose-500/10 p-6">
-            <p className="font-black">{t("errorTitle")}</p>
+          <section className="mt-8 rounded-2xl border border-red-500/25 bg-red-500/8 p-6">
+            <p className="font-semibold">{t("errorTitle")}</p>
             <p className="mt-2 text-sm text-muted-foreground">{errorMessage}</p>
             <button
               type="button"
               onClick={() => void loadConversations()}
-              className="mt-4 inline-flex items-center gap-2 rounded-xl border border-border bg-background px-4 py-2 text-sm font-black"
+              className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-semibold transition hover:bg-muted"
             >
               <RefreshCw size={16} />
               {t("retry")}
             </button>
           </section>
         ) : conversations.length === 0 ? (
-          <section className="klyx-card mt-8 p-8 text-center">
-            <MessageCircle className="mx-auto text-muted-foreground" size={28} />
-            <h2 className="mt-4 text-xl font-black">{t("emptyTitle")}</h2>
+          <section className="mt-8 rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
+            <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-blue-600/8 text-blue-600">
+              <MessageCircle size={22} />
+            </span>
+            <h2 className="mt-4 text-xl font-semibold">{t("emptyTitle")}</h2>
             <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-muted-foreground">
               {t("emptyDescription")}
             </p>
           </section>
         ) : (
-          <section className="mt-8 grid gap-3">
-            {conversations.map((conversation) => {
+          <section className="mt-8 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+            {conversations.map((conversation, index) => {
               const name = profileName(conversation.otherProfile, t("unknownUser"));
 
               return (
                 <Link
                   key={conversation.booking.id}
                   href={"/messages/" + conversation.booking.id}
-                  className="klyx-card group flex items-center gap-4 p-4 transition hover:-translate-y-0.5 sm:p-5"
+                  className={`group flex items-center gap-4 p-4 transition hover:bg-muted/60 sm:p-5 ${
+                    index > 0 ? "border-t border-border" : ""
+                  }`}
                 >
                   <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-muted">
                     {conversation.otherProfile?.avatar_url ? (
@@ -343,9 +354,9 @@ export default function MessagesPage() {
 
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="truncate font-black">{name}</h2>
+                      <h2 className="truncate font-semibold">{name}</h2>
                       {conversation.unreadCount > 0 && (
-                        <span className="rounded-full bg-violet-600 px-2.5 py-1 text-xs font-black text-white">
+                        <span className="rounded-full bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white">
                           {conversation.unreadCount}{" "}
                           {conversation.unreadCount === 1
                             ? t("unreadSingle")
@@ -371,7 +382,7 @@ export default function MessagesPage() {
                     </p>
                   </div>
 
-                  <span className="hidden shrink-0 items-center gap-2 text-sm font-black text-violet-600 sm:inline-flex">
+                  <span className="hidden shrink-0 items-center gap-2 text-sm font-semibold text-blue-600 sm:inline-flex">
                     {t("openConversation")}
                     <ArrowRight
                       size={16}
