@@ -26,10 +26,14 @@ describe("KLYX public entry page-i18n integration", () => {
     expect(pageI18n).toContain("hasKlyxPublicPageTranslation");
   });
 
-  it("preserves the existing public-entry source contracts", () => {
-    expect(publicActions).toContain("KLYX_CONNECTED_ENTRY_14_01");
-    expect(publicActions).toContain("KLYX_PUBLIC_COMPACT_ENTRY_14_01");
-    expect(publicActions).toContain("KLYX_DUAL_PUBLIC_ENTRY_14_01");
-    expect(publicActions).toContain("KLYX_EXISTING_ACCOUNT_ENTRY_14_01");
+  it("preserves public-entry behavior without internal evolution markers", () => {
+    expect(publicActions).toContain("createClient()");
+    expect(publicActions).toContain("supabase.auth.getUser()");
+    expect(publicActions).toContain('href="/dashboard"');
+    expect(publicActions).toContain('href="/accounts"');
+    expect(publicActions).toContain('href="/login"');
+    expect(publicActions).toContain('href="/signup?type=client"');
+    expect(publicActions).toContain('href="/signup?type=provider"');
+    expect(publicActions).not.toMatch(/KLYX_[A-Z0-9_]*\d+_\d+/);
   });
 });
