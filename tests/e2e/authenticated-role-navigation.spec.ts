@@ -39,15 +39,15 @@ test.describe("KLYX strict role navigation", () => {
     }
 
     await expect(navigation.getByText("Missions", { exact: true })).toHaveCount(0);
-    await expect(navigation.getByText("Finances", { exact: true })).toHaveCount(0);
+    await expect(navigation.getByText("Gestion", { exact: true })).toHaveCount(0);
   });
 
-  test("provider desktop exposes exactly Missions, Services, Finances and Profil", async ({
+  test("provider desktop exposes exactly KLYX, Missions, Messages and Gestion", async ({
     page,
   }) => {
     await loginKlyxE2E(page);
     await activateKlyxE2EProfile(page, "provider");
-    await page.goto("/provider/jobs");
+    await page.goto("/provider/assistant");
 
     const navigation = page.getByRole("navigation", {
       name: "Navigation principale KLYX",
@@ -56,14 +56,22 @@ test.describe("KLYX strict role navigation", () => {
     await expect(navigation).toBeVisible();
     await expect(navigation.getByRole("link")).toHaveCount(4);
 
-    for (const label of ["Missions", "Services", "Finances", "Profil"] as const) {
+    for (const label of ["KLYX", "Missions", "Messages", "Gestion"] as const) {
       await expect(
         navigation.getByRole("link", { name: label, exact: true })
       ).toBeVisible();
     }
 
-    await expect(navigation.getByText("Activité", { exact: true })).toHaveCount(0);
-    await expect(navigation.getByText("Messages", { exact: true })).toHaveCount(0);
+    await expect(navigation.getByText("Services", { exact: true })).toHaveCount(0);
+    await expect(navigation.getByText("Finances", { exact: true })).toHaveCount(0);
+    await expect(navigation.getByText("Profil", { exact: true })).toHaveCount(0);
+
+    await expect(
+      navigation.getByRole("link", { name: "KLYX", exact: true })
+    ).toHaveAttribute("href", "/provider/assistant");
+    await expect(
+      navigation.getByRole("link", { name: "Gestion", exact: true })
+    ).toHaveAttribute("href", "/provider");
   });
 
   test("mobile uses a four-entry bottom bar with touch-friendly targets", async ({

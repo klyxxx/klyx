@@ -27,7 +27,9 @@ test.describe("KLYX authenticated session boundaries", () => {
 
     for (const route of ["/login", "/signup?type=provider", "/reset-password"] as const) {
       await page.goto(route);
-      await expect(page).toHaveURL(/\/dashboard(?:\?|$)/, { timeout: 20_000 });
+      await expect(page).toHaveURL(/\/(?:assistant|provider\/assistant)(?:\?|$)/, {
+        timeout: 20_000,
+      });
     }
   });
 

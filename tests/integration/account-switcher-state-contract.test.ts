@@ -15,6 +15,7 @@ function compact(source: string) {
 
 const accountSwitcher = read("app/components/AccountSwitcher.tsx");
 const activeProfileSync = read("app/components/ActiveProfileSync.tsx");
+const accountHome = read("lib/account-home.ts");
 const founderModeSwitcher = read("app/components/FounderModeSwitcher.tsx");
 
 describe("KLYX profile switch UI state", () => {
@@ -32,15 +33,20 @@ describe("KLYX profile switch UI state", () => {
     expect(source).toContain("} finally { setSwitchingId(null); }");
   });
 
-  it("hands successful role changes to the full-document profile synchronizer", () => {
+  it("hands successful role changes to the canonical full-document profile synchronizer", () => {
     expect(accountSwitcher).toContain(
       "ActiveProfileSync owns the full-document role transition."
     );
     expect(accountSwitcher).not.toContain("window.location");
-    expect(activeProfileSync).toContain('detail.accountType === "provider"');
-    expect(activeProfileSync).toContain('? "/provider/jobs"');
-    expect(activeProfileSync).toContain(': "/assistant"');
+    expect(activeProfileSync).toContain(
+      'import { getKlyxAccountHome } from "@/lib/account-home";'
+    );
+    expect(activeProfileSync).toContain(
+      "getKlyxAccountHome(detail.accountType)"
+    );
     expect(activeProfileSync).toContain("window.location.replace(target.toString());");
+    expect(accountHome).toContain('client: "/assistant"');
+    expect(accountHome).toContain('provider: "/provider/assistant"');
   });
 
   it("lets the founder client/provider switcher recover the same way", () => {

@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import { getKlyxAccountHome } from "@/lib/account-home";
 import {
   resolveKlyxProfilePageApiErrorKey,
   translateKlyxProfilePage,
@@ -70,6 +71,7 @@ export default function ProfilePage() {
     () => `${firstName.trim()} ${lastName.trim()}`.trim(),
     [firstName, lastName]
   );
+  const homeHref = getKlyxAccountHome(accountType);
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -225,11 +227,11 @@ export default function ProfilePage() {
     <main className="min-h-screen bg-background dark:bg-zinc-950 px-4 py-8 text-foreground dark:text-white sm:px-6">
       <div className="mx-auto max-w-4xl">
         <Link
-          href="/dashboard"
+          href={homeHref}
           className="inline-flex items-center gap-2 text-sm text-muted-foreground dark:text-zinc-400 hover:text-foreground dark:text-white"
         >
           <ArrowLeft size={18} />
-          {t("dashboard")}
+          {t("home")}
         </Link>
 
         <header className="mt-8">

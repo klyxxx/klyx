@@ -5,7 +5,6 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   BriefcaseBusiness,
   CalendarDays,
-  CircleDollarSign,
   LogOut,
   MessageCircle,
   Sparkles,
@@ -16,6 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import KlyxLogo from "@/app/ui/KlyxLogo";
+import { getKlyxAccountHome } from "@/lib/account-home";
 import { KLYX_ACTIVE_PROFILE_CHANGED } from "@/lib/account-switcher";
 import {
   translateKlyxNavigationLabel,
@@ -82,28 +82,28 @@ const clientItems: MenuItem[] = [
 
 const providerItems: MenuItem[] = [
   {
+    title: "KLYX",
+    translationLabel: "KLYX",
+    href: "/provider/assistant",
+    icon: Sparkles,
+  },
+  {
     title: "Missions",
     translationLabel: "Missions disponibles",
     href: "/provider/jobs",
     icon: BriefcaseBusiness,
   },
   {
-    title: "Services",
-    translationLabel: "Services",
+    title: "Messages",
+    translationLabel: "Messages",
+    href: "/messages",
+    icon: MessageCircle,
+  },
+  {
+    title: "Gestion",
+    translationLabel: "Administration",
     href: "/provider",
     icon: Wrench,
-  },
-  {
-    title: "Finances",
-    translationLabel: "Paiements",
-    href: "/provider/payments",
-    icon: CircleDollarSign,
-  },
-  {
-    title: "Profil",
-    translationLabel: "Mon profil",
-    href: "/profile",
-    icon: UserRound,
   },
 ];
 
@@ -185,12 +185,7 @@ export default function AppSidebar() {
     [items, pathname]
   );
 
-  const homeHref =
-    accountType === "provider"
-      ? "/provider/jobs"
-      : accountType === "client"
-        ? "/assistant"
-        : "/dashboard";
+  const homeHref = accountType ? getKlyxAccountHome(accountType) : "/dashboard";
 
   if (hideNavigation) return null;
 
