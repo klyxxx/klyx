@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  type FormEvent,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
   LoaderCircle,
@@ -61,20 +56,12 @@ type ApiBody = {
   code?: string;
 };
 
-function serviceLabel(
-  service: ProviderService,
-  fallback: string
-): string {
+function serviceLabel(service: ProviderService, fallback: string): string {
   const relation = Array.isArray(service.services)
     ? service.services[0]
     : service.services;
 
-  return (
-    service.custom_name ||
-    relation?.name ||
-    relation?.slug ||
-    fallback
-  );
+  return service.custom_name || relation?.name || relation?.slug || fallback;
 }
 
 export default function ProviderZonesPage() {
@@ -129,9 +116,7 @@ export default function ProviderZonesPage() {
       const nextServices = body.services ?? [];
       setServices(nextServices);
       setZones(body.zones ?? []);
-      setUserServiceId(
-        (current) => current || nextServices[0]?.id || ""
-      );
+      setUserServiceId((current) => current || nextServices[0]?.id || "");
     } catch {
       setErrorMessage(t("loadError"));
     } finally {
@@ -144,10 +129,7 @@ export default function ProviderZonesPage() {
   }, []);
 
   const selectedLocality = useMemo(
-    () =>
-      BELGIAN_LOCALITIES.find(
-        (item) => item.name === locality
-      ) ?? null,
+    () => BELGIAN_LOCALITIES.find((item) => item.name === locality) ?? null,
     [locality]
   );
 
@@ -183,8 +165,7 @@ export default function ProviderZonesPage() {
 
       if (!response.ok) {
         setErrorMessage(
-          translateKlyxProviderZoneApiCode(locale, body.code) ??
-            t("addError")
+          translateKlyxProviderZoneApiCode(locale, body.code) ?? t("addError")
         );
         return;
       }
@@ -273,41 +254,41 @@ export default function ProviderZonesPage() {
   }
 
   return (
-    <main className="klyx-page">
-      <div className="mx-auto max-w-6xl">
-        <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#111827,#164e63_52%,#0f172a)] p-7 text-white sm:p-10">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white/70">
-            <Navigation size={15} />
-            {t("providerOnly")}
+    <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6 sm:py-10">
+      <div className="mx-auto max-w-5xl">
+        <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <div className="max-w-3xl">
+            <div className="flex items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400">
+              <Navigation size={17} />
+              <span>{t("providerOnly")}</span>
+            </div>
+            <h1 className="mt-3 text-3xl font-bold tracking-[-0.04em] sm:text-5xl">
+              {t("title")}
+            </h1>
+            <p className="mt-3 text-sm leading-7 text-muted-foreground sm:text-base">
+              {t("description")}
+            </p>
           </div>
-
-          <h1 className="mt-5 text-3xl font-black sm:text-5xl">
-            {t("title")}
-          </h1>
-
-          <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">
-            {t("description")}
-          </p>
 
           <button
             type="button"
             onClick={() => void load()}
             disabled={loading}
-            className="mt-7 inline-flex h-11 items-center gap-2 rounded-xl bg-white px-4 text-sm font-black text-zinc-950 disabled:opacity-50"
+            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-semibold transition hover:bg-muted disabled:opacity-50"
           >
-            <RefreshCw size={17} />
+            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
             {t("refresh")}
           </button>
-        </section>
+        </header>
 
         {errorMessage && (
-          <div className="mt-6 rounded-2xl border border-rose-500/25 bg-rose-500/10 p-4 text-rose-700 dark:text-rose-300">
+          <div className="mt-6 rounded-2xl border border-red-500/25 bg-red-500/8 p-4 text-red-700 dark:text-red-300">
             {errorMessage}
           </div>
         )}
 
         {successMessage && (
-          <div className="mt-6 flex gap-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-emerald-700 dark:text-emerald-300">
+          <div className="mt-6 flex gap-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/8 p-4 text-emerald-700 dark:text-emerald-300">
             <CheckCircle2 size={19} />
             {successMessage}
           </div>
@@ -315,28 +296,25 @@ export default function ProviderZonesPage() {
 
         <form
           onSubmit={addZone}
-          className="klyx-card mt-8 p-6 sm:p-8"
+          className="mt-8 overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
         >
-          <h2 className="text-2xl font-black">
-            {t("addTitle")}
-          </h2>
+          <div className="border-b border-border p-5 sm:p-6">
+            <h2 className="text-xl font-semibold">{t("addTitle")}</h2>
+          </div>
 
           {loading ? (
             <div className="grid min-h-44 place-items-center">
-              <LoaderCircle
-                className="animate-spin text-cyan-600"
-                size={34}
-              />
+              <LoaderCircle className="animate-spin text-blue-600" size={34} />
             </div>
           ) : services.length === 0 ? (
-            <div className="mt-5 rounded-2xl border border-amber-500/25 bg-amber-500/10 p-5 text-sm">
+            <div className="m-5 rounded-xl border border-amber-500/25 bg-amber-500/8 p-5 text-sm sm:m-6">
               {t("noServices")}
             </div>
           ) : (
-            <>
-              <div className="mt-6 grid gap-5 md:grid-cols-2">
+            <div className="p-5 sm:p-6">
+              <div className="grid gap-5 md:grid-cols-2">
                 <label>
-                  <span className="mb-2 block text-sm font-black">
+                  <span className="mb-2 block text-sm font-semibold">
                     {t("service")}
                   </span>
                   <KlyxSelect
@@ -344,17 +322,14 @@ export default function ProviderZonesPage() {
                     onChange={setUserServiceId}
                     options={services.map((service) => ({
                       value: service.id,
-                      label: serviceLabel(
-                        service,
-                        t("serviceFallback")
-                      ),
+                      label: serviceLabel(service, t("serviceFallback")),
                     }))}
                     ariaLabel={t("service")}
                   />
                 </label>
 
                 <label>
-                  <span className="mb-2 block text-sm font-black">
+                  <span className="mb-2 block text-sm font-semibold">
                     {t("locality")}
                   </span>
                   <KlyxSelect
@@ -370,7 +345,7 @@ export default function ProviderZonesPage() {
                 </label>
 
                 <label>
-                  <span className="mb-2 block text-sm font-black">
+                  <span className="mb-2 block text-sm font-semibold">
                     {t("maxRadius")}
                   </span>
                   <div className="relative">
@@ -379,9 +354,7 @@ export default function ProviderZonesPage() {
                       min="1"
                       max="100"
                       value={radiusKm}
-                      onChange={(event) =>
-                        setRadiusKm(event.target.value)
-                      }
+                      onChange={(event) => setRadiusKm(event.target.value)}
                       className="klyx-input pr-14"
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
@@ -390,19 +363,15 @@ export default function ProviderZonesPage() {
                   </div>
                 </label>
 
-                <label className="flex items-start gap-3 rounded-2xl border border-border bg-background/60 p-4">
+                <label className="flex items-start gap-3 rounded-xl border border-border bg-background p-4">
                   <input
                     type="checkbox"
                     checked={isPrimary}
-                    onChange={(event) =>
-                      setIsPrimary(event.target.checked)
-                    }
-                    className="mt-1 h-5 w-5 accent-cyan-600"
+                    onChange={(event) => setIsPrimary(event.target.checked)}
+                    className="mt-1 h-5 w-5 accent-blue-600"
                   />
                   <div>
-                    <p className="font-black">
-                      {t("primary")}
-                    </p>
+                    <p className="font-semibold">{t("primary")}</p>
                     <p className="mt-1 text-xs leading-5 text-muted-foreground">
                       {t("primaryDescription")}
                     </p>
@@ -412,48 +381,38 @@ export default function ProviderZonesPage() {
 
               <button
                 type="submit"
-                disabled={
-                  saving ||
-                  !userServiceId ||
-                  !selectedLocality
-                }
-                className="klyx-button mt-6 w-full"
+                disabled={saving || !userServiceId || !selectedLocality}
+                className="mt-6 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:opacity-50"
               >
                 {saving ? (
-                  <LoaderCircle
-                    className="animate-spin"
-                    size={18}
-                  />
+                  <LoaderCircle className="animate-spin" size={18} />
                 ) : (
                   <Plus size={18} />
                 )}
                 {t("addZone")}
               </button>
-            </>
+            </div>
           )}
         </form>
 
-        <section className="mt-8">
-          <p className="klyx-eyebrow">
+        <section className="mt-10">
+          <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
             {t("coverageEyebrow")}
           </p>
-          <h2 className="mt-2 text-2xl font-black">
+          <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em]">
             {t("savedTitle")}
           </h2>
 
           {!loading && zones.length === 0 ? (
-            <div className="klyx-card mt-5 p-8 text-center">
-              <MapPin
-                className="mx-auto text-cyan-600"
-                size={40}
-              />
-              <p className="mt-4 font-black">
-                {t("empty")}
-              </p>
+            <div className="mt-5 rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
+              <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-blue-600/8 text-blue-600">
+                <MapPin size={22} />
+              </span>
+              <p className="mt-4 font-semibold">{t("empty")}</p>
             </div>
           ) : (
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
-              {zones.map((zone) => {
+            <div className="mt-5 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+              {zones.map((zone, index) => {
                 const service = services.find(
                   (item) => item.id === zone.user_service_id
                 );
@@ -461,64 +420,58 @@ export default function ProviderZonesPage() {
                 return (
                   <article
                     key={zone.id}
-                    className="klyx-card p-5"
+                    className={`flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6 ${
+                      index > 0 ? "border-t border-border" : ""
+                    }`}
                   >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-lg font-black">
-                            {zone.locality}
-                          </h3>
-                          {zone.is_primary && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] font-black uppercase text-amber-700 dark:text-amber-300">
-                              <Star size={12} />
-                              {t("primaryBadge")}
-                            </span>
-                          )}
-                        </div>
-
-                        <p className="mt-2 text-sm text-muted-foreground">
-                          {zone.postal_code ?? t("belgium")} · {t("radius")} {zone.radius_km} km
-                        </p>
-                        <p className="mt-1 text-sm font-black text-cyan-700 dark:text-cyan-300">
-                          {service
-                            ? serviceLabel(
-                                service,
-                                t("serviceFallback")
-                              )
-                            : t("serviceFallback")}
-                        </p>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-lg font-semibold">{zone.locality}</h3>
+                        {zone.is_primary && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-600/8 px-2.5 py-1 text-[10px] font-semibold uppercase text-blue-700 dark:text-blue-300">
+                            <Star size={12} />
+                            {t("primaryBadge")}
+                          </span>
+                        )}
                       </div>
+
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        {zone.postal_code ?? t("belgium")} · {t("radius")} {zone.radius_km} km
+                      </p>
+                      <p className="mt-1 text-sm font-medium text-foreground/80">
+                        {service
+                          ? serviceLabel(service, t("serviceFallback"))
+                          : t("serviceFallback")}
+                      </p>
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-2">
+                      {!zone.is_primary && (
+                        <button
+                          type="button"
+                          disabled={busyId === zone.id}
+                          onClick={() => void setPrimary(zone)}
+                          className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-border px-3 text-xs font-semibold text-blue-600 transition hover:bg-muted disabled:opacity-50"
+                        >
+                          <Star size={15} />
+                          {t("setPrimary")}
+                        </button>
+                      )}
 
                       <button
                         type="button"
                         disabled={busyId === zone.id}
                         onClick={() => void removeZone(zone.id)}
-                        className="grid h-10 w-10 place-items-center rounded-xl border border-rose-500/25 text-rose-600 disabled:opacity-50"
+                        className="grid h-10 w-10 place-items-center rounded-xl border border-red-500/25 text-red-600 transition hover:bg-red-500/5 disabled:opacity-50"
                         aria-label={t("deleteAria")}
                       >
                         {busyId === zone.id ? (
-                          <LoaderCircle
-                            className="animate-spin"
-                            size={16}
-                          />
+                          <LoaderCircle className="animate-spin" size={16} />
                         ) : (
                           <Trash2 size={16} />
                         )}
                       </button>
                     </div>
-
-                    {!zone.is_primary && (
-                      <button
-                        type="button"
-                        disabled={busyId === zone.id}
-                        onClick={() => void setPrimary(zone)}
-                        className="mt-4 inline-flex items-center gap-2 text-xs font-black text-amber-700 dark:text-amber-300"
-                      >
-                        <Star size={15} />
-                        {t("setPrimary")}
-                      </button>
-                    )}
                   </article>
                 );
               })}
