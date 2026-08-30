@@ -163,12 +163,12 @@ export default function ProviderReadinessStatus() {
       {
         label: t("publishedProfile"),
         done: isPublished,
-        href: "/provider",
+        href: "/provider/studio",
       },
       {
         label: t("completeService"),
         done: hasCompleteService,
-        href: "/provider",
+        href: "/provider/studio",
       },
       {
         label: t("activeZone"),

@@ -53,8 +53,8 @@ describe("KLYX provider readiness safety and i18n contract", () => {
     expect(source).not.toContain("setTimeout(");
   });
 
-  it("preserves all readiness destinations", () => {
-    expect(source).toContain('href: "/provider"');
+  it("preserves readiness destinations while routing editable profile work to the studio", () => {
+    expect(source).toContain('href: "/provider/studio"');
     expect(source).toContain('href: "/provider/zones"');
     expect(source).toContain('href: "/provider/verification"');
     expect(source).toContain('href="/onboarding"');
