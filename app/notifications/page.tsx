@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Bell,
@@ -134,7 +135,9 @@ export default function NotificationsPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ notificationId }),
+        body: JSON.stringify({
+          notificationId,
+        }),
       });
 
       await response.json();
@@ -177,7 +180,9 @@ export default function NotificationsPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ markAll: true }),
+        body: JSON.stringify({
+          markAll: true,
+        }),
       });
 
       await response.json();
@@ -217,7 +222,14 @@ export default function NotificationsPage() {
       <div className="mx-auto max-w-4xl">
         <header className="flex flex-wrap items-start justify-between gap-5">
           <div>
-            <h1 className="text-3xl font-bold tracking-[-0.04em] sm:text-5xl">
+            <Link
+              href="/dashboard"
+              className="inline-flex text-sm font-medium text-muted-foreground transition hover:text-foreground"
+            >
+              ← KLYX
+            </Link>
+
+            <h1 className="mt-4 text-3xl font-bold tracking-[-0.04em] sm:text-5xl">
               {t("title")}
             </h1>
             <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-base">
