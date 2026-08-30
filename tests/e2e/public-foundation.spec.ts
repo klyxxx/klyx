@@ -21,7 +21,7 @@ test.describe(
             "heading",
             {
               name:
-                "Que dois-je organiser pour vous ?",
+                "De quoi as-tu besoin ?",
             }
           )
         ).toBeVisible();
