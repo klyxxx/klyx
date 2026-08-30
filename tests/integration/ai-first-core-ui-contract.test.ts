@@ -73,7 +73,7 @@ describe(
         expect(
           bookings
         ).toContain(
-          "KLYX_AI_FIRST_BOOKINGS_15_02"
+          't("nextStepKlyx")'
         );
 
         expect(

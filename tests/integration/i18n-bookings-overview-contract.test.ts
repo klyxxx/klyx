@@ -25,17 +25,18 @@ describe("KLYX bookings overview i18n contract", () => {
     expect(page).not.toContain("supabaseAdmin");
   });
 
-  it("keeps booking classification and navigation semantics unchanged", () => {
+  it("keeps client booking classification and role separation semantics", () => {
     expect(page).toContain("booking.actionRequired");
     expect(page).toContain("!booking.history");
     expect(page).toContain("booking.history");
     expect(page).toContain("splitMissionNeedsAction");
     expect(page).toContain("splitMissionIsHistory");
     expect(page).toContain("splitMissionMatchesFilter");
-    expect(page).toContain('href="/provider/jobs"');
-    expect(page).toContain('href="/provider/assistant"');
-    expect(page).toContain('href="/assistant/market"');
-    expect(page).toContain('href="/search"');
+    expect(page).toContain('router.replace("/provider/jobs")');
+    expect(page).not.toContain('href="/provider/assistant"');
+    expect(page).not.toContain('href="/assistant/market"');
+    expect(page).not.toContain('href="/search"');
+    expect(page).toContain('href="/assistant"');
   });
 
   it("uses locale-driven presentation instead of server French labels", () => {
@@ -61,7 +62,7 @@ describe("KLYX bookings overview i18n contract", () => {
   });
 
   it("keeps explicit booking and payment confirmation boundaries translated", () => {
-    expect(page).toContain('t("providerSafety")');
+    expect(page).toContain('t("clientTracking")');
     expect(page).toContain('t("explicitConfirmationBoundary")');
     expect(dictionary).toContain("une confirmation explicite reste nécessaire");
     expect(dictionary).toContain("explicit confirmation is still required");

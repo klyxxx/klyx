@@ -24,7 +24,6 @@ import {
   Layers3,
   LoaderCircle,
   RefreshCw,
-  Search,
   ShieldCheck,
   UserRound,
 } from "lucide-react";
@@ -86,26 +85,26 @@ type OverviewResponse = {
 
 const STATUS_STYLES: Record<string, string> = {
   pending:
-    "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+    "border-amber-500/25 bg-amber-500/8 text-amber-700 dark:text-amber-300",
   payment_pending:
-    "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300",
+    "border-amber-500/25 bg-amber-500/8 text-amber-700 dark:text-amber-300",
   accepted:
-    "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300",
+    "border-blue-600/20 bg-blue-600/8 text-blue-700 dark:text-blue-300",
   completed:
-    "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+    "border-emerald-500/25 bg-emerald-500/8 text-emerald-700 dark:text-emerald-300",
   cancelled: "border-border bg-muted text-muted-foreground",
   rejected:
-    "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300",
+    "border-red-500/25 bg-red-500/8 text-red-700 dark:text-red-300",
   cancellation_waiting:
-    "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+    "border-amber-500/25 bg-amber-500/8 text-amber-700 dark:text-amber-300",
   cancellation_decision:
-    "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300",
+    "border-red-500/25 bg-red-500/8 text-red-700 dark:text-red-300",
   refund_processing:
-    "border-violet-500/30 bg-violet-500/10 text-violet-700 dark:text-violet-300",
+    "border-blue-600/20 bg-blue-600/8 text-blue-700 dark:text-blue-300",
   refund_failed:
-    "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300",
+    "border-red-500/25 bg-red-500/8 text-red-700 dark:text-red-300",
   refunded:
-    "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300",
+    "border-blue-600/20 bg-blue-600/8 text-blue-700 dark:text-blue-300",
 };
 
 async function accessToken() {
@@ -113,10 +112,7 @@ async function accessToken() {
     data: { session },
   } = await supabase.auth.getSession();
 
-  if (!session?.access_token) {
-    throw new Error(SESSION_MISSING);
-  }
-
+  if (!session?.access_token) throw new Error(SESSION_MISSING);
   return session.access_token;
 }
 
@@ -133,11 +129,7 @@ function timeLabel(locale: string, card: BookingCard) {
 }
 
 function amountLabel(locale: string, card: BookingCard) {
-  return formatKlyxBookingAmount(
-    locale,
-    card.amountCents,
-    card.currency
-  );
+  return formatKlyxBookingAmount(locale, card.amountCents, card.currency);
 }
 
 function serviceLabel(locale: string, card: BookingCard) {
@@ -154,11 +146,8 @@ export default function BookingsPage() {
   const t = (key: KlyxBookingsPageMessageKey) =>
     translateKlyxBookingsPage(locale, key);
 
-  const [accountType, setAccountType] = useState<"client" | "provider">(
-    "client"
-  );
+  const [accountType, setAccountType] = useState<"client" | "provider">("client");
   const [bookings, setBookings] = useState<BookingCard[]>([]);
-  // KLYX_SPLIT_MISSION_CONSOLIDATION_13_21
   const [splitMissions, setSplitMissions] = useState<SplitMissionSummary[]>([]);
   const [filter, setFilter] = useState<BookingFilter>("actions");
   const [loading, setLoading] = useState(true);
@@ -174,7 +163,7 @@ export default function BookingsPage() {
       const token = await accessToken();
       const response = await fetch("/api/bookings/overview", {
         cache: "no-store",
-        headers: { Authorization: "Bearer " + token },
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       if (response.status === 401) {
@@ -188,39 +177,42 @@ export default function BookingsPage() {
         return;
       }
 
-      setAccountType(body.accountType ?? "client");
+      const nextAccountType = body.accountType ?? "client";
+      setAccountType(nextAccountType);
 
-      // KLYX_SPLIT_MISSION_CHILD_FILTER_13_21D
+      if (nextAccountType === "provider") {
+        router.replace("/provider/jobs");
+        return;
+      }
+
       const overviewCards = body.cards ?? [];
       let nextSplitMissions: SplitMissionSummary[] = [];
       let hiddenSplitBookingIds = new Set<string>();
 
-      if ((body.accountType ?? "client") === "client") {
-        try {
-          const splitResponse = await fetch("/api/bookings/split-missions", {
-            cache: "no-store",
-            headers: { Authorization: "Bearer " + token },
-          });
+      try {
+        const splitResponse = await fetch("/api/bookings/split-missions", {
+          cache: "no-store",
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-          if (splitResponse.ok) {
-            const splitBody = (await splitResponse.json()) as {
-              missions?: SplitMissionSummary[];
-              childBookingIds?: string[];
-            };
+        if (splitResponse.ok) {
+          const splitBody = (await splitResponse.json()) as {
+            missions?: SplitMissionSummary[];
+            childBookingIds?: string[];
+          };
 
-            nextSplitMissions = Array.isArray(splitBody.missions)
-              ? splitBody.missions
-              : [];
-            hiddenSplitBookingIds = new Set(
-              Array.isArray(splitBody.childBookingIds)
-                ? splitBody.childBookingIds
-                : []
-            );
-          }
-        } catch {
-          nextSplitMissions = [];
-          hiddenSplitBookingIds = new Set<string>();
+          nextSplitMissions = Array.isArray(splitBody.missions)
+            ? splitBody.missions
+            : [];
+          hiddenSplitBookingIds = new Set(
+            Array.isArray(splitBody.childBookingIds)
+              ? splitBody.childBookingIds
+              : []
+          );
         }
+      } catch {
+        nextSplitMissions = [];
+        hiddenSplitBookingIds = new Set<string>();
       }
 
       setSplitMissions(nextSplitMissions);
@@ -246,29 +238,30 @@ export default function BookingsPage() {
     void loadBookings();
   }, [loadBookings]);
 
-  const counts = useMemo(
-    () => ({
+  const counts = useMemo(() => {
+    const bookingCounts = {
       actions: bookings.filter((booking) => booking.actionRequired).length,
       upcoming: bookings.filter((booking) => !booking.history).length,
       history: bookings.filter((booking) => booking.history).length,
       all: bookings.length,
-    }),
-    [bookings]
-  );
+    };
 
-  // KLYX_SPLIT_MISSION_COUNTS_13_21D
-  const splitMissionCounts = useMemo(
-    () => ({
+    const splitCounts = {
       actions: splitMissions.filter(splitMissionNeedsAction).length,
       upcoming: splitMissions.filter(
         (mission) => !splitMissionIsHistory(mission)
       ).length,
       history: splitMissions.filter(splitMissionIsHistory).length,
       all: splitMissions.length,
-    }),
-    [splitMissions]
-  );
-  void splitMissionCounts;
+    };
+
+    return {
+      actions: bookingCounts.actions + splitCounts.actions,
+      upcoming: bookingCounts.upcoming + splitCounts.upcoming,
+      history: bookingCounts.history + splitCounts.history,
+      all: bookingCounts.all + splitCounts.all,
+    };
+  }, [bookings, splitMissions]);
 
   const visibleBookings = useMemo(() => {
     if (filter === "actions") {
@@ -283,352 +276,176 @@ export default function BookingsPage() {
     return bookings;
   }, [bookings, filter]);
 
-  const filterOptions: Array<{
-    value: BookingFilter;
-    label: string;
-  }> = [
+  const nextBooking = useMemo(
+    () =>
+      bookings.find((booking) => booking.actionRequired) ??
+      bookings.find((booking) => !booking.history) ??
+      null,
+    [bookings]
+  );
+
+  const filterOptions: Array<{ value: BookingFilter; label: string }> = [
     { value: "actions", label: t("filterActions") },
     { value: "upcoming", label: t("filterUpcoming") },
     { value: "history", label: t("filterHistory") },
     { value: "all", label: t("filterAll") },
   ];
 
+  if (accountType === "provider") {
+    return (
+      <main className="grid min-h-screen place-items-center bg-background">
+        <LoaderCircle className="animate-spin text-blue-600" size={30} />
+      </main>
+    );
+  }
+
   return (
-    <main className="min-h-screen bg-background px-5 py-10 text-foreground dark:bg-zinc-950">
-      <div className="mx-auto max-w-6xl">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <Link
-              href="/dashboard"
-              className="text-sm text-muted-foreground transition hover:text-foreground"
-            >
-              {t("dashboard")}
-            </Link>
-
-            <p className="mt-6 text-sm font-black uppercase tracking-[0.2em] text-violet-600 dark:text-violet-400">
-              {accountType === "provider" ? t("providerSpace") : t("clientSpace")}
+    <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6 sm:py-10">
+      <div className="mx-auto max-w-4xl">
+        <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <div className="max-w-2xl">
+            <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+              {t("clientTracking")}
             </p>
-
-            <h1 className="mt-2 text-3xl font-black tracking-[-0.04em] sm:text-5xl">
+            <h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] sm:text-5xl">
               {t("title")}
             </h1>
-            {/* KLYX_AI_FIRST_BOOKINGS_15_02 */}
+            <p className="mt-3 text-sm leading-7 text-muted-foreground sm:text-base">
+              {t("clientDescription")}
+            </p>
           </div>
 
           <button
             type="button"
             onClick={() => void loadBookings()}
             disabled={loading}
-            className="inline-flex h-12 items-center gap-2 rounded-xl border border-border bg-card px-5 text-sm font-black transition hover:bg-muted disabled:opacity-50"
+            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-semibold transition hover:bg-muted disabled:opacity-50"
           >
-            <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
             {t("refresh")}
           </button>
-        </div>
+        </header>
 
         {hiddenChildren > 0 && (
-          <div className="mt-7 inline-flex items-center gap-2 rounded-full border border-violet-500/20 bg-violet-500/10 px-4 py-2 text-xs font-black text-violet-700 dark:text-violet-300">
-            <Layers3 size={15} />
+          <p className="mt-6 inline-flex items-center gap-2 rounded-full bg-blue-600/8 px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300">
+            <Layers3 size={14} />
             {t("groupedViewActive")}
-          </div>
+          </p>
         )}
 
-        {/* KLYX_PROVIDER_MISSION_COCKPIT_13_79 */}
-        {!loading && accountType === "provider" && bookings.length > 0 &&
-          (() => {
-            const actionable = bookings.filter(
-              (booking) => booking.actionRequired
-            );
-            const upcoming = bookings.filter((booking) => !booking.history);
-            const completed = bookings.filter(
-              (booking) => booking.status === "completed"
-            );
-            const nextAction = actionable[0] ?? upcoming[0] ?? null;
-
-            return (
-              <section className="mt-8 overflow-hidden rounded-3xl border border-blue-500/20 bg-blue-500/5">
-                <div className="p-5 sm:p-6">
-                  <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600 dark:text-blue-400">
-                        {t("providerTracking")}
-                      </p>
-                      <h2 className="mt-2 text-2xl font-black">
-                        {t("providerActivityNow")}
-                      </h2>
-                      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                        {t("providerActivityDescription")}
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2">
-                      <Counter value={actionable.length} label={t("toHandle")} tone="amber" />
-                      <Counter value={upcoming.length} label={t("upcoming")} tone="blue" />
-                      <Counter value={completed.length} label={t("completed")} tone="emerald" />
-                    </div>
-                  </div>
-
-                  {nextAction && (
-                    <div className="mt-5 rounded-2xl border border-border bg-background p-5">
-                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="min-w-0">
-                          <p className="text-xs font-black uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">
-                            {t("nextStep")}
-                          </p>
-                          <h3 className="mt-2 text-lg font-black">
-                            {nextAction.actionRequired
-                              ? t("actionRequiredTitle")
-                              : t("nextMission")}
-                          </h3>
-                          <p className="mt-2 truncate text-sm font-bold">
-                            {serviceLabel(locale, nextAction)}
-                            {" · "}
-                            {nextAction.otherUserName}
-                          </p>
-                          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground">
-                            <span>{dateLabel(locale, nextAction)}</span>
-                            <span>{timeLabel(locale, nextAction)}</span>
-                            <span>{amountLabel(locale, nextAction)}</span>
-                          </div>
-                          <p className="mt-3 text-xs text-muted-foreground">
-                            {t("status")}: {" "}
-                            <strong className="text-foreground">
-                              {formatKlyxBookingStatus(locale, nextAction.status)}
-                            </strong>
-                          </p>
-                        </div>
-
-                        <Link
-                          href={nextAction.href}
-                          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-black text-white hover:bg-blue-700"
-                        >
-                          {t("openMission")}
-                          <ArrowRight size={17} />
-                        </Link>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    <Link
-                      href="/provider/jobs"
-                      className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-black hover:bg-muted"
-                    >
-                      <Search size={16} />
-                      {t("viewOpportunities")}
-                    </Link>
-                    <Link
-                      href="/provider/assistant"
-                      className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-black hover:bg-muted"
-                    >
-                      {t("providerAssistant")}
-                      <ArrowRight size={16} />
-                    </Link>
-                  </div>
-
-                  <p className="mt-4 text-xs leading-5 text-muted-foreground">
-                    {t("providerSafety")}
-                  </p>
-                </div>
-              </section>
-            );
-          })()}
-
-        {/* KLYX_CLIENT_MISSION_COCKPIT_13_80 */}
-        {!loading &&
-          accountType === "client" &&
-          (bookings.length > 0 || splitMissions.length > 0) &&
-          (() => {
-            const actionableBookings = bookings.filter(
-              (booking) => booking.actionRequired
-            );
-            const upcomingBookings = bookings.filter(
-              (booking) => !booking.history
-            );
-            const completedBookings = bookings.filter(
-              (booking) => booking.status === "completed"
-            );
-            const splitActions = splitMissions.filter(splitMissionNeedsAction);
-            const splitUpcoming = splitMissions.filter(
-              (mission) => !splitMissionIsHistory(mission)
-            );
-            const totalActions = actionableBookings.length + splitActions.length;
-            const totalUpcoming = upcomingBookings.length + splitUpcoming.length;
-            const nextBooking =
-              actionableBookings[0] ?? upcomingBookings[0] ?? null;
-
-            return (
-              <section className="mt-8 overflow-hidden rounded-3xl border border-violet-500/20 bg-violet-500/5">
-                <div className="p-5 sm:p-6">
-                  <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
-                        {t("clientTracking")}
-                      </p>
-                      <h2 className="mt-2 text-2xl font-black">
-                        {totalActions > 0
-                          ? t("clientActionNeeded")
-                          : totalUpcoming > 0
-                            ? t("clientMissionsProgress")
-                            : t("clientAllUpToDate")}
-                      </h2>
-                      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                        {t("clientDescription")}
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2">
-                      <Counter value={totalActions} label={t("toConfirm")} tone="amber" />
-                      <Counter value={totalUpcoming} label={t("upcoming")} tone="violet" />
-                      <Counter value={completedBookings.length} label={t("completed")} tone="emerald" />
-                    </div>
-                  </div>
-
-                  {nextBooking && (
-                    <div className="mt-5 rounded-2xl border border-border bg-background p-5">
-                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="min-w-0">
-                          <p className="text-xs font-black uppercase tracking-[0.14em] text-violet-600 dark:text-violet-400">
-                            {t("nextStepKlyx")}
-                          </p>
-                          <h3 className="mt-2 text-lg font-black">
-                            {nextBooking.actionRequired
-                              ? t("agreementRequired")
-                              : t("missionTracked")}
-                          </h3>
-                          <p className="mt-2 truncate text-sm font-bold">
-                            {serviceLabel(locale, nextBooking)}
-                            {" · "}
-                            {nextBooking.otherUserName}
-                          </p>
-                          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground">
-                            <span>{dateLabel(locale, nextBooking)}</span>
-                            <span>{timeLabel(locale, nextBooking)}</span>
-                            <span>{amountLabel(locale, nextBooking)}</span>
-                          </div>
-                          <p className="mt-3 text-xs text-muted-foreground">
-                            {t("status")}: {" "}
-                            <strong className="text-foreground">
-                              {formatKlyxBookingStatus(locale, nextBooking.status)}
-                            </strong>
-                          </p>
-                        </div>
-
-                        <Link
-                          href={nextBooking.href}
-                          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 text-sm font-black text-white hover:bg-violet-700"
-                        >
-                          {t("viewMission")}
-                          <ArrowRight size={17} />
-                        </Link>
-                      </div>
-                    </div>
-                  )}
-
-                  {!nextBooking && splitMissions.length > 0 && (
-                    <div className="mt-5 rounded-2xl border border-violet-500/20 bg-background p-5">
-                      <div className="flex items-start gap-3">
-                        <Layers3
-                          size={20}
-                          className="mt-0.5 shrink-0 text-violet-600"
-                        />
-                        <div>
-                          <p className="font-black">{t("groupedMissionTracked")}</p>
-                          <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                            {t("groupedMissionDescription")}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    <Link
-                      href="/assistant/market"
-                      className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-black hover:bg-muted"
-                    >
-                      <ArrowRight size={16} />
-                      {t("organizeAnotherNeed")}
-                    </Link>
-                    <Link
-                      href="/search"
-                      className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-black hover:bg-muted"
-                    >
-                      <Search size={16} />
-                      {t("findProvider")}
-                    </Link>
-                  </div>
-
-                  <div className="mt-4 flex items-start gap-2 rounded-2xl border border-border bg-background/70 p-4 text-xs leading-5 text-muted-foreground">
-                    <ShieldCheck
-                      size={16}
-                      className="mt-0.5 shrink-0 text-violet-600"
-                    />
-                    <p>{t("explicitConfirmationBoundary")}</p>
-                  </div>
-                </div>
-              </section>
-            );
-          })()}
-
         {errorKey && (
-          <div className="mt-8 rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-sm text-red-700 dark:text-red-300">
+          <div className="mt-6 rounded-2xl border border-red-500/25 bg-red-500/8 p-4 text-sm text-red-700 dark:text-red-300">
             {t(errorKey)}
           </div>
         )}
 
-        {!loading && bookings.length > 0 && (
+        {!loading && nextBooking && (
+          <section
+            className={`mt-8 rounded-2xl border p-5 shadow-sm sm:p-6 ${
+              nextBooking.actionRequired
+                ? "border-amber-500/30 bg-amber-500/[0.04]"
+                : "border-border bg-card"
+            }`}
+          >
+            <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+              {t("nextStepKlyx")}
+            </p>
+
+            <div className="mt-3 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <h2 className="text-xl font-semibold">
+                  {nextBooking.actionRequired
+                    ? t("agreementRequired")
+                    : t("missionTracked")}
+                </h2>
+                <p className="mt-2 text-sm font-medium">
+                  {serviceLabel(locale, nextBooking)} · {nextBooking.otherUserName}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
+                  <span>{dateLabel(locale, nextBooking)}</span>
+                  <span>{timeLabel(locale, nextBooking)}</span>
+                  <span>{amountLabel(locale, nextBooking)}</span>
+                </div>
+              </div>
+
+              <Link
+                href={nextBooking.href}
+                className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500"
+              >
+                {t("viewMission")}
+                <ArrowRight size={16} />
+              </Link>
+            </div>
+
+            <p className="mt-5 border-t border-border pt-4 text-xs leading-5 text-muted-foreground">
+              {t("explicitConfirmationBoundary")}
+            </p>
+          </section>
+        )}
+
+        {!loading && counts.all > 0 && (
           <div className="mt-8 flex gap-2 overflow-x-auto pb-2">
             {filterOptions.map((option) => (
               <button
                 key={option.value}
                 type="button"
                 onClick={() => setFilter(option.value)}
-                className={
-                  "whitespace-nowrap rounded-full border px-4 py-2 text-sm font-black transition " +
-                  (filter === option.value
-                    ? "border-violet-500 bg-violet-600 text-white"
-                    : "border-border bg-card text-muted-foreground hover:text-foreground")
-                }
+                className={`whitespace-nowrap rounded-full border px-4 py-2 text-sm font-medium transition ${
+                  filter === option.value
+                    ? "border-blue-600 bg-blue-600 text-white"
+                    : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
               >
-                {option.label} {" · "}
-                {counts[option.value]}
+                {option.label} · {counts[option.value]}
               </button>
             ))}
           </div>
         )}
 
-        {/* KLYX_SPLIT_MISSION_LIST_WIRING_13_21 */}
-        {!loading && <SplitMissionSection missions={splitMissions} filter={filter} />}
+        {!loading && (
+          <SplitMissionSection missions={splitMissions} filter={filter} />
+        )}
 
         {loading ? (
-          <div className="mt-10 flex min-h-48 items-center justify-center rounded-3xl border border-border bg-card">
-            <div className="flex items-center gap-3 text-sm font-bold text-muted-foreground">
+          <div className="mt-10 grid min-h-56 place-items-center">
+            <div className="flex items-center gap-3 text-sm font-medium text-muted-foreground">
               <LoaderCircle size={20} className="animate-spin" />
               {t("loading")}
             </div>
           </div>
         ) : bookings.length === 0 && splitMissions.length === 0 ? (
-          <EmptyState accountType={accountType} />
+          <EmptyState />
         ) : visibleBookings.length === 0 &&
           splitMissions.filter((mission) =>
             splitMissionMatchesFilter(mission, filter)
           ).length === 0 ? (
-          <div className="mt-8 rounded-3xl border border-border bg-card p-10 text-center">
-            <CheckCircle2 className="mx-auto text-emerald-500" size={42} />
-            <h2 className="mt-4 text-xl font-black">{t("nothingToHandle")}</h2>
+          <div className="mt-8 rounded-2xl border border-border bg-card p-8 text-center">
+            <CheckCircle2 className="mx-auto text-emerald-500" size={36} />
+            <h2 className="mt-4 text-lg font-semibold">{t("nothingToHandle")}</h2>
             <p className="mt-2 text-sm text-muted-foreground">
               {t("nothingToHandleDescription")}
             </p>
           </div>
         ) : (
-          <div className="mt-8 grid gap-5 lg:grid-cols-2">
+          <div className="mt-8 space-y-4">
             {visibleBookings.map((booking) => (
               <BookingCardView
-                key={booking.entityType + ":" + booking.id}
+                key={`${booking.entityType}:${booking.id}`}
                 booking={booking}
               />
             ))}
+          </div>
+        )}
+
+        {!loading && counts.all > 0 && (
+          <div className="mt-8 text-center">
+            <Link
+              href="/assistant"
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-blue-600 transition hover:bg-blue-600/5 dark:text-blue-400"
+            >
+              {t("organizeAnotherNeed")}
+              <ArrowRight size={16} />
+            </Link>
           </div>
         )}
       </div>
@@ -636,49 +453,24 @@ export default function BookingsPage() {
   );
 }
 
-function Counter({
-  value,
-  label,
-  tone,
-}: {
-  value: number;
-  label: string;
-  tone: "amber" | "blue" | "violet" | "emerald";
-}) {
-  const border =
-    tone === "amber"
-      ? "border-amber-500/20"
-      : tone === "blue"
-        ? "border-blue-500/20"
-        : tone === "violet"
-          ? "border-violet-500/20"
-          : "border-emerald-500/20";
-
-  return (
-    <div className={`rounded-2xl border ${border} bg-background px-4 py-3 text-center`}>
-      <p className="text-2xl font-black">{value}</p>
-      <p className="mt-1 text-[11px] font-bold text-muted-foreground">{label}</p>
-    </div>
-  );
-}
-
-function EmptyState({ accountType }: { accountType: "client" | "provider" }) {
+function EmptyState() {
   const { locale } = useKlyxLocale();
   const t = (key: KlyxBookingsPageMessageKey) =>
     translateKlyxBookingsPage(locale, key);
 
   return (
-    <div className="mt-10 rounded-3xl border border-border bg-card p-10 text-center">
-      <Search className="mx-auto text-violet-500" size={44} />
-      <h2 className="mt-5 text-2xl font-black">{t("emptyTitle")}</h2>
+    <div className="mt-10 rounded-2xl border border-border bg-card p-8 text-center sm:p-10">
+      <CalendarDays className="mx-auto text-blue-600" size={38} />
+      <h2 className="mt-5 text-xl font-semibold">{t("emptyTitle")}</h2>
       <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-muted-foreground">
-        {accountType === "provider" ? t("emptyProvider") : t("emptyClient")}
+        {t("emptyClient")}
       </p>
       <Link
-        href={accountType === "provider" ? "/provider" : "/search"}
-        className="mt-6 inline-flex h-12 items-center justify-center rounded-xl bg-violet-600 px-6 text-sm font-black text-white transition hover:bg-violet-700"
+        href="/assistant"
+        className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white transition hover:bg-blue-500"
       >
-        {accountType === "provider" ? t("manageListing") : t("findService")}
+        {t("organizeAnotherNeed")}
+        <ArrowRight size={16} />
       </Link>
     </div>
   );
@@ -692,16 +484,13 @@ function BookingCardView({ booking }: { booking: BookingCard }) {
 
   return (
     <article
-      className={
-        "rounded-3xl border bg-card p-6 transition hover:-translate-y-0.5 " +
-        (booking.actionRequired
-          ? "border-violet-500/50 shadow-[0_0_0_1px_rgba(139,92,246,0.08)]"
-          : "border-border")
-      }
+      className={`rounded-2xl border bg-card p-5 shadow-sm sm:p-6 ${
+        booking.actionRequired ? "border-amber-500/30" : "border-border"
+      }`}
     >
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-muted">
+          <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-muted">
             {booking.otherUserAvatar ? (
               <img
                 src={booking.otherUserAvatar}
@@ -709,77 +498,69 @@ function BookingCardView({ booking }: { booking: BookingCard }) {
                 className="h-full w-full object-cover"
               />
             ) : (
-              <UserRound className="text-muted-foreground" size={24} />
+              <UserRound className="text-muted-foreground" size={21} />
             )}
           </div>
+
           <div className="min-w-0">
-            <p className="truncate text-lg font-black">{booking.otherUserName}</p>
-            <p className="text-sm font-bold text-violet-600 dark:text-violet-400">
+            <p className="truncate font-semibold">{booking.otherUserName}</p>
+            <p className="mt-0.5 text-sm text-blue-600 dark:text-blue-400">
               {serviceLabel(locale, booking)}
             </p>
           </div>
         </div>
 
         <span
-          className={
-            "shrink-0 rounded-full border px-3 py-1 text-xs font-black " +
-            (STATUS_STYLES[booking.status] ??
-              "border-border bg-muted text-muted-foreground")
-          }
+          className={`w-fit shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold ${
+            STATUS_STYLES[booking.status] ??
+            "border-border bg-muted text-muted-foreground"
+          }`}
         >
           {formatKlyxBookingStatus(locale, booking.status)}
         </span>
       </div>
 
-      {grouped && (
-        <div className="mt-5 flex items-center gap-2 rounded-2xl border border-violet-500/20 bg-violet-500/5 p-3 text-sm">
-          <Layers3 className="shrink-0 text-violet-600" size={18} />
-          <div>
-            <p className="font-black">{t("groupedMission")}</p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              {formatKlyxBookingSlotCount(locale, booking.slotCount)} {t("groupedSlots")}
-            </p>
-          </div>
-        </div>
-      )}
-
       {booking.actionRequired && (
-        <div className="mt-5 flex gap-2 rounded-2xl border border-violet-500/25 bg-violet-500/10 p-3 text-sm font-bold text-violet-700 dark:text-violet-300">
-          <ShieldCheck size={18} className="mt-0.5 shrink-0" />
+        <div className="mt-5 flex gap-2 rounded-xl border border-amber-500/25 bg-amber-500/8 p-3 text-sm font-medium text-amber-800 dark:text-amber-300">
+          <ShieldCheck size={17} className="mt-0.5 shrink-0" />
           <span>{t("actionRequiredNotice")}</span>
         </div>
       )}
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+      {grouped && (
+        <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+          <Layers3 size={16} className="text-blue-600" />
+          {t("groupedMission")} · {formatKlyxBookingSlotCount(locale, booking.slotCount)}
+        </p>
+      )}
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
         <Info
-          icon={<CalendarDays size={17} />}
+          icon={<CalendarDays size={16} />}
           label={t("date")}
           value={dateLabel(locale, booking)}
         />
         <Info
-          icon={<Clock3 size={17} />}
+          icon={<Clock3 size={16} />}
           label={grouped ? t("planning") : t("schedule")}
           value={timeLabel(locale, booking)}
         />
+        <Info
+          icon={<CreditCard size={16} />}
+          label={grouped ? t("totalMission") : t("amount")}
+          value={amountLabel(locale, booking)}
+        />
       </div>
 
-      <div className="mt-3 rounded-2xl border border-border bg-background p-4">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-muted-foreground">
-            <CreditCard size={16} />
-            {grouped ? t("totalMission") : t("amount")}
-          </div>
-          <p className="text-lg font-black">{amountLabel(locale, booking)}</p>
-        </div>
+      <div className="mt-5 flex justify-end">
+        <Link
+          href={booking.href}
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500"
+        >
+          {grouped ? t("openGroupedMission") : t("viewBooking")}
+          <ArrowRight size={16} />
+        </Link>
       </div>
-
-      <Link
-        href={booking.href}
-        className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 text-sm font-black text-white transition hover:bg-violet-700"
-      >
-        {grouped ? t("openGroupedMission") : t("viewBooking")}
-        <ArrowRight size={17} />
-      </Link>
     </article>
   );
 }
@@ -794,12 +575,12 @@ function Info({
   value: string;
 }) {
   return (
-    <div className="rounded-2xl border border-border bg-background p-4">
-      <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-muted-foreground">
+    <div className="min-w-0">
+      <p className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
         {icon}
         {label}
-      </div>
-      <p className="mt-2 text-sm font-black">{value}</p>
+      </p>
+      <p className="mt-1 truncate text-sm font-medium">{value}</p>
     </div>
   );
 }
