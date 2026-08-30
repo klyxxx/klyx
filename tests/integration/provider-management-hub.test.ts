@@ -18,6 +18,8 @@ describe("provider management hub", () => {
     expect(source).toContain("Finances");
     expect(source).toContain("text-blue-600");
     expect(source).not.toContain("ProviderStudio");
+    expect(source).not.toContain("function SummaryCard(");
+    expect(source).not.toContain("bg-[linear-gradient");
     expect(source).not.toContain("text-violet-");
     expect(source).not.toContain("bg-violet-");
   });
