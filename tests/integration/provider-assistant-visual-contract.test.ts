@@ -1,0 +1,35 @@
+import fs from "node:fs";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+
+const page = fs.readFileSync(
+  path.join(process.cwd(), "app/provider/assistant/page.tsx"),
+  "utf8"
+);
+
+describe("KLYX provider assistant visual contract", () => {
+  it("keeps explicit provider control and draft actions intact", () => {
+    expect(page).toContain("Rien n’est appliqué ni envoyé sans ta confirmation.");
+    expect(page).toContain('placeholder="Demander à KLYX…"');
+    expect(page).toContain('fetch("/api/provider/assistant"');
+    expect(page).toContain('method: "POST"');
+    expect(page).toContain('method: "PATCH"');
+    expect(page).toContain('action: "apply" | "discard"');
+    expect(page).toContain('processDraft(draft.id, "apply")');
+    expect(page).toContain('processDraft(draft.id, "discard")');
+  });
+
+  it("uses the KLYX blue without the previous purple accents", () => {
+    expect(page).toContain("KLYX_PROVIDER_ASSISTANT_VISUAL_2026_08_31");
+    expect(page).toContain("bg-blue-600");
+    expect(page).toContain("text-blue-600");
+    expect(page).toContain("focus-within:border-blue-500/35");
+    expect(page).not.toContain("violet");
+    expect(page).not.toContain("indigo");
+  });
+
+  it("keeps transactional feedback semantic rather than branded", () => {
+    expect(page).toContain("bg-emerald-600");
+    expect(page).toContain("text-rose-600");
+  });
+});
