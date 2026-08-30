@@ -18,9 +18,7 @@ type Props = {
   compact?: boolean;
 };
 
-export default function PublicSessionActions({
-  compact = false,
-}: Props) {
+export default function PublicSessionActions({ compact = false }: Props) {
   const { locale } = useKlyxLocale();
   const t = (key: Parameters<typeof translateKlyxPublicEntry>[1]) =>
     translateKlyxPublicEntry(locale, key);
@@ -34,16 +32,13 @@ export default function PublicSessionActions({
     async function loadSession() {
       try {
         const supabase = createClient();
-
         const {
           data: { user },
         } = await supabase.auth.getUser();
 
-        if (!active) {
-          return;
+        if (active) {
+          setConnected(Boolean(user));
         }
-
-        setConnected(Boolean(user));
       } finally {
         if (active) {
           setLoading(false);
@@ -60,25 +55,13 @@ export default function PublicSessionActions({
 
   if (loading) {
     return (
-      <div
-        className={`flex items-center ${
-          compact
-            ? "gap-2"
-            : "flex-col gap-3 sm:flex-row"
-        }`}
-      >
+      <div className={`flex ${compact ? "items-center" : "justify-center"}`}>
         <div
-          className={`inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 text-sm font-bold text-white/55 ${
-            compact
-              ? "h-11 px-4"
-              : "min-h-14 px-6"
+          className={`inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm font-semibold text-muted-foreground ${
+            compact ? "h-11 px-4" : "min-h-12 px-5"
           }`}
         >
-          <LoaderCircle
-            size={17}
-            className="animate-spin"
-          />
-
+          <LoaderCircle size={17} className="animate-spin" />
           {t("sessionLoading")}
         </div>
       </div>
@@ -87,20 +70,11 @@ export default function PublicSessionActions({
 
   if (connected) {
     return (
-      <div
-        className={`flex ${
-          compact
-            ? "items-center gap-2"
-            : "flex-col gap-3 sm:flex-row"
-        }`}
-      >
-        {/* KLYX_CONNECTED_ENTRY_14_01 */}
+      <div className={`flex ${compact ? "items-center gap-2" : "flex-col justify-center gap-3 sm:flex-row"}`}>
         <Link
           href="/dashboard"
-          className={`inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 font-black text-white transition hover:bg-violet-500 ${
-            compact
-              ? "h-11 px-4 text-sm"
-              : "min-h-14 px-6 text-base"
+          className={`inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 font-bold text-white transition hover:bg-blue-500 ${
+            compact ? "h-11 px-4 text-sm" : "min-h-12 px-5 text-sm"
           }`}
         >
           {t("openKlyx")}
@@ -109,10 +83,8 @@ export default function PublicSessionActions({
 
         <Link
           href="/accounts"
-          className={`inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 font-bold text-white/75 transition hover:bg-white/10 hover:text-white ${
-            compact
-              ? "hidden h-11 px-4 text-sm sm:inline-flex"
-              : "min-h-14 px-6 text-base"
+          className={`items-center justify-center gap-2 rounded-xl border border-border bg-card font-semibold transition hover:bg-muted ${
+            compact ? "hidden h-11 px-4 text-sm sm:inline-flex" : "inline-flex min-h-12 px-5 text-sm"
           }`}
         >
           <UsersRound size={17} />
@@ -127,15 +99,13 @@ export default function PublicSessionActions({
       <div className="flex items-center gap-2">
         <Link
           href="/login"
-          className="inline-flex h-11 items-center justify-center rounded-xl border border-white/10 px-4 text-sm font-bold text-white transition hover:bg-white/7"
+          className="inline-flex h-11 items-center justify-center rounded-xl px-3 text-sm font-semibold transition hover:bg-muted sm:px-4"
         >
           {t("login")}
         </Link>
-
-        {/* KLYX_PUBLIC_COMPACT_ENTRY_14_01 */}
         <Link
           href="/signup?type=client"
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-black text-white transition hover:bg-violet-500"
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white transition hover:bg-blue-500"
         >
           {t("start")}
           <ArrowRight size={16} />
@@ -145,68 +115,29 @@ export default function PublicSessionActions({
   }
 
   return (
-    /* KLYX_DUAL_PUBLIC_ENTRY_14_01 */
-    <div className="w-full max-w-2xl">
-      <div className="grid gap-3 sm:grid-cols-2">
+    <div className="mx-auto w-full max-w-2xl">
+      <div className="flex flex-col justify-center gap-3 sm:flex-row">
         <Link
           href="/signup?type=client"
-          className="group flex min-h-20 items-center gap-4 rounded-2xl bg-violet-600 px-5 py-4 text-left text-white transition hover:bg-violet-500"
+          className="group inline-flex min-h-12 items-center justify-center gap-3 rounded-xl bg-blue-600 px-5 text-sm font-bold text-white transition hover:bg-blue-500"
         >
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/12">
-            <Search size={20} />
-          </span>
-
-          <span className="min-w-0 flex-1">
-            <span className="block text-xs font-black uppercase tracking-[0.12em] text-white/65">
-              {t("client")}
-            </span>
-
-            <span className="mt-1 block font-black">
-              {t("clientNeedService")}
-            </span>
-          </span>
-
-          <ArrowRight
-            size={19}
-            className="shrink-0 transition group-hover:translate-x-1"
-          />
+          <Search size={18} />
+          <span>{t("clientNeedService")}</span>
+          <ArrowRight size={17} className="transition group-hover:translate-x-0.5" />
         </Link>
 
         <Link
           href="/signup?type=provider"
-          className="group flex min-h-20 items-center gap-4 rounded-2xl border border-white/12 bg-white/[0.055] px-5 py-4 text-left text-white transition hover:bg-white/10"
+          className="group inline-flex min-h-12 items-center justify-center gap-3 rounded-xl border border-border bg-card px-5 text-sm font-semibold transition hover:bg-muted"
         >
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-white/8 text-violet-300">
-            <BriefcaseBusiness size={20} />
-          </span>
-
-          <span className="min-w-0 flex-1">
-            <span className="block text-xs font-black uppercase tracking-[0.12em] text-white/45">
-              {t("provider")}
-            </span>
-
-            <span className="mt-1 block font-black">
-              {t("providerOfferServices")}
-            </span>
-          </span>
-
-          <ArrowRight
-            size={19}
-            className="shrink-0 transition group-hover:translate-x-1"
-          />
+          <BriefcaseBusiness size={18} className="text-blue-600 dark:text-blue-400" />
+          <span>{t("providerOfferServices")}</span>
         </Link>
       </div>
 
-      {/* KLYX_EXISTING_ACCOUNT_ENTRY_14_01 */}
-      <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-white/48">
-        <span>
-          {t("alreadyAccount")}
-        </span>
-
-        <Link
-          href="/login"
-          className="font-black text-white/80 transition hover:text-white"
-        >
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+        <span>{t("alreadyAccount")}</span>
+        <Link href="/login" className="font-semibold text-foreground hover:text-blue-600 dark:hover:text-blue-400">
           {t("signIn")}
         </Link>
       </div>
