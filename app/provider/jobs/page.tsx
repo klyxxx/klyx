@@ -294,11 +294,8 @@ export default function ProviderJobsPage() {
         )}
 
         {loading ? (
-          <div className="grid min-h-80 place-items-center">
-            <div className="text-center">
-              <LoaderCircle className="mx-auto animate-spin text-blue-600" size={34} />
-              <p className="mt-4 text-sm text-muted-foreground">{t("loading")}</p>
-            </div>
+          <div className="grid min-h-80 place-items-center" aria-label={t("missions")}>
+            <LoaderCircle className="animate-spin text-blue-600" size={34} />
           </div>
         ) : !recommendedRequest ? (
           <section className="mt-8 rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
@@ -312,7 +309,7 @@ export default function ProviderJobsPage() {
           </section>
         ) : (
           <>
-            <section className="mt-8" aria-label={t("priority")}> 
+            <section className="mt-8" aria-label={t("priority")}>
               <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400">
                 <Sparkles size={17} />
                 <span>{t("bestMatch")}</span>
@@ -344,7 +341,7 @@ export default function ProviderJobsPage() {
             </section>
 
             {otherRequests.length > 0 && (
-              <section className="mt-10" aria-label={t("missions")}> 
+              <section className="mt-10" aria-label={t("missions")}>
                 <h2 className="text-xl font-semibold tracking-[-0.02em]">
                   {t("missions")}
                 </h2>
