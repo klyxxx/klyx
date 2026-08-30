@@ -43,7 +43,7 @@ type ProfilePayload = {
 };
 
 function inputClassName(): string {
-  return "w-full rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 px-4 py-3 text-foreground dark:text-white outline-none transition placeholder:text-zinc-600 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20";
+  return "w-full rounded-xl border border-border bg-background px-4 py-3 text-foreground outline-none transition placeholder:text-muted-foreground focus:border-blue-600/45 focus:ring-4 focus:ring-blue-600/8";
 }
 
 export default function ProfilePage() {
@@ -209,13 +209,13 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 text-foreground dark:text-white">
+      <main className="flex min-h-screen items-center justify-center bg-background px-4 text-foreground">
         <div className="text-center">
           <LoaderCircle
-            className="mx-auto animate-spin text-violet-400"
-            size={40}
+            className="mx-auto animate-spin text-blue-600"
+            size={36}
           />
-          <p className="mt-4 text-muted-foreground dark:text-zinc-400">
+          <p className="mt-4 text-sm text-muted-foreground">
             {t("loading")}
           </p>
         </div>
@@ -224,23 +224,23 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="min-h-screen bg-background dark:bg-zinc-950 px-4 py-8 text-foreground dark:text-white sm:px-6">
+    <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6 sm:py-10">
       <div className="mx-auto max-w-4xl">
         <Link
           href={homeHref}
-          className="inline-flex items-center gap-2 text-sm text-muted-foreground dark:text-zinc-400 hover:text-foreground dark:text-white"
+          className="inline-flex min-h-10 items-center gap-2 rounded-xl px-1 text-sm font-medium text-muted-foreground transition hover:text-foreground"
         >
           <ArrowLeft size={18} />
           {t("home")}
         </Link>
 
-        <header className="mt-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-violet-400">
+        <header className="mt-7">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">
             {accountType === "provider"
               ? t("providerProfile")
               : t("clientProfile")}
           </p>
-          <h1 className="mt-3 text-3xl font-bold sm:text-5xl">
+          <h1 className="mt-3 text-3xl font-bold tracking-[-0.04em] sm:text-5xl">
             {t("title")}
           </h1>
           {/* KLYX_AI_FIRST_PROFILE_15_03 */}
@@ -248,23 +248,23 @@ export default function ProfilePage() {
         </header>
 
         {errorKey && (
-          <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-red-200">
+          <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/8 p-4 text-red-700 dark:text-red-300">
             {t(errorKey)}
           </div>
         )}
 
         {messageKey && (
-          <div className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-emerald-200">
+          <div className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/8 p-4 text-emerald-700 dark:text-emerald-300">
             {t(messageKey)}
           </div>
         )}
 
         <form
           onSubmit={saveProfile}
-          className="mt-8 rounded-3xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-5 sm:p-8"
+          className="mt-8 overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
         >
-          <div className="flex flex-col gap-6 border-b border-border dark:border-zinc-800 pb-8 sm:flex-row sm:items-center">
-            <div className="flex h-36 w-36 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-violet-600 bg-muted dark:bg-zinc-800">
+          <div className="flex flex-col gap-6 border-b border-border p-5 sm:flex-row sm:items-center sm:p-8">
+            <div className="flex h-32 w-32 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-blue-600/20 bg-muted sm:h-36 sm:w-36">
               {avatarUrl ? (
                 <img
                   key={avatarUrl}
@@ -274,14 +274,14 @@ export default function ProfilePage() {
                   onError={() => setErrorKey("avatarUnavailable")}
                 />
               ) : (
-                <UserRound size={62} className="text-muted-foreground dark:text-zinc-500" />
+                <UserRound size={56} className="text-muted-foreground" />
               )}
             </div>
 
             <div>
-              <h2 className="text-xl font-bold">{t("profilePhoto")}</h2>
+              <h2 className="text-xl font-semibold">{t("profilePhoto")}</h2>
 
-              <label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 font-semibold hover:bg-violet-700">
+              <label className="mt-4 inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500">
                 {uploading ? (
                   <LoaderCircle className="animate-spin" size={18} />
                 ) : (
@@ -299,66 +299,68 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <div className="mt-8 grid gap-5 sm:grid-cols-2">
-            <Field
-              id="firstName"
-              label={t("firstName")}
-              value={firstName}
-              onChange={setFirstName}
-            />
-            <Field
-              id="lastName"
-              label={t("lastName")}
-              value={lastName}
-              onChange={setLastName}
-            />
-            <Field
-              id="age"
-              label={t("age")}
-              value={age}
-              onChange={setAge}
-              type="number"
-              min="18"
-              max="100"
-              placeholder={t("agePlaceholder")}
-            />
-            <Field
-              id="city"
-              label={t("city")}
-              value={city}
-              onChange={setCity}
-              placeholder={t("cityPlaceholder")}
-            />
-          </div>
+          <div className="p-5 sm:p-8">
+            <div className="grid gap-5 sm:grid-cols-2">
+              <Field
+                id="firstName"
+                label={t("firstName")}
+                value={firstName}
+                onChange={setFirstName}
+              />
+              <Field
+                id="lastName"
+                label={t("lastName")}
+                value={lastName}
+                onChange={setLastName}
+              />
+              <Field
+                id="age"
+                label={t("age")}
+                value={age}
+                onChange={setAge}
+                type="number"
+                min="18"
+                max="100"
+                placeholder={t("agePlaceholder")}
+              />
+              <Field
+                id="city"
+                label={t("city")}
+                value={city}
+                onChange={setCity}
+                placeholder={t("cityPlaceholder")}
+              />
+            </div>
 
-          <button
-            type="submit"
-            disabled={saving || uploading}
-            className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3.5 font-semibold text-black hover:bg-zinc-200 disabled:opacity-50"
-          >
-            {saving ? (
-              <LoaderCircle className="animate-spin" size={19} />
-            ) : (
-              <Save size={19} />
-            )}
-            {saving ? t("saving") : t("save")}
-          </button>
+            <button
+              type="submit"
+              disabled={saving || uploading}
+              className="mt-8 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3.5 font-semibold text-white transition hover:bg-blue-500 disabled:opacity-50 sm:w-auto sm:min-w-48"
+            >
+              {saving ? (
+                <LoaderCircle className="animate-spin" size={19} />
+              ) : (
+                <Save size={19} />
+              )}
+              {saving ? t("saving") : t("save")}
+            </button>
+          </div>
         </form>
 
         {accountType === "provider" && (
           <Link
             href="/provider"
-            className="mt-6 flex items-center justify-between gap-4 rounded-2xl border border-violet-500/30 bg-violet-500/10 p-5 transition hover:bg-violet-500/15"
+            className="mt-6 flex items-center justify-between gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm transition hover:bg-muted/60"
           >
             <div className="flex items-center gap-4">
-              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-500 text-white">
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600/8 text-blue-600">
                 <BriefcaseBusiness size={22} />
               </span>
               <div>
-                <p className="font-bold">{t("manageProviderProfile")}</p>
+                <p className="font-semibold">{t("manageProviderProfile")}</p>
               </div>
             </div>
-            <ChevronRight size={22} className="text-violet-300" />
+            <ChevronRight size={22} className="text-blue-600" />
           </Link>
         )}
       </div>
@@ -389,7 +391,7 @@ function Field({
     <div>
       <label
         htmlFor={id}
-        className="mb-2 block text-sm font-medium text-foreground/80 dark:text-zinc-300"
+        className="mb-2 block text-sm font-medium text-foreground/80"
       >
         {label}
       </label>
