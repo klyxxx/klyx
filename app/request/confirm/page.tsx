@@ -19,7 +19,6 @@ import {
   Euro,
   MapPin,
   Search,
-  Sparkles,
 } from "lucide-react";
 
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
@@ -157,35 +156,41 @@ function ConfirmRequestContent() {
       <div className="mx-auto max-w-5xl">
         <Link
           href="/brain"
-          className="inline-flex items-center gap-2 text-sm font-bold text-muted-foreground transition hover:text-foreground"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition hover:text-foreground"
         >
           <ArrowLeft size={17} />
           {t("backToAssistant")}
         </Link>
 
-        <section className="relative mt-6 overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#17131f_0%,#2b1452_52%,#111827_100%)] p-7 text-white shadow-[0_28px_90px_rgba(44,20,85,0.25)] sm:p-10">
-          <div className="absolute -right-16 -top-20 h-60 w-60 rounded-full bg-violet-500/25 blur-3xl" />
-
-          <div className="relative max-w-3xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/7 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-white/70">
-              <Sparkles size={15} />
-              {t("eyebrow")}
-            </div>
-
-            <h1 className="mt-5 text-3xl font-black tracking-[-0.045em] sm:text-5xl">
-              {t("title")}
-            </h1>
-
-            <p className="mt-4 max-w-2xl text-sm leading-7 text-white/70 sm:text-base">
-              {t("description")}
-            </p>
-          </div>
+        <section className="mt-8 max-w-3xl">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-600 dark:text-blue-400">
+            {t("eyebrow")}
+          </p>
+          <h1 className="mt-3 text-3xl font-bold tracking-[-0.045em] sm:text-5xl">
+            {t("title")}
+          </h1>
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
+            {t("description")}
+          </p>
         </section>
 
         <form
           onSubmit={continueToSearch}
           className="klyx-card mt-8 p-6 sm:p-8"
         >
+          <div className="mb-7 flex items-start gap-3 rounded-2xl border border-blue-500/15 bg-blue-500/[0.04] p-4">
+            <CheckCircle2
+              size={19}
+              className="mt-0.5 shrink-0 text-blue-600"
+            />
+            <div>
+              <p className="font-bold">{t("noPaymentTitle")}</p>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                {t("noPaymentText")}
+              </p>
+            </div>
+          </div>
+
           {errorKey && (
             <div className="mb-6 flex items-start gap-3 rounded-2xl border border-rose-500/25 bg-rose-500/10 p-4 text-sm text-rose-700 dark:text-rose-300">
               <AlertCircle className="mt-0.5 shrink-0" size={19} />
@@ -193,8 +198,12 @@ function ConfirmRequestContent() {
             </div>
           )}
 
-          <div className="grid gap-5 md:grid-cols-2">
-            <Field icon={<Search size={18} />} label={t("service")} summary={serviceLabel}>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field
+              icon={<Search size={18} />}
+              label={t("service")}
+              summary={serviceLabel}
+            >
               <input
                 value={request.service}
                 onChange={(event) => update("service", event.target.value)}
@@ -263,28 +272,11 @@ function ConfirmRequestContent() {
                 placeholder={t("optional")}
               />
             </Field>
-
-            <div className="rounded-3xl border border-emerald-500/20 bg-emerald-500/10 p-5">
-              <div className="flex items-start gap-3">
-                <CheckCircle2
-                  size={21}
-                  className="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-300"
-                />
-                <div>
-                  <p className="font-black text-emerald-800 dark:text-emerald-200">
-                    {t("noPaymentTitle")}
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-emerald-700 dark:text-emerald-300">
-                    {t("noPaymentText")}
-                  </p>
-                </div>
-              </div>
-            </div>
           </div>
 
           <button
             type="submit"
-            className="mt-7 inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-violet-600 px-6 text-sm font-bold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-violet-500"
+            className="mt-7 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-blue-700"
           >
             {t("continue")}
             <ArrowRight size={18} />
@@ -307,15 +299,14 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-3xl border border-border bg-background/60 p-5">
-      <div className="flex items-center gap-2 text-violet-600 dark:text-violet-400">
+    <div className="rounded-2xl border border-border bg-background p-5">
+      <div className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
         {icon}
-        <span className="text-xs font-black uppercase tracking-[0.15em]">
+        <span className="text-xs font-bold uppercase tracking-[0.15em]">
           {label}
         </span>
       </div>
-
-      <p className="mt-2 text-lg font-black">{summary}</p>
+      <p className="mt-2 text-base font-bold">{summary}</p>
       <div className="mt-4">{children}</div>
     </div>
   );
