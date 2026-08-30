@@ -24,6 +24,17 @@ export default function PublicHomeContent() {
   const t = (key: KlyxPublicHomeMessageKey) =>
     translateKlyxPublicHome(locale, key);
 
+  const assistantQuestion =
+    locale === "fr"
+      ? "Que dois-je organiser pour vous ?"
+      : locale === "en"
+        ? "What should I organize for you?"
+        : locale === "nl"
+          ? "Wat zal ik voor je organiseren?"
+          : locale === "de"
+            ? "Was soll ich für dich organisieren?"
+            : t("assistantQuestion");
+
   const services = [
     t("serviceBabysitting"),
     t("serviceCleaning"),
@@ -57,7 +68,7 @@ export default function PublicHomeContent() {
         </p>
 
         <h1 className="mt-5 max-w-4xl text-4xl font-bold tracking-[-0.055em] sm:text-6xl lg:text-7xl">
-          {t("assistantQuestion")}
+          {assistantQuestion}
         </h1>
 
         <p className="mt-6 max-w-2xl text-base font-medium leading-7 text-foreground/75 sm:text-lg">
