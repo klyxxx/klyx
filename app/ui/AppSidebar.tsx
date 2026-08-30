@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   BriefcaseBusiness,
   CalendarDays,
+  House,
   LogOut,
   MessageCircle,
   Sparkles,
@@ -13,6 +14,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import AccountSwitcher from "@/app/components/AccountSwitcher";
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import KlyxLogo from "@/app/ui/KlyxLogo";
 import { getKlyxAccountHome } from "@/lib/account-home";
@@ -59,7 +61,7 @@ const routesWithoutNavigation = [
 ];
 
 const clientItems: MenuItem[] = [
-  { title: "KLYX", translationLabel: "KLYX", href: "/assistant", icon: Sparkles },
+  { title: "KLYX", translationLabel: "KLYX", href: "/assistant", icon: House },
   {
     title: "Activité",
     translationLabel: "Mon activité",
@@ -128,6 +130,7 @@ export default function AppSidebar() {
   const { locale } = useKlyxLocale();
   const t = (key: KlyxUiMessageKey) => translateKlyxUi(locale, key);
   const [accountType, setAccountType] = useState<AccountType | null>(null);
+  const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
 
   const hideNavigation = routesWithoutNavigation.some((route) =>
@@ -155,6 +158,7 @@ export default function AppSidebar() {
 
         if (!cancelled && activeProfile) {
           setAccountType(activeProfile.accountType);
+          setActiveProfileId(activeProfile.id);
         }
       } catch {
         // The page remains usable while profile context is unavailable.
@@ -207,20 +211,19 @@ export default function AppSidebar() {
 
   return (
     <>
-      <aside className="sticky top-0 hidden h-screen w-[220px] shrink-0 flex-col border-r border-border bg-card/88 backdrop-blur-2xl lg:flex dark:border-white/8 dark:bg-[#0b0b0d]/94">
-        <div className="px-5 pb-5 pt-6">
+      <aside className="sticky top-0 hidden h-screen w-[280px] shrink-0 flex-col border-r border-border bg-background lg:flex dark:border-white/8 dark:bg-zinc-950">
+        <div className="px-7 pb-5 pt-8">
           <KlyxLogo href={homeHref} />
-          <p className="mt-3 text-[11px] font-semibold text-muted-foreground">
-            {accountType === "provider"
-              ? t("sidebar.providerAccount")
-              : accountType === "client"
-                ? t("sidebar.clientAccount")
-                : t("sidebar.loadingProfile")}
-          </p>
+
+          {activeProfileId && (
+            <div className="mt-8 [&>div>button]:w-full">
+              <AccountSwitcher currentProfileId={activeProfileId} />
+            </div>
+          )}
         </div>
 
-        <nav className="flex-1 px-3" aria-label="Navigation principale KLYX">
-          <div className="space-y-1">
+        <nav className="mt-2 flex-1 px-4" aria-label="Navigation principale KLYX">
+          <div className="space-y-2">
             {items.map((item) => {
               const Icon = item.icon;
               const active = activeHref === item.href;
@@ -230,14 +233,15 @@ export default function AppSidebar() {
                   key={item.href}
                   href={item.href}
                   aria-current={active ? "page" : undefined}
-                  className={`group flex min-h-12 items-center gap-3 rounded-2xl px-3.5 text-sm font-semibold transition ${
+                  className={`group flex min-h-14 items-center gap-4 rounded-xl px-4 text-[15px] font-medium transition ${
                     active
-                      ? "bg-blue-600/10 text-blue-700 ring-1 ring-inset ring-blue-600/15 dark:text-blue-300"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                      ? "bg-blue-600/8 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400"
+                      : "text-foreground hover:bg-muted"
                   }`}
                 >
                   <Icon
-                    size={19}
+                    size={22}
+                    strokeWidth={1.8}
                     className={active ? "text-blue-600 dark:text-blue-400" : ""}
                   />
                   <span>{translatedMenuTitle(locale, item)}</span>
@@ -247,12 +251,12 @@ export default function AppSidebar() {
           </div>
         </nav>
 
-        <div className="border-t border-border p-3 dark:border-white/8">
+        <div className="px-4 pb-5">
           <button
             type="button"
             onClick={logout}
             disabled={loggingOut}
-            className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:cursor-wait disabled:opacity-50"
+            className="flex min-h-11 w-full items-center gap-3 rounded-xl px-4 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:cursor-wait disabled:opacity-50"
           >
             <LogOut size={17} />
             {loggingOut ? t("sidebar.loggingOut") : t("sidebar.logout")}
@@ -260,7 +264,7 @@ export default function AppSidebar() {
         </div>
       </aside>
 
-      <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-background/88 px-4 backdrop-blur-xl lg:hidden dark:border-white/8">
+      <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-background/94 px-4 backdrop-blur-xl lg:hidden dark:border-white/8">
         <KlyxLogo href={homeHref} />
         <span className="text-[11px] font-semibold text-muted-foreground">
           {accountType === "provider"
@@ -274,7 +278,7 @@ export default function AppSidebar() {
       {items.length > 0 && (
         <nav
           aria-label="Navigation mobile KLYX"
-          className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background/94 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-2xl lg:hidden dark:border-white/10"
+          className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background/96 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-2xl lg:hidden dark:border-white/10"
         >
           <div className="mx-auto grid max-w-lg grid-cols-4 gap-1">
             {items.map((item) => {
@@ -286,14 +290,15 @@ export default function AppSidebar() {
                   key={item.href}
                   href={item.href}
                   aria-current={active ? "page" : undefined}
-                  className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-2xl px-1 text-[11px] font-semibold transition ${
+                  className={`flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[11px] font-semibold transition ${
                     active
-                      ? "bg-blue-600/10 text-blue-700 dark:text-blue-300"
+                      ? "bg-blue-600/8 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400"
                       : "text-muted-foreground active:bg-muted"
                   }`}
                 >
                   <Icon
                     size={20}
+                    strokeWidth={1.8}
                     className={active ? "text-blue-600 dark:text-blue-400" : ""}
                   />
                   <span className="max-w-full truncate">
