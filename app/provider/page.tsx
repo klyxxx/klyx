@@ -18,7 +18,15 @@ import ProviderReadinessStatus from "@/app/components/ProviderReadinessStatus";
 import { getActiveProfile } from "@/lib/active-profile";
 import { createClient } from "@/lib/supabase/server";
 
-const MANAGEMENT_ITEMS = [
+type ManagementItem = {
+  title: string;
+  description: string;
+  href: string;
+  icon: typeof SlidersHorizontal;
+  primary?: boolean;
+};
+
+const MANAGEMENT_ITEMS: ManagementItem[] = [
   {
     title: "Services & tarifs",
     description: "Gère ce que tu proposes, tes prix, ta présentation et ta galerie.",
@@ -86,7 +94,7 @@ const MANAGEMENT_ITEMS = [
     href: "/settings",
     icon: Settings2,
   },
-] as const;
+];
 
 export default async function ProviderPage() {
   const supabase = await createClient();
