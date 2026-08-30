@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
-  BriefcaseBusiness,
   Clock3,
   LoaderCircle,
+  Plus,
   ShieldCheck,
 } from "lucide-react";
 
@@ -41,7 +41,8 @@ type Dispute = {
 
 export default function ProviderTrustPage() {
   const { locale } = useKlyxLocale();
-  const t = (key: KlyxProviderTrustMessageKey) => translateKlyxProviderTrust(locale, key);
+  const t = (key: KlyxProviderTrustMessageKey) =>
+    translateKlyxProviderTrust(locale, key);
   const [profileId, setProfileId] = useState("");
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,6 +52,7 @@ export default function ProviderTrustPage() {
     async function load() {
       setLoading(true);
       setErrorMessage("");
+
       try {
         const profile = await getActiveClientProfile();
         setProfileId(profile.id);
@@ -103,37 +105,45 @@ export default function ProviderTrustPage() {
   );
 
   return (
-    <main className="klyx-page">
-      <div className="mx-auto max-w-6xl">
-        <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#111827,#1e2c4f_52%,#0f172a)] p-7 text-white sm:p-10">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white/70">
-            <BriefcaseBusiness size={15} />
-            {t("eyebrow")}
+    <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6 sm:py-10">
+      <div className="mx-auto max-w-5xl">
+        <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <div className="max-w-3xl">
+            <div className="flex items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400">
+              <ShieldCheck size={17} />
+              <span>{t("eyebrow")}</span>
+            </div>
+            <h1 className="mt-3 text-3xl font-bold tracking-[-0.04em] sm:text-5xl">
+              {t("title")}
+            </h1>
+            <p className="mt-3 text-sm leading-7 text-muted-foreground sm:text-base">
+              {t("description")}
+            </p>
           </div>
 
-          <h1 className="mt-5 text-3xl font-black sm:text-5xl">{t("title")}</h1>
-          <p className="mt-4 max-w-2xl text-sm leading-7 text-white/70">{t("description")}</p>
-
-          <Link href="/trust/new" className="mt-7 inline-flex h-12 items-center gap-2 rounded-2xl bg-white px-5 text-sm font-black text-zinc-950">
+          <Link
+            href="/trust/new"
+            className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white transition hover:bg-blue-500"
+          >
+            <Plus size={18} />
             {t("reportClient")}
-            <ArrowRight size={17} />
           </Link>
-        </section>
+        </header>
 
         {loading && (
-          <div className="mt-8 grid min-h-52 place-items-center">
-            <LoaderCircle className="animate-spin text-blue-600" size={36} />
+          <div className="grid min-h-72 place-items-center">
+            <LoaderCircle className="animate-spin text-blue-600" size={34} />
           </div>
         )}
 
         {errorMessage && (
-          <div className="mt-8 rounded-2xl border border-rose-500/25 bg-rose-500/10 p-5 text-rose-700 dark:text-rose-300">
+          <div className="mt-6 rounded-2xl border border-red-500/25 bg-red-500/8 p-4 text-sm text-red-700 dark:text-red-300">
             {errorMessage}
           </div>
         )}
 
         {!loading && !errorMessage && (
-          <>
+          <div className="mt-10 space-y-10">
             <DisputeSection
               title={t("receivedTitle")}
               description={t("receivedDescription")}
@@ -142,7 +152,9 @@ export default function ProviderTrustPage() {
               activityLabel={t("activity")}
               viewMissionLabel={t("viewMission")}
               locale={locale}
+              priority
             />
+
             <DisputeSection
               title={t("openedTitle")}
               description={t("openedDescription")}
@@ -152,7 +164,7 @@ export default function ProviderTrustPage() {
               viewMissionLabel={t("viewMission")}
               locale={locale}
             />
-          </>
+          </div>
         )}
       </div>
     </main>
@@ -167,6 +179,7 @@ function DisputeSection({
   activityLabel,
   viewMissionLabel,
   locale,
+  priority = false,
 }: {
   title: string;
   description: string;
@@ -175,32 +188,58 @@ function DisputeSection({
   activityLabel: string;
   viewMissionLabel: string;
   locale: Parameters<typeof translateKlyxTrustReason>[0];
+  priority?: boolean;
 }) {
   return (
-    <section className="mt-8">
-      <p className="klyx-eyebrow">{activityLabel}</p>
-      <h2 className="mt-2 text-2xl font-black">{title}</h2>
-      <p className="mt-2 text-sm text-muted-foreground">{description}</p>
+    <section>
+      <div className="max-w-3xl">
+        <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+          {activityLabel}
+        </p>
+        <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em]">
+          {title}
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+          {description}
+        </p>
+      </div>
 
       {disputes.length === 0 ? (
-        <div className="klyx-card mt-5 p-7 text-center">
-          <ShieldCheck className="mx-auto text-emerald-500" size={38} />
-          <p className="mt-4 font-black">{emptyText}</p>
+        <div className="mt-5 rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
+          <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            <ShieldCheck size={22} />
+          </span>
+          <p className="mt-4 font-semibold">{emptyText}</p>
         </div>
       ) : (
-        <div className="mt-5 grid gap-4">
-          {disputes.map((dispute) => (
-            <article key={dispute.id} className="klyx-card p-5 sm:p-6">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="flex gap-4">
-                  <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-amber-500/10 text-amber-600">
-                    <AlertTriangle size={21} />
-                  </div>
-                  <div>
-                    <h3 className="font-black">{translateKlyxTrustReason(locale, dispute.reason)}</h3>
+        <div className="mt-5 overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+          {disputes.map((dispute, index) => (
+            <article
+              key={dispute.id}
+              className={`p-5 sm:p-6 ${index > 0 ? "border-t border-border" : ""}`}
+            >
+              <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex min-w-0 gap-4">
+                  <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                    <AlertTriangle size={20} />
+                  </span>
+
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold">
+                        {translateKlyxTrustReason(locale, dispute.reason)}
+                      </h3>
+                      {priority && index === 0 && (
+                        <span className="rounded-full bg-blue-600/8 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
+                          {translateKlyxTrustStatus(locale, dispute.status)}
+                        </span>
+                      )}
+                    </div>
+
                     <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">
                       {dispute.description}
                     </p>
+
                     <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
                       <Clock3 size={14} />
                       {new Intl.DateTimeFormat(getKlyxTrustIntlLocale(locale), {
@@ -211,15 +250,22 @@ function DisputeSection({
                   </div>
                 </div>
 
-                <span className="w-fit rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1.5 text-xs font-black text-blue-700 dark:text-blue-300">
-                  {translateKlyxTrustStatus(locale, dispute.status)}
-                </span>
-              </div>
+                <div className="flex shrink-0 items-center gap-3 sm:flex-col sm:items-end">
+                  {!(priority && index === 0) && (
+                    <span className="rounded-full border border-blue-500/20 bg-blue-500/8 px-3 py-1.5 text-xs font-semibold text-blue-700 dark:text-blue-300">
+                      {translateKlyxTrustStatus(locale, dispute.status)}
+                    </span>
+                  )}
 
-              <Link href={`/bookings/${dispute.booking_id}`} className="mt-5 inline-flex items-center gap-2 text-sm font-black text-blue-600 dark:text-blue-400">
-                {viewMissionLabel}
-                <ArrowRight size={15} />
-              </Link>
+                  <Link
+                    href={`/bookings/${dispute.booking_id}`}
+                    className="inline-flex min-h-10 items-center gap-2 rounded-xl px-2 text-sm font-semibold text-blue-600 transition hover:text-blue-500 dark:text-blue-400"
+                  >
+                    {viewMissionLabel}
+                    <ArrowRight size={15} />
+                  </Link>
+                </div>
+              </div>
             </article>
           ))}
         </div>
