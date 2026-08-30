@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-
 import {
   AlertTriangle,
   ArrowRight,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   Clock3,
   Layers3,
   UserRound,
@@ -15,7 +15,6 @@ import {
 
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import {
-  formatKlyxSplitMissionAdditionalSlots,
   formatKlyxSplitMissionDate,
   formatKlyxSplitMissionService,
   formatKlyxSplitMissionStatus,
@@ -115,6 +114,18 @@ export function splitMissionMatchesFilter(
   return true;
 }
 
+function statusClass(mission: SplitMissionSummary) {
+  if (splitMissionNeedsAction(mission)) {
+    return "border-red-500/25 bg-red-500/8 text-red-700 dark:text-red-300";
+  }
+
+  if (mission.status === "completed") {
+    return "border-emerald-500/25 bg-emerald-500/8 text-emerald-700 dark:text-emerald-300";
+  }
+
+  return "border-blue-600/20 bg-blue-600/8 text-blue-700 dark:text-blue-300";
+}
+
 export default function SplitMissionSection({
   missions,
   filter,
@@ -130,169 +141,134 @@ export default function SplitMissionSection({
     splitMissionMatchesFilter(mission, filter)
   );
 
-  if (visible.length === 0) {
-    return null;
-  }
+  if (visible.length === 0) return null;
 
   return (
     <section className="mt-8">
-      <div className="mb-4 flex items-center gap-3">
-        <span className="grid h-10 w-10 place-items-center rounded-2xl bg-violet-500/10 text-violet-500">
-          <Layers3 size={20} />
-        </span>
-
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.16em] text-violet-500">
-            {t("sectionEyebrow")}
-          </p>
-
-          <h2 className="font-black">{t("sectionTitle")}</h2>
-        </div>
+      <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400">
+        <Layers3 size={17} />
+        <span>{t("sectionTitle")}</span>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="space-y-4">
         {visible.map((mission) => {
-          const danger =
-            mission.status === "recovery_required" ||
-            mission.status === "mixed_issue";
+          const needsAction = splitMissionNeedsAction(mission);
 
           return (
             <article
               key={mission.id}
-              className={
-                danger
-                  ? "rounded-3xl border border-rose-500/30 bg-rose-500/5 p-6"
-                  : "rounded-3xl border border-border bg-card p-6 dark:bg-zinc-900"
-              }
+              className={`rounded-2xl border bg-card p-5 shadow-sm sm:p-6 ${
+                needsAction ? "border-red-500/25" : "border-border"
+              }`}
             >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-lg font-black">
-                    {formatKlyxSplitMissionService(
-                      locale,
-                      mission.serviceSlug,
-                      mission.serviceName
-                    )}
-                  </p>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-lg font-semibold">
+                      {formatKlyxSplitMissionService(
+                        locale,
+                        mission.serviceSlug,
+                        mission.serviceName
+                      )}
+                    </h3>
+                    <span
+                      className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClass(
+                        mission
+                      )}`}
+                    >
+                      {formatKlyxSplitMissionStatus(locale, mission.status)}
+                    </span>
+                  </div>
 
-                  <p className="mt-1 text-sm text-muted-foreground">
+                  <p className="mt-2 text-sm text-muted-foreground">
                     {formatKlyxSplitMissionSummary(locale, mission.slotCount)}
                   </p>
-                </div>
 
-                <span
-                  className={
-                    danger
-                      ? "rounded-full border border-rose-500/30 bg-rose-500/10 px-3 py-1 text-xs font-black text-rose-600"
-                      : "rounded-full border border-violet-500/25 bg-violet-500/10 px-3 py-1 text-xs font-black text-violet-500"
-                  }
-                >
-                  {formatKlyxSplitMissionStatus(locale, mission.status)}
-                </span>
-              </div>
-
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-border bg-background/60 p-4">
-                  <p className="flex items-center gap-2 text-xs font-black text-muted-foreground">
-                    <UsersRound size={15} />
-                    {t("providers")}
-                  </p>
-
-                  <p className="mt-2 text-xl font-black">
-                    {mission.providerCount}
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-border bg-background/60 p-4">
-                  <p className="flex items-center gap-2 text-xs font-black text-muted-foreground">
-                    <CalendarDays size={15} />
-                    {t("period")}
-                  </p>
-
-                  <p className="mt-2 text-sm font-black">
-                    {formatKlyxSplitMissionDate(locale, mission.firstDate)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-5 grid gap-2">
-                {mission.slots.slice(0, 3).map((slot) => (
-                  <div
-                    key={slot.slotId}
-                    className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-background/50 px-4 py-3"
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <div className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-muted">
-                        {slot.providerAvatar ? (
-                          <img
-                            src={slot.providerAvatar}
-                            alt={slot.providerName}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <UserRound size={17} />
-                        )}
-                      </div>
-
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-black">
-                          {slot.providerName}
-                        </p>
-
-                        <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Clock3 size={12} />
-                          {slot.startTime.slice(0, 5)}
-                          {" – "}
-                          {slot.endTime.slice(0, 5)}
-                        </p>
-                      </div>
-                    </div>
-
-                    <p className="shrink-0 text-xs font-black">
-                      {formatKlyxSplitMissionDate(locale, slot.date)}
-                    </p>
+                  <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
+                    <span className="inline-flex items-center gap-2">
+                      <CalendarDays size={15} />
+                      {formatKlyxSplitMissionDate(locale, mission.firstDate)}
+                    </span>
+                    <span className="inline-flex items-center gap-2">
+                      <UsersRound size={15} />
+                      {mission.providerCount} {t("providers").toLowerCase()}
+                    </span>
                   </div>
-                ))}
+                </div>
+
+                <Link
+                  href={"/bookings/split/" + mission.batchId}
+                  className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500"
+                >
+                  {t("viewMission")}
+                  <ArrowRight size={16} />
+                </Link>
               </div>
 
-              {mission.slots.length > 3 && (
-                <p className="mt-3 text-xs text-muted-foreground">
-                  {formatKlyxSplitMissionAdditionalSlots(
-                    locale,
-                    mission.slots.length - 3
-                  )}
-                </p>
-              )}
-
-              {danger && (
-                <div className="mt-5 flex gap-3 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4">
-                  <AlertTriangle
-                    className="shrink-0 text-rose-600"
-                    size={18}
-                  />
-
-                  <p className="text-sm">{t("dangerNotice")}</p>
+              {needsAction && (
+                <div className="mt-5 flex gap-3 rounded-xl border border-red-500/20 bg-red-500/8 p-4 text-sm text-red-700 dark:text-red-300">
+                  <AlertTriangle className="mt-0.5 shrink-0" size={18} />
+                  <p>{t("dangerNotice")}</p>
                 </div>
               )}
 
               {mission.status === "completed" && (
-                <div className="mt-5 flex items-center gap-2 text-sm font-black text-emerald-600">
-                  <CheckCircle2 size={18} />
+                <div className="mt-5 flex items-center gap-2 text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                  <CheckCircle2 size={17} />
                   {t("completedNotice")}
                 </div>
               )}
 
-              <Link
-                href={"/bookings/split/" + mission.batchId}
-                className="mt-5 inline-flex items-center gap-2 font-black text-violet-500"
-              >
-                {t("viewMission")}
-                <ArrowRight size={17} />
-              </Link>
+              <details className="group mt-5 border-t border-border pt-4">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-muted-foreground transition hover:text-foreground marker:hidden">
+                  <span>{t("sectionEyebrow")}</span>
+                  <ChevronDown
+                    size={17}
+                    className="transition group-open:rotate-180"
+                  />
+                </summary>
 
-              <p className="mt-4 text-xs leading-5 text-muted-foreground">
-                {t("paymentNotice")}
-              </p>
+                <div className="mt-4 space-y-2">
+                  {mission.slots.map((slot) => (
+                    <div
+                      key={slot.slotId}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background px-4 py-3"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-muted">
+                          {slot.providerAvatar ? (
+                            <img
+                              src={slot.providerAvatar}
+                              alt={slot.providerName}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <UserRound size={17} />
+                          )}
+                        </div>
+
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">
+                            {slot.providerName}
+                          </p>
+                          <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                            <Clock3 size={12} />
+                            {slot.startTime.slice(0, 5)} – {slot.endTime.slice(0, 5)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <p className="shrink-0 text-xs font-medium">
+                        {formatKlyxSplitMissionDate(locale, slot.date)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="mt-4 text-xs leading-5 text-muted-foreground">
+                  {t("paymentNotice")}
+                </p>
+              </details>
             </article>
           );
         })}
