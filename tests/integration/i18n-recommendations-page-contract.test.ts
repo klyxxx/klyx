@@ -27,11 +27,13 @@ describe("KLYX recommendations i18n contract", () => {
     expect(page).toContain("service: provider.serviceSlug");
     expect(page).toContain('bookingParams.set("date", date)');
     expect(page).toContain('bookingParams.set("time", time)');
+    expect(page).toContain('bookingParams.set("start", legacyStart)');
+    expect(page).toContain('bookingParams.set("end", end)');
     expect(page).toContain('bookingParams.set("duration", duration)');
     expect(page).toContain("return `/providers/${provider.profileId}/book?${bookingParams.toString()}`");
     expect(page).toContain("return `/providers/${provider.profileId}`");
     expect(page).toContain("href={`/request/confirm?${queryString}`}");
-    expect(page).toContain("href={`/search?${queryString}`}");
+    expect(page).not.toContain("href={`/search?${queryString}`}");
   });
 
   it("keeps provider-authored data verbatim", () => {

@@ -11,8 +11,8 @@ describe("KLYX request summary and recommendations UX", () => {
     const page = read("app/request/confirm/page.tsx");
 
     expect(page).toContain("KLYX_REQUEST_CONFIRM_NAVIGATION_ONLY");
-    expect(page).toContain('bg-blue-600');
-    expect(page).toContain('text-blue-600');
+    expect(page).toContain("bg-blue-600");
+    expect(page).toContain("text-blue-600");
     expect(page).not.toContain("violet");
     expect(page).not.toContain("indigo");
     expect(page).not.toContain("linear-gradient");
@@ -34,12 +34,34 @@ describe("KLYX request summary and recommendations UX", () => {
 
     expect(page).toContain("KLYX_RECOMMENDATIONS_READ_ONLY");
     expect(page).toContain('requestParams.set("sort", "recommended")');
-    expect(page).toContain('bg-blue-600');
-    expect(page).toContain('text-blue-600');
+    expect(page).toContain("bg-blue-600");
+    expect(page).toContain("text-blue-600");
     expect(page).not.toContain("violet");
     expect(page).not.toContain("indigo");
     expect(page).not.toContain('method: "POST"');
     expect(page).not.toContain('method: "PATCH"');
     expect(page).not.toContain('method: "DELETE"');
+  });
+
+  it("never escapes recommendations into an all-results marketplace", () => {
+    const page = read("app/recommendations/page.tsx");
+
+    expect(page).not.toContain("/search?");
+    expect(page).not.toContain('t("seeAllResults")');
+    expect(page).toContain('href={`/request/confirm?${queryString}`}');
+  });
+
+  it("preserves legacy start/end booking parameters while supporting canonical time", () => {
+    const page = read("app/recommendations/page.tsx");
+
+    expect(page).toContain('const legacyStart = params.get("start")');
+    expect(page).toContain('const time = params.get("time") || legacyStart');
+    expect(page).toContain('const end = params.get("end")');
+    expect(page).toContain('bookingParams.set("time", time)');
+    expect(page).toContain('bookingParams.set("start", legacyStart)');
+    expect(page).toContain('bookingParams.set("end", end)');
+    expect(page).toContain(
+      'const time = stableParams.get("time") || stableParams.get("start")'
+    );
   });
 });

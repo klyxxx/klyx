@@ -79,6 +79,18 @@ describe(
         expect(
           search
         ).toContain(
+          "KLYX_SEARCH_COMPATIBILITY_REDIRECT"
+        );
+
+        expect(
+          search
+        ).toContain(
+          '"/recommendations"'
+        );
+
+        expect(
+          search
+        ).not.toContain(
           "KLYX_AI_FIRST_SEARCH_15_02"
         );
 

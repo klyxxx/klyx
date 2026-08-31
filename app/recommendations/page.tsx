@@ -58,11 +58,15 @@ function bookingHref(
   });
 
   const date = params.get("date");
-  const time = params.get("time");
+  const legacyStart = params.get("start");
+  const time = params.get("time") || legacyStart;
+  const end = params.get("end");
   const duration = params.get("duration");
 
   if (date) bookingParams.set("date", date);
   if (time) bookingParams.set("time", time);
+  if (legacyStart) bookingParams.set("start", legacyStart);
+  if (end) bookingParams.set("end", end);
   if (duration) bookingParams.set("duration", duration);
 
   return `/providers/${provider.profileId}/book?${bookingParams.toString()}`;
@@ -135,7 +139,7 @@ function RecommendationsContent() {
   const service = stableParams.get("service");
   const city = stableParams.get("city");
   const date = stableParams.get("date");
-  const time = stableParams.get("time");
+  const time = stableParams.get("time") || stableParams.get("start");
   const budget = stableParams.get("budget");
 
   return (
@@ -252,10 +256,10 @@ function RecommendationsContent() {
               {t("noProviderDescription")}
             </p>
             <Link
-              href={`/search?${queryString}`}
+              href={`/request/confirm?${queryString}`}
               className="mt-6 inline-flex min-h-12 items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-700"
             >
-              {t("editFilters")}
+              {t("editRequest")}
               <ArrowRight size={17} />
             </Link>
           </section>
@@ -263,20 +267,11 @@ function RecommendationsContent() {
 
         {!loading && !loadError && primaryProvider && (
           <>
-            <div className="mt-8 flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <p className="klyx-eyebrow">{t("recommendations")}</p>
-                <h2 className="mt-2 text-2xl font-bold tracking-[-0.035em] sm:text-3xl">
-                  {t("bestChoice")}
-                </h2>
-              </div>
-              <Link
-                href={`/search?${queryString}`}
-                className="inline-flex items-center gap-2 text-sm font-bold text-blue-600 dark:text-blue-400"
-              >
-                {t("seeAllResults")}
-                <ArrowRight size={16} />
-              </Link>
+            <div className="mt-8">
+              <p className="klyx-eyebrow">{t("recommendations")}</p>
+              <h2 className="mt-2 text-2xl font-bold tracking-[-0.035em] sm:text-3xl">
+                {t("bestChoice")}
+              </h2>
             </div>
 
             <section className="mt-5">
