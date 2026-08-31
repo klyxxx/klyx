@@ -67,9 +67,10 @@ describe("KLYX i18n foundation shell contract", () => {
     expect(sidebar).toContain("translateKlyxNavigationLabel(locale, item.translationLabel)");
     expect(sidebar).toContain('title: "Activité"');
     expect(sidebar).toContain('title: "Missions"');
-    expect(sidebar).toContain('title: "Gestion"');
-    expect(sidebar).not.toContain('title: "Services"');
-    expect(sidebar).not.toContain('title: "Finances"');
+    expect(sidebar).toContain('title: "Services"');
+    expect(sidebar).toContain('title: "Finances"');
+    expect(sidebar).toContain('title: "Profil"');
+    expect(sidebar).not.toContain('title: "Gestion"');
     expect(sidebar).not.toContain('t("sidebar.searchPlaceholder")');
     expect(sidebar).not.toContain("searchPlaceholder");
   });
