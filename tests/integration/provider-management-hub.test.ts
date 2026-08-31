@@ -9,14 +9,20 @@ function read(relativePath: string) {
 }
 
 describe("provider management hub", () => {
-  it("keeps the provider landing simple and action oriented", () => {
+  it("keeps the provider landing focused on one next action", () => {
     const source = read("app/provider/page.tsx");
 
-    expect(source).toContain("Gérer mon activité");
+    expect(source).toContain("Votre activité");
+    expect(source).toContain(
+      "KLYX vous montre ce qui demande votre attention maintenant."
+    );
+    expect(source).toContain("<ProviderReadinessStatus />");
+    expect(source).toContain("Gérer autre chose");
+    expect(source).toContain("SECONDARY_LINKS");
     expect(source).toContain("Services & tarifs");
-    expect(source).toContain("Missions");
-    expect(source).toContain("Finances");
-    expect(source).toContain("text-blue-600");
+    expect(source).toContain("#2563EB");
+    expect(source).not.toContain("MANAGEMENT_ITEMS");
+    expect(source).not.toContain("lg:grid-cols-3");
     expect(source).not.toContain("ProviderStudio");
     expect(source).not.toContain("function SummaryCard(");
     expect(source).not.toContain("bg-[linear-gradient");

@@ -59,7 +59,7 @@ describe("provider capabilities page contract", () => {
 
   it("exposes the dedicated capability page from provider management", () => {
     expect(providerHome).toContain('href: "/provider/capabilities"');
-    expect(providerHome).toContain('title: "Capacités"');
+    expect(providerHome).toContain('label: "Capacités"');
     expect(entry).toContain('href="/provider/capabilities"');
     expect(entry).toContain("translateKlyxProviderCapabilitiesPage");
   });
