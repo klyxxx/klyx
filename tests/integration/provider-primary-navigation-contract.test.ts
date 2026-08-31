@@ -29,7 +29,7 @@ describe("KLYX provider primary navigation", () => {
     expect(provider).toContain('title: "Missions"');
     expect(provider).toContain('href: "/provider/jobs"');
     expect(provider).toContain('title: "Services"');
-    expect(provider).toContain('href: "/provider/services"');
+    expect(provider).toContain('href: "/provider/studio"');
     expect(provider).toContain('title: "Finances"');
     expect(provider).toContain('href: "/provider/payments"');
     expect(provider).toContain('title: "Profil"');
@@ -49,6 +49,7 @@ describe("KLYX provider primary navigation", () => {
     expect(provider).not.toContain('title: "Gestion"');
     expect(provider).not.toContain('href: "/provider/assistant"');
     expect(provider).not.toContain('href: "/messages"');
+    expect(provider).not.toContain('href: "/provider/services"');
   });
 
   it("keeps the client primary navigation unchanged", () => {
