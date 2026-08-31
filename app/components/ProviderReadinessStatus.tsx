@@ -305,6 +305,14 @@ export default function ProviderReadinessStatus() {
                 </Link>
               );
             })}
+
+            <Link
+              href="/onboarding"
+              className="mt-3 flex min-h-11 items-center justify-between gap-3 border-t border-border px-3 pt-4 text-sm font-semibold text-muted-foreground transition hover:text-[#2563EB]"
+            >
+              <span>{t("finishSetup")}</span>
+              <ArrowRight size={16} />
+            </Link>
           </div>
         </details>
       )}
