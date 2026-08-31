@@ -68,6 +68,14 @@ function validRequestedTime(value: string | null): string {
   return hours <= 23 && minutes <= 59 ? value : "";
 }
 
+function validRequestedChildren(value: string | null): string {
+  if (!value) return "1";
+
+  const count = Number(value);
+
+  return Number.isInteger(count) && count >= 1 ? String(count) : "1";
+}
+
 function timeToMinutes(value: string): number | null {
   if (!/^\d{2}:\d{2}$/.test(value)) return null;
 
@@ -127,6 +135,7 @@ export default function ProviderBookingPage() {
 
   const providerId = params.id;
   const serviceSlug = searchParams.get("service")?.trim() || "";
+  const isBabysitting = serviceSlug === "babysitting";
   const requestedDate = validRequestedDate(searchParams.get("date"));
   const requestedTime = validRequestedTime(
     searchParams.get("start") ?? searchParams.get("time")
@@ -135,6 +144,7 @@ export default function ProviderBookingPage() {
   const requestedEndTime =
     requestedExplicitEndTime ||
     endTimeFromRequest(requestedTime, searchParams.get("duration"));
+  const requestedChildren = validRequestedChildren(searchParams.get("children"));
 
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [serviceName, setServiceName] = useState("Service KLYX");
@@ -143,6 +153,7 @@ export default function ProviderBookingPage() {
   const [bookingDate, setBookingDate] = useState(requestedDate);
   const [startTime, setStartTime] = useState(requestedTime);
   const [endTime, setEndTime] = useState(requestedEndTime);
+  const [children, setChildren] = useState(requestedChildren);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -302,6 +313,27 @@ export default function ProviderBookingPage() {
         throw new BookingPageError("outsideAvailability");
       }
 
+      let bookingMessage = message.trim();
+
+      if (isBabysitting) {
+        const childrenCount = Number(children);
+
+        if (
+          Number.isNaN(childrenCount) ||
+          !Number.isInteger(childrenCount) ||
+          childrenCount < 1
+        ) {
+          throw new BookingPageError("childrenInvalid");
+        }
+
+        bookingMessage = [
+          `Nombre d'enfants : ${childrenCount}`,
+          bookingMessage,
+        ]
+          .filter(Boolean)
+          .join("\n\n");
+      }
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -323,7 +355,7 @@ export default function ProviderBookingPage() {
           bookingDate,
           startTime,
           endTime,
-          message,
+          message: bookingMessage,
         }),
       });
 
@@ -347,7 +379,7 @@ export default function ProviderBookingPage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 text-foreground dark:text-white">
+      <main className="flex min-h-screen items-center justify-center bg-background text-foreground dark:bg-zinc-950 dark:text-white">
         {t("loading")}
       </main>
     );
@@ -355,7 +387,7 @@ export default function ProviderBookingPage() {
 
   if (errorKey && !profile) {
     return (
-      <main className="min-h-screen overflow-x-hidden bg-background dark:bg-zinc-950 px-3 py-5 text-foreground dark:text-white sm:px-5 sm:py-8">
+      <main className="min-h-screen overflow-x-hidden bg-background px-3 py-5 text-foreground dark:bg-zinc-950 dark:text-white sm:px-5 sm:py-8">
         <div className="mx-auto max-w-3xl rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-red-300">
           {t(errorKey)}
         </div>
@@ -375,19 +407,19 @@ export default function ProviderBookingPage() {
 
   return (
     <main
-      className="min-h-screen overflow-x-hidden bg-background dark:bg-zinc-950 px-3 py-5 text-foreground dark:text-white sm:px-5 sm:py-8"
+      className="min-h-screen overflow-x-hidden bg-background px-3 py-5 text-foreground dark:bg-zinc-950 dark:text-white sm:px-5 sm:py-8"
       data-klyx-contract="KLYX_PROVIDER_BOOKING_I18N_16_07"
     >
       <div className="mx-auto max-w-5xl">
         <Link
           href={`/providers/${providerId}`}
-          className="inline-flex items-center gap-2 text-sm text-muted-foreground dark:text-zinc-400 hover:text-foreground dark:text-white"
+          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground dark:text-zinc-400 dark:hover:text-white"
         >
           <ArrowLeft size={17} />
           {t("backProfile")}
         </Link>
 
-        <section className="mt-8 grid overflow-hidden rounded-3xl border border-border dark:border-zinc-800 bg-card/70 dark:bg-zinc-900/70 md:grid-cols-[280px_1fr]">
+        <section className="mt-8 grid overflow-hidden rounded-3xl border border-border bg-card/70 dark:border-zinc-800 dark:bg-zinc-900/70 md:grid-cols-[280px_1fr]">
           <div className="flex min-h-52 items-center justify-center bg-muted dark:bg-zinc-800 sm:min-h-72">
             {profile?.avatar_url ? (
               <img
@@ -401,18 +433,18 @@ export default function ProviderBookingPage() {
           </div>
 
           <div className="p-6 sm:p-8">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-violet-400">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#2563eb]">
               {serviceName}
             </p>
             <h1 className="mt-3 text-3xl font-bold">{fullName}</h1>
             <p className="mt-3 text-muted-foreground dark:text-zinc-400">
               {serviceProfile?.city || t("cityUnknown")}
             </p>
-            <p className="mt-4 text-2xl font-bold text-violet-400">
+            <p className="mt-4 text-2xl font-bold text-[#2563eb]">
               {formattedPrice}
             </p>
 
-            <div className="mt-5 flex items-start gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-200">
+            <div className="mt-5 flex items-start gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-700 dark:text-emerald-200">
               <CheckCircle2 className="mt-0.5 shrink-0" size={18} />
               {t("priceSnapshotNotice")}
             </div>
@@ -423,7 +455,7 @@ export default function ProviderBookingPage() {
           onSubmit={handleSubmit}
           className="mt-8 grid gap-8 lg:grid-cols-[1fr_320px]"
         >
-          <section className="rounded-3xl border border-border dark:border-zinc-800 bg-card/70 dark:bg-zinc-900/70 p-6 sm:p-8">
+          <section className="rounded-3xl border border-border bg-card/70 p-6 dark:border-zinc-800 dark:bg-zinc-900/70 sm:p-8">
             <h2 className="text-2xl font-bold">{t("chooseSlot")}</h2>
 
             <div className="mt-6 grid gap-5 sm:grid-cols-3">
@@ -437,7 +469,7 @@ export default function ProviderBookingPage() {
                   required
                   value={bookingDate}
                   onChange={(event) => setBookingDate(event.target.value)}
-                  className="w-full rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 p-4 outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-border bg-background p-4 outline-none focus:border-[#2563eb] dark:border-zinc-700 dark:bg-zinc-950"
                 />
               </label>
 
@@ -450,7 +482,7 @@ export default function ProviderBookingPage() {
                   required
                   value={startTime}
                   onChange={(event) => setStartTime(event.target.value)}
-                  className="w-full rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 p-4 outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-border bg-background p-4 outline-none focus:border-[#2563eb] dark:border-zinc-700 dark:bg-zinc-950"
                 />
               </label>
 
@@ -463,13 +495,13 @@ export default function ProviderBookingPage() {
                   required
                   value={endTime}
                   onChange={(event) => setEndTime(event.target.value)}
-                  className="w-full rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 p-4 outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-border bg-background p-4 outline-none focus:border-[#2563eb] dark:border-zinc-700 dark:bg-zinc-950"
                 />
               </label>
             </div>
 
             {bookingDate && (
-              <div className="mt-4 rounded-xl border border-border dark:border-zinc-800 bg-background dark:bg-zinc-950 p-4 text-sm text-muted-foreground dark:text-zinc-400">
+              <div className="mt-4 rounded-xl border border-border bg-background p-4 text-sm text-muted-foreground dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
                 {selectedDayAvailability.length > 0
                   ? t("available", {
                       day: t(
@@ -488,6 +520,24 @@ export default function ProviderBookingPage() {
               </div>
             )}
 
+            {isBabysitting && (
+              <label className="mt-5 block" htmlFor="children">
+                <span className="mb-2 block text-sm text-foreground/80 dark:text-zinc-300">
+                  {t("children")}
+                </span>
+                <input
+                  id="children"
+                  type="number"
+                  min="1"
+                  step="1"
+                  required
+                  value={children}
+                  onChange={(event) => setChildren(event.target.value)}
+                  className="w-full rounded-xl border border-border bg-background p-4 outline-none focus:border-[#2563eb] dark:border-zinc-700 dark:bg-zinc-950"
+                />
+              </label>
+            )}
+
             <label className="mt-5 block">
               <span className="mb-2 block text-sm text-foreground/80 dark:text-zinc-300">
                 {t("requestDetails")}
@@ -498,7 +548,7 @@ export default function ProviderBookingPage() {
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
                 placeholder={t("requestPlaceholder")}
-                className="w-full resize-none rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 p-4 outline-none focus:border-violet-500"
+                className="w-full resize-none rounded-xl border border-border bg-background p-4 outline-none focus:border-[#2563eb] dark:border-zinc-700 dark:bg-zinc-950"
               />
               <p className="mt-2 text-right text-xs text-muted-foreground dark:text-zinc-500">
                 {message.length}/2000
@@ -506,19 +556,19 @@ export default function ProviderBookingPage() {
             </label>
 
             {errorKey && (
-              <div className="mt-5 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-300">
+              <div className="mt-5 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-700 dark:text-red-300">
                 {t(errorKey)}
               </div>
             )}
           </section>
 
-          <aside className="h-fit rounded-3xl border border-border dark:border-zinc-800 bg-card/70 dark:bg-zinc-900/70 p-6 lg:sticky lg:top-6">
+          <aside className="h-fit rounded-3xl border border-border bg-card/70 p-6 dark:border-zinc-800 dark:bg-zinc-900/70 lg:sticky lg:top-6">
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground dark:text-zinc-500">
               {t("summary")}
             </p>
             <h2 className="mt-3 text-xl font-bold">{serviceName}</h2>
 
-            <div className="mt-5 space-y-3 border-y border-border dark:border-zinc-800 py-5 text-sm">
+            <div className="mt-5 space-y-3 border-y border-border py-5 text-sm dark:border-zinc-800">
               <p className="flex justify-between gap-3">
                 <span className="text-muted-foreground dark:text-zinc-500">
                   {t("provider")}
@@ -533,6 +583,14 @@ export default function ProviderBookingPage() {
                   {startTime && endTime ? `${startTime}–${endTime}` : t("choose")}
                 </span>
               </p>
+              {isBabysitting && (
+                <p className="flex justify-between gap-3">
+                  <span className="text-muted-foreground dark:text-zinc-500">
+                    {t("children")}
+                  </span>
+                  <span className="text-right font-semibold">{children || "—"}</span>
+                </p>
+              )}
               <p className="flex justify-between gap-3">
                 <span className="text-muted-foreground dark:text-zinc-500">
                   {t("rate")}
@@ -545,7 +603,7 @@ export default function ProviderBookingPage() {
               <span className="flex items-center gap-2 text-muted-foreground dark:text-zinc-400">
                 <Euro size={18} /> {t("estimatedTotal")}
               </span>
-              <strong className="text-2xl text-violet-300">
+              <strong className="text-2xl text-[#2563eb]">
                 {estimatedAmount == null ? "—" : `${estimatedAmount.toFixed(2)} €`}
               </strong>
             </div>
@@ -553,7 +611,7 @@ export default function ProviderBookingPage() {
             <button
               type="submit"
               disabled={submitting || estimatedAmount == null}
-              className="mt-6 flex w-full items-center justify-center gap-3 rounded-xl bg-violet-600 px-6 py-4 font-semibold hover:bg-violet-700 disabled:opacity-50"
+              className="mt-6 flex w-full items-center justify-center gap-3 rounded-xl bg-[#2563eb] px-6 py-4 font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
             >
               <Send size={20} />
               {submitting ? t("submitting") : t("sendRequest")}
