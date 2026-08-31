@@ -42,7 +42,7 @@ test.describe("KLYX strict role navigation", () => {
     await expect(navigation.getByText("Gestion", { exact: true })).toHaveCount(0);
   });
 
-  test("provider desktop exposes exactly KLYX, Missions, Messages and Gestion", async ({
+  test("provider desktop exposes exactly Missions, Services, Finances and Profil", async ({
     page,
   }) => {
     await loginKlyxE2E(page);
@@ -56,22 +56,28 @@ test.describe("KLYX strict role navigation", () => {
     await expect(navigation).toBeVisible();
     await expect(navigation.getByRole("link")).toHaveCount(4);
 
-    for (const label of ["KLYX", "Missions", "Messages", "Gestion"] as const) {
+    for (const label of ["Missions", "Services", "Finances", "Profil"] as const) {
       await expect(
         navigation.getByRole("link", { name: label, exact: true })
       ).toBeVisible();
     }
 
-    await expect(navigation.getByText("Services", { exact: true })).toHaveCount(0);
-    await expect(navigation.getByText("Finances", { exact: true })).toHaveCount(0);
-    await expect(navigation.getByText("Profil", { exact: true })).toHaveCount(0);
+    await expect(navigation.getByText("KLYX", { exact: true })).toHaveCount(0);
+    await expect(navigation.getByText("Messages", { exact: true })).toHaveCount(0);
+    await expect(navigation.getByText("Gestion", { exact: true })).toHaveCount(0);
 
     await expect(
-      navigation.getByRole("link", { name: "KLYX", exact: true })
-    ).toHaveAttribute("href", "/provider/assistant");
+      navigation.getByRole("link", { name: "Missions", exact: true })
+    ).toHaveAttribute("href", "/provider/jobs");
     await expect(
-      navigation.getByRole("link", { name: "Gestion", exact: true })
-    ).toHaveAttribute("href", "/provider");
+      navigation.getByRole("link", { name: "Services", exact: true })
+    ).toHaveAttribute("href", "/provider/studio");
+    await expect(
+      navigation.getByRole("link", { name: "Finances", exact: true })
+    ).toHaveAttribute("href", "/provider/payments");
+    await expect(
+      navigation.getByRole("link", { name: "Profil", exact: true })
+    ).toHaveAttribute("href", "/profile");
   });
 
   test("mobile uses a four-entry bottom bar with touch-friendly targets", async ({

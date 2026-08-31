@@ -77,9 +77,19 @@ test.describe("KLYX authenticated multi-profile", () => {
     await expect(page.getByTestId("account-switcher")).toBeVisible();
     await switchThroughUi(page, client!, provider!);
     await page.waitForURL((url) => url.pathname === "/provider/assistant");
+
+    const providerNavigation = page.getByRole("navigation", {
+      name: "Navigation principale KLYX",
+    });
     await expect(
-      page.getByRole("link", { name: "KLYX", exact: true }).first()
+      providerNavigation.getByRole("link", { name: "Missions", exact: true })
     ).toBeVisible();
+    await expect(
+      providerNavigation.getByRole("link", { name: "Services", exact: true })
+    ).toBeVisible();
+    await expect(
+      providerNavigation.getByRole("link", { name: "KLYX", exact: true })
+    ).toHaveCount(0);
 
     const providerState = await readKlyxE2EProfiles(page);
     expect(providerState.activeProfileId).toBe(provider!.id);
@@ -87,7 +97,10 @@ test.describe("KLYX authenticated multi-profile", () => {
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect(page).toHaveURL(/\/provider\/assistant(?:\?|$)/);
     await expect(
-      page.getByRole("link", { name: "Gestion", exact: true }).first()
+      providerNavigation.getByRole("link", { name: "Finances", exact: true })
+    ).toBeVisible();
+    await expect(
+      providerNavigation.getByRole("link", { name: "Profil", exact: true })
     ).toBeVisible();
 
     await page.goto("/profile");
