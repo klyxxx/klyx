@@ -94,11 +94,11 @@ describe("KLYX canonical role home routing", () => {
     expect(sidebar).toContain('title: "Services"');
     expect(sidebar).toContain('title: "Finances"');
     expect(sidebar).toContain('href: "/provider/jobs"');
-    expect(sidebar).toContain('href: "/provider/studio"');
+    expect(sidebar).toContain('href: "/provider/services"');
     expect(sidebar).toContain('href: "/provider/payments"');
 
     expect(sidebar).not.toContain('title: "Gestion"');
     expect(sidebar).not.toContain('href: "/provider/assistant"');
-    expect(sidebar).not.toContain('href: "/provider/services"');
+    expect(sidebar).not.toContain('href: "/provider/studio"');
   });
 });
