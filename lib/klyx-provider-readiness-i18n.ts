@@ -23,6 +23,9 @@ export const KLYX_PROVIDER_READINESS_MESSAGE_KEYS = [
   "done",
   "todo",
   "finishSetup",
+  "nextAction",
+  "viewMissions",
+  "details",
   "genericError",
 ] as const;
 
@@ -45,6 +48,9 @@ const DICTIONARIES: Record<KlyxProviderReadinessLocale, Dictionary> = {
     done: "Terminé",
     todo: "À compléter",
     finishSetup: "Terminer ma configuration",
+    nextAction: "Prochaine action",
+    viewMissions: "Voir mes missions",
+    details: "Voir les détails",
     genericError: "Impossible de vérifier le statut prestataire pour le moment.",
   },
   en: {
@@ -60,6 +66,9 @@ const DICTIONARIES: Record<KlyxProviderReadinessLocale, Dictionary> = {
     done: "Done",
     todo: "To complete",
     finishSetup: "Finish my setup",
+    nextAction: "Next action",
+    viewMissions: "View my jobs",
+    details: "View details",
     genericError: "KLYX cannot check provider readiness right now.",
   },
   nl: {
@@ -75,6 +84,9 @@ const DICTIONARIES: Record<KlyxProviderReadinessLocale, Dictionary> = {
     done: "Voltooid",
     todo: "Nog te voltooien",
     finishSetup: "Mijn configuratie voltooien",
+    nextAction: "Volgende actie",
+    viewMissions: "Mijn opdrachten bekijken",
+    details: "Details bekijken",
     genericError: "KLYX kan de status van de dienstverlener momenteel niet controleren.",
   },
   de: {
@@ -90,6 +102,9 @@ const DICTIONARIES: Record<KlyxProviderReadinessLocale, Dictionary> = {
     done: "Erledigt",
     todo: "Noch offen",
     finishSetup: "Einrichtung abschließen",
+    nextAction: "Nächste Aktion",
+    viewMissions: "Meine Aufträge ansehen",
+    details: "Details anzeigen",
     genericError: "KLYX kann den Anbieterstatus derzeit nicht prüfen.",
   },
 };
