@@ -91,10 +91,12 @@
   outline: none !important;
 }
 
-/* Les CTA gardent le seul bleu KLYX exact. */
+/* Les vrais CTA gardent le seul bleu KLYX exact. Les cartes de rôle restent légères. */
 .klyx-auth-page .klyx-button,
-.klyx-auth-page button[class*="bg-violet-"],
-.klyx-auth-page button[class*="bg-indigo-"] {
+.klyx-auth-page button[class~="bg-violet-600"],
+.klyx-auth-page button[class~="bg-violet-700"],
+.klyx-auth-page button[class~="bg-indigo-600"],
+.klyx-auth-page button[class~="bg-indigo-700"] {
   border-color: transparent !important;
   background: #2563eb !important;
   background-image: none !important;
@@ -103,8 +105,10 @@
 }
 
 .klyx-auth-page .klyx-button:hover,
-.klyx-auth-page button[class*="bg-violet-"]:hover,
-.klyx-auth-page button[class*="bg-indigo-"]:hover {
+.klyx-auth-page button[class~="bg-violet-600"]:hover,
+.klyx-auth-page button[class~="bg-violet-700"]:hover,
+.klyx-auth-page button[class~="bg-indigo-600"]:hover,
+.klyx-auth-page button[class~="bg-indigo-700"]:hover {
   filter: brightness(0.96);
 }
 
