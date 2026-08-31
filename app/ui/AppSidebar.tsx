@@ -10,6 +10,7 @@ import {
   MessageCircle,
   Sparkles,
   UserRound,
+  WalletCards,
   Wrench,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -84,28 +85,28 @@ const clientItems: MenuItem[] = [
 
 const providerItems: MenuItem[] = [
   {
-    title: "KLYX",
-    translationLabel: "KLYX",
-    href: "/provider/assistant",
-    icon: Sparkles,
-  },
-  {
     title: "Missions",
     translationLabel: "Missions disponibles",
     href: "/provider/jobs",
     icon: BriefcaseBusiness,
   },
   {
-    title: "Messages",
-    translationLabel: "Messages",
-    href: "/messages",
-    icon: MessageCircle,
+    title: "Services",
+    translationLabel: "Services",
+    href: "/provider/services",
+    icon: Wrench,
   },
   {
-    title: "Gestion",
-    translationLabel: "Administration",
-    href: "/provider",
-    icon: Wrench,
+    title: "Finances",
+    translationLabel: "Finance",
+    href: "/provider/payments",
+    icon: WalletCards,
+  },
+  {
+    title: "Profil",
+    translationLabel: "Mon profil",
+    href: "/profile",
+    icon: UserRound,
   },
 ];
 
