@@ -10,10 +10,8 @@ const bookingCreatePath =
   "app/api/bookings/create/route.ts";
 const groupBookingCorePath =
   "app/api/market/requests/[id]/group-booking/group-booking-core.ts";
-const activeBookingPages = [
-  "app/providers/[id]/book/page.tsx",
-  "app/babysitters/[id]/page.tsx",
-] as const;
+const activeBookingPages = ["app/providers/[id]/book/page.tsx"] as const;
+const babysitterCompatibilityPage = "app/babysitters/[id]/page.tsx";
 const legacyBookingPage = "app/book/page.tsx";
 
 describe("booking table select-only contract", () => {
@@ -91,13 +89,32 @@ describe("booking table select-only contract", () => {
     }
   });
 
-  it("keeps the retired legacy booking page off raw booking inserts", () => {
-    const source = readFileSync(
+  it("keeps compatibility booking routes off raw booking inserts", () => {
+    const babysitterSource = readFileSync(
+      join(process.cwd(), babysitterCompatibilityPage),
+      "utf8"
+    );
+    const legacySource = readFileSync(
       join(process.cwd(), legacyBookingPage),
       "utf8"
     );
 
-    expect(source).toContain('redirect("/babysitters")');
-    expect(source).not.toContain('.from("bookings")');
+    expect(babysitterSource).toContain(
+      "KLYX_BABYSITTER_BOOKING_COMPATIBILITY_ROUTE"
+    );
+    expect(babysitterSource).toContain('query.set("service", "babysitting")');
+    expect(babysitterSource).toContain(
+      'redirect(`/providers/${encodeURIComponent(id)}/book?${query.toString()}`)'
+    );
+    expect(babysitterSource).not.toContain('.from("bookings")');
+    expect(babysitterSource).not.toContain('/api/bookings/create');
+
+    expect(legacySource).toContain("KLYX_LEGACY_BOOK_COMPATIBILITY_ROUTE");
+    expect(legacySource).toContain('params.set("service", "babysitting")');
+    expect(legacySource).toContain(
+      'redirect(`/recommendations?${params.toString()}`)'
+    );
+    expect(legacySource).not.toContain('.from("bookings")');
+    expect(legacySource).not.toContain('/api/bookings/create');
   });
 });
