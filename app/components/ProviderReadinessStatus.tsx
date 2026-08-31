@@ -93,7 +93,6 @@ export default function ProviderReadinessStatus() {
       const studioBody = (await studioResponse.json()) as StudioData & {
         data?: StudioData;
       };
-
       const zonesBody = (await zonesResponse.json()) as ZonesData;
 
       if (!studioResponse.ok || !zonesResponse.ok) {
@@ -155,9 +154,7 @@ export default function ProviderReadinessStatus() {
       );
 
     const isPublished = studio?.providerProfile?.isPublished === true;
-
-    const isVerified =
-      studio?.providerProfile?.verificationStatus === "verified";
+    const isVerified = studio?.providerProfile?.verificationStatus === "verified";
 
     return [
       {
@@ -185,71 +182,96 @@ export default function ProviderReadinessStatus() {
 
   const mandatoryItems = items.slice(0, 3);
   const mandatoryReady =
-    mandatoryItems.length > 0 &&
-    mandatoryItems.every((item) => item.done);
-
+    mandatoryItems.length > 0 && mandatoryItems.every((item) => item.done);
+  const nextMandatoryItem = mandatoryItems.find((item) => !item.done) ?? null;
   const completed = items.filter((item) => item.done).length;
 
+  const primaryAction = mandatoryReady
+    ? { href: "/provider/jobs", label: t("viewMissions") }
+    : nextMandatoryItem;
+
   return (
-    <section className="mb-6">
-      <div
-        className={`overflow-hidden rounded-[1.75rem] border p-5 sm:p-6 ${
-          mandatoryReady
-            ? "border-emerald-500/25 bg-emerald-500/[0.08]"
-            : "border-amber-500/25 bg-amber-500/[0.08]"
-        }`}
-      >
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-start gap-4">
-            <span
-              className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl ${
-                mandatoryReady
-                  ? "bg-emerald-600 text-white"
-                  : "bg-amber-500 text-zinc-950"
-              }`}
-            >
-              {loading ? (
-                <LoaderCircle size={21} className="animate-spin" />
-              ) : mandatoryReady ? (
-                <CheckCircle2 size={22} />
-              ) : (
-                <CircleAlert size={22} />
-              )}
-            </span>
-
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-muted-foreground">
-                {t("visibility")}
-              </p>
-
-              <h2 className="mt-1 text-xl font-black sm:text-2xl">
-                {loading
-                  ? t("checking")
-                  : mandatoryReady
-                    ? t("ready")
-                    : t("incomplete")}
-              </h2>
-              {/* KLYX_AI_FIRST_PROVIDER_READINESS_15_02 */}
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => void load(true)}
-            disabled={refreshing}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-border bg-background px-4 text-sm font-black transition hover:bg-muted disabled:cursor-wait disabled:opacity-60"
+    <section className="rounded-3xl border border-border bg-card p-5 sm:p-6">
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 items-start gap-4">
+          <span
+            className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${
+              loading
+                ? "bg-muted text-muted-foreground"
+                : mandatoryReady
+                  ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                  : "bg-amber-500/10 text-amber-700 dark:text-amber-300"
+            }`}
           >
-            {refreshing ? (
-              <LoaderCircle size={17} className="animate-spin" />
+            {loading ? (
+              <LoaderCircle size={20} className="animate-spin" />
+            ) : mandatoryReady ? (
+              <CheckCircle2 size={20} />
             ) : (
-              <RefreshCw size={17} />
+              <CircleAlert size={20} />
             )}
-            {t("refresh")}
-          </button>
+          </span>
+
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              {t("visibility")}
+            </p>
+            <h2 className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">
+              {loading ? t("checking") : mandatoryReady ? t("ready") : t("incomplete")}
+            </h2>
+            {!loading && !hasError && (
+              <p className="mt-2 text-sm text-muted-foreground">
+                {formatKlyxProviderReadinessCompleted(locale, completed)}
+              </p>
+            )}
+          </div>
         </div>
 
-        {!loading && (
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <button
+          type="button"
+          onClick={() => void load(true)}
+          disabled={refreshing}
+          aria-label={t("refresh")}
+          title={t("refresh")}
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center self-start rounded-xl border border-border bg-background text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:cursor-wait disabled:opacity-60"
+        >
+          {refreshing ? (
+            <LoaderCircle size={17} className="animate-spin" />
+          ) : (
+            <RefreshCw size={17} />
+          )}
+        </button>
+      </div>
+
+      {hasError && !loading && (
+        <div className="mt-5 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-700 dark:text-rose-300">
+          {t("genericError")}
+        </div>
+      )}
+
+      {!loading && !hasError && primaryAction && (
+        <div className="mt-6">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            {t("nextAction")}
+          </p>
+          <Link
+            href={primaryAction.href}
+            prefetch
+            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-[#2563EB] px-5 text-sm font-semibold text-white transition hover:opacity-90"
+          >
+            {primaryAction.label}
+            <ArrowRight size={17} />
+          </Link>
+        </div>
+      )}
+
+      {!loading && !hasError && (
+        <details className="group mt-5 border-t border-border pt-4">
+          <summary className="cursor-pointer list-none text-sm font-semibold text-muted-foreground transition hover:text-foreground">
+            {t("details")}
+          </summary>
+
+          <div className="mt-4 space-y-2">
             {items.map((item, index) => {
               const Icon =
                 index === 0
@@ -265,59 +287,29 @@ export default function ProviderReadinessStatus() {
                   key={item.label}
                   href={item.href}
                   prefetch
-                  className="rounded-2xl border border-border/80 bg-background/70 p-4 transition hover:bg-background"
+                  className="flex min-h-11 items-center gap-3 rounded-2xl px-3 py-2 text-sm transition hover:bg-muted/60"
                 >
-                  <div className="flex items-center gap-3">
-                    <span
-                      className={`grid h-9 w-9 place-items-center rounded-xl ${
-                        item.done
-                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                          : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      {item.done ? <CheckCircle2 size={17} /> : <Icon size={17} />}
-                    </span>
-
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-black">
-                        {item.label}
-                      </p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {item.done ? t("done") : t("todo")}
-                      </p>
-                    </div>
-                  </div>
+                  <span
+                    className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl ${
+                      item.done
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {item.done ? <CheckCircle2 size={16} /> : <Icon size={16} />}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate font-medium">{item.label}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {item.done ? t("done") : t("todo")}
+                  </span>
                 </Link>
               );
             })}
           </div>
-        )}
+        </details>
+      )}
 
-        {hasError && (
-          <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-700 dark:text-rose-300">
-            {t("genericError")}
-          </div>
-        )}
-
-        {!loading && (
-          <div className="mt-5 flex flex-wrap items-center gap-3 text-sm">
-            <span className="font-black">
-              {formatKlyxProviderReadinessCompleted(locale, completed)}
-            </span>
-
-            {!mandatoryReady && (
-              <Link
-                href="/onboarding"
-                prefetch
-                className="inline-flex items-center gap-2 font-black text-blue-600 dark:text-blue-400"
-              >
-                {t("finishSetup")}
-                <ArrowRight size={16} />
-              </Link>
-            )}
-          </div>
-        )}
-      </div>
+      {/* KLYX_AI_FIRST_PROVIDER_READINESS_15_02 */}
     </section>
   );
 }
