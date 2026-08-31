@@ -127,6 +127,7 @@ export default function ProviderBookingPage() {
 
   const providerId = params.id;
   const serviceSlug = searchParams.get("service")?.trim() || "";
+  const isBabysitting = serviceSlug === "babysitting";
   const requestedDate = validRequestedDate(searchParams.get("date"));
   const requestedTime = validRequestedTime(
     searchParams.get("start") ?? searchParams.get("time")
@@ -143,6 +144,7 @@ export default function ProviderBookingPage() {
   const [bookingDate, setBookingDate] = useState(requestedDate);
   const [startTime, setStartTime] = useState(requestedTime);
   const [endTime, setEndTime] = useState(requestedEndTime);
+  const [children, setChildren] = useState("1");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -302,6 +304,24 @@ export default function ProviderBookingPage() {
         throw new BookingPageError("outsideAvailability");
       }
 
+      let bookingMessage = message;
+
+      if (isBabysitting) {
+        const childrenCount = Number(children);
+
+        if (
+          Number.isNaN(childrenCount) ||
+          !Number.isInteger(childrenCount) ||
+          childrenCount < 1
+        ) {
+          throw new BookingPageError("childrenInvalid");
+        }
+
+        bookingMessage = [`Nombre d'enfants : ${childrenCount}`, message.trim()]
+          .filter(Boolean)
+          .join("\n\n");
+      }
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -323,7 +343,7 @@ export default function ProviderBookingPage() {
           bookingDate,
           startTime,
           endTime,
-          message,
+          message: bookingMessage,
         }),
       });
 
@@ -401,14 +421,14 @@ export default function ProviderBookingPage() {
           </div>
 
           <div className="p-6 sm:p-8">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-violet-400">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#2563EB]">
               {serviceName}
             </p>
             <h1 className="mt-3 text-3xl font-bold">{fullName}</h1>
             <p className="mt-3 text-muted-foreground dark:text-zinc-400">
               {serviceProfile?.city || t("cityUnknown")}
             </p>
-            <p className="mt-4 text-2xl font-bold text-violet-400">
+            <p className="mt-4 text-2xl font-bold text-[#2563EB]">
               {formattedPrice}
             </p>
 
@@ -437,7 +457,7 @@ export default function ProviderBookingPage() {
                   required
                   value={bookingDate}
                   onChange={(event) => setBookingDate(event.target.value)}
-                  className="w-full rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 p-4 outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 p-4 outline-none focus:border-[#2563EB]"
                 />
               </label>
 
@@ -450,7 +470,7 @@ export default function ProviderBookingPage() {
                   required
                   value={startTime}
                   onChange={(event) => setStartTime(event.target.value)}
-                  className="w-full rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 p-4 outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 p-4 outline-none focus:border-[#2563EB]"
                 />
               </label>
 
@@ -463,7 +483,7 @@ export default function ProviderBookingPage() {
                   required
                   value={endTime}
                   onChange={(event) => setEndTime(event.target.value)}
-                  className="w-full rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 p-4 outline-none focus:border-violet-500"
+                  className="w-full rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 p-4 outline-none focus:border-[#2563EB]"
                 />
               </label>
             </div>
@@ -488,6 +508,23 @@ export default function ProviderBookingPage() {
               </div>
             )}
 
+            {isBabysitting && (
+              <label className="mt-5 block">
+                <span className="mb-2 block text-sm text-foreground/80 dark:text-zinc-300">
+                  {t("children")}
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  required
+                  value={children}
+                  onChange={(event) => setChildren(event.target.value)}
+                  className="w-full rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 p-4 outline-none focus:border-[#2563EB]"
+                />
+              </label>
+            )}
+
             <label className="mt-5 block">
               <span className="mb-2 block text-sm text-foreground/80 dark:text-zinc-300">
                 {t("requestDetails")}
@@ -498,7 +535,7 @@ export default function ProviderBookingPage() {
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
                 placeholder={t("requestPlaceholder")}
-                className="w-full resize-none rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 p-4 outline-none focus:border-violet-500"
+                className="w-full resize-none rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 p-4 outline-none focus:border-[#2563EB]"
               />
               <p className="mt-2 text-right text-xs text-muted-foreground dark:text-zinc-500">
                 {message.length}/2000
@@ -533,6 +570,14 @@ export default function ProviderBookingPage() {
                   {startTime && endTime ? `${startTime}–${endTime}` : t("choose")}
                 </span>
               </p>
+              {isBabysitting && (
+                <p className="flex justify-between gap-3">
+                  <span className="text-muted-foreground dark:text-zinc-500">
+                    {t("children")}
+                  </span>
+                  <span className="text-right font-semibold">{children || "—"}</span>
+                </p>
+              )}
               <p className="flex justify-between gap-3">
                 <span className="text-muted-foreground dark:text-zinc-500">
                   {t("rate")}
@@ -545,7 +590,7 @@ export default function ProviderBookingPage() {
               <span className="flex items-center gap-2 text-muted-foreground dark:text-zinc-400">
                 <Euro size={18} /> {t("estimatedTotal")}
               </span>
-              <strong className="text-2xl text-violet-300">
+              <strong className="text-2xl text-[#2563EB]">
                 {estimatedAmount == null ? "—" : `${estimatedAmount.toFixed(2)} €`}
               </strong>
             </div>
@@ -553,7 +598,7 @@ export default function ProviderBookingPage() {
             <button
               type="submit"
               disabled={submitting || estimatedAmount == null}
-              className="mt-6 flex w-full items-center justify-center gap-3 rounded-xl bg-violet-600 px-6 py-4 font-semibold hover:bg-violet-700 disabled:opacity-50"
+              className="mt-6 flex w-full items-center justify-center gap-3 rounded-xl bg-[#2563EB] px-6 py-4 font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
             >
               <Send size={20} />
               {submitting ? t("submitting") : t("sendRequest")}
