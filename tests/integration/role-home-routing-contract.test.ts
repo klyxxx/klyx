@@ -83,14 +83,21 @@ describe("KLYX canonical role home routing", () => {
   it("keeps the definitive four-item role navigation", () => {
     expect(sidebar).toContain('title: "KLYX"');
     expect(sidebar).toContain('title: "Activité"');
+    expect(sidebar).toContain('title: "Messages"');
     expect(sidebar).toContain('title: "Profil"');
-    expect(sidebar).toContain('title: "Missions"');
-    expect(sidebar).toContain('title: "Gestion"');
-    expect(sidebar).toContain('href: "/provider/assistant"');
-    expect(sidebar).toContain('href: "/provider/jobs"');
+    expect(sidebar).toContain('href: "/assistant"');
+    expect(sidebar).toContain('href: "/bookings"');
     expect(sidebar).toContain('href: "/messages"');
-    expect(sidebar).toContain('href: "/provider"');
-    expect(sidebar).not.toContain('title: "Services"');
-    expect(sidebar).not.toContain('title: "Finances"');
+    expect(sidebar).toContain('href: "/profile"');
+
+    expect(sidebar).toContain('title: "Missions"');
+    expect(sidebar).toContain('title: "Services"');
+    expect(sidebar).toContain('title: "Finances"');
+    expect(sidebar).toContain('href: "/provider/jobs"');
+    expect(sidebar).toContain('href: "/provider/services"');
+    expect(sidebar).toContain('href: "/provider/payments"');
+
+    expect(sidebar).not.toContain('title: "Gestion"');
+    expect(sidebar).not.toContain('href: "/provider/assistant"');
   });
 });
