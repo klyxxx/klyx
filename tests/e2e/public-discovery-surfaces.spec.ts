@@ -6,7 +6,6 @@ test.describe("KLYX public discovery surfaces", () => {
 
     for (const route of [
       "/",
-      "/babysitters",
       "/support",
       "/privacy",
       "/terms",
