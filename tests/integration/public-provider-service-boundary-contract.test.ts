@@ -80,18 +80,23 @@ describe("public provider service boundary contract", () => {
     expect(source).toContain("public.klyx_owns_user_service(user_service_id)");
   });
 
-  it("protects the legacy babysitting direct-read paths without UI refactors", () => {
+  it("keeps the legacy babysitter booking reads protected while the listing delegates to recommendations", () => {
     const listing = readFileSync(join(process.cwd(), babysittersPagePath), "utf8");
     const booking = readFileSync(
       join(process.cwd(), babysitterBookingPath),
       "utf8"
     );
 
-    for (const source of [listing, booking]) {
-      expect(source).toContain('.from("user_services")');
-      expect(source).toContain('.from("service_profiles")');
-      expect(source).toContain('.from("availability_slots")');
-      expect(source).not.toContain('.from("provider_skill_verifications")');
-    }
+    expect(listing).toContain("KLYX_BABYSITTERS_COMPATIBILITY_ROUTE");
+    expect(listing).toContain('params.set("service", "babysitting")');
+    expect(listing).toContain('redirect(`/recommendations?${params.toString()}`)');
+    expect(listing).not.toContain('.from("user_services")');
+    expect(listing).not.toContain('.from("service_profiles")');
+    expect(listing).not.toContain('.from("availability_slots")');
+
+    expect(booking).toContain('.from("user_services")');
+    expect(booking).toContain('.from("service_profiles")');
+    expect(booking).toContain('.from("availability_slots")');
+    expect(booking).not.toContain('.from("provider_skill_verifications")');
   });
 });
