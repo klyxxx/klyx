@@ -3,6 +3,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { ArrowLeft, Bot, CheckCircle2, ShieldCheck } from "lucide-react";
 
+import OpenAiE2eProbe from "@/app/components/OpenAiE2eProbe";
 import { isKlyxAiEnabled } from "@/lib/klyx-ai";
 import {
   KLYX_LANGUAGE_COOKIE_KEY,
@@ -40,23 +41,23 @@ export default async function AiStatusPage() {
     <main className="klyx-page">
       <Link
         href="/dashboard"
-        className="inline-flex items-center gap-2 text-sm font-bold text-muted-foreground"
+        className="inline-flex items-center gap-2 text-sm font-bold text-muted-foreground transition hover:text-foreground"
       >
         <ArrowLeft size={17} />
         {copy.backDashboard}
       </Link>
 
-      <section className="mt-6 rounded-[2rem] bg-[linear-gradient(135deg,#17131f,#30135c_52%,#111827)] p-8 text-white">
-        <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em]">
+      <section className="mt-6 klyx-card p-8 sm:p-10">
+        <div className="inline-flex items-center gap-2 rounded-full bg-blue-600/8 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
           <Bot size={15} />
           {copy.badge}
         </div>
 
-        <h1 className="mt-5 text-3xl font-black sm:text-5xl">
+        <h1 className="mt-5 max-w-3xl text-3xl font-black tracking-[-0.045em] text-foreground sm:text-5xl">
           {copy.title}
         </h1>
 
-        <p className="mt-4 max-w-2xl text-sm leading-7 text-white/70">
+        <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">
           {copy.description}
         </p>
       </section>
@@ -81,7 +82,7 @@ export default async function AiStatusPage() {
 
         <article className="klyx-card p-6">
           <div className="flex items-center gap-3">
-            <ShieldCheck className="text-violet-600" />
+            <ShieldCheck className="text-blue-600 dark:text-blue-400" />
             <h2 className="text-xl font-black">{copy.safetyTitle}</h2>
           </div>
 
@@ -90,6 +91,23 @@ export default async function AiStatusPage() {
           </p>
         </article>
       </section>
+
+      <OpenAiE2eProbe
+        copy={{
+          title: copy.probeTitle,
+          description: copy.probeDescription,
+          run: copy.probeRun,
+          running: copy.probeRunning,
+          ready: copy.probeReady,
+          notReady: copy.probeNotReady,
+          assistant: copy.probeAssistant,
+          vision: copy.probeVision,
+          fallback: copy.probeFallback,
+          disabled: copy.probeDisabled,
+          unavailable: copy.probeUnavailable,
+          adminOnly: copy.probeAdminOnly,
+        }}
+      />
     </main>
   );
 }

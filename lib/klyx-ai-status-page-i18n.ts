@@ -23,6 +23,18 @@ export const KLYX_AI_STATUS_PAGE_MESSAGE_KEYS = [
   "fallbackDescription",
   "safetyTitle",
   "safetyDescription",
+  "probeTitle",
+  "probeDescription",
+  "probeRun",
+  "probeRunning",
+  "probeReady",
+  "probeNotReady",
+  "probeAssistant",
+  "probeVision",
+  "probeFallback",
+  "probeDisabled",
+  "probeUnavailable",
+  "probeAdminOnly",
 ] as const;
 
 export type KlyxAiStatusPageMessageKey =
@@ -52,6 +64,19 @@ const AI_STATUS_PAGE_MESSAGES: Record<
     safetyTitle: "Sécurité conservée",
     safetyDescription:
       "L’IA ne peut pas confirmer seule un paiement, un remboursement, une réservation ou une activité réglementée.",
+    probeTitle: "Preuve OpenAI de bout en bout",
+    probeDescription:
+      "Lance deux appels synthétiques depuis le serveur KLYX : un par le vrai assistant conversationnel et un par la vraie analyse Vision. Aucune donnée utilisateur, réservation ou paiement n’est utilisé.",
+    probeRun: "Tester Assistant + Vision",
+    probeRunning: "Test en cours…",
+    probeReady: "Assistant et Vision OpenAI sont validés.",
+    probeNotReady: "Au moins un chemin OpenAI utilise encore le mode de secours.",
+    probeAssistant: "Assistant",
+    probeVision: "Vision",
+    probeFallback: "Mode de secours",
+    probeDisabled: "Vision désactivée",
+    probeUnavailable: "Diagnostic indisponible",
+    probeAdminOnly: "Ce diagnostic réel est réservé à l’administrateur KLYX connecté.",
   },
   en: {
     metadataTitle: "KLYX AI status",
@@ -71,6 +96,19 @@ const AI_STATUS_PAGE_MESSAGES: Record<
     safetyTitle: "Safety preserved",
     safetyDescription:
       "The AI cannot confirm a payment, refund, booking, or regulated activity on its own.",
+    probeTitle: "End-to-end OpenAI proof",
+    probeDescription:
+      "Runs two synthetic calls from the KLYX server: one through the real conversational assistant and one through real Vision analysis. No user data, booking, or payment is used.",
+    probeRun: "Test Assistant + Vision",
+    probeRunning: "Testing…",
+    probeReady: "OpenAI Assistant and Vision are validated.",
+    probeNotReady: "At least one OpenAI path is still using fallback mode.",
+    probeAssistant: "Assistant",
+    probeVision: "Vision",
+    probeFallback: "Fallback mode",
+    probeDisabled: "Vision disabled",
+    probeUnavailable: "Diagnostic unavailable",
+    probeAdminOnly: "This real diagnostic is restricted to the signed-in KLYX administrator.",
   },
   nl: {
     metadataTitle: "KLYX AI-status",
@@ -90,6 +128,19 @@ const AI_STATUS_PAGE_MESSAGES: Record<
     safetyTitle: "Veiligheid behouden",
     safetyDescription:
       "De AI kan niet zelfstandig een betaling, terugbetaling, boeking of gereguleerde activiteit bevestigen.",
+    probeTitle: "End-to-end OpenAI-bewijs",
+    probeDescription:
+      "Voert twee synthetische oproepen uit vanaf de KLYX-server: één via de echte conversationele assistent en één via echte Vision-analyse. Er worden geen gebruikersgegevens, boekingen of betalingen gebruikt.",
+    probeRun: "Assistant + Vision testen",
+    probeRunning: "Test wordt uitgevoerd…",
+    probeReady: "OpenAI Assistant en Vision zijn gevalideerd.",
+    probeNotReady: "Minstens één OpenAI-pad gebruikt nog de terugvalmodus.",
+    probeAssistant: "Assistant",
+    probeVision: "Vision",
+    probeFallback: "Terugvalmodus",
+    probeDisabled: "Vision uitgeschakeld",
+    probeUnavailable: "Diagnose niet beschikbaar",
+    probeAdminOnly: "Deze echte diagnose is alleen beschikbaar voor de aangemelde KLYX-beheerder.",
   },
   de: {
     metadataTitle: "KLYX KI-Status",
@@ -109,6 +160,19 @@ const AI_STATUS_PAGE_MESSAGES: Record<
     safetyTitle: "Sicherheit bleibt erhalten",
     safetyDescription:
       "Die KI kann eine Zahlung, eine Rückerstattung, eine Buchung oder eine regulierte Tätigkeit nicht eigenständig bestätigen.",
+    probeTitle: "End-to-End-OpenAI-Nachweis",
+    probeDescription:
+      "Führt zwei synthetische Aufrufe vom KLYX-Server aus: einen über den echten Konversationsassistenten und einen über die echte Vision-Analyse. Es werden keine Nutzerdaten, Buchungen oder Zahlungen verwendet.",
+    probeRun: "Assistant + Vision testen",
+    probeRunning: "Test läuft…",
+    probeReady: "OpenAI Assistant und Vision sind validiert.",
+    probeNotReady: "Mindestens ein OpenAI-Pfad verwendet noch den Fallback-Modus.",
+    probeAssistant: "Assistant",
+    probeVision: "Vision",
+    probeFallback: "Fallback-Modus",
+    probeDisabled: "Vision deaktiviert",
+    probeUnavailable: "Diagnose nicht verfügbar",
+    probeAdminOnly: "Diese echte Diagnose ist dem angemeldeten KLYX-Administrator vorbehalten.",
   },
 };
 
