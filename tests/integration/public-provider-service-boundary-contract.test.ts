@@ -10,6 +10,7 @@ const privacyMigrationPath =
   "supabase/migrations/20260819162500_klyx_public_data_privacy.sql";
 const babysittersPagePath = "app/babysitters/page.tsx";
 const babysitterBookingPath = "app/babysitters/[id]/page.tsx";
+const canonicalBookingPath = "app/providers/[id]/book/page.tsx";
 
 describe("public provider service boundary contract", () => {
   it("requires every publication and skill gate in one SECURITY DEFINER helper", () => {
@@ -80,10 +81,14 @@ describe("public provider service boundary contract", () => {
     expect(source).toContain("public.klyx_owns_user_service(user_service_id)");
   });
 
-  it("keeps the legacy babysitter booking reads protected while the listing delegates to recommendations", () => {
+  it("keeps canonical booking reads protected while legacy babysitter routes only delegate", () => {
     const listing = readFileSync(join(process.cwd(), babysittersPagePath), "utf8");
-    const booking = readFileSync(
+    const compatibilityBooking = readFileSync(
       join(process.cwd(), babysitterBookingPath),
+      "utf8"
+    );
+    const canonicalBooking = readFileSync(
+      join(process.cwd(), canonicalBookingPath),
       "utf8"
     );
 
@@ -94,9 +99,22 @@ describe("public provider service boundary contract", () => {
     expect(listing).not.toContain('.from("service_profiles")');
     expect(listing).not.toContain('.from("availability_slots")');
 
-    expect(booking).toContain('.from("user_services")');
-    expect(booking).toContain('.from("service_profiles")');
-    expect(booking).toContain('.from("availability_slots")');
-    expect(booking).not.toContain('.from("provider_skill_verifications")');
+    expect(compatibilityBooking).toContain(
+      "KLYX_BABYSITTER_BOOKING_COMPATIBILITY_ROUTE"
+    );
+    expect(compatibilityBooking).toContain(
+      'query.set("service", "babysitting")'
+    );
+    expect(compatibilityBooking).toContain(
+      'redirect(`/providers/${encodeURIComponent(id)}/book?${query.toString()}`)'
+    );
+    expect(compatibilityBooking).not.toContain('.from("user_services")');
+    expect(compatibilityBooking).not.toContain('.from("service_profiles")');
+    expect(compatibilityBooking).not.toContain('.from("availability_slots")');
+
+    expect(canonicalBooking).toContain('.from("user_services")');
+    expect(canonicalBooking).toContain('.from("service_profiles")');
+    expect(canonicalBooking).toContain('.from("availability_slots")');
+    expect(canonicalBooking).not.toContain('.from("provider_skill_verifications")');
   });
 });

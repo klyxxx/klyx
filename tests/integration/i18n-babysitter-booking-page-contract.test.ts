@@ -6,56 +6,50 @@ function read(relative: string) {
   return fs.readFileSync(path.join(process.cwd(), relative), "utf8");
 }
 
-describe("KLYX babysitter booking i18n contract", () => {
-  it("localizes presentation while preserving the booking creation surface", () => {
+describe("KLYX babysitter booking compatibility contract", () => {
+  it("routes a legacy babysitter booking URL into the canonical provider booking", () => {
     const page = read("app/babysitters/[id]/page.tsx");
 
-    expect(page).toContain("KLYX_BABYSITTER_BOOKING_I18N");
-    expect(page).toContain("useKlyxLocale");
-    expect(page).toContain('fetch("/api/bookings/create"');
-    expect(page).toContain('method: "POST"');
-    expect(page).toContain("providerId: babysitter.id");
-    expect(page).toContain('serviceSlug: "babysitting"');
-    expect(page).toContain("bookingDate: date");
-    expect(page).toContain("startTime,");
-    expect(page).toContain("endTime,");
-    expect(page).toContain("message: bookingMessage");
-    expect(page).toContain("onClick={sendRequest}");
-    expect(page).not.toContain("stripe");
-    expect(page).not.toContain("PaymentIntent");
-    expect(page).not.toContain("CheckoutSession");
+    expect(page).toContain("KLYX_BABYSITTER_BOOKING_COMPATIBILITY_ROUTE");
+    expect(page).toContain('import { redirect } from "next/navigation"');
+    expect(page).toContain("params: Promise<{ id: string }>");
+    expect(page).toContain("searchParams: Promise<SearchParams>");
+    expect(page).toContain('query.set("service", "babysitting")');
+    expect(page).toContain(
+      'redirect(`/providers/${encodeURIComponent(id)}/book?${query.toString()}`)'
+    );
   });
 
-  it("preserves availability and child-count validation semantics", () => {
+  it("preserves historical query parameters and repeated values", () => {
     const page = read("app/babysitters/[id]/page.tsx");
 
-    expect(page).toContain("endTime <= startTime");
-    expect(page).toContain("selectedDaySlots.length === 0");
-    expect(page).toContain("!isInsideAvailability()");
-    expect(page).toContain("Number.isNaN(childrenCount)");
-    expect(page).toContain("!Number.isInteger(childrenCount)");
-    expect(page).toContain("childrenCount < 1");
-    expect(page).toContain("startTime >= slot.start_time.slice(0, 5)");
-    expect(page).toContain("endTime <= slot.end_time.slice(0, 5)");
+    expect(page).toContain("Object.entries(sourceParams)");
+    expect(page).toContain('typeof value === "string"');
+    expect(page).toContain("Array.isArray(value)");
+    expect(page).toContain("query.append(key, value)");
+    expect(page).toContain("query.append(key, item)");
   });
 
-  it("keeps the canonical booking message prefix and user message verbatim", () => {
+  it("contains no parallel data loading or booking mutation logic", () => {
     const page = read("app/babysitters/[id]/page.tsx");
 
-    expect(page).toContain("`Nombre d'enfants : ${childrenCount}`");
-    expect(page).toContain("message.trim()");
-    expect(page).toContain('.join("\\n\\n")');
+    expect(page).not.toContain('"use client"');
+    expect(page).not.toContain("supabase");
+    expect(page).not.toContain("useKlyxLocale");
+    expect(page).not.toContain("fetch(");
+    expect(page).not.toContain("/api/bookings/create");
+    expect(page).not.toContain('method: "POST"');
+    expect(page).not.toContain("availability_slots");
+    expect(page).not.toContain("service_profiles");
   });
 
-  it("does not reflect raw Supabase or API error messages", () => {
-    const page = read("app/babysitters/[id]/page.tsx");
+  it("keeps child-count validation and the historical message prefix in the canonical flow", () => {
+    const canonical = read("app/providers/[id]/book/page.tsx");
 
-    expect(page).not.toContain("profileError.message");
-    expect(page).not.toContain("serviceError.message");
-    expect(page).not.toContain("userServiceError.message");
-    expect(page).not.toContain("serviceProfileError.message");
-    expect(page).not.toContain("slotsError.message");
-    expect(page).not.toContain("result.error");
-    expect(page).not.toContain("error instanceof Error");
+    expect(canonical).toContain("Number.isNaN(childrenCount)");
+    expect(canonical).toContain("!Number.isInteger(childrenCount)");
+    expect(canonical).toContain("childrenCount < 1");
+    expect(canonical).toContain("`Nombre d'enfants : ${childrenCount}`");
+    expect(canonical).toContain("message: bookingMessage");
   });
 });

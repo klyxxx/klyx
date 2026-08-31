@@ -19,8 +19,33 @@ describe("KLYX provider booking i18n contract", () => {
     expect(page).toContain("bookingDate,");
     expect(page).toContain("startTime,");
     expect(page).toContain("endTime,");
-    expect(page).toContain("message,");
+    expect(page).toContain("message: bookingMessage,");
     expect(page).toContain("selectedDayAvailability.some");
+  });
+
+  it("owns babysitting child-count semantics in the canonical booking flow", () => {
+    const page = read("app/providers/[id]/book/page.tsx");
+
+    expect(page).toContain('const isBabysitting = serviceSlug === "babysitting"');
+    expect(page).toContain('const [children, setChildren] = useState(requestedChildren)');
+    expect(page).toContain("Number.isNaN(childrenCount)");
+    expect(page).toContain("!Number.isInteger(childrenCount)");
+    expect(page).toContain("childrenCount < 1");
+    expect(page).toContain('throw new BookingPageError("childrenInvalid")');
+    expect(page).toContain("`Nombre d'enfants : ${childrenCount}`");
+    expect(page).toContain('.join("\\n\\n")');
+    expect(page).toContain('type="number"');
+    expect(page).toContain('min="1"');
+    expect(page).toContain('step="1"');
+  });
+
+  it("uses only the KLYX blue for the booking brand accent", () => {
+    const page = read("app/providers/[id]/book/page.tsx");
+
+    expect(page).toContain("#2563eb");
+    expect(page).not.toContain("violet");
+    expect(page).not.toContain("purple");
+    expect(page).not.toContain("gradient");
   });
 
   it("does not reflect raw Supabase or booking API errors", () => {
@@ -53,6 +78,8 @@ describe("KLYX provider booking i18n contract", () => {
     expect(dictionary).toContain('"en"');
     expect(dictionary).toContain('"nl"');
     expect(dictionary).toContain('"de"');
+    expect(dictionary).toContain('"childrenInvalid"');
+    expect(dictionary).toContain('"children"');
     expect(dictionary).toContain(
       "Record<KlyxProviderBookingLocale, Dictionary>"
     );
