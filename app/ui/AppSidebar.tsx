@@ -93,7 +93,7 @@ const providerItems: MenuItem[] = [
   {
     title: "Services",
     translationLabel: "Services",
-    href: "/provider/services",
+    href: "/provider/studio",
     icon: Wrench,
   },
   {
