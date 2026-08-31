@@ -1,0 +1,191 @@
+/*
+  KLYX — AUTH VISUAL LAYER
+  Scope strictement visuel pour login / signup / reset-password.
+  Aucune logique d'authentification, route, donnée ou règle métier n'est modifiée.
+*/
+
+.klyx-auth-page {
+  min-height: 100vh;
+  background: #ffffff;
+  color: #18181b;
+}
+
+.klyx-auth-page main.dark {
+  --background: oklch(0.995 0 0);
+  --foreground: oklch(0.17 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.17 0 0);
+  --muted: oklch(0.965 0 0);
+  --muted-foreground: oklch(0.52 0 0);
+  --border: oklch(0.90 0 0);
+  --input: oklch(0.90 0 0);
+  --ring: #2563eb;
+  color-scheme: light;
+  background: #ffffff !important;
+  color: #18181b !important;
+}
+
+/* Aucun décor legacy : l'espace et la typographie portent l'écran. */
+.klyx-auth-page [class*="gradient"] {
+  background-image: none !important;
+}
+
+.klyx-auth-page [class*="bg-zinc-950"],
+.klyx-auth-page [class*="bg-zinc-900"],
+.klyx-auth-page [class*="bg-white/"] {
+  background-color: #ffffff !important;
+  background-image: none !important;
+}
+
+.klyx-auth-page [class*="border-white/"] {
+  border-color: #e4e4e7 !important;
+}
+
+.klyx-auth-page [class*="text-white/"] {
+  color: #71717a !important;
+}
+
+.klyx-auth-page [class~="text-white"] {
+  color: #18181b !important;
+}
+
+.klyx-auth-page [class*="text-violet-"],
+.klyx-auth-page [class*="text-purple-"],
+.klyx-auth-page [class*="text-indigo-"] {
+  color: #2563eb !important;
+}
+
+.klyx-auth-page [class*="border-violet-"],
+.klyx-auth-page [class*="border-purple-"],
+.klyx-auth-page [class*="border-indigo-"] {
+  border-color: #2563eb !important;
+}
+
+.klyx-auth-page [class*="ring-violet-"],
+.klyx-auth-page [class*="ring-purple-"],
+.klyx-auth-page [class*="ring-indigo-"] {
+  --tw-ring-color: rgba(37, 99, 235, 0.12) !important;
+}
+
+.klyx-auth-page [class*="bg-violet-"],
+.klyx-auth-page [class*="bg-purple-"],
+.klyx-auth-page [class*="bg-indigo-"] {
+  background-color: rgba(37, 99, 235, 0.07) !important;
+  background-image: none !important;
+}
+
+.klyx-auth-page input {
+  border-color: #e4e4e7 !important;
+  background: #ffffff !important;
+  color: #18181b !important;
+  box-shadow: none !important;
+}
+
+.klyx-auth-page input::placeholder {
+  color: #a1a1aa !important;
+}
+
+.klyx-auth-page input:focus {
+  border-color: #2563eb !important;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.09) !important;
+  outline: none !important;
+}
+
+/* Les vrais CTA gardent le seul bleu KLYX exact. Les cartes de rôle restent légères. */
+.klyx-auth-page .klyx-button,
+.klyx-auth-page button[class~="bg-violet-600"],
+.klyx-auth-page button[class~="bg-violet-700"],
+.klyx-auth-page button[class~="bg-indigo-600"],
+.klyx-auth-page button[class~="bg-indigo-700"] {
+  border-color: transparent !important;
+  background: #2563eb !important;
+  background-image: none !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.16) !important;
+}
+
+.klyx-auth-page .klyx-button:hover,
+.klyx-auth-page button[class~="bg-violet-600"]:hover,
+.klyx-auth-page button[class~="bg-violet-700"]:hover,
+.klyx-auth-page button[class~="bg-indigo-600"]:hover,
+.klyx-auth-page button[class~="bg-indigo-700"]:hover {
+  filter: brightness(0.96);
+}
+
+/* Feedback métier : rouge/vert restent sémantiques et lisibles sur fond clair. */
+.klyx-auth-page [class*="text-rose-"] {
+  color: #be123c !important;
+}
+
+.klyx-auth-page [class*="text-emerald-"] {
+  color: #047857 !important;
+}
+
+/* Login : une seule action centrale, sans panneau marketing desktop. */
+.klyx-auth-page main[class*="lg:grid-cols-[1.05fr_0.95fr]"] {
+  display: block !important;
+  min-height: 100vh;
+}
+
+.klyx-auth-page main[class*="lg:grid-cols-[1.05fr_0.95fr]"] > section:first-of-type {
+  display: none !important;
+}
+
+.klyx-auth-page main[class*="lg:grid-cols-[1.05fr_0.95fr]"] > section:last-of-type {
+  width: 100%;
+  max-width: 34rem;
+  margin-inline: auto;
+}
+
+/* Signup : même simplicité, le choix client/prestataire reste la seule bifurcation. */
+.klyx-auth-page main > .mx-auto.max-w-6xl > div[class*="lg:grid-cols"] {
+  display: block !important;
+  width: 100%;
+  max-width: 38rem;
+  margin: 2.5rem auto 0;
+  border-color: #e4e4e7 !important;
+  background: #ffffff !important;
+  box-shadow: 0 12px 36px rgba(24, 24, 27, 0.06) !important;
+}
+
+.klyx-auth-page main > .mx-auto.max-w-6xl > div[class*="lg:grid-cols"] > section:first-of-type {
+  display: none !important;
+}
+
+.klyx-auth-page main > .mx-auto.max-w-6xl > div[class*="lg:grid-cols"] > section:last-of-type {
+  background: #ffffff !important;
+}
+
+/* Les cartes de rôle non sélectionnées restent neutres. */
+.klyx-auth-page button[class*="border-white/10"] {
+  background: #ffffff !important;
+  border-color: #e4e4e7 !important;
+}
+
+.klyx-auth-page button[class*="border-white/10"]:hover {
+  background: #fafafa !important;
+}
+
+/* Reset password : carte claire et discrète. */
+.klyx-auth-page main > .w-full.max-w-md.rounded-3xl {
+  border-color: #e4e4e7 !important;
+  background: #ffffff !important;
+  box-shadow: 0 12px 36px rgba(24, 24, 27, 0.06) !important;
+}
+
+@media (max-width: 640px) {
+  .klyx-auth-page main > .mx-auto.max-w-6xl > div[class*="lg:grid-cols"] {
+    margin-top: 2rem;
+    border-radius: 1.5rem;
+    box-shadow: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .klyx-auth-page *,
+  .klyx-auth-page *::before,
+  .klyx-auth-page *::after {
+    scroll-behavior: auto !important;
+    transition: none !important;
+  }
+}

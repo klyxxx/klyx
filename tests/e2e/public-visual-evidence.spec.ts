@@ -23,6 +23,35 @@ async function attachPublicScreenshot(
   });
 }
 
+async function expectLogin(page: Page) {
+  await expect(
+    page.getByRole("heading", {
+      name: "Connexion à KLYX",
+    })
+  ).toBeVisible();
+}
+
+async function expectProviderSignup(page: Page) {
+  await expect(
+    page.getByRole("heading", {
+      name: "Commencer avec KLYX",
+    })
+  ).toBeVisible();
+  await expect(
+    page.getByText("Je rejoins KLYX comme prestataire", {
+      exact: true,
+    })
+  ).toBeVisible();
+}
+
+async function expectResetPassword(page: Page) {
+  await expect(
+    page.getByRole("heading", {
+      name: "Nouveau mot de passe",
+    })
+  ).toBeVisible();
+}
+
 test.describe("KLYX public visual evidence", () => {
   test("archives safe desktop and mobile screenshots", async ({ page }, testInfo) => {
     test.setTimeout(120_000);
@@ -38,27 +67,19 @@ test.describe("KLYX public visual evidence", () => {
     await attachPublicScreenshot(page, testInfo, "public-home-desktop");
 
     await page.goto("/login", { waitUntil: "domcontentloaded" });
-    await expect(
-      page.getByRole("heading", {
-        name: "Connexion à KLYX",
-      })
-    ).toBeVisible();
+    await expectLogin(page);
     await attachPublicScreenshot(page, testInfo, "public-login-desktop");
 
     await page.goto("/signup?type=provider", { waitUntil: "domcontentloaded" });
-    await expect(
-      page.getByRole("heading", {
-        name: "Commencer avec KLYX",
-      })
-    ).toBeVisible();
-    await expect(
-      page.getByText("Je rejoins KLYX comme prestataire", {
-        exact: true,
-      })
-    ).toBeVisible();
+    await expectProviderSignup(page);
     await attachPublicScreenshot(page, testInfo, "provider-signup-desktop");
 
+    await page.goto("/reset-password", { waitUntil: "domcontentloaded" });
+    await expectResetPassword(page);
+    await attachPublicScreenshot(page, testInfo, "reset-password-desktop");
+
     await page.setViewportSize({ width: 390, height: 844 });
+
     await page.goto("/", { waitUntil: "domcontentloaded" });
     await expect(
       page.getByRole("heading", {
@@ -66,5 +87,17 @@ test.describe("KLYX public visual evidence", () => {
       })
     ).toBeVisible();
     await attachPublicScreenshot(page, testInfo, "public-home-mobile");
+
+    await page.goto("/login", { waitUntil: "domcontentloaded" });
+    await expectLogin(page);
+    await attachPublicScreenshot(page, testInfo, "public-login-mobile");
+
+    await page.goto("/signup?type=provider", { waitUntil: "domcontentloaded" });
+    await expectProviderSignup(page);
+    await attachPublicScreenshot(page, testInfo, "provider-signup-mobile");
+
+    await page.goto("/reset-password", { waitUntil: "domcontentloaded" });
+    await expectResetPassword(page);
+    await attachPublicScreenshot(page, testInfo, "reset-password-mobile");
   });
 });
