@@ -1,0 +1,52 @@
+.verification {
+  --klyx-verification-blue: #2563eb;
+  --klyx-verification-blue-soft: color-mix(in srgb, #2563eb 10%, transparent);
+  --klyx-verification-blue-text: #2563eb;
+}
+
+:global(.dark) .verification {
+  --klyx-verification-blue-text: #60a5fa;
+}
+
+.verification :global(section[class*="bg-[linear-gradient"]) {
+  border: 1px solid var(--border) !important;
+  border-radius: 1.5rem !important;
+  background-color: var(--card) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  color: var(--foreground) !important;
+}
+
+.verification :global(section[class*="bg-[linear-gradient"]) :global(h1) {
+  font-size: clamp(1.75rem, 4vw, 2.5rem) !important;
+  letter-spacing: -0.03em;
+}
+
+.verification :global(section[class*="bg-[linear-gradient"]) :global([class~="border-white/10"]),
+.verification :global(section[class*="bg-[linear-gradient"]) :global([class~="border-white/12"]) {
+  border-color: var(--border) !important;
+}
+
+.verification :global(section[class*="bg-[linear-gradient"]) :global([class~="bg-white/5"]),
+.verification :global(section[class*="bg-[linear-gradient"]) :global([class~="bg-white/7"]) {
+  background-color: var(--muted) !important;
+}
+
+.verification :global(section[class*="bg-[linear-gradient"]) :global([class~="text-white/70"]) {
+  color: var(--muted-foreground) !important;
+}
+
+.verification :global([class~="bg-blue-500/10"]) {
+  background-color: var(--klyx-verification-blue-soft) !important;
+}
+
+.verification :global([class~="text-blue-600"]),
+.verification :global([class~="text-blue-400"]) {
+  color: var(--klyx-verification-blue-text) !important;
+}
+
+.verification :global([class~="bg-blue-600"]),
+.verification :global(button[class~="bg-emerald-600"]) {
+  background-color: var(--klyx-verification-blue) !important;
+  color: white !important;
+}
