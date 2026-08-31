@@ -1,0 +1,71 @@
+.studio {
+  --klyx-studio-blue: #2563eb;
+  --klyx-studio-blue-soft: color-mix(in srgb, #2563eb 10%, transparent);
+  --klyx-studio-blue-border: color-mix(in srgb, #2563eb 30%, transparent);
+  --klyx-studio-blue-text: #2563eb;
+}
+
+:global(.dark) .studio {
+  --klyx-studio-blue-text: #60a5fa;
+}
+
+.studio :global([class~="bg-gradient-to-br"]) {
+  background-color: var(--card) !important;
+  background-image: none !important;
+}
+
+.studio :global([class~="border-white/10"]) {
+  border-color: var(--border) !important;
+}
+
+.studio :global([class~="bg-black/25"]) {
+  background-color: var(--muted) !important;
+}
+
+.studio :global([class~="text-violet-200"]),
+.studio :global([class~="text-violet-300"]),
+.studio :global([class~="text-violet-400"]) {
+  color: var(--klyx-studio-blue-text) !important;
+}
+
+.studio :global([class~="bg-violet-500"]),
+.studio :global([class~="bg-violet-600"]) {
+  background-color: var(--klyx-studio-blue) !important;
+  color: white !important;
+}
+
+.studio :global([class~="bg-violet-500/10"]),
+.studio :global([class~="bg-violet-500/5"]) {
+  background-color: var(--klyx-studio-blue-soft) !important;
+}
+
+.studio :global([class~="border-violet-500/20"]),
+.studio :global([class~="border-violet-500/30"]) {
+  border-color: var(--klyx-studio-blue-border) !important;
+}
+
+.studio :global([class~="hover:border-violet-500"]:hover) {
+  border-color: var(--klyx-studio-blue) !important;
+}
+
+.studio :global([class~="hover:bg-violet-500/5"]:hover),
+.studio :global([class~="hover:bg-violet-500/10"]:hover),
+.studio :global([class~="focus-visible:bg-violet-500/10"]:focus-visible) {
+  background-color: var(--klyx-studio-blue-soft) !important;
+}
+
+.studio :global([class~="hover:bg-violet-700"]:hover) {
+  background-color: #1d4ed8 !important;
+}
+
+.studio :global([class~="focus:border-violet-500"]:focus) {
+  border-color: var(--klyx-studio-blue) !important;
+}
+
+.studio :global([class~="focus:ring-violet-500/20"]:focus) {
+  --tw-ring-color: color-mix(in srgb, #2563eb 20%, transparent) !important;
+}
+
+.studio :global([class~="accent-violet-600"]) {
+  accent-color: var(--klyx-studio-blue) !important;
+}
