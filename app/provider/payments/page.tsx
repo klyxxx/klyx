@@ -25,6 +25,7 @@ import { createClient } from "@/lib/supabase/client";
 import ProviderFinanceAudit from "./ProviderFinanceAudit";
 
 // KLYX_PROVIDER_LIVE_PAYMENT_READINESS_UI_15_06
+// KLYX_PROVIDER_FINANCE_VISUAL_2026_08_31
 
 type StripeStatus = {
   connected: boolean;
@@ -368,16 +369,19 @@ export default function ProviderPaymentsPage() {
           Espace prestataire
         </Link>
 
-        <section className="mt-6 rounded-[2rem] bg-[linear-gradient(135deg,#17131f,#2b1452_52%,#111827)] p-8 text-white">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.18em]">
+        <section className="mt-8 max-w-3xl">
+          <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-400">
             <WalletCards size={15} />
             Paiements prestataire
           </div>
 
           {/* KLYX_AI_FIRST_PROVIDER_FINANCE_15_04 */}
-          <h1 className="mt-5 text-3xl font-black sm:text-5xl">
+          <h1 className="mt-3 text-3xl font-bold tracking-[-0.04em] sm:text-5xl">
             Mes finances KLYX
           </h1>
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">
+            Suis les montants réellement enregistrés, les remboursements et l’état de ton compte de paiement.
+          </p>
         </section>
 
         {errorMessage && (
@@ -393,7 +397,7 @@ export default function ProviderPaymentsPage() {
         {loading ? (
           <section className="klyx-card mt-8 grid min-h-56 place-items-center">
             <LoaderCircle
-              className="animate-spin text-violet-600"
+              className="animate-spin text-blue-600"
               size={38}
             />
           </section>
@@ -451,7 +455,7 @@ export default function ProviderPaymentsPage() {
             <section className="klyx-card mt-6 p-6 sm:p-8">
               <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600 dark:text-blue-400">
                     Situation financière
                   </p>
 
@@ -519,7 +523,7 @@ export default function ProviderPaymentsPage() {
                       void continueVerification()
                     }
                     disabled={openingStripe}
-                    className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-violet-600 px-5 text-sm font-bold text-white transition hover:bg-violet-500 disabled:opacity-60"
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 text-sm font-bold text-white transition hover:bg-blue-700 disabled:opacity-60"
                   >
                     {openingStripe ? (
                       <LoaderCircle
@@ -679,7 +683,7 @@ export default function ProviderPaymentsPage() {
 
                           <Link
                             href={`/bookings/${entry.bookingId}`}
-                            className="text-sm font-black text-violet-600 dark:text-violet-400"
+                            className="text-sm font-black text-blue-600 dark:text-blue-400"
                           >
                             Voir
                           </Link>
@@ -710,7 +714,7 @@ function MoneyCard({
 }) {
   return (
     <article className="klyx-card p-5">
-      <span className="grid h-11 w-11 place-items-center rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
+      <span className="grid h-11 w-11 place-items-center rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
         {icon}
       </span>
 
@@ -744,7 +748,7 @@ function StatusCard({
     <article className="klyx-card p-5">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
+          <span className="grid h-10 w-10 place-items-center rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
             {icon}
           </span>
 
