@@ -6,11 +6,13 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Bell,
+  ChevronRight,
   CreditCard,
   Languages,
   LoaderCircle,
   LockKeyhole,
   LogOut,
+  Phone,
   ShieldAlert,
   Sun,
   Trash2,
@@ -37,6 +39,17 @@ type NotificationSettings = {
   promotions: boolean;
 };
 
+type SettingsPanel =
+  | "phone"
+  | "appearance"
+  | "payments"
+  | "auth"
+  | "notifications"
+  | "language"
+  | "privacy"
+  | "delete"
+  | null;
+
 const NOTIFICATIONS_KEY = "klyx_notification_settings";
 const DELETE_CONFIRMATION = "SUPPRIMER";
 
@@ -52,6 +65,7 @@ export default function SettingsPage() {
   const [savingPassword, setSavingPassword] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [openPanel, setOpenPanel] = useState<SettingsPanel>(null);
 
   const [accountType, setAccountType] =
     useState<"client" | "provider">("client");
@@ -75,6 +89,7 @@ export default function SettingsPage() {
   // KLYX_SETTINGS_SIDEBAR_FROZEN
   // KLYX_SETTINGS_SINGLE_BLUE
   // KLYX_SETTINGS_PHONE_HISTORY_VISIBLE
+  // KLYX_SETTINGS_PROGRESSIVE_DISCLOSURE
 
   useEffect(() => {
     let active = true;
@@ -133,6 +148,10 @@ export default function SettingsPage() {
   function failure(key: KlyxSettingsPageMessageKey) {
     setMessageKey(null);
     setErrorKey(key);
+  }
+
+  function togglePanel(panel: Exclude<SettingsPanel, null>) {
+    setOpenPanel((current) => (current === panel ? null : panel));
   }
 
   async function updateEmail(event: FormEvent<HTMLFormElement>) {
@@ -244,7 +263,7 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <main className="klyx-page grid min-h-screen place-items-center">
+      <main className="grid min-h-screen place-items-center bg-background">
         <LoaderCircle className="animate-spin text-blue-600" size={38} />
       </main>
     );
@@ -262,9 +281,18 @@ export default function SettingsPage() {
     ]
   >;
 
+  const phoneLabel =
+    locale === "fr"
+      ? "Téléphone"
+      : locale === "nl"
+        ? "Telefoon"
+        : locale === "de"
+          ? "Telefon"
+          : "Phone";
+
   return (
-    <main className="klyx-page pb-28 lg:pb-12">
-      <div className="mx-auto max-w-5xl">
+    <main className="min-h-screen bg-background px-4 pb-28 pt-7 text-foreground sm:px-6 sm:pt-10 lg:pb-12">
+      <div className="mx-auto max-w-3xl">
         {/* KLYX_AI_FIRST_SETTINGS_15_03 */}
         {/* KLYX_SETTINGS_PAGE_I18N_16_05 */}
         <Link
@@ -275,9 +303,14 @@ export default function SettingsPage() {
           {t("profile")}
         </Link>
 
-        <h1 className="mt-5 text-3xl font-bold tracking-[-0.04em] sm:text-5xl">
-          {t("title")}
-        </h1>
+        <header className="mt-6">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">
+            KLYX
+          </p>
+          <h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] sm:text-5xl">
+            {t("title")}
+          </h1>
+        </header>
 
         {messageKey && (
           <div className="mt-6 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-sm text-emerald-700 dark:text-emerald-300">
@@ -290,15 +323,29 @@ export default function SettingsPage() {
           </div>
         )}
 
-        <div className="mt-8 space-y-6">
-          {/* KLYX_REAL_SIDEBAR_PHONE_REPAIR_12_67F */}
-          <PhoneSettingsInline />
-          {/* KLYX_PHONE_PRIVACY_SETTINGS_12_75 */}
-          <PhonePrivacyControls />
-          {/* KLYX_PHONE_ACCESS_HISTORY_SETTINGS_12_76 */}
-          <PhoneAccessHistory />
+        <section className="mt-8 overflow-hidden rounded-2xl border border-border bg-card">
+          <SettingsDisclosure
+            icon={<Phone size={20} />}
+            title={phoneLabel}
+            open={openPanel === "phone"}
+            onToggle={() => togglePanel("phone")}
+          >
+            <div className="space-y-4">
+              {/* KLYX_REAL_SIDEBAR_PHONE_REPAIR_12_67F */}
+              <PhoneSettingsInline />
+              {/* KLYX_PHONE_PRIVACY_SETTINGS_12_75 */}
+              <PhonePrivacyControls />
+              {/* KLYX_PHONE_ACCESS_HISTORY_SETTINGS_12_76 */}
+              <PhoneAccessHistory />
+            </div>
+          </SettingsDisclosure>
 
-          <Section icon={<Sun />} title={t("appearance")}>
+          <SettingsDisclosure
+            icon={<Sun size={20} />}
+            title={t("appearance")}
+            open={openPanel === "appearance"}
+            onToggle={() => togglePanel("appearance")}
+          >
             <div className="grid gap-3 sm:grid-cols-3">
               {(["light", "dark", "system"] as const).map((value) => (
                 <button
@@ -319,20 +366,30 @@ export default function SettingsPage() {
                 </button>
               ))}
             </div>
-          </Section>
+          </SettingsDisclosure>
 
           {accountType === "provider" && (
-            <Section icon={<CreditCard />} title={t("providerPayments")}>
+            <SettingsDisclosure
+              icon={<CreditCard size={20} />}
+              title={t("providerPayments")}
+              open={openPanel === "payments"}
+              onToggle={() => togglePanel("payments")}
+            >
               <Link
                 href="/provider/payments"
                 className="inline-flex min-h-12 items-center rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500"
               >
                 {t("configurePayments")}
               </Link>
-            </Section>
+            </SettingsDisclosure>
           )}
 
-          <Section icon={<LockKeyhole />} title={t("auth")}>
+          <SettingsDisclosure
+            icon={<LockKeyhole size={20} />}
+            title={t("auth")}
+            open={openPanel === "auth"}
+            onToggle={() => togglePanel("auth")}
+          >
             <div className="space-y-8">
               <form onSubmit={updateEmail} className="space-y-4">
                 <Input
@@ -363,9 +420,14 @@ export default function SettingsPage() {
                 <Button loading={savingPassword}>{t("updatePassword")}</Button>
               </form>
             </div>
-          </Section>
+          </SettingsDisclosure>
 
-          <Section icon={<Bell />} title={t("notifications")}>
+          <SettingsDisclosure
+            icon={<Bell size={20} />}
+            title={t("notifications")}
+            open={openPanel === "notifications"}
+            onToggle={() => togglePanel("notifications")}
+          >
             <div className="space-y-3">
               {notificationRows.map(([key, labelKey, descriptionKey]) => {
                 const enabled = notifications[key];
@@ -374,7 +436,7 @@ export default function SettingsPage() {
                 return (
                   <div
                     key={key}
-                    className="flex min-w-0 items-center justify-between gap-5 rounded-2xl border border-border bg-background/50 p-4 sm:p-5"
+                    className="flex min-w-0 items-center justify-between gap-5 rounded-xl border border-border bg-background p-4"
                   >
                     <div className="min-w-0">
                       <p className="font-semibold text-foreground">{label}</p>
@@ -408,9 +470,14 @@ export default function SettingsPage() {
                 );
               })}
             </div>
-          </Section>
+          </SettingsDisclosure>
 
-          <Section icon={<Languages />} title={t("language")}>
+          <SettingsDisclosure
+            icon={<Languages size={20} />}
+            title={t("language")}
+            open={openPanel === "language"}
+            onToggle={() => togglePanel("language")}
+          >
             <KlyxSelect
               value={locale}
               onChange={setLocale}
@@ -420,9 +487,14 @@ export default function SettingsPage() {
               }))}
               ariaLabel={t("language")}
             />
-          </Section>
+          </SettingsDisclosure>
 
-          <Section icon={<ShieldAlert />} title={t("privacySupport")}>
+          <SettingsDisclosure
+            icon={<ShieldAlert size={20} />}
+            title={t("privacySupport")}
+            open={openPanel === "privacy"}
+            onToggle={() => togglePanel("privacy")}
+          >
             <div className="grid gap-3 sm:grid-cols-2">
               <SettingsLink href="/privacy" label={t("privacyPolicy")} />
               <SettingsLink href="/terms" label={t("terms")} />
@@ -432,83 +504,118 @@ export default function SettingsPage() {
                 label={t("webAccountDeletion")}
               />
             </div>
-          </Section>
+          </SettingsDisclosure>
 
-          <section className="rounded-2xl border border-border bg-card p-5 sm:p-6">
-            <button
-              type="button"
-              onClick={() => void logout()}
-              disabled={loggingOut}
-              className="inline-flex min-h-12 items-center gap-2 rounded-xl border border-border px-5 py-3 font-semibold transition hover:bg-muted disabled:opacity-50"
-            >
-              {loggingOut ? (
-                <LoaderCircle className="animate-spin" size={18} />
-              ) : (
-                <LogOut size={18} />
-              )}
-              {t("logout")}
-            </button>
-          </section>
+          <SettingsDisclosure
+            icon={<Trash2 size={20} />}
+            title={t("deleteTitle")}
+            open={openPanel === "delete"}
+            onToggle={() => togglePanel("delete")}
+            danger
+          >
+            <div className="rounded-xl border border-red-500/30 bg-red-500/[0.06] p-4 sm:p-5">
+              <p className="text-sm leading-6 text-muted-foreground">
+                {t("deleteDescription")}
+              </p>
 
-          <section className="rounded-2xl border border-red-500/30 bg-red-500/[0.06] p-5 sm:p-6">
-            <div className="flex gap-4">
-              <ShieldAlert className="text-red-600" />
-              <div>
-                <h2 className="text-xl font-semibold text-red-600">
-                  {t("deleteTitle")}
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  {t("deleteDescription")}
-                </p>
-              </div>
+              <input
+                value={deleteConfirmation}
+                onChange={(event) => setDeleteConfirmation(event.target.value)}
+                className="klyx-input mt-5 focus:border-red-500/50 focus:ring-red-500/10"
+                placeholder={t("deletePlaceholder")}
+              />
+
+              <button
+                type="button"
+                onClick={() => void deleteAccount()}
+                disabled={
+                  deletingAccount || deleteConfirmation !== DELETE_CONFIRMATION
+                }
+                className="mt-4 inline-flex min-h-12 items-center gap-2 rounded-xl bg-red-600 px-5 py-3 font-semibold text-white transition hover:bg-red-500 disabled:opacity-40"
+              >
+                {deletingAccount ? (
+                  <LoaderCircle className="animate-spin" size={18} />
+                ) : (
+                  <Trash2 size={18} />
+                )}
+                {t("deleteForever")}
+              </button>
             </div>
+          </SettingsDisclosure>
+        </section>
 
-            <input
-              value={deleteConfirmation}
-              onChange={(event) => setDeleteConfirmation(event.target.value)}
-              className="klyx-input mt-5"
-              placeholder={t("deletePlaceholder")}
-            />
-
-            <button
-              type="button"
-              onClick={() => void deleteAccount()}
-              disabled={
-                deletingAccount || deleteConfirmation !== DELETE_CONFIRMATION
-              }
-              className="mt-4 inline-flex min-h-12 items-center gap-2 rounded-xl bg-red-600 px-5 py-3 font-semibold text-white transition hover:bg-red-500 disabled:opacity-40"
-            >
-              {deletingAccount ? (
-                <LoaderCircle className="animate-spin" size={18} />
-              ) : (
-                <Trash2 size={18} />
-              )}
-              {t("deleteForever")}
-            </button>
-          </section>
-        </div>
+        <button
+          type="button"
+          onClick={() => void logout()}
+          disabled={loggingOut}
+          className="mt-4 inline-flex min-h-12 items-center gap-2 rounded-xl px-2 py-3 text-sm font-semibold text-muted-foreground transition hover:text-foreground disabled:opacity-50"
+        >
+          {loggingOut ? (
+            <LoaderCircle className="animate-spin" size={18} />
+          ) : (
+            <LogOut size={18} />
+          )}
+          {t("logout")}
+        </button>
       </div>
     </main>
   );
 }
 
-function Section({
+function SettingsDisclosure({
   icon,
   title,
+  open,
+  onToggle,
   children,
+  danger = false,
 }: {
   icon: React.ReactNode;
   title: string;
+  open: boolean;
+  onToggle: () => void;
   children: React.ReactNode;
+  danger?: boolean;
 }) {
   return (
-    <section className="rounded-2xl border border-border bg-card p-5 sm:p-6">
-      <div className="flex items-center gap-3 text-blue-600">
-        {icon}
-        <h2 className="text-xl font-semibold text-foreground">{title}</h2>
-      </div>
-      <div className="mt-6">{children}</div>
-    </section>
+    <div className="border-b border-border last:border-b-0">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={onToggle}
+        className="flex min-h-16 w-full items-center justify-between gap-4 px-5 py-4 text-left transition hover:bg-muted/55 sm:px-6"
+      >
+        <div className="flex min-w-0 items-center gap-4">
+          <span
+            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+              danger
+                ? "bg-red-500/10 text-red-600"
+                : "bg-blue-600/8 text-blue-600"
+            }`}
+          >
+            {icon}
+          </span>
+          <span
+            className={`truncate font-semibold ${danger ? "text-red-600" : ""}`}
+          >
+            {title}
+          </span>
+        </div>
+
+        <ChevronRight
+          size={20}
+          className={`shrink-0 transition-transform ${
+            danger ? "text-red-600" : "text-blue-600"
+          } ${open ? "rotate-90" : ""}`}
+        />
+      </button>
+
+      {open && (
+        <div className="border-t border-border bg-muted/20 px-5 py-5 sm:px-6 sm:py-6">
+          {children}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -516,7 +623,7 @@ function SettingsLink({ href, label }: { href: string; label: string }) {
   return (
     <Link
       href={href}
-      className="rounded-xl border border-border p-4 font-semibold transition hover:bg-muted"
+      className="rounded-xl border border-border bg-background p-4 font-semibold transition hover:bg-muted"
     >
       {label}
     </Link>
