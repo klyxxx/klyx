@@ -45,9 +45,9 @@ const labels:
     babysitting:
       "Baby-sitting",
     cleaning:
-      "Menage",
+      "Ménage",
     moving:
-      "Demenagement",
+      "Déménagement",
     handyman:
       "Bricolage",
   };
@@ -339,7 +339,7 @@ function MultiRequestContent() {
     return (
       <main className="klyx-page">
         <div className="mx-auto max-w-4xl rounded-3xl border border-rose-500/20 bg-rose-500/10 p-6 text-rose-700 dark:text-rose-300">
-          Demande multi-creneaux introuvable.
+          Demande multi-créneaux introuvable.
         </div>
       </main>
     );
@@ -348,18 +348,18 @@ function MultiRequestContent() {
   return (
     <main className="klyx-page">
       <div className="mx-auto max-w-5xl">
-        <section className="rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#17131f,#4c1d95_52%,#111827)] p-7 text-white sm:p-10">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white/70">
+        <section className="rounded-[2rem] border border-border bg-card p-7 text-foreground sm:p-10">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[#2563EB]/15 bg-[#2563EB]/[0.06] px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-[#2563EB]">
             <Sparkles size={15} />
-            KLYX multi-creneaux
+            KLYX multi-créneaux
           </div>
 
           <h1 className="mt-5 text-3xl font-black sm:text-5xl">
-            Verifie tous les creneaux
+            Vérifie tous les créneaux
           </h1>
 
-          <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">
-            KLYX va publier une seule demande et privilegier un prestataire capable de couvrir tous les horaires.
+          <p className="mt-4 max-w-3xl text-sm leading-7 text-muted-foreground">
+            KLYX va publier une seule demande et privilégier un prestataire capable de couvrir tous les horaires.
           </p>
         </section>
 
@@ -380,7 +380,7 @@ function MultiRequestContent() {
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div>
                     <p className="klyx-eyebrow">
-                      Creneau{" "}
+                      Créneau{" "}
                       {index + 1}
                     </p>
 
@@ -416,7 +416,7 @@ function MultiRequestContent() {
                         size={17}
                       />
                     }
-                    label="Duree"
+                    label="Durée"
                     value={
                       duration(
                         slot
@@ -440,7 +440,7 @@ function MultiRequestContent() {
                             2
                           ) +
                           " EUR"
-                        : "Non defini"
+                        : "Non défini"
                     }
                   />
                 </div>
@@ -452,17 +452,17 @@ function MultiRequestContent() {
         <section className="klyx-card mt-6 p-6">
           <div className="flex items-center gap-3">
             <UsersRound
-              className="text-violet-600"
+              className="text-[#2563EB]"
               size={24}
             />
 
             <div>
               <p className="font-black">
-                Priorite : meme prestataire
+                Priorité : même prestataire
               </p>
 
               <p className="mt-1 text-sm text-muted-foreground">
-                KLYX compare disponibilites et reservations sur tous les creneaux.
+                KLYX compare disponibilités et réservations sur tous les créneaux.
               </p>
             </div>
           </div>
@@ -496,7 +496,7 @@ function MultiRequestContent() {
                       2
                     ) +
                     " EUR"
-                  : "Partiellement defini"
+                  : "Partiellement défini"
               }
             />
           </div>
@@ -515,7 +515,7 @@ function MultiRequestContent() {
             onClick={() =>
               void publish()
             }
-            className="mt-6 inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-violet-600 px-6 font-black text-white disabled:opacity-50"
+            className="mt-6 inline-flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#2563EB] px-6 font-black text-white transition hover:bg-[#1D4ED8] disabled:opacity-50"
           >
             {publishing ? (
               <>
@@ -530,13 +530,13 @@ function MultiRequestContent() {
                 <CheckCircle2
                   size={19}
                 />
-                Publier cette demande groupee
+                Publier cette demande groupée
               </>
             )}
           </button>
 
           <p className="mt-3 text-center text-xs text-muted-foreground">
-            Aucune reservation et aucun paiement ne seront executes automatiquement.
+            Aucune réservation et aucun paiement ne seront exécutés automatiquement.
           </p>
         </section>
       </div>
@@ -573,7 +573,7 @@ export default function MultiRequestConfirmPage() {
       fallback={
         <main className="klyx-page grid min-h-72 place-items-center">
           <LoaderCircle
-            className="animate-spin text-violet-600"
+            className="animate-spin text-[#2563EB]"
             size={34}
           />
         </main>
