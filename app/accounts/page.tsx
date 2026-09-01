@@ -83,32 +83,6 @@ async function fetchAccountsData() {
   };
 }
 
-function AccountStatCard({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: number;
-  detail: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-      <p className="text-xs font-black uppercase tracking-[0.15em] text-muted-foreground">
-        {label}
-      </p>
-
-      <p className="mt-3 text-3xl font-black tracking-[-0.04em]">
-        {value}
-      </p>
-
-      <p className="mt-1 text-xs text-muted-foreground">
-        {detail}
-      </p>
-    </div>
-  );
-}
-
 export default function AccountsPage() {
   const router = useRouter();
   const { locale } = useKlyxLocale();
@@ -133,10 +107,8 @@ export default function AccountsPage() {
   const [error, setError] = useState<PageNotice | null>(null);
   const [success, setSuccess] = useState<PageNotice | null>(null);
   // KLYX_CREATED_PROFILE_NEXT_ACTION_14_13
-  const [
-    createdAccountType,
-    setCreatedAccountType,
-  ] = useState<AccountType | null>(null);
+  const [createdAccountType, setCreatedAccountType] =
+    useState<AccountType | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -474,344 +446,128 @@ export default function AccountsPage() {
 
   // KLYX_ACCOUNT_OVERVIEW_13_90
   // KLYX_ACCOUNTS_PAGE_I18N_16_06
-  const clientProfiles = profiles.filter(
-    (profile) => profile.accountType === "client"
-  ).length;
-
-  const providerProfiles = profiles.filter(
-    (profile) => profile.accountType === "provider"
-  ).length;
-
-  const activeProfile =
-    profiles.find((profile) => profile.id === activeProfileId) ?? null;
-
-  const activeProfileName = activeProfile
-    ? `${activeProfile.firstName} ${activeProfile.lastName}`.trim() ||
-      t("profileDefault")
-    : t("noActiveProfile");
-
-  const activeProfileRole =
-    activeProfile?.accountType === "provider"
-      ? t("provider")
-      : activeProfile
-        ? t("client")
-        : "—";
-
   return (
-    <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6 sm:py-12">
+    <main className="min-h-screen bg-background px-4 pb-28 pt-8 text-foreground sm:px-6 sm:py-12 lg:pb-12">
       <div className="mx-auto max-w-3xl">
         <button
           type="button"
           onClick={() => router.push("/dashboard")}
-          className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition hover:text-foreground"
+          className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition hover:text-foreground"
         >
           <ArrowLeft size={17} /> {t("backDashboard")}
         </button>
 
         {/* KLYX_MULTI_PROFILE_OVERVIEW_13_90 */}
-        <section className="klyx-accounts-overview mb-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
-                {t("connectionEyebrow")}
-              </p>
+        <header className="mt-8 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+          <div className="max-w-xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600 dark:text-blue-400">
+              KLYX
+            </p>
+            <h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] sm:text-5xl">
+              {t("myProfiles")}
+            </h1>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground sm:text-base">
+              {t("myProfilesDescription")}
+            </p>
+            {/* KLYX_PROFILE_TYPE_GUIDANCE_14_06 */}
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">
+              {t("profileTypeGuidance")}
+            </p>
+          </div>
 
-              <h1 className="mt-2 text-2xl font-black tracking-[-0.035em] sm:text-3xl">
-                {t("overviewTitle")}
-              </h1>
-            </div>
-
-            <span className="w-fit rounded-full border border-border bg-card px-3 py-1.5 text-xs font-black text-muted-foreground shadow-sm">
+          <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
+            {/* KLYX_PROFILE_CAPACITY_14_11 */}
+            <span className="text-xs font-medium text-muted-foreground sm:text-right">
               {t("profilesCount", {
                 count: profiles.length,
                 max: MAX_PROFILES,
               })}
             </span>
-          </div>
 
-          <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <AccountStatCard
-              label={t("profilesLabel")}
-              value={profiles.length}
-              detail={t("oneConnection")}
-            />
-
-            <AccountStatCard
-              label={t("clients")}
-              value={clientProfiles}
-              detail={t("dailyServices")}
-            />
-
-            <AccountStatCard
-              label={t("providers")}
-              value={providerProfiles}
-              detail={t("professionalActivities")}
-            />
-
-            <div className="rounded-2xl border border-violet-500/20 bg-violet-500/[0.045] p-5">
-              <p className="text-xs font-black uppercase tracking-[0.15em] text-muted-foreground">
-                {t("activeProfile")}
-              </p>
-
-              <p className="mt-3 truncate text-lg font-black">
-                {activeProfileName}
-              </p>
-
-              <p className="mt-1 text-sm font-bold text-violet-600 dark:text-violet-400">
-                {activeProfileRole}
-              </p>
-            </div>
-          </div>
-
-          {/* KLYX_ACCOUNT_SESSION_SAFETY_13_90 */}
-          <div className="mt-4 rounded-2xl border border-border bg-card p-4 text-sm leading-6 text-muted-foreground">
-            {t("sessionSafety")}
-          </div>
-        </section>
-
-        {/* KLYX_PROFILE_QUICK_CREATE_13_91 */}
-        <section className="klyx-accounts-quick-create mb-6 grid gap-4 md:grid-cols-2">
-          <button
-            type="button"
-            disabled={profiles.length >= MAX_PROFILES}
-            onClick={() => openCreateForm("client")}
-            className="group rounded-3xl border border-violet-500/20 bg-violet-500/[0.045] p-6 text-left transition hover:-translate-y-0.5 hover:border-violet-500/35 hover:bg-violet-500/[0.07] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
-                <UserRound size={21} />
-              </span>
-
-              <Plus
-                size={20}
-                className="text-violet-600 transition group-hover:rotate-90 dark:text-violet-400"
-              />
-            </div>
-
-            <p className="mt-5 text-xs font-black uppercase tracking-[0.16em] text-violet-600 dark:text-violet-400">
-              {t("newProfile")}
-            </p>
-
-            <h2 className="mt-2 text-xl font-black">
-              {t("addClientProfile")}
-            </h2>
-
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              {t("clientCreateDescription")}
-            </p>
-          </button>
-
-          <button
-            type="button"
-            disabled={profiles.length >= MAX_PROFILES}
-            onClick={() => openCreateForm("provider")}
-            className="group rounded-3xl border border-blue-500/20 bg-blue-500/[0.045] p-6 text-left transition hover:-translate-y-0.5 hover:border-blue-500/35 hover:bg-blue-500/[0.07] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                <Briefcase size={21} />
-              </span>
-
-              <Plus
-                size={20}
-                className="text-blue-600 transition group-hover:rotate-90 dark:text-blue-400"
-              />
-            </div>
-
-            <p className="mt-5 text-xs font-black uppercase tracking-[0.16em] text-blue-600 dark:text-blue-400">
-              {t("newProfile")}
-            </p>
-
-            <h2 className="mt-2 text-xl font-black">
-              {t("addProviderProfile")}
-            </h2>
-
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              {t("providerCreateDescription")}
-            </p>
-          </button>
-
-          {/* KLYX_PROFILE_LIMIT_GUIDANCE_13_91 */}
-          {profiles.length >= MAX_PROFILES && (
-            <div className="md:col-span-2 rounded-2xl border border-amber-500/20 bg-amber-500/[0.06] p-4 text-sm leading-6 text-amber-700 dark:text-amber-300">
-              {t("limitGuidance", { max: MAX_PROFILES })}
-            </div>
-          )}
-        </section>
-
-        <section className="overflow-hidden rounded-3xl border border-border bg-card text-card-foreground shadow-sm">
-          <div className="flex flex-col gap-5 border-b border-border p-6 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-violet-600 dark:text-violet-400">
-                KLYX
-              </p>
-              <h1 className="mt-2 text-2xl font-bold sm:text-3xl">
-                {t("myProfiles")}
-              </h1>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {t("myProfilesDescription")}
-              </p>
-              {/* KLYX_PROFILE_TYPE_GUIDANCE_14_06 */}
-              <p className="mt-2 max-w-xl text-xs leading-5 text-muted-foreground">
-                {t("profileTypeGuidance")}
-              </p>
-            </div>
-
+            {/* KLYX_PROFILE_QUICK_CREATE_13_91 */}
             {/* KLYX_EXPLICIT_PROFILE_CREATION_14_06 */}
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <button
-                type="button"
-                disabled={profiles.length >= MAX_PROFILES}
-                onClick={() => openCreateForm("client")}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <UserRound size={18} />
-                {t("addClient")}
-              </button>
-
-              <button
-                type="button"
-                disabled={profiles.length >= MAX_PROFILES}
-                onClick={() => openCreateForm("provider")}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 py-3 text-sm font-semibold transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Briefcase size={18} />
-                {t("addProvider")}
-              </button>
-            </div>
-          </div>
-
-          {/* KLYX_PROFILE_CAPACITY_14_11 */}
-          <div className="px-6 pt-5">
-            <div
-              className={`rounded-2xl border p-4 ${
-                profiles.length >= MAX_PROFILES
-                  ? "border-amber-500/30 bg-amber-500/10"
-                  : "border-border bg-muted/30"
-              }`}
+            <button
+              type="button"
+              disabled={profiles.length >= MAX_PROFILES}
+              onClick={() => openCreateForm()}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <Plus size={17} />
+              {t("addProfile")}
+            </button>
+          </div>
+        </header>
+
+        {/* KLYX_ACCOUNT_SESSION_SAFETY_13_90 */}
+        <p className="mt-5 text-xs leading-5 text-muted-foreground">
+          {t("sessionSafety")}
+        </p>
+
+        {/* KLYX_PROFILE_LIMIT_GUIDANCE_13_91 */}
+        {/* KLYX_PROFILE_LIMIT_GUARD_14_11 */}
+        {profiles.length >= MAX_PROFILES && (
+          <p className="mt-4 rounded-xl border border-amber-500/25 bg-amber-500/8 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
+            {t("limitGuidance", { max: MAX_PROFILES })}
+          </p>
+        )}
+
+        {(error || success) && (
+          <div className="mt-6 space-y-3">
+            {error && (
+              <p className="rounded-xl border border-red-500/20 bg-red-500/8 p-4 text-sm text-red-700 dark:text-red-300">
+                {t(error.key, error.values)}
+              </p>
+            )}
+
+            {success && (
+              <p className="rounded-xl border border-emerald-500/20 bg-emerald-500/8 p-4 text-sm text-emerald-700 dark:text-emerald-300">
+                {t(success.key, success.values)}
+              </p>
+            )}
+
+            {/* KLYX_CREATED_PROFILE_HANDOFF_14_13 */}
+            {success && createdAccountType && (
+              <div className="rounded-2xl border border-border bg-card p-4 sm:flex sm:items-center sm:justify-between sm:gap-5">
                 <div>
-                  <p className="text-sm font-black">
-                    {t("profilesLabel")}
+                  <p className="font-semibold">
+                    {createdAccountType === "provider"
+                      ? t("providerReady")
+                      : t("clientReady")}
                   </p>
-
                   <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                    {profiles.length >= MAX_PROFILES
-                      ? t("capacityReached")
-                      : t("capacityAvailable")}
+                    {createdAccountType === "provider"
+                      ? t("providerNextDescription")
+                      : t("clientNextDescription")}
                   </p>
                 </div>
-
-                <div
-                  className={`shrink-0 rounded-xl px-4 py-2 text-sm font-black ${
-                    profiles.length >= MAX_PROFILES
-                      ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
-                      : "bg-violet-500/10 text-violet-700 dark:text-violet-300"
-                  }`}
+                <button
+                  type="button"
+                  onClick={() =>
+                    router.push(
+                      createdAccountType === "provider"
+                        ? "/provider"
+                        : "/assistant/market"
+                    )
+                  }
+                  className="mt-4 inline-flex min-h-11 w-full shrink-0 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-700 sm:mt-0 sm:w-auto"
                 >
-                  {t("profilesCount", {
-                    count: profiles.length,
-                    max: MAX_PROFILES,
-                  })}
-                </div>
+                  {createdAccountType === "provider"
+                    ? t("prepareActivity")
+                    : t("organizeFirstNeed")}
+                </button>
+                {/* KLYX_CREATED_PROFILE_EXPLICIT_CONTROL_14_13 */}
               </div>
+            )}
+          </div>
+        )}
 
-              <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
-                <div
-                  className="h-full rounded-full bg-violet-600 transition-all"
-                  style={{
-                    width: `${Math.min(
-                      100,
-                      (profiles.length / MAX_PROFILES) * 100
-                    )}%`,
-                  }}
-                />
-              </div>
-
-              {/* KLYX_PROFILE_LIMIT_GUARD_14_11 */}
-              {profiles.length >= MAX_PROFILES && (
-                <p className="mt-3 text-xs font-bold text-amber-700 dark:text-amber-300">
-                  {t("capacityGuard")}
-                </p>
-              )}
-            </div>
+        <section className="mt-8 overflow-hidden rounded-2xl border border-border bg-card">
+          <div className="border-b border-border px-5 py-4 sm:px-6">
+            <p className="text-sm font-semibold">{t("profilesLabel")}</p>
           </div>
 
-          {(error || success) && (
-            <div className="px-6 pt-5">
-              {error && (
-                <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300">
-                  {t(error.key, error.values)}
-                </p>
-              )}
-
-              {success && (
-                <div className="space-y-3">
-                  <p className="rounded-xl bg-green-50 p-3 text-sm text-green-700 dark:bg-green-950/30 dark:text-green-300">
-                    {t(success.key, success.values)}
-                  </p>
-
-                  {/* KLYX_CREATED_PROFILE_HANDOFF_14_13 */}
-                  {createdAccountType && (
-                    <div className="rounded-2xl border border-violet-500/20 bg-violet-500/5 p-4">
-                      <p className="text-xs font-black uppercase tracking-[0.16em] text-violet-600 dark:text-violet-400">
-                        {t("profileReady")}
-                      </p>
-
-                      <p className="mt-2 font-black">
-                        {createdAccountType === "provider"
-                          ? t("providerReady")
-                          : t("clientReady")}
-                      </p>
-
-                      <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                        {createdAccountType === "provider"
-                          ? t("providerNextDescription")
-                          : t("clientNextDescription")}
-                      </p>
-
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            router.push(
-                              createdAccountType === "provider"
-                                ? "/provider"
-                                : "/assistant/market"
-                            )
-                          }
-                          className="inline-flex min-h-11 items-center justify-center rounded-xl bg-violet-600 px-4 py-3 text-sm font-black text-white transition hover:bg-violet-700"
-                        >
-                          {createdAccountType === "provider"
-                            ? t("prepareActivity")
-                            : t("organizeFirstNeed")}
-                        </button>
-
-                        {createdAccountType === "provider" && (
-                          <button
-                            type="button"
-                            onClick={() => router.push("/provider/jobs")}
-                            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-border bg-background px-4 py-3 text-sm font-black transition hover:bg-muted"
-                          >
-                            {t("viewOpportunities")}
-                          </button>
-                        )}
-                      </div>
-
-                      {/* KLYX_CREATED_PROFILE_EXPLICIT_CONTROL_14_13 */}
-                      <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                        {t("noAutomaticAction")}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="space-y-3 p-6">
-            {profiles.map((profile) => {
+          <div>
+            {profiles.map((profile, index) => {
               const isActive = profile.id === activeProfileId;
               const fullName =
                 `${profile.firstName} ${profile.lastName}`.trim() ||
@@ -820,11 +576,9 @@ export default function AccountsPage() {
               return (
                 <article
                   key={profile.id}
-                  className={`rounded-2xl border p-4 transition sm:p-5 ${
-                    isActive
-                      ? "border-violet-500 bg-violet-50/70 dark:bg-violet-950/20"
-                      : "border-border"
-                  }`}
+                  className={`px-5 py-5 sm:px-6 ${
+                    index > 0 ? "border-t border-border" : ""
+                  } ${isActive ? "bg-blue-600/[0.035]" : "bg-card"}`}
                 >
                   <div className="flex items-start gap-4">
                     <ProfileAvatar profile={profile} size="large" />
@@ -833,35 +587,29 @@ export default function AccountsPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <h2 className="truncate font-semibold">{fullName}</h2>
                         {isActive && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-violet-600 px-2 py-1 text-xs font-semibold text-white">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-600/10 px-2 py-1 text-xs font-semibold text-blue-700 dark:text-blue-300">
                             <Check size={13} /> {t("active")}
                           </span>
                         )}
                       </div>
-                      <p className="mt-1 text-sm text-muted-foreground">
+                      <p className="mt-1 text-sm leading-6 text-muted-foreground">
                         {profile.accountType === "provider"
                           ? t("providerAccount")
                           : t("clientAccount")}
                         {profile.city ? ` · ${profile.city}` : ""}
                         {profile.countryCode ? ` · ${profile.countryCode}` : ""}
-                        {profile.currencyCode ? ` · ${profile.currencyCode}` : ""}
                       </p>
                     </div>
                   </div>
 
-                  <div className="mt-4 flex flex-wrap gap-2 sm:justify-end">
+                  <div className="mt-4 flex flex-wrap items-center gap-2 sm:justify-end">
                     {/* KLYX_ACTIVE_PROFILE_DELETE_NOTICE_14_12 */}
-                    {isActive && profiles.length > 1 && (
-                      <p className="w-full text-xs text-muted-foreground sm:text-right">
-                        {t("activeDeleteNotice")}
-                      </p>
-                    )}
                     {!isActive && (
                       <button
                         type="button"
                         disabled={switchingId !== null || deletingId !== null}
-                        onClick={() => handleSwitch(profile.id)}
-                        className="rounded-xl bg-foreground px-4 py-2 text-sm font-semibold text-background disabled:opacity-50"
+                        onClick={() => void handleSwitch(profile.id)}
+                        className="inline-flex min-h-10 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-50"
                       >
                         {switchingId === profile.id
                           ? t("switching")
@@ -873,50 +621,51 @@ export default function AccountsPage() {
                       type="button"
                       disabled={saving || deletingId !== null}
                       onClick={() => openEditForm(profile)}
-                      className="inline-flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-sm font-medium transition hover:bg-muted disabled:opacity-50"
+                      className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-border px-3 text-sm font-medium transition hover:bg-muted disabled:opacity-50"
                     >
-                      <Pencil size={16} /> {t("edit")}
+                      <Pencil size={15} /> {t("edit")}
                     </button>
 
-                    <button
-                      type="button"
-                      disabled={
-                        isActive ||
-                        profiles.length <= 1 ||
-                        deletingId !== null ||
-                        switchingId !== null
-                      }
-                      onClick={() => handleDelete(profile)}
-                      className="inline-flex items-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-red-900 dark:hover:bg-red-950/30"
-                    >
-                      <Trash2 size={16} />
-                      {deletingId === profile.id ? t("deleting") : t("delete")}
-                    </button>
+                    {!isActive && profiles.length > 1 && (
+                      <button
+                        type="button"
+                        disabled={deletingId !== null || switchingId !== null}
+                        onClick={() => void handleDelete(profile)}
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-red-600 transition hover:bg-red-500/8 disabled:opacity-40"
+                        aria-label={`${t("delete")} ${fullName}`}
+                        title={t("delete")}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
                   </div>
                 </article>
               );
             })}
-
-            {profiles.length >= MAX_PROFILES && (
-              <p className="pt-2 text-center text-sm text-muted-foreground">
-                {t("limitReachedShort")}
-              </p>
-            )}
           </div>
         </section>
+
+        {profiles.length >= MAX_PROFILES && (
+          <p className="mt-4 text-center text-sm text-muted-foreground">
+            {t("limitReachedShort")}
+          </p>
+        )}
       </div>
 
       {formMode && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-6">
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/45 p-0 backdrop-blur-[2px] sm:items-center sm:p-6">
           <section
             role="dialog"
             aria-modal="true"
             aria-labelledby="profile-form-title"
-            className="max-h-[95vh] w-full max-w-xl overflow-y-auto rounded-t-3xl border border-border bg-card text-card-foreground shadow-2xl sm:rounded-3xl"
+            className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-t-3xl border border-border bg-background text-foreground shadow-2xl sm:rounded-3xl"
           >
-            <div className="flex items-start justify-between border-b border-border p-6">
+            <div className="flex items-start justify-between border-b border-border p-5 sm:p-6">
               <div>
-                <h2 id="profile-form-title" className="text-xl font-bold">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600 dark:text-blue-400">
+                  KLYX
+                </p>
+                <h2 id="profile-form-title" className="mt-1 text-xl font-bold">
                   {formMode === "create" ? t("addProfile") : t("editProfile")}
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -941,11 +690,11 @@ export default function AccountsPage() {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5 p-6">
+            <form onSubmit={handleSubmit} className="space-y-5 p-5 pb-8 sm:p-6">
               {formMode === "create" && (
                 <fieldset>
                   <legend className="mb-3 text-sm font-semibold">
-                    {t("profileType") .replace("{{role}}", "").trim()}
+                    {t("profileType").replace("{{role}}", "").trim()}
                   </legend>
                   <div className="grid grid-cols-2 gap-3">
                     <AccountTypeButton
@@ -973,8 +722,8 @@ export default function AccountsPage() {
                 </fieldset>
               )}
 
-              <div className="flex flex-col items-center gap-3 rounded-2xl bg-muted/60 p-5">
-                <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-violet-600 text-2xl font-bold text-white">
+              <div className="flex flex-col items-center gap-3 rounded-2xl bg-muted/45 p-5">
+                <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-blue-600 text-xl font-semibold text-white">
                   {avatarPreview ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -987,7 +736,7 @@ export default function AccountsPage() {
                   )}
                 </div>
                 <div className="flex flex-wrap justify-center gap-2">
-                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm font-medium transition hover:bg-muted">
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-sm font-medium transition hover:bg-muted">
                     <Camera size={17} /> {t("choosePhoto")}
                     <input
                       type="file"
@@ -1000,7 +749,7 @@ export default function AccountsPage() {
                     <button
                       type="button"
                       onClick={clearAvatar}
-                      className="rounded-xl px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 dark:hover:bg-red-950/30"
+                      className="rounded-xl px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-500/8"
                     >
                       {t("remove")}
                     </button>
@@ -1045,18 +794,13 @@ export default function AccountsPage() {
                 <span className="mb-2 block text-sm font-semibold">
                   {t("country")}
                 </span>
-
                 <KlyxMarketSelect
                   value={form.countryCode}
                   onChange={(countryCode) =>
-                    setForm((current) => ({
-                      ...current,
-                      countryCode,
-                    }))
+                    setForm((current) => ({ ...current, countryCode }))
                   }
                   required
                 />
-
                 {form.countryCode && (
                   <span className="mt-2 block text-xs text-muted-foreground">
                     {t("klyxCurrency", {
@@ -1075,10 +819,7 @@ export default function AccountsPage() {
                   <KlyxServiceSelect
                     value={form.serviceId}
                     onChange={(value) =>
-                      setForm((current) => ({
-                        ...current,
-                        serviceId: value,
-                      }))
+                      setForm((current) => ({ ...current, serviceId: value }))
                     }
                     placeholder={t("chooseProfession")}
                     searchPlaceholder={t("searchProfession")}
@@ -1099,7 +840,7 @@ export default function AccountsPage() {
               )}
 
               {error && (
-                <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300">
+                <p className="rounded-xl bg-red-500/8 p-3 text-sm text-red-700 dark:text-red-300">
                   {t(error.key, error.values)}
                 </p>
               )}
@@ -1109,14 +850,14 @@ export default function AccountsPage() {
                   type="button"
                   disabled={saving}
                   onClick={closeForm}
-                  className="rounded-xl border border-border px-5 py-3 text-sm font-semibold transition hover:bg-muted disabled:opacity-50"
+                  className="min-h-11 rounded-xl border border-border px-5 text-sm font-semibold transition hover:bg-muted disabled:opacity-50"
                 >
                   {t("cancel")}
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="rounded-xl bg-violet-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-violet-700 disabled:cursor-wait disabled:opacity-60"
+                  className="min-h-11 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60"
                 >
                   {saving
                     ? t("saving")
@@ -1146,7 +887,7 @@ function ProfileAvatar({
 
   return (
     <div
-      className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-violet-600 font-semibold text-white ${sizeClass}`}
+      className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-blue-600 font-semibold text-white ${sizeClass}`}
     >
       {profile.avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
@@ -1184,7 +925,7 @@ function AccountTypeButton({
       onClick={onClick}
       className={`rounded-2xl border p-4 text-left transition ${
         selected
-          ? "border-violet-500 bg-violet-50 text-violet-950 ring-2 ring-violet-500/20 dark:bg-violet-950/30 dark:text-violet-100"
+          ? "border-blue-600 bg-blue-600/[0.045] ring-2 ring-blue-600/10"
           : "border-border hover:bg-muted"
       }`}
     >
@@ -1192,7 +933,7 @@ function AccountTypeButton({
         {isProvider ? <Briefcase size={18} /> : <UserRound size={18} />}
         {isProvider ? t("provider") : t("client")}
       </span>
-      <span className="mt-2 block text-xs text-muted-foreground">
+      <span className="mt-2 block text-xs leading-5 text-muted-foreground">
         {isProvider ? t("providerOfferServices") : t("clientBookServices")}
       </span>
     </button>
@@ -1222,7 +963,7 @@ function FormField({
         autoComplete={autoComplete}
         required
         maxLength={maxLength}
-        className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20"
+        className="w-full rounded-xl border border-input bg-background px-4 py-3 text-sm outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/15"
       />
     </label>
   );
