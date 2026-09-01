@@ -13,6 +13,7 @@ import { supabase } from "@/lib/supabase";
 
 // KLYX_PHONE_PRIVACY_UI_12_75
 // KLYX_PHONE_PRIVACY_I18N_16_07
+// KLYX_PHONE_PRIVACY_SINGLE_BLUE
 
 type Visibility = "private" | "transaction_participants";
 
@@ -128,9 +129,9 @@ export default function PhonePrivacyControls() {
 
   if (loading) {
     return (
-      <section className="mb-7 rounded-[30px] border border-border bg-card p-6">
-        <div className="flex items-center gap-3 text-sm font-bold text-muted-foreground">
-          <LoaderCircle size={19} className="animate-spin" />
+      <section className="mb-7 rounded-2xl border border-border bg-card p-6">
+        <div className="flex items-center gap-3 text-sm font-medium text-muted-foreground">
+          <LoaderCircle size={19} className="animate-spin text-blue-600" />
           {t("loading")}
         </div>
       </section>
@@ -138,13 +139,13 @@ export default function PhonePrivacyControls() {
   }
 
   return (
-    <section className="mb-7 rounded-[30px] border border-border bg-card p-6 sm:p-7">
+    <section className="mb-7 rounded-2xl border border-border bg-card p-6 sm:p-7">
       <div className="flex items-start gap-4">
-        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-emerald-500/10 text-emerald-500">
+        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-blue-600/8 text-blue-600">
           <ShieldCheck size={22} />
         </div>
         <div>
-          <h2 className="text-xl font-black">{t("title")}</h2>
+          <h2 className="text-xl font-semibold">{t("title")}</h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
             {t("description")}
           </p>
@@ -152,13 +153,13 @@ export default function PhonePrivacyControls() {
       </div>
 
       {!hasPhone && (
-        <div className="mt-5 rounded-2xl bg-amber-500/10 px-4 py-3 text-sm font-bold text-amber-600 dark:text-amber-400">
+        <div className="mt-5 rounded-2xl bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-600 dark:text-amber-400">
           {t("phoneRequired")}
         </div>
       )}
 
       {hasPhone && !verified && (
-        <div className="mt-5 rounded-2xl bg-amber-500/10 px-4 py-3 text-sm font-bold text-amber-600 dark:text-amber-400">
+        <div className="mt-5 rounded-2xl bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-600 dark:text-amber-400">
           {t("verificationRequired")}
         </div>
       )}
@@ -171,13 +172,13 @@ export default function PhonePrivacyControls() {
           className={
             "flex min-h-28 items-start gap-4 rounded-2xl border p-5 text-left transition " +
             (visibility === "transaction_participants"
-              ? "border-violet-500 bg-violet-500/[0.07]"
-              : "border-border bg-background hover:border-violet-500/40")
+              ? "border-blue-600 bg-blue-600/[0.07]"
+              : "border-border bg-background hover:border-blue-600/40")
           }
         >
-          <Users size={21} className="mt-0.5 shrink-0 text-violet-500" />
+          <Users size={21} className="mt-0.5 shrink-0 text-blue-600" />
           <span>
-            <span className="block font-black">{t("participantsTitle")}</span>
+            <span className="block font-semibold">{t("participantsTitle")}</span>
             <span className="mt-1 block text-sm leading-6 text-muted-foreground">
               {t("participantsDescription")}
             </span>
@@ -191,13 +192,13 @@ export default function PhonePrivacyControls() {
           className={
             "flex min-h-28 items-start gap-4 rounded-2xl border p-5 text-left transition " +
             (visibility === "private"
-              ? "border-rose-500 bg-rose-500/[0.06]"
-              : "border-border bg-background hover:border-rose-500/40")
+              ? "border-red-500 bg-red-500/[0.06]"
+              : "border-border bg-background hover:border-red-500/40")
           }
         >
-          <EyeOff size={21} className="mt-0.5 shrink-0 text-rose-500" />
+          <EyeOff size={21} className="mt-0.5 shrink-0 text-red-500" />
           <span>
-            <span className="block font-black">{t("privateTitle")}</span>
+            <span className="block font-semibold">{t("privateTitle")}</span>
             <span className="mt-1 block text-sm leading-6 text-muted-foreground">
               {t("privateDescription")}
             </span>
@@ -206,20 +207,20 @@ export default function PhonePrivacyControls() {
       </div>
 
       {saving && (
-        <div className="mt-4 flex items-center gap-2 text-sm font-bold text-muted-foreground">
+        <div className="mt-4 flex items-center gap-2 text-sm font-medium text-muted-foreground">
           <LoaderCircle size={16} className="animate-spin" />
           {t("saving")}
         </div>
       )}
 
       {messageKey && (
-        <div className="mt-4 rounded-2xl bg-emerald-500/10 px-4 py-3 text-sm font-bold text-emerald-500">
+        <div className="mt-4 rounded-2xl bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-500">
           {t(messageKey)}
         </div>
       )}
 
       {errorKey && (
-        <div className="mt-4 rounded-2xl bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-500">
+        <div className="mt-4 rounded-2xl bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-500">
           {t(errorKey)}
         </div>
       )}
