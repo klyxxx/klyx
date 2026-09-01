@@ -387,7 +387,7 @@ export default function BookingsPage() {
         {!loading && counts.all > 0 && (
           <nav
             aria-label={t("title")}
-            className="mt-8 flex gap-6 overflow-x-auto border-b border-border"
+            className="mt-8 flex gap-4 overflow-x-auto border-b border-border sm:gap-6"
           >
             {filterOptions.map((option) => {
               const active = filter === option.value;
