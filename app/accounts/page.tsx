@@ -509,7 +509,7 @@ export default function AccountsPage() {
         </button>
 
         {/* KLYX_MULTI_PROFILE_OVERVIEW_13_90 */}
-        <section className="mb-6">
+        <section className="klyx-accounts-overview mb-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.18em] text-violet-600 dark:text-violet-400">
@@ -570,7 +570,7 @@ export default function AccountsPage() {
         </section>
 
         {/* KLYX_PROFILE_QUICK_CREATE_13_91 */}
-        <section className="mb-6 grid gap-4 md:grid-cols-2">
+        <section className="klyx-accounts-quick-create mb-6 grid gap-4 md:grid-cols-2">
           <button
             type="button"
             disabled={profiles.length >= MAX_PROFILES}
