@@ -51,8 +51,14 @@ async function addSyntheticPhoto(page: Page) {
   await page.getByLabel("Explique le besoin").fill(
     "Une fuite synthétique sous un évier pour vérifier seulement le rendu visuel KLYX."
   );
-  await page.getByText("Autoriser l’analyse visuelle IA de cette photo").click();
-  await expect(page.getByRole("button", { name: "Analyser avec KLYX" })).toBeEnabled();
+
+  const visionConsent = page.locator('input[type="checkbox"]');
+  await visionConsent.check({ force: true });
+  await expect(visionConsent).toBeChecked();
+
+  const submit = page.locator('button[type="submit"]');
+  await expect(submit).toBeEnabled();
+  await expect(submit).toContainText("Analyser avec KLYX");
 }
 
 test.describe("KLYX photo request visual evidence", () => {
