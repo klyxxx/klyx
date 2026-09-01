@@ -192,11 +192,11 @@ export default function PhonePrivacyControls() {
           className={
             "flex min-h-28 items-start gap-4 rounded-2xl border p-5 text-left transition " +
             (visibility === "private"
-              ? "border-red-500 bg-red-500/[0.06]"
-              : "border-border bg-background hover:border-red-500/40")
+              ? "border-blue-600 bg-blue-600/[0.07]"
+              : "border-border bg-background hover:border-blue-600/40")
           }
         >
-          <EyeOff size={21} className="mt-0.5 shrink-0 text-red-500" />
+          <EyeOff size={21} className="mt-0.5 shrink-0 text-blue-600" />
           <span>
             <span className="block font-semibold">{t("privateTitle")}</span>
             <span className="mt-1 block text-sm leading-6 text-muted-foreground">
