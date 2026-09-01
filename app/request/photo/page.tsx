@@ -299,7 +299,7 @@ export default function PhotoRequestPage() {
         </Link>
 
         <header className="mx-auto max-w-2xl pb-7 pt-6 text-center sm:pt-10">
-          <span className="mx-auto grid h-11 w-11 place-items-center rounded-2xl bg-violet-500/12 text-violet-600 dark:text-violet-300">
+          <span className="mx-auto grid h-11 w-11 place-items-center rounded-2xl bg-[#2563EB]/10 text-[#2563EB]">
             <Sparkles size={21} />
           </span>
           <h1 className="mt-4 text-3xl font-bold tracking-tight sm:text-4xl">
@@ -317,9 +317,9 @@ export default function PhotoRequestPage() {
           <div className="grid gap-0 md:grid-cols-[280px_minmax(0,1fr)]">
             <div className="border-b border-border p-4 dark:border-white/8 md:border-b-0 md:border-r">
               {!previewUrl ? (
-                <label className="group grid min-h-44 cursor-pointer place-items-center rounded-[22px] border border-dashed border-border bg-background/45 p-5 text-center transition hover:border-violet-500/35 hover:bg-violet-500/[0.035] dark:border-white/10 dark:bg-white/[0.02]">
+                <label className="group grid min-h-44 cursor-pointer place-items-center rounded-[22px] border border-dashed border-border bg-background/45 p-5 text-center transition hover:border-[#2563EB]/35 hover:bg-[#2563EB]/[0.035] dark:border-white/10 dark:bg-white/[0.02]">
                   <div>
-                    <span className="mx-auto grid h-11 w-11 place-items-center rounded-2xl bg-violet-500/10 text-violet-600 transition group-hover:scale-105 dark:text-violet-300">
+                    <span className="mx-auto grid h-11 w-11 place-items-center rounded-2xl bg-[#2563EB]/10 text-[#2563EB] transition group-hover:scale-105">
                       <Upload size={20} />
                     </span>
                     <p className="mt-3 text-sm font-bold">Ajouter une photo</p>
@@ -395,10 +395,10 @@ export default function PhotoRequestPage() {
                   }}
                   className="peer sr-only"
                 />
-                <span className="relative h-6 w-11 shrink-0 rounded-full bg-muted transition peer-checked:bg-violet-600 after:absolute after:left-1 after:top-1 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition peer-checked:after:translate-x-5 dark:bg-white/[0.10]" />
+                <span className="relative h-6 w-11 shrink-0 rounded-full bg-muted transition peer-checked:bg-[#2563EB] after:absolute after:left-1 after:top-1 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition peer-checked:after:translate-x-5 dark:bg-white/[0.10]" />
                 <span className="min-w-0">
                   <span className="flex items-center gap-1.5 text-xs font-bold">
-                    <Eye size={14} className="text-violet-500" />
+                    <Eye size={14} className="text-[#2563EB]" />
                     Autoriser l’analyse visuelle IA de cette photo
                   </span>
                   <span className="mt-0.5 block text-[10px] leading-4 text-muted-foreground">
@@ -410,7 +410,7 @@ export default function PhotoRequestPage() {
               <button
                 type="submit"
                 disabled={!ready}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-violet-600 px-5 text-sm font-bold text-white shadow-[0_10px_30px_rgba(109,40,217,0.22)] transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-35"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#2563EB] px-5 text-sm font-bold text-white shadow-[0_10px_30px_rgba(37,99,235,0.22)] transition hover:bg-[#1D4ED8] disabled:cursor-not-allowed disabled:opacity-35"
               >
                 {uploading ? (
                   <LoaderCircle className="animate-spin" size={17} />
@@ -448,7 +448,7 @@ export default function PhotoRequestPage() {
         {analysis && (
           <section className="mx-auto mt-8 max-w-3xl pb-10">
             <div className="flex gap-3 sm:gap-4">
-              <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-violet-500 text-white">
+              <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#2563EB] text-white">
                 <Sparkles size={17} />
               </span>
 
@@ -473,7 +473,7 @@ export default function PhotoRequestPage() {
 
                 {analysis.analysisMode === "vision_ai" &&
                   analysis.visionConfidence != null && (
-                    <div className="mt-4 rounded-2xl border border-violet-500/15 bg-violet-500/[0.045] p-4">
+                    <div className="mt-4 rounded-2xl border border-[#2563EB]/15 bg-[#2563EB]/[0.045] p-4">
                       <p className="text-xs font-bold text-foreground">
                         Confiance des indices visuels : {analysis.visionConfidence} %
                       </p>
@@ -518,7 +518,7 @@ export default function PhotoRequestPage() {
                           key={candidate.slug}
                           type="button"
                           onClick={() => openSearch(candidate.slug)}
-                          className="rounded-2xl border border-border bg-background px-3 py-3 text-left text-xs transition hover:border-violet-500/30 hover:bg-violet-500/[0.05] dark:border-white/10"
+                          className="rounded-2xl border border-border bg-background px-3 py-3 text-left text-xs transition hover:border-[#2563EB]/30 hover:bg-[#2563EB]/[0.05] dark:border-white/10"
                           title={candidate.reason}
                         >
                           <span className="flex items-center justify-between gap-3 font-semibold">
