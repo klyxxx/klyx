@@ -93,7 +93,11 @@ async function expectAboveMobileNavigation(page: Page) {
   ).toBeLessThanOrEqual(navigationBox!.y);
 }
 
-test.describe("KLYX Profile → Settings visual evidence", () => {
+function disclosureButtons(page: Page) {
+  return page.getByRole("main").locator('button[aria-expanded]');
+}
+
+test.describe("KLYX Profile → Settings destination visual evidence", () => {
   test.skip(
     !hasE2ECredentials,
     "Dedicated KLYX E2E credentials are not configured."
@@ -109,7 +113,7 @@ test.describe("KLYX Profile → Settings visual evidence", () => {
     }
   });
 
-  test("keeps frozen navigation and exposes focused Settings for both roles", async ({
+  test("keeps destinations calm by revealing details only on demand", async ({
     page,
   }, testInfo) => {
     test.setTimeout(240_000);
@@ -128,11 +132,23 @@ test.describe("KLYX Profile → Settings visual evidence", () => {
       page.getByRole("navigation", { name: "Navigation principale KLYX" })
     ).toBeVisible();
 
-    await attachViewport(page, testInfo, "client-profile-settings-entry-desktop");
+    const profileEditorToggle = disclosureButtons(page).first();
+    await expect(profileEditorToggle).toHaveAttribute("aria-expanded", "false");
+    await expect(page.locator("#firstName")).toHaveCount(0);
+
+    await attachViewport(page, testInfo, "client-profile-calm-desktop");
+
+    await profileEditorToggle.click();
+    await expect(profileEditorToggle).toHaveAttribute("aria-expanded", "true");
+    await expect(page.locator("#firstName")).toBeVisible();
+    await attachViewport(page, testInfo, "client-profile-editor-expanded-desktop");
+
+    await profileEditorToggle.click();
+    await expect(page.locator("#firstName")).toHaveCount(0);
 
     await page.setViewportSize({ width: 390, height: 844 });
     await expectAboveMobileNavigation(page);
-    await attachViewport(page, testInfo, "client-profile-settings-entry-mobile");
+    await attachViewport(page, testInfo, "client-profile-calm-mobile");
 
     await clientSettingsLink.click();
     await expect(page).toHaveURL(/\/settings(?:\?|$)/);
@@ -141,20 +157,25 @@ test.describe("KLYX Profile → Settings visual evidence", () => {
       .getByRole("main")
       .locator('a[href="/profile"]');
     await expect(settingsBackLink).toBeVisible();
-    await expect(page.getByRole("switch")).toHaveCount(3);
+    await expect(page.getByRole("switch")).toHaveCount(0);
     await expect(
       page.getByRole("navigation", { name: "Navigation mobile KLYX" })
     ).toBeVisible();
-    await settingsBackLink.scrollIntoViewIfNeeded();
-    await expect(settingsBackLink).toBeInViewport();
 
-    await attachViewport(page, testInfo, "client-settings-mobile");
+    const clientPanels = disclosureButtons(page);
+    await expect(clientPanels.first()).toHaveAttribute("aria-expanded", "false");
+    await attachViewport(page, testInfo, "client-settings-calm-mobile");
+
+    await clientPanels.nth(1).click();
+    await expect(clientPanels.nth(1)).toHaveAttribute("aria-expanded", "true");
+    await attachViewport(page, testInfo, "client-settings-appearance-expanded-mobile");
+    await clientPanels.nth(1).click();
 
     await page.setViewportSize({ width: 1440, height: 1000 });
     await expect(
       page.getByRole("navigation", { name: "Navigation principale KLYX" })
     ).toBeVisible();
-    await attachViewport(page, testInfo, "client-settings-desktop");
+    await attachViewport(page, testInfo, "client-settings-calm-desktop");
 
     await activateKlyxE2EProfile(page, "provider");
     await page.goto("/profile", { waitUntil: "domcontentloaded" });
@@ -167,15 +188,20 @@ test.describe("KLYX Profile → Settings visual evidence", () => {
       page.getByRole("main").locator('a[href="/provider"]')
     ).toBeVisible();
 
-    await attachViewport(page, testInfo, "provider-profile-settings-entry-desktop");
+    await attachViewport(page, testInfo, "provider-profile-calm-desktop");
 
     await providerSettingsLink.click();
     await expect(page).toHaveURL(/\/settings(?:\?|$)/);
-    await expect(
-      page.getByRole("main").locator('a[href="/provider/payments"]')
-    ).toBeVisible();
 
-    await attachViewport(page, testInfo, "provider-settings-desktop");
+    const providerPaymentLink = page
+      .getByRole("main")
+      .locator('a[href="/provider/payments"]');
+    await expect(providerPaymentLink).toHaveCount(0);
+
+    const providerPanels = disclosureButtons(page);
+    await providerPanels.nth(2).click();
+    await expect(providerPaymentLink).toBeVisible();
+    await attachViewport(page, testInfo, "provider-settings-payments-expanded-desktop");
 
     await activateKlyxE2EProfile(page, "client");
   });
