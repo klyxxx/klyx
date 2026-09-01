@@ -145,6 +145,7 @@ test.describe("KLYX Profile → Settings visual evidence", () => {
     await expect(
       page.getByRole("navigation", { name: "Navigation mobile KLYX" })
     ).toBeVisible();
+    await settingsBackLink.scrollIntoViewIfNeeded();
     await expect(settingsBackLink).toBeInViewport();
 
     await attachViewport(page, testInfo, "client-settings-mobile");
