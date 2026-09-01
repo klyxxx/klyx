@@ -2,10 +2,8 @@
 
 import Link from "next/link";
 import {
-  AlertTriangle,
   ArrowRight,
   CalendarDays,
-  CheckCircle2,
   ChevronDown,
   Clock3,
   Layers3,
@@ -25,6 +23,7 @@ import {
 
 // KLYX_SPLIT_MISSION_UI_13_21
 // KLYX_SPLIT_MISSION_I18N_16_08
+// KLYX_ACTIVITY_SPLIT_DESTINATION_2026_09_01
 
 export type SplitMissionState =
   | "creating"
@@ -116,14 +115,10 @@ export function splitMissionMatchesFilter(
 
 function statusClass(mission: SplitMissionSummary) {
   if (splitMissionNeedsAction(mission)) {
-    return "border-red-500/25 bg-red-500/8 text-red-700 dark:text-red-300";
+    return "border-blue-600/20 bg-blue-600/[0.06] text-blue-700 dark:text-blue-300";
   }
 
-  if (mission.status === "completed") {
-    return "border-emerald-500/25 bg-emerald-500/8 text-emerald-700 dark:text-emerald-300";
-  }
-
-  return "border-blue-600/20 bg-blue-600/8 text-blue-700 dark:text-blue-300";
+  return "border-border bg-background text-muted-foreground";
 }
 
 export default function SplitMissionSection({
@@ -145,26 +140,24 @@ export default function SplitMissionSection({
 
   return (
     <section className="mt-8">
-      <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400">
-        <Layers3 size={17} />
+      <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+        <Layers3 size={16} className="text-blue-600" />
         <span>{t("sectionTitle")}</span>
       </div>
 
-      <div className="space-y-4">
-        {visible.map((mission) => {
+      <div className="overflow-hidden rounded-[1.5rem] border border-border bg-card">
+        {visible.map((mission, index) => {
           const needsAction = splitMissionNeedsAction(mission);
 
           return (
             <article
               key={mission.id}
-              className={`rounded-2xl border bg-card p-5 shadow-sm sm:p-6 ${
-                needsAction ? "border-red-500/25" : "border-border"
-              }`}
+              className={`p-5 sm:p-6 ${index > 0 ? "border-t border-border" : ""}`}
             >
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-lg font-semibold">
+                    <h3 className="text-lg font-semibold tracking-[-0.02em]">
                       {formatKlyxSplitMissionService(
                         locale,
                         mission.serviceSlug,
@@ -194,30 +187,28 @@ export default function SplitMissionSection({
                       {mission.providerCount} {t("providers").toLowerCase()}
                     </span>
                   </div>
+
+                  {needsAction && (
+                    <p className="mt-4 max-w-2xl border-l-2 border-blue-600 pl-3 text-sm leading-6 text-muted-foreground">
+                      {t("dangerNotice")}
+                    </p>
+                  )}
+
+                  {mission.status === "completed" && (
+                    <p className="mt-4 text-sm font-medium text-muted-foreground">
+                      {t("completedNotice")}
+                    </p>
+                  )}
                 </div>
 
                 <Link
                   href={"/bookings/split/" + mission.batchId}
-                  className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500"
+                  className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 text-sm font-semibold text-blue-600 transition hover:text-blue-700"
                 >
                   {t("viewMission")}
                   <ArrowRight size={16} />
                 </Link>
               </div>
-
-              {needsAction && (
-                <div className="mt-5 flex gap-3 rounded-xl border border-red-500/20 bg-red-500/8 p-4 text-sm text-red-700 dark:text-red-300">
-                  <AlertTriangle className="mt-0.5 shrink-0" size={18} />
-                  <p>{t("dangerNotice")}</p>
-                </div>
-              )}
-
-              {mission.status === "completed" && (
-                <div className="mt-5 flex items-center gap-2 text-sm font-medium text-emerald-700 dark:text-emerald-300">
-                  <CheckCircle2 size={17} />
-                  {t("completedNotice")}
-                </div>
-              )}
 
               <details className="group mt-5 border-t border-border pt-4">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-muted-foreground transition hover:text-foreground marker:hidden">
@@ -228,11 +219,11 @@ export default function SplitMissionSection({
                   />
                 </summary>
 
-                <div className="mt-4 space-y-2">
+                <div className="mt-4 divide-y divide-border border-y border-border">
                   {mission.slots.map((slot) => (
                     <div
                       key={slot.slotId}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-border bg-background px-4 py-3"
+                      className="flex items-center justify-between gap-3 py-3"
                     >
                       <div className="flex min-w-0 items-center gap-3">
                         <div className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-muted">
@@ -258,7 +249,7 @@ export default function SplitMissionSection({
                         </div>
                       </div>
 
-                      <p className="shrink-0 text-xs font-medium">
+                      <p className="shrink-0 text-xs font-medium text-muted-foreground">
                         {formatKlyxSplitMissionDate(locale, slot.date)}
                       </p>
                     </div>
