@@ -320,7 +320,7 @@ export default function ConversationPage() {
             className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500"
           >
             <ArrowLeft size={17} />
-            {t("backDashboardFull")}
+            {t("backMessagesFull")}
           </Link>
         </div>
       </main>

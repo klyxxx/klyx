@@ -70,9 +70,11 @@ describe("KLYX message conversation i18n and safety contract", () => {
     expect(page).not.toContain("payment_intent");
   });
 
-  it("preserves the existing dashboard destinations", () => {
+  it("returns both conversation exits to the Messages overview", () => {
     const page = read("app/messages/[bookingId]/page.tsx");
 
-    expect(page.match(/href="\/dashboard"/g)?.length).toBe(2);
+    expect(page.match(/href="\/messages"/g)?.length).toBe(2);
+    expect(page).not.toContain('href="/dashboard"');
+    expect(page).toContain('t("backMessagesFull")');
   });
 });
