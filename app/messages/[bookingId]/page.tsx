@@ -11,18 +11,23 @@ import {
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+import { ArrowLeft, LoaderCircle, Send, UserRound } from "lucide-react";
+
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
-import { supabase } from "@/lib/supabase";
-import { getActiveClientProfile } from "@/lib/account-switcher";
+import { getActiveProfileAccount } from "@/lib/account-switcher";
 import type { KlyxLocale } from "@/lib/klyx-i18n";
 import {
   getKlyxMessageConversationLocaleTag,
   translateKlyxMessageConversation,
   type KlyxMessageConversationMessageKey,
 } from "@/lib/klyx-message-conversation-i18n";
+import { supabase } from "@/lib/supabase";
 
 // KLYX_MESSAGE_CONVERSATION_I18N
 // KLYX_MESSAGE_CONVERSATION_SAFE_ERRORS
+// KLYX_MESSAGE_CONVERSATION_ROLE_AWARE
+// KLYX_MESSAGE_CONVERSATION_SINGLE_BLUE
+// KLYX_MESSAGE_CONVERSATION_MOBILE_SAFE_VIEWPORT
 
 type BookingRow = {
   id: string;
@@ -122,7 +127,7 @@ export default function ConversationPage() {
         return;
       }
 
-      const activeProfile = await getActiveClientProfile();
+      const activeProfile = await getActiveProfileAccount();
       const activeProfileId = activeProfile.id;
 
       setCurrentUserId(activeProfileId);
@@ -292,23 +297,31 @@ export default function ConversationPage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 text-foreground dark:text-white">
-        {t("loading")}
+      <main className="grid min-h-screen place-items-center bg-background px-4 text-foreground">
+        <div className="flex items-center gap-3 text-sm font-medium text-muted-foreground">
+          <LoaderCircle className="animate-spin text-blue-600" size={20} />
+          {t("loading")}
+        </div>
       </main>
     );
   }
 
   if (!booking) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 px-6 text-center text-foreground dark:text-white">
-        <div>
-          <h1 className="text-2xl font-bold">{t("unavailableTitle")}</h1>
-          <p className="mt-3 text-red-400">{errorMessage}</p>
+      <main className="grid min-h-screen place-items-center bg-background px-6 text-center text-foreground">
+        <div className="max-w-md">
+          <h1 className="text-2xl font-bold tracking-[-0.03em]">
+            {t("unavailableTitle")}
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-red-600 dark:text-red-300">
+            {errorMessage}
+          </p>
           <Link
-            href="/dashboard"
-            className="mt-6 inline-flex rounded-xl bg-violet-600 px-6 py-3 font-semibold"
+            href="/messages"
+            className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500"
           >
-            {t("backDashboardFull")}
+            <ArrowLeft size={17} />
+            {t("backMessagesFull")}
           </Link>
         </div>
       </main>
@@ -316,47 +329,53 @@ export default function ConversationPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background dark:bg-zinc-950 px-4 py-6 text-foreground dark:text-white sm:px-6">
-      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-4xl flex-col overflow-hidden rounded-3xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900">
-        <header className="flex items-center gap-4 border-b border-border dark:border-zinc-800 p-4 sm:p-6">
+    <main className="bg-background px-3 py-4 text-foreground sm:px-6 lg:min-h-screen lg:py-8">
+      <div className="mx-auto flex h-[calc(100dvh_-_10rem_-_env(safe-area-inset-bottom))] min-h-0 max-w-4xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm lg:h-[calc(100vh-4rem)]">
+        <header className="flex items-center gap-3 border-b border-border p-4 sm:gap-4 sm:p-5">
           <Link
-            href="/dashboard"
-            className="rounded-xl border border-border dark:border-zinc-700 px-3 py-2 text-sm text-foreground/80 dark:text-zinc-300 hover:bg-muted dark:bg-zinc-800"
+            href="/messages"
+            aria-label={t("back")}
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-background text-muted-foreground transition hover:bg-muted hover:text-foreground"
           >
-            {t("back")}
+            <ArrowLeft size={18} />
           </Link>
 
-          <img
-            src={
-              otherUser?.avatar_url ||
-              "https://placehold.co/100x100?text=KLYX"
-            }
-            alt={otherUserName}
-            className="h-12 w-12 rounded-full object-cover"
-          />
+          <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-muted sm:h-12 sm:w-12">
+            {otherUser?.avatar_url ? (
+              <img
+                src={otherUser.avatar_url}
+                alt={otherUserName}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <UserRound size={20} className="text-muted-foreground" />
+            )}
+          </div>
 
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-lg font-bold">{otherUserName}</h1>
-            <p className="truncate text-sm text-muted-foreground dark:text-zinc-400">
+            <h1 className="truncate text-base font-semibold sm:text-lg">
+              {otherUserName}
+            </h1>
+            <p className="truncate text-xs text-muted-foreground sm:text-sm">
               {formatDate(booking.booking_date, locale)} ·{" "}
               {formatTime(booking.start_time)}–{formatTime(booking.end_time)}
             </p>
           </div>
 
-          <span className="rounded-full border border-border dark:border-zinc-700 px-3 py-1 text-xs text-foreground/80 dark:text-zinc-300">
+          <span className="hidden rounded-full border border-border bg-background px-3 py-1 text-xs font-medium text-muted-foreground sm:inline-flex">
             {booking.status}
           </span>
         </header>
 
         {errorMessage && (
-          <div className="m-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+          <div className="mx-4 mt-4 rounded-xl border border-red-500/25 bg-red-500/8 p-3 text-sm text-red-700 dark:text-red-300 sm:mx-5">
             {errorMessage}
           </div>
         )}
 
-        <section className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
+        <section className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 sm:p-5">
           {messages.length === 0 && (
-            <div className="py-16 text-center text-muted-foreground dark:text-zinc-500">
+            <div className="grid min-h-48 place-items-center text-center text-sm text-muted-foreground">
               {t("empty")}
             </div>
           )}
@@ -370,19 +389,19 @@ export default function ConversationPage() {
                 className={`flex ${isMine ? "justify-end" : "justify-start"}`}
               >
                 <div
-                  className={`max-w-[85%] rounded-2xl px-4 py-3 sm:max-w-[70%] ${
+                  className={`max-w-[88%] rounded-2xl px-4 py-3 sm:max-w-[72%] ${
                     isMine
-                      ? "rounded-br-md bg-violet-600 text-white"
-                      : "rounded-bl-md bg-muted dark:bg-zinc-800 text-foreground dark:text-zinc-100"
+                      ? "rounded-br-md bg-blue-600 text-white"
+                      : "rounded-bl-md bg-muted text-foreground"
                   }`}
                 >
-                  <p className="whitespace-pre-wrap break-words">
+                  <p className="whitespace-pre-wrap break-words text-sm leading-6">
                     {message.message}
                   </p>
 
                   <div
-                    className={`mt-2 flex items-center justify-end gap-2 text-xs ${
-                      isMine ? "text-violet-200" : "text-muted-foreground dark:text-zinc-500"
+                    className={`mt-1.5 flex items-center justify-end gap-2 text-[11px] ${
+                      isMine ? "text-blue-100" : "text-muted-foreground"
                     }`}
                   >
                     <span>{formatMessageTime(message.created_at, locale)}</span>
@@ -400,7 +419,7 @@ export default function ConversationPage() {
 
         <form
           onSubmit={sendMessage}
-          className="flex gap-3 border-t border-border dark:border-zinc-800 p-4 sm:p-6"
+          className="flex shrink-0 items-end gap-2 border-t border-border bg-card p-3 sm:gap-3 sm:p-4"
         >
           <textarea
             value={draft}
@@ -414,15 +433,22 @@ export default function ConversationPage() {
             rows={1}
             maxLength={2000}
             placeholder={t("placeholder")}
-            className="min-h-12 flex-1 resize-none rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 px-4 py-3 outline-none focus:border-violet-500"
+            className="min-h-12 max-h-36 flex-1 resize-none rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none transition placeholder:text-muted-foreground focus:border-blue-600/45 focus:ring-4 focus:ring-blue-600/8"
           />
 
           <button
             type="submit"
             disabled={sending || !draft.trim()}
-            className="rounded-xl bg-violet-600 px-5 py-3 font-semibold hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50 sm:px-5"
           >
-            {sending ? t("sending") : t("send")}
+            {sending ? (
+              <LoaderCircle className="animate-spin" size={17} />
+            ) : (
+              <Send size={17} />
+            )}
+            <span className="hidden sm:inline">
+              {sending ? t("sending") : t("send")}
+            </span>
           </button>
         </form>
       </div>
