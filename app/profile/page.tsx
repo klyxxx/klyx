@@ -225,7 +225,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6 sm:py-10">
+    <main className="min-h-screen bg-background px-4 pb-28 pt-8 text-foreground sm:px-6 sm:pt-10 lg:pb-10">
       <div className="mx-auto max-w-4xl">
         <Link
           href={homeHref}
