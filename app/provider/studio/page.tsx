@@ -6,8 +6,6 @@ import ProviderReadinessStatus from "@/app/components/ProviderReadinessStatus";
 import { getActiveProfile } from "@/lib/active-profile";
 import { createClient } from "@/lib/supabase/server";
 
-import styles from "./studio.module.css";
-
 export default async function ProviderStudioPage() {
   const supabase = await createClient();
   const {
@@ -29,10 +27,10 @@ export default async function ProviderStudioPage() {
   }
 
   return (
-    <div className={styles.studio}>
+    <>
       <ProviderReadinessStatus />
       <ProviderCapabilitiesEntry />
       <ProviderStudio profileId={profile.id} />
-    </div>
+    </>
   );
 }
