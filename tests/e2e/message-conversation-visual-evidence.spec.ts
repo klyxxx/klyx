@@ -17,7 +17,8 @@ const OTHER_PROFILE_ID = "00000000-0000-4000-8000-000000000475";
 async function attachScreenshot(
   page: Page,
   testInfo: TestInfo,
-  name: string
+  name: string,
+  fullPage = true
 ) {
   await page.evaluate(async () => {
     await document.fonts.ready;
@@ -25,7 +26,7 @@ async function attachScreenshot(
 
   await testInfo.attach(name, {
     body: await page.screenshot({
-      fullPage: true,
+      fullPage,
       animations: "disabled",
     }),
     contentType: "image/png",
@@ -148,6 +149,29 @@ test.describe("KLYX message conversation visual evidence", () => {
     await attachScreenshot(page, testInfo, "message-conversation-desktop");
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await attachScreenshot(page, testInfo, "message-conversation-mobile");
+
+    const composer = page.getByRole("textbox");
+    const mobileNavigation = page.getByRole("navigation", {
+      name: "Navigation mobile KLYX",
+    });
+
+    await expect(composer).toBeInViewport();
+    await expect(mobileNavigation).toBeVisible();
+
+    const composerBox = await composer.boundingBox();
+    const navigationBox = await mobileNavigation.boundingBox();
+
+    expect(composerBox).not.toBeNull();
+    expect(navigationBox).not.toBeNull();
+    expect(composerBox!.y + composerBox!.height).toBeLessThanOrEqual(
+      navigationBox!.y
+    );
+
+    await attachScreenshot(
+      page,
+      testInfo,
+      "message-conversation-mobile",
+      false
+    );
   });
 });

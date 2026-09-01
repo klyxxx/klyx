@@ -25,6 +25,16 @@ describe("KLYX message conversation UX contract", () => {
     expect(source).not.toContain("placehold.co");
   });
 
+  it("reserves the mobile shell and safe area for the composer", () => {
+    expect(source).toContain("KLYX_MESSAGE_CONVERSATION_MOBILE_SAFE_VIEWPORT");
+    expect(source).toContain(
+      "h-[calc(100dvh_-_10rem_-_env(safe-area-inset-bottom))]"
+    );
+    expect(source).toContain("lg:h-[calc(100vh-4rem)]");
+    expect(source).toContain("min-h-0 flex-1");
+    expect(source).toContain("flex shrink-0 items-end");
+  });
+
   it("preserves realtime messaging and explicit send behavior", () => {
     expect(source).toContain('.channel(`booking-messages-${bookingId}`)');
     expect(source).toContain('event: "INSERT"');

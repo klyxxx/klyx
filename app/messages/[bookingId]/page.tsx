@@ -27,6 +27,7 @@ import { supabase } from "@/lib/supabase";
 // KLYX_MESSAGE_CONVERSATION_SAFE_ERRORS
 // KLYX_MESSAGE_CONVERSATION_ROLE_AWARE
 // KLYX_MESSAGE_CONVERSATION_SINGLE_BLUE
+// KLYX_MESSAGE_CONVERSATION_MOBILE_SAFE_VIEWPORT
 
 type BookingRow = {
   id: string;
@@ -328,8 +329,8 @@ export default function ConversationPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background px-3 py-4 text-foreground sm:px-6 sm:py-8">
-      <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-4xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm sm:min-h-[calc(100vh-4rem)]">
+    <main className="bg-background px-3 py-4 text-foreground sm:px-6 lg:min-h-screen lg:py-8">
+      <div className="mx-auto flex h-[calc(100dvh_-_10rem_-_env(safe-area-inset-bottom))] min-h-0 max-w-4xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm lg:h-[calc(100vh-4rem)]">
         <header className="flex items-center gap-3 border-b border-border p-4 sm:gap-4 sm:p-5">
           <Link
             href="/messages"
@@ -372,7 +373,7 @@ export default function ConversationPage() {
           </div>
         )}
 
-        <section className="flex-1 space-y-3 overflow-y-auto p-4 sm:p-5">
+        <section className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 sm:p-5">
           {messages.length === 0 && (
             <div className="grid min-h-48 place-items-center text-center text-sm text-muted-foreground">
               {t("empty")}
@@ -418,7 +419,7 @@ export default function ConversationPage() {
 
         <form
           onSubmit={sendMessage}
-          className="flex items-end gap-2 border-t border-border bg-card p-3 sm:gap-3 sm:p-4"
+          className="flex shrink-0 items-end gap-2 border-t border-border bg-card p-3 sm:gap-3 sm:p-4"
         >
           <textarea
             value={draft}
