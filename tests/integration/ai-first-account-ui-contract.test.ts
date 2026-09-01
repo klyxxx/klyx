@@ -112,7 +112,11 @@ describe(
         );
 
         expect(studio).toContain(
-          "Documents obligatoires"
+          "Documents"
+        );
+
+        expect(studio).toContain(
+          "Une pièce d’identité est nécessaire avant la publication."
         );
 
         expect(settings).toContain(

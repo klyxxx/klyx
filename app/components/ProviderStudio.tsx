@@ -3,7 +3,6 @@
 import { ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  ArrowLeft,
   BadgeCheck,
   BriefcaseBusiness,
   Check,
@@ -47,20 +46,22 @@ type ApiResult = {
 const DOCUMENT_STATUS: Record<string, { label: string; className: string }> = {
   pending: {
     label: "En vérification",
-    className: "border-amber-500/30 bg-amber-500/10 text-amber-300",
+    className:
+      "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
   },
   verified: {
     label: "Vérifié",
-    className: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+    className:
+      "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
   },
   rejected: {
     label: "À remplacer",
-    className: "border-red-500/30 bg-red-500/10 text-red-300",
+    className: "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300",
   },
 };
 
 function inputClassName(): string {
-  return "w-full rounded-xl border border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 px-4 py-3 text-foreground dark:text-white outline-none transition placeholder:text-zinc-600 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20";
+  return "w-full rounded-xl border border-border bg-background px-4 py-3 text-foreground outline-none transition placeholder:text-muted-foreground focus:border-blue-600/50 focus:ring-4 focus:ring-blue-600/10";
 }
 
 function normalizeServiceSearch(value: string): string {
@@ -170,7 +171,9 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
   );
 
   const hasIdentityDocument = useMemo(
-    () => studio?.documents.some((document) => document.documentType === "identity") ?? false,
+    () =>
+      studio?.documents.some((document) => document.documentType === "identity") ??
+      false,
     [studio?.documents]
   );
 
@@ -205,7 +208,8 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
   );
 
   const completionPercentage = Math.round(
-    (completionItems.filter((item) => item.complete).length / completionItems.length) * 100
+    (completionItems.filter((item) => item.complete).length / completionItems.length) *
+      100
   );
 
   function updateService(
@@ -249,7 +253,8 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
 
     if (selectedServiceId === serviceId) {
       setSelectedServiceId(
-        enabledServices.find((service) => service.serviceId !== serviceId)?.serviceId ?? ""
+        enabledServices.find((service) => service.serviceId !== serviceId)
+          ?.serviceId ?? ""
       );
     }
   }
@@ -261,7 +266,10 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
 
     const service = services.find((item) => item.serviceId === serviceId);
 
-    if (!service || service.serviceArea.some((item) => item.toLowerCase() === zone.toLowerCase())) {
+    if (
+      !service ||
+      service.serviceArea.some((item) => item.toLowerCase() === zone.toLowerCase())
+    ) {
       setZoneInputs((current) => ({ ...current, [serviceId]: "" }));
       return;
     }
@@ -428,10 +436,12 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background dark:bg-zinc-950 text-foreground dark:text-white">
+      <main className="grid min-h-[55vh] place-items-center bg-background text-foreground">
         <div className="text-center">
-          <LoaderCircle className="mx-auto animate-spin text-violet-400" size={42} />
-          <p className="mt-4 text-muted-foreground dark:text-zinc-400">Chargement du studio prestataire...</p>
+          <LoaderCircle className="mx-auto animate-spin text-blue-600" size={36} />
+          <p className="mt-4 text-sm text-muted-foreground">
+            Chargement de tes services...
+          </p>
         </div>
       </main>
     );
@@ -439,8 +449,8 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
 
   if (!studio) {
     return (
-      <main className="min-h-screen bg-background dark:bg-zinc-950 px-5 py-10 text-foreground dark:text-white">
-        <div className="mx-auto max-w-3xl rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-red-200">
+      <main className="bg-background px-4 py-10 text-foreground">
+        <div className="mx-auto max-w-3xl rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-red-700 dark:text-red-300">
           {errorMessage || "La fiche prestataire est introuvable."}
         </div>
       </main>
@@ -448,97 +458,57 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
   }
 
   return (
-    <main className="min-h-screen bg-background dark:bg-zinc-950 px-4 py-8 text-foreground dark:text-white sm:px-6 lg:px-8">
-      <div className="mx-auto min-w-0 max-w-7xl overflow-x-hidden">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-          <Link
-            href="/dashboard"
-            className="inline-flex items-center gap-2 text-sm text-muted-foreground dark:text-zinc-400 transition hover:text-foreground dark:text-white"
-          >
-            <ArrowLeft size={18} />
-            Tableau de bord
-          </Link>
+    <main className="bg-background px-4 pb-28 pt-6 text-foreground sm:px-6 sm:pt-8 lg:pb-12 lg:px-8">
+      <div className="mx-auto min-w-0 max-w-6xl">
+        <header className="flex flex-col gap-5 border-b border-border pb-7 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">
+                Services
+              </p>
+              <StatusBadge published={studio.providerProfile.isPublished} />
+            </div>
+            {/* KLYX_AI_FIRST_PROVIDER_STUDIO_15_03 */}
+            {/* KLYX_PROVIDER_STUDIO_NATIVE_SINGLE_BLUE */}
+            <h1 className="mt-3 text-3xl font-bold tracking-[-0.04em] sm:text-5xl">
+              Configurer mes services
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
+              Ajoute ce que tu proposes, précise tes tarifs et disponibilités, puis publie quand tout est prêt.
+            </p>
+          </div>
 
           {studio.providerProfile.isPublished && (
             <Link
               href={`/providers/${profileId}`}
-              className="inline-flex items-center gap-2 rounded-xl border border-border dark:border-zinc-700 px-4 py-2 text-sm font-semibold transition hover:bg-muted dark:bg-zinc-800"
+              className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-semibold transition hover:bg-muted"
             >
               <Eye size={17} />
               Voir ma fiche publique
             </Link>
           )}
-        </div>
-
-        <header className="grid gap-6 rounded-3xl border border-border dark:border-zinc-800 bg-gradient-to-br from-violet-950/80 via-zinc-900 to-zinc-900 p-6 sm:p-8 lg:grid-cols-[1fr_360px]">
-          <div>
-            <div className="flex flex-wrap items-center gap-3">
-              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-violet-300">
-                Studio prestataire
-              </p>
-              <StatusBadge published={studio.providerProfile.isPublished} />
-            </div>
-
-            {/* KLYX_AI_FIRST_PROVIDER_STUDIO_15_03 */}
-            <h1 className="mt-4 text-3xl font-bold sm:text-5xl">
-              Mon activité
-            </h1>
-
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-black/25 p-5">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground dark:text-zinc-400">Profil complété</p>
-                <p className="mt-1 text-4xl font-bold text-violet-300">
-                  {completionPercentage}%
-                </p>
-              </div>
-              <ShieldCheck size={38} className="text-violet-300" />
-            </div>
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted dark:bg-zinc-800">
-              <div
-                className="h-full rounded-full bg-violet-500 transition-all"
-                style={{ width: `${completionPercentage}%` }}
-              />
-            </div>
-            <div className="mt-5 space-y-2">
-              {completionItems.map((item) => (
-                <p key={item.label} className="flex items-center gap-2 text-sm text-foreground/80 dark:text-zinc-300">
-                  <span
-                    className={`flex h-5 w-5 items-center justify-center rounded-full ${
-                      item.complete ? "bg-emerald-500 text-white" : "bg-zinc-700 text-muted-foreground dark:text-zinc-400"
-                    }`}
-                  >
-                    {item.complete ? <Check size={13} /> : null}
-                  </span>
-                  {item.label}
-                </p>
-              ))}
-            </div>
-          </div>
         </header>
 
         {errorMessage && (
-          <div className="mt-6 flex items-start gap-3 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-red-200">
+          <div className="mt-6 flex items-start gap-3 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-red-700 dark:text-red-300">
             <CircleAlert className="mt-0.5 shrink-0" size={20} />
             <p>{errorMessage}</p>
           </div>
         )}
 
         {message && (
-          <div className="mt-6 flex items-start gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-emerald-200">
+          <div className="mt-6 flex items-start gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-emerald-700 dark:text-emerald-300">
             <BadgeCheck className="mt-0.5 shrink-0" size={20} />
             <p>{message}</p>
           </div>
         )}
 
-        <div className="mt-8 grid gap-8 xl:grid-cols-[1fr_340px]">
-          <div className="space-y-8">
+        <div className="mt-7 grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+          <div className="min-w-0 space-y-6">
             <SectionCard
-              icon={<BriefcaseBusiness size={22} />}
-              title="Identité commerciale"
-              description="Visible par les clients."
+              icon={<BriefcaseBusiness size={21} />}
+              title="Présentation"
+              description="Les informations visibles sur ta fiche publique."
             >
               <div className="grid gap-5 sm:grid-cols-2">
                 <Field
@@ -571,12 +541,12 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
               </div>
 
               <div className="mt-5">
-                <label htmlFor="bio" className="mb-2 block text-sm font-medium text-foreground/80 dark:text-zinc-300">
+                <label htmlFor="bio" className="mb-2 block text-sm font-medium">
                   Présentation générale
                 </label>
                 <textarea
                   id="bio"
-                  rows={7}
+                  rows={6}
                   maxLength={2000}
                   value={bio}
                   onChange={(event) => setBio(event.target.value)}
@@ -588,15 +558,15 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
             </SectionCard>
 
             <SectionCard
-              icon={<BriefcaseBusiness size={22} />}
-              title="Services proposés"
-              description="Recherche puis ajoute les services que tu proposes."
+              icon={<BriefcaseBusiness size={21} />}
+              title="Mes services"
+              description="Recherche un service, ajoute-le, puis configure ses détails."
             >
               {/* KLYX_PROVIDER_SERVICE_SEARCH_16_13 */}
               <div className="relative">
                 <Search
-                  size={20}
-                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground dark:text-zinc-500"
+                  size={19}
+                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground"
                 />
                 <input
                   type="search"
@@ -607,10 +577,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                       event.preventDefault();
                       activateService(availableServiceMatches[0].serviceId);
                     }
-
-                    if (event.key === "Escape") {
-                      setServiceSearch("");
-                    }
+                    if (event.key === "Escape") setServiceSearch("");
                   }}
                   placeholder="Rechercher un service..."
                   aria-label="Rechercher un service à proposer"
@@ -619,48 +586,47 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                 />
 
                 {serviceSearch.trim() && (
-                  <div className="absolute z-30 mt-2 max-h-80 w-full overflow-y-auto rounded-2xl border border-border bg-card p-2 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900">
+                  <div className="absolute z-30 mt-2 max-h-80 w-full overflow-y-auto rounded-2xl border border-border bg-card p-2 shadow-lg">
                     {availableServiceMatches.length > 0 ? (
                       availableServiceMatches.map((service) => (
                         <button
                           key={service.serviceId}
                           type="button"
                           onClick={() => activateService(service.serviceId)}
-                          className="flex w-full items-center justify-between gap-3 rounded-xl px-4 py-3 text-left transition hover:bg-violet-500/10 focus-visible:bg-violet-500/10 focus-visible:outline-none"
+                          className="flex w-full items-center justify-between gap-3 rounded-xl px-4 py-3 text-left transition hover:bg-blue-600/8 focus-visible:bg-blue-600/8 focus-visible:outline-none"
                         >
                           <span className="font-semibold">
                             {serviceLabel(service.slug, service.name)}
                           </span>
-                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-violet-500 text-white">
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
                             <Plus size={16} />
                           </span>
                         </button>
                       ))
                     ) : (
-                      <p className="px-4 py-4 text-sm text-muted-foreground dark:text-zinc-400">
+                      <p className="px-4 py-4 text-sm text-muted-foreground">
                         Aucun autre service trouvé.
                       </p>
                     )}
                   </div>
                 )}
               </div>
-              <p className="mt-2 text-xs text-muted-foreground dark:text-zinc-500">
+              <p className="mt-2 text-xs text-muted-foreground">
                 Tape le nom d’un métier ou d’un service, puis sélectionne-le pour l’ajouter.
               </p>
 
               {enabledServices.length > 0 && (
-                <div className="mt-7 border-t border-border dark:border-zinc-800 pt-7">
+                <div className="mt-7 border-t border-border pt-7">
                   <div className="mb-6 flex flex-wrap gap-2">
                     {enabledServices.map((service) => {
                       const active = selectedServiceId === service.serviceId;
-
                       return (
                         <div
                           key={service.serviceId}
-                          className={`inline-flex items-center overflow-hidden rounded-full text-sm font-semibold transition ${
+                          className={`inline-flex items-center overflow-hidden rounded-full border text-sm font-semibold transition ${
                             active
-                              ? "bg-white text-black"
-                              : "bg-muted text-foreground/80 dark:bg-zinc-800 dark:text-zinc-300"
+                              ? "border-blue-600 bg-blue-600 text-white"
+                              : "border-border bg-muted text-foreground"
                           }`}
                         >
                           <button
@@ -700,7 +666,9 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                         updateAvailability(selectedService.serviceId, day, changes)
                       }
                       onAddZone={() => addZone(selectedService.serviceId)}
-                      onRemoveZone={(zone) => removeZone(selectedService.serviceId, zone)}
+                      onRemoveZone={(zone) =>
+                        removeZone(selectedService.serviceId, zone)
+                      }
                     />
                   )}
                 </div>
@@ -708,20 +676,22 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
             </SectionCard>
 
             <SectionCard
-              icon={<ImagePlus size={22} />}
-              title="Galerie photos"
-              description="Jusqu’à 8 photos."
+              icon={<ImagePlus size={21} />}
+              title="Galerie"
+              description="Ajoute jusqu’à 8 photos de ton travail."
             >
-              <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-border dark:border-zinc-700 bg-background dark:bg-zinc-950 px-6 py-10 text-center transition hover:border-violet-500 hover:bg-violet-500/5">
+              <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-background px-6 py-9 text-center transition hover:border-blue-600/50 hover:bg-blue-600/[0.03]">
                 {uploadingGallery ? (
-                  <LoaderCircle className="animate-spin text-violet-400" size={32} />
+                  <LoaderCircle className="animate-spin text-blue-600" size={30} />
                 ) : (
-                  <ImagePlus className="text-violet-400" size={32} />
+                  <ImagePlus className="text-blue-600" size={30} />
                 )}
                 <span className="mt-3 font-semibold">
                   {uploadingGallery ? "Envoi en cours..." : "Ajouter une photo"}
                 </span>
-                <span className="mt-1 text-sm text-muted-foreground dark:text-zinc-500">JPG, PNG ou WEBP · 6 Mo maximum</span>
+                <span className="mt-1 text-sm text-muted-foreground">
+                  JPG, PNG ou WEBP · 6 Mo maximum
+                </span>
                 <input
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
@@ -736,7 +706,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                   {studio.gallery.map((item) => (
                     <figure
                       key={item.id}
-                      className="group relative aspect-square overflow-hidden rounded-2xl border border-border dark:border-zinc-800 bg-background dark:bg-zinc-950"
+                      className="group relative aspect-square overflow-hidden rounded-2xl border border-border bg-background"
                     >
                       <img
                         src={item.publicUrl}
@@ -758,9 +728,9 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
             </SectionCard>
 
             <SectionCard
-              icon={<FileCheck2 size={22} />}
-              title="Documents obligatoires"
-              description="Les documents restent privés. Ils servent uniquement à la vérification KLYX."
+              icon={<FileCheck2 size={21} />}
+              title="Documents"
+              description="Privés et utilisés uniquement pour la vérification KLYX."
             >
               <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
                 <KlyxSelect
@@ -773,7 +743,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                   ariaLabel="Type de document"
                 />
 
-                <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3 font-semibold transition hover:bg-violet-700">
+                <label className="inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-500">
                   {uploadingDocument ? (
                     <LoaderCircle className="animate-spin" size={18} />
                   ) : (
@@ -789,11 +759,13 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                   />
                 </label>
               </div>
-              <p className="mt-2 text-xs text-muted-foreground dark:text-zinc-500">PDF, JPG, PNG ou WEBP · 10 Mo maximum</p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                PDF, JPG, PNG ou WEBP · 10 Mo maximum
+              </p>
 
               <div className="mt-5 space-y-3">
                 {studio.documents.length === 0 ? (
-                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-200">
+                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-700 dark:text-amber-300">
                     Une pièce d’identité est nécessaire avant la publication.
                   </div>
                 ) : (
@@ -801,27 +773,29 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                     const type = DOCUMENT_TYPES.find(
                       (item) => item.value === document.documentType
                     );
-                    const status = DOCUMENT_STATUS[document.status] ?? DOCUMENT_STATUS.pending;
-
+                    const status =
+                      DOCUMENT_STATUS[document.status] ?? DOCUMENT_STATUS.pending;
                     return (
                       <div
                         key={document.id}
-                        className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border dark:border-zinc-800 bg-background dark:bg-zinc-950 p-4"
+                        className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-background p-4"
                       >
                         <div className="min-w-0">
                           <p className="font-semibold">{type?.label ?? "Document"}</p>
-                          <p className="mt-1 truncate text-sm text-muted-foreground dark:text-zinc-500">
+                          <p className="mt-1 truncate text-sm text-muted-foreground">
                             {document.fileName}
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${status.className}`}>
+                          <span
+                            className={`rounded-full border px-3 py-1 text-xs font-semibold ${status.className}`}
+                          >
                             {status.label}
                           </span>
                           <button
                             type="button"
                             onClick={() => void deleteMedia("document", document.id)}
-                            className="rounded-lg p-2 text-muted-foreground dark:text-zinc-400 transition hover:bg-red-500/10 hover:text-red-300"
+                            className="rounded-lg p-2 text-muted-foreground transition hover:bg-red-500/10 hover:text-red-600"
                             aria-label="Supprimer ce document"
                           >
                             <Trash2 size={17} />
@@ -835,37 +809,83 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
             </SectionCard>
           </div>
 
-          <aside className="space-y-5 xl:sticky xl:top-6 xl:self-start">
-            <div className="rounded-3xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-6">
-              <h2 className="text-lg font-bold">Publication</h2>
-              <p className="mt-2 text-sm text-muted-foreground dark:text-zinc-400">
-                Brouillon privé ou fiche publiée.
-              </p>
+          <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+            <section className="rounded-2xl border border-border bg-card p-5">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    Profil complété
+                  </p>
+                  <p className="mt-1 text-3xl font-bold text-blue-600">
+                    {completionPercentage}%
+                  </p>
+                </div>
+                <ShieldCheck size={30} className="text-blue-600" />
+              </div>
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-blue-600 transition-all"
+                  style={{ width: `${completionPercentage}%` }}
+                />
+              </div>
+              <div className="mt-4 space-y-2">
+                {completionItems.map((item) => (
+                  <p key={item.label} className="flex items-center gap-2 text-xs">
+                    <span
+                      className={`flex h-5 w-5 items-center justify-center rounded-full ${
+                        item.complete
+                          ? "bg-emerald-500 text-white"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {item.complete ? <Check size={13} /> : null}
+                    </span>
+                    <span className="text-muted-foreground">{item.label}</span>
+                  </p>
+                ))}
+              </div>
+            </section>
 
-              <button
-                type="button"
-                onClick={() => void saveStudio(false)}
-                disabled={saving}
-                className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border dark:border-zinc-700 px-4 py-3 font-semibold transition hover:bg-muted dark:bg-zinc-800 disabled:opacity-50"
-              >
-                {saving ? <LoaderCircle className="animate-spin" size={18} /> : <Save size={18} />}
-                Enregistrer le brouillon
-              </button>
+            <section className="rounded-2xl border border-border bg-card p-5">
+              <h2 className="text-base font-semibold">Publication</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Enregistre ton travail ou rends ta fiche visible.
+              </p>
 
               <button
                 type="button"
                 onClick={() => void saveStudio(true)}
                 disabled={saving}
-                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-3 font-semibold transition hover:bg-violet-700 disabled:opacity-50"
+                className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white transition hover:bg-blue-500 disabled:opacity-50"
               >
-                {saving ? <LoaderCircle className="animate-spin" size={18} /> : <Send size={18} />}
-                {studio.providerProfile.isPublished ? "Mettre à jour la fiche" : "Publier ma fiche"}
+                {saving ? (
+                  <LoaderCircle className="animate-spin" size={18} />
+                ) : (
+                  <Send size={18} />
+                )}
+                {studio.providerProfile.isPublished
+                  ? "Mettre à jour la fiche"
+                  : "Publier ma fiche"}
               </button>
-            </div>
 
-            <div className="rounded-3xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-6">
-              <h2 className="font-bold">Résumé</h2>
-              <div className="mt-4 space-y-4 text-sm">
+              <button
+                type="button"
+                onClick={() => void saveStudio(false)}
+                disabled={saving}
+                className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-semibold transition hover:bg-muted disabled:opacity-50"
+              >
+                {saving ? (
+                  <LoaderCircle className="animate-spin" size={17} />
+                ) : (
+                  <Save size={17} />
+                )}
+                Enregistrer le brouillon
+              </button>
+            </section>
+
+            <section className="rounded-2xl border border-border bg-card p-5">
+              <h2 className="text-sm font-semibold">Résumé</h2>
+              <div className="mt-4 space-y-3 text-sm">
                 <SummaryRow label="Services actifs" value={String(enabledServices.length)} />
                 <SummaryRow label="Photos" value={`${studio.gallery.length}/8`} />
                 <SummaryRow label="Documents" value={String(studio.documents.length)} />
@@ -880,17 +900,19 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                   }
                 />
               </div>
-            </div>
+            </section>
 
             <Link
               href="/profile"
-              className="flex items-center justify-between gap-4 rounded-2xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-5 transition hover:border-border dark:border-zinc-700 hover:bg-muted dark:bg-zinc-800"
+              className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-card p-4 transition hover:bg-muted"
             >
               <div>
-                <p className="font-semibold">Informations personnelles</p>
-                <p className="mt-1 text-sm text-muted-foreground dark:text-zinc-500">Photo, nom et ville</p>
+                <p className="text-sm font-semibold">Informations personnelles</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Photo, nom et ville
+                </p>
               </div>
-              <ChevronRight size={20} className="text-muted-foreground dark:text-zinc-500" />
+              <ChevronRight size={19} className="text-blue-600" />
             </Link>
           </aside>
         </div>
@@ -912,17 +934,20 @@ function ServiceEditor({
   zoneInput: string;
   onZoneInput: (value: string) => void;
   onChange: (changes: Partial<ProviderServiceDraft>) => void;
-  onAvailabilityChange: (day: number, changes: Partial<AvailabilityDay>) => void;
+  onAvailabilityChange: (
+    day: number,
+    changes: Partial<AvailabilityDay>
+  ) => void;
   onAddZone: () => void;
   onRemoveZone: (zone: string) => void;
 }) {
   return (
-    <div className="space-y-7 rounded-2xl border border-border dark:border-zinc-800 bg-background dark:bg-zinc-950 p-5 sm:p-6">
+    <div className="space-y-7 rounded-2xl border border-border bg-background p-5 sm:p-6">
       <div>
-        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-violet-400">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">
           {serviceLabel(service.slug, service.name)}
         </p>
-        <h3 className="mt-2 text-xl font-bold">Configurer ce service</h3>
+        <h3 className="mt-2 text-xl font-semibold">Configurer ce service</h3>
       </div>
 
       <div className="grid gap-5 sm:grid-cols-2">
@@ -943,7 +968,7 @@ function ServiceEditor({
       </div>
 
       <div>
-        <label className="mb-2 block text-sm font-medium text-foreground/80 dark:text-zinc-300">
+        <label className="mb-2 block text-sm font-medium">
           Description du service
         </label>
         <textarea
@@ -959,91 +984,76 @@ function ServiceEditor({
 
       <div className="space-y-5">
         <div>
-          <label className="mb-2 block text-sm font-medium text-foreground/80 dark:text-zinc-300">
+          <label className="mb-2 block text-sm font-medium">
             Tarif utilisé pour ce service
           </label>
-          <div className="grid min-w-0 grid-cols-2 rounded-xl border border-border dark:border-zinc-700 bg-card dark:bg-zinc-900 p-1">
+          <div className="grid min-w-0 grid-cols-2 rounded-xl border border-border bg-card p-1">
             <button
               type="button"
-              onClick={() => onChange({ pricingType: "hourly", price: service.hourlyPrice })}
-              className={`min-w-0 rounded-lg px-3 py-2 text-sm font-semibold ${
-                service.pricingType === "hourly" ? "bg-white text-black" : "text-muted-foreground dark:text-zinc-400"
+              onClick={() =>
+                onChange({ pricingType: "hourly", price: service.hourlyPrice })
+              }
+              className={`min-w-0 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                service.pricingType === "hourly"
+                  ? "bg-blue-600 text-white"
+                  : "text-muted-foreground hover:bg-muted"
               }`}
             >
               Par heure
             </button>
             <button
               type="button"
-              onClick={() => onChange({ pricingType: "fixed", price: service.fixedPrice })}
-              className={`min-w-0 rounded-lg px-3 py-2 text-sm font-semibold ${
-                service.pricingType === "fixed" ? "bg-white text-black" : "text-muted-foreground dark:text-zinc-400"
+              onClick={() =>
+                onChange({ pricingType: "fixed", price: service.fixedPrice })
+              }
+              className={`min-w-0 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                service.pricingType === "fixed"
+                  ? "bg-blue-600 text-white"
+                  : "text-muted-foreground hover:bg-muted"
               }`}
             >
               Prix fixe
             </button>
           </div>
-          <p className="mt-2 text-xs leading-5 text-muted-foreground dark:text-zinc-500">
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">
             Les deux montants restent mémorisés. Le bouton choisit seulement le tarif actif.
           </p>
         </div>
 
         <div className="grid min-w-0 gap-4 sm:grid-cols-2">
-          <div className="min-w-0">
-            <label className="mb-2 block text-sm font-medium text-foreground/80 dark:text-zinc-300">Tarif par heure (€)</label>
-            <div className="relative min-w-0">
-              <Euro className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground dark:text-zinc-500" size={18} />
-              <input
-                type="number"
-                min="1"
-                max="10000"
-                step="0.01"
-                inputMode="decimal"
-                value={service.hourlyPrice ?? ""}
-                onChange={(event) => {
-                  const hourlyPrice = event.target.value === "" ? null : Number(event.target.value);
-                  onChange({
-                    hourlyPrice,
-                    price: service.pricingType === "hourly" ? hourlyPrice : service.price,
-                  });
-                }}
-                className={`${inputClassName()} min-w-0 pl-11`}
-                placeholder="25"
-              />
-            </div>
-          </div>
-
-          <div className="min-w-0">
-            <label className="mb-2 block text-sm font-medium text-foreground/80 dark:text-zinc-300">Prix fixe (€)</label>
-            <div className="relative min-w-0">
-              <Euro className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground dark:text-zinc-500" size={18} />
-              <input
-                type="number"
-                min="1"
-                max="10000"
-                step="0.01"
-                inputMode="decimal"
-                value={service.fixedPrice ?? ""}
-                onChange={(event) => {
-                  const fixedPrice = event.target.value === "" ? null : Number(event.target.value);
-                  onChange({
-                    fixedPrice,
-                    price: service.pricingType === "fixed" ? fixedPrice : service.price,
-                  });
-                }}
-                className={`${inputClassName()} min-w-0 pl-11`}
-                placeholder="100"
-              />
-            </div>
-          </div>
+          <PriceField
+            label="Tarif par heure (€)"
+            value={service.hourlyPrice}
+            placeholder="25"
+            onChange={(hourlyPrice) =>
+              onChange({
+                hourlyPrice,
+                price:
+                  service.pricingType === "hourly" ? hourlyPrice : service.price,
+              })
+            }
+          />
+          <PriceField
+            label="Prix fixe (€)"
+            value={service.fixedPrice}
+            placeholder="100"
+            onChange={(fixedPrice) =>
+              onChange({
+                fixedPrice,
+                price:
+                  service.pricingType === "fixed" ? fixedPrice : service.price,
+              })
+            }
+          />
         </div>
       </div>
 
-      <div className="border-t border-border dark:border-zinc-800 pt-6">
+      <div className="border-t border-border pt-6">
         <div className="flex items-center gap-2">
-          <MapPin size={19} className="text-violet-400" />
-          <h3 className="font-bold">Zones d’intervention</h3>
+          <MapPin size={19} className="text-blue-600" />
+          <h3 className="font-semibold">Zones d’intervention</h3>
         </div>
-        <p className="mt-2 text-sm text-muted-foreground dark:text-zinc-500">
+        <p className="mt-2 text-sm text-muted-foreground">
           Ajoute les communes et quartiers dans lesquels tu acceptes des demandes.
         </p>
 
@@ -1063,7 +1073,8 @@ function ServiceEditor({
           <button
             type="button"
             onClick={onAddZone}
-            className="shrink-0 rounded-xl bg-muted dark:bg-zinc-800 px-4 font-semibold hover:bg-zinc-700"
+            className="grid min-h-12 w-12 place-items-center rounded-xl border border-border bg-background transition hover:bg-muted"
+            aria-label="Ajouter la zone"
           >
             <Plus size={19} />
           </button>
@@ -1073,10 +1084,14 @@ function ServiceEditor({
           {service.serviceArea.map((zone) => (
             <span
               key={zone}
-              className="inline-flex items-center gap-2 rounded-full border border-violet-500/30 bg-violet-500/10 px-3 py-1.5 text-sm text-violet-200"
+              className="inline-flex items-center gap-2 rounded-full border border-blue-600/25 bg-blue-600/8 px-3 py-1.5 text-sm text-blue-700 dark:text-blue-300"
             >
               {zone}
-              <button type="button" onClick={() => onRemoveZone(zone)} aria-label={`Retirer ${zone}`}>
+              <button
+                type="button"
+                onClick={() => onRemoveZone(zone)}
+                aria-label={`Retirer ${zone}`}
+              >
                 <X size={14} />
               </button>
             </span>
@@ -1088,7 +1103,9 @@ function ServiceEditor({
             id={`radius-${service.serviceId}`}
             label="Rayon maximum (km)"
             value={String(service.travelRadiusKm)}
-            onChange={(value) => onChange({ travelRadiusKm: Number(value || 0) })}
+            onChange={(value) =>
+              onChange({ travelRadiusKm: Number(value || 0) })
+            }
             type="number"
             min="0"
             max="100"
@@ -1096,32 +1113,33 @@ function ServiceEditor({
         </div>
       </div>
 
-      <div className="border-t border-border dark:border-zinc-800 pt-6">
+      <div className="border-t border-border pt-6">
         <div className="flex items-center gap-2">
-          <Clock3 size={19} className="text-violet-400" />
-          <h3 className="font-bold">Disponibilités hebdomadaires</h3>
+          <Clock3 size={19} className="text-blue-600" />
+          <h3 className="font-semibold">Disponibilités hebdomadaires</h3>
         </div>
         <div className="mt-4 space-y-3">
           {DAY_LABELS.map((definition) => {
             const day = service.availability.find(
               (item) => item.dayOfWeek === definition.value
             );
-
             if (!day) return null;
 
             return (
               <div
                 key={definition.value}
-                className="grid gap-3 rounded-xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-3 sm:grid-cols-[130px_1fr_1fr] sm:items-center"
+                className="grid gap-3 rounded-xl border border-border bg-card p-3 sm:grid-cols-[130px_1fr_1fr] sm:items-center"
               >
                 <label className="flex items-center gap-3 font-medium">
                   <input
                     type="checkbox"
                     checked={day.enabled}
                     onChange={(event) =>
-                      onAvailabilityChange(day.dayOfWeek, { enabled: event.target.checked })
+                      onAvailabilityChange(day.dayOfWeek, {
+                        enabled: event.target.checked,
+                      })
                     }
-                    className="h-5 w-5 accent-violet-600"
+                    className="h-5 w-5 accent-blue-600"
                   />
                   {definition.label}
                 </label>
@@ -1130,7 +1148,9 @@ function ServiceEditor({
                   value={day.startTime}
                   disabled={!day.enabled}
                   onChange={(event) =>
-                    onAvailabilityChange(day.dayOfWeek, { startTime: event.target.value })
+                    onAvailabilityChange(day.dayOfWeek, {
+                      startTime: event.target.value,
+                    })
                   }
                   className={inputClassName()}
                 />
@@ -1139,7 +1159,9 @@ function ServiceEditor({
                   value={day.endTime}
                   disabled={!day.enabled}
                   onChange={(event) =>
-                    onAvailabilityChange(day.dayOfWeek, { endTime: event.target.value })
+                    onAvailabilityChange(day.dayOfWeek, {
+                      endTime: event.target.value,
+                    })
                   }
                   className={inputClassName()}
                 />
@@ -1147,6 +1169,43 @@ function ServiceEditor({
             );
           })}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function PriceField({
+  label,
+  value,
+  placeholder,
+  onChange,
+}: {
+  label: string;
+  value: number | null;
+  placeholder: string;
+  onChange: (value: number | null) => void;
+}) {
+  return (
+    <div className="min-w-0">
+      <label className="mb-2 block text-sm font-medium">{label}</label>
+      <div className="relative min-w-0">
+        <Euro
+          className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground"
+          size={18}
+        />
+        <input
+          type="number"
+          min="1"
+          max="10000"
+          step="0.01"
+          inputMode="decimal"
+          value={value ?? ""}
+          onChange={(event) =>
+            onChange(event.target.value === "" ? null : Number(event.target.value))
+          }
+          className={`${inputClassName()} min-w-0 pl-11`}
+          placeholder={placeholder}
+        />
       </div>
     </div>
   );
@@ -1164,14 +1223,16 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-3xl border border-border dark:border-zinc-800 bg-card dark:bg-zinc-900 p-5 sm:p-8">
-      <div className="mb-7 flex items-start gap-4">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
+    <section className="rounded-2xl border border-border bg-card p-5 sm:p-7">
+      <div className="mb-6 flex items-start gap-4">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600/8 text-blue-600">
           {icon}
         </span>
         <div>
-          <h2 className="text-xl font-bold">{title}</h2>
-          <p className="mt-1 text-sm leading-6 text-muted-foreground dark:text-zinc-400">{description}</p>
+          <h2 className="text-xl font-semibold">{title}</h2>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            {description}
+          </p>
         </div>
       </div>
       {children}
@@ -1200,7 +1261,7 @@ function Field({
 }) {
   return (
     <div>
-      <label htmlFor={id} className="mb-2 block text-sm font-medium text-foreground/80 dark:text-zinc-300">
+      <label htmlFor={id} className="mb-2 block text-sm font-medium">
         {label}
       </label>
       <input
@@ -1227,7 +1288,11 @@ function Counter({
   minimum?: number;
 }) {
   return (
-    <p className={`mt-2 text-right text-xs ${minimum && current < minimum ? "text-amber-400" : "text-muted-foreground dark:text-zinc-500"}`}>
+    <p
+      className={`mt-2 text-right text-xs ${
+        minimum && current < minimum ? "text-amber-600" : "text-muted-foreground"
+      }`}
+    >
       {minimum && current < minimum ? `Minimum ${minimum} · ` : ""}
       {current}/{maximum}
     </p>
@@ -1239,11 +1304,15 @@ function StatusBadge({ published }: { published: boolean }) {
     <span
       className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${
         published
-          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-          : "border-amber-500/30 bg-amber-500/10 text-amber-300"
+          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+          : "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300"
       }`}
     >
-      <span className={`h-2 w-2 rounded-full ${published ? "bg-emerald-400" : "bg-amber-400"}`} />
+      <span
+        className={`h-2 w-2 rounded-full ${
+          published ? "bg-emerald-500" : "bg-amber-500"
+        }`}
+      />
       {published ? "Fiche publiée" : "Brouillon privé"}
     </span>
   );
@@ -1251,9 +1320,9 @@ function StatusBadge({ published }: { published: boolean }) {
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-border dark:border-zinc-800 pb-3 last:border-0 last:pb-0">
-      <span className="text-muted-foreground dark:text-zinc-500">{label}</span>
-      <span className="font-semibold text-zinc-200">{value}</span>
+    <div className="flex items-center justify-between gap-4 border-b border-border pb-3 last:border-0 last:pb-0">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-semibold text-foreground">{value}</span>
     </div>
   );
 }
