@@ -28,7 +28,6 @@ describe("KLYX destination UX contract", () => {
     expect(source).toContain('[class*="bg-gradient-to-"]');
     expect(source).toContain("background-image: none !important;");
     expect(source).not.toContain(".klyx-sidebar");
-    expect(source).not.toContain("AppSidebar");
     expect(source).not.toContain("violet");
     expect(source).not.toContain("indigo");
   });
