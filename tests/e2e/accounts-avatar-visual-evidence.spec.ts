@@ -39,6 +39,9 @@ async function expectAccounts(page: Page) {
     page.getByRole("heading", { name: "Mes profils", exact: true })
   ).toBeVisible();
   await expect(page.getByText("Une connexion, jusqu’à cinq profils")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Ajouter un profil", exact: true })
+  ).toBeVisible();
 }
 
 test.describe("KLYX accounts avatar visual evidence", () => {
@@ -51,7 +54,7 @@ test.describe("KLYX accounts avatar visual evidence", () => {
     await clearSensitivePassword(page);
   });
 
-  test("archives profile cards and a local avatar preview", async ({
+  test("archives the simplified profiles landing, editor and create dialog", async ({
     page,
   }, testInfo) => {
     test.setTimeout(180_000);
@@ -86,5 +89,16 @@ test.describe("KLYX accounts avatar visual evidence", () => {
     await dialog.getByRole("button", { name: "Fermer", exact: true }).click();
     await expect(dialog).toBeHidden();
     await attachScreenshot(page, testInfo, "accounts-profiles-mobile");
+
+    await page
+      .getByRole("button", { name: "Ajouter un profil", exact: true })
+      .click();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("button", { name: /Client/ })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: /Prestataire/ })).toBeVisible();
+    await attachScreenshot(page, testInfo, "accounts-create-profile-mobile");
+
+    await dialog.getByRole("button", { name: "Fermer", exact: true }).click();
+    await expect(dialog).toBeHidden();
   });
 });
