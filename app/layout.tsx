@@ -21,6 +21,7 @@ import "./globals.css";
 import "./klyx-visual-system.css";
 import "./klyx-accessibility.css";
 import "./klyx-quality-system.css";
+import "./klyx-destination-system.css";
 
 const inter = Inter({
   subsets: ["latin"],
