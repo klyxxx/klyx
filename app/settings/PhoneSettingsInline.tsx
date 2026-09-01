@@ -21,6 +21,7 @@ import {
 
 // KLYX_PHONE_OTP_UI_12_69
 // KLYX_PHONE_SETTINGS_I18N_16_06
+// KLYX_PHONE_SETTINGS_SINGLE_BLUE
 
 type PhonePayload = {
   phoneNumber?: string | null;
@@ -281,23 +282,23 @@ export default function PhoneSettingsInline() {
   const unsaved = phoneNumber !== savedPhone;
 
   return (
-    <section className="mb-7 rounded-[30px] border border-violet-500/30 bg-violet-500/[0.05] p-6 sm:p-7">
+    <section className="mb-7 rounded-2xl border border-blue-600/20 bg-blue-600/[0.04] p-6 sm:p-7">
       <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex gap-4">
-          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-violet-600 text-white">
+          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-blue-600 text-white">
             <Phone size={21} />
           </div>
 
           <div>
             <div className="flex flex-wrap items-center gap-3">
-              <h2 className="text-xl font-black">{t("title")}</h2>
+              <h2 className="text-xl font-semibold">{t("title")}</h2>
               {verified ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-black text-emerald-500">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-500">
                   <CheckCircle2 size={14} />
                   {t("verified")}
                 </span>
               ) : (
-                <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-black text-amber-500">
+                <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-500">
                   {t("needsVerification")}
                 </span>
               )}
@@ -311,8 +312,8 @@ export default function PhoneSettingsInline() {
       </div>
 
       {loading ? (
-        <div className="mt-6 flex items-center gap-3 text-sm font-bold text-muted-foreground">
-          <LoaderCircle size={19} className="animate-spin" />
+        <div className="mt-6 flex items-center gap-3 text-sm font-medium text-muted-foreground">
+          <LoaderCircle size={19} className="animate-spin text-blue-600" />
           {t("loadingPhone")}
         </div>
       ) : (
@@ -329,29 +330,29 @@ export default function PhoneSettingsInline() {
                 setErrorKey(null);
               }}
               placeholder="+32471503513"
-              className="h-13 min-w-0 flex-1 rounded-2xl border border-border bg-background px-5 text-base font-bold outline-none transition focus:border-violet-500 focus:ring-2 focus:ring-violet-500/15"
+              className="h-13 min-w-0 flex-1 rounded-xl border border-border bg-background px-5 text-base font-semibold outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-600/8"
             />
             <button
               type="button"
               disabled={saving}
               onClick={() => void savePhone()}
-              className="inline-flex h-13 shrink-0 items-center justify-center gap-2 rounded-2xl bg-violet-600 px-6 text-sm font-black text-white transition hover:bg-violet-500 disabled:opacity-60"
+              className="inline-flex h-13 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:opacity-60"
             >
               {saving ? <LoaderCircle size={18} className="animate-spin" /> : <Save size={18} />}
               {t("save")}
             </button>
           </div>
 
-          <p className="text-xs font-semibold text-muted-foreground">
+          <p className="text-xs font-medium text-muted-foreground">
             {t("internationalFormat")}
           </p>
 
           {!verified && savedPhone && !unsaved && (
             <div className="rounded-2xl border border-border bg-background/60 p-4 sm:p-5">
               <div className="flex items-start gap-3">
-                <MessageSquareText size={20} className="mt-0.5 shrink-0 text-violet-500" />
+                <MessageSquareText size={20} className="mt-0.5 shrink-0 text-blue-600" />
                 <div className="min-w-0 flex-1">
-                  <p className="font-black">{t("smsTitle")}</p>
+                  <p className="font-semibold">{t("smsTitle")}</p>
                   <p className="mt-1 text-sm leading-6 text-muted-foreground">
                     {t("smsDescription")}
                   </p>
@@ -360,7 +361,7 @@ export default function PhoneSettingsInline() {
                       type="button"
                       disabled={sendingOtp || cooldown > 0}
                       onClick={() => void sendOtp()}
-                      className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 text-sm font-black text-white disabled:opacity-50"
+                      className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:opacity-50"
                     >
                       {sendingOtp ? <LoaderCircle size={17} className="animate-spin" /> : <Send size={17} />}
                       {cooldown > 0
@@ -379,13 +380,13 @@ export default function PhoneSettingsInline() {
                         inputMode="numeric"
                         autoComplete="one-time-code"
                         placeholder={t("codePlaceholder")}
-                        className="h-12 min-w-0 flex-1 rounded-xl border border-border bg-background px-4 text-center text-lg font-black tracking-[0.25em] outline-none focus:border-violet-500"
+                        className="h-12 min-w-0 flex-1 rounded-xl border border-border bg-background px-4 text-center text-lg font-semibold tracking-[0.25em] outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-600/8"
                       />
                       <button
                         type="button"
                         disabled={verifyingOtp}
                         onClick={() => void verifyOtp()}
-                        className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-black text-white disabled:opacity-50"
+                        className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 text-sm font-semibold text-white disabled:opacity-50"
                       >
                         {verifyingOtp ? <LoaderCircle size={17} className="animate-spin" /> : <CheckCircle2 size={17} />}
                         {t("verify")}
@@ -398,20 +399,20 @@ export default function PhoneSettingsInline() {
           )}
 
           {verified && (
-            <div className="flex items-center gap-2 rounded-2xl bg-emerald-500/10 px-4 py-3 text-sm font-bold text-emerald-500">
+            <div className="flex items-center gap-2 rounded-2xl bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-500">
               <CheckCircle2 size={18} />
               {t("verifiedByKlyx")}
             </div>
           )}
 
           {message && (
-            <div className="rounded-2xl bg-emerald-500/10 px-4 py-3 text-sm font-bold text-emerald-500">
+            <div className="rounded-2xl bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-500">
               {t(message.key, message.variables)}
             </div>
           )}
 
           {errorKey && (
-            <div className="rounded-2xl bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-500">
+            <div className="rounded-2xl bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-500">
               {t(errorKey)}
             </div>
           )}

@@ -10,15 +10,17 @@ function read(relativePath: string): string {
 }
 
 describe("KLYX settings container i18n contract", () => {
-  it("wires only the settings parent surface to certified page i18n", () => {
+  it("wires the focused settings surface to certified page i18n", () => {
     const source = read("app/settings/page.tsx");
 
     expect(source).toContain("useKlyxLocale");
     expect(source).toContain("translateKlyxSettingsPage");
     expect(source).toContain("KLYX_SETTINGS_PAGE_I18N_16_05");
-    expect(source).toContain("KLYX_SETTINGS_PROFILE_SERVER_BOUNDARY_16_04");
+    expect(source).toContain("KLYX_SETTINGS_PROFILE_DEDUPLICATED");
+    expect(source).toContain("KLYX_SETTINGS_SIDEBAR_FROZEN");
     expect(source).toContain("<PhoneSettingsInline />");
     expect(source).toContain("<PhonePrivacyControls />");
+    expect(source).toContain("<PhoneAccessHistory />");
   });
 
   it("keeps phone modules outside the settings-container translation batch", () => {
@@ -31,13 +33,15 @@ describe("KLYX settings container i18n contract", () => {
     }
   });
 
-  it("preserves profile, auth, theme, locale and profile-switch boundaries", () => {
+  it("delegates identity and profile switching while preserving auth, theme and locale", () => {
     const source = read("app/settings/page.tsx");
 
-    expect(source).toMatch(/fetch\(\s*["']\/api\/profile\/me["'][\s\S]*?cache:\s*["']no-store["']/);
-    expect(source).toMatch(/fetch\(\s*["']\/api\/profile\/me["'][\s\S]*?method:\s*["']PATCH["']/);
-    expect(source).toContain("currentBody.profile.city");
-    expect(source).toContain("currentBody.profile.age");
+    expect(source).not.toContain('fetch("/api/profile/me"');
+    expect(source).not.toContain("switchAccount");
+    expect(source).not.toContain("savingProfile");
+    expect(source).not.toContain("setFirstName");
+    expect(source).not.toContain("setLastName");
+    expect(source).toContain('href="/profile"');
     expect(source).toContain("supabase.auth.updateUser({");
     expect(source).toContain("email: newEmail.trim().toLowerCase()");
     expect(source).toContain("password: newPassword");
@@ -45,7 +49,6 @@ describe("KLYX settings container i18n contract", () => {
     expect(source).toContain("setTheme(value)");
     expect(source).toContain("KLYX_LANGUAGE_OPTIONS");
     expect(source).toContain("onChange={setLocale}");
-    expect(source).toContain("await switchAccount(account.id)");
   });
 
   it("keeps account deletion explicit, server-side and fail-closed", () => {

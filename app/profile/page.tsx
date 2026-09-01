@@ -16,6 +16,7 @@ import {
   ChevronRight,
   LoaderCircle,
   Save,
+  Settings,
   UserRound,
 } from "lucide-react";
 
@@ -224,7 +225,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6 sm:py-10">
+    <main className="min-h-screen bg-background px-4 pb-28 pt-8 text-foreground sm:px-6 sm:pt-10 lg:pb-10">
       <div className="mx-auto max-w-4xl">
         <Link
           href={homeHref}
@@ -245,6 +246,7 @@ export default function ProfilePage() {
           </h1>
           {/* KLYX_AI_FIRST_PROFILE_15_03 */}
           {/* KLYX_PROFILE_PAGE_I18N_16_03 */}
+          {/* KLYX_PROFILE_SETTINGS_ENTRY */}
         </header>
 
         {errorKey && (
@@ -347,22 +349,37 @@ export default function ProfilePage() {
           </div>
         </form>
 
-        {accountType === "provider" && (
+        <div className="mt-6 space-y-3">
+          {accountType === "provider" && (
+            <Link
+              href="/provider"
+              className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm transition hover:bg-muted/60"
+            >
+              <div className="flex items-center gap-4">
+                <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600/8 text-blue-600">
+                  <BriefcaseBusiness size={22} />
+                </span>
+                <div>
+                  <p className="font-semibold">{t("manageProviderProfile")}</p>
+                </div>
+              </div>
+              <ChevronRight size={22} className="text-blue-600" />
+            </Link>
+          )}
+
           <Link
-            href="/provider"
-            className="mt-6 flex items-center justify-between gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm transition hover:bg-muted/60"
+            href="/settings"
+            className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm transition hover:bg-muted/60"
           >
             <div className="flex items-center gap-4">
               <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600/8 text-blue-600">
-                <BriefcaseBusiness size={22} />
+                <Settings size={22} />
               </span>
-              <div>
-                <p className="font-semibold">{t("manageProviderProfile")}</p>
-              </div>
+              <p className="font-semibold">{t("settings")}</p>
             </div>
             <ChevronRight size={22} className="text-blue-600" />
           </Link>
-        )}
+        </div>
       </div>
     </main>
   );

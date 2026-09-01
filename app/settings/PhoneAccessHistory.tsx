@@ -24,6 +24,7 @@ import { supabase } from "@/lib/supabase";
 
 // KLYX_PHONE_ACCESS_HISTORY_UI_12_76
 // KLYX_PHONE_ACCESS_HISTORY_I18N_16_08
+// KLYX_PHONE_ACCESS_HISTORY_SINGLE_BLUE
 
 type AccessItem = {
   id: string;
@@ -94,14 +95,14 @@ export default function PhoneAccessHistory() {
   }, [loadHistory]);
 
   return (
-    <section className="mb-7 rounded-[30px] border border-border bg-card p-6 sm:p-7">
+    <section className="mb-7 rounded-2xl border border-border bg-card p-6 sm:p-7">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-4">
-          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-violet-500/10 text-violet-500">
+          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-blue-600/8 text-blue-600">
             <History size={22} />
           </div>
           <div>
-            <h2 className="text-xl font-black">{t("title")}</h2>
+            <h2 className="text-xl font-semibold">{t("title")}</h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
               {t("description")}
             </p>
@@ -112,7 +113,7 @@ export default function PhoneAccessHistory() {
           type="button"
           disabled={refreshing}
           onClick={() => void loadHistory(true)}
-          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-black transition hover:bg-muted disabled:opacity-60"
+          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-semibold transition hover:bg-muted disabled:opacity-60"
         >
           <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
           {t("refresh")}
@@ -127,18 +128,18 @@ export default function PhoneAccessHistory() {
       </div>
 
       {loading ? (
-        <div className="mt-6 flex items-center gap-3 text-sm font-bold text-muted-foreground">
-          <LoaderCircle size={18} className="animate-spin" />
+        <div className="mt-6 flex items-center gap-3 text-sm font-medium text-muted-foreground">
+          <LoaderCircle size={18} className="animate-spin text-blue-600" />
           {t("loading")}
         </div>
       ) : errorKey ? (
-        <div className="mt-6 rounded-2xl bg-rose-500/10 px-4 py-3 text-sm font-bold text-rose-500">
+        <div className="mt-6 rounded-2xl bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-500">
           {t(errorKey)}
         </div>
       ) : items.length === 0 ? (
         <div className="mt-6 rounded-2xl border border-dashed border-border bg-background/50 p-6 text-center">
           <ShieldCheck size={28} className="mx-auto text-emerald-500" />
-          <p className="mt-3 font-black">{t("noAccessTitle")}</p>
+          <p className="mt-3 font-semibold">{t("noAccessTitle")}</p>
           <p className="mt-1 text-sm text-muted-foreground">
             {t("noAccessDescription")}
           </p>
@@ -150,7 +151,7 @@ export default function PhoneAccessHistory() {
               key={item.id}
               className="flex min-w-0 items-start gap-4 rounded-2xl border border-border bg-background/60 p-4 sm:p-5"
             >
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-500/10 text-violet-500">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-600/8 text-blue-600">
                 {item.eventType === "phone_call_started" ? (
                   <PhoneCall size={18} />
                 ) : (
@@ -160,15 +161,15 @@ export default function PhoneAccessHistory() {
 
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-black">
+                  <p className="font-semibold">
                     {translateKlyxPhoneHistoryViewer(locale, item.viewerName)}
                   </p>
-                  <span className="text-xs font-semibold text-muted-foreground">
+                  <span className="text-xs font-medium text-muted-foreground">
                     {formatKlyxPhoneHistoryDate(locale, item.createdAt)}
                   </span>
                 </div>
 
-                <p className="mt-1 text-sm font-semibold">
+                <p className="mt-1 text-sm font-medium">
                   {translateKlyxPhoneHistoryEvent(locale, item.eventType)}
                 </p>
 

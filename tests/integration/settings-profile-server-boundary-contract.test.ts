@@ -9,32 +9,39 @@ function read(relativePath: string): string {
   return fs.readFileSync(path.join(root, relativePath), "utf8");
 }
 
-describe("KLYX settings profile server boundary", () => {
-  it("keeps settings profile writes behind the existing profile API", () => {
+describe("KLYX settings/profile server boundary", () => {
+  it("keeps identity editing on Profile and out of Settings", () => {
     const settings = read("app/settings/page.tsx");
+    const profile = read("app/profile/page.tsx");
 
-    expect(settings).toContain("KLYX_SETTINGS_PROFILE_SERVER_BOUNDARY_16_04");
+    expect(settings).toContain("KLYX_SETTINGS_PROFILE_DEDUPLICATED");
     expect(settings).not.toMatch(/\.from\(\s*["']profiles["']\s*\)[\s\S]*?\.update\(/);
-    expect(settings).toMatch(/fetch\(\s*["']\/api\/profile\/me["'][\s\S]*?cache:\s*["']no-store["']/);
-    expect(settings).toMatch(/fetch\(\s*["']\/api\/profile\/me["'][\s\S]*?method:\s*["']PATCH["']/);
+    expect(settings).not.toContain('fetch("/api/profile/me"');
+    expect(settings).not.toContain("savingProfile");
+    expect(settings).not.toContain("setFirstName");
+    expect(settings).not.toContain("setLastName");
+    expect(settings).not.toContain("switchAccount");
+
+    expect(profile).toMatch(
+      /fetch\(\s*["']\/api\/profile\/me["'][\s\S]*?cache:\s*["']no-store["']/
+    );
+    expect(profile).toMatch(
+      /fetch\(\s*["']\/api\/profile\/me["'][\s\S]*?method:\s*["']PATCH["']/
+    );
+    expect(profile).toMatch(
+      /JSON\.stringify\(\{[\s\S]*?firstName,[\s\S]*?lastName,[\s\S]*?city,[\s\S]*?age:/
+    );
   });
 
-  it("preserves city and age when settings edits only the current profile name", () => {
-    const settings = read("app/settings/page.tsx");
-
-    expect(settings).toMatch(/currentBody\.profile\.city/);
-    expect(settings).toMatch(/currentBody\.profile\.age/);
-    expect(settings).toMatch(/JSON\.stringify\(\{[\s\S]*?firstName:[\s\S]*?lastName:[\s\S]*?city:[\s\S]*?age:/);
-  });
-
-  it("preserves unrelated authenticated settings boundaries", () => {
+  it("preserves unrelated authenticated Settings boundaries", () => {
     const settings = read("app/settings/page.tsx");
 
     expect(settings).toContain("supabase.auth.updateUser({");
     expect(settings).toContain("email: newEmail.trim().toLowerCase()");
     expect(settings).toContain("password: newPassword");
-    expect(settings).toMatch(/fetch\(\s*["']\/api\/account\/delete["'][\s\S]*?method:\s*["']DELETE["']/);
-    expect(settings).toContain("await switchAccount(account.id)");
+    expect(settings).toMatch(
+      /fetch\(\s*["']\/api\/account\/delete["'][\s\S]*?method:\s*["']DELETE["']/
+    );
   });
 
   it("keeps the server profile API ownership checks and validation in force", () => {
