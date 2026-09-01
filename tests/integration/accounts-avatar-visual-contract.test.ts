@@ -28,9 +28,11 @@ describe("KLYX accounts avatar visual contract", () => {
     expect(page).toContain('accept="image/*"');
     expect(page).toContain("URL.createObjectURL");
     expect(page).toContain("URL.revokeObjectURL");
-    expect(page).toContain("MAX_AVATAR_BYTES");
-    expect(page).toContain("/api/profiles");
-    expect(page).toContain("/api/profiles/active");
+    expect(page).toContain("MAX_AVATAR_SIZE");
+    expect(page).toContain("createProfile");
+    expect(page).toContain("updateProfile");
+    expect(page).toContain("switchAccount");
+    expect(page).toContain("deleteProfile");
   });
 
   it("archives local avatar states without saving the fixture", () => {
