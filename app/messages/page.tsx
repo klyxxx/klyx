@@ -351,7 +351,7 @@ export default function MessagesPage() {
           </div>
         ) : errorMessage ? (
           <section className="mt-8 border-y border-border py-6">
-            <p className="font-semibold">{t("errorTitle")}</p>
+            <p className="font-semibold text-red-500">{t("errorTitle")}</p>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
               {errorMessage}
             </p>
