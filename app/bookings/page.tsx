@@ -18,13 +18,11 @@ import Link from "next/link";
 import {
   ArrowRight,
   CalendarDays,
-  CheckCircle2,
   Clock3,
   CreditCard,
   Layers3,
   LoaderCircle,
   RefreshCw,
-  ShieldCheck,
   UserRound,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -43,6 +41,7 @@ import { supabase } from "@/lib/supabase";
 
 // KLYX_GROUPED_BOOKINGS_PAGE_12_92
 // KLYX_BOOKINGS_PAGE_I18N_16_09
+// KLYX_ACTIVITY_DESTINATION_2026_09_01
 
 const SESSION_MISSING = "KLYX_BOOKINGS_SESSION_MISSING";
 
@@ -83,30 +82,6 @@ type OverviewResponse = {
   groupedDisplay?: boolean;
 };
 
-const STATUS_STYLES: Record<string, string> = {
-  pending:
-    "border-amber-500/25 bg-amber-500/8 text-amber-700 dark:text-amber-300",
-  payment_pending:
-    "border-amber-500/25 bg-amber-500/8 text-amber-700 dark:text-amber-300",
-  accepted:
-    "border-blue-600/20 bg-blue-600/8 text-blue-700 dark:text-blue-300",
-  completed:
-    "border-emerald-500/25 bg-emerald-500/8 text-emerald-700 dark:text-emerald-300",
-  cancelled: "border-border bg-muted text-muted-foreground",
-  rejected:
-    "border-red-500/25 bg-red-500/8 text-red-700 dark:text-red-300",
-  cancellation_waiting:
-    "border-amber-500/25 bg-amber-500/8 text-amber-700 dark:text-amber-300",
-  cancellation_decision:
-    "border-red-500/25 bg-red-500/8 text-red-700 dark:text-red-300",
-  refund_processing:
-    "border-blue-600/20 bg-blue-600/8 text-blue-700 dark:text-blue-300",
-  refund_failed:
-    "border-red-500/25 bg-red-500/8 text-red-700 dark:text-red-300",
-  refunded:
-    "border-blue-600/20 bg-blue-600/8 text-blue-700 dark:text-blue-300",
-};
-
 async function accessToken() {
   const {
     data: { session },
@@ -138,6 +113,22 @@ function serviceLabel(locale: string, card: BookingCard) {
     card.serviceSlug,
     card.serviceLabel
   );
+}
+
+function statusClass(status: string) {
+  if (
+    status === "pending" ||
+    status === "payment_pending" ||
+    status === "accepted" ||
+    status === "cancellation_waiting" ||
+    status === "cancellation_decision" ||
+    status === "refund_processing" ||
+    status === "refunded"
+  ) {
+    return "border-blue-600/20 bg-blue-600/[0.06] text-blue-700 dark:text-blue-300";
+  }
+
+  return "border-border bg-background text-muted-foreground";
 }
 
 export default function BookingsPage() {
@@ -284,6 +275,25 @@ export default function BookingsPage() {
     [bookings]
   );
 
+  const remainingBookings = useMemo(
+    () =>
+      visibleBookings.filter(
+        (booking) =>
+          !nextBooking ||
+          booking.id !== nextBooking.id ||
+          booking.entityType !== nextBooking.entityType
+      ),
+    [nextBooking, visibleBookings]
+  );
+
+  const visibleSplitCount = useMemo(
+    () =>
+      splitMissions.filter((mission) =>
+        splitMissionMatchesFilter(mission, filter)
+      ).length,
+    [filter, splitMissions]
+  );
+
   const filterOptions: Array<{ value: BookingFilter; label: string }> = [
     { value: "actions", label: t("filterActions") },
     { value: "upcoming", label: t("filterUpcoming") },
@@ -300,17 +310,15 @@ export default function BookingsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6 sm:py-10">
+    <main className="klyx-page">
       <div className="mx-auto max-w-4xl">
-        <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+        <header className="flex items-start justify-between gap-5">
           <div className="max-w-2xl">
-            <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
-              {t("clientTracking")}
-            </p>
-            <h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] sm:text-5xl">
+            <p className="klyx-eyebrow uppercase">{t("clientTracking")}</p>
+            <h1 className="klyx-title mt-2 text-3xl sm:text-5xl">
               {t("title")}
             </h1>
-            <p className="mt-3 text-sm leading-7 text-muted-foreground sm:text-base">
+            <p className="mt-3 max-w-xl text-sm leading-7 text-muted-foreground sm:text-base">
               {t("clientDescription")}
             </p>
           </div>
@@ -319,41 +327,34 @@ export default function BookingsPage() {
             type="button"
             onClick={() => void loadBookings()}
             disabled={loading}
-            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-semibold transition hover:bg-muted disabled:opacity-50"
+            aria-label={t("refresh")}
+            title={t("refresh")}
+            className="mt-1 inline-grid h-10 w-10 shrink-0 place-items-center rounded-full border border-border bg-background text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
           >
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-            {t("refresh")}
           </button>
         </header>
 
         {hiddenChildren > 0 && (
-          <p className="mt-6 inline-flex items-center gap-2 rounded-full bg-blue-600/8 px-3 py-1.5 text-xs font-medium text-blue-700 dark:text-blue-300">
-            <Layers3 size={14} />
+          <p className="mt-6 inline-flex items-center gap-2 text-xs font-medium text-muted-foreground">
+            <Layers3 size={14} className="text-blue-600" />
             {t("groupedViewActive")}
           </p>
         )}
 
         {errorKey && (
-          <div className="mt-6 rounded-2xl border border-red-500/25 bg-red-500/8 p-4 text-sm text-red-700 dark:text-red-300">
+          <div className="mt-6 rounded-2xl border border-border bg-muted/40 p-4 text-sm text-foreground">
             {t(errorKey)}
           </div>
         )}
 
         {!loading && nextBooking && (
-          <section
-            className={`mt-8 rounded-2xl border p-5 shadow-sm sm:p-6 ${
-              nextBooking.actionRequired
-                ? "border-amber-500/30 bg-amber-500/[0.04]"
-                : "border-border bg-card"
-            }`}
-          >
-            <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
-              {t("nextStepKlyx")}
-            </p>
+          <section className="mt-8 rounded-[1.5rem] border border-border bg-card p-5 sm:p-6">
+            <p className="klyx-eyebrow uppercase">{t("nextStepKlyx")}</p>
 
             <div className="mt-3 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
-                <h2 className="text-xl font-semibold">
+                <h2 className="text-xl font-semibold tracking-[-0.02em]">
                   {nextBooking.actionRequired
                     ? t("agreementRequired")
                     : t("missionTracked")}
@@ -370,7 +371,7 @@ export default function BookingsPage() {
 
               <Link
                 href={nextBooking.href}
-                className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500"
+                className="klyx-button inline-flex min-h-11 shrink-0 items-center justify-center gap-2 px-4 text-sm font-semibold"
               >
                 {t("viewMission")}
                 <ArrowRight size={16} />
@@ -384,22 +385,30 @@ export default function BookingsPage() {
         )}
 
         {!loading && counts.all > 0 && (
-          <div className="mt-8 flex gap-2 overflow-x-auto pb-2">
-            {filterOptions.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => setFilter(option.value)}
-                className={`whitespace-nowrap rounded-full border px-4 py-2 text-sm font-medium transition ${
-                  filter === option.value
-                    ? "border-blue-600 bg-blue-600 text-white"
-                    : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                {option.label} · {counts[option.value]}
-              </button>
-            ))}
-          </div>
+          <nav
+            aria-label={t("title")}
+            className="mt-8 flex gap-4 overflow-x-auto border-b border-border sm:gap-6"
+          >
+            {filterOptions.map((option) => {
+              const active = filter === option.value;
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setFilter(option.value)}
+                  aria-current={active ? "page" : undefined}
+                  className={`shrink-0 border-b-2 px-0.5 pb-3 text-sm font-medium transition ${
+                    active
+                      ? "border-blue-600 text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {option.label} <span className="text-xs">· {counts[option.value]}</span>
+                </button>
+              );
+            })}
+          </nav>
         )}
 
         {!loading && (
@@ -415,33 +424,31 @@ export default function BookingsPage() {
           </div>
         ) : bookings.length === 0 && splitMissions.length === 0 ? (
           <EmptyState />
-        ) : visibleBookings.length === 0 &&
-          splitMissions.filter((mission) =>
-            splitMissionMatchesFilter(mission, filter)
-          ).length === 0 ? (
-          <div className="mt-8 rounded-2xl border border-border bg-card p-8 text-center">
-            <CheckCircle2 className="mx-auto text-emerald-500" size={36} />
-            <h2 className="mt-4 text-lg font-semibold">{t("nothingToHandle")}</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {t("nothingToHandleDescription")}
-            </p>
+        ) : visibleBookings.length === 0 && visibleSplitCount === 0 ? (
+          <div className="mt-8 border-b border-border pb-8 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">{t("nothingToHandle")}</p>
+            <p className="mt-2">{t("nothingToHandleDescription")}</p>
           </div>
-        ) : (
-          <div className="mt-8 space-y-4">
-            {visibleBookings.map((booking) => (
+        ) : remainingBookings.length > 0 ? (
+          <section
+            className="klyx-activity-list mt-8 overflow-hidden rounded-[1.5rem] border border-border bg-card"
+            aria-label={t("title")}
+          >
+            {remainingBookings.map((booking, index) => (
               <BookingCardView
                 key={`${booking.entityType}:${booking.id}`}
                 booking={booking}
+                divided={index > 0}
               />
             ))}
-          </div>
-        )}
+          </section>
+        ) : null}
 
         {!loading && counts.all > 0 && (
-          <div className="mt-8 text-center">
+          <div className="mt-8">
             <Link
               href="/assistant"
-              className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-blue-600 transition hover:bg-blue-600/5 dark:text-blue-400"
+              className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-blue-600 transition hover:text-blue-700"
             >
               {t("organizeAnotherNeed")}
               <ArrowRight size={16} />
@@ -459,15 +466,15 @@ function EmptyState() {
     translateKlyxBookingsPage(locale, key);
 
   return (
-    <div className="mt-10 rounded-2xl border border-border bg-card p-8 text-center sm:p-10">
-      <CalendarDays className="mx-auto text-blue-600" size={38} />
+    <div className="mt-12 max-w-xl py-8">
+      <CalendarDays className="text-blue-600" size={32} />
       <h2 className="mt-5 text-xl font-semibold">{t("emptyTitle")}</h2>
-      <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-muted-foreground">
+      <p className="mt-3 text-sm leading-6 text-muted-foreground">
         {t("emptyClient")}
       </p>
       <Link
         href="/assistant"
-        className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white transition hover:bg-blue-500"
+        className="klyx-button mt-6 inline-flex min-h-11 items-center justify-center gap-2 px-5 text-sm font-semibold"
       >
         {t("organizeAnotherNeed")}
         <ArrowRight size={16} />
@@ -476,86 +483,88 @@ function EmptyState() {
   );
 }
 
-function BookingCardView({ booking }: { booking: BookingCard }) {
+function BookingCardView({
+  booking,
+  divided,
+}: {
+  booking: BookingCard;
+  divided: boolean;
+}) {
   const { locale } = useKlyxLocale();
   const t = (key: KlyxBookingsPageMessageKey) =>
     translateKlyxBookingsPage(locale, key);
   const grouped = booking.entityType === "group";
 
   return (
-    <article
-      className={`rounded-2xl border bg-card p-5 shadow-sm sm:p-6 ${
-        booking.actionRequired ? "border-amber-500/30" : "border-border"
-      }`}
-    >
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-muted">
-            {booking.otherUserAvatar ? (
-              <img
-                src={booking.otherUserAvatar}
-                alt={booking.otherUserName}
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <UserRound className="text-muted-foreground" size={21} />
+    <article className={`p-5 sm:p-6 ${divided ? "border-t border-border" : ""}`}>
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-muted">
+              {booking.otherUserAvatar ? (
+                <img
+                  src={booking.otherUserAvatar}
+                  alt={booking.otherUserName}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <UserRound className="text-muted-foreground" size={19} />
+              )}
+            </div>
+
+            <div className="min-w-0">
+              <p className="truncate font-semibold">{booking.otherUserName}</p>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                {serviceLabel(locale, booking)}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <span
+              className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${statusClass(
+                booking.status
+              )}`}
+            >
+              {formatKlyxBookingStatus(locale, booking.status)}
+            </span>
+
+            {booking.actionRequired && (
+              <span className="text-xs font-semibold text-blue-600">
+                {t("actionRequiredNotice")}
+              </span>
+            )}
+
+            {grouped && (
+              <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Layers3 size={13} className="text-blue-600" />
+                {t("groupedMission")}
+              </span>
             )}
           </div>
 
-          <div className="min-w-0">
-            <p className="truncate font-semibold">{booking.otherUserName}</p>
-            <p className="mt-0.5 text-sm text-blue-600 dark:text-blue-400">
-              {serviceLabel(locale, booking)}
-            </p>
+          <div className="mt-5 grid gap-3 text-sm sm:grid-cols-3">
+            <Info
+              icon={<CalendarDays size={15} />}
+              label={t("date")}
+              value={dateLabel(locale, booking)}
+            />
+            <Info
+              icon={<Clock3 size={15} />}
+              label={grouped ? t("planning") : t("schedule")}
+              value={timeLabel(locale, booking)}
+            />
+            <Info
+              icon={<CreditCard size={15} />}
+              label={grouped ? t("totalMission") : t("amount")}
+              value={amountLabel(locale, booking)}
+            />
           </div>
         </div>
 
-        <span
-          className={`w-fit shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold ${
-            STATUS_STYLES[booking.status] ??
-            "border-border bg-muted text-muted-foreground"
-          }`}
-        >
-          {formatKlyxBookingStatus(locale, booking.status)}
-        </span>
-      </div>
-
-      {booking.actionRequired && (
-        <div className="mt-5 flex gap-2 rounded-xl border border-amber-500/25 bg-amber-500/8 p-3 text-sm font-medium text-amber-800 dark:text-amber-300">
-          <ShieldCheck size={17} className="mt-0.5 shrink-0" />
-          <span>{t("actionRequiredNotice")}</span>
-        </div>
-      )}
-
-      {grouped && (
-        <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-          <Layers3 size={16} className="text-blue-600" />
-          {t("groupedMission")} · {formatKlyxBookingSlotCount(locale, booking.slotCount)}
-        </p>
-      )}
-
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <Info
-          icon={<CalendarDays size={16} />}
-          label={t("date")}
-          value={dateLabel(locale, booking)}
-        />
-        <Info
-          icon={<Clock3 size={16} />}
-          label={grouped ? t("planning") : t("schedule")}
-          value={timeLabel(locale, booking)}
-        />
-        <Info
-          icon={<CreditCard size={16} />}
-          label={grouped ? t("totalMission") : t("amount")}
-          value={amountLabel(locale, booking)}
-        />
-      </div>
-
-      <div className="mt-5 flex justify-end">
         <Link
           href={booking.href}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500"
+          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 text-sm font-semibold text-blue-600 transition hover:text-blue-700"
         >
           {grouped ? t("openGroupedMission") : t("viewBooking")}
           <ArrowRight size={16} />
@@ -580,7 +589,7 @@ function Info({
         {icon}
         {label}
       </p>
-      <p className="mt-1 truncate text-sm font-medium">{value}</p>
+      <p className="mt-1 truncate font-medium">{value}</p>
     </div>
   );
 }
