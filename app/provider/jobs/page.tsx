@@ -10,15 +10,15 @@ import {
   type ReactNode,
 } from "react";
 import {
-  BadgeCheck,
+  ArrowRight,
   Banknote,
   CalendarDays,
+  ChevronDown,
   Clock3,
   Layers3,
   LoaderCircle,
   MapPin,
   Send,
-  ShieldCheck,
   Sparkles,
 } from "lucide-react";
 
@@ -35,6 +35,7 @@ import {
 import { supabase } from "@/lib/supabase";
 
 // KLYX_PROVIDER_MULTI_JOBS_UI_12_93
+// KLYX_PROVIDER_JOBS_DESTINATION_2026_09_01
 
 type MultiSlot = {
   id: string;
@@ -114,18 +115,6 @@ function timeLabel(value: string | null): string {
   return value ? value.slice(0, 5) : "--:--";
 }
 
-function offerStatusClass(status: string): string {
-  if (status === "accepted") {
-    return "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
-  }
-
-  if (status === "rejected") {
-    return "border-red-500/25 bg-red-500/10 text-red-700 dark:text-red-300";
-  }
-
-  return "border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300";
-}
-
 export default function ProviderJobsPage() {
   const { locale } = useKlyxLocale();
   const t: Translator = (key) => translateKlyxProviderJobs(locale, key);
@@ -135,6 +124,7 @@ export default function ProviderJobsPage() {
   const [busy, setBusy] = useState("");
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [messages, setMessages] = useState<Record<string, string>>({});
+  const [openOfferId, setOpenOfferId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
@@ -261,6 +251,7 @@ export default function ProviderJobsPage() {
           ? t("multiOfferSent")
           : t("offerSent")
       );
+      setOpenOfferId(null);
       await load();
     } catch {
       setErrorMessage(t("offerError"));
@@ -269,93 +260,104 @@ export default function ProviderJobsPage() {
     }
   }
 
+  function toggleOffer(requestId: string) {
+    setErrorMessage("");
+    setSuccessMessage("");
+    setOpenOfferId((current) => (current === requestId ? null : requestId));
+  }
+
   return (
-    <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6 sm:py-10">
-      <div className="mx-auto max-w-5xl">
-        <header className="max-w-3xl">
-          <h1 className="text-3xl font-bold tracking-[-0.04em] sm:text-5xl">
+    <main className="klyx-page">
+      <div className="mx-auto max-w-4xl">
+        <header className="max-w-2xl">
+          <p className="klyx-eyebrow uppercase">{t("eyebrow")}</p>
+          <h1 className="klyx-title mt-2 text-3xl sm:text-5xl">
             {t("title")}
           </h1>
-          <p className="mt-3 text-sm leading-7 text-muted-foreground sm:text-base">
+          <p className="mt-3 max-w-xl text-sm leading-7 text-muted-foreground sm:text-base">
             {t("description")}
           </p>
         </header>
 
         {successMessage && (
-          <div className="mt-6 rounded-2xl border border-emerald-500/25 bg-emerald-500/8 p-4 text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+          <div className="mt-6 rounded-2xl border border-blue-600/20 bg-blue-600/[0.05] p-4 text-sm font-medium text-foreground">
             {successMessage}
           </div>
         )}
 
         {errorMessage && (
-          <div className="mt-6 rounded-2xl border border-red-500/25 bg-red-500/8 p-4 text-sm text-red-700 dark:text-red-300">
+          <div className="mt-6 rounded-2xl border border-border bg-muted/40 p-4 text-sm text-foreground">
             {errorMessage}
           </div>
         )}
 
         {loading ? (
-          <div className="grid min-h-80 place-items-center" aria-label={t("missions")}>
-            <LoaderCircle className="animate-spin text-blue-600" size={34} />
+          <div className="grid min-h-72 place-items-center" aria-label={t("missions")}>
+            <LoaderCircle className="animate-spin text-blue-600" size={30} />
           </div>
         ) : !recommendedRequest ? (
-          <section className="mt-8 rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
-            <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-blue-600/8 text-blue-600">
-              <ShieldCheck size={22} />
-            </span>
-            <h2 className="mt-4 text-xl font-semibold">{t("noCompatible")}</h2>
-            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+          <section className="mt-10 max-w-xl py-8">
+            <h2 className="text-xl font-semibold">{t("noCompatible")}</h2>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">
               {t("noCompatibleDetail")}
             </p>
           </section>
         ) : (
           <>
             <section className="mt-8" aria-label={t("priority")}>
-              <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400">
-                <Sparkles size={17} />
-                <span>{t("bestMatch")}</span>
+              <p className="klyx-eyebrow uppercase">{t("nextAction")}</p>
+              <p className="mt-2 text-sm font-semibold text-blue-600">
+                {t("bestMatch")}
+              </p>
+              <div className="mt-3">
+                <MissionCard
+                  item={recommendedRequest}
+                  locale={locale}
+                  t={t}
+                  money={money}
+                  featured
+                  offerOpen={openOfferId === recommendedRequest.id}
+                  busy={busy === recommendedRequest.id}
+                  amount={amounts[recommendedRequest.id] ?? ""}
+                  message={messages[recommendedRequest.id] ?? ""}
+                  onToggleOffer={() => toggleOffer(recommendedRequest.id)}
+                  onAmountChange={(value) =>
+                    setAmounts((current) => ({
+                      ...current,
+                      [recommendedRequest.id]: value,
+                    }))
+                  }
+                  onMessageChange={(value) =>
+                    setMessages((current) => ({
+                      ...current,
+                      [recommendedRequest.id]: value,
+                    }))
+                  }
+                  onSubmit={(event) => void submitOffer(event, recommendedRequest)}
+                />
               </div>
-
-              <MissionCard
-                item={recommendedRequest}
-                locale={locale}
-                t={t}
-                money={money}
-                featured
-                busy={busy === recommendedRequest.id}
-                amount={amounts[recommendedRequest.id] ?? ""}
-                message={messages[recommendedRequest.id] ?? ""}
-                onAmountChange={(value) =>
-                  setAmounts((current) => ({
-                    ...current,
-                    [recommendedRequest.id]: value,
-                  }))
-                }
-                onMessageChange={(value) =>
-                  setMessages((current) => ({
-                    ...current,
-                    [recommendedRequest.id]: value,
-                  }))
-                }
-                onSubmit={(event) => void submitOffer(event, recommendedRequest)}
-              />
             </section>
 
             {otherRequests.length > 0 && (
               <section className="mt-10" aria-label={t("missions")}>
-                <h2 className="text-xl font-semibold tracking-[-0.02em]">
+                <h2 className="text-lg font-semibold tracking-[-0.02em]">
                   {t("missions")}
                 </h2>
-                <div className="mt-4 space-y-4">
-                  {otherRequests.map((item) => (
+
+                <div className="mt-3 overflow-hidden rounded-[1.5rem] border border-border bg-card">
+                  {otherRequests.map((item, index) => (
                     <MissionCard
                       key={item.id}
                       item={item}
                       locale={locale}
                       t={t}
                       money={money}
+                      divided={index > 0}
+                      offerOpen={openOfferId === item.id}
                       busy={busy === item.id}
                       amount={amounts[item.id] ?? ""}
                       message={messages[item.id] ?? ""}
+                      onToggleOffer={() => toggleOffer(item.id)}
                       onAmountChange={(value) =>
                         setAmounts((current) => ({
                           ...current,
@@ -387,9 +389,12 @@ function MissionCard({
   t,
   money,
   featured = false,
+  divided = false,
+  offerOpen,
   busy,
   amount,
   message,
+  onToggleOffer,
   onAmountChange,
   onMessageChange,
   onSubmit,
@@ -399,9 +404,12 @@ function MissionCard({
   t: Translator;
   money: MoneyFormatter;
   featured?: boolean;
+  divided?: boolean;
+  offerOpen: boolean;
   busy: boolean;
   amount: string;
   message: string;
+  onToggleOffer: () => void;
   onAmountChange: (value: string) => void;
   onMessageChange: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
@@ -412,269 +420,262 @@ function MissionCard({
 
   return (
     <article
-      className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${
+      className={
         featured
-          ? "border-blue-500/35 ring-1 ring-blue-500/10"
-          : "border-border"
-      }`}
+          ? "rounded-[1.5rem] border border-border bg-card p-5 sm:p-6"
+          : `p-5 sm:p-6 ${divided ? "border-t border-border" : ""}`
+      }
     >
-      <div className="p-5 sm:p-6">
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">
-                {item.service?.name ?? t("fallbackService")}
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs font-medium text-muted-foreground">
+            <span className="font-semibold text-blue-600">
+              {item.service?.name ?? t("fallbackService")}
+            </span>
+
+            {item.requestMode === "multi_slot" && (
+              <span className="inline-flex items-center gap-1.5">
+                <Layers3 size={13} />
+                {item.slotCount} {t("slot")}
               </span>
+            )}
 
-              {item.requestMode === "multi_slot" && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-500/20 bg-blue-500/8 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:text-blue-300">
-                  <Layers3 size={13} />
-                  {item.slotCount} {t("slot")}
-                </span>
-              )}
+            {item.requestMode === "multi_slot" && item.coverage && (
+              <span>{item.coverage.label}</span>
+            )}
 
-              {item.match && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-500/20 bg-blue-500/8 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:text-blue-300">
-                  <Sparkles size={13} />
-                  {item.match.score}% · {translateKlyxProviderJobsMatch(locale, item.match.score)}
-                </span>
-              )}
+            {item.match && (
+              <span>
+                {item.match.score}% · {translateKlyxProviderJobsMatch(locale, item.match.score)}
+              </span>
+            )}
+          </div>
 
-              {item.coverage?.fullCoverage && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                  <BadgeCheck size={13} />
-                  {item.coverage.label} {t("available")}
-                </span>
-              )}
-            </div>
+          <h2 className={`mt-2 font-semibold tracking-[-0.025em] ${featured ? "text-2xl" : "text-lg"}`}>
+            {item.title}
+          </h2>
 
-            <h2 className="mt-3 text-2xl font-semibold tracking-[-0.03em]">
-              {item.title}
-            </h2>
+          <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
+            <span className="inline-flex items-center gap-2">
+              <MapPin size={15} />
+              {item.city}
+            </span>
 
-            <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
+            {item.requestMode === "single" && item.requested_date && (
               <span className="inline-flex items-center gap-2">
-                <MapPin size={16} />
-                {item.city}
+                <CalendarDays size={15} />
+                {formatKlyxProviderJobsDate(locale, item.requested_date)}
               </span>
+            )}
 
-              {item.requestMode === "single" && item.requested_date && (
-                <span className="inline-flex items-center gap-2">
-                  <CalendarDays size={16} />
-                  {formatKlyxProviderJobsDate(locale, item.requested_date)}
-                </span>
-              )}
+            {item.requestMode === "single" && item.requested_time && (
+              <span className="inline-flex items-center gap-2">
+                <Clock3 size={15} />
+                {timeLabel(item.requested_time)}
+              </span>
+            )}
+          </div>
 
-              {item.requestMode === "single" && item.requested_time && (
-                <span className="inline-flex items-center gap-2">
-                  <Clock3 size={16} />
-                  {timeLabel(item.requested_time)}
-                </span>
-              )}
-            </div>
-
-            <p className="mt-4 max-w-3xl text-sm leading-7 text-muted-foreground">
+          {featured && (
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">
               {item.description}
             </p>
+          )}
 
-            {item.match && item.match.reasons.length > 0 && (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {item.match.reasons.slice(0, 4).map((reason) => (
-                  <span
-                    key={reason}
-                    className="inline-flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5 text-xs font-medium"
-                  >
-                    <BadgeCheck size={13} />
-                    {reason}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="min-w-44 rounded-2xl border border-border bg-background p-4 lg:text-right">
-            <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-              {item.requestMode === "multi_slot"
-                ? t("budgetTotal")
-                : t("clientBudget")}
-            </p>
-            <p className="mt-1 text-2xl font-semibold">
-              {money(budget, item.currency)}
-            </p>
-            {item.requestMode === "multi_slot" &&
-              item.totalDurationMinutes !== null && (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {formatKlyxProviderJobsDuration(
-                    locale,
-                    item.totalDurationMinutes
-                  )}{" "}
-                  {t("totalSuffix")}
-                </p>
-              )}
-          </div>
-        </div>
-
-        {item.requestMode === "multi_slot" && (
-          <section className="mt-6 rounded-2xl border border-blue-500/15 bg-blue-500/5 p-4 sm:p-5">
-            <div className="flex items-start gap-3">
-              <ShieldCheck className="mt-0.5 shrink-0 text-blue-600" size={19} />
-              <div>
-                <p className="font-semibold">{t("fullMissionCoverage")}</p>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  {t("fullMissionCoverageDetail")}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-3 lg:grid-cols-2">
-              {item.slots.map((slot) => (
-                <div
-                  key={slot.id}
-                  className="rounded-xl border border-border bg-background p-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.1em] text-blue-600 dark:text-blue-400">
-                        {t("slot")} {slot.position}
-                      </p>
-                      <p className="mt-1 font-semibold">
-                        {formatKlyxProviderJobsDate(locale, slot.date)}
-                      </p>
-                    </div>
-                    {slot.budgetMax !== null && (
-                      <span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold">
-                        {money(slot.budgetMax, item.currency)}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                    <MiniInfo
-                      icon={<Clock3 size={15} />}
-                      label={t("schedule")}
-                      value={`${timeLabel(slot.startTime)} - ${timeLabel(slot.endTime)}`}
-                    />
-                    <MiniInfo
-                      icon={<CalendarDays size={15} />}
-                      label={t("duration")}
-                      value={formatKlyxProviderJobsDuration(
-                        locale,
-                        slot.durationMinutes
-                      )}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {offerStatus && (
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            <span
-              className={`inline-flex rounded-full border px-3 py-1.5 text-xs font-semibold ${offerStatusClass(
-                offerStatus
-              )}`}
-            >
-              {translateKlyxProviderJobOfferStatus(locale, offerStatus)}
-            </span>
-            <span className="text-sm text-muted-foreground">
+          {offerStatus && (
+            <p className="mt-4 text-sm text-muted-foreground">
+              <span className="font-semibold text-foreground">
+                {translateKlyxProviderJobOfferStatus(locale, offerStatus)}
+              </span>
+              {" · "}
               {t("currentOffer")}: {money(Number(item.myOffer?.amount ?? 0), item.currency)}
-            </span>
-          </div>
-        )}
-
-        <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-border bg-background p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <Sparkles size={17} className="text-blue-600" />
-              <p className="font-semibold">{t("needHelp")}</p>
-            </div>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              {t("assistantControlNote")}
             </p>
-          </div>
-          <a
-            href={
-              "/provider/assistant?prompt=" +
-              encodeURIComponent(
-                `Prépare une réponse professionnelle pour cette mission KLYX.\nMission : ${item.title}\nService : ${item.service?.name ?? "Service KLYX"}\nVille : ${item.city}\nBudget client : ${money(
-                  budget,
-                  item.currency
-                )}\nDescription : ${item.description}\nCompatibilité KLYX : ${item.match?.score ?? 0}%.\nJe veux relire et modifier le brouillon avant toute action.`
-              )
-            }
-            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-border px-4 text-sm font-semibold text-blue-600 transition hover:bg-muted"
-          >
-            <Sparkles size={16} />
-            {t("prepareWithKlyx")}
-          </a>
+          )}
         </div>
 
-        <form
-          onSubmit={onSubmit}
-          className="mt-6 grid gap-4 border-t border-border pt-6 sm:grid-cols-[190px_1fr_auto]"
-        >
-          <label>
-            <span className="mb-2 flex items-center gap-2 text-sm font-semibold">
-              <Banknote size={16} />
-              {item.requestMode === "multi_slot"
-                ? t("totalPrice")
-                : t("yourPrice")}
-            </span>
-            <input
-              type="number"
-              min="0.01"
-              step="0.01"
-              className="klyx-input"
-              value={amount}
-              onChange={(event) => onAmountChange(event.target.value)}
-              required
-            />
-          </label>
-
-          <label>
-            <span className="mb-2 block text-sm font-semibold">
-              {t("clientMessage")}
-            </span>
-            <input
-              className="klyx-input"
-              maxLength={1500}
-              value={message}
-              onChange={(event) => onMessageChange(event.target.value)}
-              placeholder={
-                item.requestMode === "multi_slot"
-                  ? t("multiMessagePlaceholder")
-                  : t("singleMessagePlaceholder")
-              }
-            />
-          </label>
+        <div className="shrink-0 sm:text-right">
+          <p className="text-xs font-medium text-muted-foreground">
+            {item.requestMode === "multi_slot" ? t("budgetTotal") : t("clientBudget")}
+          </p>
+          <p className="mt-1 text-lg font-semibold">{money(budget, item.currency)}</p>
 
           <button
-            type="submit"
-            disabled={
-              busy ||
-              (item.requestMode === "multi_slot" && !item.coverage?.fullCoverage)
+            type="button"
+            onClick={onToggleOffer}
+            aria-expanded={offerOpen}
+            className={
+              featured
+                ? "klyx-button mt-4 inline-flex min-h-11 items-center justify-center gap-2 px-4 text-sm font-semibold"
+                : "mt-4 inline-flex min-h-10 items-center justify-center gap-2 text-sm font-semibold text-blue-600 transition hover:text-blue-700"
             }
-            className="inline-flex min-h-12 items-center justify-center gap-2 self-end rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-45"
           >
-            {busy ? (
-              <LoaderCircle className="animate-spin" size={17} />
-            ) : (
-              <Send size={17} />
-            )}
-            {item.myOffer
-              ? t("updateOffer")
-              : item.requestMode === "multi_slot"
-                ? t("proposeAll")
-                : t("sendOffer")}
+            {item.myOffer ? t("updateOffer") : t("sendOffer")}
+            <ArrowRight size={15} className={offerOpen ? "rotate-90 transition" : "transition"} />
           </button>
-        </form>
-
-        <p className="mt-3 text-xs leading-5 text-muted-foreground">
-          {t("offerNotBookingPayment")}
-        </p>
+        </div>
       </div>
+
+      {!featured && !offerOpen && (
+        <details className="group mt-4 border-t border-border pt-3">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm text-muted-foreground transition hover:text-foreground marker:hidden">
+            <span>{t("decisionAid")}</span>
+            <ChevronDown size={16} className="shrink-0 transition group-open:rotate-180" />
+          </summary>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
+            {item.description}
+          </p>
+        </details>
+      )}
+
+      {featured && item.match && item.match.reasons.length > 0 && !offerOpen && (
+        <details className="group mt-5 border-t border-border pt-4">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-muted-foreground transition hover:text-foreground marker:hidden">
+            <span>{t("decisionAid")}</span>
+            <ChevronDown size={16} className="transition group-open:rotate-180" />
+          </summary>
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
+            {item.match.reasons.slice(0, 4).map((reason) => (
+              <span key={reason}>• {reason}</span>
+            ))}
+          </div>
+        </details>
+      )}
+
+      {offerOpen && (
+        <section className="mt-6 border-t border-border pt-6">
+          {item.requestMode === "multi_slot" && (
+            <details className="group mb-6 rounded-2xl border border-border bg-background p-4">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold marker:hidden">
+                <span>
+                  {t("fullMissionCoverage")} · {item.slotCount} {t("slot")}
+                </span>
+                <ChevronDown size={16} className="transition group-open:rotate-180" />
+              </summary>
+
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                {t("fullMissionCoverageDetail")}
+              </p>
+
+              <div className="mt-4 divide-y divide-border border-y border-border">
+                {item.slots.map((slot) => (
+                  <div
+                    key={slot.id}
+                    className="grid gap-2 py-3 sm:grid-cols-[1fr_auto] sm:items-center"
+                  >
+                    <div>
+                      <p className="text-sm font-medium">
+                        {t("slot")} {slot.position} · {formatKlyxProviderJobsDate(locale, slot.date)}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {timeLabel(slot.startTime)} - {timeLabel(slot.endTime)}
+                        {slot.durationMinutes !== null
+                          ? ` · ${formatKlyxProviderJobsDuration(locale, slot.durationMinutes)}`
+                          : ""}
+                      </p>
+                    </div>
+
+                    {slot.budgetMax !== null && (
+                      <p className="text-sm font-medium text-muted-foreground">
+                        {money(slot.budgetMax, item.currency)}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+
+          <div className="flex flex-col gap-3 border-b border-border pb-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <Sparkles size={16} className="text-blue-600" />
+                <p className="font-semibold">{t("needHelp")}</p>
+              </div>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                {t("assistantControlNote")}
+              </p>
+            </div>
+
+            <a
+              href={
+                "/provider/assistant?prompt=" +
+                encodeURIComponent(
+                  `Prépare une réponse professionnelle pour cette mission KLYX.\nMission : ${item.title}\nService : ${item.service?.name ?? "Service KLYX"}\nVille : ${item.city}\nBudget client : ${money(
+                    budget,
+                    item.currency
+                  )}\nDescription : ${item.description}\nCompatibilité KLYX : ${item.match?.score ?? 0}%.\nJe veux relire et modifier le brouillon avant toute action.`
+                )
+              }
+              className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 text-sm font-semibold text-blue-600 transition hover:text-blue-700"
+            >
+              <Sparkles size={15} />
+              {t("prepareWithKlyx")}
+            </a>
+          </div>
+
+          <form
+            onSubmit={onSubmit}
+            className="mt-5 grid gap-4 sm:grid-cols-[180px_1fr_auto]"
+          >
+            <label>
+              <span className="mb-2 flex items-center gap-2 text-sm font-semibold">
+                <Banknote size={16} />
+                {item.requestMode === "multi_slot" ? t("totalPrice") : t("yourPrice")}
+              </span>
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                className="klyx-input w-full px-3"
+                value={amount}
+                onChange={(event) => onAmountChange(event.target.value)}
+                required
+              />
+            </label>
+
+            <label>
+              <span className="mb-2 block text-sm font-semibold">
+                {t("clientMessage")}
+              </span>
+              <input
+                className="klyx-input w-full px-3"
+                maxLength={1500}
+                value={message}
+                onChange={(event) => onMessageChange(event.target.value)}
+                placeholder={
+                  item.requestMode === "multi_slot"
+                    ? t("multiMessagePlaceholder")
+                    : t("singleMessagePlaceholder")
+                }
+              />
+            </label>
+
+            <button
+              type="submit"
+              disabled={
+                busy ||
+                (item.requestMode === "multi_slot" && !item.coverage?.fullCoverage)
+              }
+              className="klyx-button inline-flex min-h-12 items-center justify-center gap-2 self-end px-5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              {busy ? (
+                <LoaderCircle className="animate-spin" size={17} />
+              ) : (
+                <Send size={17} />
+              )}
+              {item.myOffer
+                ? t("updateOffer")
+                : item.requestMode === "multi_slot"
+                  ? t("proposeAll")
+                  : t("sendOffer")}
+            </button>
+          </form>
+
+          <p className="mt-3 text-xs leading-5 text-muted-foreground">
+            {t("offerNotBookingPayment")}
+          </p>
+        </section>
+      )}
     </article>
   );
 }
@@ -689,12 +690,12 @@ function MiniInfo({
   value: string;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-background px-3 py-2">
-      <div className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
+    <div className="min-w-0">
+      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
         {icon}
         {label}
-      </div>
-      <p className="mt-1 text-sm font-semibold">{value}</p>
+      </p>
+      <p className="mt-1 text-sm font-medium">{value}</p>
     </div>
   );
 }
