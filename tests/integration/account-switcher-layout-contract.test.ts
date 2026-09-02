@@ -20,13 +20,23 @@ describe("KLYX account switcher layout contract", () => {
     expect(switcher).not.toContain('w-[min(88vw,320px)]');
   });
 
-  it("keeps desktop and mobile navigation geometry stable", () => {
+  it("pins desktop navigation to the viewport and reserves its layout width", () => {
     const sidebar = read("app/ui/AppSidebar.tsx");
 
+    expect(sidebar).toContain('data-testid="desktop-sidebar-space"');
+    expect(sidebar).toContain('className="hidden w-[280px] shrink-0 lg:block"');
     expect(sidebar).toContain('data-testid="desktop-sidebar"');
+    expect(sidebar).toContain('fixed inset-y-0 left-0 z-40');
+    expect(sidebar).toContain('h-dvh w-[280px]');
+    expect(sidebar).not.toContain('className="sticky top-0 isolate hidden h-screen');
     expect(sidebar).toContain('data-testid="desktop-navigation"');
-    expect(sidebar).toContain('data-testid="mobile-navigation"');
     expect(sidebar).toContain('min-h-0 flex-1 overflow-y-auto');
+  });
+
+  it("keeps the mobile navigation fixed independently from page scrolling", () => {
+    const sidebar = read("app/ui/AppSidebar.tsx");
+
+    expect(sidebar).toContain('data-testid="mobile-navigation"');
     expect(sidebar).toContain('fixed inset-x-0 bottom-0 z-50');
   });
 });

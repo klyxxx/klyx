@@ -14,6 +14,7 @@ const migration = readRepoFile(
 );
 const page = readRepoFile("app/messages/[bookingId]/page.tsx");
 const rootPage = readRepoFile("app/messages/page.tsx");
+const overviewRoute = readRepoFile("app/api/messages/overview/route.ts");
 const conversationI18n = readRepoFile(
   "lib/klyx-message-conversation-i18n.ts"
 );
@@ -79,10 +80,15 @@ describe("KLYX direct-message database abuse guard", () => {
 
   it("keeps the root messages overview outside the composer and send-rate-limit surface", () => {
     expect(rootPage).toContain("KLYX_MESSAGES_OVERVIEW_READ_ONLY");
-    expect(rootPage).toContain('.from("messages")');
+    expect(rootPage).toContain('fetch("/api/messages/overview"');
+    expect(rootPage).not.toContain('.from("messages")');
     expect(rootPage).not.toContain(".insert({");
     expect(rootPage).not.toContain('error.message.includes("KLYX_MESSAGE_RATE_LIMITED")');
     expect(rootPage).not.toContain("Impossible d'envoyer le message.");
+
+    expect(overviewRoute).toContain('.from("messages")');
+    expect(overviewRoute).not.toContain(".insert({");
+    expect(overviewRoute).not.toContain("KLYX_MESSAGE_RATE_LIMITED");
   });
 
   it("proves direct Supabase enforcement and canonical notification continuity in Golden", () => {

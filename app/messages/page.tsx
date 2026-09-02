@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
-import { getActiveProfileAccount } from "@/lib/account-switcher";
 import {
   resolveKlyxMessagesPageLocale,
   translateKlyxMessagesPage,
@@ -25,6 +24,7 @@ import { supabase } from "@/lib/supabase";
 // KLYX_MESSAGES_OVERVIEW_READ_ONLY
 // KLYX_MESSAGES_PAGE_I18N
 // KLYX_MESSAGES_DESTINATION_2026_09_02
+// KLYX_MESSAGES_OVERVIEW_SERVER_BOUNDARY_2026_09_02
 
 type MessageRow = {
   id: string;
@@ -62,9 +62,9 @@ type ConversationItem = {
   latestIsMine: boolean;
 };
 
-type ConversationAccumulator = {
-  latestMessage: MessageRow;
-  unreadCount: number;
+type ConversationsResponse = {
+  conversations?: ConversationItem[];
+  error?: string;
 };
 
 const LOCALE_TAGS = {
@@ -167,130 +167,35 @@ export default function MessagesPage() {
 
     try {
       const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
 
-      if (userError || !user) {
+      if (sessionError || !session?.access_token) {
         router.replace("/login");
         return;
       }
 
-      const activeProfile = await getActiveProfileAccount();
-      const profileId = activeProfile.id;
+      const response = await fetch("/api/messages/overview", {
+        method: "GET",
+        cache: "no-store",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
 
-      const { data: messageData, error: messageError } = await supabase
-        .from("messages")
-        .select(
-          "id, booking_id, sender_id, receiver_id, message, is_read, created_at"
-        )
-        .or(`sender_id.eq.${profileId},receiver_id.eq.${profileId}`)
-        .order("created_at", { ascending: false })
-        .limit(200);
+      const result = (await response.json()) as ConversationsResponse;
 
-      if (messageError) {
-        throw new Error("messages_read_failed");
-      }
-
-      const messages = (messageData ?? []) as MessageRow[];
-
-      if (messages.length === 0) {
-        setConversations([]);
+      if (response.status === 401) {
+        router.replace("/login");
         return;
       }
 
-      const grouped = new Map<string, ConversationAccumulator>();
-
-      for (const message of messages) {
-        const current = grouped.get(message.booking_id);
-
-        if (!current) {
-          grouped.set(message.booking_id, {
-            latestMessage: message,
-            unreadCount:
-              message.receiver_id === profileId && !message.is_read ? 1 : 0,
-          });
-          continue;
-        }
-
-        if (message.receiver_id === profileId && !message.is_read) {
-          current.unreadCount += 1;
-        }
+      if (!response.ok) {
+        throw new Error(result.error || "messages_overview_failed");
       }
 
-      const bookingIds = Array.from(grouped.keys());
-      const { data: bookingData, error: bookingError } = await supabase
-        .from("bookings")
-        .select(
-          "id, parent_id, babysitter_id, booking_date, start_time, end_time, status"
-        )
-        .in("id", bookingIds);
-
-      if (bookingError) {
-        throw new Error("bookings_read_failed");
-      }
-
-      const bookings = ((bookingData ?? []) as BookingRow[]).filter(
-        (booking) =>
-          booking.parent_id === profileId || booking.babysitter_id === profileId
-      );
-
-      const otherProfileIds = Array.from(
-        new Set(
-          bookings.map((booking) =>
-            booking.parent_id === profileId
-              ? booking.babysitter_id
-              : booking.parent_id
-          )
-        )
-      );
-
-      let profiles: ProfileRow[] = [];
-
-      if (otherProfileIds.length > 0) {
-        const { data: profileData, error: profileError } = await supabase
-          .from("profiles")
-          .select("id, full_name, first_name, last_name, avatar_url")
-          .in("id", otherProfileIds);
-
-        if (profileError) {
-          throw new Error("profiles_read_failed");
-        }
-
-        profiles = (profileData ?? []) as ProfileRow[];
-      }
-
-      const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
-      const nextConversations: ConversationItem[] = [];
-
-      for (const booking of bookings) {
-        const aggregate = grouped.get(booking.id);
-
-        if (!aggregate) {
-          continue;
-        }
-
-        const otherProfileId =
-          booking.parent_id === profileId
-            ? booking.babysitter_id
-            : booking.parent_id;
-
-        nextConversations.push({
-          booking,
-          latestMessage: aggregate.latestMessage,
-          otherProfile: profileById.get(otherProfileId) ?? null,
-          unreadCount: aggregate.unreadCount,
-          latestIsMine: aggregate.latestMessage.sender_id === profileId,
-        });
-      }
-
-      nextConversations.sort(
-        (left, right) =>
-          new Date(right.latestMessage.created_at).getTime() -
-          new Date(left.latestMessage.created_at).getTime()
-      );
-
-      setConversations(nextConversations);
+      setConversations(result.conversations ?? []);
     } catch {
       setErrorMessage(translateKlyxMessagesPage(locale, "loadError"));
     } finally {
@@ -452,10 +357,7 @@ export default function MessagesPage() {
                       href={"/messages/" + conversation.booking.id}
                       className="group flex items-center gap-4 border-t border-border py-4 transition hover:bg-muted/30 sm:px-1 sm:py-5"
                     >
-                      <ConversationAvatar
-                        conversation={conversation}
-                        name={name}
-                      />
+                      <ConversationAvatar conversation={conversation} name={name} />
 
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">

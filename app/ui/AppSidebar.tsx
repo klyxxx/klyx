@@ -212,9 +212,15 @@ export default function AppSidebar() {
 
   return (
     <>
+      <div
+        data-testid="desktop-sidebar-space"
+        aria-hidden="true"
+        className="hidden w-[280px] shrink-0 lg:block"
+      />
+
       <aside
         data-testid="desktop-sidebar"
-        className="sticky top-0 isolate hidden h-screen w-[280px] shrink-0 flex-col overflow-visible border-r border-border bg-background lg:flex dark:border-white/8 dark:bg-zinc-950"
+        className="fixed inset-y-0 left-0 z-40 isolate hidden h-dvh w-[280px] shrink-0 flex-col overflow-visible border-r border-border bg-background lg:flex dark:border-white/8 dark:bg-zinc-950"
       >
         <div className="relative z-30 shrink-0 px-7 pb-5 pt-8">
           <KlyxLogo href={homeHref} />
