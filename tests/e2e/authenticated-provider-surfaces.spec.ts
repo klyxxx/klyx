@@ -19,13 +19,14 @@ test.describe("KLYX authenticated provider surfaces", () => {
     await clearSensitivePassword(page);
   });
 
-  test("provider workspace, money, verification and trust surfaces stay healthy", async ({ page }) => {
+  test("provider workspace, money, assistant, verification and trust surfaces stay healthy", async ({ page }) => {
     test.setTimeout(240_000);
     await loginKlyxE2E(page);
     await activateKlyxE2EProfile(page, "provider");
 
     for (const route of [
       "/provider",
+      "/provider/assistant",
       "/provider/jobs",
       "/provider/payments",
       "/provider/planning",
