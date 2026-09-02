@@ -19,7 +19,8 @@ const SYNTHETIC_AVATAR = Buffer.from(
 async function attachScreenshot(
   page: Page,
   testInfo: TestInfo,
-  name: string
+  name: string,
+  fullPage = true
 ) {
   await page.evaluate(async () => {
     await document.fonts.ready;
@@ -27,7 +28,7 @@ async function attachScreenshot(
 
   await testInfo.attach(name, {
     body: await page.screenshot({
-      fullPage: true,
+      fullPage,
       animations: "disabled",
     }),
     contentType: "image/png",
@@ -39,6 +40,9 @@ async function expectAccounts(page: Page) {
     page.getByRole("heading", { name: "Mes profils", exact: true })
   ).toBeVisible();
   await expect(page.getByText("Une connexion, jusqu’à cinq profils")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Ajouter un profil", exact: true })
+  ).toBeVisible();
 }
 
 test.describe("KLYX accounts avatar visual evidence", () => {
@@ -51,7 +55,7 @@ test.describe("KLYX accounts avatar visual evidence", () => {
     await clearSensitivePassword(page);
   });
 
-  test("archives profile cards and a local avatar preview", async ({
+  test("archives the simplified profiles landing, editor and create dialog", async ({
     page,
   }, testInfo) => {
     test.setTimeout(180_000);
@@ -81,10 +85,49 @@ test.describe("KLYX accounts avatar visual evidence", () => {
     await attachScreenshot(page, testInfo, "accounts-avatar-preview-desktop");
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await attachScreenshot(page, testInfo, "accounts-avatar-preview-mobile");
+    await attachScreenshot(
+      page,
+      testInfo,
+      "accounts-avatar-preview-mobile-viewport",
+      false
+    );
 
     await dialog.getByRole("button", { name: "Fermer", exact: true }).click();
     await expect(dialog).toBeHidden();
-    await attachScreenshot(page, testInfo, "accounts-profiles-mobile");
+    await page.evaluate(() => window.scrollTo({ top: 0 }));
+    await attachScreenshot(
+      page,
+      testInfo,
+      "accounts-profiles-mobile-viewport",
+      false
+    );
+
+    await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight }));
+    await expect(
+      page.getByRole("button", { name: "Utiliser", exact: true })
+    ).toBeVisible();
+    await attachScreenshot(
+      page,
+      testInfo,
+      "accounts-profiles-mobile-bottom",
+      false
+    );
+
+    await page.evaluate(() => window.scrollTo({ top: 0 }));
+    await page
+      .getByRole("button", { name: "Ajouter un profil", exact: true })
+      .click();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("button", { name: /Client/ })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: /Prestataire/ })).toBeVisible();
+    await attachScreenshot(
+      page,
+      testInfo,
+      "accounts-create-profile-mobile-viewport",
+      false
+    );
+
+    await dialog.getByRole("button", { name: "Fermer", exact: true }).click();
+    await expect(dialog).toBeHidden();
   });
 });
