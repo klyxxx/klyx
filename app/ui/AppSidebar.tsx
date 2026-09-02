@@ -212,18 +212,25 @@ export default function AppSidebar() {
 
   return (
     <>
-      <aside className="sticky top-0 hidden h-screen w-[280px] shrink-0 flex-col border-r border-border bg-background lg:flex dark:border-white/8 dark:bg-zinc-950">
-        <div className="px-7 pb-5 pt-8">
+      <aside
+        data-testid="desktop-sidebar"
+        className="sticky top-0 isolate hidden h-screen w-[280px] shrink-0 flex-col overflow-visible border-r border-border bg-background lg:flex dark:border-white/8 dark:bg-zinc-950"
+      >
+        <div className="relative z-30 shrink-0 px-7 pb-5 pt-8">
           <KlyxLogo href={homeHref} />
 
           {activeProfileId && (
-            <div className="mt-8 [&>div>button]:w-full">
+            <div className="relative z-40 mt-8 [&>div>button]:w-full">
               <AccountSwitcher currentProfileId={activeProfileId} />
             </div>
           )}
         </div>
 
-        <nav className="mt-2 flex-1 px-4" aria-label="Navigation principale KLYX">
+        <nav
+          data-testid="desktop-navigation"
+          className="mt-2 min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-2"
+          aria-label="Navigation principale KLYX"
+        >
           <div className="space-y-2">
             {items.map((item) => {
               const Icon = item.icon;
@@ -252,7 +259,7 @@ export default function AppSidebar() {
           </div>
         </nav>
 
-        <div className="px-4 pb-5">
+        <div className="shrink-0 px-4 pb-5 pt-2">
           <button
             type="button"
             onClick={logout}
@@ -278,8 +285,9 @@ export default function AppSidebar() {
 
       {items.length > 0 && (
         <nav
+          data-testid="mobile-navigation"
           aria-label="Navigation mobile KLYX"
-          className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background/96 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-2xl lg:hidden dark:border-white/10"
+          className="fixed inset-x-0 bottom-0 z-50 transform-gpu border-t border-border bg-background/96 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-2xl lg:hidden dark:border-white/10"
         >
           <div className="mx-auto grid max-w-lg grid-cols-4 gap-1">
             {items.map((item) => {
