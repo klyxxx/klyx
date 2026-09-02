@@ -147,12 +147,16 @@ export default function AccountSwitcher({
   const currentName = profileName(currentProfile);
 
   return (
-    <div ref={containerRef} data-testid="account-switcher" className="relative">
+    <div
+      ref={containerRef}
+      data-testid="account-switcher"
+      className="relative isolate w-full"
+    >
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
         disabled={loading || switchingId !== null}
-        className="flex min-h-12 max-w-full items-center gap-3 rounded-2xl border border-border bg-card/80 px-3 py-2 text-left text-sm shadow-sm transition hover:bg-muted disabled:cursor-wait disabled:opacity-60"
+        className="flex min-h-14 w-full items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2 text-left text-sm transition hover:bg-muted disabled:cursor-wait disabled:opacity-60"
         aria-expanded={open}
         aria-haspopup="menu"
       >
@@ -166,7 +170,7 @@ export default function AccountSwitcher({
 
         <span className="min-w-0 flex-1">
           <span className="block truncate font-semibold">{currentName}</span>
-          <span className="mt-0.5 block text-[11px] text-muted-foreground">
+          <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
             {roleLabel(currentProfile)}
           </span>
         </span>
@@ -183,9 +187,9 @@ export default function AccountSwitcher({
         <div
           role="menu"
           aria-label="Changer de profil KLYX"
-          className="absolute right-0 z-50 mt-2 w-[min(88vw,320px)] overflow-hidden rounded-2xl border border-border bg-card p-2 shadow-2xl dark:border-white/10"
+          className="absolute left-0 right-0 top-full z-[70] mt-2 max-h-[min(22rem,calc(100vh-13rem))] w-full overflow-y-auto overscroll-contain rounded-2xl border border-border bg-card p-2 shadow-xl dark:border-white/10"
         >
-          <p className="px-3 pb-2 pt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+          <p className="px-2 pb-2 pt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
             Profils KLYX
           </p>
 
@@ -201,51 +205,54 @@ export default function AccountSwitcher({
                   role="menuitem"
                   onClick={() => void handleSwitch(profile.id)}
                   disabled={switchingId !== null}
-                  className={`flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-2 text-left transition disabled:cursor-wait disabled:opacity-60 ${
+                  className={`flex min-h-12 w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition disabled:cursor-wait disabled:opacity-60 ${
                     active ? "bg-blue-600/10" : "hover:bg-muted"
                   }`}
                 >
-                  <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-muted text-muted-foreground">
+                  <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full bg-muted text-muted-foreground">
                     {switching ? (
-                      <LoaderCircle size={16} className="animate-spin" />
+                      <LoaderCircle size={15} className="animate-spin" />
                     ) : (
                       <ProfileAvatar profile={profile} />
                     )}
                   </span>
 
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold">
+                    <span className="block truncate text-sm font-semibold leading-5">
                       {profileName(profile)}
                     </span>
-                    <span className="block text-[11px] text-muted-foreground">
+                    <span className="block truncate text-[11px] leading-4 text-muted-foreground">
                       {roleLabel(profile)}
                     </span>
                   </span>
 
-                  {active && <Check size={16} className="text-blue-600" />}
+                  {active && <Check size={16} className="shrink-0 text-blue-600" />}
                 </button>
               );
             })}
           </div>
+
+          {error && (
+            <p
+              role="alert"
+              className="mt-2 rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium text-foreground"
+            >
+              {error}
+            </p>
+          )}
 
           <div className="mt-2 border-t border-border pt-2 dark:border-white/8">
             <Link
               href="/accounts"
               role="menuitem"
               onClick={() => setOpen(false)}
-              className="flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              className="flex min-h-11 items-center gap-3 rounded-xl px-2.5 text-sm font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
             >
               <Settings size={16} />
-              Gérer les profils
+              <span className="truncate">Gérer les profils</span>
             </Link>
           </div>
         </div>
-      )}
-
-      {error && (
-        <p role="alert" className="mt-2 max-w-xs text-xs font-semibold text-rose-600">
-          {error}
-        </p>
       )}
     </div>
   );
