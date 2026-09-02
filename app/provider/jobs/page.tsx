@@ -86,8 +86,7 @@ type MarketRequest = {
     score: number;
     reasons: string[];
     locationMatch?: boolean;
-    availabilityMatch?: boolean;
-    budgetMatch?: boolean | null;
+    availabilityMatch?: boolean | null;
   } | null;
   myOffer: {
     id: string;
@@ -131,7 +130,10 @@ function timeLabel(value: string | null): string {
 
 export default function ProviderJobsPage() {
   const { locale } = useKlyxLocale();
-  const t: Translator = (key) => translateKlyxProviderJobs(locale, key);
+  const t = useCallback<Translator>(
+    (key) => translateKlyxProviderJobs(locale, key),
+    [locale]
+  );
   const missionT = (key: KlyxProviderMissionsMessageKey) =>
     translateKlyxProviderMissions(locale, key);
 
@@ -203,7 +205,7 @@ export default function ProviderJobsPage() {
     } finally {
       setLoading(false);
     }
-  }, [locale, t]);
+  }, [t]);
 
   useEffect(() => {
     void load();
