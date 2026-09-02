@@ -86,7 +86,8 @@ type MarketRequest = {
     score: number;
     reasons: string[];
     locationMatch?: boolean;
-    availabilityMatch?: boolean | null;
+    availabilityMatch?: boolean;
+    budgetMatch?: boolean | null;
   } | null;
   myOffer: {
     id: string;
