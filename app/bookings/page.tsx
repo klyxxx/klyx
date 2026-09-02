@@ -52,6 +52,10 @@ import {
   type KlyxClientActivityMessageKey,
 } from "@/lib/klyx-client-activity-i18n";
 import {
+  cancelKlyxMarketRequest,
+  updateKlyxMarketOffer,
+} from "@/lib/klyx-client-market-actions";
+import {
   formatKlyxSplitMissionDate,
   formatKlyxSplitMissionService,
   formatKlyxSplitMissionStatus,
@@ -348,19 +352,7 @@ export default function BookingsPage() {
 
     try {
       const token = await accessToken();
-      const response = await fetch("/api/market/requests", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          requestId,
-          action: "cancel",
-        }),
-      });
-
-      if (!response.ok) throw new Error("MARKET_REQUEST_ACTION_FAILED");
+      await cancelKlyxMarketRequest(token, requestId);
       await loadActivity();
     } catch (error) {
       if (error instanceof Error && error.message === SESSION_MISSING) {
@@ -384,16 +376,7 @@ export default function BookingsPage() {
 
     try {
       const token = await accessToken();
-      const response = await fetch(`/api/market/requests/${requestId}/offers`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ offerId, action }),
-      });
-
-      if (!response.ok) throw new Error("MARKET_OFFER_ACTION_FAILED");
+      await updateKlyxMarketOffer(token, requestId, offerId, action);
       await loadActivity();
     } catch (error) {
       if (error instanceof Error && error.message === SESSION_MISSING) {
