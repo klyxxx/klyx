@@ -377,7 +377,10 @@ export default function ProviderAssistantPage() {
               </p>
             )}
             {successMessage && (
-              <p role="status" className="font-semibold text-blue-600 dark:text-blue-400">
+              <p
+                role="status"
+                className="font-semibold text-emerald-600 dark:text-emerald-400"
+              >
                 {successMessage}
               </p>
             )}
