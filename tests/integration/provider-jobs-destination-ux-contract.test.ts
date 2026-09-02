@@ -23,6 +23,28 @@ describe("KLYX provider Missions destination UX contract", () => {
     expect(source).toContain("automaticExecutionAllowed");
   });
 
+  it("unifies opportunities and confirmed work behind one stable next-action lifecycle", () => {
+    const source = read("app/provider/jobs/page.tsx");
+    const confirmed = read("app/provider/jobs/ProviderConfirmedMissionsSection.tsx");
+    const copy = read("lib/klyx-provider-missions-i18n.ts");
+
+    expect(source).toContain("KLYX_PROVIDER_MISSIONS_LIFECYCLE_2026_09_02");
+    expect(source).toContain('fetch("/api/bookings/overview"');
+    expect(source).toContain("ProviderConfirmedMissionsSection");
+    expect(source).toContain("providerMissionPriority");
+    expect(source).toContain("const actionMission =");
+    expect(source).toContain("const priorityMission =");
+    expect(source).toContain("useCallback<Translator>");
+    expect(source).toContain("}, [t]);");
+    expect(source).not.toContain("const t: Translator = (key)");
+
+    expect(confirmed).toContain("actionRequired");
+    expect(confirmed).toContain("history");
+    expect(confirmed).toContain("/bookings/");
+    expect(copy).toContain('"lifecycleNote"');
+    expect(copy).toContain('"missionUpcoming"');
+  });
+
   it("uses the calm destination language without legacy or multicolor status accents", () => {
     const source = read("app/provider/jobs/page.tsx");
 
