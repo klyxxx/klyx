@@ -270,7 +270,7 @@ export default function ProviderQuotesPage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2563EB]">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">
                 {translateKlyxProviderQuoteStatus(locale, quote.status)}
               </p>
               <span className="text-xs text-muted-foreground">
@@ -337,7 +337,7 @@ export default function ProviderQuotesPage() {
                 type="button"
                 disabled={draftBusyId === quote.id || busyId === quote.id}
                 onClick={() => void prepareSmartDraft(quote.id)}
-                className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-semibold text-[#2563EB] transition hover:bg-muted disabled:opacity-50"
+                className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-semibold text-blue-600 transition hover:bg-muted disabled:opacity-50 dark:text-blue-400"
               >
                 {draftBusyId === quote.id ? (
                   <LoaderCircle className="animate-spin" size={17} />
@@ -349,7 +349,7 @@ export default function ProviderQuotesPage() {
             </div>
 
             {smartDraft && (
-              <div className="mt-5 border-l-2 border-[#2563EB] pl-4">
+              <div className="mt-5 border-l-2 border-blue-600 pl-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-sm font-semibold">{t("smartDraft")}</p>
                   <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -383,7 +383,7 @@ export default function ProviderQuotesPage() {
                   </div>
                 )}
 
-                <p className="mt-3 text-[11px] font-semibold text-[#2563EB]">
+                <p className="mt-3 text-[11px] font-semibold text-blue-600 dark:text-blue-400">
                   {t("approvalRequired")}
                 </p>
               </div>
@@ -432,7 +432,7 @@ export default function ProviderQuotesPage() {
             <button
               type="submit"
               disabled={busyId === quote.id || draftBusyId === quote.id}
-              className="mt-4 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#2563EB] px-5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+              className="mt-4 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:opacity-50"
             >
               {busyId === quote.id ? (
                 <LoaderCircle className="animate-spin" size={18} />
@@ -470,7 +470,7 @@ export default function ProviderQuotesPage() {
     <main className="klyx-page">
       <div className="mx-auto max-w-4xl">
         <header className="max-w-2xl">
-          <p className="text-sm font-semibold text-[#2563EB]">
+          <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
             {t("providerOnly")}
           </p>
           <h1 className="klyx-title mt-2 text-3xl sm:text-5xl">{t("title")}</h1>
@@ -486,20 +486,20 @@ export default function ProviderQuotesPage() {
         )}
 
         {successMessage && (
-          <div className="mt-6 border-l-2 border-[#2563EB] py-1 pl-4 text-sm text-foreground">
+          <div className="mt-6 border-l-2 border-blue-600 py-1 pl-4 text-sm text-foreground">
             {successMessage}
           </div>
         )}
 
         {loading ? (
           <div className="flex min-h-32 items-center gap-3 text-sm text-muted-foreground">
-            <LoaderCircle className="animate-spin text-[#2563EB]" size={20} />
+            <LoaderCircle className="animate-spin text-blue-600" size={20} />
             <span>{t("title")}</span>
           </div>
         ) : !priorityQuote ? (
           <section className="mt-8 border-t border-border py-10">
             <div className="flex items-start gap-3">
-              <FileText className="mt-0.5 text-[#2563EB]" size={20} />
+              <FileText className="mt-0.5 text-blue-600" size={20} />
               <div>
                 <h2 className="text-lg font-semibold">{t("empty")}</h2>
                 <p className="mt-2 text-sm text-muted-foreground">
