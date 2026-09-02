@@ -101,15 +101,26 @@ describe(
         );
 
         expect(finance).toContain(
-          "KLYX_AI_FIRST_PROVIDER_FINANCE_15_04"
+          "KLYX_PROVIDER_FINANCE_DESTINATION_2026_09_02"
+        );
+        expect(finance).toContain(
+          "Ton argent, sans détour."
+        );
+        expect(finance).toContain(
+          "Détails du compte de paiement"
+        );
+        expect(finance).toContain(
+          "FinanceReconciliationStatus"
+        );
+        expect(finance).toContain(
+          "FinanceExportButton"
+        );
+        expect(finance).toContain(
+          "ProviderFinanceAudit"
         );
 
         expect(jobsI18n).toContain(
           "Tous les créneaux doivent être couverts. Une offre = mission complète."
-        );
-
-        expect(finance).toContain(
-          "Journal KLYX · paiements traités par Stripe."
         );
 
         expect(onboarding).not.toContain(
