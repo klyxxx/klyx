@@ -243,8 +243,21 @@ jobs:
           ab -n 200 -c 10 -s 15 -k http://127.0.0.1:3100/login \
             | tee performance-results/apachebench.txt
 
+      - name: Verify performance certificate evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s performance-results/k6-summary.json
+          test -s performance-results/apachebench.txt
+          test -s performance-server.log
+          sha256sum \
+            performance-results/k6-summary.json \
+            performance-results/apachebench.txt \
+            performance-server.log
+
       - name: Upload performance certificate evidence
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: klyx-performance-${{ github.run_id }}-${{ env.KLYX_PERF_PROFILE }}
