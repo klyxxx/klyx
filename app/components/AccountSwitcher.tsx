@@ -187,7 +187,7 @@ export default function AccountSwitcher({
         <div
           role="menu"
           aria-label="Changer de profil KLYX"
-          className="absolute left-0 right-0 top-full z-[70] mt-2 max-h-[min(22rem,calc(100vh-13rem))] w-full overflow-y-auto overscroll-contain rounded-2xl border border-border bg-card p-2 shadow-xl dark:border-white/10"
+          className="absolute left-0 right-0 top-full z-[70] mt-2 max-h-[min(22rem,calc(100dvh_-_13rem))] w-full overflow-y-auto overscroll-contain rounded-2xl border border-border bg-card p-2 shadow-xl dark:border-white/10"
         >
           <p className="px-2 pb-2 pt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
             Profils KLYX
