@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 
 import {
+  withoutKlyxLlmShadow,
+} from "@/lib/brain/llm/shadow";
+import {
   generateKlyxVisibleAiReply,
 } from "@/lib/klyx-visible-ai";
 import {
@@ -30,7 +33,9 @@ type BrainResponseBody = {
 
 export async function POST(request: Request) {
   const requestCopy = request.clone();
-  const response = await deterministicPost(request);
+  const response = await withoutKlyxLlmShadow(
+    () => deterministicPost(request)
+  );
 
   if (!response.ok) {
     return response;

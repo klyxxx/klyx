@@ -32,17 +32,23 @@ describe("KLYX visible AI journeys", () => {
     expect(composer).toContain('router.push("/request/photo")');
   });
 
-  it("uses OpenAI as a visible wording layer without changing deterministic facts", () => {
+  it("uses one visible OpenAI wording call without changing deterministic facts", () => {
     const clientRoute = read("app/api/brain/converse/route.ts");
     const providerBoundary = read("app/api/provider/assistant/route.ts");
     const providerVisible = read(
       "app/api/provider/assistant/assistant-route-visible.ts"
     );
     const visibleAi = read("lib/klyx-visible-ai.ts");
+    const shadow = read("lib/brain/llm/shadow.ts");
 
+    expect(clientRoute).toContain("withoutKlyxLlmShadow");
     expect(clientRoute).toContain("deterministicPost(request)");
     expect(clientRoute).toContain("generateKlyxVisibleAiReply");
     expect(clientRoute).toContain("deterministicSafety: true");
+
+    expect(shadow).toContain("AsyncLocalStorage");
+    expect(shadow).toContain("shadowSuppression.getStore() === true");
+    expect(shadow).toContain("withoutKlyxLlmShadow");
 
     expect(providerBoundary).toContain('POST as corePost');
     expect(providerBoundary).toContain('from "./assistant-route-visible"');
