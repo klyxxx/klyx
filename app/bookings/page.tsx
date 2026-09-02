@@ -1,6 +1,14 @@
 // KLYX_BOOKINGS_UI_CURRENCY_PHASE_5G
 "use client";
 
+import ClientMarketActivitySection, {
+  marketRequestIsHistory,
+  marketRequestMatchesFilter,
+  marketRequestNeedsAction,
+  marketRequestPrimaryHref,
+  type ClientActivityFilter,
+  type ClientMarketRequest,
+} from "./ClientMarketActivitySection";
 import SplitMissionSection, {
   splitMissionIsHistory,
   splitMissionMatchesFilter,
@@ -11,6 +19,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -23,6 +32,7 @@ import {
   Layers3,
   LoaderCircle,
   RefreshCw,
+  UsersRound,
   UserRound,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -37,15 +47,26 @@ import {
   type KlyxBookingsPageMessageKey,
 } from "@/lib/klyx-bookings-page-i18n";
 import { formatKlyxBookingServiceFromSlug } from "@/lib/klyx-bookings-service-i18n";
+import {
+  translateKlyxClientActivity,
+  type KlyxClientActivityMessageKey,
+} from "@/lib/klyx-client-activity-i18n";
+import {
+  formatKlyxSplitMissionDate,
+  formatKlyxSplitMissionService,
+  formatKlyxSplitMissionStatus,
+  formatKlyxSplitMissionSummary,
+} from "@/lib/klyx-split-mission-i18n";
 import { supabase } from "@/lib/supabase";
 
 // KLYX_GROUPED_BOOKINGS_PAGE_12_92
 // KLYX_BOOKINGS_PAGE_I18N_16_09
 // KLYX_ACTIVITY_DESTINATION_2026_09_01
+// KLYX_CLIENT_ACTIVITY_UNIFIED_FLOW_2026_09_02
 
 const SESSION_MISSING = "KLYX_BOOKINGS_SESSION_MISSING";
 
-type BookingFilter = "actions" | "upcoming" | "history" | "all";
+type BookingFilter = ClientActivityFilter;
 
 type BookingCard = {
   id: string;
@@ -81,6 +102,31 @@ type OverviewResponse = {
   childBookingsHidden?: number;
   groupedDisplay?: boolean;
 };
+
+type MarketResponse = {
+  role?: "client" | "provider";
+  requests?: ClientMarketRequest[];
+};
+
+type ActivityCandidate =
+  | {
+      kind: "booking";
+      booking: BookingCard;
+      needsAction: boolean;
+      sortAt: number;
+    }
+  | {
+      kind: "split";
+      mission: SplitMissionSummary;
+      needsAction: boolean;
+      sortAt: number;
+    }
+  | {
+      kind: "market";
+      request: ClientMarketRequest;
+      needsAction: boolean;
+      sortAt: number;
+    };
 
 async function accessToken() {
   const {
@@ -131,39 +177,95 @@ function statusClass(status: string) {
   return "border-border bg-background text-muted-foreground";
 }
 
+function activityTimestamp(...values: Array<string | null | undefined>) {
+  for (const value of values) {
+    if (!value) continue;
+    const timestamp = Date.parse(value);
+    if (Number.isFinite(timestamp)) return timestamp;
+  }
+
+  return Number.MAX_SAFE_INTEGER;
+}
+
+function marketAmount(
+  locale: string,
+  value: number | null,
+  currency?: string | null
+): string | null {
+  if (value == null || !Number.isFinite(Number(value))) return null;
+
+  const normalizedCurrency =
+    typeof currency === "string" && /^[A-Za-z]{3}$/.test(currency)
+      ? currency.toUpperCase()
+      : "EUR";
+
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: normalizedCurrency,
+      maximumFractionDigits: 2,
+    }).format(Number(value));
+  } catch {
+    return `${Number(value).toFixed(2)} ${normalizedCurrency}`;
+  }
+}
+
 export default function BookingsPage() {
   const router = useRouter();
   const { locale } = useKlyxLocale();
   const t = (key: KlyxBookingsPageMessageKey) =>
     translateKlyxBookingsPage(locale, key);
+  const activityT = (key: KlyxClientActivityMessageKey) =>
+    translateKlyxClientActivity(locale, key);
 
   const [accountType, setAccountType] = useState<"client" | "provider">("client");
   const [bookings, setBookings] = useState<BookingCard[]>([]);
   const [splitMissions, setSplitMissions] = useState<SplitMissionSummary[]>([]);
+  const [marketRequests, setMarketRequests] = useState<ClientMarketRequest[]>([]);
   const [filter, setFilter] = useState<BookingFilter>("actions");
   const [loading, setLoading] = useState(true);
   const [errorKey, setErrorKey] =
     useState<KlyxBookingsPageMessageKey | null>(null);
+  const [marketLoadFailed, setMarketLoadFailed] = useState(false);
+  const [marketActionError, setMarketActionError] = useState(false);
+  const [busyMarketId, setBusyMarketId] = useState("");
   const [hiddenChildren, setHiddenChildren] = useState(0);
+  const initialFilterResolvedRef = useRef(false);
 
-  const loadBookings = useCallback(async () => {
+  const loadActivity = useCallback(async () => {
     setLoading(true);
     setErrorKey(null);
+    setMarketLoadFailed(false);
 
     try {
       const token = await accessToken();
-      const response = await fetch("/api/bookings/overview", {
-        cache: "no-store",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const headers = { Authorization: `Bearer ${token}` };
+      const [bookingResponse, splitResponse, marketResponse] = await Promise.all([
+        fetch("/api/bookings/overview", {
+          cache: "no-store",
+          headers,
+        }),
+        fetch("/api/bookings/split-missions", {
+          cache: "no-store",
+          headers,
+        }),
+        fetch("/api/market/requests", {
+          cache: "no-store",
+          headers,
+        }),
+      ]);
 
-      if (response.status === 401) {
+      if (
+        bookingResponse.status === 401 ||
+        splitResponse.status === 401 ||
+        marketResponse.status === 401
+      ) {
         router.replace("/login");
         return;
       }
 
-      const body = (await response.json()) as OverviewResponse;
-      if (!response.ok) {
+      const body = (await bookingResponse.json()) as OverviewResponse;
+      if (!bookingResponse.ok) {
         setErrorKey("loadFailed");
         return;
       }
@@ -176,17 +278,11 @@ export default function BookingsPage() {
         return;
       }
 
-      const overviewCards = body.cards ?? [];
       let nextSplitMissions: SplitMissionSummary[] = [];
       let hiddenSplitBookingIds = new Set<string>();
 
-      try {
-        const splitResponse = await fetch("/api/bookings/split-missions", {
-          cache: "no-store",
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (splitResponse.ok) {
+      if (splitResponse.ok) {
+        try {
           const splitBody = (await splitResponse.json()) as {
             missions?: SplitMissionSummary[];
             childBookingIds?: string[];
@@ -200,13 +296,29 @@ export default function BookingsPage() {
               ? splitBody.childBookingIds
               : []
           );
+        } catch {
+          nextSplitMissions = [];
+          hiddenSplitBookingIds = new Set<string>();
         }
-      } catch {
-        nextSplitMissions = [];
-        hiddenSplitBookingIds = new Set<string>();
       }
 
+      let nextMarketRequests: ClientMarketRequest[] = [];
+      if (marketResponse.ok) {
+        try {
+          const marketBody = (await marketResponse.json()) as MarketResponse;
+          nextMarketRequests = Array.isArray(marketBody.requests)
+            ? marketBody.requests
+            : [];
+        } catch {
+          setMarketLoadFailed(true);
+        }
+      } else {
+        setMarketLoadFailed(true);
+      }
+
+      const overviewCards = body.cards ?? [];
       setSplitMissions(nextSplitMissions);
+      setMarketRequests(nextMarketRequests);
       setBookings(
         overviewCards.filter((card) => !hiddenSplitBookingIds.has(card.id))
       );
@@ -226,8 +338,73 @@ export default function BookingsPage() {
   }, [router]);
 
   useEffect(() => {
-    void loadBookings();
-  }, [loadBookings]);
+    void loadActivity();
+  }, [loadActivity]);
+
+  async function cancelMarketRequest(requestId: string) {
+    if (busyMarketId) return;
+    setBusyMarketId(requestId);
+    setMarketActionError(false);
+
+    try {
+      const token = await accessToken();
+      const response = await fetch("/api/market/requests", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          requestId,
+          action: "cancel",
+        }),
+      });
+
+      if (!response.ok) throw new Error("MARKET_REQUEST_ACTION_FAILED");
+      await loadActivity();
+    } catch (error) {
+      if (error instanceof Error && error.message === SESSION_MISSING) {
+        router.replace("/login");
+        return;
+      }
+      setMarketActionError(true);
+    } finally {
+      setBusyMarketId("");
+    }
+  }
+
+  async function marketOfferAction(
+    requestId: string,
+    offerId: string,
+    action: "accept" | "reject"
+  ) {
+    if (busyMarketId) return;
+    setBusyMarketId(offerId);
+    setMarketActionError(false);
+
+    try {
+      const token = await accessToken();
+      const response = await fetch(`/api/market/requests/${requestId}/offers`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ offerId, action }),
+      });
+
+      if (!response.ok) throw new Error("MARKET_OFFER_ACTION_FAILED");
+      await loadActivity();
+    } catch (error) {
+      if (error instanceof Error && error.message === SESSION_MISSING) {
+        router.replace("/login");
+        return;
+      }
+      setMarketActionError(true);
+    } finally {
+      setBusyMarketId("");
+    }
+  }
 
   const counts = useMemo(() => {
     const bookingCounts = {
@@ -246,13 +423,32 @@ export default function BookingsPage() {
       all: splitMissions.length,
     };
 
-    return {
-      actions: bookingCounts.actions + splitCounts.actions,
-      upcoming: bookingCounts.upcoming + splitCounts.upcoming,
-      history: bookingCounts.history + splitCounts.history,
-      all: bookingCounts.all + splitCounts.all,
+    const marketCounts = {
+      actions: marketRequests.filter(marketRequestNeedsAction).length,
+      upcoming: marketRequests.filter(
+        (request) => !marketRequestIsHistory(request)
+      ).length,
+      history: marketRequests.filter(marketRequestIsHistory).length,
+      all: marketRequests.length,
     };
-  }, [bookings, splitMissions]);
+
+    return {
+      actions: bookingCounts.actions + splitCounts.actions + marketCounts.actions,
+      upcoming:
+        bookingCounts.upcoming + splitCounts.upcoming + marketCounts.upcoming,
+      history: bookingCounts.history + splitCounts.history + marketCounts.history,
+      all: bookingCounts.all + splitCounts.all + marketCounts.all,
+    };
+  }, [bookings, marketRequests, splitMissions]);
+
+  useEffect(() => {
+    if (loading || initialFilterResolvedRef.current) return;
+
+    initialFilterResolvedRef.current = true;
+    if (counts.actions === 0 && counts.upcoming > 0) {
+      setFilter("upcoming");
+    }
+  }, [counts.actions, counts.upcoming, loading]);
 
   const visibleBookings = useMemo(() => {
     if (filter === "actions") {
@@ -267,13 +463,59 @@ export default function BookingsPage() {
     return bookings;
   }, [bookings, filter]);
 
-  const nextBooking = useMemo(
-    () =>
-      bookings.find((booking) => booking.actionRequired) ??
-      bookings.find((booking) => !booking.history) ??
-      null,
-    [bookings]
-  );
+  const nextActivity = useMemo<ActivityCandidate | null>(() => {
+    const candidates: ActivityCandidate[] = [];
+
+    for (const booking of bookings) {
+      if (booking.history) continue;
+      candidates.push({
+        kind: "booking",
+        booking,
+        needsAction: booking.actionRequired,
+        sortAt: activityTimestamp(booking.dateFrom, booking.createdAt),
+      });
+    }
+
+    for (const mission of splitMissions) {
+      if (splitMissionIsHistory(mission)) continue;
+      candidates.push({
+        kind: "split",
+        mission,
+        needsAction: splitMissionNeedsAction(mission),
+        sortAt: activityTimestamp(mission.firstDate, mission.createdAt),
+      });
+    }
+
+    for (const request of marketRequests) {
+      if (marketRequestIsHistory(request)) continue;
+      candidates.push({
+        kind: "market",
+        request,
+        needsAction: marketRequestNeedsAction(request),
+        sortAt: activityTimestamp(
+          request.requested_date,
+          request.updated_at,
+          request.created_at
+        ),
+      });
+    }
+
+    candidates.sort((left, right) => {
+      if (left.needsAction !== right.needsAction) {
+        return left.needsAction ? -1 : 1;
+      }
+      return left.sortAt - right.sortAt;
+    });
+
+    return candidates[0] ?? null;
+  }, [bookings, marketRequests, splitMissions]);
+
+  const nextBooking =
+    nextActivity?.kind === "booking" ? nextActivity.booking : null;
+  const nextSplitMission =
+    nextActivity?.kind === "split" ? nextActivity.mission : null;
+  const nextMarketRequest =
+    nextActivity?.kind === "market" ? nextActivity.request : null;
 
   const remainingBookings = useMemo(
     () =>
@@ -292,6 +534,14 @@ export default function BookingsPage() {
         splitMissionMatchesFilter(mission, filter)
       ).length,
     [filter, splitMissions]
+  );
+
+  const visibleMarketCount = useMemo(
+    () =>
+      marketRequests.filter((request) =>
+        marketRequestMatchesFilter(request, filter)
+      ).length,
+    [filter, marketRequests]
   );
 
   const filterOptions: Array<{ value: BookingFilter; label: string }> = [
@@ -316,16 +566,16 @@ export default function BookingsPage() {
           <div className="max-w-2xl">
             <p className="klyx-eyebrow uppercase">{t("clientTracking")}</p>
             <h1 className="klyx-title mt-2 text-3xl sm:text-5xl">
-              {t("title")}
+              {activityT("title")}
             </h1>
-            <p className="mt-3 max-w-xl text-sm leading-7 text-muted-foreground sm:text-base">
-              {t("clientDescription")}
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
+              {activityT("description")}
             </p>
           </div>
 
           <button
             type="button"
-            onClick={() => void loadBookings()}
+            onClick={() => void loadActivity()}
             disabled={loading}
             aria-label={t("refresh")}
             title={t("refresh")}
@@ -345,6 +595,18 @@ export default function BookingsPage() {
         {errorKey && (
           <div className="mt-6 rounded-2xl border border-border bg-muted/40 p-4 text-sm text-foreground">
             {t(errorKey)}
+          </div>
+        )}
+
+        {marketLoadFailed && (
+          <div className="mt-4 rounded-2xl border border-border bg-muted/40 p-4 text-sm text-foreground">
+            {activityT("marketLoadFailed")}
+          </div>
+        )}
+
+        {marketActionError && (
+          <div className="mt-4 rounded-2xl border border-border bg-muted/40 p-4 text-sm text-foreground">
+            {activityT("actionFailed")}
           </div>
         )}
 
@@ -384,9 +646,113 @@ export default function BookingsPage() {
           </section>
         )}
 
+        {!loading && nextSplitMission && (
+          <section className="mt-8 rounded-[1.5rem] border border-border bg-card p-5 sm:p-6">
+            <p className="klyx-eyebrow uppercase">{t("nextStepKlyx")}</p>
+
+            <div className="mt-3 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <h2 className="text-xl font-semibold tracking-[-0.02em]">
+                  {splitMissionNeedsAction(nextSplitMission)
+                    ? formatKlyxSplitMissionStatus(locale, nextSplitMission.status)
+                    : t("missionTracked")}
+                </h2>
+                <p className="mt-2 text-sm font-medium">
+                  {formatKlyxSplitMissionService(
+                    locale,
+                    nextSplitMission.serviceSlug,
+                    nextSplitMission.serviceName
+                  )}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
+                  <span>{formatKlyxSplitMissionDate(locale, nextSplitMission.firstDate)}</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <UsersRound size={14} />
+                    {formatKlyxSplitMissionSummary(locale, nextSplitMission.slotCount)}
+                  </span>
+                </div>
+              </div>
+
+              <Link
+                href={`/bookings/split/${nextSplitMission.batchId}`}
+                className="klyx-button inline-flex min-h-11 shrink-0 items-center justify-center gap-2 px-4 text-sm font-semibold"
+              >
+                {t("viewMission")}
+                <ArrowRight size={16} />
+              </Link>
+            </div>
+
+            <p className="mt-5 border-t border-border pt-4 text-xs leading-5 text-muted-foreground">
+              {t("explicitConfirmationBoundary")}
+            </p>
+          </section>
+        )}
+
+        {!loading && nextMarketRequest && (
+          <section className="mt-8 rounded-[1.5rem] border border-border bg-card p-5 sm:p-6">
+            <p className="klyx-eyebrow uppercase">{t("nextStepKlyx")}</p>
+
+            <div className="mt-3 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <h2 className="text-xl font-semibold tracking-[-0.02em]">
+                  {nextMarketRequest.bookingQuote
+                    ? activityT("finalizeBooking")
+                    : marketRequestNeedsAction(nextMarketRequest)
+                      ? activityT("chooseProvider")
+                      : activityT("searchInProgress")}
+                </h2>
+                <p className="mt-2 text-sm font-medium">
+                  {nextMarketRequest.service?.name || nextMarketRequest.title}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
+                  <span>{nextMarketRequest.city}</span>
+                  {nextMarketRequest.requested_date && (
+                    <span>
+                      {new Intl.DateTimeFormat(locale, {
+                        dateStyle: "medium",
+                      }).format(
+                        new Date(`${nextMarketRequest.requested_date}T12:00:00`)
+                      )}
+                    </span>
+                  )}
+                  {marketAmount(
+                    locale,
+                    nextMarketRequest.budget_max,
+                    nextMarketRequest.currency
+                  ) && (
+                    <span>
+                      {activityT("budgetMax")} · {marketAmount(
+                        locale,
+                        nextMarketRequest.budget_max,
+                        nextMarketRequest.currency
+                      )}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <Link
+                href={marketRequestPrimaryHref(nextMarketRequest)}
+                className="klyx-button inline-flex min-h-11 shrink-0 items-center justify-center gap-2 px-4 text-sm font-semibold"
+              >
+                {nextMarketRequest.bookingQuote
+                  ? activityT("finalizeBooking")
+                  : marketRequestNeedsAction(nextMarketRequest)
+                    ? activityT("offersReceived")
+                    : activityT("followRequest")}
+                <ArrowRight size={16} />
+              </Link>
+            </div>
+
+            <p className="mt-5 border-t border-border pt-4 text-xs leading-5 text-muted-foreground">
+              {t("explicitConfirmationBoundary")}
+            </p>
+          </section>
+        )}
+
         {!loading && counts.all > 0 && (
           <nav
-            aria-label={t("title")}
+            aria-label={activityT("title")}
             className="mt-8 flex gap-4 overflow-x-auto border-b border-border sm:gap-6"
           >
             {filterOptions.map((option) => {
@@ -412,7 +778,23 @@ export default function BookingsPage() {
         )}
 
         {!loading && (
-          <SplitMissionSection missions={splitMissions} filter={filter} />
+          <ClientMarketActivitySection
+            requests={marketRequests}
+            filter={filter}
+            busyId={busyMarketId}
+            priorityRequestId={nextMarketRequest?.id ?? null}
+            onCancelRequest={cancelMarketRequest}
+            onOfferAction={marketOfferAction}
+          />
+        )}
+
+        {!loading && (
+          <SplitMissionSection
+            missions={splitMissions.filter(
+              (mission) => !nextSplitMission || mission.id !== nextSplitMission.id
+            )}
+            filter={filter}
+          />
         )}
 
         {loading ? (
@@ -422,9 +804,13 @@ export default function BookingsPage() {
               {t("loading")}
             </div>
           </div>
-        ) : bookings.length === 0 && splitMissions.length === 0 ? (
+        ) : bookings.length === 0 &&
+          splitMissions.length === 0 &&
+          marketRequests.length === 0 ? (
           <EmptyState />
-        ) : visibleBookings.length === 0 && visibleSplitCount === 0 ? (
+        ) : visibleBookings.length === 0 &&
+          visibleSplitCount === 0 &&
+          visibleMarketCount === 0 ? (
           <div className="mt-8 border-b border-border pb-8 text-sm text-muted-foreground">
             <p className="font-medium text-foreground">{t("nothingToHandle")}</p>
             <p className="mt-2">{t("nothingToHandleDescription")}</p>
@@ -432,7 +818,7 @@ export default function BookingsPage() {
         ) : remainingBookings.length > 0 ? (
           <section
             className="klyx-activity-list mt-8 overflow-hidden rounded-[1.5rem] border border-border bg-card"
-            aria-label={t("title")}
+            aria-label={activityT("title")}
           >
             {remainingBookings.map((booking, index) => (
               <BookingCardView
