@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { Bell } from "lucide-react";
 
-import ClientAssistantFlow from "@/app/components/ClientAssistantFlow";
+import AssistantCommandBar from "@/app/components/AssistantCommandBar";
+import AssistantHomeResume from "@/app/components/AssistantHomeResume";
 import ClientRouteGuard from "@/app/components/ClientRouteGuard";
 
 export default function AssistantHomePage() {
@@ -22,12 +23,13 @@ export default function AssistantHomePage() {
           <h1 className="max-w-3xl text-center text-3xl font-bold tracking-[-0.04em] sm:text-5xl">
             Que dois-je organiser pour vous ?
           </h1>
-          <p className="mt-3 max-w-xl text-center text-sm leading-6 text-muted-foreground sm:text-base">
-            Décrivez le besoin naturellement. KLYX vous demande seulement ce qui manque.
-          </p>
 
-          <div className="mt-8 flex w-full justify-center sm:mt-10">
-            <ClientAssistantFlow />
+          <div className="mt-8 w-full sm:mt-10">
+            <AssistantCommandBar />
+          </div>
+
+          <div className="mt-9 flex w-full justify-start">
+            <AssistantHomeResume />
           </div>
         </div>
       </main>
