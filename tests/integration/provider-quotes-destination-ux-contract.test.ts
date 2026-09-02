@@ -23,7 +23,8 @@ describe("KLYX provider Quotes destination UX", () => {
     expect(quotes).toContain("<details");
     expect(quotes).toContain("data-quote-priority");
     expect(quotes).toContain('className="klyx-page"');
-    expect(quotes).toContain("#2563EB");
+    expect(quotes).toContain("bg-blue-600");
+    expect(quotes).toContain("text-blue-600");
 
     expect(quotes).not.toContain("shadow-sm");
     expect(quotes).not.toContain("ring-1");
