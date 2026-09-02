@@ -15,35 +15,43 @@ function read(relativePath: string) {
 }
 
 describe("KLYX visible AI journeys", () => {
-  it("keeps the client request journey on one conversational entry screen", () => {
+  it("keeps the canonical client composer while making new requests conversational", () => {
     const home = read("app/assistant/page.tsx");
-    const flow = read("app/components/ClientAssistantFlow.tsx");
+    const composer = read("app/components/AssistantCommandBar.tsx");
 
-    expect(home).toContain("ClientAssistantFlow");
-    expect(home).not.toContain("AssistantHomeResume");
-    expect(home).not.toContain("AssistantCommandBar");
+    expect(home).toContain("<AssistantCommandBar />");
+    expect(home).toContain("<AssistantHomeResume />");
 
-    expect(flow).toContain('fetch("/api/brain/command"');
-    expect(flow).toContain('fetch("/api/brain/converse"');
-    expect(flow).toContain('"/api/brain/confirm-request"');
-    expect(flow).toContain('fetch("/api/brain/market-publish"');
-    expect(flow).toContain("Confirmer");
-    expect(flow).toContain("Modifier");
-    expect(flow).toContain('router.push("/request/photo")');
+    expect(composer).toContain('fetch("/api/brain/command"');
+    expect(composer).toContain('result.mode !== "new_request"');
+    expect(composer).toContain('fetch("/api/brain/converse"');
+    expect(composer).toContain('"/api/brain/confirm-request"');
+    expect(composer).toContain('fetch("/api/brain/market-publish"');
+    expect(composer).toContain("flowCopy.confirm");
+    expect(composer).toContain("flowCopy.edit");
+    expect(composer).toContain('router.push("/request/photo")');
   });
 
   it("uses OpenAI as a visible wording layer without changing deterministic facts", () => {
     const clientRoute = read("app/api/brain/converse/route.ts");
-    const providerRoute = read("app/api/provider/assistant/route.ts");
+    const providerBoundary = read("app/api/provider/assistant/route.ts");
+    const providerVisible = read(
+      "app/api/provider/assistant/assistant-route-visible.ts"
+    );
     const visibleAi = read("lib/klyx-visible-ai.ts");
 
     expect(clientRoute).toContain("deterministicPost(request)");
     expect(clientRoute).toContain("generateKlyxVisibleAiReply");
     expect(clientRoute).toContain("deterministicSafety: true");
 
-    expect(providerRoute).toContain("visibleProviderPost");
-    expect(providerRoute).toContain('responseBody.aiMode === "openai"');
-    expect(providerRoute).toContain("deterministicSafety: true");
+    expect(providerBoundary).toContain('POST as corePost');
+    expect(providerBoundary).toContain('from "./assistant-route-visible"');
+    expect(providerBoundary).toContain(
+      'secureBoundary("POST", corePost, request)'
+    );
+    expect(providerVisible).toContain("deterministicPost(request)");
+    expect(providerVisible).toContain('responseBody.aiMode === "openai"');
+    expect(providerVisible).toContain("deterministicSafety: true");
 
     expect(visibleAi).toContain("ne change aucun fait verrouillé");
     expect(visibleAi).toContain("ne prétends jamais qu'une action a été exécutée");
