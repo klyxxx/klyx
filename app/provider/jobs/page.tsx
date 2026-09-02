@@ -103,11 +103,7 @@ type ProviderJobsResponse = {
   multiSlotAware?: boolean;
   fullCoverageOnly?: boolean;
   automaticExecutionAllowed?: boolean;
-};
-
-type BookingOverviewResponse = {
-  accountType?: "client" | "provider";
-  cards?: ProviderMissionCard[];
+  confirmedMissions?: ProviderMissionCard[];
 };
 
 type Translator = (key: KlyxProviderJobsMessageKey) => string;
@@ -159,26 +155,20 @@ export default function ProviderJobsPage() {
 
     try {
       const accessToken = await token();
-      const headers = { Authorization: "Bearer " + accessToken };
-      const [jobsResponse, overviewResponse] = await Promise.all([
-        fetch("/api/provider/jobs", {
-          cache: "no-store",
-          headers,
-        }),
-        fetch("/api/bookings/overview", {
-          cache: "no-store",
-          headers,
-        }),
-      ]);
+      const response = await fetch("/api/provider/jobs", {
+        cache: "no-store",
+        headers: {
+          Authorization: "Bearer " + accessToken,
+        },
+      });
 
-      if (!jobsResponse.ok || !overviewResponse.ok) {
+      if (!response.ok) {
         throw new Error("Provider missions unavailable");
       }
 
-      const body = (await jobsResponse.json()) as ProviderJobsResponse;
-      const overview = (await overviewResponse.json()) as BookingOverviewResponse;
+      const body = (await response.json()) as ProviderJobsResponse;
       const rows = body.requests ?? [];
-      const booked = (overview.cards ?? [])
+      const booked = (body.confirmedMissions ?? [])
         .filter((card) => card.role === "provider")
         .sort((left, right) => {
           const priority = providerMissionPriority(left) - providerMissionPriority(right);

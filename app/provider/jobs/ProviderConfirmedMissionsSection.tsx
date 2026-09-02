@@ -76,6 +76,14 @@ function missionTime(locale: string, card: ProviderMissionCard) {
   return `${card.firstStart.slice(0, 5)} - ${card.lastEnd.slice(0, 5)}`;
 }
 
+function missionHref(card: ProviderMissionCard) {
+  if (card.href) return card.href;
+
+  return card.entityType === "booking"
+    ? `/bookings/${card.id}`
+    : `/booking-groups/${card.id}`;
+}
+
 function statusClass(card: ProviderMissionCard) {
   if (card.actionRequired) {
     return "border-blue-600/20 bg-blue-600/[0.06] text-blue-700 dark:text-blue-300";
@@ -208,7 +216,7 @@ export function ProviderConfirmedMissionCard({
         </div>
 
         <Link
-          href={mission.href}
+          href={missionHref(mission)}
           className={
             featured
               ? "klyx-button inline-flex min-h-11 shrink-0 items-center justify-center gap-2 px-4 text-sm font-semibold"

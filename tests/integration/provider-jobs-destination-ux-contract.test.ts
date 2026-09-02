@@ -25,11 +25,15 @@ describe("KLYX provider Missions destination UX contract", () => {
 
   it("unifies opportunities and confirmed work behind one stable next-action lifecycle", () => {
     const source = read("app/provider/jobs/page.tsx");
+    const route = read("app/api/provider/jobs/route.ts");
     const confirmed = read("app/provider/jobs/ProviderConfirmedMissionsSection.tsx");
     const copy = read("lib/klyx-provider-missions-i18n.ts");
 
     expect(source).toContain("KLYX_PROVIDER_MISSIONS_LIFECYCLE_2026_09_02");
-    expect(source).toContain('fetch("/api/bookings/overview"');
+    expect(source).toContain('fetch("/api/provider/jobs"');
+    expect(source).not.toContain("/api/bookings");
+    expect(source).toContain("confirmedMissions?: ProviderMissionCard[]");
+    expect(source).toContain("body.confirmedMissions");
     expect(source).toContain("ProviderConfirmedMissionsSection");
     expect(source).toContain("providerMissionPriority");
     expect(source).toContain("const actionMission =");
@@ -38,6 +42,8 @@ describe("KLYX provider Missions destination UX contract", () => {
     expect(source).toContain("}, [t]);");
     expect(source).not.toContain("const t: Translator = (key)");
 
+    expect(route).toContain("getBookingOverview");
+    expect(route).toContain("confirmedMissions");
     expect(confirmed).toContain("actionRequired");
     expect(confirmed).toContain("history");
     expect(confirmed).toContain("/bookings/");
