@@ -7,6 +7,7 @@ const migrationPath =
 const baselinePath =
   "supabase/migrations/20260814000000_klyx_canonical_baseline.sql";
 const overviewPath = "app/messages/page.tsx";
+const overviewRoutePath = "app/api/messages/overview/route.ts";
 const conversationPath = "app/messages/[bookingId]/page.tsx";
 
 describe("message column privilege hardening contract", () => {
@@ -76,17 +77,31 @@ describe("message column privilege hardening contract", () => {
     expect(conversation).toContain('table: "messages"');
   });
 
-  it("keeps the root messages overview read-only while relying on the same RLS select boundary", () => {
+  it("keeps the root overview read-only and moves privileged reads behind explicit authenticated scoping", () => {
     const overview = readFileSync(
       join(process.cwd(), overviewPath),
       "utf8"
     );
+    const route = readFileSync(
+      join(process.cwd(), overviewRoutePath),
+      "utf8"
+    );
 
     expect(overview).toContain("KLYX_MESSAGES_OVERVIEW_READ_ONLY");
-    expect(overview).toContain('.from("messages")');
+    expect(overview).toContain('fetch("/api/messages/overview"');
+    expect(overview).not.toContain('.from("messages")');
     expect(overview).not.toContain('.update({ is_read: true })');
     expect(overview).not.toContain(".insert({");
     expect(overview).not.toContain('.channel(');
     expect(overview).not.toContain('table: "messages"');
+
+    expect(route).toContain("getAuthenticatedProfile(request)");
+    expect(route).toContain('.from("messages")');
+    expect(route).toContain("sender_id.eq.${profileId},receiver_id.eq.${profileId}");
+    expect(route).toContain(
+      "booking.parent_id === profileId || booking.babysitter_id === profileId"
+    );
+    expect(route).not.toContain(".insert({");
+    expect(route).not.toContain(".update(");
   });
 });
