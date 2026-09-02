@@ -58,4 +58,32 @@ describe("KLYX destination UX contract", () => {
     expect(source).not.toContain("violet-");
     expect(source).not.toContain("indigo-");
   });
+
+  it("keeps Activity focused on one next action and a single calm list surface", () => {
+    const source = read("app/bookings/page.tsx");
+    const splitSource = read("app/bookings/SplitMissionSection.tsx");
+
+    expect(source).toContain("KLYX_ACTIVITY_DESTINATION_2026_09_01");
+    expect(source).toContain('className="klyx-page"');
+    expect(source).toContain("klyx-activity-list");
+    expect(source).toContain("remainingBookings");
+    expect(source).toContain('href="/assistant"');
+    expect(source).toContain('fetch("/api/bookings/overview"');
+    expect(source).toContain('fetch("/api/bookings/split-missions"');
+    expect(source).not.toContain("violet-");
+    expect(source).not.toContain("indigo-");
+    expect(source).not.toContain("bg-gradient");
+    expect(source).not.toContain("shadow-");
+    expect(source).not.toContain("amber-");
+    expect(source).not.toContain("emerald-");
+
+    expect(splitSource).toContain("KLYX_ACTIVITY_SPLIT_DESTINATION_2026_09_01");
+    expect(splitSource).not.toContain("violet-");
+    expect(splitSource).not.toContain("indigo-");
+    expect(splitSource).not.toContain("bg-gradient");
+    expect(splitSource).not.toContain("shadow-");
+    expect(splitSource).not.toContain("amber-");
+    expect(splitSource).not.toContain("emerald-");
+    expect(splitSource).not.toContain("red-");
+  });
 });
