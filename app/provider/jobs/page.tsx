@@ -306,6 +306,9 @@ export default function ProviderJobsPage() {
           <>
             <section className="mt-8" aria-label={t("priority")}>
               <p className="klyx-eyebrow uppercase">{t("nextAction")}</p>
+              <p className="mt-2 text-sm font-semibold text-blue-600">
+                {t("bestMatch")}
+              </p>
               <div className="mt-3">
                 <MissionCard
                   item={recommendedRequest}
@@ -435,6 +438,10 @@ function MissionCard({
                 <Layers3 size={13} />
                 {item.slotCount} {t("slot")}
               </span>
+            )}
+
+            {item.requestMode === "multi_slot" && item.coverage && (
+              <span>{item.coverage.label}</span>
             )}
 
             {item.match && (
