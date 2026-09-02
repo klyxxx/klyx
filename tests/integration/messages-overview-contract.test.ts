@@ -53,6 +53,7 @@ describe("KLYX messages overview contract", () => {
   it("opens the existing dynamic conversation explicitly per booking", () => {
     const overview = read("app/messages/page.tsx");
 
+    expect(overview).toContain('href={"/messages/" + primaryConversation.booking.id}');
     expect(overview).toContain('href={"/messages/" + conversation.booking.id}');
     expect(overview).toContain("conversation.unreadCount > 0");
     expect(overview).toContain("conversation.latestMessage.message");
@@ -85,5 +86,21 @@ describe("KLYX messages overview contract", () => {
     expect(overview).toContain(
       'setErrorMessage(translateKlyxMessagesPage(locale, "loadError"))'
     );
+  });
+
+  it("uses the focused KLYX destination language without dashboard card stacking", () => {
+    const overview = read("app/messages/page.tsx");
+
+    expect(overview).toContain("KLYX_MESSAGES_DESTINATION_2026_09_02");
+    expect(overview).toContain("const primaryConversation = useMemo(");
+    expect(overview).toContain(
+      "conversations.find((conversation) => conversation.unreadCount > 0)"
+    );
+    expect(overview).toContain("remainingConversations");
+    expect(overview).toContain('className="klyx-button inline-flex min-h-11');
+    expect(overview).toContain("border-y border-border");
+    expect(overview).not.toContain("shadow-sm");
+    expect(overview).not.toContain("border-red-500");
+    expect(overview).not.toContain("bg-red-500");
   });
 });
