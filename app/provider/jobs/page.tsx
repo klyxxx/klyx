@@ -7,7 +7,6 @@ import {
   useEffect,
   useMemo,
   useState,
-  type ReactNode,
 } from "react";
 import {
   ArrowRight,
@@ -23,6 +22,11 @@ import {
 } from "lucide-react";
 
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import ProviderConfirmedMissionsSection, {
+  ProviderConfirmedMissionCard,
+  providerMissionPriority,
+  type ProviderMissionCard,
+} from "@/app/provider/jobs/ProviderConfirmedMissionsSection";
 import {
   formatKlyxProviderJobsDate,
   formatKlyxProviderJobsDuration,
@@ -32,10 +36,15 @@ import {
   translateKlyxProviderJobsMatch,
   type KlyxProviderJobsMessageKey,
 } from "@/lib/klyx-provider-jobs-i18n";
+import {
+  translateKlyxProviderMissions,
+  type KlyxProviderMissionsMessageKey,
+} from "@/lib/klyx-provider-missions-i18n";
 import { supabase } from "@/lib/supabase";
 
 // KLYX_PROVIDER_MULTI_JOBS_UI_12_93
 // KLYX_PROVIDER_JOBS_DESTINATION_2026_09_01
+// KLYX_PROVIDER_MISSIONS_LIFECYCLE_2026_09_02
 
 type MultiSlot = {
   id: string;
@@ -96,6 +105,11 @@ type ProviderJobsResponse = {
   automaticExecutionAllowed?: boolean;
 };
 
+type BookingOverviewResponse = {
+  accountType?: "client" | "provider";
+  cards?: ProviderMissionCard[];
+};
+
 type Translator = (key: KlyxProviderJobsMessageKey) => string;
 type MoneyFormatter = (value: number | null, currency: string) => string;
 
@@ -118,8 +132,11 @@ function timeLabel(value: string | null): string {
 export default function ProviderJobsPage() {
   const { locale } = useKlyxLocale();
   const t: Translator = (key) => translateKlyxProviderJobs(locale, key);
+  const missionT = (key: KlyxProviderMissionsMessageKey) =>
+    translateKlyxProviderMissions(locale, key);
 
   const [requests, setRequests] = useState<MarketRequest[]>([]);
+  const [confirmedMissions, setConfirmedMissions] = useState<ProviderMissionCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
   const [amounts, setAmounts] = useState<Record<string, string>>({});
@@ -139,20 +156,35 @@ export default function ProviderJobsPage() {
 
     try {
       const accessToken = await token();
-      const response = await fetch("/api/provider/jobs", {
-        cache: "no-store",
-        headers: {
-          Authorization: "Bearer " + accessToken,
-        },
-      });
+      const headers = { Authorization: "Bearer " + accessToken };
+      const [jobsResponse, overviewResponse] = await Promise.all([
+        fetch("/api/provider/jobs", {
+          cache: "no-store",
+          headers,
+        }),
+        fetch("/api/bookings/overview", {
+          cache: "no-store",
+          headers,
+        }),
+      ]);
 
-      if (!response.ok) {
-        throw new Error("Provider jobs unavailable");
+      if (!jobsResponse.ok || !overviewResponse.ok) {
+        throw new Error("Provider missions unavailable");
       }
 
-      const body = (await response.json()) as ProviderJobsResponse;
+      const body = (await jobsResponse.json()) as ProviderJobsResponse;
+      const overview = (await overviewResponse.json()) as BookingOverviewResponse;
       const rows = body.requests ?? [];
+      const booked = (overview.cards ?? [])
+        .filter((card) => card.role === "provider")
+        .sort((left, right) => {
+          const priority = providerMissionPriority(left) - providerMissionPriority(right);
+          if (priority !== 0) return priority;
+          return left.dateFrom.localeCompare(right.dateFrom);
+        });
+
       setRequests(rows);
+      setConfirmedMissions(booked);
 
       const nextAmounts: Record<string, string> = {};
       const nextMessages: Record<string, string> = {};
@@ -171,7 +203,7 @@ export default function ProviderJobsPage() {
     } finally {
       setLoading(false);
     }
-  }, [locale]);
+  }, [locale, t]);
 
   useEffect(() => {
     void load();
@@ -195,10 +227,20 @@ export default function ProviderJobsPage() {
     return [...unhandled, ...handled];
   }, [requests]);
 
-  const recommendedRequest = prioritizedRequests[0] ?? null;
-  const otherRequests = recommendedRequest
-    ? prioritizedRequests.filter((request) => request.id !== recommendedRequest.id)
-    : [];
+  const actionMission =
+    confirmedMissions.find((mission) => mission.actionRequired) ?? null;
+  const upcomingMission =
+    confirmedMissions.find((mission) => !mission.history) ?? null;
+  const unhandledRequest =
+    prioritizedRequests.find((request) => !request.myOffer) ?? null;
+  const recommendedRequest = unhandledRequest ?? prioritizedRequests[0] ?? null;
+  const priorityMission = actionMission ?? (!unhandledRequest ? upcomingMission : null);
+  const priorityRequest = priorityMission ? null : unhandledRequest;
+  const priorityRequestId = priorityRequest?.id ?? null;
+
+  const otherRequests = prioritizedRequests.filter(
+    (request) => request.id !== priorityRequestId
+  );
 
   async function submitOffer(
     event: FormEvent<HTMLFormElement>,
@@ -266,16 +308,42 @@ export default function ProviderJobsPage() {
     setOpenOfferId((current) => (current === requestId ? null : requestId));
   }
 
+  function renderMissionCard(item: MarketRequest, featured = false, divided = false) {
+    return (
+      <MissionCard
+        key={item.id}
+        item={item}
+        locale={locale}
+        t={t}
+        money={money}
+        featured={featured}
+        divided={divided}
+        offerOpen={openOfferId === item.id}
+        busy={busy === item.id}
+        amount={amounts[item.id] ?? ""}
+        message={messages[item.id] ?? ""}
+        onToggleOffer={() => toggleOffer(item.id)}
+        onAmountChange={(value) =>
+          setAmounts((current) => ({ ...current, [item.id]: value }))
+        }
+        onMessageChange={(value) =>
+          setMessages((current) => ({ ...current, [item.id]: value }))
+        }
+        onSubmit={(event) => void submitOffer(event, item)}
+      />
+    );
+  }
+
   return (
     <main className="klyx-page">
       <div className="mx-auto max-w-4xl">
         <header className="max-w-2xl">
           <p className="klyx-eyebrow uppercase">{t("eyebrow")}</p>
           <h1 className="klyx-title mt-2 text-3xl sm:text-5xl">
-            {t("title")}
+            {t("missions")}
           </h1>
-          <p className="mt-3 max-w-xl text-sm leading-7 text-muted-foreground sm:text-base">
-            {t("description")}
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground sm:text-base">
+            {missionT("description")}
           </p>
         </header>
 
@@ -295,84 +363,68 @@ export default function ProviderJobsPage() {
           <div className="grid min-h-72 place-items-center" aria-label={t("missions")}>
             <LoaderCircle className="animate-spin text-blue-600" size={30} />
           </div>
-        ) : !recommendedRequest ? (
-          <section className="mt-10 max-w-xl py-8">
-            <h2 className="text-xl font-semibold">{t("noCompatible")}</h2>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              {t("noCompatibleDetail")}
-            </p>
-          </section>
         ) : (
           <>
-            <section className="mt-8" aria-label={t("priority")}>
-              <p className="klyx-eyebrow uppercase">{t("nextAction")}</p>
-              <p className="mt-2 text-sm font-semibold text-blue-600">
-                {t("bestMatch")}
-              </p>
-              <div className="mt-3">
-                <MissionCard
-                  item={recommendedRequest}
-                  locale={locale}
-                  t={t}
-                  money={money}
-                  featured
-                  offerOpen={openOfferId === recommendedRequest.id}
-                  busy={busy === recommendedRequest.id}
-                  amount={amounts[recommendedRequest.id] ?? ""}
-                  message={messages[recommendedRequest.id] ?? ""}
-                  onToggleOffer={() => toggleOffer(recommendedRequest.id)}
-                  onAmountChange={(value) =>
-                    setAmounts((current) => ({
-                      ...current,
-                      [recommendedRequest.id]: value,
-                    }))
-                  }
-                  onMessageChange={(value) =>
-                    setMessages((current) => ({
-                      ...current,
-                      [recommendedRequest.id]: value,
-                    }))
-                  }
-                  onSubmit={(event) => void submitOffer(event, recommendedRequest)}
-                />
-              </div>
-            </section>
+            {(priorityMission || priorityRequest) && (
+              <section className="mt-8" aria-label={t("priority")}>
+                <p className="klyx-eyebrow uppercase">{t("nextAction")}</p>
+                <p className="mt-2 text-sm font-semibold text-blue-600">
+                  {priorityMission?.actionRequired
+                    ? missionT("actionRequired")
+                    : priorityRequest
+                      ? t("bestMatch")
+                      : missionT("missionUpcoming")}
+                </p>
+                <div className="mt-3">
+                  {priorityMission ? (
+                    <ProviderConfirmedMissionCard
+                      mission={priorityMission}
+                      featured
+                    />
+                  ) : priorityRequest ? (
+                    renderMissionCard(priorityRequest, true)
+                  ) : null}
+                </div>
+                <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                  {missionT("lifecycleNote")}
+                </p>
+              </section>
+            )}
+
+            <ProviderConfirmedMissionsSection
+              missions={confirmedMissions}
+              priorityMissionId={priorityMission?.id ?? null}
+            />
 
             {otherRequests.length > 0 && (
-              <section className="mt-10" aria-label={t("missions")}>
+              <section className="mt-10" aria-label={missionT("opportunities")}>
                 <h2 className="text-lg font-semibold tracking-[-0.02em]">
-                  {t("missions")}
+                  {missionT("opportunities")}
                 </h2>
-
                 <div className="mt-3 overflow-hidden rounded-[1.5rem] border border-border bg-card">
-                  {otherRequests.map((item, index) => (
-                    <MissionCard
-                      key={item.id}
-                      item={item}
-                      locale={locale}
-                      t={t}
-                      money={money}
-                      divided={index > 0}
-                      offerOpen={openOfferId === item.id}
-                      busy={busy === item.id}
-                      amount={amounts[item.id] ?? ""}
-                      message={messages[item.id] ?? ""}
-                      onToggleOffer={() => toggleOffer(item.id)}
-                      onAmountChange={(value) =>
-                        setAmounts((current) => ({
-                          ...current,
-                          [item.id]: value,
-                        }))
-                      }
-                      onMessageChange={(value) =>
-                        setMessages((current) => ({
-                          ...current,
-                          [item.id]: value,
-                        }))
-                      }
-                      onSubmit={(event) => void submitOffer(event, item)}
-                    />
-                  ))}
+                  {otherRequests.map((item, index) =>
+                    renderMissionCard(item, false, index > 0)
+                  )}
+                </div>
+              </section>
+            )}
+
+            {!priorityMission && !priorityRequest && confirmedMissions.length === 0 && requests.length === 0 && (
+              <section className="mt-10 max-w-xl py-8">
+                <h2 className="text-xl font-semibold">{t("noCompatible")}</h2>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                  {missionT("noOpportunities")}
+                </p>
+              </section>
+            )}
+
+            {recommendedRequest && !priorityRequest && otherRequests.length === 0 && (
+              <section className="mt-10" aria-label={missionT("opportunities")}>
+                <h2 className="text-lg font-semibold tracking-[-0.02em]">
+                  {missionT("opportunities")}
+                </h2>
+                <div className="mt-3">
+                  {renderMissionCard(recommendedRequest, false)}
                 </div>
               </section>
             )}
@@ -677,25 +729,5 @@ function MissionCard({
         </section>
       )}
     </article>
-  );
-}
-
-function MiniInfo({
-  icon,
-  label,
-  value,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="min-w-0">
-      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        {icon}
-        {label}
-      </p>
-      <p className="mt-1 text-sm font-medium">{value}</p>
-    </div>
   );
 }
