@@ -47,11 +47,15 @@ test.describe("KLYX profile switcher stable layout", () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/profile", { waitUntil: "domcontentloaded" });
 
-    const switcher = page.getByTestId("account-switcher");
-    const trigger = switcher.locator("button[aria-haspopup='menu']");
     const desktopNavigation = page.getByTestId("desktop-navigation");
+    const trigger = page
+      .locator(
+        '[data-testid="desktop-sidebar"] [data-testid="account-switcher"] button[aria-haspopup="menu"]:not([disabled])'
+      )
+      .last();
 
-    await expect(switcher).toBeVisible();
+    await expect(trigger).toBeVisible();
+    await expect(trigger).toBeEnabled();
     await expect(desktopNavigation).toBeVisible();
 
     const navigationBefore = await desktopNavigation.boundingBox();
@@ -61,7 +65,11 @@ test.describe("KLYX profile switcher stable layout", () => {
 
     await trigger.click();
 
-    const menu = page.getByRole("menu", { name: "Changer de profil KLYX" });
+    const menu = page
+      .locator(
+        '[data-testid="desktop-sidebar"] [data-testid="account-switcher"] [role="menu"][aria-label="Changer de profil KLYX"]'
+      )
+      .last();
     await expect(menu).toBeVisible();
 
     const navigationAfter = await desktopNavigation.boundingBox();
