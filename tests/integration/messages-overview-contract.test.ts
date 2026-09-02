@@ -18,26 +18,32 @@ describe("KLYX messages overview contract", () => {
     expect(overview).not.toContain("ConversationPage");
   });
 
-  it("scopes the overview to the active client or provider profile and reads only conversation data", () => {
+  it("scopes the overview through the authenticated server boundary and reads only conversation data", () => {
     const overview = read("app/messages/page.tsx");
-    const switcher = read("lib/account-switcher.ts");
+    const route = read("app/api/messages/overview/route.ts");
 
-    expect(overview).toContain("getActiveProfileAccount");
-    expect(overview).not.toContain("getActiveClientProfile");
-    expect(switcher).toContain("export async function getActiveProfileAccount");
-    expect(overview).toContain('.from("messages")');
-    expect(overview).toContain('.from("bookings")');
-    expect(overview).toContain('.from("profiles")');
-    expect(overview).toContain("sender_id.eq.${profileId},receiver_id.eq.${profileId}");
-    expect(overview).toContain('.order("created_at", { ascending: false })');
-    expect(overview).toContain(".limit(200)");
-    expect(overview).toContain(
+    expect(overview).toContain('fetch("/api/messages/overview"');
+    expect(overview).toContain("Authorization: `Bearer ${session.access_token}`");
+    expect(overview).not.toContain('.from("messages")');
+    expect(overview).not.toContain('.from("bookings")');
+    expect(overview).not.toContain('.from("profiles")');
+
+    expect(route).toContain("getAuthenticatedProfile(request)");
+    expect(route).toContain("const profileId = profile.id");
+    expect(route).toContain('.from("messages")');
+    expect(route).toContain('.from("bookings")');
+    expect(route).toContain('.from("profiles")');
+    expect(route).toContain("sender_id.eq.${profileId},receiver_id.eq.${profileId}");
+    expect(route).toContain('.order("created_at", { ascending: false })');
+    expect(route).toContain(".limit(200)");
+    expect(route).toContain(
       "booking.parent_id === profileId || booking.babysitter_id === profileId"
     );
   });
 
   it("keeps the overview mutation-free and leaves read-state changes to the conversation", () => {
     const overview = read("app/messages/page.tsx");
+    const route = read("app/api/messages/overview/route.ts");
 
     expect(overview).not.toContain(".insert(");
     expect(overview).not.toContain(".update(");
@@ -45,6 +51,10 @@ describe("KLYX messages overview contract", () => {
     expect(overview).not.toContain(".upsert(");
     expect(overview).not.toContain(".channel(");
     expect(overview).not.toContain("markMessagesAsRead");
+    expect(route).not.toContain(".insert(");
+    expect(route).not.toContain(".update(");
+    expect(route).not.toContain(".delete(");
+    expect(route).not.toContain(".upsert(");
     expect(overview).not.toContain("stripe");
     expect(overview).not.toContain("refund");
     expect(overview).not.toContain("payment");
