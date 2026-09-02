@@ -5,6 +5,7 @@ import {
   Bot,
   CalendarClock,
   Check,
+  ChevronDown,
   Clipboard,
   FileText,
   LoaderCircle,
@@ -25,12 +26,9 @@ import {
 import { supabase } from "@/lib/supabase";
 
 // KLYX_PROVIDER_ASSISTANT_VISUAL_2026_08_31
+// KLYX_PROVIDER_ASSISTANT_DESTINATION_2026_09_02
 
-type Intent =
-  | "availability"
-  | "quote"
-  | "client_reply"
-  | "unknown";
+type Intent = "availability" | "quote" | "client_reply" | "unknown";
 
 type AssistantResponse = {
   draftId?: string | null;
@@ -233,10 +231,7 @@ export default function ProviderAssistantPage() {
     }
   }
 
-  async function processDraft(
-    draftId: string,
-    action: "apply" | "discard"
-  ) {
+  async function processDraft(draftId: string, action: "apply" | "discard") {
     setBusyId(draftId);
     setErrorMessage("");
     setSuccessMessage("");
@@ -274,271 +269,256 @@ export default function ProviderAssistantPage() {
     setSuccessMessage(t("copied"));
   }
 
+  const pendingDrafts = drafts.filter((draft) => draft.status === "draft").length;
+
   return (
-    <main className="min-h-[calc(100vh-4rem)] px-4 py-5 sm:px-6 lg:px-8">
-      <div className="mx-auto grid max-w-[1380px] gap-5 xl:grid-cols-[minmax(0,1fr)_330px]">
-        <section className="flex min-h-[calc(100vh-7rem)] min-w-0 flex-col overflow-hidden rounded-[28px] border border-border bg-card shadow-sm">
-          <header className="flex items-center justify-between gap-4 border-b border-border px-5 py-4 sm:px-7">
-            <div className="flex min-w-0 items-center gap-3">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-300">
-                <Sparkles size={20} />
-              </span>
-              <div className="min-w-0">
-                <h1 className="truncate text-base font-bold sm:text-lg">Assistant KLYX</h1>
-                <p className="truncate text-xs text-muted-foreground">Espace prestataire · demande, devis, disponibilité</p>
-              </div>
-            </div>
+    <main className="klyx-page">
+      <div className="mx-auto max-w-4xl">
+        <header className="max-w-2xl">
+          <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+            Assistant KLYX
+          </p>
+          <h1 className="klyx-title mt-2 text-3xl sm:text-5xl">
+            Que dois-je préparer pour ton activité ?
+          </h1>
+          <p className="mt-3 max-w-xl text-sm leading-7 text-muted-foreground sm:text-base">
+            Réponse client, devis ou disponibilité. Rien n’est appliqué ni envoyé sans ta confirmation.
+          </p>
+        </header>
 
-            <span className="hidden rounded-full border border-emerald-500/20 bg-emerald-500/8 px-3 py-1.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 sm:inline-flex">
-              Prêt
+        <section className="mt-10 min-h-[22rem]" aria-label="Conversation avec KLYX">
+          <div className="flex gap-3">
+            <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-blue-600 text-white">
+              <Sparkles size={16} />
             </span>
-          </header>
+            <div className="max-w-[46rem] text-sm leading-7 text-foreground/90">
+              Dis-moi simplement ce que tu veux préparer. Je m’occupe de structurer le brouillon avant ta décision.
+            </div>
+          </div>
 
-          <div className="klyx-scrollbar flex-1 overflow-y-auto px-4 py-7 sm:px-7">
-            <div className="mx-auto max-w-3xl">
-              <div className="flex gap-3">
+          {messages.length === 0 && (
+            <div className="ml-11 mt-6 flex flex-wrap gap-2">
+              {examples.map((example) => (
+                <button
+                  key={example}
+                  type="button"
+                  disabled={loading}
+                  onClick={() => void submit(undefined, example)}
+                  className="rounded-full border border-border px-3.5 py-2 text-xs font-semibold text-muted-foreground transition hover:border-blue-600/30 hover:text-foreground disabled:opacity-50"
+                >
+                  {example}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="mt-8 space-y-7">
+            {messages.map((entry) => (
+              <article
+                key={entry.id}
+                className={entry.role === "user" ? "flex justify-end" : "flex gap-3"}
+              >
+                {entry.role === "assistant" && (
+                  <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-blue-600 text-white">
+                    <Sparkles size={16} />
+                  </span>
+                )}
+
+                <div
+                  className={
+                    entry.role === "user"
+                      ? "max-w-[85%] rounded-[22px] bg-muted px-4 py-3 text-sm leading-6"
+                      : "min-w-0 max-w-[46rem] text-sm leading-7"
+                  }
+                >
+                  {entry.role === "assistant" && entry.title && (
+                    <p className="mb-1 font-semibold text-foreground">{entry.title}</p>
+                  )}
+                  <p className="whitespace-pre-wrap text-foreground/90">{entry.text}</p>
+
+                  {entry.role === "assistant" &&
+                    entry.intent === "client_reply" &&
+                    typeof entry.payload?.message === "string" && (
+                      <button
+                        type="button"
+                        onClick={() => void copyText(entry.payload?.message)}
+                        className="mt-3 inline-flex min-h-9 items-center gap-2 rounded-xl border border-border px-3 text-xs font-semibold transition hover:bg-muted"
+                      >
+                        <Clipboard size={15} />
+                        {t("copyReply")}
+                      </button>
+                    )}
+                </div>
+              </article>
+            ))}
+
+            {loading && (
+              <div className="flex gap-3" aria-live="polite">
                 <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-blue-600 text-white">
                   <Sparkles size={16} />
                 </span>
-                <div className="max-w-[46rem] text-sm leading-7 text-foreground/90">
-                  <p>
-                    Dis-moi simplement ce que tu veux préparer. Je peux t’aider à répondre à un client,
-                    préparer un devis ou organiser ta disponibilité.
-                  </p>
-                  <p className="mt-2 text-muted-foreground">
-                    Rien n’est appliqué ni envoyé sans ta confirmation.
-                  </p>
+                <div className="flex h-8 items-center gap-1.5 text-muted-foreground">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" />
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current [animation-delay:150ms]" />
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current [animation-delay:300ms]" />
+                  <span className="sr-only">KLYX prépare une réponse</span>
                 </div>
               </div>
-
-              {messages.length === 0 && (
-                <div className="ml-11 mt-6 flex flex-wrap gap-2">
-                  {examples.map((example) => (
-                    <button
-                      key={example}
-                      type="button"
-                      disabled={loading}
-                      onClick={() => void submit(undefined, example)}
-                      className="rounded-full border border-border bg-background px-3.5 py-2 text-xs font-semibold text-muted-foreground transition hover:border-blue-500/30 hover:bg-blue-500/[0.06] hover:text-foreground disabled:opacity-50"
-                    >
-                      {example}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <div className="mt-8 space-y-7">
-                {messages.map((entry) => (
-                  <article
-                    key={entry.id}
-                    className={entry.role === "user" ? "flex justify-end" : "flex gap-3"}
-                  >
-                    {entry.role === "assistant" && (
-                      <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-blue-600 text-white">
-                        <Sparkles size={16} />
-                      </span>
-                    )}
-
-                    <div
-                      className={
-                        entry.role === "user"
-                          ? "max-w-[85%] rounded-[22px] bg-muted px-4 py-3 text-sm leading-6"
-                          : "min-w-0 max-w-[46rem] text-sm leading-7"
-                      }
-                    >
-                      {entry.role === "assistant" && entry.title && (
-                        <p className="mb-1 font-bold text-foreground">{entry.title}</p>
-                      )}
-                      <p className="whitespace-pre-wrap text-foreground/90">{entry.text}</p>
-
-                      {entry.role === "assistant" &&
-                        entry.intent === "client_reply" &&
-                        typeof entry.payload?.message === "string" && (
-                          <button
-                            type="button"
-                            onClick={() => void copyText(entry.payload?.message)}
-                            className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl border border-border px-3 text-xs font-semibold transition hover:bg-muted"
-                          >
-                            <Clipboard size={15} />
-                            {t("copyReply")}
-                          </button>
-                        )}
-                    </div>
-                  </article>
-                ))}
-
-                {loading && (
-                  <div className="flex gap-3" aria-live="polite">
-                    <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-blue-600 text-white">
-                      <Sparkles size={16} />
-                    </span>
-                    <div className="flex h-8 items-center gap-1.5 text-muted-foreground">
-                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" />
-                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current [animation-delay:150ms]" />
-                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current [animation-delay:300ms]" />
-                      <span className="sr-only">KLYX prépare une réponse</span>
-                    </div>
-                  </div>
-                )}
-                <div ref={endRef} />
-              </div>
-            </div>
-          </div>
-
-          {(errorMessage || successMessage) && (
-            <div className="px-4 sm:px-7">
-              {errorMessage && (
-                <p role="alert" className="mb-2 text-xs font-semibold text-rose-600 dark:text-rose-300">
-                  {errorMessage}
-                </p>
-              )}
-              {successMessage && (
-                <p role="status" className="mb-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                  {successMessage}
-                </p>
-              )}
-            </div>
-          )}
-
-          <div className="border-t border-border bg-background/40 p-3 sm:p-4">
-            <form
-              onSubmit={(event) => void submit(event)}
-              className="mx-auto flex max-w-3xl items-end gap-2 rounded-[24px] border border-border bg-background p-2 shadow-sm focus-within:border-blue-500/35 focus-within:ring-2 focus-within:ring-blue-500/10"
-            >
-              <textarea
-                rows={1}
-                maxLength={1000}
-                value={message}
-                onChange={(event) => setMessage(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    if (message.trim().length >= 3 && !loading) {
-                      event.currentTarget.form?.requestSubmit();
-                    }
-                  }
-                }}
-                className="max-h-40 min-h-12 flex-1 resize-none bg-transparent px-3 py-3 text-sm leading-6 outline-none placeholder:text-muted-foreground"
-                placeholder="Demander à KLYX…"
-              />
-
-              <button
-                type="submit"
-                disabled={loading || message.trim().length < 3}
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-blue-600 text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-35"
-                aria-label={t("prepare")}
-              >
-                {loading ? (
-                  <LoaderCircle className="animate-spin" size={18} />
-                ) : (
-                  <Send size={18} />
-                )}
-              </button>
-            </form>
-            <p className="mx-auto mt-2 max-w-3xl text-center text-[10px] text-muted-foreground">
-              KLYX prépare. Tu gardes toujours le contrôle avant toute action.
-            </p>
+            )}
+            <div ref={endRef} />
           </div>
         </section>
 
-        <aside className="min-w-0 rounded-[28px] border border-border bg-card p-4 shadow-sm xl:max-h-[calc(100vh-7rem)] xl:overflow-y-auto">
-          <div className="flex items-center justify-between gap-3 px-1 pb-3">
-            <div>
-              <p className="text-sm font-bold">Brouillons</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">Préparés dans cette activité</p>
-            </div>
-            <span className="rounded-full bg-muted px-2.5 py-1 text-[11px] font-bold text-muted-foreground">
-              {drafts.filter((draft) => draft.status === "draft").length}
-            </span>
+        {(errorMessage || successMessage) && (
+          <div className="mt-5 border-y border-border py-3 text-sm">
+            {errorMessage && (
+              <p role="alert" className="font-semibold text-red-600 dark:text-red-300">
+                {errorMessage}
+              </p>
+            )}
+            {successMessage && (
+              <p role="status" className="font-semibold text-blue-600 dark:text-blue-400">
+                {successMessage}
+              </p>
+            )}
           </div>
+        )}
 
-          {loadingDrafts ? (
-            <div className="grid min-h-32 place-items-center" aria-live="polite">
-              <LoaderCircle className="animate-spin text-blue-600" size={24} />
-            </div>
-          ) : drafts.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border px-4 py-8 text-center">
-              <Bot className="mx-auto text-muted-foreground" size={24} />
-              <p className="mt-3 text-xs text-muted-foreground">{t("noDrafts")}</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {drafts.map((draft) => {
-                const Icon = iconFor(draft.draft_type);
-                const isDraft = draft.status === "draft";
-                const preview = draftPreview(draft);
+        <details className="group mt-8 border-y border-border py-5">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold">
+            <span>
+              Brouillons à vérifier{pendingDrafts > 0 ? ` · ${pendingDrafts}` : ""}
+            </span>
+            <ChevronDown
+              size={17}
+              className="text-muted-foreground transition group-open:rotate-180"
+            />
+          </summary>
 
-                return (
-                  <article
-                    key={draft.id}
-                    className="rounded-2xl border border-border bg-background/55 p-3.5"
-                  >
-                    <div className="flex items-start gap-3">
-                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-300">
-                        <Icon size={17} />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <h2 className="truncate text-sm font-bold">{draft.title}</h2>
-                        <p className="mt-1 text-[10px] text-muted-foreground">
-                          {new Date(draft.created_at).toLocaleString(intlLocale)} ·{" "}
-                          {translateKlyxProviderAssistantStatus(locale, draft.status)}
-                        </p>
+          <div className="mt-5">
+            {loadingDrafts ? (
+              <div className="grid min-h-24 place-items-center" aria-live="polite">
+                <LoaderCircle className="animate-spin text-blue-600" size={22} />
+              </div>
+            ) : drafts.length === 0 ? (
+              <div className="flex items-center gap-3 py-4 text-sm text-muted-foreground">
+                <Bot size={19} />
+                {t("noDrafts")}
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {drafts.map((draft) => {
+                  const Icon = iconFor(draft.draft_type);
+                  const isDraft = draft.status === "draft";
+                  const preview = draftPreview(draft);
+
+                  return (
+                    <article key={draft.id} className="py-5">
+                      <div className="flex items-start gap-3">
+                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-blue-600/8 text-blue-600 dark:text-blue-400">
+                          <Icon size={17} />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <h2 className="text-sm font-semibold">{draft.title}</h2>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {new Date(draft.created_at).toLocaleString(intlLocale)} ·{" "}
+                            {translateKlyxProviderAssistantStatus(locale, draft.status)}
+                          </p>
+                          {preview && (
+                            <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
+                              {preview}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                    </div>
 
-                    {preview && (
-                      <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-xs leading-5 text-muted-foreground">
-                        {preview}
-                      </p>
-                    )}
-
-                    {isDraft && (
-                      <div className="mt-3 flex items-center justify-end gap-2 border-t border-border pt-3">
-                        {draft.draft_type === "availability" && (
-                          <button
-                            type="button"
-                            disabled={busyId === draft.id}
-                            onClick={() => void processDraft(draft.id, "apply")}
-                            className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-emerald-600 px-3 text-[11px] font-bold text-white disabled:opacity-50"
-                          >
-                            <Check size={14} />
-                            {t("apply")}
-                          </button>
-                        )}
-
-                        {draft.draft_type !== "availability" &&
-                          typeof draft.payload.message === "string" && (
+                      {isDraft && (
+                        <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+                          {draft.draft_type === "availability" && (
                             <button
                               type="button"
-                              aria-label={t("copyReply")}
-                              onClick={() => void copyText(draft.payload.message)}
-                              className="grid h-9 w-9 place-items-center rounded-xl border border-border transition hover:bg-muted"
+                              disabled={busyId === draft.id}
+                              onClick={() => void processDraft(draft.id, "apply")}
+                              className="klyx-button inline-flex min-h-9 items-center gap-1.5 px-3 text-xs font-semibold disabled:opacity-50"
                             >
-                              <Clipboard size={14} />
+                              <Check size={14} />
+                              {t("apply")}
                             </button>
                           )}
 
-                        <button
-                          type="button"
-                          aria-label={t("discard")}
-                          disabled={busyId === draft.id}
-                          onClick={() => void processDraft(draft.id, "discard")}
-                          className="grid h-9 w-9 place-items-center rounded-xl border border-rose-500/20 text-rose-600 transition hover:bg-rose-500/8 disabled:opacity-50"
-                        >
-                          {busyId === draft.id ? (
-                            <LoaderCircle className="animate-spin" size={14} />
-                          ) : (
-                            <Trash2 size={14} />
-                          )}
-                        </button>
-                      </div>
-                    )}
-                  </article>
-                );
-              })}
-            </div>
-          )}
-        </aside>
+                          {draft.draft_type !== "availability" &&
+                            typeof draft.payload.message === "string" && (
+                              <button
+                                type="button"
+                                aria-label={t("copyReply")}
+                                onClick={() => void copyText(draft.payload.message)}
+                                className="grid h-9 w-9 place-items-center rounded-xl border border-border transition hover:bg-muted"
+                              >
+                                <Clipboard size={14} />
+                              </button>
+                            )}
+
+                          <button
+                            type="button"
+                            aria-label={t("discard")}
+                            disabled={busyId === draft.id}
+                            onClick={() => void processDraft(draft.id, "discard")}
+                            className="grid h-9 w-9 place-items-center rounded-xl border border-red-500/25 text-red-600 transition hover:bg-red-500/5 disabled:opacity-50 dark:text-red-300"
+                          >
+                            {busyId === draft.id ? (
+                              <LoaderCircle className="animate-spin" size={14} />
+                            ) : (
+                              <Trash2 size={14} />
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </details>
+
+        <form
+          onSubmit={(event) => void submit(event)}
+          className="klyx-card mt-8 flex items-end gap-2 p-2 focus-within:border-blue-600/35"
+        >
+          <textarea
+            rows={1}
+            maxLength={1000}
+            value={message}
+            onChange={(event) => setMessage(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                if (message.trim().length >= 3 && !loading) {
+                  event.currentTarget.form?.requestSubmit();
+                }
+              }
+            }}
+            className="max-h-40 min-h-12 flex-1 resize-none bg-transparent px-3 py-3 text-sm leading-6 outline-none placeholder:text-muted-foreground"
+            placeholder="Demander à KLYX…"
+          />
+
+          <button
+            type="submit"
+            disabled={loading || message.trim().length < 3}
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-blue-600 text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-35"
+            aria-label={t("prepare")}
+          >
+            {loading ? (
+              <LoaderCircle className="animate-spin" size={18} />
+            ) : (
+              <Send size={18} />
+            )}
+          </button>
+        </form>
+
+        <p className="mt-2 text-center text-[11px] text-muted-foreground">
+          KLYX prépare. Tu confirmes toujours avant toute action.
+        </p>
       </div>
     </main>
   );
