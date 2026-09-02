@@ -16,7 +16,7 @@ describe("KLYX account switcher layout contract", () => {
     expect(switcher).toContain('data-testid="account-switcher"');
     expect(switcher).toContain('className="relative isolate w-full"');
     expect(switcher).toContain('className="absolute left-0 right-0 top-full');
-    expect(switcher).toContain('max-h-[min(22rem,calc(100vh-13rem))]');
+    expect(switcher).toContain('max-h-[min(22rem,calc(100dvh_-_13rem))]');
     expect(switcher).not.toContain('w-[min(88vw,320px)]');
   });
 
