@@ -37,16 +37,17 @@ test.describe("KLYX profile switcher stable layout", () => {
     await clearSensitivePassword(page);
   });
 
-  test("opening profiles never moves navigation and mobile controls stay fixed", async ({
+  test("provider sidebar never moves and mobile controls stay fixed", async ({
     page,
   }, testInfo) => {
     test.setTimeout(180_000);
     await loginKlyxE2E(page);
-    await activateKlyxE2EProfile(page, "client");
+    await activateKlyxE2EProfile(page, "provider");
 
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/profile", { waitUntil: "domcontentloaded" });
 
+    const desktopSidebar = page.getByTestId("desktop-sidebar");
     const desktopNavigation = page.getByTestId("desktop-navigation");
     const trigger = page
       .locator(
@@ -56,10 +57,13 @@ test.describe("KLYX profile switcher stable layout", () => {
 
     await expect(trigger).toBeVisible();
     await expect(trigger).toBeEnabled();
+    await expect(desktopSidebar).toBeVisible();
     await expect(desktopNavigation).toBeVisible();
 
+    const sidebarBefore = await desktopSidebar.boundingBox();
     const navigationBefore = await desktopNavigation.boundingBox();
     const triggerBefore = await trigger.boundingBox();
+    expect(sidebarBefore).not.toBeNull();
     expect(navigationBefore).not.toBeNull();
     expect(triggerBefore).not.toBeNull();
 
@@ -84,7 +88,23 @@ test.describe("KLYX profile switcher stable layout", () => {
     expect(menuBox!.x).toBeCloseTo(triggerAfter!.x, 0);
     expect(menuBox!.width).toBeCloseTo(triggerAfter!.width, 0);
 
-    await attachViewport(page, testInfo, "account-switcher-open-stable-desktop");
+    await attachViewport(page, testInfo, "provider-account-switcher-open-stable-desktop");
+
+    await page.keyboard.press("Escape");
+    await page.evaluate(() => {
+      document.body.style.minHeight = "2200px";
+      window.scrollTo(0, 700);
+    });
+
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+
+    const sidebarAfterScroll = await desktopSidebar.boundingBox();
+    expect(sidebarAfterScroll).not.toBeNull();
+    expectSameGeometry(sidebarBefore!, sidebarAfterScroll!);
+    expect(sidebarAfterScroll!.y).toBeCloseTo(0, 0);
+    expect(sidebarAfterScroll!.height).toBeCloseTo(900, 0);
+
+    await attachViewport(page, testInfo, "provider-sidebar-fixed-after-scroll");
 
     await page.setViewportSize({ width: 390, height: 844 });
     const mobileNavigation = page.getByTestId("mobile-navigation");
@@ -102,6 +122,6 @@ test.describe("KLYX profile switcher stable layout", () => {
     expectSameGeometry(mobileBefore!, mobileAfter!);
     expect(mobileAfter!.y + mobileAfter!.height).toBeLessThanOrEqual(844.5);
 
-    await attachViewport(page, testInfo, "mobile-navigation-fixed-after-scroll");
+    await attachViewport(page, testInfo, "provider-mobile-navigation-fixed-after-scroll");
   });
 });
