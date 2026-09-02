@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  ChevronDown,
   FileText,
   LoaderCircle,
   Send,
@@ -17,6 +18,8 @@ import {
   type KlyxProviderQuotesMessageKey,
 } from "@/lib/klyx-provider-quotes-i18n";
 import { supabase } from "@/lib/supabase";
+
+// KLYX_PROVIDER_QUOTES_DESTINATION_2026_09_02
 
 type QuoteProfile = {
   id: string;
@@ -160,6 +163,9 @@ export default function ProviderQuotesPage() {
   const otherQuotes = priorityQuote
     ? prioritizedQuotes.filter((quote) => quote.id !== priorityQuote.id)
     : [];
+  const requestedCount = prioritizedQuotes.filter(
+    (quote) => quote.status === "requested"
+  ).length;
 
   async function prepareSmartDraft(quoteId: string) {
     if (draftBusyId || busyId) return;
@@ -252,78 +258,86 @@ export default function ProviderQuotesPage() {
     }
   }
 
-  function quoteCard(quote: Quote, featured = false) {
+  function quoteView(quote: Quote, featured = false) {
     const smartDraft = smartDrafts[quote.id];
 
     return (
       <article
         key={quote.id}
-        className={`overflow-hidden rounded-2xl border bg-card shadow-sm ${
-          featured && quote.status === "requested"
-            ? "border-blue-500/35 ring-1 ring-blue-500/10"
-            : "border-border"
-        }`}
+        data-quote-priority={featured ? "true" : "false"}
+        className={featured ? "border-t border-border pt-6" : "py-6"}
       >
-        <div className="p-5 sm:p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2563EB]">
                 {translateKlyxProviderQuoteStatus(locale, quote.status)}
               </p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em]">
-                {quote.title}
-              </h2>
-              <p className="mt-2 text-sm font-medium text-foreground/80">
+              <span className="text-xs text-muted-foreground">
                 {clientName(quote.client)}
-              </p>
+              </span>
             </div>
-
-            <div className="shrink-0 rounded-xl border border-border bg-background px-4 py-3 sm:text-right">
-              <p className="text-xs text-muted-foreground">{t("estimate")}</p>
-              <p className="mt-1 text-lg font-semibold">
-                {quote.estimated_total == null
-                  ? t("toConfirm")
-                  : formatKlyxProviderQuoteMoney(
-                      locale,
-                      Number(quote.estimated_total)
-                    )}
-              </p>
-            </div>
-          </div>
-
-          <p className="mt-4 max-w-3xl text-sm leading-7 text-muted-foreground">
-            {quote.description}
-          </p>
-
-          <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground">
-            {quote.requested_date && (
-              <span>
-                {t("date")} :{" "}
-                {formatKlyxProviderQuoteDate(locale, quote.requested_date)}
-              </span>
-            )}
-            {quote.requested_time && (
-              <span>
-                {t("time")} : {quote.requested_time.slice(0, 5)}
-              </span>
-            )}
-            {quote.duration_hours && (
-              <span>
-                {t("duration")} : {quote.duration_hours} h
-              </span>
-            )}
-          </div>
-
-          {quote.status === "requested" && (
-            <form
-              onSubmit={(event) => void sendQuote(event, quote.id)}
-              className="mt-6 border-t border-border pt-6"
+            <h2
+              className={`${featured ? "text-2xl sm:text-3xl" : "text-xl"} mt-2 font-semibold tracking-[-0.03em]`}
             >
+              {quote.title}
+            </h2>
+          </div>
+
+          <div className="shrink-0 sm:text-right">
+            <p className="text-xs text-muted-foreground">{t("estimate")}</p>
+            <p className="mt-1 text-base font-semibold">
+              {quote.estimated_total == null
+                ? t("toConfirm")
+                : formatKlyxProviderQuoteMoney(
+                    locale,
+                    Number(quote.estimated_total)
+                  )}
+            </p>
+          </div>
+        </div>
+
+        <p className="mt-4 max-w-3xl text-sm leading-7 text-muted-foreground">
+          {quote.description}
+        </p>
+
+        <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground">
+          {quote.requested_date && (
+            <span>
+              {t("date")} :{" "}
+              {formatKlyxProviderQuoteDate(locale, quote.requested_date)}
+            </span>
+          )}
+          {quote.requested_time && (
+            <span>
+              {t("time")} : {quote.requested_time.slice(0, 5)}
+            </span>
+          )}
+          {quote.duration_hours && (
+            <span>
+              {t("duration")} : {quote.duration_hours} h
+            </span>
+          )}
+        </div>
+
+        {quote.status === "requested" && (
+          <form
+            onSubmit={(event) => void sendQuote(event, quote.id)}
+            className="mt-6 border-t border-border pt-6"
+          >
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold">{t("prepare")}</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                  {t("editableNotice")}
+                </p>
+              </div>
+
               <button
                 type="button"
                 disabled={draftBusyId === quote.id || busyId === quote.id}
                 onClick={() => void prepareSmartDraft(quote.id)}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-semibold text-blue-600 transition hover:bg-muted disabled:opacity-50"
+                className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-semibold text-[#2563EB] transition hover:bg-muted disabled:opacity-50"
               >
                 {draftBusyId === quote.id ? (
                   <LoaderCircle className="animate-spin" size={17} />
@@ -332,180 +346,194 @@ export default function ProviderQuotesPage() {
                 )}
                 {t("prepare")}
               </button>
-
-              {smartDraft && (
-                <div className="mt-4 rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-semibold">{t("smartDraft")}</p>
-                    <span className="rounded-full border border-blue-500/20 bg-background px-3 py-1 text-[10px] font-semibold uppercase tracking-wide">
-                      {confidenceLabel(smartDraft.confidence)}
-                    </span>
-                  </div>
-
-                  <p className="mt-3 text-xs leading-6 text-muted-foreground">
-                    {smartDraft.explanation}
-                  </p>
-
-                  {smartDraft.assumptions.length > 0 && (
-                    <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-                      {smartDraft.assumptions.map((assumption) => (
-                        <p key={assumption}>• {assumption}</p>
-                      ))}
-                    </div>
-                  )}
-
-                  {smartDraft.warnings.length > 0 && (
-                    <div className="mt-3 space-y-2 border-t border-blue-500/15 pt-3">
-                      {smartDraft.warnings.map((warning) => (
-                        <p
-                          key={warning}
-                          className="flex items-start gap-2 text-xs leading-5 text-amber-700 dark:text-amber-300"
-                        >
-                          <AlertTriangle
-                            className="mt-0.5 shrink-0"
-                            size={14}
-                          />
-                          {warning}
-                        </p>
-                      ))}
-                    </div>
-                  )}
-
-                  <p className="mt-3 text-[11px] font-semibold text-blue-700 dark:text-blue-300">
-                    {t("approvalRequired")}
-                  </p>
-                </div>
-              )}
-
-              <div className="mt-4 grid gap-4 sm:grid-cols-[190px_1fr]">
-                <label>
-                  <span className="mb-2 block text-sm font-semibold">
-                    {t("priceLabel")}
-                  </span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={prices[quote.id] ?? ""}
-                    onChange={(event) =>
-                      setPrices((current) => ({
-                        ...current,
-                        [quote.id]: event.target.value,
-                      }))
-                    }
-                    className="klyx-input"
-                  />
-                </label>
-
-                <label>
-                  <span className="mb-2 block text-sm font-semibold">
-                    {t("messageLabel")}
-                  </span>
-                  <textarea
-                    rows={3}
-                    maxLength={1500}
-                    value={messages[quote.id] ?? ""}
-                    onChange={(event) =>
-                      setMessages((current) => ({
-                        ...current,
-                        [quote.id]: event.target.value,
-                      }))
-                    }
-                    className="klyx-input resize-none"
-                    placeholder={t("messagePlaceholder")}
-                  />
-                </label>
-              </div>
-
-              <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                {t("editableNotice")}
-              </p>
-
-              <button
-                type="submit"
-                disabled={busyId === quote.id || draftBusyId === quote.id}
-                className="mt-4 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:opacity-50"
-              >
-                {busyId === quote.id ? (
-                  <LoaderCircle className="animate-spin" size={18} />
-                ) : (
-                  <Send size={18} />
-                )}
-                {t("send")}
-              </button>
-            </form>
-          )}
-
-          {quote.status !== "requested" && (
-            <div className="mt-5 rounded-xl border border-border bg-background p-4">
-              <p className="text-sm font-semibold">
-                {t("sentPrice")} :{" "}
-                {quote.provider_price == null
-                  ? "—"
-                  : formatKlyxProviderQuoteMoney(
-                      locale,
-                      Number(quote.provider_price)
-                    )}
-              </p>
-              {quote.provider_message && (
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  {quote.provider_message}
-                </p>
-              )}
             </div>
-          )}
-        </div>
+
+            {smartDraft && (
+              <div className="mt-5 border-l-2 border-[#2563EB] pl-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-semibold">{t("smartDraft")}</p>
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {confidenceLabel(smartDraft.confidence)}
+                  </span>
+                </div>
+
+                <p className="mt-3 text-xs leading-6 text-muted-foreground">
+                  {smartDraft.explanation}
+                </p>
+
+                {smartDraft.assumptions.length > 0 && (
+                  <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+                    {smartDraft.assumptions.map((assumption) => (
+                      <p key={assumption}>• {assumption}</p>
+                    ))}
+                  </div>
+                )}
+
+                {smartDraft.warnings.length > 0 && (
+                  <div className="mt-3 space-y-2 border-t border-border pt-3">
+                    {smartDraft.warnings.map((warning) => (
+                      <p
+                        key={warning}
+                        className="flex items-start gap-2 text-xs leading-5 text-amber-700 dark:text-amber-300"
+                      >
+                        <AlertTriangle className="mt-0.5 shrink-0" size={14} />
+                        {warning}
+                      </p>
+                    ))}
+                  </div>
+                )}
+
+                <p className="mt-3 text-[11px] font-semibold text-[#2563EB]">
+                  {t("approvalRequired")}
+                </p>
+              </div>
+            )}
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-[190px_1fr]">
+              <label>
+                <span className="mb-2 block text-sm font-semibold">
+                  {t("priceLabel")}
+                </span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={prices[quote.id] ?? ""}
+                  onChange={(event) =>
+                    setPrices((current) => ({
+                      ...current,
+                      [quote.id]: event.target.value,
+                    }))
+                  }
+                  className="klyx-input"
+                />
+              </label>
+
+              <label>
+                <span className="mb-2 block text-sm font-semibold">
+                  {t("messageLabel")}
+                </span>
+                <textarea
+                  rows={3}
+                  maxLength={1500}
+                  value={messages[quote.id] ?? ""}
+                  onChange={(event) =>
+                    setMessages((current) => ({
+                      ...current,
+                      [quote.id]: event.target.value,
+                    }))
+                  }
+                  className="klyx-input resize-none"
+                  placeholder={t("messagePlaceholder")}
+                />
+              </label>
+            </div>
+
+            <button
+              type="submit"
+              disabled={busyId === quote.id || draftBusyId === quote.id}
+              className="mt-4 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#2563EB] px-5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+            >
+              {busyId === quote.id ? (
+                <LoaderCircle className="animate-spin" size={18} />
+              ) : (
+                <Send size={18} />
+              )}
+              {t("send")}
+            </button>
+          </form>
+        )}
+
+        {quote.status !== "requested" && (
+          <div className="mt-5 border-t border-border pt-4">
+            <p className="text-sm font-semibold">
+              {t("sentPrice")} :{" "}
+              {quote.provider_price == null
+                ? "—"
+                : formatKlyxProviderQuoteMoney(
+                    locale,
+                    Number(quote.provider_price)
+                  )}
+            </p>
+            {quote.provider_message && (
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                {quote.provider_message}
+              </p>
+            )}
+          </div>
+        )}
       </article>
     );
   }
 
   return (
-    <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6 sm:py-10">
-      <div className="mx-auto max-w-5xl">
-        <header className="max-w-3xl">
-          <div className="flex items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400">
-            <FileText size={17} />
-            <span>{t("providerOnly")}</span>
-          </div>
-          <h1 className="mt-3 text-3xl font-bold tracking-[-0.04em] sm:text-5xl">
-            {t("title")}
-          </h1>
+    <main className="klyx-page">
+      <div className="mx-auto max-w-4xl">
+        <header className="max-w-2xl">
+          <p className="text-sm font-semibold text-[#2563EB]">
+            {t("providerOnly")}
+          </p>
+          <h1 className="klyx-title mt-2 text-3xl sm:text-5xl">{t("title")}</h1>
           <p className="mt-3 text-sm leading-7 text-muted-foreground sm:text-base">
             {t("intro")}
           </p>
         </header>
 
         {errorMessage && (
-          <div className="mt-6 rounded-2xl border border-red-500/25 bg-red-500/8 p-4 text-red-700 dark:text-red-300">
+          <div className="mt-6 border-l-2 border-red-500 py-1 pl-4 text-sm text-red-700 dark:text-red-300">
             {errorMessage}
           </div>
         )}
 
         {successMessage && (
-          <div className="mt-6 rounded-2xl border border-emerald-500/25 bg-emerald-500/8 p-4 text-emerald-700 dark:text-emerald-300">
+          <div className="mt-6 border-l-2 border-[#2563EB] py-1 pl-4 text-sm text-foreground">
             {successMessage}
           </div>
         )}
 
         {loading ? (
-          <div className="grid min-h-72 place-items-center">
-            <LoaderCircle className="animate-spin text-blue-600" size={34} />
+          <div className="flex min-h-32 items-center gap-3 text-sm text-muted-foreground">
+            <LoaderCircle className="animate-spin text-[#2563EB]" size={20} />
+            <span>{t("title")}</span>
           </div>
         ) : !priorityQuote ? (
-          <section className="mt-8 rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
-            <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-blue-600/8 text-blue-600">
-              <FileText size={22} />
-            </span>
-            <h2 className="mt-4 text-xl font-semibold">{t("empty")}</h2>
+          <section className="mt-8 border-t border-border py-10">
+            <div className="flex items-start gap-3">
+              <FileText className="mt-0.5 text-[#2563EB]" size={20} />
+              <div>
+                <h2 className="text-lg font-semibold">{t("empty")}</h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {t("intro")}
+                </p>
+              </div>
+            </div>
           </section>
         ) : (
           <>
-            <section className="mt-8">{quoteCard(priorityQuote, true)}</section>
+            <section className="mt-9" aria-label={t("title")}>
+              {requestedCount > 0 && (
+                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  {requestedCount} · {translateKlyxProviderQuoteStatus(locale, "requested")}
+                </p>
+              )}
+              {quoteView(priorityQuote, true)}
+            </section>
 
             {otherQuotes.length > 0 && (
-              <section className="mt-6 space-y-4">
-                {otherQuotes.map((quote) => quoteCard(quote))}
-              </section>
+              <details className="group mt-8 border-t border-border">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-sm font-semibold">
+                  <span>
+                    {t("title")} · {otherQuotes.length}
+                  </span>
+                  <ChevronDown
+                    size={18}
+                    className="text-muted-foreground transition group-open:rotate-180"
+                  />
+                </summary>
+                <div className="divide-y divide-border border-t border-border">
+                  {otherQuotes.map((quote) => quoteView(quote))}
+                </div>
+              </details>
             )}
           </>
         )}
