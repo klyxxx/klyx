@@ -22,6 +22,8 @@ import {
 } from "@/lib/klyx-provider-planning-i18n";
 import { supabase } from "@/lib/supabase";
 
+// KLYX_PROVIDER_PLANNING_DESTINATION_2026_09_02
+
 type Warning = {
   code: string;
   severity: "info" | "warning" | "high";
@@ -51,6 +53,18 @@ type PlanningResponse = {
   planning?: PlanningDay[];
   automaticChanges?: boolean;
 };
+
+function warningTone(severity: Warning["severity"]) {
+  if (severity === "high") {
+    return "border-red-500/30 text-red-700 dark:text-red-300";
+  }
+
+  if (severity === "warning") {
+    return "border-amber-500/35 text-amber-700 dark:text-amber-300";
+  }
+
+  return "border-blue-600/25 text-blue-700 dark:text-blue-300";
+}
 
 export default function ProviderPlanningPage() {
   const { locale } = useKlyxLocale();
@@ -100,18 +114,16 @@ export default function ProviderPlanningPage() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6 sm:py-10">
-      <div className="mx-auto max-w-5xl">
-        <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-          <div className="max-w-3xl">
+    <main className="klyx-page">
+      <div className="mx-auto max-w-4xl">
+        <header className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+          <div className="max-w-2xl">
             <div className="flex items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400">
               <CalendarClock size={17} />
               <span>{t("eyebrow")}</span>
             </div>
-            <h1 className="mt-3 text-3xl font-bold tracking-[-0.04em] sm:text-5xl">
-              {t("title")}
-            </h1>
-            <p className="mt-3 text-sm leading-7 text-muted-foreground sm:text-base">
+            <h1 className="klyx-title mt-2 text-3xl sm:text-5xl">{t("title")}</h1>
+            <p className="mt-3 max-w-xl text-sm leading-7 text-muted-foreground sm:text-base">
               {t("description")}
             </p>
           </div>
@@ -120,51 +132,47 @@ export default function ProviderPlanningPage() {
             type="button"
             onClick={() => void load()}
             disabled={loading}
-            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-semibold transition hover:bg-muted disabled:opacity-50"
+            className="inline-flex min-h-10 w-fit shrink-0 items-center justify-center gap-2 rounded-xl border border-border px-3 text-sm font-semibold text-muted-foreground transition hover:border-blue-600/25 hover:text-foreground disabled:opacity-50"
           >
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+            <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
             {t("refresh")}
           </button>
         </header>
 
         {loading && (
           <div className="grid min-h-72 place-items-center" aria-label={t("title")}>
-            <LoaderCircle className="animate-spin text-blue-600" size={34} />
+            <LoaderCircle className="animate-spin text-blue-600" size={28} />
           </div>
         )}
 
         {hasError && (
-          <div className="mt-6 rounded-2xl border border-red-500/25 bg-red-500/8 p-4 text-red-700 dark:text-red-300">
+          <div className="mt-8 border-y border-border py-4 text-sm font-semibold text-red-600 dark:text-red-300">
             {t("genericError")}
           </div>
         )}
 
         {!loading && data && (
           <>
-            <p className="mt-6 text-xs font-medium text-muted-foreground">
+            <p className="mt-7 text-xs font-medium leading-5 text-muted-foreground">
               {t("noAutomaticChanges")}
             </p>
 
             {(data.planning?.length ?? 0) === 0 ? (
-              <section className="mt-8 rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
-                <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                  <CheckCircle2 size={23} />
-                </span>
-                <h2 className="mt-4 text-xl font-semibold">
-                  {t("noAppointments")}
-                </h2>
+              <section className="mt-8 border-y border-border py-10 text-center">
+                <CheckCircle2
+                  className="mx-auto text-emerald-600 dark:text-emerald-400"
+                  size={25}
+                />
+                <h2 className="mt-4 text-xl font-semibold">{t("noAppointments")}</h2>
                 <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
                   {t("noAppointmentsDescription")}
                 </p>
               </section>
             ) : (
-              <section className="mt-8 space-y-4" aria-label={t("title")}>
+              <section className="mt-8 border-t border-border" aria-label={t("title")}>
                 {data.planning?.map((day) => (
-                  <article
-                    key={day.date}
-                    className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm"
-                  >
-                    <div className="flex flex-col gap-3 border-b border-border p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+                  <article key={day.date} className="border-b border-border py-7 sm:py-8">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">
                           {day.date}
@@ -181,59 +189,53 @@ export default function ProviderPlanningPage() {
                         </h2>
                       </div>
 
-                      <span className="inline-flex w-fit items-center gap-2 rounded-full bg-blue-500/8 px-3 py-1.5 text-xs font-semibold text-blue-700 dark:text-blue-300">
+                      <span className="inline-flex w-fit items-center gap-2 text-xs font-semibold text-blue-700 dark:text-blue-300">
                         <Clock3 size={14} />
                         {formatKlyxProviderPlanningDuration(day.totalMinutes)}
                       </span>
                     </div>
 
                     {day.warnings.length > 0 && (
-                      <div className="border-b border-border p-5 sm:p-6">
-                        <div className="space-y-3">
-                          {day.warnings.map((warning, index) => {
-                            const localizedWarning =
-                              translateKlyxProviderPlanningWarning(
-                                locale,
-                                warning,
-                                day.bookings,
-                                day.totalMinutes
-                              );
+                      <div className="mt-5 space-y-3" aria-label={t("attentionPoints")}>
+                        {day.warnings.map((warning, index) => {
+                          const localizedWarning =
+                            translateKlyxProviderPlanningWarning(
+                              locale,
+                              warning,
+                              day.bookings,
+                              day.totalMinutes
+                            );
 
-                            return (
-                              <div
-                                key={`${warning.code}-${index}`}
-                                className={`rounded-xl border p-4 ${
-                                  warning.severity === "high"
-                                    ? "border-red-500/25 bg-red-500/8"
-                                    : warning.severity === "warning"
-                                      ? "border-amber-500/25 bg-amber-500/8"
-                                      : "border-blue-500/20 bg-blue-500/5"
-                                }`}
-                              >
-                                <div className="flex gap-3">
-                                  <AlertTriangle className="mt-0.5 shrink-0" size={17} />
-                                  <div>
-                                    <p className="font-semibold">
-                                      {localizedWarning.title}
-                                    </p>
-                                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                                      {localizedWarning.detail}
-                                    </p>
-                                  </div>
+                          return (
+                            <div
+                              key={`${warning.code}-${index}`}
+                              className={`border-l-2 py-1 pl-3 ${warningTone(
+                                warning.severity
+                              )}`}
+                            >
+                              <div className="flex gap-2.5">
+                                <AlertTriangle className="mt-0.5 shrink-0" size={16} />
+                                <div>
+                                  <p className="text-sm font-semibold">
+                                    {localizedWarning.title}
+                                  </p>
+                                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                                    {localizedWarning.detail}
+                                  </p>
                                 </div>
                               </div>
-                            );
-                          })}
-                        </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
 
-                    <div className="divide-y divide-border">
+                    <div className="mt-6 divide-y divide-border border-t border-border">
                       {day.bookings.map((booking) => (
                         <Link
                           key={booking.id}
                           href={`/bookings/${booking.id}`}
-                          className="flex flex-col gap-3 p-5 transition hover:bg-muted/50 sm:flex-row sm:items-center sm:justify-between sm:p-6"
+                          className="flex flex-col gap-2 py-4 transition hover:text-blue-600 sm:flex-row sm:items-center sm:justify-between"
                         >
                           <div>
                             <p className="font-semibold">
@@ -246,7 +248,7 @@ export default function ProviderPlanningPage() {
                             </p>
                           </div>
 
-                          <span className="w-fit rounded-full bg-muted px-3 py-1.5 text-xs font-semibold">
+                          <span className="w-fit text-xs font-semibold text-muted-foreground">
                             {translateKlyxProviderPlanningStatus(
                               locale,
                               booking.status
