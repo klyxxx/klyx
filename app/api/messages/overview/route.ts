@@ -4,6 +4,7 @@ import { apiErrorStatus, getAuthenticatedProfile } from "@/lib/api-auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 // KLYX_MESSAGES_OVERVIEW_SERVER_BOUNDARY_2026_09_02
+// KLYX_MESSAGES_UNIVERSAL_PROVIDER_PARTICIPANTS_2026_09_02
 
 type MessageRow = {
   id: string;
@@ -18,7 +19,8 @@ type MessageRow = {
 type BookingRow = {
   id: string;
   parent_id: string;
-  babysitter_id: string;
+  provider_id: string | null;
+  babysitter_id: string | null;
   booking_date: string;
   start_time: string;
   end_time: string;
@@ -37,6 +39,25 @@ type ConversationAccumulator = {
   latestMessage: MessageRow;
   unreadCount: number;
 };
+
+function bookingProviderId(booking: BookingRow): string | null {
+  return booking.provider_id ?? booking.babysitter_id ?? null;
+}
+
+function otherParticipantId(
+  booking: BookingRow,
+  profileId: string
+): string | null {
+  if (booking.parent_id === profileId) {
+    return bookingProviderId(booking);
+  }
+
+  if (bookingProviderId(booking) === profileId) {
+    return booking.parent_id;
+  }
+
+  return null;
+}
 
 export async function GET(request: Request) {
   try {
@@ -85,7 +106,7 @@ export async function GET(request: Request) {
     const { data: bookingData, error: bookingError } = await supabaseAdmin
       .from("bookings")
       .select(
-        "id, parent_id, babysitter_id, booking_date, start_time, end_time, status"
+        "id, parent_id, provider_id, babysitter_id, booking_date, start_time, end_time, status"
       )
       .in("id", bookingIds);
 
@@ -94,17 +115,14 @@ export async function GET(request: Request) {
     }
 
     const bookings = ((bookingData ?? []) as BookingRow[]).filter(
-      (booking) =>
-        booking.parent_id === profileId || booking.babysitter_id === profileId
+      (booking) => otherParticipantId(booking, profileId) !== null
     );
 
     const otherProfileIds = Array.from(
       new Set(
-        bookings.map((booking) =>
-          booking.parent_id === profileId
-            ? booking.babysitter_id
-            : booking.parent_id
-        )
+        bookings
+          .map((booking) => otherParticipantId(booking, profileId))
+          .filter((id): id is string => Boolean(id))
       )
     );
 
@@ -126,15 +144,11 @@ export async function GET(request: Request) {
     const profileById = new Map(profiles.map((item) => [item.id, item]));
     const conversations = bookings.flatMap((booking) => {
       const aggregate = grouped.get(booking.id);
+      const otherProfileId = otherParticipantId(booking, profileId);
 
-      if (!aggregate) {
+      if (!aggregate || !otherProfileId) {
         return [];
       }
-
-      const otherProfileId =
-        booking.parent_id === profileId
-          ? booking.babysitter_id
-          : booking.parent_id;
 
       return [
         {

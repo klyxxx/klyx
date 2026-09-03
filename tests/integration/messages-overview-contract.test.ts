@@ -36,9 +36,22 @@ describe("KLYX messages overview contract", () => {
     expect(route).toContain("sender_id.eq.${profileId},receiver_id.eq.${profileId}");
     expect(route).toContain('.order("created_at", { ascending: false })');
     expect(route).toContain(".limit(200)");
+    expect(route).toContain("otherParticipantId(booking, profileId) !== null");
+  });
+
+  it("resolves modern provider_id bookings before the legacy babysitter_id fallback", () => {
+    const route = read("app/api/messages/overview/route.ts");
+
+    expect(route).toContain("KLYX_MESSAGES_UNIVERSAL_PROVIDER_PARTICIPANTS_2026_09_02");
+    expect(route).toContain("provider_id: string | null");
+    expect(route).toContain("babysitter_id: string | null");
     expect(route).toContain(
-      "booking.parent_id === profileId || booking.babysitter_id === profileId"
+      '"id, parent_id, provider_id, babysitter_id, booking_date, start_time, end_time, status"'
     );
+    expect(route).toContain(
+      "return booking.provider_id ?? booking.babysitter_id ?? null;"
+    );
+    expect(route).toContain('.filter((id): id is string => Boolean(id))');
   });
 
   it("keeps the overview mutation-free and leaves read-state changes to the conversation", () => {

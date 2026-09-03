@@ -64,6 +64,17 @@ test.describe("KLYX authenticated client surfaces", () => {
     expect(bookingsResponse.status()).toBe(200);
     expect(await bookingsResponse.json()).toBeTruthy();
 
+    const messagesResponsePromise = page.waitForResponse((response) =>
+      response.request().method() === "GET" &&
+      new URL(response.url()).pathname === "/api/messages/overview"
+    );
+    await page.goto("/messages");
+    const messagesResponse = await messagesResponsePromise;
+    expect(messagesResponse.status()).toBe(200);
+
+    const messagesBody = await messagesResponse.json();
+    expect(Array.isArray(messagesBody?.conversations)).toBe(true);
+
     const coverageResponsePromise = page.waitForResponse((response) =>
       response.request().method() === "GET" &&
       new URL(response.url()).pathname === "/api/search/coverage"
