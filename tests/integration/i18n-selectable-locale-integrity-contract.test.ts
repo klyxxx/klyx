@@ -10,6 +10,7 @@ import {
   KLYX_REGISTERED_LANGUAGE_OPTIONS,
   normalizeKlyxLocale,
   normalizeKlyxSelectableLocale,
+  resolveKlyxSelectableLocale,
 } from "../../lib/klyx-i18n";
 import { KLYX_MESSAGES_PAGE_TRANSLATED_LOCALES } from "../../lib/klyx-messages-page-i18n";
 import { KLYX_PUBLIC_PAGE_TRANSLATED_LOCALES } from "../../lib/klyx-page-i18n";
@@ -44,7 +45,7 @@ describe("KLYX selectable locale integrity", () => {
     }
   });
 
-  it("keeps registered normalization for future translation batches but clamps the app UI", () => {
+  it("keeps registered normalization for future batches but clamps the app UI", () => {
     expect(normalizeKlyxLocale("es-ES")).toBe("es");
     expect(normalizeKlyxLocale("ar-MA")).toBe("ar");
     expect(normalizeKlyxSelectableLocale("nl-BE")).toBe("nl");
@@ -53,12 +54,24 @@ describe("KLYX selectable locale integrity", () => {
     expect(normalizeKlyxSelectableLocale("ar-MA")).toBe("fr");
   });
 
-  it("uses the selectable locale guard for saved preferences and the settings picker", () => {
+  it("chooses the first complete browser locale instead of a registered incomplete one", () => {
+    expect(resolveKlyxSelectableLocale(["es-ES", "nl-BE", "en-US"]))
+      .toBe("nl");
+    expect(resolveKlyxSelectableLocale(["ar-MA", "de-DE"]))
+      .toBe("de");
+    expect(resolveKlyxSelectableLocale(["es-ES", "ar-MA"]))
+      .toBe("fr");
+  });
+
+  it("uses the selectable locale guard in SSR, saved preferences and Settings", () => {
     const provider = read("app/components/KlyxLocaleProvider.tsx");
+    const server = read("lib/klyx-server-i18n.ts");
     const settings = read("app/settings/page.tsx");
 
     expect(provider).toContain("normalizeKlyxSelectableLocale");
     expect(provider).not.toContain("normalizeKlyxLocale");
+    expect(server).toContain("normalizeKlyxSelectableLocale");
+    expect(server).toContain("resolveKlyxSelectableLocale");
     expect(settings).toContain("KLYX_LANGUAGE_OPTIONS");
     expect(settings).toContain("options={KLYX_LANGUAGE_OPTIONS.map");
   });
