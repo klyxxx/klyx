@@ -9,8 +9,9 @@ const page = fs.readFileSync(
 
 describe("KLYX provider assistant visual contract", () => {
   it("keeps explicit provider control and draft actions intact", () => {
-    expect(page).toContain("Rien n’est appliqué ni envoyé sans ta confirmation.");
-    expect(page).toContain('placeholder="Demander à KLYX…"');
+    expect(page).toContain('{t("surfaceDescription")}');
+    expect(page).toContain('{t("controlNote")}');
+    expect(page).toContain('placeholder={t("placeholder")}');
     expect(page).toContain('fetch("/api/provider/assistant"');
     expect(page).toContain('method: "POST"');
     expect(page).toContain('method: "PATCH"');

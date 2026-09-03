@@ -7,6 +7,11 @@ const pageSource = fs.readFileSync(
   "utf8"
 );
 
+const assistantPromptSource = fs.readFileSync(
+  path.join(process.cwd(), "lib/klyx-provider-assistant-mission-prompt.ts"),
+  "utf8"
+);
+
 const jobsRouteSource = fs.readFileSync(
   path.join(process.cwd(), "app/api/provider/jobs/jobs-route-core.ts"),
   "utf8"
@@ -77,9 +82,11 @@ describe("KLYX provider jobs i18n safety contract", () => {
     expect(pageSource).toContain("item.coverage.label");
   });
 
-  it("keeps assistant handoff non-executing and preserves its mission sentinel", () => {
+  it("keeps assistant handoff non-executing and preserves its localized mission sentinel", () => {
     expect(pageSource).toContain('"/provider/assistant?prompt="');
-    expect(pageSource).toContain("Mission : ${item.title}");
+    expect(pageSource).toContain("buildKlyxProviderAssistantMissionPrompt(locale, {");
+    expect(assistantPromptSource).toContain("`${labels.mission}: ${context.title}`");
+    expect(assistantPromptSource).toContain("labels.control");
     expect(pageSource).toContain('t("assistantControlNote")');
     expect(pageSource).not.toContain("/api/stripe");
     expect(pageSource).not.toContain("/api/bookings");
