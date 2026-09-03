@@ -79,13 +79,16 @@ export const KLYX_FULLY_TRANSLATED_LOCALES = [
   "de",
 ] as const satisfies readonly KlyxLocale[];
 
+export type KlyxSelectableLocale =
+  (typeof KLYX_FULLY_TRANSLATED_LOCALES)[number];
+
 const FULLY_TRANSLATED_LOCALE_SET = new Set<string>(
   KLYX_FULLY_TRANSLATED_LOCALES
 );
 
 // Only expose locales whose critical page bundles are translated end-to-end.
 // All registered locales stay available to the locale engine so existing
-// shell/navigation packs, browser normalization and saved preferences remain valid.
+// shell/navigation packs and browser normalization can keep expanding safely.
 export const KLYX_LANGUAGE_OPTIONS = KLYX_REGISTERED_LANGUAGE_OPTIONS.filter(
   (option) => FULLY_TRANSLATED_LOCALE_SET.has(option.value)
 );
@@ -212,6 +215,22 @@ export function normalizeKlyxLocale(
     resolveSupportedToken(normalizeLocaleToken(value)) ??
     KLYX_DEFAULT_LOCALE
   );
+}
+
+export function isKlyxFullyTranslatedLocale(
+  locale: KlyxLocale
+): locale is KlyxSelectableLocale {
+  return FULLY_TRANSLATED_LOCALE_SET.has(locale);
+}
+
+export function normalizeKlyxSelectableLocale(
+  value: string | null | undefined
+): KlyxSelectableLocale {
+  const normalized = normalizeKlyxLocale(value);
+
+  return isKlyxFullyTranslatedLocale(normalized)
+    ? normalized
+    : "fr";
 }
 
 export function resolveKlyxLocale(
