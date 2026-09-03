@@ -1,6 +1,6 @@
 import type { KlyxLocale } from "./klyx-i18n";
 
-export const KLYX_SIGNUP_PAGE_TRANSLATED_LOCALES = ["fr", "en", "nl", "de"] as const;
+export const KLYX_SIGNUP_PAGE_TRANSLATED_LOCALES = ["fr", "en", "nl", "de", "es"] as const;
 type KlyxSignupPageLocale = (typeof KLYX_SIGNUP_PAGE_TRANSLATED_LOCALES)[number];
 
 export type KlyxSignupMessageKey =
@@ -165,6 +165,44 @@ const SIGNUP_MESSAGES: Record<KlyxSignupPageLocale, Record<KlyxSignupMessageKey,
     createClient: "Mein Kundenkonto erstellen",
     alreadyRegistered: "Bereits registriert?",
     signIn: "Anmelden",
+  },
+  es: {
+    invalidForm: "Introduce tu nombre, correo electrónico y una contraseña de al menos 8 caracteres.",
+    captchaRequired: "Completa primero la verificación antirobot.",
+    captchaFailed: "La verificación antirobot ha caducado o ha fallado. Inténtalo de nuevo.",
+    signupFailed: "No se ha podido crear la cuenta.",
+    accountCreated: "Cuenta creada. Revisa tu correo electrónico para confirmar tu registro.",
+    checkingSession: "Comprobando la sesión",
+    joinKlyx: "Únete a KLYX",
+    headline: "Una cuenta. Todos tus servicios.",
+    description: "Elige tu espacio y empieza a reservar u ofrecer servicios.",
+    benefitFree: "Registro gratuito",
+    benefitRoles: "Cuenta de cliente o proveedor",
+    benefitSecure: "Gestión segura de tus servicios",
+    createSpace: "Crea tu espacio",
+    beta: "Beta",
+    startTitle: "Empieza con KLYX",
+    startSubtitle: "Solo tardarás unos instantes.",
+    client: "Cliente",
+    clientSubtitle: "Busco un servicio",
+    provider: "Proveedor",
+    providerSubtitle: "Ofrezco mis servicios",
+    selectedProfile: "Perfil seleccionado",
+    joinAsProvider: "Me uno a KLYX como proveedor",
+    joinAsClient: "Me uno a KLYX como cliente",
+    providerNext: "Después de registrarte, KLYX te guiará para configurar tu perfil, tus servicios y tu actividad.",
+    clientNext: "Después de registrarte, KLYX te llevará a tu espacio de cliente para organizar tu primera necesidad.",
+    profileContinuity: "Tu elección de perfil se conserva mientras se crea la cuenta. Después podrás gestionar varios perfiles KLYX desde el mismo inicio de sesión.",
+    namePlaceholder: "Nombre completo",
+    emailPlaceholder: "Correo electrónico",
+    passwordPlaceholder: "Contraseña — mínimo 8 caracteres",
+    hidePassword: "Ocultar contraseña",
+    showPassword: "Mostrar contraseña",
+    creating: "Creando...",
+    createProvider: "Crear mi espacio de proveedor",
+    createClient: "Crear mi cuenta de cliente",
+    alreadyRegistered: "¿Ya tienes una cuenta?",
+    signIn: "Iniciar sesión",
   },
 };
 
