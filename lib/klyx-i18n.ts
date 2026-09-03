@@ -247,6 +247,22 @@ export function resolveKlyxLocale(
   return KLYX_DEFAULT_LOCALE;
 }
 
+export function resolveKlyxSelectableLocale(
+  candidates: readonly string[]
+): KlyxSelectableLocale {
+  for (const candidate of candidates) {
+    const resolved = resolveSupportedToken(
+      normalizeLocaleToken(candidate)
+    );
+
+    if (resolved && isKlyxFullyTranslatedLocale(resolved)) {
+      return resolved;
+    }
+  }
+
+  return "fr";
+}
+
 export function getKlyxLocaleMetadata(locale: KlyxLocale) {
   return KLYX_REGISTERED_LANGUAGE_OPTIONS.find(
     (option) => option.value === locale
