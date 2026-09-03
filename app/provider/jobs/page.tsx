@@ -27,6 +27,7 @@ import ProviderConfirmedMissionsSection, {
   providerMissionPriority,
   type ProviderMissionCard,
 } from "@/app/provider/jobs/ProviderConfirmedMissionsSection";
+import { buildKlyxProviderAssistantMissionPrompt } from "@/lib/klyx-provider-assistant-mission-prompt";
 import {
   formatKlyxProviderJobsDate,
   formatKlyxProviderJobsDuration,
@@ -645,10 +646,14 @@ function MissionCard({
               href={
                 "/provider/assistant?prompt=" +
                 encodeURIComponent(
-                  `Prépare une réponse professionnelle pour cette mission KLYX.\nMission : ${item.title}\nService : ${item.service?.name ?? "Service KLYX"}\nVille : ${item.city}\nBudget client : ${money(
-                    budget,
-                    item.currency
-                  )}\nDescription : ${item.description}\nCompatibilité KLYX : ${item.match?.score ?? 0}%.\nJe veux relire et modifier le brouillon avant toute action.`
+                  buildKlyxProviderAssistantMissionPrompt(locale, {
+                    title: item.title,
+                    service: item.service?.name ?? t("fallbackService"),
+                    city: item.city,
+                    budget: money(budget, item.currency),
+                    description: item.description,
+                    matchScore: item.match?.score ?? 0,
+                  })
                 )
               }
               className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 text-sm font-semibold text-blue-600 transition hover:text-blue-700"

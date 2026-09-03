@@ -70,7 +70,7 @@ function textValue(value: unknown): string | null {
   return null;
 }
 
-function draftPreview(draft: Draft): string {
+function draftPreview(draft: Draft, fallback: string): string {
   if (draft.draft_type === "availability") {
     const day = textValue(draft.payload.dayLabel);
     const start = textValue(draft.payload.startTime);
@@ -95,7 +95,7 @@ function draftPreview(draft: Draft): string {
       .join(" · ");
   }
 
-  return textValue(draft.payload.message) ?? "Brouillon prêt à vérifier.";
+  return textValue(draft.payload.message) ?? fallback;
 }
 
 export default function ProviderAssistantPage() {
@@ -276,23 +276,26 @@ export default function ProviderAssistantPage() {
       <div className="mx-auto max-w-4xl">
         <header className="max-w-2xl">
           <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
-            Assistant KLYX
+            {t("badge")}
           </p>
           <h1 className="klyx-title mt-2 text-3xl sm:text-5xl">
-            Que dois-je préparer pour ton activité ?
+            {t("prepareQuestion")}
           </h1>
           <p className="mt-3 max-w-xl text-sm leading-7 text-muted-foreground sm:text-base">
-            Réponse client, devis ou disponibilité. Rien n’est appliqué ni envoyé sans ta confirmation.
+            {t("surfaceDescription")}
           </p>
         </header>
 
-        <section className="mt-10 min-h-[22rem]" aria-label="Conversation avec KLYX">
+        <section
+          className="mt-10 min-h-[22rem]"
+          aria-label={t("conversationLabel")}
+        >
           <div className="flex gap-3">
             <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full bg-blue-600 text-white">
               <Sparkles size={16} />
             </span>
             <div className="max-w-[46rem] text-sm leading-7 text-foreground/90">
-              Dis-moi simplement ce que tu veux préparer. Je m’occupe de structurer le brouillon avant ta décision.
+              {t("conversationIntro")}
             </div>
           </div>
 
@@ -361,7 +364,7 @@ export default function ProviderAssistantPage() {
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current" />
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current [animation-delay:150ms]" />
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-current [animation-delay:300ms]" />
-                  <span className="sr-only">KLYX prépare une réponse</span>
+                  <span className="sr-only">{t("preparing")}</span>
                 </div>
               </div>
             )}
@@ -390,7 +393,8 @@ export default function ProviderAssistantPage() {
         <details className="group mt-8 border-y border-border py-5">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 text-sm font-semibold">
             <span>
-              Brouillons à vérifier{pendingDrafts > 0 ? ` · ${pendingDrafts}` : ""}
+              {t("draftsTitle")}
+              {pendingDrafts > 0 ? ` · ${pendingDrafts}` : ""}
             </span>
             <ChevronDown
               size={17}
@@ -413,7 +417,7 @@ export default function ProviderAssistantPage() {
                 {drafts.map((draft) => {
                   const Icon = iconFor(draft.draft_type);
                   const isDraft = draft.status === "draft";
-                  const preview = draftPreview(draft);
+                  const preview = draftPreview(draft, t("draftReady"));
 
                   return (
                     <article key={draft.id} className="py-5">
@@ -502,7 +506,7 @@ export default function ProviderAssistantPage() {
               }
             }}
             className="max-h-40 min-h-12 flex-1 resize-none bg-transparent px-3 py-3 text-sm leading-6 outline-none placeholder:text-muted-foreground"
-            placeholder="Demander à KLYX…"
+            placeholder={t("placeholder")}
           />
 
           <button
@@ -520,7 +524,7 @@ export default function ProviderAssistantPage() {
         </form>
 
         <p className="mt-2 text-center text-[11px] text-muted-foreground">
-          KLYX prépare. Tu confirmes toujours avant toute action.
+          {t("controlNote")}
         </p>
       </div>
     </main>
