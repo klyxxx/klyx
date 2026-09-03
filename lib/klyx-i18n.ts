@@ -55,7 +55,7 @@ import {
   KLYX_BATCH_11_UI_MESSAGES,
 } from "./klyx-i18n-batch-11";
 
-export const KLYX_LANGUAGE_OPTIONS = [
+export const KLYX_REGISTERED_LANGUAGE_OPTIONS = [
   ...KLYX_BATCH_1_LANGUAGE_OPTIONS,
   ...KLYX_BATCH_2_LANGUAGE_OPTIONS,
   ...KLYX_BATCH_3_LANGUAGE_OPTIONS,
@@ -69,12 +69,33 @@ export const KLYX_LANGUAGE_OPTIONS = [
   ...KLYX_BATCH_11_LANGUAGE_OPTIONS,
 ] as const;
 
-export const KLYX_LOCALES = KLYX_LANGUAGE_OPTIONS.map(
-  (option) => option.value
+export type KlyxLocale =
+  (typeof KLYX_REGISTERED_LANGUAGE_OPTIONS)[number]["value"];
+
+export const KLYX_FULLY_TRANSLATED_LOCALES = [
+  "fr",
+  "en",
+  "nl",
+  "de",
+] as const satisfies readonly KlyxLocale[];
+
+export type KlyxSelectableLocale =
+  (typeof KLYX_FULLY_TRANSLATED_LOCALES)[number];
+
+const FULLY_TRANSLATED_LOCALE_SET = new Set<string>(
+  KLYX_FULLY_TRANSLATED_LOCALES
 );
 
-export type KlyxLocale =
-  (typeof KLYX_LANGUAGE_OPTIONS)[number]["value"];
+// Only expose locales whose critical page bundles are translated end-to-end.
+// All registered locales stay available to the locale engine so existing
+// shell/navigation packs and browser normalization can keep expanding safely.
+export const KLYX_LANGUAGE_OPTIONS = KLYX_REGISTERED_LANGUAGE_OPTIONS.filter(
+  (option) => FULLY_TRANSLATED_LOCALE_SET.has(option.value)
+);
+
+export const KLYX_LOCALES = KLYX_REGISTERED_LANGUAGE_OPTIONS.map(
+  (option) => option.value
+);
 
 export const KLYX_DEFAULT_LOCALE: KlyxLocale = "fr";
 
@@ -127,7 +148,7 @@ const NAVIGATION_TRANSLATIONS = {
 } as Partial<Record<KlyxLocale, Record<string, string>>>;
 
 const LOCALE_VALUE_SET = new Set<string>(
-  KLYX_LANGUAGE_OPTIONS.map((option) => option.value)
+  KLYX_REGISTERED_LANGUAGE_OPTIONS.map((option) => option.value)
 );
 
 const LEGACY_BROWSER_ALIASES: Record<string, KlyxLocale> = {
@@ -196,6 +217,22 @@ export function normalizeKlyxLocale(
   );
 }
 
+export function isKlyxFullyTranslatedLocale(
+  locale: KlyxLocale
+): locale is KlyxSelectableLocale {
+  return FULLY_TRANSLATED_LOCALE_SET.has(locale);
+}
+
+export function normalizeKlyxSelectableLocale(
+  value: string | null | undefined
+): KlyxSelectableLocale {
+  const normalized = normalizeKlyxLocale(value);
+
+  return isKlyxFullyTranslatedLocale(normalized)
+    ? normalized
+    : "fr";
+}
+
 export function resolveKlyxLocale(
   candidates: readonly string[]
 ): KlyxLocale {
@@ -210,8 +247,24 @@ export function resolveKlyxLocale(
   return KLYX_DEFAULT_LOCALE;
 }
 
+export function resolveKlyxSelectableLocale(
+  candidates: readonly string[]
+): KlyxSelectableLocale {
+  for (const candidate of candidates) {
+    const resolved = resolveSupportedToken(
+      normalizeLocaleToken(candidate)
+    );
+
+    if (resolved && isKlyxFullyTranslatedLocale(resolved)) {
+      return resolved;
+    }
+  }
+
+  return "fr";
+}
+
 export function getKlyxLocaleMetadata(locale: KlyxLocale) {
-  return KLYX_LANGUAGE_OPTIONS.find(
+  return KLYX_REGISTERED_LANGUAGE_OPTIONS.find(
     (option) => option.value === locale
   )!;
 }

@@ -4,8 +4,8 @@ import { cookies, headers } from "next/headers";
 
 import {
   KLYX_LANGUAGE_COOKIE_KEY,
-  normalizeKlyxLocale,
-  resolveKlyxLocale,
+  normalizeKlyxSelectableLocale,
+  resolveKlyxSelectableLocale,
   type KlyxLocale,
 } from "@/lib/klyx-i18n";
 
@@ -67,7 +67,7 @@ export async function getServerKlyxLocale(): Promise<KlyxLocale> {
   const savedLocale = cookieStore.get(KLYX_LANGUAGE_COOKIE_KEY)?.value;
 
   if (savedLocale?.trim()) {
-    return normalizeKlyxLocale(savedLocale);
+    return normalizeKlyxSelectableLocale(savedLocale);
   }
 
   const requestHeaders = await headers();
@@ -75,5 +75,5 @@ export async function getServerKlyxLocale(): Promise<KlyxLocale> {
     requestHeaders.get("accept-language")
   );
 
-  return resolveKlyxLocale(browserLanguages);
+  return resolveKlyxSelectableLocale(browserLanguages);
 }

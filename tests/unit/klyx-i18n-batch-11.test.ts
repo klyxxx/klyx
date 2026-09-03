@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  KLYX_LANGUAGE_OPTIONS,
+  KLYX_REGISTERED_LANGUAGE_OPTIONS,
   getKlyxLocaleMetadata,
   normalizeKlyxLocale,
   resolveKlyxLocale,
@@ -35,8 +35,8 @@ const REQUIRED_UI_KEYS = [
 const BATCH_11_LOCALES = ["sq", "mk", "is", "ga"] as const;
 
 describe("KLYX i18n batch 11", () => {
-  it("exposes every batch-11 locale through the canonical catalog", () => {
-    expect(KLYX_LANGUAGE_OPTIONS.map((item) => item.value)).toEqual(
+  it("keeps every batch-11 locale in the canonical registered catalog", () => {
+    expect(KLYX_REGISTERED_LANGUAGE_OPTIONS.map((item) => item.value)).toEqual(
       expect.arrayContaining([...BATCH_11_LOCALES])
     );
   });

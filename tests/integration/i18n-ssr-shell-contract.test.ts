@@ -15,7 +15,8 @@ describe("KLYX SSR locale shell contract", () => {
 
     expect(source).toContain("KLYX_LANGUAGE_COOKIE_KEY");
     expect(source).toContain('requestHeaders.get("accept-language")');
-    expect(source).toContain("resolveKlyxLocale(browserLanguages)");
+    expect(source).toContain("normalizeKlyxSelectableLocale(savedLocale)");
+    expect(source).toContain("resolveKlyxSelectableLocale(browserLanguages)");
     expect(source).toContain("if (quality <= 0)");
     expect(source).toContain('import "server-only"');
   });
@@ -40,11 +41,11 @@ describe("KLYX SSR locale shell contract", () => {
     expect(source).toContain('title: "KLYX — Alltagsservices, einfach"');
   });
 
-  it("hydrates the client locale from the same server-selected locale", () => {
+  it("hydrates the client locale from the same server-selected complete locale", () => {
     const source = read("app/components/KlyxLocaleProvider.tsx");
 
     expect(source).toContain("initialLocale?: KlyxLocale");
-    expect(source).toContain("normalizeKlyxLocale(initialLocale)");
+    expect(source).toContain("normalizeKlyxSelectableLocale(initialLocale)");
     expect(source).not.toContain("navigator.languages");
   });
 
