@@ -15,6 +15,10 @@ import {
 import {
   runKlyxLlmShadow,
 } from "@/lib/brain/llm/shadow";
+import {
+  buildKlyxVisibleReplyPrompt,
+  selectKlyxVisibleReply,
+} from "@/lib/brain/llm/visible-reply";
 import type {
   KlyxPublicShadowStatus,
 } from "@/lib/brain/shadow/shadow-public";
@@ -30,6 +34,7 @@ import {
   loadClientMemoryContext,
   recordClientMemoryUsage,
 } from "@/lib/client-memory-context";
+import { generateKlyxAiReply } from "@/lib/klyx-ai";
 import { detectLocation } from "@/lib/location-intent";
 
 // KLYX_SERVER_OBSERVABILITY_12B_8B
@@ -87,6 +92,11 @@ type BrainPayload = BrainContext & {
   readiness: BrainReadinessPayload;
   schedule: BrainMultiSlotSchedule | null;
   llmShadow?: KlyxPublicShadowStatus;
+  llmVisible?: {
+    usedForUserReply: boolean;
+    deterministicCorePreserved: true;
+    automaticExecutionAllowed: false;
+  };
 };
 
 type ConversationRow = {
@@ -848,7 +858,7 @@ export async function POST(request: Request) {
       : memoryContext;
     const missing = buildMissingFields(context);
     const ready = missing.length === 0;
-    const reply = buildReply(
+    const deterministicReply = buildReply(
       context,
       missing,
       services,
@@ -858,22 +868,40 @@ export async function POST(request: Request) {
       context,
       missing
     );
-
-    const llmShadow = await runKlyxLlmShadow({
-      message,
-      deterministicReply: reply,
-      context: {
-        serviceSlug: context.serviceSlug,
-        city: context.city,
-        date: context.date,
-        time: context.time,
-        budget: context.budget,
-        memoryUsed: context.memoryUsed,
-      },
+    const aiCandidate = await generateKlyxAiReply({
+      message: buildKlyxVisibleReplyPrompt({
+        userMessage: message,
+        deterministicReply,
+      }),
+      accountType: "client",
     });
+    const visibleReply = selectKlyxVisibleReply({
+      deterministicReply,
+      candidateText: aiCandidate.text,
+      candidateMode: aiCandidate.mode,
+      groundingText: `${message}\n${deterministicReply}`,
+    });
+    const reply = visibleReply.text;
+
+    const llmShadow =
+      aiCandidate.mode === "openai"
+        ? null
+        : await runKlyxLlmShadow({
+            message,
+            deterministicReply,
+            context: {
+              serviceSlug: context.serviceSlug,
+              city: context.city,
+              date: context.date,
+              time: context.time,
+              budget: context.budget,
+              memoryUsed: context.memoryUsed,
+            },
+          });
     const publicLlmShadow = sanitizeKlyxShadowForClient(
       llmShadow,
-      process.env.KLYX_LLM_SHADOW_ENABLED === "1"
+      aiCandidate.mode !== "openai" &&
+        process.env.KLYX_LLM_SHADOW_ENABLED === "1"
     );
     const payload: BrainPayload = {
       ...context,
@@ -882,6 +910,11 @@ export async function POST(request: Request) {
       readiness,
       schedule,
       llmShadow: publicLlmShadow,
+      llmVisible: {
+        usedForUserReply: visibleReply.usedLlm,
+        deterministicCorePreserved: true,
+        automaticExecutionAllowed: false,
+      },
     };
 
     await insertBrainMessage({
