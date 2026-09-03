@@ -33,12 +33,17 @@ describe("KLYX signup page i18n", () => {
     expect(translateKlyxSignup("en", "startTitle")).toBe("Get started with KLYX");
     expect(translateKlyxSignup("nl", "clientSubtitle")).toBe("Ik zoek een dienst");
     expect(translateKlyxSignup("de", "createClient")).toBe("Mein Kundenkonto erstellen");
+    expect(translateKlyxSignup("es", "startTitle")).toBe("Empieza con KLYX");
+    expect(translateKlyxSignup("es", "createProvider")).toBe("Crear mi espacio de proveedor");
   });
 
-  it("keeps partial signup coverage explicit with French fallback", () => {
-    expect(hasKlyxSignupPageTranslation("de")).toBe(true);
-    expect(hasKlyxSignupPageTranslation("es")).toBe(false);
-    expect(resolveKlyxSignupPageLocale("es")).toBe("fr");
-    expect(translateKlyxSignup("es", "signIn")).toBe("Se connecter");
+  it("certifies Spanish signup while keeping unsupported locales on the explicit French fallback", () => {
+    expect(hasKlyxSignupPageTranslation("es")).toBe(true);
+    expect(resolveKlyxSignupPageLocale("es")).toBe("es");
+    expect(translateKlyxSignup("es", "signIn")).toBe("Iniciar sesión");
+
+    expect(hasKlyxSignupPageTranslation("it")).toBe(false);
+    expect(resolveKlyxSignupPageLocale("it")).toBe("fr");
+    expect(translateKlyxSignup("it", "signIn")).toBe("Se connecter");
   });
 });
