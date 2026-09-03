@@ -8,9 +8,11 @@ const source = fs.readFileSync(
 );
 
 describe("provider trust UX", () => {
-  it("keeps trust action-first without the old dashboard hero", () => {
-    expect(source).toContain('href="/trust/new"');
-    expect(source).toContain('t("reportClient")');
+  it("keeps the page provider-scoped without the client report shortcut or old dashboard hero", () => {
+    expect(source).toContain("getActiveProfileAccount()");
+    expect(source).toContain('profile.accountType !== "provider"');
+    expect(source).not.toContain('href="/trust/new"');
+    expect(source).not.toContain('t("reportClient")');
     expect(source).toContain("DisputeSection");
     expect(source).not.toContain("bg-[linear-gradient");
     expect(source).not.toContain("rounded-[2rem]");
@@ -25,12 +27,13 @@ describe("provider trust UX", () => {
     expect(source).not.toContain('method: "DELETE"');
   });
 
-  it("uses KLYX blue for identity and semantic colors only for real states", () => {
+  it("uses KLYX blue for identity, semantic state colors, and no arbitrary first-case priority", () => {
     expect(source).toContain("bg-blue-600");
     expect(source).toContain("text-blue-600");
     expect(source).not.toContain("text-violet-");
     expect(source).not.toContain("bg-violet-");
     expect(source).toContain("amber-500");
     expect(source).toContain("emerald-500");
+    expect(source).not.toContain("priority && index === 0");
   });
 });
