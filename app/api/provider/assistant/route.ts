@@ -2,8 +2,10 @@ import { secureApiErrorResponse } from "@/lib/api-error";
 import {
   GET as coreGet,
   PATCH as corePatch,
-  POST as corePost,
 } from "./assistant-route-core";
+import {
+  POST as corePost,
+} from "./assistant-route-visible";
 
 type Method = "GET" | "POST" | "PATCH";
 
