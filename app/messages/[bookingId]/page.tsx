@@ -28,11 +28,13 @@ import { supabase } from "@/lib/supabase";
 // KLYX_MESSAGE_CONVERSATION_ROLE_AWARE
 // KLYX_MESSAGE_CONVERSATION_SINGLE_BLUE
 // KLYX_MESSAGE_CONVERSATION_MOBILE_SAFE_VIEWPORT
+// KLYX_MESSAGE_CONVERSATION_UNIVERSAL_PROVIDER
 
 type BookingRow = {
   id: string;
   parent_id: string;
-  babysitter_id: string;
+  provider_id: string | null;
+  babysitter_id: string | null;
   booking_date: string;
   start_time: string;
   end_time: string;
@@ -56,6 +58,10 @@ type MessageRow = {
   is_read: boolean;
   created_at: string;
 };
+
+function getBookingProviderProfileId(booking: BookingRow) {
+  return booking.provider_id ?? booking.babysitter_id;
+}
 
 export default function ConversationPage() {
   const params = useParams<{ bookingId: string }>();
@@ -135,7 +141,7 @@ export default function ConversationPage() {
       const { data: bookingData, error: bookingError } = await supabase
         .from("bookings")
         .select(
-          "id, parent_id, babysitter_id, booking_date, start_time, end_time, status"
+          "id, parent_id, provider_id, babysitter_id, booking_date, start_time, end_time, status"
         )
         .eq("id", bookingId)
         .maybeSingle();
@@ -150,9 +156,16 @@ export default function ConversationPage() {
       }
 
       const typedBooking = bookingData as BookingRow;
+      const providerProfileId = getBookingProviderProfileId(typedBooking);
+
+      if (!providerProfileId) {
+        setErrorKey("conversationNotFound");
+        return;
+      }
+
       const isParticipant =
         typedBooking.parent_id === activeProfileId ||
-        typedBooking.babysitter_id === activeProfileId;
+        providerProfileId === activeProfileId;
 
       if (!isParticipant) {
         setErrorKey("accessDenied");
@@ -163,7 +176,7 @@ export default function ConversationPage() {
 
       const otherUserId =
         typedBooking.parent_id === activeProfileId
-          ? typedBooking.babysitter_id
+          ? providerProfileId
           : typedBooking.parent_id;
 
       const [
@@ -261,9 +274,16 @@ export default function ConversationPage() {
       return;
     }
 
+    const providerProfileId = getBookingProviderProfileId(booking);
+
+    if (!providerProfileId) {
+      setErrorKey("sendError");
+      return;
+    }
+
     const receiverId =
       booking.parent_id === currentUserId
-        ? booking.babysitter_id
+        ? providerProfileId
         : booking.parent_id;
 
     setSending(true);
