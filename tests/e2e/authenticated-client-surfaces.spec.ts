@@ -28,7 +28,6 @@ test.describe("KLYX authenticated client surfaces", () => {
       "/dashboard",
       "/search",
       "/coverage",
-      "/requests",
       "/quotes",
       "/bookings",
       "/favorites",
@@ -44,6 +43,10 @@ test.describe("KLYX authenticated client surfaces", () => {
     ] as const) {
       await expectHealthyPrivateRoute(page, route);
     }
+
+    await page.goto("/requests");
+    await page.waitForURL((url) => url.pathname === "/bookings");
+    expect(new URL(page.url()).pathname).toBe("/bookings");
 
     await page.goto("/brain");
     await page.waitForURL((url) => url.pathname === "/assistant");
