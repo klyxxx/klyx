@@ -14,7 +14,7 @@ import {
   KLYX_LANGUAGE_COOKIE_KEY,
   KLYX_LANGUAGE_STORAGE_KEY,
   getKlyxLocaleMetadata,
-  normalizeKlyxLocale,
+  normalizeKlyxSelectableLocale,
   translateKlyxUi,
   type KlyxLocale,
   type KlyxUiMessageKey,
@@ -57,14 +57,14 @@ export default function KlyxLocaleProvider({
   initialLocale = KLYX_DEFAULT_LOCALE,
 }: KlyxLocaleProviderProps) {
   const [locale, setLocaleState] = useState<KlyxLocale>(() =>
-    normalizeKlyxLocale(initialLocale)
+    normalizeKlyxSelectableLocale(initialLocale)
   );
 
   useEffect(() => {
     const saved = localStorage.getItem(KLYX_LANGUAGE_STORAGE_KEY);
     const next = saved
-      ? normalizeKlyxLocale(saved)
-      : normalizeKlyxLocale(initialLocale);
+      ? normalizeKlyxSelectableLocale(saved)
+      : normalizeKlyxSelectableLocale(initialLocale);
 
     setLocaleState(next);
     writeLocalePreference(next);
@@ -79,7 +79,7 @@ export default function KlyxLocaleProvider({
         return;
       }
 
-      const next = normalizeKlyxLocale(event.newValue);
+      const next = normalizeKlyxSelectableLocale(event.newValue);
 
       setLocaleState(next);
       applyDocumentLocale(next);
@@ -93,7 +93,7 @@ export default function KlyxLocaleProvider({
   }, []);
 
   const setLocale = useCallback((value: string) => {
-    const next = normalizeKlyxLocale(value);
+    const next = normalizeKlyxSelectableLocale(value);
 
     setLocaleState(next);
     writeLocalePreference(next);
