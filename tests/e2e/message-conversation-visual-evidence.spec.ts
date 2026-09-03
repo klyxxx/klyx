@@ -13,6 +13,15 @@ import {
 
 const BOOKING_ID = "00000000-0000-4000-8000-000000000474";
 const OTHER_PROFILE_ID = "00000000-0000-4000-8000-000000000475";
+const SENT_MESSAGE = "Message universel KLYX";
+
+type SentMessage = {
+  booking_id?: string;
+  sender_id?: string;
+  receiver_id?: string;
+  message?: string;
+  is_read?: boolean;
+};
 
 async function attachScreenshot(
   page: Page,
@@ -34,6 +43,8 @@ async function attachScreenshot(
 }
 
 async function mockConversationReads(page: Page, activeProfileId: string) {
+  const sentMessages: SentMessage[] = [];
+
   await page.route("**/rest/v1/bookings**", async (route) => {
     if (route.request().method() !== "GET") {
       await route.fallback();
@@ -46,7 +57,8 @@ async function mockConversationReads(page: Page, activeProfileId: string) {
       body: JSON.stringify({
         id: BOOKING_ID,
         parent_id: activeProfileId,
-        babysitter_id: OTHER_PROFILE_ID,
+        provider_id: OTHER_PROFILE_ID,
+        babysitter_id: null,
         booking_date: "2026-09-12",
         start_time: "14:00:00",
         end_time: "16:00:00",
@@ -82,6 +94,16 @@ async function mockConversationReads(page: Page, activeProfileId: string) {
       return;
     }
 
+    if (method === "POST") {
+      sentMessages.push(route.request().postDataJSON() as SentMessage);
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: "[]",
+      });
+      return;
+    }
+
     if (method !== "GET") {
       await route.fallback();
       return;
@@ -112,6 +134,8 @@ async function mockConversationReads(page: Page, activeProfileId: string) {
       ]),
     });
   });
+
+  return sentMessages;
 }
 
 test.describe("KLYX message conversation visual evidence", () => {
@@ -124,13 +148,13 @@ test.describe("KLYX message conversation visual evidence", () => {
     await clearSensitivePassword(page);
   });
 
-  test("archives a safe synthetic conversation on desktop and mobile", async ({
+  test("archives a universal-provider conversation and sends to the canonical provider", async ({
     page,
   }, testInfo) => {
     test.setTimeout(180_000);
     await loginKlyxE2E(page);
     const activeProfile = await activateKlyxE2EProfile(page, "client");
-    await mockConversationReads(page, activeProfile.id);
+    const sentMessages = await mockConversationReads(page, activeProfile.id);
 
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(`/messages/${BOOKING_ID}`, {
@@ -144,13 +168,25 @@ test.describe("KLYX message conversation visual evidence", () => {
       page.getByText("Bonjour, votre créneau est bien prévu pour samedi.")
     ).toBeVisible();
     await expect(page.getByText("Parfait, merci. À samedi !")).toBeVisible();
-    await expect(page.getByRole("textbox")).toBeVisible();
+
+    const composer = page.getByRole("textbox");
+    await expect(composer).toBeVisible();
+    await composer.fill(SENT_MESSAGE);
+    await composer.press("Enter");
+
+    await expect.poll(() => sentMessages.length).toBe(1);
+    expect(sentMessages[0]).toMatchObject({
+      booking_id: BOOKING_ID,
+      sender_id: activeProfile.id,
+      receiver_id: OTHER_PROFILE_ID,
+      message: SENT_MESSAGE,
+      is_read: false,
+    });
 
     await attachScreenshot(page, testInfo, "message-conversation-desktop");
 
     await page.setViewportSize({ width: 390, height: 844 });
 
-    const composer = page.getByRole("textbox");
     const mobileNavigation = page.getByRole("navigation", {
       name: "Navigation mobile KLYX",
     });

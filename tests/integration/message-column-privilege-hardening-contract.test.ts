@@ -99,8 +99,11 @@ describe("message column privilege hardening contract", () => {
     expect(route).toContain('.from("messages")');
     expect(route).toContain("sender_id.eq.${profileId},receiver_id.eq.${profileId}");
     expect(route).toContain(
-      "booking.parent_id === profileId || booking.babysitter_id === profileId"
+      "return booking.provider_id ?? booking.babysitter_id ?? null;"
     );
+    expect(route).toContain("if (booking.parent_id === profileId)");
+    expect(route).toContain("if (bookingProviderId(booking) === profileId)");
+    expect(route).toContain("otherParticipantId(booking, profileId) !== null");
     expect(route).not.toContain(".insert({");
     expect(route).not.toContain(".update(");
   });

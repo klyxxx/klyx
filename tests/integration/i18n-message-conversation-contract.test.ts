@@ -33,8 +33,11 @@ describe("KLYX message conversation i18n and safety contract", () => {
     const page = read("app/messages/[bookingId]/page.tsx");
 
     expect(page).toContain('router.replace("/login")');
+    expect(page).toContain(
+      "return booking.provider_id ?? booking.babysitter_id;"
+    );
     expect(page).toContain("typedBooking.parent_id === activeProfileId");
-    expect(page).toContain("typedBooking.babysitter_id === activeProfileId");
+    expect(page).toContain("providerProfileId === activeProfileId");
     expect(page).toContain('setErrorKey("accessDenied")');
   });
 
