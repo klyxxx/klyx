@@ -24,8 +24,10 @@ describe("KLYX signup page-i18n integration", () => {
 
   it("keeps signup page coverage explicit and fail-closed", () => {
     expect(signupI18n).toContain(
-      'KLYX_SIGNUP_PAGE_TRANSLATED_LOCALES = ["fr", "en", "nl", "de"]'
+      'KLYX_SIGNUP_PAGE_TRANSLATED_LOCALES = ["fr", "en", "nl", "de", "es"]'
     );
+    expect(signupI18n).toContain('es: {');
+    expect(signupI18n).toContain('startTitle: "Empieza con KLYX"');
     expect(signupI18n).toContain(': "fr"');
     expect(signupI18n).toContain("hasKlyxSignupPageTranslation");
   });
