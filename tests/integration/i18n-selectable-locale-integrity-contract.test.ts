@@ -23,8 +23,8 @@ function read(relativePath: string): string {
 }
 
 describe("KLYX selectable locale integrity", () => {
-  it("keeps the 56 registered locale packs while exposing only complete UI locales", () => {
-    expect(KLYX_REGISTERED_LANGUAGE_OPTIONS).toHaveLength(56);
+  it("keeps the 64 registered locale packs while exposing only complete UI locales", () => {
+    expect(KLYX_REGISTERED_LANGUAGE_OPTIONS).toHaveLength(64);
     expect(KLYX_LANGUAGE_OPTIONS.map((option) => option.value)).toEqual(
       KLYX_FULLY_TRANSLATED_LOCALES
     );
