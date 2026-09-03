@@ -16,6 +16,25 @@ describe("KLYX message conversation UX contract", () => {
     expect(source).not.toContain('href="/dashboard"');
   });
 
+  it("resolves universal providers before authorizing or sending messages", () => {
+    expect(source).toContain("KLYX_MESSAGE_CONVERSATION_UNIVERSAL_PROVIDER");
+    expect(source).toContain("provider_id: string | null");
+    expect(source).toContain(
+      '"id, parent_id, provider_id, babysitter_id, booking_date, start_time, end_time, status"'
+    );
+    expect(source).toContain(
+      "return booking.provider_id ?? booking.babysitter_id;"
+    );
+    expect(source).toContain(
+      "const providerProfileId = getBookingProviderProfileId(typedBooking);"
+    );
+    expect(source).toContain("providerProfileId === activeProfileId");
+    expect(source).toContain(
+      "const providerProfileId = getBookingProviderProfileId(booking);"
+    );
+    expect(source).toContain("? providerProfileId");
+  });
+
   it("keeps the conversation in the single-blue KLYX visual language", () => {
     expect(source).toContain("bg-blue-600");
     expect(source).toContain("text-blue-100");
