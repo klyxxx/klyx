@@ -16,9 +16,10 @@ describe("KLYX provider trust i18n contract", () => {
     expect(page).not.toContain("Centre de confiance prestataire");
   });
 
-  it("preserves authenticated no-store GET-only behavior", () => {
+  it("preserves authenticated no-store GET-only behavior on the active provider profile", () => {
     const page = read("app/provider/trust/page.tsx");
-    expect(page).toContain("getActiveClientProfile()");
+    expect(page).toContain("getActiveProfileAccount()");
+    expect(page).toContain('profile.accountType !== "provider"');
     expect(page).toContain("supabase.auth.getSession()");
     expect(page).toContain('fetch("/api/disputes"');
     expect(page).toContain('cache: "no-store"');
@@ -42,9 +43,10 @@ describe("KLYX provider trust i18n contract", () => {
     expect(page).not.toContain("?? dispute.status");
   });
 
-  it("preserves explicit report and booking navigation without timers", () => {
+  it("keeps provider trust free of the client-only report route and preserves booking navigation", () => {
     const page = read("app/provider/trust/page.tsx");
-    expect(page).toContain('href="/trust/new"');
+    expect(page).not.toContain('href="/trust/new"');
+    expect(page).not.toContain('t("reportClient")');
     expect(page).toContain('href={`/bookings/${dispute.booking_id}`}');
     expect(page).not.toContain("setInterval(");
     expect(page).not.toContain("setTimeout(");

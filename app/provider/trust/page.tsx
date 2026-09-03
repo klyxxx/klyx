@@ -7,12 +7,11 @@ import {
   ArrowRight,
   Clock3,
   LoaderCircle,
-  Plus,
   ShieldCheck,
 } from "lucide-react";
 
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
-import { getActiveClientProfile } from "@/lib/account-switcher";
+import { getActiveProfileAccount } from "@/lib/account-switcher";
 import {
   getKlyxTrustIntlLocale,
   translateKlyxTrustReason,
@@ -34,7 +33,6 @@ type Dispute = {
   reason: string;
   description: string;
   status: string;
-  priority: string;
   resolution: string | null;
   created_at: string;
 };
@@ -54,7 +52,13 @@ export default function ProviderTrustPage() {
       setErrorMessage("");
 
       try {
-        const profile = await getActiveClientProfile();
+        const profile = await getActiveProfileAccount();
+
+        if (profile.accountType !== "provider") {
+          setErrorMessage(t("loadError"));
+          return;
+        }
+
         setProfileId(profile.id);
 
         const {
@@ -107,27 +111,17 @@ export default function ProviderTrustPage() {
   return (
     <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6 sm:py-10">
       <div className="mx-auto max-w-5xl">
-        <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-          <div className="max-w-3xl">
-            <div className="flex items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400">
-              <ShieldCheck size={17} />
-              <span>{t("eyebrow")}</span>
-            </div>
-            <h1 className="mt-3 text-3xl font-bold tracking-[-0.04em] sm:text-5xl">
-              {t("title")}
-            </h1>
-            <p className="mt-3 text-sm leading-7 text-muted-foreground sm:text-base">
-              {t("description")}
-            </p>
+        <header className="max-w-3xl">
+          <div className="flex items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400">
+            <ShieldCheck size={17} />
+            <span>{t("eyebrow")}</span>
           </div>
-
-          <Link
-            href="/trust/new"
-            className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white transition hover:bg-blue-500"
-          >
-            <Plus size={18} />
-            {t("reportClient")}
-          </Link>
+          <h1 className="mt-3 text-3xl font-bold tracking-[-0.04em] sm:text-5xl">
+            {t("title")}
+          </h1>
+          <p className="mt-3 text-sm leading-7 text-muted-foreground sm:text-base">
+            {t("description")}
+          </p>
         </header>
 
         {loading && (
@@ -149,10 +143,8 @@ export default function ProviderTrustPage() {
               description={t("receivedDescription")}
               disputes={received}
               emptyText={t("receivedEmpty")}
-              activityLabel={t("activity")}
               viewMissionLabel={t("viewMission")}
               locale={locale}
-              priority
             />
 
             <DisputeSection
@@ -160,7 +152,6 @@ export default function ProviderTrustPage() {
               description={t("openedDescription")}
               disputes={opened}
               emptyText={t("openedEmpty")}
-              activityLabel={t("activity")}
               viewMissionLabel={t("viewMission")}
               locale={locale}
             />
@@ -176,29 +167,20 @@ function DisputeSection({
   description,
   disputes,
   emptyText,
-  activityLabel,
   viewMissionLabel,
   locale,
-  priority = false,
 }: {
   title: string;
   description: string;
   disputes: Dispute[];
   emptyText: string;
-  activityLabel: string;
   viewMissionLabel: string;
   locale: Parameters<typeof translateKlyxTrustReason>[0];
-  priority?: boolean;
 }) {
   return (
     <section>
       <div className="max-w-3xl">
-        <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
-          {activityLabel}
-        </p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em]">
-          {title}
-        </h2>
+        <h2 className="text-2xl font-semibold tracking-[-0.03em]">{title}</h2>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
           {description}
         </p>
@@ -225,16 +207,9 @@ function DisputeSection({
                   </span>
 
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-semibold">
-                        {translateKlyxTrustReason(locale, dispute.reason)}
-                      </h3>
-                      {priority && index === 0 && (
-                        <span className="rounded-full bg-blue-600/8 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
-                          {translateKlyxTrustStatus(locale, dispute.status)}
-                        </span>
-                      )}
-                    </div>
+                    <h3 className="font-semibold">
+                      {translateKlyxTrustReason(locale, dispute.reason)}
+                    </h3>
 
                     <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">
                       {dispute.description}
@@ -251,11 +226,9 @@ function DisputeSection({
                 </div>
 
                 <div className="flex shrink-0 items-center gap-3 sm:flex-col sm:items-end">
-                  {!(priority && index === 0) && (
-                    <span className="rounded-full border border-blue-500/20 bg-blue-500/8 px-3 py-1.5 text-xs font-semibold text-blue-700 dark:text-blue-300">
-                      {translateKlyxTrustStatus(locale, dispute.status)}
-                    </span>
-                  )}
+                  <span className="rounded-full border border-blue-500/20 bg-blue-600/8 px-3 py-1.5 text-xs font-semibold text-blue-700 dark:text-blue-300">
+                    {translateKlyxTrustStatus(locale, dispute.status)}
+                  </span>
 
                   <Link
                     href={`/bookings/${dispute.booking_id}`}
