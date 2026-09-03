@@ -1,5 +1,7 @@
 import "server-only";
 
+import { AsyncLocalStorage } from "node:async_hooks";
+
 import {
   getKlyxLlmProvider,
 } from "./provider";
@@ -43,6 +45,20 @@ export type KlyxLlmShadowResult = {
   error: string | null;
 };
 
+const shadowSuppression = new AsyncLocalStorage<boolean>();
+
+/**
+ * Prevents a shadow LLM call inside a request path that will immediately make
+ * a visible LLM call with the same deterministic result. AsyncLocalStorage
+ * keeps the suppression scoped to this request instead of mutating process
+ * environment shared by concurrent Vercel requests.
+ */
+export async function withoutKlyxLlmShadow<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  return shadowSuppression.run(true, operation);
+}
+
 function isShadowEnabled(): boolean {
   return (
     process.env.KLYX_LLM_SHADOW_ENABLED
@@ -69,7 +85,10 @@ export async function runKlyxLlmShadow(
     context: KlyxLlmShadowContext;
   },
 ): Promise<KlyxLlmShadowResult> {
-  if (!isShadowEnabled()) {
+  if (
+    shadowSuppression.getStore() === true ||
+    !isShadowEnabled()
+  ) {
     return {
       enabled: false,
 
