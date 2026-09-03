@@ -1,14 +1,20 @@
-import type { KlyxLocale } from "@/lib/klyx-i18n";
+import {
+  KLYX_LANGUAGE_OPTIONS,
+  getKlyxLocaleMetadata,
+  normalizeKlyxLocale,
+  translateKlyxNavigationLabel,
+  type KlyxLocale,
+} from "@/lib/klyx-i18n";
+import { getKlyxProviderAssistantCoreCopy } from "@/lib/klyx-provider-assistant-core-locales";
 
-export const KLYX_PROVIDER_ASSISTANT_TRANSLATED_LOCALES = [
-  "fr",
-  "en",
-  "nl",
-  "de",
-] as const;
+const KLYX_PROVIDER_ASSISTANT_FULL_LOCALES = ["fr", "en", "nl", "de"] as const;
+type KlyxProviderAssistantFullLocale =
+  (typeof KLYX_PROVIDER_ASSISTANT_FULL_LOCALES)[number];
 
-export type KlyxProviderAssistantLocale =
-  (typeof KLYX_PROVIDER_ASSISTANT_TRANSLATED_LOCALES)[number];
+export const KLYX_PROVIDER_ASSISTANT_TRANSLATED_LOCALES =
+  KLYX_LANGUAGE_OPTIONS.map((option) => option.value);
+
+export type KlyxProviderAssistantLocale = KlyxLocale;
 
 export const KLYX_PROVIDER_ASSISTANT_MESSAGE_KEYS = [
   "badge",
@@ -44,7 +50,7 @@ export type KlyxProviderAssistantMessageKey =
 
 type Dictionary = Record<KlyxProviderAssistantMessageKey, string>;
 
-const DICTIONARIES: Record<KlyxProviderAssistantLocale, Dictionary> = {
+const DICTIONARIES: Record<KlyxProviderAssistantFullLocale, Dictionary> = {
   fr: {
     badge: "Assistant KLYX",
     title: "Assistant prestataire",
@@ -169,7 +175,7 @@ const DICTIONARIES: Record<KlyxProviderAssistantLocale, Dictionary> = {
   },
 };
 
-const EXAMPLES: Record<KlyxProviderAssistantLocale, readonly string[]> = {
+const EXAMPLES: Record<KlyxProviderAssistantFullLocale, readonly string[]> = {
   fr: [
     "Je suis libre jeudi de 9 h à 14 h.",
     "Prépare un devis pour 3 heures.",
@@ -197,52 +203,53 @@ const EXAMPLES: Record<KlyxProviderAssistantLocale, readonly string[]> = {
 };
 
 const STATUS_LABELS: Record<
-  KlyxProviderAssistantLocale,
+  KlyxProviderAssistantFullLocale,
   Record<string, string>
 > = {
-  fr: {
-    draft: "Brouillon",
-    applied: "Appliqué",
-    discarded: "Supprimé",
-  },
-  en: {
-    draft: "Draft",
-    applied: "Applied",
-    discarded: "Discarded",
-  },
-  nl: {
-    draft: "Concept",
-    applied: "Toegepast",
-    discarded: "Verwijderd",
-  },
-  de: {
-    draft: "Entwurf",
-    applied: "Angewendet",
-    discarded: "Verworfen",
-  },
+  fr: { draft: "Brouillon", applied: "Appliqué", discarded: "Supprimé" },
+  en: { draft: "Draft", applied: "Applied", discarded: "Discarded" },
+  nl: { draft: "Concept", applied: "Toegepast", discarded: "Verwijderd" },
+  de: { draft: "Entwurf", applied: "Angewendet", discarded: "Verworfen" },
 };
 
-const INTL_LOCALES: Record<KlyxProviderAssistantLocale, string> = {
-  fr: "fr-BE",
-  en: "en-BE",
-  nl: "nl-BE",
-  de: "de-BE",
-};
+function isFullLocale(locale: KlyxLocale): locale is KlyxProviderAssistantFullLocale {
+  return KLYX_PROVIDER_ASSISTANT_FULL_LOCALES.includes(
+    locale as KlyxProviderAssistantFullLocale
+  );
+}
 
 export function resolveKlyxProviderAssistantLocale(
   locale: KlyxLocale | string
-): KlyxProviderAssistantLocale {
-  return KLYX_PROVIDER_ASSISTANT_TRANSLATED_LOCALES.includes(
-    locale as KlyxProviderAssistantLocale
-  )
-    ? (locale as KlyxProviderAssistantLocale)
-    : "fr";
+): KlyxLocale {
+  return normalizeKlyxLocale(locale);
 }
 
 export function getKlyxProviderAssistantDictionary(
   locale: KlyxLocale | string
 ): Dictionary {
-  return DICTIONARIES[resolveKlyxProviderAssistantLocale(locale)];
+  const resolved = resolveKlyxProviderAssistantLocale(locale);
+  if (isFullLocale(resolved)) return DICTIONARIES[resolved];
+
+  const core = getKlyxProviderAssistantCoreCopy(resolved);
+  const localizedTitle = translateKlyxNavigationLabel(
+    resolved,
+    "Assistant professionnel"
+  );
+
+  return {
+    ...DICTIONARIES.en,
+    badge: localizedTitle,
+    title: localizedTitle,
+    prepareQuestion: core.prepareQuestion,
+    surfaceDescription: core.surfaceDescription,
+    conversationLabel: `${localizedTitle} · KLYX`,
+    conversationIntro: core.conversationIntro,
+    placeholder: core.placeholder,
+    draftsTitle: core.draftsTitle,
+    noDrafts: core.noDrafts,
+    backToActivity: translateKlyxNavigationLabel(resolved, "Mon activité"),
+    controlNote: core.controlNote,
+  };
 }
 
 export function translateKlyxProviderAssistant(
@@ -255,13 +262,15 @@ export function translateKlyxProviderAssistant(
 export function getKlyxProviderAssistantExamples(
   locale: KlyxLocale | string
 ): readonly string[] {
-  return EXAMPLES[resolveKlyxProviderAssistantLocale(locale)];
+  const resolved = resolveKlyxProviderAssistantLocale(locale);
+  if (isFullLocale(resolved)) return EXAMPLES[resolved];
+  return getKlyxProviderAssistantCoreCopy(resolved).examples;
 }
 
 export function getKlyxProviderAssistantIntlLocale(
   locale: KlyxLocale | string
 ): string {
-  return INTL_LOCALES[resolveKlyxProviderAssistantLocale(locale)];
+  return getKlyxLocaleMetadata(resolveKlyxProviderAssistantLocale(locale)).htmlLang;
 }
 
 export function translateKlyxProviderAssistantStatus(
@@ -269,5 +278,6 @@ export function translateKlyxProviderAssistantStatus(
   status: string
 ): string {
   const resolved = resolveKlyxProviderAssistantLocale(locale);
-  return STATUS_LABELS[resolved][status] ?? status;
+  if (isFullLocale(resolved)) return STATUS_LABELS[resolved][status] ?? status;
+  return STATUS_LABELS.en[status] ?? status;
 }
