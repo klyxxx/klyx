@@ -65,6 +65,7 @@ export default function AccountSwitcher({
   currentProfileId,
 }: AccountSwitcherProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const switchLockRef = useRef(false);
   const { locale } = useKlyxLocale();
   const t = (key: KlyxAccountSwitcherMessageKey) =>
     translateKlyxAccountSwitcher(locale, key);
@@ -123,7 +124,11 @@ export default function AccountSwitcher({
   }, []);
 
   async function handleSwitch(profileId: string) {
-    if (profileId === activeProfileId || switchingId) {
+    if (
+      profileId === activeProfileId ||
+      switchingId ||
+      switchLockRef.current
+    ) {
       setOpen(false);
       return;
     }
@@ -133,6 +138,8 @@ export default function AccountSwitcher({
       setError(t("missingProfileError"));
       return;
     }
+
+    switchLockRef.current = true;
 
     try {
       setError("");
@@ -144,6 +151,7 @@ export default function AccountSwitcher({
     } catch {
       setError(t("switchError"));
     } finally {
+      switchLockRef.current = false;
       setSwitchingId(null);
     }
   }
