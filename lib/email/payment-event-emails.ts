@@ -1,8 +1,6 @@
 import "server-only";
 
-import {
-  sendKlyxProfileTransactionalEmail,
-} from "@/lib/email/resend";
+import { sendKlyxDeduplicatedEmail } from "@/lib/email/deduplicated-delivery";
 import {
   paymentFailedEmail,
   paymentReceivedEmail,
@@ -32,7 +30,9 @@ export async function sendBookingPaymentSucceededEmails(input: {
   providerProfileId?: string | null;
 }) {
   const deliveries = [
-    sendKlyxProfileTransactionalEmail({
+    sendKlyxDeduplicatedEmail({
+      deduplicationKey: `booking:${input.bookingId}:payment-succeeded:client`,
+      templateKey: "booking.payment_succeeded.client",
       profileId: input.clientProfileId,
       ...paymentReceivedEmail(input.bookingId),
     }),
@@ -40,7 +40,9 @@ export async function sendBookingPaymentSucceededEmails(input: {
 
   if (input.providerProfileId) {
     deliveries.push(
-      sendKlyxProfileTransactionalEmail({
+      sendKlyxDeduplicatedEmail({
+        deduplicationKey: `booking:${input.bookingId}:payment-succeeded:provider`,
+        templateKey: "booking.payment_succeeded.provider",
         profileId: input.providerProfileId,
         ...paymentReceivedProviderEmail(input.bookingId),
       })
@@ -54,7 +56,9 @@ export async function sendBookingPaymentFailedEmail(input: {
   bookingId: string;
   clientProfileId: string;
 }) {
-  await sendKlyxProfileTransactionalEmail({
+  await sendKlyxDeduplicatedEmail({
+    deduplicationKey: `booking:${input.bookingId}:payment-failed:client`,
+    templateKey: "booking.payment_failed.client",
     profileId: input.clientProfileId,
     ...paymentFailedEmail(input.bookingId),
   });
@@ -64,7 +68,9 @@ export async function sendBookingRefundConfirmedEmail(input: {
   bookingId: string;
   clientProfileId: string;
 }) {
-  await sendKlyxProfileTransactionalEmail({
+  await sendKlyxDeduplicatedEmail({
+    deduplicationKey: `booking:${input.bookingId}:refund-succeeded:client`,
+    templateKey: "booking.refund_succeeded.client",
     profileId: input.clientProfileId,
     ...refundConfirmedEmail(input.bookingId),
   });
@@ -74,7 +80,9 @@ export async function sendBookingRefundFailedEmail(input: {
   bookingId: string;
   clientProfileId: string;
 }) {
-  await sendKlyxProfileTransactionalEmail({
+  await sendKlyxDeduplicatedEmail({
+    deduplicationKey: `booking:${input.bookingId}:refund-failed:client`,
+    templateKey: "booking.refund_failed.client",
     profileId: input.clientProfileId,
     ...refundFailedEmail(input.bookingId),
   });
@@ -86,11 +94,15 @@ export async function sendGroupPaymentSucceededEmails(input: {
   providerProfileId: string;
 }) {
   await Promise.all([
-    sendKlyxProfileTransactionalEmail({
+    sendKlyxDeduplicatedEmail({
+      deduplicationKey: `booking-group:${input.groupId}:payment-succeeded:client`,
+      templateKey: "booking_group.payment_succeeded.client",
       profileId: input.clientProfileId,
       ...groupPaymentReceivedClientEmail(input.groupId),
     }),
-    sendKlyxProfileTransactionalEmail({
+    sendKlyxDeduplicatedEmail({
+      deduplicationKey: `booking-group:${input.groupId}:payment-succeeded:provider`,
+      templateKey: "booking_group.payment_succeeded.provider",
       profileId: input.providerProfileId,
       ...groupPaymentReceivedProviderEmail(input.groupId),
     }),
@@ -101,7 +113,9 @@ export async function sendGroupPaymentFailedEmail(input: {
   groupId: string;
   clientProfileId: string;
 }) {
-  await sendKlyxProfileTransactionalEmail({
+  await sendKlyxDeduplicatedEmail({
+    deduplicationKey: `booking-group:${input.groupId}:payment-failed:client`,
+    templateKey: "booking_group.payment_failed.client",
     profileId: input.clientProfileId,
     ...groupPaymentFailedEmail(input.groupId),
   });
@@ -113,11 +127,15 @@ export async function sendGroupRefundConfirmedEmails(input: {
   providerProfileId: string;
 }) {
   await Promise.all([
-    sendKlyxProfileTransactionalEmail({
+    sendKlyxDeduplicatedEmail({
+      deduplicationKey: `booking-group:${input.groupId}:refund-succeeded:client`,
+      templateKey: "booking_group.refund_succeeded.client",
       profileId: input.clientProfileId,
       ...groupRefundConfirmedClientEmail(input.groupId),
     }),
-    sendKlyxProfileTransactionalEmail({
+    sendKlyxDeduplicatedEmail({
+      deduplicationKey: `booking-group:${input.groupId}:refund-succeeded:provider`,
+      templateKey: "booking_group.refund_succeeded.provider",
       profileId: input.providerProfileId,
       ...groupRefundConfirmedProviderEmail(input.groupId),
     }),
@@ -132,11 +150,15 @@ export async function sendGroupRefundFailedEmails(input: {
   const email = groupRefundFailedEmail(input.groupId);
 
   await Promise.all([
-    sendKlyxProfileTransactionalEmail({
+    sendKlyxDeduplicatedEmail({
+      deduplicationKey: `booking-group:${input.groupId}:refund-failed:client`,
+      templateKey: "booking_group.refund_failed.client",
       profileId: input.clientProfileId,
       ...email,
     }),
-    sendKlyxProfileTransactionalEmail({
+    sendKlyxDeduplicatedEmail({
+      deduplicationKey: `booking-group:${input.groupId}:refund-failed:provider`,
+      templateKey: "booking_group.refund_failed.provider",
       profileId: input.providerProfileId,
       ...email,
     }),
@@ -144,16 +166,21 @@ export async function sendGroupRefundFailedEmails(input: {
 }
 
 export async function sendSplitPaymentSucceededEmails(input: {
+  unitId: string;
   bookingId: string;
   clientProfileId: string;
   providerProfileId: string;
 }) {
   await Promise.all([
-    sendKlyxProfileTransactionalEmail({
+    sendKlyxDeduplicatedEmail({
+      deduplicationKey: `split-unit:${input.unitId}:payment-succeeded:client`,
+      templateKey: "split_payment.payment_succeeded.client",
       profileId: input.clientProfileId,
       ...splitPaymentReceivedClientEmail(input.bookingId),
     }),
-    sendKlyxProfileTransactionalEmail({
+    sendKlyxDeduplicatedEmail({
+      deduplicationKey: `split-unit:${input.unitId}:payment-succeeded:provider`,
+      templateKey: "split_payment.payment_succeeded.provider",
       profileId: input.providerProfileId,
       ...splitPaymentReceivedProviderEmail(input.bookingId),
     }),
@@ -161,26 +188,34 @@ export async function sendSplitPaymentSucceededEmails(input: {
 }
 
 export async function sendSplitPaymentFailedEmail(input: {
+  unitId: string;
   bookingId: string;
   clientProfileId: string;
 }) {
-  await sendKlyxProfileTransactionalEmail({
+  await sendKlyxDeduplicatedEmail({
+    deduplicationKey: `split-unit:${input.unitId}:payment-failed:client`,
+    templateKey: "split_payment.payment_failed.client",
     profileId: input.clientProfileId,
     ...splitPaymentFailedEmail(input.bookingId),
   });
 }
 
 export async function sendSplitPaymentExpiredEmail(input: {
+  unitId: string;
   bookingId: string;
   clientProfileId: string;
 }) {
-  await sendKlyxProfileTransactionalEmail({
+  await sendKlyxDeduplicatedEmail({
+    deduplicationKey: `split-unit:${input.unitId}:payment-expired:client`,
+    templateKey: "split_payment.payment_expired.client",
     profileId: input.clientProfileId,
     ...splitPaymentExpiredEmail(input.bookingId),
   });
 }
 
 export async function sendSplitRefundStatusEmail(input: {
+  unitId: string;
+  refundId: string;
   bookingId: string;
   clientProfileId: string;
   status: "processing" | "partial" | "succeeded" | "failed";
@@ -195,7 +230,9 @@ export async function sendSplitRefundStatusEmail(input: {
             partial: input.status === "partial",
           });
 
-  await sendKlyxProfileTransactionalEmail({
+  await sendKlyxDeduplicatedEmail({
+    deduplicationKey: `split-unit:${input.unitId}:refund:${input.refundId}:${input.status}:client`,
+    templateKey: `split_refund.${input.status}.client`,
     profileId: input.clientProfileId,
     ...content,
   });
