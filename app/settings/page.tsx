@@ -69,6 +69,8 @@ export default function SettingsPage() {
 
   const [accountType, setAccountType] =
     useState<"client" | "provider">("client");
+  const [activeProfileId, setActiveProfileId] = useState("");
+  const [profileCount, setProfileCount] = useState(1);
   const [email, setEmail] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -90,6 +92,7 @@ export default function SettingsPage() {
   // KLYX_SETTINGS_SINGLE_BLUE
   // KLYX_SETTINGS_PHONE_HISTORY_VISIBLE
   // KLYX_SETTINGS_PROGRESSIVE_DISCLOSURE
+  // KLYX_SETTINGS_PROFILE_DELETE_ISOLATION_16_07
 
   useEffect(() => {
     let active = true;
@@ -119,6 +122,8 @@ export default function SettingsPage() {
         if (!active) return;
 
         setAccountType(profile.accountType);
+        setActiveProfileId(profile.id);
+        setProfileCount(state.profiles.length);
         setEmail(user.email ?? "");
         setNewEmail(user.email ?? "");
 
@@ -233,7 +238,13 @@ export default function SettingsPage() {
 
   async function deleteAccount() {
     if (deleteConfirmation !== DELETE_CONFIRMATION) return;
-    if (!window.confirm(t("deleteConfirmPrompt"))) return;
+
+    const hasOtherProfiles = profileCount > 1;
+    const confirmKey: KlyxSettingsPageMessageKey = hasOtherProfiles
+      ? "deleteProfileConfirmPrompt"
+      : "deleteConfirmPrompt";
+
+    if (!window.confirm(t(confirmKey))) return;
 
     setDeletingAccount(true);
     setErrorKey(null);
@@ -242,13 +253,26 @@ export default function SettingsPage() {
       const response = await fetch("/api/account/delete", {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ confirmation: deleteConfirmation }),
+        body: JSON.stringify({
+          confirmation: deleteConfirmation,
+          profileId: activeProfileId,
+        }),
       });
-      const result = (await response.json()) as { error?: string };
+      const result = (await response.json()) as {
+        error?: string;
+        deletedScope?: "profile" | "account";
+      };
 
       if (!response.ok) {
         failure(resolveKlyxSettingsDeleteErrorKey(result.error));
         setDeletingAccount(false);
+        return;
+      }
+
+      if (result.deletedScope === "profile") {
+        setDeleteConfirmation("");
+        router.replace("/accounts");
+        router.refresh();
         return;
       }
 
@@ -289,6 +313,16 @@ export default function SettingsPage() {
         : locale === "de"
           ? "Telefon"
           : "Phone";
+  const hasOtherProfiles = profileCount > 1;
+  const deleteTitleKey: KlyxSettingsPageMessageKey = hasOtherProfiles
+    ? "deleteProfileTitle"
+    : "deleteTitle";
+  const deleteDescriptionKey: KlyxSettingsPageMessageKey = hasOtherProfiles
+    ? "deleteProfileDescription"
+    : "deleteDescription";
+  const deleteActionKey: KlyxSettingsPageMessageKey = hasOtherProfiles
+    ? "deleteProfileForever"
+    : "deleteForever";
 
   return (
     <main className="min-h-screen bg-background px-4 pb-28 pt-7 text-foreground sm:px-6 sm:pt-10 lg:pb-12">
@@ -508,14 +542,14 @@ export default function SettingsPage() {
 
           <SettingsDisclosure
             icon={<Trash2 size={20} />}
-            title={t("deleteTitle")}
+            title={t(deleteTitleKey)}
             open={openPanel === "delete"}
             onToggle={() => togglePanel("delete")}
             danger
           >
             <div className="rounded-xl border border-red-500/30 bg-red-500/[0.06] p-4 sm:p-5">
               <p className="text-sm leading-6 text-muted-foreground">
-                {t("deleteDescription")}
+                {t(deleteDescriptionKey)}
               </p>
 
               <input
@@ -538,7 +572,7 @@ export default function SettingsPage() {
                 ) : (
                   <Trash2 size={18} />
                 )}
-                {t("deleteForever")}
+                {t(deleteActionKey)}
               </button>
             </div>
           </SettingsDisclosure>

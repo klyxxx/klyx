@@ -12,10 +12,16 @@ describe("KLYX photo request visual contract", () => {
 
     expect(page).toContain('accept="image/jpeg,image/png,image/webp"');
     expect(page).toContain('alt="Aperçu du problème"');
-    expect(page).toContain('className="h-44 w-full object-contain"');
+    expect(page).toContain("KLYX_ASSISTANT_PHOTO_ATTACHMENT_RENDER_16_07");
+    expect(page).toContain(
+      'className="max-h-[420px] max-w-full rounded-[18px] object-contain"'
+    );
+    expect(page).toContain('alt="Photo envoyée à KLYX"');
     expect(page).toContain('aria-label="Supprimer la photo"');
     expect(page).toContain("client-service-photos");
     expect(page).toContain("Autoriser l’analyse visuelle IA de cette photo");
+    expect(page).not.toContain('className="h-44 w-full object-contain"');
+    expect(page).not.toContain('rounded-[22px] border border-border bg-black');
   });
 
   it("uses the single KLYX blue instead of legacy purple accents", () => {

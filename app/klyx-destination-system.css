@@ -3,7 +3,7 @@
  *
  * This layer is intentionally scoped to the application content so the frozen
  * AppSidebar keeps its existing layout and behaviour. It neutralises the old
- * purple/gradient visual language for destination screens without touching
+ * decorative gradient language for destination screens without touching
  * business logic.
  */
 
@@ -123,8 +123,35 @@
   box-shadow: none;
 }
 
-.klyx-app-content [class*="bg-gradient-to-"] {
+.klyx-app-content [class*="bg-gradient-to-"],
+.klyx-app-content [class*="bg-linear-to-"] {
   background-image: none !important;
+}
+
+.klyx-app-content [class*="bg-[linear-gradient"],
+.klyx-app-content [class*="bg-[radial-gradient"] {
+  background: var(--card) !important;
+  background-image: none !important;
+  border-color: var(--border) !important;
+  color: var(--foreground) !important;
+  box-shadow: none !important;
+}
+
+.klyx-app-content [class*="bg-[linear-gradient"][class*="text-white"],
+.klyx-app-content [class*="bg-[radial-gradient"][class*="text-white"],
+.klyx-app-content [class*="bg-[linear-gradient"] [class*="text-white"],
+.klyx-app-content [class*="bg-[radial-gradient"] [class*="text-white"] {
+  color: var(--foreground) !important;
+}
+
+.klyx-app-content [class*="bg-[linear-gradient"] [class*="border-white"],
+.klyx-app-content [class*="bg-[radial-gradient"] [class*="border-white"] {
+  border-color: var(--border) !important;
+}
+
+.klyx-app-content [class*="bg-[linear-gradient"] [class*="bg-white/"] ,
+.klyx-app-content [class*="bg-[radial-gradient"] [class*="bg-white/"] {
+  background-color: rgb(37 99 235 / 6%) !important;
 }
 
 .klyx-app-content select option:checked {

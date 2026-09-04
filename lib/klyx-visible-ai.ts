@@ -4,6 +4,9 @@ import {
   generateKlyxAiReply,
   type KlyxAiMode,
 } from "@/lib/klyx-ai";
+import {
+  assessKlyxVisibleAiCandidate,
+} from "@/lib/klyx-visible-ai-safety";
 
 type VisibleAiAccountType = "client" | "provider";
 
@@ -101,6 +104,19 @@ export async function generateKlyxVisibleAiReply(
     : ai.text.trim();
 
   if (!conversationalText) {
+    return {
+      mode: "fallback",
+      text: deterministicReply,
+    };
+  }
+
+  const safety = assessKlyxVisibleAiCandidate({
+    candidate: conversationalText,
+    deterministicReply,
+    lockedFacts: input.lockedFacts,
+  });
+
+  if (!safety.safe) {
     return {
       mode: "fallback",
       text: deterministicReply,
