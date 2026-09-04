@@ -3,9 +3,18 @@ import { after } from "next/server";
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { sendKlyxProfileTransactionalEmail } from "@/lib/email/resend";
 import {
+  quoteAcceptedEmail,
+  quoteCancelledEmail,
+  quoteRejectedEmail,
+  quoteRequestedEmail,
+  quoteSentEmail,
+} from "@/lib/email/templates";
+import {
   quoteLifecycleQualificationPreflight,
   quoteTransactionQualificationPreflight,
 } from "@/lib/quote-transaction-qualification-preflight";
+import { logServerWarning } from "@/lib/server-log";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   GET as coreGet,
   PATCH as corePatch,
@@ -13,6 +22,48 @@ import {
 } from "./quote-route-core";
 
 type QuoteMethod = "GET" | "POST" | "PATCH";
+type QuoteLifecycleEmailAction =
+  | "send"
+  | "accept"
+  | "reject"
+  | "cancel";
+
+type QuoteLifecycleEmailTarget = {
+  client_profile_id: string;
+  provider_profile_id: string;
+};
+
+function quoteLifecycleEmail(
+  action: QuoteLifecycleEmailAction,
+  quote: QuoteLifecycleEmailTarget,
+  quoteId: string
+) {
+  if (action === "send") {
+    return {
+      profileId: quote.client_profile_id,
+      ...quoteSentEmail(quoteId),
+    };
+  }
+
+  if (action === "accept") {
+    return {
+      profileId: quote.provider_profile_id,
+      ...quoteAcceptedEmail(),
+    };
+  }
+
+  if (action === "reject") {
+    return {
+      profileId: quote.provider_profile_id,
+      ...quoteRejectedEmail(),
+    };
+  }
+
+  return {
+    profileId: quote.provider_profile_id,
+    ...quoteCancelledEmail(),
+  };
+}
 
 async function secureCoreResponse(
   response: Response,
@@ -107,9 +158,7 @@ export async function POST(request: Request) {
         after(async () => {
           await sendKlyxProfileTransactionalEmail({
             profileId: providerProfileId,
-            subject: "Nouvelle demande de devis KLYX",
-            text:
-              "Une nouvelle demande de devis vous attend dans KLYX. Ouvrez KLYX pour consulter les détails et répondre.",
+            ...quoteRequestedEmail(),
           });
         });
       }
@@ -131,6 +180,7 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   const startedAt = Date.now();
+  const emailRequest = request.clone();
 
   try {
     const preflight = await quoteLifecycleQualificationPreflight(
@@ -140,7 +190,67 @@ export async function PATCH(request: Request) {
     if (preflight) return preflight;
 
     const response = await corePatch(request);
-    return secureCoreResponse(response, "PATCH", startedAt);
+    const securedResponse = await secureCoreResponse(
+      response,
+      "PATCH",
+      startedAt
+    );
+
+    if (securedResponse.ok) {
+      const emailBody = (await emailRequest
+        .json()
+        .catch(() => null)) as {
+        quoteId?: unknown;
+        action?: unknown;
+      } | null;
+      const quoteId =
+        typeof emailBody?.quoteId === "string"
+          ? emailBody.quoteId.trim()
+          : "";
+      const action =
+        typeof emailBody?.action === "string"
+          ? emailBody.action.trim()
+          : "";
+      const isEmailAction = [
+        "send",
+        "accept",
+        "reject",
+        "cancel",
+      ].includes(action);
+
+      if (quoteId && isEmailAction) {
+        after(async () => {
+          const { data: quote, error: quoteError } =
+            await supabaseAdmin
+              .from("service_quotes")
+              .select(
+                "client_profile_id, provider_profile_id"
+              )
+              .eq("id", quoteId)
+              .maybeSingle();
+
+          if (quoteError || !quote) {
+            logServerWarning({
+              event: "quote_lifecycle_email_lookup_failed",
+              route: "/api/quotes",
+              method: "PATCH",
+              code: "KLYX_QUOTE_EMAIL_LOOKUP_FAILED",
+            });
+            return;
+          }
+
+          const email = quoteLifecycleEmail(
+            action as QuoteLifecycleEmailAction,
+            quote as QuoteLifecycleEmailTarget,
+            quoteId
+          );
+
+          await sendKlyxProfileTransactionalEmail(email);
+        });
+      }
+    }
+
+    return securedResponse;
   } catch (error) {
     return secureApiErrorResponse({
       error,

@@ -11,12 +11,14 @@ type KlyxTransactionalEmailInput = {
   to: string;
   subject: string;
   text: string;
+  html?: string;
 };
 
 type KlyxProfileTransactionalEmailInput = {
   profileId: string;
   subject: string;
   text: string;
+  html?: string;
 };
 
 function skippedResult(): KlyxEmailDeliveryResult {
@@ -113,6 +115,7 @@ export async function sendKlyxProfileTransactionalEmail(
         to: email,
         subject: input.subject,
         text: input.text,
+        html: input.html,
       },
       { apiKey }
     );

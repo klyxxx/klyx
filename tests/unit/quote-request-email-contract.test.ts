@@ -15,6 +15,10 @@ const resendCore = fs.readFileSync(
   path.join(process.cwd(), "lib/email/resend-core.ts"),
   "utf8"
 );
+const templates = fs.readFileSync(
+  path.join(process.cwd(), "lib/email/templates.ts"),
+  "utf8"
+);
 
 describe("quote request transactional email contract", () => {
   it("keeps Resend server-only and the secret out of public env variables", () => {
@@ -27,10 +31,11 @@ describe("quote request transactional email contract", () => {
   it("wires only successful quote creation to the provider email side effect", () => {
     expect(route).toContain('import { after } from "next/server"');
     expect(route).toContain("sendKlyxProfileTransactionalEmail");
+    expect(route).toContain("quoteRequestedEmail");
     expect(route).toContain("const emailRequest = request.clone();");
     expect(route).toContain("if (securedResponse.ok)");
     expect(route).toContain("providerProfileId");
-    expect(route).toContain('subject: "Nouvelle demande de devis KLYX"');
+    expect(templates).toContain("Nouvelle demande de devis sur KLYX");
 
     const corePostIndex = route.indexOf("const response = await corePost(request)");
     const securedIndex = route.indexOf("const securedResponse", corePostIndex);
