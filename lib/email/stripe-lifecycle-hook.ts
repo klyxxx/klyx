@@ -13,6 +13,7 @@ import {
   sendGroupPaymentSucceededEmails,
   sendGroupRefundConfirmedEmails,
   sendGroupRefundFailedEmails,
+  sendGroupRefundStartedEmails,
   sendSplitPaymentExpiredEmail,
   sendSplitPaymentFailedEmail,
   sendSplitPaymentSucceededEmails,
@@ -60,14 +61,6 @@ function stringArray(value: unknown): string[] {
     (item): item is string =>
       typeof item === "string" && Boolean(item.trim())
   );
-}
-
-function sessionPaymentIntentId(
-  session: Stripe.Checkout.Session
-): string | null {
-  return typeof session.payment_intent === "string"
-    ? session.payment_intent
-    : session.payment_intent?.id ?? null;
 }
 
 function refundPaymentIntentId(refund: Stripe.Refund): string | null {
@@ -341,6 +334,15 @@ async function sendRefundEmail(refund: Stripe.Refund): Promise<void> {
       : null;
 
   if (!group) return;
+
+  if (group.refund_status === "processing") {
+    await sendGroupRefundStartedEmails({
+      groupId: group.id,
+      refundId: refund.id,
+      clientProfileId: group.client_profile_id,
+      providerProfileId: group.provider_profile_id,
+    });
+  }
 
   if (group.refund_status === "refunded") {
     await sendGroupRefundConfirmedEmails({
