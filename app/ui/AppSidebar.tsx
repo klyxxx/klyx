@@ -110,6 +110,8 @@ const providerItems: MenuItem[] = [
   },
 ];
 
+const PROVIDER_ASSISTANT_HREF = "/provider/assistant";
+
 function matchesRoute(pathname: string, route: string) {
   return pathname === route || pathname.startsWith(`${route}/`);
 }
@@ -191,6 +193,8 @@ export default function AppSidebar() {
   );
 
   const homeHref = accountType ? getKlyxAccountHome(accountType) : "/dashboard";
+  const providerAssistantActive =
+    accountType === "provider" && matchesRoute(pathname, PROVIDER_ASSISTANT_HREF);
 
   if (hideNavigation) return null;
 
@@ -266,6 +270,22 @@ export default function AppSidebar() {
         </nav>
 
         <div className="shrink-0 px-4 pb-5 pt-2">
+          {accountType === "provider" && (
+            <Link
+              href={PROVIDER_ASSISTANT_HREF}
+              data-testid="provider-assistant-launcher-desktop"
+              aria-current={providerAssistantActive ? "page" : undefined}
+              className={`mb-2 flex min-h-12 w-full items-center gap-3 rounded-xl px-4 text-sm font-semibold transition ${
+                providerAssistantActive
+                  ? "bg-blue-600/8 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400"
+                  : "text-foreground hover:bg-muted"
+              }`}
+            >
+              <Sparkles size={18} />
+              Assistant KLYX
+            </Link>
+          )}
+
           <button
             type="button"
             onClick={logout}
@@ -288,6 +308,22 @@ export default function AppSidebar() {
               : "KLYX"}
         </span>
       </header>
+
+      {accountType === "provider" && (
+        <Link
+          href={PROVIDER_ASSISTANT_HREF}
+          data-testid="provider-assistant-launcher-mobile"
+          aria-label="Assistant KLYX"
+          aria-current={providerAssistantActive ? "page" : undefined}
+          className={`fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom))] right-4 z-50 grid h-12 w-12 place-items-center rounded-full border shadow-lg transition lg:hidden ${
+            providerAssistantActive
+              ? "border-blue-600 bg-blue-600 text-white"
+              : "border-border bg-background text-blue-600 active:scale-95 dark:border-white/10 dark:bg-zinc-950"
+          }`}
+        >
+          <Sparkles size={20} />
+        </Link>
+      )}
 
       {items.length > 0 && (
         <nav
