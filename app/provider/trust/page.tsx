@@ -112,7 +112,7 @@ export default function ProviderTrustPage() {
     <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6 sm:py-10">
       <div className="mx-auto max-w-5xl">
         <header className="max-w-3xl">
-          <div className="flex items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400">
+          <div className="flex items-center gap-2 text-sm font-semibold text-[#2563EB]">
             <ShieldCheck size={17} />
             <span>{t("eyebrow")}</span>
           </div>
@@ -126,7 +126,7 @@ export default function ProviderTrustPage() {
 
         {loading && (
           <div className="grid min-h-72 place-items-center">
-            <LoaderCircle className="animate-spin text-blue-600" size={34} />
+            <LoaderCircle className="animate-spin text-[#2563EB]" size={34} />
           </div>
         )}
 
@@ -226,13 +226,13 @@ function DisputeSection({
                 </div>
 
                 <div className="flex shrink-0 items-center gap-3 sm:flex-col sm:items-end">
-                  <span className="rounded-full border border-blue-500/20 bg-blue-600/8 px-3 py-1.5 text-xs font-semibold text-blue-700 dark:text-blue-300">
+                  <span className="rounded-full border border-[#2563EB]/20 bg-[#2563EB]/8 px-3 py-1.5 text-xs font-semibold text-[#2563EB]">
                     {translateKlyxTrustStatus(locale, dispute.status)}
                   </span>
 
                   <Link
                     href={`/bookings/${dispute.booking_id}`}
-                    className="inline-flex min-h-10 items-center gap-2 rounded-xl px-2 text-sm font-semibold text-blue-600 transition hover:text-blue-500 dark:text-blue-400"
+                    className="inline-flex min-h-10 items-center gap-2 rounded-xl px-2 text-sm font-semibold text-[#2563EB] transition hover:opacity-80"
                   >
                     {viewMissionLabel}
                     <ArrowRight size={15} />
