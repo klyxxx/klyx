@@ -10,6 +10,10 @@ const providerHome = readFileSync(
   join(process.cwd(), "app/provider/page.tsx"),
   "utf8"
 );
+const providerDashboardI18n = readFileSync(
+  join(process.cwd(), "lib/klyx-provider-dashboard-i18n.ts"),
+  "utf8"
+);
 const entry = readFileSync(
   join(process.cwd(), "app/components/ProviderCapabilitiesEntry.tsx"),
   "utf8"
@@ -59,7 +63,9 @@ describe("provider capabilities page contract", () => {
 
   it("exposes the dedicated capability page from provider management", () => {
     expect(providerHome).toContain('href: "/provider/capabilities"');
-    expect(providerHome).toContain('label: "Capacités"');
+    expect(providerHome).toContain('labelKey: "capabilities"');
+    expect(providerHome).toContain("translateKlyxProviderDashboard");
+    expect(providerDashboardI18n).toContain('capabilities: "Capacités"');
     expect(entry).toContain('href="/provider/capabilities"');
     expect(entry).toContain("translateKlyxProviderCapabilitiesPage");
   });

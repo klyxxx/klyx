@@ -16,7 +16,9 @@ describe("KLYX assistant command bar safety and i18n contract", () => {
     expect(compactSource).toContain('"Content-Type": "application/json"');
     expect(compactSource).toContain('Authorization: `Bearer ${session.access_token}`');
     expect(compactSource).toContain("body: JSON.stringify({ message })");
-    expect(source).toContain("maxLength={700}");
+    expect(source).toContain('from "@/lib/klyx-assistant-message-limits"');
+    expect(source).toContain("KLYX_ASSISTANT_MESSAGE_MAX_LENGTH");
+    expect(source).toContain("maxLength={KLYX_ASSISTANT_MESSAGE_MAX_LENGTH}");
   });
 
   it("keeps browser-side execution forbidden and only navigates to server-selected destinations", () => {

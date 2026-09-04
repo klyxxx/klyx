@@ -18,6 +18,9 @@ import { useRouter } from "next/navigation";
 
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import {
+  KLYX_ASSISTANT_MESSAGE_MAX_LENGTH,
+} from "@/lib/klyx-assistant-message-limits";
+import {
   translateKlyxAssistantCommand,
   type KlyxAssistantCommandMessageKey,
 } from "@/lib/klyx-assistant-command-i18n";
@@ -508,9 +511,13 @@ export default function AssistantCommandBar(_props: Props) {
         const transcript = event.results[0]?.[0]?.transcript?.trim();
         if (!transcript) return;
 
-        setValue((current) =>
-          current.trim() ? `${current.trim()} ${transcript}` : transcript
-        );
+        setValue((current) => {
+          const nextValue = current.trim()
+            ? `${current.trim()} ${transcript}`
+            : transcript;
+
+          return nextValue.slice(0, KLYX_ASSISTANT_MESSAGE_MAX_LENGTH);
+        });
         setErrorMessage("");
       };
 
@@ -644,7 +651,7 @@ export default function AssistantCommandBar(_props: Props) {
               }
             }}
             rows={conversationId ? 3 : 5}
-            maxLength={700}
+            maxLength={KLYX_ASSISTANT_MESSAGE_MAX_LENGTH}
             disabled={publishing}
             placeholder={
               conversationId ? flowCopy.followUpPlaceholder : t("placeholder")
