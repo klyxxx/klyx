@@ -9,6 +9,7 @@ import {
 } from "@/lib/brain-actions";
 import {
   bestBrainCommandAction,
+  bestSpecificBrainCommandAction,
   hasGeneralBrainCommandIntent,
   hasNewNeedBrainCommandIntent,
   hasSpecificBrainCommandIntent,
@@ -111,10 +112,15 @@ export async function POST(
       )
     ) {
       const action =
-        bestBrainCommandAction(
-          actions,
-          message
-        );
+        specificExistingIntent
+          ? bestSpecificBrainCommandAction(
+              actions,
+              message
+            )
+          : bestBrainCommandAction(
+              actions,
+              message
+            );
 
       if (action) {
         const localizedAction =
@@ -142,7 +148,10 @@ export async function POST(
 
     if (
       newNeedIntent ||
-      !generalActionIntent
+      (
+        !generalActionIntent &&
+        !specificExistingIntent
+      )
     ) {
       const params =
         new URLSearchParams();
