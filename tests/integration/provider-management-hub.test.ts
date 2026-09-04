@@ -11,15 +11,20 @@ function read(relativePath: string) {
 describe("provider management hub", () => {
   it("keeps the provider landing focused on one next action", () => {
     const source = read("app/provider/page.tsx");
+    const i18n = read("lib/klyx-provider-dashboard-i18n.ts");
 
-    expect(source).toContain("Votre activité");
-    expect(source).toContain(
-      "KLYX vous montre ce qui demande votre attention maintenant."
+    expect(source).toContain('t("title")');
+    expect(source).toContain('t("subtitle")');
+    expect(i18n).toContain('title: "Votre activité"');
+    expect(i18n).toContain(
+      'subtitle: "KLYX vous montre ce qui demande votre attention maintenant."'
     );
     expect(source).toContain("<ProviderReadinessStatus />");
-    expect(source).toContain("Gérer autre chose");
+    expect(source).toContain('t("manageMore")');
+    expect(i18n).toContain('manageMore: "Gérer autre chose"');
     expect(source).toContain("SECONDARY_LINKS");
-    expect(source).toContain("Services & tarifs");
+    expect(source).toContain('labelKey: "servicesPricing"');
+    expect(i18n).toContain('servicesPricing: "Services & tarifs"');
     expect(source).toContain("#2563EB");
     expect(source).not.toContain("MANAGEMENT_ITEMS");
     expect(source).not.toContain("lg:grid-cols-3");
