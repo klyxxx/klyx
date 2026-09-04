@@ -155,13 +155,20 @@ export async function sendKlyxDeduplicatedEmail(
     return skipped();
   }
 
-  const claimId = await claimDelivery({
-    ...input,
-    deduplicationKey,
-    templateKey,
-    profileId,
-    to,
-  });
+  let claimId: string | null;
+
+  try {
+    claimId = await claimDelivery({
+      ...input,
+      deduplicationKey,
+      templateKey,
+      profileId,
+      to,
+    });
+  } catch {
+    warn("KLYX_EMAIL_REGISTRY_CLAIM_UNEXPECTED_FAILURE");
+    return skipped();
+  }
 
   if (!claimId) {
     return skipped();
@@ -191,6 +198,11 @@ export async function sendKlyxDeduplicatedEmail(
     };
   }
 
-  await finishDelivery(claimId, result);
+  try {
+    await finishDelivery(claimId, result);
+  } catch {
+    warn("KLYX_EMAIL_REGISTRY_FINALIZE_UNEXPECTED_FAILURE");
+  }
+
   return result;
 }
