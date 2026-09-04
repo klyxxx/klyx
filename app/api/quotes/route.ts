@@ -3,6 +3,13 @@ import { after } from "next/server";
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { sendKlyxProfileTransactionalEmail } from "@/lib/email/resend";
 import {
+  quoteAcceptedEmail,
+  quoteCancelledEmail,
+  quoteRejectedEmail,
+  quoteRequestedEmail,
+  quoteSentEmail,
+} from "@/lib/email/templates";
+import {
   quoteLifecycleQualificationPreflight,
   quoteTransactionQualificationPreflight,
 } from "@/lib/quote-transaction-qualification-preflight";
@@ -28,44 +35,33 @@ type QuoteLifecycleEmailTarget = {
 
 function quoteLifecycleEmail(
   action: QuoteLifecycleEmailAction,
-  quote: QuoteLifecycleEmailTarget
-): {
-  profileId: string;
-  subject: string;
-  text: string;
-} {
+  quote: QuoteLifecycleEmailTarget,
+  quoteId: string
+) {
   if (action === "send") {
     return {
       profileId: quote.client_profile_id,
-      subject: "Votre devis KLYX est prêt",
-      text:
-        "Le prestataire a répondu à votre demande de devis. Ouvrez KLYX pour consulter le montant et les détails.",
+      ...quoteSentEmail(quoteId),
     };
   }
 
   if (action === "accept") {
     return {
       profileId: quote.provider_profile_id,
-      subject: "Votre devis KLYX a été accepté",
-      text:
-        "Le client a accepté votre devis. Ouvrez KLYX pour consulter la suite du parcours.",
+      ...quoteAcceptedEmail(),
     };
   }
 
   if (action === "reject") {
     return {
       profileId: quote.provider_profile_id,
-      subject: "Votre devis KLYX a été refusé",
-      text:
-        "Le client a refusé votre devis. Ouvrez KLYX pour consulter la demande et vos autres missions.",
+      ...quoteRejectedEmail(),
     };
   }
 
   return {
     profileId: quote.provider_profile_id,
-    subject: "Demande de devis KLYX annulée",
-    text:
-      "Le client a annulé sa demande de devis. Ouvrez KLYX pour consulter vos autres demandes.",
+    ...quoteCancelledEmail(),
   };
 }
 
@@ -162,9 +158,7 @@ export async function POST(request: Request) {
         after(async () => {
           await sendKlyxProfileTransactionalEmail({
             profileId: providerProfileId,
-            subject: "Nouvelle demande de devis KLYX",
-            text:
-              "Une nouvelle demande de devis vous attend dans KLYX. Ouvrez KLYX pour consulter les détails et répondre.",
+            ...quoteRequestedEmail(),
           });
         });
       }
@@ -247,7 +241,8 @@ export async function PATCH(request: Request) {
 
           const email = quoteLifecycleEmail(
             action as QuoteLifecycleEmailAction,
-            quote as QuoteLifecycleEmailTarget
+            quote as QuoteLifecycleEmailTarget,
+            quoteId
           );
 
           await sendKlyxProfileTransactionalEmail(email);

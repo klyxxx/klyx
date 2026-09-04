@@ -7,6 +7,10 @@ const route = fs.readFileSync(
   path.join(process.cwd(), "app/api/quotes/route.ts"),
   "utf8"
 );
+const templates = fs.readFileSync(
+  path.join(process.cwd(), "lib/email/templates.ts"),
+  "utf8"
+);
 
 const patchRoute = route.slice(
   route.indexOf("export async function PATCH")
@@ -82,22 +86,20 @@ describe("quote lifecycle transactional email contract", () => {
     expect(emailIndex).toBeGreaterThan(returnIndex);
   });
 
-  it("emails the client when a provider sends a quote and the provider for client decisions", () => {
+  it("targets the client for sent quotes and the provider for client decisions", () => {
     expect(route).toContain(
       "profileId: quote.client_profile_id"
     );
     expect(route).toContain(
       "profileId: quote.provider_profile_id"
     );
-    expect(route).toContain("Votre devis KLYX est prêt");
-    expect(route).toContain(
-      "Votre devis KLYX a été accepté"
-    );
-    expect(route).toContain(
-      "Votre devis KLYX a été refusé"
-    );
-    expect(route).toContain(
-      "Demande de devis KLYX annulée"
-    );
+    expect(route).toContain("quoteSentEmail(quoteId)");
+    expect(route).toContain("quoteAcceptedEmail()");
+    expect(route).toContain("quoteRejectedEmail()");
+    expect(route).toContain("quoteCancelledEmail()");
+    expect(templates).toContain("Votre devis KLYX est prêt");
+    expect(templates).toContain("Votre devis a été accepté");
+    expect(templates).toContain("Votre devis n’a pas été retenu");
+    expect(templates).toContain("Une demande de devis a été annulée");
   });
 });

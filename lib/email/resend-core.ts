@@ -7,10 +7,11 @@ export type KlyxEmailDeliveryResult = {
   httpStatus?: number;
 };
 
-type KlyxResendEmailInput = {
+export type KlyxResendEmailInput = {
   to: string;
   subject: string;
   text: string;
+  html?: string;
 };
 
 type KlyxResendOptions = {
@@ -34,6 +35,7 @@ export async function sendResendEmail(
   const to = input.to.trim();
   const subject = input.subject.trim();
   const text = input.text.trim();
+  const html = input.html?.trim() || undefined;
 
   if (!apiKey || !to || !subject || !text) {
     return skippedResult();
@@ -53,6 +55,7 @@ export async function sendResendEmail(
           to: [to],
           subject,
           text,
+          ...(html ? { html } : {}),
         }),
       }
     );
