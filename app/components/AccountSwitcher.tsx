@@ -37,9 +37,11 @@ function profileName(
 function roleLabel(
   profile: SavedAccount | undefined,
   providerLabel: string,
-  clientLabel: string
+  clientLabel: string,
+  loadingLabel: string
 ) {
-  return profile?.accountType === "provider" ? providerLabel : clientLabel;
+  if (!profile) return loadingLabel;
+  return profile.accountType === "provider" ? providerLabel : clientLabel;
 }
 
 function ProfileAvatar({ profile }: { profile: SavedAccount | undefined }) {
@@ -162,6 +164,7 @@ export default function AccountSwitcher({
   const currentName = profileName(currentProfile, t("profileFallback"));
   const providerRoleLabel = t("providerRole");
   const clientRoleLabel = t("clientRole");
+  const loadingRoleLabel = t("loadingRole");
 
   return (
     <div
@@ -178,7 +181,7 @@ export default function AccountSwitcher({
         aria-haspopup="menu"
       >
         <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-blue-600/10 text-blue-700 dark:text-blue-300">
-          {switchingId ? (
+          {loading || switchingId ? (
             <LoaderCircle size={17} className="animate-spin" />
           ) : (
             <ProfileAvatar profile={currentProfile} />
@@ -188,7 +191,12 @@ export default function AccountSwitcher({
         <span className="min-w-0 flex-1">
           <span className="block truncate font-semibold">{currentName}</span>
           <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
-            {roleLabel(currentProfile, providerRoleLabel, clientRoleLabel)}
+            {roleLabel(
+              currentProfile,
+              providerRoleLabel,
+              clientRoleLabel,
+              loadingRoleLabel
+            )}
           </span>
         </span>
 
@@ -239,7 +247,12 @@ export default function AccountSwitcher({
                       {profileName(profile, t("profileFallback"))}
                     </span>
                     <span className="block truncate text-[11px] leading-4 text-muted-foreground">
-                      {roleLabel(profile, providerRoleLabel, clientRoleLabel)}
+                      {roleLabel(
+                        profile,
+                        providerRoleLabel,
+                        clientRoleLabel,
+                        loadingRoleLabel
+                      )}
                     </span>
                   </span>
 
