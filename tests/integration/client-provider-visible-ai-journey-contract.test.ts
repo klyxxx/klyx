@@ -35,6 +35,9 @@ describe("KLYX visible AI journeys", () => {
   it("uses one visible OpenAI wording call without changing deterministic facts", () => {
     const clientRoute = read("app/api/brain/converse/route.ts");
     const providerBoundary = read("app/api/provider/assistant/route.ts");
+    const providerCore = read(
+      "app/api/provider/assistant/assistant-route-core.ts"
+    );
     const providerVisible = read(
       "app/api/provider/assistant/assistant-route-visible.ts"
     );
@@ -60,8 +63,10 @@ describe("KLYX visible AI journeys", () => {
     expect(providerBoundary).toContain(
       'secureBoundary("POST", corePost, request)'
     );
+    expect(providerCore).toContain("finalizeProviderUnknownAiReply");
     expect(providerVisible).toContain("deterministicPost(request)");
-    expect(providerVisible).toContain('responseBody.aiMode === "openai"');
+    expect(providerVisible).toContain('responseBody.intent === "unknown"');
+    expect(providerVisible).not.toContain('responseBody.aiMode === "openai"');
     expect(providerVisible).toContain("deterministicSafety: true");
 
     expect(visibleAi).toContain("ne change aucun fait verrouillé");
