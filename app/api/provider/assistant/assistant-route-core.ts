@@ -12,6 +12,9 @@ import {
 import {
   generateKlyxAiReply,
 } from "@/lib/klyx-ai";
+import {
+  finalizeProviderUnknownAiReply,
+} from "@/lib/provider-assistant-visible-ai";
 
 async function getHourlyRate(
   profileId: string
@@ -49,7 +52,8 @@ async function getHourlyRate(
 
 async function improveUnknownProviderReply(
   message: string,
-  fallback: string
+  fallback: string,
+  lockedFacts: Record<string, unknown>
 ): Promise<{
   reply: string;
   aiMode: "openai" | "fallback";
@@ -66,13 +70,12 @@ async function improveUnknownProviderReply(
     accountType: "provider",
   });
 
-  return {
-    reply:
-      ai.mode === "openai"
-        ? ai.text
-        : fallback,
+  return finalizeProviderUnknownAiReply({
     aiMode: ai.mode,
-  };
+    candidate: ai.text,
+    deterministicReply: fallback,
+    lockedFacts,
+  });
 }
 
 export async function GET(request: Request) {
@@ -151,7 +154,13 @@ export async function POST(request: Request) {
       const improved =
         await improveUnknownProviderReply(
           message,
-          result.reply
+          result.reply,
+          {
+            intent: result.intent,
+            title: result.title,
+            draftId: null,
+            payload: result.payload,
+          }
         );
 
       reply = improved.reply;
