@@ -37,7 +37,8 @@ const DICTIONARIES: Record<KlyxAssistantCommandLocale, Dictionary> = {
     continue: "Continuer",
     actionsDetected: "Actions détectées",
     genericError: "KLYX ne peut pas traiter cette commande pour le moment.",
-    noPendingAction: "Aucune action en attente n’a été trouvée pour le moment.",
+    noPendingAction:
+      "Je ne trouve aucune action en attente liée à ta demande. Tu peux me demander l’état d’une mission, d’un paiement ou d’une offre, ou décrire un nouveau besoin.",
     publishedRequestTitle: "Besoin de {service}",
     publishedRequestFallbackDescription: "Demande KLYX pour {service} à {city}.",
   },
@@ -48,7 +49,8 @@ const DICTIONARIES: Record<KlyxAssistantCommandLocale, Dictionary> = {
     continue: "Continue",
     actionsDetected: "Detected actions",
     genericError: "KLYX cannot process this command right now.",
-    noPendingAction: "No pending action was found right now.",
+    noPendingAction:
+      "I can’t find any pending action related to your request. You can ask me about the status of a job, payment or offer, or describe a new need.",
     publishedRequestTitle: "Need for {service}",
     publishedRequestFallbackDescription: "KLYX request for {service} in {city}.",
   },
@@ -59,7 +61,8 @@ const DICTIONARIES: Record<KlyxAssistantCommandLocale, Dictionary> = {
     continue: "Doorgaan",
     actionsDetected: "Gedetecteerde acties",
     genericError: "KLYX kan deze opdracht momenteel niet verwerken.",
-    noPendingAction: "Er is momenteel geen openstaande actie gevonden.",
+    noPendingAction:
+      "Ik vind geen openstaande actie die bij je vraag past. Je kunt me vragen naar de status van een opdracht, betaling of offerte, of een nieuwe behoefte beschrijven.",
     publishedRequestTitle: "Nood aan {service}",
     publishedRequestFallbackDescription: "KLYX-aanvraag voor {service} in {city}.",
   },
@@ -70,7 +73,8 @@ const DICTIONARIES: Record<KlyxAssistantCommandLocale, Dictionary> = {
     continue: "Weiter",
     actionsDetected: "Erkannte Aktionen",
     genericError: "KLYX kann diesen Befehl derzeit nicht verarbeiten.",
-    noPendingAction: "Derzeit wurde keine ausstehende Aktion gefunden.",
+    noPendingAction:
+      "Ich finde keine ausstehende Aktion, die zu deiner Anfrage passt. Du kannst mich nach dem Status eines Auftrags, einer Zahlung oder eines Angebots fragen oder einen neuen Bedarf beschreiben.",
     publishedRequestTitle: "Bedarf an {service}",
     publishedRequestFallbackDescription: "KLYX-Anfrage für {service} in {city}.",
   },
