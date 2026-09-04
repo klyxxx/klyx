@@ -1,10 +1,16 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
 import {
   ACTIVE_PROFILE_COOKIE,
   getActiveProfile,
 } from "@/lib/active-profile";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import {
+  accountCreatedEmail,
+  profileCreatedEmail,
+  profileDeletedEmail,
+} from "@/lib/email/lifecycle-templates";
+import { sendKlyxTransactionalEmail } from "@/lib/email/resend";
 import { getKlyxMarket } from "@/lib/klyx-supported-markets";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/supabase/server";
@@ -267,6 +273,16 @@ export async function POST(request: Request) {
       );
     }
 
+    const { count: existingProfileCount, error: profileCountError } =
+      await supabaseAdmin
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .eq("owner_user_id", user.id);
+
+    if (profileCountError) {
+      throw profileCountError;
+    }
+
     const { data: profileId, error } = await supabase.rpc(
       "klyx_create_profile",
       {
@@ -298,6 +314,25 @@ export async function POST(request: Request) {
 
     if (marketWriteError) {
       throw marketWriteError;
+    }
+
+    const userEmail = user.email?.trim();
+
+    if (userEmail) {
+      const content =
+        (existingProfileCount ?? 0) === 0
+          ? accountCreatedEmail({
+              firstName: profileInput.firstName,
+              accountType,
+            })
+          : profileCreatedEmail(accountType);
+
+      after(async () => {
+        await sendKlyxTransactionalEmail({
+          to: userEmail,
+          ...content,
+        });
+      });
     }
 
     const response = NextResponse.json({ profileId }, { status: 201 });
@@ -496,6 +531,17 @@ export async function DELETE(request: Request) {
         .remove(
           storedAvatarObjects.map((object) => `${body.profileId}/${object.name}`)
         );
+    }
+
+    const userEmail = user.email?.trim();
+
+    if (userEmail) {
+      after(async () => {
+        await sendKlyxTransactionalEmail({
+          to: userEmail,
+          ...profileDeletedEmail(),
+        });
+      });
     }
 
     const response = NextResponse.json({ success: true });
