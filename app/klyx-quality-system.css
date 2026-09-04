@@ -8,16 +8,16 @@
 :root {
   --klyx-premium-radius: 2rem;
   --klyx-premium-border: color-mix(in oklab, var(--border) 82%, white 18%);
-  --klyx-premium-shadow: 0 24px 80px rgba(37, 24, 67, 0.1);
-  --klyx-premium-shadow-hover: 0 30px 96px rgba(76, 29, 149, 0.16);
-  --klyx-focus: rgba(124, 58, 237, 0.48);
+  --klyx-premium-shadow: 0 18px 56px rgba(24, 24, 27, 0.07);
+  --klyx-premium-shadow-hover: 0 22px 68px rgba(24, 24, 27, 0.1);
+  --klyx-focus: rgba(37, 99, 235, 0.42);
 }
 
 .dark {
   --klyx-premium-border: rgba(255, 255, 255, 0.1);
   --klyx-premium-shadow: 0 28px 90px rgba(0, 0, 0, 0.34);
   --klyx-premium-shadow-hover: 0 34px 110px rgba(0, 0, 0, 0.44);
-  --klyx-focus: rgba(167, 139, 250, 0.58);
+  --klyx-focus: rgba(37, 99, 235, 0.58);
 }
 
 .klyx-app-content {
@@ -50,21 +50,14 @@
 .klyx-premium-hero {
   position: relative;
   isolation: isolate;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background:
-    radial-gradient(circle at 82% 12%, rgba(96, 165, 250, 0.2), transparent 28rem),
-    radial-gradient(circle at 8% 92%, rgba(167, 139, 250, 0.24), transparent 24rem),
-    linear-gradient(135deg, #111018 0%, #342064 52%, #111827 100%);
-  box-shadow: 0 26px 90px rgba(30, 18, 60, 0.24);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  box-shadow: var(--klyx-premium-shadow);
 }
 
 .klyx-premium-hero::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background: linear-gradient(115deg, rgba(255, 255, 255, 0.07), transparent 32%, transparent 70%, rgba(255, 255, 255, 0.035));
+  content: none;
 }
 
 .klyx-premium-interactive {
