@@ -34,7 +34,7 @@ describe("assistant message capacity contract", () => {
       "deterministicPost(request)"
     );
     const visibleAiIndex = converseRoute.indexOf(
-      "generateKlyxVisibleAiReply"
+      "await generateKlyxVisibleAiReply"
     );
 
     expect(guardIndex).toBeGreaterThan(-1);
