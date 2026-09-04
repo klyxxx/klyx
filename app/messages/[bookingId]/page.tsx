@@ -15,6 +15,7 @@ import { ArrowLeft, LoaderCircle, Send, UserRound } from "lucide-react";
 
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import { getActiveProfileAccount } from "@/lib/account-switcher";
+import { formatKlyxBookingDetailStatus } from "@/lib/klyx-booking-detail-i18n";
 import type { KlyxLocale } from "@/lib/klyx-i18n";
 import {
   getKlyxMessageConversationLocaleTag,
@@ -383,7 +384,7 @@ export default function ConversationPage() {
           </div>
 
           <span className="hidden rounded-full border border-border bg-background px-3 py-1 text-xs font-medium text-muted-foreground sm:inline-flex">
-            {booking.status}
+            {formatKlyxBookingDetailStatus(locale, booking.status)}
           </span>
         </header>
 
