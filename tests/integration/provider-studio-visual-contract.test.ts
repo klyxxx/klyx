@@ -11,6 +11,7 @@ describe("KLYX provider studio visual contract", () => {
   it("renders Services natively in the definitive KLYX language without a legacy theme shim", () => {
     const page = read("app/provider/studio/page.tsx");
     const studio = read("app/components/ProviderStudio.tsx");
+    const studioI18n = read("lib/klyx-provider-studio-i18n.ts");
 
     expect(page).not.toContain("studio.module.css");
     expect(page).not.toContain("styles.studio");
@@ -22,7 +23,8 @@ describe("KLYX provider studio visual contract", () => {
     expect(studio).toContain("text-blue-600");
     expect(studio).toContain("bg-blue-600");
     expect(studio).toContain("accent-blue-600");
-    expect(studio).toContain("Configurer mes services");
+    expect(studio).toContain('{t("pageTitle")}');
+    expect(studioI18n).toContain('pageTitle: "Configurer mes services"');
     expect(studio).not.toContain("violet-");
     expect(studio).not.toContain("indigo-");
     expect(studio).not.toContain("fuchsia-");
