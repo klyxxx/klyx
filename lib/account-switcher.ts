@@ -125,7 +125,13 @@ export async function getActiveProfileAccount(): Promise<SavedAccount> {
 }
 
 export async function getActiveClientProfile(): Promise<SavedAccount> {
-  return getActiveProfileAccount();
+  const profile = await getActiveProfileAccount();
+
+  if (profile.accountType !== "client") {
+    throw new Error("Le profil KLYX actif n’est pas un profil client.");
+  }
+
+  return profile;
 }
 
 export async function switchAccount(profileId: string): Promise<void> {
