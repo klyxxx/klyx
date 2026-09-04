@@ -2,6 +2,10 @@ import "server-only";
 
 import { sendKlyxDeduplicatedEmail } from "@/lib/email/deduplicated-delivery";
 import {
+  groupRefundStartedClientEmail,
+  groupRefundStartedProviderEmail,
+} from "@/lib/email/group-refund-templates";
+import {
   paymentFailedEmail,
   paymentReceivedEmail,
   refundConfirmedEmail,
@@ -119,6 +123,28 @@ export async function sendGroupPaymentFailedEmail(input: {
     profileId: input.clientProfileId,
     ...groupPaymentFailedEmail(input.groupId),
   });
+}
+
+export async function sendGroupRefundStartedEmails(input: {
+  groupId: string;
+  refundId: string;
+  clientProfileId: string;
+  providerProfileId: string;
+}) {
+  await Promise.all([
+    sendKlyxDeduplicatedEmail({
+      deduplicationKey: `booking-group:${input.groupId}:refund:${input.refundId}:processing:client`,
+      templateKey: "booking_group.refund_processing.client",
+      profileId: input.clientProfileId,
+      ...groupRefundStartedClientEmail(input.groupId),
+    }),
+    sendKlyxDeduplicatedEmail({
+      deduplicationKey: `booking-group:${input.groupId}:refund:${input.refundId}:processing:provider`,
+      templateKey: "booking_group.refund_processing.provider",
+      profileId: input.providerProfileId,
+      ...groupRefundStartedProviderEmail(input.groupId),
+    }),
+  ]);
 }
 
 export async function sendGroupRefundConfirmedEmails(input: {
