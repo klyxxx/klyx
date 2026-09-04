@@ -53,9 +53,11 @@ async function addSyntheticPhoto(page: Page) {
   );
 
   const visionConsent = page.getByRole("checkbox");
-  await page
-    .getByText("Autoriser l’analyse visuelle IA de cette photo", { exact: true })
-    .click();
+  if (!(await visionConsent.isChecked())) {
+    await page
+      .getByText("Autoriser l’analyse visuelle IA de cette photo", { exact: true })
+      .click();
+  }
   await expect(visionConsent).toBeChecked();
 
   const submit = page.locator('button[type="submit"]');
