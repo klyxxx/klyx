@@ -59,6 +59,29 @@ describe("quote lifecycle transactional email contract", () => {
     );
   });
 
+  it("stops deferred delivery when the quote participant lookup fails", () => {
+    const lookupFailureIndex = patchRoute.indexOf(
+      "if (quoteError || !quote)"
+    );
+    const warningIndex = patchRoute.indexOf(
+      'event: "quote_lifecycle_email_lookup_failed"',
+      lookupFailureIndex
+    );
+    const returnIndex = patchRoute.indexOf(
+      "return;",
+      warningIndex
+    );
+    const emailIndex = patchRoute.indexOf(
+      "await sendKlyxProfileTransactionalEmail(email);",
+      returnIndex
+    );
+
+    expect(lookupFailureIndex).toBeGreaterThanOrEqual(0);
+    expect(warningIndex).toBeGreaterThan(lookupFailureIndex);
+    expect(returnIndex).toBeGreaterThan(warningIndex);
+    expect(emailIndex).toBeGreaterThan(returnIndex);
+  });
+
   it("emails the client when a provider sends a quote and the provider for client decisions", () => {
     expect(route).toContain(
       "profileId: quote.client_profile_id"
