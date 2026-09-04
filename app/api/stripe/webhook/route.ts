@@ -28,6 +28,7 @@ import {
 
 // KLYX_GROUP_WEBHOOK_12_86
 // KLYX_STRIPE_WEBHOOK_RETRY_LEASE_16_07
+// KLYX_STRIPE_EXPIRED_CHECKOUT_RELEASE_16_08
 
 function getStripeWebhookConfig() {
   const stripeSecretKey =
@@ -144,6 +145,64 @@ function isKlyxPaymentIntent(
     intent.metadata?.booking_id ||
     intent.metadata?.booking_group_id
   );
+}
+
+async function releaseExpiredCheckoutSession(
+  session: Stripe.Checkout.Session
+) {
+  if (session.status !== "expired") {
+    return;
+  }
+
+  const groupId =
+    session.metadata?.booking_group_id?.trim() ??
+    "";
+
+  if (groupId) {
+    const { error } = await supabaseAdmin
+      .from("booking_groups")
+      .update({
+        payment_status: "failed",
+        stripe_checkout_session_id: null,
+        payment_attempt_token: null,
+        payment_checkout_started_at: null,
+        payment_failure_code: "checkout_expired",
+        payment_failure_message:
+          "La session de paiement a expiré. Tu peux recommencer le paiement.",
+        payment_failed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", groupId)
+      .eq("stripe_checkout_session_id", session.id)
+      .neq("payment_status", "paid")
+      .neq("payment_status", "refunded");
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return;
+  }
+
+  const bookingId =
+    session.metadata?.booking_id?.trim() ??
+    "";
+
+  if (!bookingId) {
+    return;
+  }
+
+  const { error } = await supabaseAdmin.rpc(
+    "klyx_release_expired_booking_checkout",
+    {
+      p_booking_id: bookingId,
+      p_checkout_session_id: session.id,
+    }
+  );
+
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 function supersededClaimResponse(
@@ -354,6 +413,19 @@ export async function POST(
             );
           }
         }
+
+        break;
+      }
+
+      case "checkout.session.expired": {
+        const session =
+          event.data
+            .object as
+            Stripe.Checkout.Session;
+
+        await releaseExpiredCheckoutSession(
+          session
+        );
 
         break;
       }
