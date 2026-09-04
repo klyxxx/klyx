@@ -34,7 +34,10 @@ type CommandResponse = {
   mode?: "existing_action" | "new_request" | "no_action";
   href?: string;
   action?: {
+    title?: string;
+    description?: string;
     href?: string;
+    label?: string;
   };
 };
 
@@ -58,6 +61,10 @@ type BrainResponse = {
 type ConversationMessage = {
   role: "user" | "assistant";
   content: string;
+  action?: {
+    href: string;
+    label: string;
+  };
 };
 
 type ConfirmationResponse = {
@@ -323,19 +330,49 @@ export default function AssistantCommandBar(_props: Props) {
         const result = (await response.json()) as CommandResponse;
         if (!response.ok) throw new Error("Command unavailable");
 
-        if (result.mode === "existing_action" && result.action?.href) {
-          router.push(result.action.href);
+        if (result.mode === "existing_action") {
+          const title = result.action?.title?.trim();
+          const description = result.action?.description?.trim();
+
+          if (!title || !description) {
+            throw new Error("Grounded action unavailable");
+          }
+
+          const action =
+            result.action?.href && result.action?.label
+              ? {
+                  href: result.action.href,
+                  label: result.action.label,
+                }
+              : undefined;
+
+          setMessages((current) => [
+            ...current,
+            { role: "user", content: message },
+            {
+              role: "assistant",
+              content: `${title}. ${description}`,
+              action,
+            },
+          ]);
+          setValue("");
+          requestAnimationFrame(() => textareaRef.current?.focus());
+          return;
+        }
+
+        if (result.mode === "no_action") {
+          setMessages((current) => [
+            ...current,
+            { role: "user", content: message },
+            { role: "assistant", content: t("noPendingAction") },
+          ]);
+          setValue("");
+          requestAnimationFrame(() => textareaRef.current?.focus());
           return;
         }
 
         if (result.mode !== "new_request") {
-          if (result.href) {
-            router.push(result.href);
-            return;
-          }
-
-          router.push("/assistant/actions");
-          return;
+          throw new Error("Unsupported command mode");
         }
       }
 
@@ -559,7 +596,15 @@ export default function AssistantCommandBar(_props: Props) {
                     : "border border-border bg-background text-foreground dark:border-white/10 dark:bg-zinc-950"
                 }`}
               >
-                {message.content}
+                <p>{message.content}</p>
+                {message.action && (
+                  <Link
+                    href={message.action.href}
+                    className="mt-3 inline-flex min-h-10 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500"
+                  >
+                    {message.action.label}
+                  </Link>
+                )}
               </div>
             </div>
           ))}

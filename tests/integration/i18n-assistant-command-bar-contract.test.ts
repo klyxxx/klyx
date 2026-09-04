@@ -21,22 +21,33 @@ describe("KLYX assistant command bar safety and i18n contract", () => {
     expect(source).toContain("maxLength={KLYX_ASSISTANT_MESSAGE_MAX_LENGTH}");
   });
 
-  it("keeps browser-side execution forbidden and only navigates to server-selected destinations", () => {
+  it("keeps browser-side execution forbidden and surfaces server-selected actions in chat", () => {
     expect(compactSource).toContain('result.mode === "existing_action"');
-    expect(compactSource).toContain("router.push(result.action.href)");
-    expect(compactSource).toContain("if (result.href)");
-    expect(compactSource).toContain("router.push(result.href)");
-    expect(source).toContain('router.push("/assistant/actions")');
+    expect(source).toContain("result.action?.title?.trim()");
+    expect(source).toContain("result.action?.description?.trim()");
+    expect(source).toContain("href: result.action.href");
+    expect(source).toContain("label: result.action.label");
+    expect(source).toContain("href={message.action.href}");
+    expect(source).toContain("{message.action.label}");
+    expect(source).not.toContain("router.push(result.action.href)");
+    expect(source).not.toContain("router.push(result.href)");
+    expect(source).not.toContain('router.push("/assistant/actions")');
     expect(source).not.toContain("payment_intents");
     expect(source).not.toContain("checkout.sessions");
     expect(source).not.toContain("refunds.create");
     expect(source).not.toContain("/api/bookings/create");
   });
 
+  it("keeps no-action results conversational instead of redirecting", () => {
+    expect(compactSource).toContain('result.mode === "no_action"');
+    expect(source).toContain('content: t("noPendingAction")');
+    expect(source).toContain("requestAnimationFrame(() => textareaRef.current?.focus())");
+  });
+
   it("keeps the composer singular instead of rendering competing suggested actions", () => {
     expect(source).not.toContain("actions.slice");
     expect(source).not.toContain("getKlyxAssistantCommandExamples");
-    expect(source).not.toContain("action.label");
+    expect(source).toContain("message.action &&");
   });
 
   it("preserves explicit photo navigation and progressive voice input", () => {
@@ -56,6 +67,7 @@ describe("KLYX assistant command bar safety and i18n contract", () => {
     expect(source).toContain("useKlyxLocale()");
     expect(source).toContain("translateKlyxAssistantCommand");
     expect(compactSource).toContain("const message = value.trim();");
+    expect(source).toContain('t("noPendingAction")');
     expect(source).toContain("setValue((current) =>");
   });
 });
