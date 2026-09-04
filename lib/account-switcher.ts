@@ -44,6 +44,8 @@ export type ActiveProfileChangedDetail = {
   changedAt: number;
 };
 
+let activeProfileSwitchPromise: Promise<void> | null = null;
+
 function emitActiveProfileChanged(
   profileId: string,
   accountType: AccountType
@@ -134,7 +136,7 @@ export async function getActiveClientProfile(): Promise<SavedAccount> {
   return profile;
 }
 
-export async function switchAccount(profileId: string): Promise<void> {
+async function performAccountSwitch(profileId: string): Promise<void> {
   const response = await fetch("/api/profiles/active", {
     method: "POST",
     headers: {
@@ -162,6 +164,23 @@ export async function switchAccount(profileId: string): Promise<void> {
   }
 
   emitActiveProfileChanged(profileId, result.accountType);
+}
+
+export async function switchAccount(profileId: string): Promise<void> {
+  if (activeProfileSwitchPromise) {
+    throw new Error("Un changement de profil KLYX est déjà en cours.");
+  }
+
+  const pendingSwitch = performAccountSwitch(profileId);
+  activeProfileSwitchPromise = pendingSwitch;
+
+  try {
+    await pendingSwitch;
+  } finally {
+    if (activeProfileSwitchPromise === pendingSwitch) {
+      activeProfileSwitchPromise = null;
+    }
+  }
 }
 
 export async function getAvailableServices(): Promise<ServiceOption[]> {
