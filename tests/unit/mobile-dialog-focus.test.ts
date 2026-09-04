@@ -22,7 +22,7 @@ describe("mobile navigation accessibility contract", () => {
   });
 
   it("uses a fixed four-entry mobile navigation instead of a modal drawer", () => {
-    expect(sidebar).toContain('aria-label="Navigation mobile KLYX"');
+    expect(sidebar).toContain("aria-label={mobileNavigationLabel}");
     expect(sidebar).toContain("grid-cols-4");
     expect(sidebar).toContain("min-h-14");
     expect(sidebar).not.toContain('role="dialog"');
