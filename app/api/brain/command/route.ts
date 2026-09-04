@@ -15,6 +15,9 @@ import {
   normalizeBrainCommandMessage,
 } from "@/lib/brain-command-intent";
 import {
+  normalizeKlyxAssistantActionHref,
+} from "@/lib/klyx-assistant-action-href";
+import {
   isKlyxAssistantMessageTooLong,
 } from "@/lib/klyx-assistant-message-limits";
 
@@ -108,12 +111,31 @@ export async function POST(
         );
 
       if (action) {
+        const safeHref =
+          normalizeKlyxAssistantActionHref(
+            action.href
+          );
+
+        if (!safeHref) {
+          return NextResponse.json({
+            mode:
+              "no_action",
+            automaticExecutionAllowed:
+              false,
+            href:
+              "/assistant/actions",
+          });
+        }
+
         return NextResponse.json({
           mode:
             "existing_action",
           automaticExecutionAllowed:
             false,
-          action,
+          action: {
+            ...action,
+            href: safeHref,
+          },
         });
       }
     }
