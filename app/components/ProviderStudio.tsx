@@ -1,6 +1,13 @@
 "use client";
 
-import { ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  ChangeEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import {
   BadgeCheck,
@@ -24,15 +31,24 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import KlyxSelect from "@/app/components/KlyxSelect";
+import type { KlyxLocale } from "@/lib/klyx-i18n";
+import {
+  getKlyxProviderStudioDayLabel,
+  getKlyxProviderStudioDocumentStatusLabel,
+  getKlyxProviderStudioDocumentTypeLabel,
+  getKlyxProviderStudioServiceLabel,
+  translateKlyxProviderStudio,
+  type KlyxProviderStudioMessageKey,
+} from "@/lib/klyx-provider-studio-i18n";
 import {
   DAY_LABELS,
   DOCUMENT_TYPES,
-  serviceLabel,
   type AvailabilityDay,
   type ProviderServiceDraft,
   type ProviderStudioData,
 } from "@/lib/provider-studio";
-import KlyxSelect from "@/app/components/KlyxSelect";
 
 type ProviderStudioProps = {
   profileId: string;
@@ -43,21 +59,12 @@ type ApiResult = {
   error?: string;
 };
 
-const DOCUMENT_STATUS: Record<string, { label: string; className: string }> = {
-  pending: {
-    label: "En vérification",
-    className:
-      "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
-  },
-  verified: {
-    label: "Vérifié",
-    className:
-      "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-  },
-  rejected: {
-    label: "À remplacer",
-    className: "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300",
-  },
+const DOCUMENT_STATUS_CLASS: Record<string, string> = {
+  pending:
+    "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+  verified:
+    "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+  rejected: "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300",
 };
 
 function inputClassName(): string {
@@ -72,17 +79,29 @@ function normalizeServiceSearch(value: string): string {
     .trim();
 }
 
-async function readApiResponse(response: Response): Promise<ProviderStudioData> {
+async function readApiResponse(
+  response: Response,
+  fallbackError: string
+): Promise<ProviderStudioData> {
   const result = (await response.json()) as ProviderStudioData & ApiResult;
 
   if (!response.ok) {
-    throw new Error(result.error ?? "Une erreur inattendue est survenue.");
+    throw new Error(fallbackError);
   }
 
   return result.data ?? result;
 }
 
 export default function ProviderStudio({ profileId }: ProviderStudioProps) {
+  const { locale } = useKlyxLocale();
+  const localeRef = useRef(locale);
+  localeRef.current = locale;
+
+  const t = (
+    key: KlyxProviderStudioMessageKey,
+    params?: Record<string, string | number>
+  ) => translateKlyxProviderStudio(locale, key, params);
+
   const [studio, setStudio] = useState<ProviderStudioData | null>(null);
   const [businessName, setBusinessName] = useState("");
   const [headline, setHeadline] = useState("");
@@ -129,12 +148,15 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
         method: "GET",
         cache: "no-store",
       });
-      applyStudioData(await readApiResponse(response));
-    } catch (error) {
+      applyStudioData(
+        await readApiResponse(
+          response,
+          translateKlyxProviderStudio(localeRef.current, "loadError")
+        )
+      );
+    } catch {
       setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Impossible de charger la fiche prestataire."
+        translateKlyxProviderStudio(localeRef.current, "loadError")
       );
     } finally {
       setLoading(false);
@@ -160,10 +182,12 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
     return services
       .filter((service) => !service.enabled)
       .filter((service) =>
-        normalizeServiceSearch(serviceLabel(service.slug, service.name)).includes(query)
+        normalizeServiceSearch(
+          getKlyxProviderStudioServiceLabel(locale, service.slug, service.name)
+        ).includes(query)
       )
       .slice(0, 8);
-  }, [serviceSearch, services]);
+  }, [locale, serviceSearch, services]);
 
   const selectedService = useMemo(
     () => services.find((service) => service.serviceId === selectedServiceId) ?? null,
@@ -195,16 +219,28 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
 
   const completionItems = useMemo(
     () => [
-      { label: "Photo de profil", complete: Boolean(studio?.profile.avatarUrl) },
       {
-        label: "Présentation commerciale",
+        label: translateKlyxProviderStudio(locale, "completionAvatar"),
+        complete: Boolean(studio?.profile.avatarUrl),
+      },
+      {
+        label: translateKlyxProviderStudio(locale, "completionPresentation"),
         complete: headline.trim().length >= 10 && bio.trim().length >= 60,
       },
-      { label: "Service, tarif et horaires", complete: completeService },
-      { label: "Pièce d’identité transmise", complete: hasIdentityDocument },
-      { label: "Galerie professionnelle", complete: (studio?.gallery.length ?? 0) > 0 },
+      {
+        label: translateKlyxProviderStudio(locale, "completionService"),
+        complete: completeService,
+      },
+      {
+        label: translateKlyxProviderStudio(locale, "completionIdentity"),
+        complete: hasIdentityDocument,
+      },
+      {
+        label: translateKlyxProviderStudio(locale, "completionGallery"),
+        complete: (studio?.gallery.length ?? 0) > 0,
+      },
     ],
-    [bio, completeService, hasIdentityDocument, headline, studio]
+    [bio, completeService, hasIdentityDocument, headline, locale, studio]
   );
 
   const completionPercentage = Math.round(
@@ -308,18 +344,12 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
           services,
         }),
       });
-      const data = await readApiResponse(response);
+      const data = await readApiResponse(response, t("saveError"));
       applyStudioData(data);
-      setMessage(
-        publish
-          ? "Ta fiche prestataire est publiée et visible dans la recherche."
-          : "Brouillon enregistré. Tes services ne sont pas visibles par les clients."
-      );
+      setMessage(publish ? t("savePublishedSuccess") : t("saveDraftSuccess"));
       window.scrollTo({ top: 0, behavior: "smooth" });
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Impossible d’enregistrer la fiche."
-      );
+    } catch {
+      setErrorMessage(t("saveError"));
       window.scrollTo({ top: 0, behavior: "smooth" });
     } finally {
       setSaving(false);
@@ -329,6 +359,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
   async function uploadMedia(
     kind: "gallery" | "document",
     file: File,
+    fallbackError: string,
     extra?: { documentType?: string }
   ) {
     const formData = new FormData();
@@ -343,7 +374,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
       method: "POST",
       body: formData,
     });
-    const data = await readApiResponse(response);
+    const data = await readApiResponse(response, fallbackError);
 
     setStudio((current) =>
       current
@@ -369,12 +400,10 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
     setErrorMessage("");
 
     try {
-      await uploadMedia("gallery", file);
-      setMessage("Photo ajoutée à la galerie.");
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Impossible d’ajouter la photo."
-      );
+      await uploadMedia("gallery", file, t("galleryUploadError"));
+      setMessage(t("galleryUploadSuccess"));
+    } catch {
+      setErrorMessage(t("galleryUploadError"));
     } finally {
       setUploadingGallery(false);
     }
@@ -391,19 +420,22 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
     setErrorMessage("");
 
     try {
-      await uploadMedia("document", file, { documentType });
-      setMessage("Document transmis pour vérification.");
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Impossible d’envoyer le document."
+      await uploadMedia(
+        "document",
+        file,
+        t("documentUploadError"),
+        { documentType }
       );
+      setMessage(t("documentUploadSuccess"));
+    } catch {
+      setErrorMessage(t("documentUploadError"));
     } finally {
       setUploadingDocument(false);
     }
   }
 
   async function deleteMedia(kind: "gallery" | "document", id: string) {
-    if (!window.confirm("Supprimer définitivement ce fichier ?")) return;
+    if (!window.confirm(t("deleteConfirm"))) return;
 
     setMessage("");
     setErrorMessage("");
@@ -414,7 +446,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kind, id }),
       });
-      const data = await readApiResponse(response);
+      const data = await readApiResponse(response, t("deleteError"));
       setStudio((current) =>
         current
           ? {
@@ -426,11 +458,9 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
             }
           : data
       );
-      setMessage("Fichier supprimé.");
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error ? error.message : "Impossible de supprimer le fichier."
-      );
+      setMessage(t("deleteSuccess"));
+    } catch {
+      setErrorMessage(t("deleteError"));
     }
   }
 
@@ -439,9 +469,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
       <main className="grid min-h-[55vh] place-items-center bg-background text-foreground">
         <div className="text-center">
           <LoaderCircle className="mx-auto animate-spin text-blue-600" size={36} />
-          <p className="mt-4 text-sm text-muted-foreground">
-            Chargement de tes services...
-          </p>
+          <p className="mt-4 text-sm text-muted-foreground">{t("loading")}</p>
         </div>
       </main>
     );
@@ -451,7 +479,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
     return (
       <main className="bg-background px-4 py-10 text-foreground">
         <div className="mx-auto max-w-3xl rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-red-700 dark:text-red-300">
-          {errorMessage || "La fiche prestataire est introuvable."}
+          {errorMessage || t("notFound")}
         </div>
       </main>
     );
@@ -464,17 +492,20 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-3">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">
-                Services
+                {t("eyebrow")}
               </p>
-              <StatusBadge published={studio.providerProfile.isPublished} />
+              <StatusBadge
+                published={studio.providerProfile.isPublished}
+                locale={locale}
+              />
             </div>
             {/* KLYX_AI_FIRST_PROVIDER_STUDIO_15_03 */}
             {/* KLYX_PROVIDER_STUDIO_NATIVE_SINGLE_BLUE */}
             <h1 className="mt-3 text-3xl font-bold tracking-[-0.04em] sm:text-5xl">
-              Configurer mes services
+              {t("pageTitle")}
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-              Ajoute ce que tu proposes, précise tes tarifs et disponibilités, puis publie quand tout est prêt.
+              {t("pageDescription")}
             </p>
           </div>
 
@@ -484,7 +515,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
               className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-semibold transition hover:bg-muted"
             >
               <Eye size={17} />
-              Voir ma fiche publique
+              {t("publicProfile")}
             </Link>
           )}
         </header>
@@ -507,20 +538,20 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
           <div className="min-w-0 space-y-6">
             <SectionCard
               icon={<BriefcaseBusiness size={21} />}
-              title="Présentation"
-              description="Les informations visibles sur ta fiche publique."
+              title={t("presentationTitle")}
+              description={t("presentationDescription")}
             >
               <div className="grid gap-5 sm:grid-cols-2">
                 <Field
                   id="businessName"
-                  label="Nom commercial (facultatif)"
+                  label={t("businessNameLabel")}
                   value={businessName}
                   onChange={setBusinessName}
-                  placeholder={`${studio.profile.firstName} Services`}
+                  placeholder={`${studio.profile.firstName} ${t("businessSuffix")}`}
                 />
                 <Field
                   id="experience"
-                  label="Années d’expérience"
+                  label={t("experienceLabel")}
                   value={yearsExperience}
                   onChange={setYearsExperience}
                   type="number"
@@ -532,17 +563,17 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
               <div className="mt-5">
                 <Field
                   id="headline"
-                  label="Titre de ta fiche"
+                  label={t("headlineLabel")}
                   value={headline}
                   onChange={setHeadline}
-                  placeholder="Exemple : Prestataire fiable et ponctuel à Bruxelles"
+                  placeholder={t("headlinePlaceholder")}
                 />
-                <Counter current={headline.length} maximum={120} />
+                <Counter current={headline.length} maximum={120} locale={locale} />
               </div>
 
               <div className="mt-5">
                 <label htmlFor="bio" className="mb-2 block text-sm font-medium">
-                  Présentation générale
+                  {t("bioLabel")}
                 </label>
                 <textarea
                   id="bio"
@@ -550,17 +581,22 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                   maxLength={2000}
                   value={bio}
                   onChange={(event) => setBio(event.target.value)}
-                  placeholder="Présente ton expérience, ta méthode de travail et ce qui rassurera tes futurs clients."
+                  placeholder={t("bioPlaceholder")}
                   className={inputClassName()}
                 />
-                <Counter current={bio.length} maximum={2000} minimum={60} />
+                <Counter
+                  current={bio.length}
+                  maximum={2000}
+                  minimum={60}
+                  locale={locale}
+                />
               </div>
             </SectionCard>
 
             <SectionCard
               icon={<BriefcaseBusiness size={21} />}
-              title="Mes services"
-              description="Recherche un service, ajoute-le, puis configure ses détails."
+              title={t("servicesTitle")}
+              description={t("servicesDescription")}
             >
               {/* KLYX_PROVIDER_SERVICE_SEARCH_16_13 */}
               <div className="relative">
@@ -579,8 +615,8 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                     }
                     if (event.key === "Escape") setServiceSearch("");
                   }}
-                  placeholder="Rechercher un service..."
-                  aria-label="Rechercher un service à proposer"
+                  placeholder={t("serviceSearchPlaceholder")}
+                  aria-label={t("serviceSearchAria")}
                   autoComplete="off"
                   className={`${inputClassName()} pl-12`}
                 />
@@ -588,31 +624,36 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                 {serviceSearch.trim() && (
                   <div className="absolute z-30 mt-2 max-h-80 w-full overflow-y-auto rounded-2xl border border-border bg-card p-2 shadow-lg">
                     {availableServiceMatches.length > 0 ? (
-                      availableServiceMatches.map((service) => (
-                        <button
-                          key={service.serviceId}
-                          type="button"
-                          onClick={() => activateService(service.serviceId)}
-                          className="flex w-full items-center justify-between gap-3 rounded-xl px-4 py-3 text-left transition hover:bg-blue-600/8 focus-visible:bg-blue-600/8 focus-visible:outline-none"
-                        >
-                          <span className="font-semibold">
-                            {serviceLabel(service.slug, service.name)}
-                          </span>
-                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
-                            <Plus size={16} />
-                          </span>
-                        </button>
-                      ))
+                      availableServiceMatches.map((service) => {
+                        const label = getKlyxProviderStudioServiceLabel(
+                          locale,
+                          service.slug,
+                          service.name
+                        );
+                        return (
+                          <button
+                            key={service.serviceId}
+                            type="button"
+                            onClick={() => activateService(service.serviceId)}
+                            className="flex w-full items-center justify-between gap-3 rounded-xl px-4 py-3 text-left transition hover:bg-blue-600/8 focus-visible:bg-blue-600/8 focus-visible:outline-none"
+                          >
+                            <span className="font-semibold">{label}</span>
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
+                              <Plus size={16} />
+                            </span>
+                          </button>
+                        );
+                      })
                     ) : (
                       <p className="px-4 py-4 text-sm text-muted-foreground">
-                        Aucun autre service trouvé.
+                        {t("noServiceFound")}
                       </p>
                     )}
                   </div>
                 )}
               </div>
               <p className="mt-2 text-xs text-muted-foreground">
-                Tape le nom d’un métier ou d’un service, puis sélectionne-le pour l’ajouter.
+                {t("serviceSearchHint")}
               </p>
 
               {enabledServices.length > 0 && (
@@ -620,6 +661,11 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                   <div className="mb-6 flex flex-wrap gap-2">
                     {enabledServices.map((service) => {
                       const active = selectedServiceId === service.serviceId;
+                      const label = getKlyxProviderStudioServiceLabel(
+                        locale,
+                        service.slug,
+                        service.name
+                      );
                       return (
                         <div
                           key={service.serviceId}
@@ -634,12 +680,12 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                             onClick={() => setSelectedServiceId(service.serviceId)}
                             className="px-4 py-2"
                           >
-                            {serviceLabel(service.slug, service.name)}
+                            {label}
                           </button>
                           <button
                             type="button"
                             onClick={() => deactivateService(service.serviceId)}
-                            aria-label={`Retirer ${serviceLabel(service.slug, service.name)}`}
+                            aria-label={t("removeServiceAria", { name: label })}
                             className="mr-1 grid h-7 w-7 place-items-center rounded-full transition hover:bg-black/10 dark:hover:bg-white/10"
                           >
                             <X size={14} />
@@ -652,6 +698,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                   {selectedService?.enabled && (
                     <ServiceEditor
                       service={selectedService}
+                      locale={locale}
                       zoneInput={zoneInputs[selectedService.serviceId] ?? ""}
                       onZoneInput={(value) =>
                         setZoneInputs((current) => ({
@@ -677,8 +724,8 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
 
             <SectionCard
               icon={<ImagePlus size={21} />}
-              title="Galerie"
-              description="Ajoute jusqu’à 8 photos de ton travail."
+              title={t("galleryTitle")}
+              description={t("galleryDescription")}
             >
               <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-background px-6 py-9 text-center transition hover:border-blue-600/50 hover:bg-blue-600/[0.03]">
                 {uploadingGallery ? (
@@ -687,10 +734,10 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                   <ImagePlus className="text-blue-600" size={30} />
                 )}
                 <span className="mt-3 font-semibold">
-                  {uploadingGallery ? "Envoi en cours..." : "Ajouter une photo"}
+                  {uploadingGallery ? t("galleryUploading") : t("galleryAddPhoto")}
                 </span>
                 <span className="mt-1 text-sm text-muted-foreground">
-                  JPG, PNG ou WEBP · 6 Mo maximum
+                  {t("galleryFileHint")}
                 </span>
                 <input
                   type="file"
@@ -710,14 +757,14 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                     >
                       <img
                         src={item.publicUrl}
-                        alt={item.caption || "Photo du prestataire"}
+                        alt={item.caption || t("galleryPhotoAlt")}
                         className="h-full w-full object-cover"
                       />
                       <button
                         type="button"
                         onClick={() => void deleteMedia("gallery", item.id)}
                         className="absolute right-2 top-2 rounded-full bg-black/75 p-2 text-white opacity-100 transition hover:bg-red-600 sm:opacity-0 sm:group-hover:opacity-100"
-                        aria-label="Supprimer cette photo"
+                        aria-label={t("galleryDeleteAria")}
                       >
                         <Trash2 size={16} />
                       </button>
@@ -729,8 +776,8 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
 
             <SectionCard
               icon={<FileCheck2 size={21} />}
-              title="Documents"
-              description="Privés et utilisés uniquement pour la vérification KLYX."
+              title={t("documentsTitle")}
+              description={t("documentsDescription")}
             >
               <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
                 <KlyxSelect
@@ -738,9 +785,13 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                   onChange={setDocumentType}
                   options={DOCUMENT_TYPES.map((type) => ({
                     value: type.value,
-                    label: type.label,
+                    label: getKlyxProviderStudioDocumentTypeLabel(
+                      locale,
+                      type.value,
+                      type.label
+                    ),
                   }))}
-                  ariaLabel="Type de document"
+                  ariaLabel={t("documentTypeAria")}
                 />
 
                 <label className="inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-500">
@@ -749,7 +800,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                   ) : (
                     <Upload size={18} />
                   )}
-                  {uploadingDocument ? "Envoi..." : "Transmettre"}
+                  {uploadingDocument ? t("documentUploading") : t("documentTransmit")}
                   <input
                     type="file"
                     accept="application/pdf,image/jpeg,image/png,image/webp"
@@ -760,43 +811,53 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                 </label>
               </div>
               <p className="mt-2 text-xs text-muted-foreground">
-                PDF, JPG, PNG ou WEBP · 10 Mo maximum
+                {t("documentFileHint")}
               </p>
 
               <div className="mt-5 space-y-3">
                 {studio.documents.length === 0 ? (
                   <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-700 dark:text-amber-300">
-                    Une pièce d’identité est nécessaire avant la publication.
+                    {t("identityRequired")}
                   </div>
                 ) : (
                   studio.documents.map((document) => {
                     const type = DOCUMENT_TYPES.find(
                       (item) => item.value === document.documentType
                     );
-                    const status =
-                      DOCUMENT_STATUS[document.status] ?? DOCUMENT_STATUS.pending;
+                    const statusClass =
+                      DOCUMENT_STATUS_CLASS[document.status] ??
+                      DOCUMENT_STATUS_CLASS.pending;
                     return (
                       <div
                         key={document.id}
                         className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border bg-background p-4"
                       >
                         <div className="min-w-0">
-                          <p className="font-semibold">{type?.label ?? "Document"}</p>
+                          <p className="font-semibold">
+                            {getKlyxProviderStudioDocumentTypeLabel(
+                              locale,
+                              document.documentType,
+                              type?.label
+                            )}
+                          </p>
                           <p className="mt-1 truncate text-sm text-muted-foreground">
                             {document.fileName}
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
                           <span
-                            className={`rounded-full border px-3 py-1 text-xs font-semibold ${status.className}`}
+                            className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusClass}`}
                           >
-                            {status.label}
+                            {getKlyxProviderStudioDocumentStatusLabel(
+                              locale,
+                              document.status
+                            )}
                           </span>
                           <button
                             type="button"
                             onClick={() => void deleteMedia("document", document.id)}
                             className="rounded-lg p-2 text-muted-foreground transition hover:bg-red-500/10 hover:text-red-600"
-                            aria-label="Supprimer ce document"
+                            aria-label={t("documentDeleteAria")}
                           >
                             <Trash2 size={17} />
                           </button>
@@ -814,7 +875,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">
-                    Profil complété
+                    {t("completionTitle")}
                   </p>
                   <p className="mt-1 text-3xl font-bold text-blue-600">
                     {completionPercentage}%
@@ -847,9 +908,9 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
             </section>
 
             <section className="rounded-2xl border border-border bg-card p-5">
-              <h2 className="text-base font-semibold">Publication</h2>
+              <h2 className="text-base font-semibold">{t("publicationTitle")}</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Enregistre ton travail ou rends ta fiche visible.
+                {t("publicationDescription")}
               </p>
 
               <button
@@ -864,8 +925,8 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                   <Send size={18} />
                 )}
                 {studio.providerProfile.isPublished
-                  ? "Mettre à jour la fiche"
-                  : "Publier ma fiche"}
+                  ? t("updateProfile")
+                  : t("publishProfile")}
               </button>
 
               <button
@@ -879,24 +940,30 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                 ) : (
                   <Save size={17} />
                 )}
-                Enregistrer le brouillon
+                {t("saveDraft")}
               </button>
             </section>
 
             <section className="rounded-2xl border border-border bg-card p-5">
-              <h2 className="text-sm font-semibold">Résumé</h2>
+              <h2 className="text-sm font-semibold">{t("summaryTitle")}</h2>
               <div className="mt-4 space-y-3 text-sm">
-                <SummaryRow label="Services actifs" value={String(enabledServices.length)} />
-                <SummaryRow label="Photos" value={`${studio.gallery.length}/8`} />
-                <SummaryRow label="Documents" value={String(studio.documents.length)} />
                 <SummaryRow
-                  label="Vérification"
+                  label={t("activeServices")}
+                  value={String(enabledServices.length)}
+                />
+                <SummaryRow label={t("photos")} value={`${studio.gallery.length}/8`} />
+                <SummaryRow
+                  label={t("documents")}
+                  value={String(studio.documents.length)}
+                />
+                <SummaryRow
+                  label={t("verification")}
                   value={
                     studio.providerProfile.verificationStatus === "verified"
-                      ? "Vérifiée"
+                      ? t("verificationVerified")
                       : studio.providerProfile.verificationStatus === "pending"
-                        ? "En cours"
-                        : "À transmettre"
+                        ? t("verificationPending")
+                        : t("verificationMissing")
                   }
                 />
               </div>
@@ -907,9 +974,9 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
               className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-card p-4 transition hover:bg-muted"
             >
               <div>
-                <p className="text-sm font-semibold">Informations personnelles</p>
+                <p className="text-sm font-semibold">{t("personalInfo")}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Photo, nom et ville
+                  {t("personalInfoDescription")}
                 </p>
               </div>
               <ChevronRight size={19} className="text-blue-600" />
@@ -923,6 +990,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
 
 function ServiceEditor({
   service,
+  locale,
   zoneInput,
   onZoneInput,
   onChange,
@@ -931,6 +999,7 @@ function ServiceEditor({
   onRemoveZone,
 }: {
   service: ProviderServiceDraft;
+  locale: KlyxLocale;
   zoneInput: string;
   onZoneInput: (value: string) => void;
   onChange: (changes: Partial<ProviderServiceDraft>) => void;
@@ -941,51 +1010,61 @@ function ServiceEditor({
   onAddZone: () => void;
   onRemoveZone: (zone: string) => void;
 }) {
+  const t = (
+    key: KlyxProviderStudioMessageKey,
+    params?: Record<string, string | number>
+  ) => translateKlyxProviderStudio(locale, key, params);
+
   return (
     <div className="space-y-7 rounded-2xl border border-border bg-background p-5 sm:p-6">
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">
-          {serviceLabel(service.slug, service.name)}
+          {getKlyxProviderStudioServiceLabel(locale, service.slug, service.name)}
         </p>
-        <h3 className="mt-2 text-xl font-semibold">Configurer ce service</h3>
+        <h3 className="mt-2 text-xl font-semibold">{t("configureService")}</h3>
       </div>
 
       <div className="grid gap-5 sm:grid-cols-2">
         <Field
           id={`title-${service.serviceId}`}
-          label="Titre du service"
+          label={t("serviceTitleLabel")}
           value={service.title}
           onChange={(value) => onChange({ title: value })}
-          placeholder="Un titre précis et rassurant"
+          placeholder={t("serviceTitlePlaceholder")}
         />
         <Field
           id={`city-${service.serviceId}`}
-          label="Ville principale"
+          label={t("cityLabel")}
           value={service.city}
           onChange={(value) => onChange({ city: value })}
-          placeholder="Bruxelles"
+          placeholder={t("cityPlaceholder")}
         />
       </div>
 
       <div>
         <label className="mb-2 block text-sm font-medium">
-          Description du service
+          {t("serviceDescriptionLabel")}
         </label>
         <textarea
           rows={5}
           maxLength={1200}
           value={service.description}
           onChange={(event) => onChange({ description: event.target.value })}
-          placeholder="Explique ce que tu proposes, ce qui est inclus et comment tu travailles."
+          placeholder={t("serviceDescriptionPlaceholder")}
           className={inputClassName()}
         />
-        <Counter current={service.description.length} maximum={1200} minimum={30} />
+        <Counter
+          current={service.description.length}
+          maximum={1200}
+          minimum={30}
+          locale={locale}
+        />
       </div>
 
       <div className="space-y-5">
         <div>
           <label className="mb-2 block text-sm font-medium">
-            Tarif utilisé pour ce service
+            {t("pricingLabel")}
           </label>
           <div className="grid min-w-0 grid-cols-2 rounded-xl border border-border bg-card p-1">
             <button
@@ -999,7 +1078,7 @@ function ServiceEditor({
                   : "text-muted-foreground hover:bg-muted"
               }`}
             >
-              Par heure
+              {t("hourly")}
             </button>
             <button
               type="button"
@@ -1012,17 +1091,17 @@ function ServiceEditor({
                   : "text-muted-foreground hover:bg-muted"
               }`}
             >
-              Prix fixe
+              {t("fixed")}
             </button>
           </div>
           <p className="mt-2 text-xs leading-5 text-muted-foreground">
-            Les deux montants restent mémorisés. Le bouton choisit seulement le tarif actif.
+            {t("pricingHint")}
           </p>
         </div>
 
         <div className="grid min-w-0 gap-4 sm:grid-cols-2">
           <PriceField
-            label="Tarif par heure (€)"
+            label={t("hourlyRateLabel")}
             value={service.hourlyPrice}
             placeholder="25"
             onChange={(hourlyPrice) =>
@@ -1034,7 +1113,7 @@ function ServiceEditor({
             }
           />
           <PriceField
-            label="Prix fixe (€)"
+            label={t("fixedPriceLabel")}
             value={service.fixedPrice}
             placeholder="100"
             onChange={(fixedPrice) =>
@@ -1051,10 +1130,10 @@ function ServiceEditor({
       <div className="border-t border-border pt-6">
         <div className="flex items-center gap-2">
           <MapPin size={19} className="text-blue-600" />
-          <h3 className="font-semibold">Zones d’intervention</h3>
+          <h3 className="font-semibold">{t("zonesTitle")}</h3>
         </div>
         <p className="mt-2 text-sm text-muted-foreground">
-          Ajoute les communes et quartiers dans lesquels tu acceptes des demandes.
+          {t("zonesDescription")}
         </p>
 
         <div className="mt-4 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2">
@@ -1067,14 +1146,14 @@ function ServiceEditor({
                 onAddZone();
               }
             }}
-            placeholder="Exemple : Bruxelles, Ixelles..."
+            placeholder={t("zonePlaceholder")}
             className={inputClassName()}
           />
           <button
             type="button"
             onClick={onAddZone}
             className="grid min-h-12 w-12 place-items-center rounded-xl border border-border bg-background transition hover:bg-muted"
-            aria-label="Ajouter la zone"
+            aria-label={t("addZoneAria")}
           >
             <Plus size={19} />
           </button>
@@ -1090,7 +1169,7 @@ function ServiceEditor({
               <button
                 type="button"
                 onClick={() => onRemoveZone(zone)}
-                aria-label={`Retirer ${zone}`}
+                aria-label={t("removeZoneAria", { zone })}
               >
                 <X size={14} />
               </button>
@@ -1101,7 +1180,7 @@ function ServiceEditor({
         <div className="mt-5 max-w-xs">
           <Field
             id={`radius-${service.serviceId}`}
-            label="Rayon maximum (km)"
+            label={t("radiusLabel")}
             value={String(service.travelRadiusKm)}
             onChange={(value) =>
               onChange({ travelRadiusKm: Number(value || 0) })
@@ -1116,7 +1195,7 @@ function ServiceEditor({
       <div className="border-t border-border pt-6">
         <div className="flex items-center gap-2">
           <Clock3 size={19} className="text-blue-600" />
-          <h3 className="font-semibold">Disponibilités hebdomadaires</h3>
+          <h3 className="font-semibold">{t("availabilityTitle")}</h3>
         </div>
         <div className="mt-4 space-y-3">
           {DAY_LABELS.map((definition) => {
@@ -1141,7 +1220,7 @@ function ServiceEditor({
                     }
                     className="h-5 w-5 accent-blue-600"
                   />
-                  {definition.label}
+                  {getKlyxProviderStudioDayLabel(locale, definition.value)}
                 </label>
                 <input
                   type="time"
@@ -1282,10 +1361,12 @@ function Counter({
   current,
   maximum,
   minimum,
+  locale,
 }: {
   current: number;
   maximum: number;
   minimum?: number;
+  locale: KlyxLocale;
 }) {
   return (
     <p
@@ -1293,13 +1374,21 @@ function Counter({
         minimum && current < minimum ? "text-amber-600" : "text-muted-foreground"
       }`}
     >
-      {minimum && current < minimum ? `Minimum ${minimum} · ` : ""}
+      {minimum && current < minimum
+        ? translateKlyxProviderStudio(locale, "minimumCounter", { minimum })
+        : ""}
       {current}/{maximum}
     </p>
   );
 }
 
-function StatusBadge({ published }: { published: boolean }) {
+function StatusBadge({
+  published,
+  locale,
+}: {
+  published: boolean;
+  locale: KlyxLocale;
+}) {
   return (
     <span
       className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${
@@ -1313,7 +1402,10 @@ function StatusBadge({ published }: { published: boolean }) {
           published ? "bg-emerald-500" : "bg-amber-500"
         }`}
       />
-      {published ? "Fiche publiée" : "Brouillon privé"}
+      {translateKlyxProviderStudio(
+        locale,
+        published ? "publishedStatus" : "draftStatus"
+      )}
     </span>
   );
 }

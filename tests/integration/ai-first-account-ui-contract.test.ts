@@ -30,6 +30,11 @@ describe(
             "app/components/ProviderStudio.tsx"
           );
 
+        const studioI18n =
+          read(
+            "lib/klyx-provider-studio-i18n.ts"
+          );
+
         const requests =
           read(
             "app/requests/page.tsx"
@@ -112,11 +117,23 @@ describe(
         );
 
         expect(studio).toContain(
-          "Documents"
+          'title={t("documentsTitle")}'
         );
 
         expect(studio).toContain(
-          "Une pièce d’identité est nécessaire avant la publication."
+          '{t("identityRequired")}'
+        );
+
+        expect(studioI18n).toContain(
+          'documentsTitle: "Documents"'
+        );
+
+        expect(studioI18n).toContain(
+          'identityRequired:'
+        );
+
+        expect(studioI18n).toContain(
+          '"Une pièce d’identité est nécessaire avant la publication."'
         );
 
         expect(settings).toContain(
