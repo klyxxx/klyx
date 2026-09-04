@@ -35,5 +35,7 @@ describe("brain command grounded action i18n contract", () => {
     expect(groundedActionI18n).toContain("COPY[locale][value] ?? value");
     expect(groundedActionI18n).toContain('kind !== "compare_offers"');
     expect(groundedActionI18n).toContain('kind === "provider_offer_update"');
+    expect(route).toContain('action.kind === "compare_offers"');
+    expect(route).toContain("description:\n                    action.description");
   });
 });
