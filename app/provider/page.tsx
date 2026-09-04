@@ -4,24 +4,29 @@ import { ArrowRight, ChevronDown } from "lucide-react";
 
 import ProviderReadinessStatus from "@/app/components/ProviderReadinessStatus";
 import { getActiveProfile } from "@/lib/active-profile";
+import {
+  translateKlyxProviderDashboard,
+  type KlyxProviderDashboardMessageKey,
+} from "@/lib/klyx-provider-dashboard-i18n";
+import { getServerKlyxLocale } from "@/lib/klyx-server-i18n";
 import { createClient } from "@/lib/supabase/server";
 
 type SecondaryLink = {
-  label: string;
+  labelKey: KlyxProviderDashboardMessageKey;
   href: string;
 };
 
 const SECONDARY_LINKS: SecondaryLink[] = [
-  { label: "Services & tarifs", href: "/provider/studio" },
-  { label: "Proposer un nouveau métier", href: "/provider/services/new" },
-  { label: "Planning", href: "/provider/planning" },
-  { label: "Devis", href: "/provider/quotes" },
-  { label: "Zones d’intervention", href: "/provider/zones" },
-  { label: "Capacités", href: "/provider/capabilities" },
-  { label: "Confiance", href: "/provider/trust" },
-  { label: "Vérification", href: "/provider/verification" },
-  { label: "Assistant prestataire", href: "/provider/assistant" },
-  { label: "Paramètres", href: "/settings" },
+  { labelKey: "servicesPricing", href: "/provider/studio" },
+  { labelKey: "proposeNewTrade", href: "/provider/services/new" },
+  { labelKey: "planning", href: "/provider/planning" },
+  { labelKey: "quotes", href: "/provider/quotes" },
+  { labelKey: "serviceAreas", href: "/provider/zones" },
+  { labelKey: "capabilities", href: "/provider/capabilities" },
+  { labelKey: "trust", href: "/provider/trust" },
+  { labelKey: "verification", href: "/provider/verification" },
+  { labelKey: "providerAssistant", href: "/provider/assistant" },
+  { labelKey: "settings", href: "/settings" },
 ];
 
 export default async function ProviderPage() {
@@ -44,25 +49,29 @@ export default async function ProviderPage() {
     redirect("/dashboard");
   }
 
+  const locale = await getServerKlyxLocale();
+  const t = (key: KlyxProviderDashboardMessageKey) =>
+    translateKlyxProviderDashboard(locale, key);
+
   return (
     <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6 lg:px-8">
       <div className="mx-auto max-w-4xl">
         <header className="mb-7 max-w-2xl">
-          <p className="text-sm font-semibold text-[#2563EB]">Espace prestataire</p>
+          <p className="text-sm font-semibold text-[#2563EB]">{t("spaceLabel")}</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
-            Votre activité
+            {t("title")}
           </h1>
           <p className="mt-3 text-base leading-7 text-muted-foreground">
-            KLYX vous montre ce qui demande votre attention maintenant.
+            {t("subtitle")}
           </p>
         </header>
 
         <ProviderReadinessStatus />
 
-        <section className="mt-6" aria-label="Gestion secondaire">
+        <section className="mt-6" aria-label={t("secondaryAria")}>
           <details className="group overflow-hidden rounded-3xl border border-border bg-card">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 text-sm font-semibold transition hover:bg-muted/40 sm:px-6">
-              <span>Gérer autre chose</span>
+              <span>{t("manageMore")}</span>
               <ChevronDown
                 size={18}
                 className="text-muted-foreground transition group-open:rotate-180"
@@ -76,7 +85,7 @@ export default async function ProviderPage() {
                   href={item.href}
                   className="group/link flex min-h-12 items-center justify-between gap-4 border-b border-border/70 py-3 text-sm font-medium last:border-b-0 hover:text-[#2563EB]"
                 >
-                  <span>{item.label}</span>
+                  <span>{t(item.labelKey)}</span>
                   <ArrowRight
                     size={16}
                     className="text-muted-foreground transition group-hover/link:translate-x-1 group-hover/link:text-[#2563EB]"
