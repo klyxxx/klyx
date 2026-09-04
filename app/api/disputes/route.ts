@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   apiErrorStatus,
@@ -7,6 +7,8 @@ import {
 import {
   secureApiErrorResponse,
 } from "@/lib/api-error";
+import { disputeOpenedEmail } from "@/lib/email/lifecycle-templates";
+import { sendKlyxProfileTransactionalEmail } from "@/lib/email/resend";
 import {
   logServerError,
 } from "@/lib/server-log";
@@ -292,6 +294,19 @@ export async function POST(request: Request) {
           notificationError,
       });
     }
+
+    after(async () => {
+      await Promise.all([
+        sendKlyxProfileTransactionalEmail({
+          profileId: profile.id,
+          ...disputeOpenedEmail(booking.id),
+        }),
+        sendKlyxProfileTransactionalEmail({
+          profileId: againstProfileId,
+          ...disputeOpenedEmail(booking.id),
+        }),
+      ]);
+    });
 
     return NextResponse.json({
       disputeId: dispute.id,
