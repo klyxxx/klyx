@@ -22,11 +22,15 @@ describe("KLYX provider assistant visual contract", () => {
 
   it("uses the exact KLYX blue without the previous purple accents", () => {
     expect(page).toContain("KLYX_PROVIDER_ASSISTANT_VISUAL_2026_08_31");
-    expect(page).toContain("bg-blue-600");
-    expect(page).toContain("text-blue-600");
-    expect(page).toContain("focus-within:border-blue-600/35");
+    expect(page).toContain("#2563EB");
+    expect(page).toContain("bg-[#2563EB]");
+    expect(page).toContain("text-[#2563EB]");
+    expect(page).toContain("focus-within:border-[#2563EB]/45");
+    expect(page).not.toContain("bg-blue-600");
+    expect(page).not.toContain("text-blue-600");
     expect(page).not.toContain("violet");
     expect(page).not.toContain("indigo");
+    expect(page).not.toContain("purple");
   });
 
   it("keeps transactional feedback semantic rather than branded", () => {
