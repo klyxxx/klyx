@@ -36,7 +36,7 @@ describe("KLYX Resend delivery core", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("uses support@klyx.be as the KLYX sender", async () => {
+  it("uses support@klyx.be as the KLYX sender and sends HTML plus text", async () => {
     const fetchMock = successfulFetchMock();
 
     const result = await sendResendEmail(
@@ -44,6 +44,7 @@ describe("KLYX Resend delivery core", () => {
         to: "provider@example.com",
         subject: "Nouvelle demande",
         text: "Test KLYX",
+        html: "<strong>Test KLYX</strong>",
       },
       {
         apiKey: "re_test_key",
@@ -61,11 +62,38 @@ describe("KLYX Resend delivery core", () => {
     const payload = JSON.parse(String(requestInit?.body)) as {
       from?: string;
       to?: string[];
+      text?: string;
+      html?: string;
     };
 
     expect(KLYX_RESEND_FROM).toBe("KLYX <support@klyx.be>");
     expect(payload.from).toBe(KLYX_RESEND_FROM);
     expect(payload.to).toEqual(["provider@example.com"]);
+    expect(payload.text).toBe("Test KLYX");
+    expect(payload.html).toBe("<strong>Test KLYX</strong>");
+  });
+
+  it("keeps plain-text-only delivery valid", async () => {
+    const fetchMock = successfulFetchMock();
+
+    await sendResendEmail(
+      {
+        to: "provider@example.com",
+        subject: "Nouvelle demande",
+        text: "Test KLYX",
+      },
+      {
+        apiKey: "re_test_key",
+        fetchImpl: fetchMock,
+      }
+    );
+
+    const requestInit = fetchMock.mock.calls[0]?.[1];
+    const payload = JSON.parse(String(requestInit?.body)) as {
+      html?: string;
+    };
+
+    expect(payload.html).toBeUndefined();
   });
 
   it("returns a failure result instead of throwing when Resend fails", async () => {

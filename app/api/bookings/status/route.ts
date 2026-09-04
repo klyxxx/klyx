@@ -9,6 +9,14 @@ import {
   secureApiErrorResponse,
 } from "@/lib/api-error";
 import { isPastBookingStart } from "@/lib/brussels-time";
+import { sendKlyxProfileTransactionalEmail } from "@/lib/email/resend";
+import {
+  bookingAcceptedEmail,
+  bookingCancelledEmail,
+  bookingRejectedEmail,
+  refundConfirmedEmail,
+  refundStartedEmail,
+} from "@/lib/email/templates";
 import { upsertFinancialLedgerEntry } from "@/lib/payment-ledger";
 import {
   logServerError,
@@ -430,7 +438,6 @@ export async function POST(request: Request) {
       );
     }
 
-
     const providerId =
       booking.provider_id ?? booking.babysitter_id;
     const isClient = booking.parent_id === profile.id;
@@ -643,6 +650,11 @@ export async function POST(request: Request) {
           deduplicationKey:
             `booking:${booking.id}:accepted`,
         });
+
+        await sendKlyxProfileTransactionalEmail({
+          profileId: booking.parent_id,
+          ...bookingAcceptedEmail(booking.id),
+        });
       }
 
       if (nextStatus === "rejected") {
@@ -656,6 +668,11 @@ export async function POST(request: Request) {
             "Le prestataire n’est pas disponible pour cette demande.",
           deduplicationKey:
             `booking:${booking.id}:rejected`,
+        });
+
+        await sendKlyxProfileTransactionalEmail({
+          profileId: booking.parent_id,
+          ...bookingRejectedEmail(booking.id),
         });
       }
 
@@ -676,6 +693,14 @@ export async function POST(request: Request) {
             deduplicationKey:
               `booking:${booking.id}:cancelled:${profile.id}`,
           });
+
+          await sendKlyxProfileTransactionalEmail({
+            profileId: recipientId,
+            ...bookingCancelledEmail({
+              bookingId: booking.id,
+              refundStarted: refundCompleted,
+            }),
+          });
         }
 
         if (refundCompleted) {
@@ -692,6 +717,13 @@ export async function POST(request: Request) {
             deduplicationKey: refundConfirmed
               ? `booking:${booking.id}:refund-confirmed`
               : `booking:${booking.id}:refund`,
+          });
+
+          await sendKlyxProfileTransactionalEmail({
+            profileId: booking.parent_id,
+            ...(refundConfirmed
+              ? refundConfirmedEmail(booking.id)
+              : refundStartedEmail(booking.id)),
           });
         }
       }
