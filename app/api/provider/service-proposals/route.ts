@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { getActiveProfile } from "@/lib/active-profile";
+import { sendServiceProposalLifecycleEmail } from "@/lib/email/operational-lifecycle-emails";
 import {
   createServiceSlug,
   moderateServiceProposal,
@@ -244,6 +245,15 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+
+  after(async () => {
+    await sendServiceProposalLifecycleEmail({
+      proposalId: data.id,
+      profileId: profile.id,
+      proposalName: data.proposed_name,
+      status: moderation.decision,
+    });
+  });
 
   const publicMessage =
     moderation.decision === "approved"
