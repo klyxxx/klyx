@@ -94,6 +94,8 @@ export async function getProfilesState(): Promise<{
   profiles: SavedAccount[];
   activeProfileId: string | null;
 }> {
+  let responseHandled = false;
+
   try {
     const response = await fetch("/api/profiles/active", {
       method: "GET",
@@ -103,6 +105,7 @@ export async function getProfilesState(): Promise<{
     const result = (await response.json()) as ProfilesResponse;
 
     if (!response.ok) {
+      responseHandled = true;
       failClosedAccountsLoad(response.status);
       throw new Error(
         result.error ?? "Impossible de charger les profils."
@@ -117,7 +120,9 @@ export async function getProfilesState(): Promise<{
           : null,
     };
   } catch (error) {
-    failClosedAccountsLoad();
+    if (!responseHandled) {
+      failClosedAccountsLoad();
+    }
     throw error;
   }
 }
