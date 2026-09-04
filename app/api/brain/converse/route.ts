@@ -8,6 +8,9 @@ import {
   withoutKlyxLlmShadow,
 } from "@/lib/brain/llm/shadow";
 import {
+  isKlyxAssistantMessageTooLong,
+} from "@/lib/klyx-assistant-message-limits";
+import {
   generateKlyxVisibleAiReply,
 } from "@/lib/klyx-visible-ai";
 import {
@@ -45,7 +48,26 @@ function normalizedMissing(value: unknown): string[] {
 }
 
 export async function POST(request: Request) {
-  const requestCopy = request.clone();
+  let requestBody: RequestBody = {};
+
+  try {
+    requestBody = (await request.clone().json()) as RequestBody;
+  } catch {
+    // Let the deterministic route keep ownership of malformed-body handling.
+  }
+
+  const message =
+    typeof requestBody.message === "string"
+      ? requestBody.message.trim()
+      : "";
+
+  if (message && isKlyxAssistantMessageTooLong(message)) {
+    return NextResponse.json(
+      { error: "Message trop long." },
+      { status: 400 }
+    );
+  }
+
   const response = await withoutKlyxLlmShadow(
     () => deterministicPost(request)
   );
@@ -54,20 +76,14 @@ export async function POST(request: Request) {
     return response;
   }
 
-  let requestBody: RequestBody = {};
   let responseBody: BrainResponseBody = {};
 
   try {
-    requestBody = (await requestCopy.json()) as RequestBody;
     responseBody = (await response.clone().json()) as BrainResponseBody;
   } catch {
     return response;
   }
 
-  const message =
-    typeof requestBody.message === "string"
-      ? requestBody.message.trim()
-      : "";
   const deterministicReply =
     typeof responseBody.reply === "string"
       ? responseBody.reply.trim()
