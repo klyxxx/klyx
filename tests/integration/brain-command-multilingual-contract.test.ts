@@ -27,7 +27,8 @@ describe("KLYX multilingual brain command router contract", () => {
   it("preserves authentication, message validation and the 20-action cap", () => {
     expect(routeSource).toContain("getAuthenticatedProfile(");
     expect(routeSource).toContain('body.message?.trim() ?? ""');
-    expect(routeSource).toContain("rawMessage.length > 700");
+    expect(routeSource).toContain('from "@/lib/klyx-assistant-message-limits"');
+    expect(routeSource).toContain("isKlyxAssistantMessageTooLong(rawMessage)");
     expect(routeSource).toContain("getBrainActions(");
     expect(routeSource).toContain(").slice(0, 20)");
   });

@@ -14,6 +14,9 @@ import {
   hasSpecificBrainCommandIntent,
   normalizeBrainCommandMessage,
 } from "@/lib/brain-command-intent";
+import {
+  isKlyxAssistantMessageTooLong,
+} from "@/lib/klyx-assistant-message-limits";
 
 // KLYX_TRUSTED_COMMAND_ROUTER_12_81
 
@@ -49,7 +52,7 @@ export async function POST(
     }
 
     if (
-      rawMessage.length > 700
+      isKlyxAssistantMessageTooLong(rawMessage)
     ) {
       return NextResponse.json(
         {
