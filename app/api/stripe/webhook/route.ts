@@ -137,6 +137,15 @@ function isGroupIntent(
   );
 }
 
+function isKlyxPaymentIntent(
+  intent: Stripe.PaymentIntent
+) {
+  return Boolean(
+    intent.metadata?.booking_id ||
+    intent.metadata?.booking_group_id
+  );
+}
+
 function supersededClaimResponse(
   event: Stripe.Event
 ) {
@@ -318,6 +327,7 @@ export async function POST(
         }
       );
     }
+
     switch (event.type) {
       case "checkout.session.completed":
       case "checkout.session.async_payment_succeeded": {
@@ -407,6 +417,10 @@ export async function POST(
             .object as
             Stripe.PaymentIntent;
 
+        if (!isKlyxPaymentIntent(intent)) {
+          break;
+        }
+
         const sessions =
           await stripe
             .checkout
@@ -461,6 +475,10 @@ export async function POST(
           event.data
             .object as
             Stripe.PaymentIntent;
+
+        if (!isKlyxPaymentIntent(intent)) {
+          break;
+        }
 
         const sessions =
           await stripe
