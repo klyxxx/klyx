@@ -64,17 +64,29 @@
   box-shadow: 0 10px 24px rgb(37 99 235 / 0.18);
 }
 
-/* Old violet/indigo identity accents become the single KLYX blue.
-   Semantic green/amber/rose status colors remain untouched. */
+/* The founder badge used amber-200 for a dark hero. On the new neutral card,
+   only that legacy pale foreground is darkened for readable contrast. */
+.klyx-admin-shell section[class*="bg-[linear-gradient"] [class*="text-amber-200"] {
+  color: rgb(180 83 9) !important;
+}
+
+/* Old violet/indigo and approximate blue identity accents become the single
+   KLYX blue. Semantic green/amber/rose status colors remain untouched. */
+.klyx-admin-shell .klyx-eyebrow,
 .klyx-admin-shell [class*="text-violet-"],
-.klyx-admin-shell [class*="text-indigo-"] {
+.klyx-admin-shell [class*="text-indigo-"],
+.klyx-admin-shell [class*="text-blue-500"],
+.klyx-admin-shell [class*="text-blue-600"],
+.klyx-admin-shell [class*="text-blue-700"] {
   color: var(--klyx-admin-blue) !important;
 }
 
 .klyx-admin-shell [class*="bg-violet-600"],
 .klyx-admin-shell [class*="bg-violet-700"],
 .klyx-admin-shell [class*="bg-indigo-600"],
-.klyx-admin-shell [class*="bg-indigo-700"] {
+.klyx-admin-shell [class*="bg-indigo-700"],
+.klyx-admin-shell [class*="bg-blue-600"],
+.klyx-admin-shell [class*="bg-blue-700"] {
   background: var(--klyx-admin-blue) !important;
   color: white !important;
 }
@@ -82,18 +94,30 @@
 .klyx-admin-shell [class*="bg-violet-500/10"],
 .klyx-admin-shell [class*="bg-violet-600/10"],
 .klyx-admin-shell [class*="bg-indigo-500/10"],
-.klyx-admin-shell [class*="bg-indigo-600/10"] {
+.klyx-admin-shell [class*="bg-indigo-600/10"],
+.klyx-admin-shell [class*="bg-blue-500/10"],
+.klyx-admin-shell [class*="bg-blue-600/10"] {
   background: var(--klyx-admin-blue-soft) !important;
 }
 
 .klyx-admin-shell [class*="border-violet-"],
-.klyx-admin-shell [class*="border-indigo-"] {
+.klyx-admin-shell [class*="border-indigo-"],
+.klyx-admin-shell [class*="border-blue-500"],
+.klyx-admin-shell [class*="border-blue-600"] {
   border-color: var(--klyx-admin-blue-border) !important;
 }
 
+.klyx-admin-shell .klyx-input:focus,
+.klyx-admin-shell .filter-control:focus,
 .klyx-admin-shell [class*="focus:border-violet-"]:focus,
 .klyx-admin-shell [class*="focus:border-indigo-"]:focus {
   border-color: var(--klyx-admin-blue) !important;
+  box-shadow: 0 0 0 4px rgb(37 99 235 / 0.1) !important;
+}
+
+.klyx-admin-shell select option:checked {
+  background: var(--klyx-admin-blue);
+  color: white;
 }
 
 .klyx-admin-shell .klyx-card:hover {
