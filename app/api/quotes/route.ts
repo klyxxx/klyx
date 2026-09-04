@@ -6,6 +6,8 @@ import {
   quoteLifecycleQualificationPreflight,
   quoteTransactionQualificationPreflight,
 } from "@/lib/quote-transaction-qualification-preflight";
+import { logServerWarning } from "@/lib/server-log";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   GET as coreGet,
   PATCH as corePatch,
@@ -13,6 +15,59 @@ import {
 } from "./quote-route-core";
 
 type QuoteMethod = "GET" | "POST" | "PATCH";
+type QuoteLifecycleEmailAction =
+  | "send"
+  | "accept"
+  | "reject"
+  | "cancel";
+
+type QuoteLifecycleEmailTarget = {
+  client_profile_id: string;
+  provider_profile_id: string;
+};
+
+function quoteLifecycleEmail(
+  action: QuoteLifecycleEmailAction,
+  quote: QuoteLifecycleEmailTarget
+): {
+  profileId: string;
+  subject: string;
+  text: string;
+} {
+  if (action === "send") {
+    return {
+      profileId: quote.client_profile_id,
+      subject: "Votre devis KLYX est prêt",
+      text:
+        "Le prestataire a répondu à votre demande de devis. Ouvrez KLYX pour consulter le montant et les détails.",
+    };
+  }
+
+  if (action === "accept") {
+    return {
+      profileId: quote.provider_profile_id,
+      subject: "Votre devis KLYX a été accepté",
+      text:
+        "Le client a accepté votre devis. Ouvrez KLYX pour consulter la suite du parcours.",
+    };
+  }
+
+  if (action === "reject") {
+    return {
+      profileId: quote.provider_profile_id,
+      subject: "Votre devis KLYX a été refusé",
+      text:
+        "Le client a refusé votre devis. Ouvrez KLYX pour consulter la demande et vos autres missions.",
+    };
+  }
+
+  return {
+    profileId: quote.provider_profile_id,
+    subject: "Demande de devis KLYX annulée",
+    text:
+      "Le client a annulé sa demande de devis. Ouvrez KLYX pour consulter vos autres demandes.",
+  };
+}
 
 async function secureCoreResponse(
   response: Response,
@@ -131,6 +186,7 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   const startedAt = Date.now();
+  const emailRequest = request.clone();
 
   try {
     const preflight = await quoteLifecycleQualificationPreflight(
@@ -140,7 +196,66 @@ export async function PATCH(request: Request) {
     if (preflight) return preflight;
 
     const response = await corePatch(request);
-    return secureCoreResponse(response, "PATCH", startedAt);
+    const securedResponse = await secureCoreResponse(
+      response,
+      "PATCH",
+      startedAt
+    );
+
+    if (securedResponse.ok) {
+      const emailBody = (await emailRequest
+        .json()
+        .catch(() => null)) as {
+        quoteId?: unknown;
+        action?: unknown;
+      } | null;
+      const quoteId =
+        typeof emailBody?.quoteId === "string"
+          ? emailBody.quoteId.trim()
+          : "";
+      const action =
+        typeof emailBody?.action === "string"
+          ? emailBody.action.trim()
+          : "";
+      const isEmailAction = [
+        "send",
+        "accept",
+        "reject",
+        "cancel",
+      ].includes(action);
+
+      if (quoteId && isEmailAction) {
+        after(async () => {
+          const { data: quote, error: quoteError } =
+            await supabaseAdmin
+              .from("service_quotes")
+              .select(
+                "client_profile_id, provider_profile_id"
+              )
+              .eq("id", quoteId)
+              .maybeSingle();
+
+          if (quoteError || !quote) {
+            logServerWarning({
+              event: "quote_lifecycle_email_lookup_failed",
+              route: "/api/quotes",
+              method: "PATCH",
+              code: "KLYX_QUOTE_EMAIL_LOOKUP_FAILED",
+            });
+            return;
+          }
+
+          const email = quoteLifecycleEmail(
+            action as QuoteLifecycleEmailAction,
+            quote as QuoteLifecycleEmailTarget
+          );
+
+          await sendKlyxProfileTransactionalEmail(email);
+        });
+      }
+    }
+
+    return securedResponse;
   } catch (error) {
     return secureApiErrorResponse({
       error,
