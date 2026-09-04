@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   adminErrorPublicMessage,
@@ -6,6 +6,7 @@ import {
   requireKlyxAdmin,
 } from "@/lib/admin-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { sendDisputeLifecycleEmail } from "@/lib/email/operational-lifecycle-emails";
 import { logServerError } from "@/lib/server-log";
 
 type DisputeStatus =
@@ -336,7 +337,7 @@ export async function POST(request: Request) {
           ? "closed"
           : "status_changed";
 
-    const { error: eventError } = await supabaseAdmin
+    const { data: disputeEvent, error: eventError } = await supabaseAdmin
       .from("dispute_events")
       .insert({
         dispute_id: dispute.id,
@@ -348,7 +349,9 @@ export async function POST(request: Request) {
             ? ` · ${selectedDecision}`
             : "") +
           (note ? ` · ${note}` : ""),
-      });
+      })
+      .select("id")
+      .single();
 
     if (eventError) {
       throw new Error(eventError.message);
@@ -361,10 +364,11 @@ export async function POST(request: Request) {
       dispute.opened_by,
       dispute.against_profile_id,
     ].filter(Boolean) as string[];
-
-    for (const profileId of [
+    const uniqueParticipantIds = [
       ...new Set(participantIds),
-    ]) {
+    ];
+
+    for (const profileId of uniqueParticipantIds) {
       const { error: notificationError } =
         await supabaseAdmin
           .from("user_notifications")
@@ -394,6 +398,21 @@ export async function POST(request: Request) {
         });
       }
     }
+
+    after(async () => {
+      await Promise.all(
+        uniqueParticipantIds.map((profileId) =>
+          sendDisputeLifecycleEmail({
+            disputeId: dispute.id,
+            eventId: disputeEvent.id,
+            bookingId: dispute.booking_id,
+            profileId,
+            status: selectedStatus,
+            note,
+          })
+        )
+      );
+    });
 
     return NextResponse.json({
       message: "Le dossier a été mis à jour.",
