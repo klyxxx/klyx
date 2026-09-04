@@ -71,10 +71,15 @@ test.describe("KLYX provider Assistant destination", () => {
       page.getByRole("heading", { name: "Que dois-je préparer pour ton activité ?" })
     ).toBeVisible();
     await expect(page.getByPlaceholder("Demander à KLYX…")).toBeVisible();
-    await expect(page.getByText("Brouillons à vérifier · 1")).toBeVisible();
+
+    const draftsSummary = page.locator("summary").filter({
+      hasText: "Brouillons à vérifier",
+    });
+    await expect(draftsSummary).toBeVisible();
+    await expect(draftsSummary).toContainText("1");
     await expect(page.getByText("Disponibilité vendredi matin")).toBeHidden();
 
-    await page.getByText("Brouillons à vérifier · 1").click();
+    await draftsSummary.click();
     await expect(page.getByText("Disponibilité vendredi matin")).toBeVisible();
     await attachViewport(page, testInfo, "provider-assistant-focused-desktop");
 
