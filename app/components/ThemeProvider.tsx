@@ -17,6 +17,8 @@ type ThemeContextValue = {
 };
 
 const STORAGE_KEY = "klyx_theme";
+const LIGHT_THEME_COLOR = "#ffffff";
+const DARK_THEME_COLOR = "#09090b";
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
@@ -26,10 +28,21 @@ function getSystemTheme(): "light" | "dark" {
     : "light";
 }
 
+function syncBrowserThemeColor(resolvedTheme: "light" | "dark") {
+  const themeColor =
+    resolvedTheme === "dark" ? DARK_THEME_COLOR : LIGHT_THEME_COLOR;
+  const metaThemeColor = document.querySelector<HTMLMetaElement>(
+    'meta[name="theme-color"]'
+  );
+
+  metaThemeColor?.setAttribute("content", themeColor);
+}
+
 function applyTheme(theme: Theme): "light" | "dark" {
   const resolvedTheme = theme === "system" ? getSystemTheme() : theme;
   document.documentElement.classList.toggle("dark", resolvedTheme === "dark");
   document.documentElement.style.colorScheme = resolvedTheme;
+  syncBrowserThemeColor(resolvedTheme);
   return resolvedTheme;
 }
 
@@ -38,7 +51,7 @@ export default function ThemeProvider({
 }: {
   children: ReactNode;
 }) {
-  const [theme, setThemeState] = useState<Theme>("system");
+  const [theme, setThemeState] = useState<Theme>("light");
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">(
     "light"
   );
@@ -50,7 +63,7 @@ export default function ThemeProvider({
       savedTheme === "dark" ||
       savedTheme === "system"
         ? savedTheme
-        : "system";
+        : "light";
 
     setThemeState(initialTheme);
     setResolvedTheme(applyTheme(initialTheme));

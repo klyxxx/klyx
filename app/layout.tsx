@@ -129,7 +129,7 @@ export async function generateMetadata(): Promise<Metadata> {
     manifest: "/manifest.webmanifest",
     appleWebApp: {
       capable: true,
-      statusBarStyle: "black-translucent",
+      statusBarStyle: "default",
       title: "KLYX",
     },
     formatDetection: {
@@ -185,22 +185,13 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: [
-    {
-      media: "(prefers-color-scheme: light)",
-      color: "#ffffff",
-    },
-    {
-      media: "(prefers-color-scheme: dark)",
-      color: "#09090b",
-    },
-  ],
+  themeColor: "#ffffff",
 };
 
 const themeScript = `
   try {
     const savedTheme =
-      localStorage.getItem("klyx_theme") || "system";
+      localStorage.getItem("klyx_theme") || "light";
 
     const systemDark =
       window.matchMedia(
