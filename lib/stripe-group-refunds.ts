@@ -13,6 +13,7 @@ import {
 
 // KLYX_GROUP_REFUND_HELPER_12_90
 // KLYX_GROUP_REFUND_MONOTONE_RECONCILIATION_16_11
+// KLYX_GROUP_REFUND_PARTIAL_REVIEW_16_12
 
 type GroupRow = {
   id: string;
@@ -153,7 +154,7 @@ async function loadChildren(
 
 function normalizeRefundStatus(
   refund: Stripe.Refund
-) {
+): "refunded" | "failed" | "processing" {
   if (
     refund.status ===
     "succeeded"
@@ -349,10 +350,41 @@ export async function tryReconcileBookingGroupStripeRefund(
     return false;
   }
 
-  const state =
+  const incomingIntentId =
+    refundIntentId(
+      refund
+    );
+
+  // Metadata can outlive a previous payment attempt. Never let an old refund
+  // mutate a group that is now attached to a newer Stripe PaymentIntent.
+  if (
+    group.stripe_payment_intent_id &&
+    incomingIntentId &&
+    group.stripe_payment_intent_id !==
+      incomingIntentId
+  ) {
+    return true;
+  }
+
+  let state:
+    | "refunded"
+    | "failed"
+    | "processing"
+    | "review_required" =
     normalizeRefundStatus(
       refund
     );
+
+  const partialSucceededRefund =
+    state === "refunded" &&
+    refund.amount !==
+      Number(
+        group.total_amount_cents
+      );
+
+  if (partialSucceededRefund) {
+    state = "review_required";
+  }
 
   if (
     state !== "refunded" &&
@@ -361,22 +393,16 @@ export async function tryReconcileBookingGroupStripeRefund(
     return true;
   }
 
+  if (
+    state !== "refunded" &&
+    group.refund_status === "review_required"
+  ) {
+    return true;
+  }
+
   const now =
     new Date()
       .toISOString();
-
-  if (
-    state ===
-      "refunded" &&
-    refund.amount !==
-      Number(
-        group.total_amount_cents
-      )
-  ) {
-    throw new Error(
-      "KLYX refuse un remboursement partiel sur une mission groupee."
-    );
-  }
 
   const groupUpdate = supabaseAdmin
     .from(
@@ -460,6 +486,29 @@ export async function tryReconcileBookingGroupStripeRefund(
   const firstBookingId =
     children[0]?.id ??
     null;
+
+  if (
+    state ===
+    "review_required"
+  ) {
+    await notify({
+      group,
+      userId:
+        group.client_profile_id,
+      bookingId:
+        firstBookingId,
+      title:
+        "Remboursement groupe a verifier",
+      message:
+        "Stripe a confirme un remboursement partiel inattendu. KLYX conserve la mission en verification au lieu de la cloturer automatiquement.",
+      key:
+        "booking-group:" +
+        group.id +
+        ":refund-partial-review:client",
+    });
+
+    return true;
+  }
 
   if (
     state ===
@@ -574,6 +623,9 @@ export async function tryReconcileBookingGroupStripeRefund(
           service_status:
             "cancelled",
 
+          payment_status:
+            "refunded",
+
           refund_status:
             "succeeded",
 
@@ -631,9 +683,7 @@ export async function tryReconcileBookingGroupStripeRefund(
           group.payment_mode,
 
         stripePaymentIntentId:
-          refundIntentId(
-            refund
-          ) ??
+          incomingIntentId ??
           group.stripe_payment_intent_id,
 
         stripeRefundId:
