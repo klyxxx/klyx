@@ -27,6 +27,7 @@ import {
   type KlyxUiMessageKey,
 } from "@/lib/klyx-i18n";
 import { translateKlyxProviderAssistant } from "@/lib/klyx-provider-assistant-i18n";
+import { translateKlyxSidebarNavigation } from "@/lib/klyx-sidebar-navigation-i18n";
 import { createClient } from "@/lib/supabase/client";
 
 type AccountType = "client" | "provider";
@@ -134,6 +135,14 @@ export default function AppSidebar() {
   const { locale } = useKlyxLocale();
   const t = (key: KlyxUiMessageKey) => translateKlyxUi(locale, key);
   const providerAssistantLabel = translateKlyxProviderAssistant(locale, "badge");
+  const desktopNavigationLabel = translateKlyxSidebarNavigation(
+    locale,
+    "desktopNavigation"
+  );
+  const mobileNavigationLabel = translateKlyxSidebarNavigation(
+    locale,
+    "mobileNavigation"
+  );
   const [accountType, setAccountType] = useState<AccountType | null>(null);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -241,7 +250,7 @@ export default function AppSidebar() {
         <nav
           data-testid="desktop-navigation"
           className="mt-2 min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-2"
-          aria-label="Navigation principale KLYX"
+          aria-label={desktopNavigationLabel}
         >
           <div className="space-y-2">
             {items.map((item) => {
@@ -330,7 +339,7 @@ export default function AppSidebar() {
       {items.length > 0 && (
         <nav
           data-testid="mobile-navigation"
-          aria-label="Navigation mobile KLYX"
+          aria-label={mobileNavigationLabel}
           className="fixed inset-x-0 bottom-0 z-50 transform-gpu border-t border-border bg-background/96 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-2xl lg:hidden dark:border-white/10"
         >
           <div className="mx-auto grid max-w-lg grid-cols-4 gap-1">
