@@ -17,6 +17,12 @@ import {
 import {
   isKlyxAssistantMessageTooLong,
 } from "@/lib/klyx-assistant-message-limits";
+import {
+  localizeKlyxGroundedAction,
+} from "@/lib/klyx-grounded-action-i18n";
+import {
+  getServerKlyxLocale,
+} from "@/lib/klyx-server-i18n";
 
 // KLYX_TRUSTED_COMMAND_ROUTER_12_81
 
@@ -70,6 +76,9 @@ export async function POST(
         rawMessage
       );
 
+    const locale =
+      await getServerKlyxLocale();
+
     // IMPORTANT 12.81:
     // actions recalculated from DB server-side.
     const actions =
@@ -108,12 +117,25 @@ export async function POST(
         );
 
       if (action) {
+        const localizedAction =
+          localizeKlyxGroundedAction(
+            action,
+            locale
+          );
+
         return NextResponse.json({
           mode:
             "existing_action",
           automaticExecutionAllowed:
             false,
-          action,
+          action:
+            action.kind === "compare_offers"
+              ? {
+                  ...localizedAction,
+                  description:
+                    action.description,
+                }
+              : localizedAction,
         });
       }
     }
