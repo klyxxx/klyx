@@ -6,6 +6,7 @@ import {
 import {
   paymentFailedEmail,
   paymentReceivedEmail,
+  refundConfirmedEmail,
 } from "@/lib/email/templates";
 import {
   groupPaymentFailedEmail,
@@ -56,6 +57,16 @@ export async function sendBookingPaymentFailedEmail(input: {
   await sendKlyxProfileTransactionalEmail({
     profileId: input.clientProfileId,
     ...paymentFailedEmail(input.bookingId),
+  });
+}
+
+export async function sendBookingRefundConfirmedEmail(input: {
+  bookingId: string;
+  clientProfileId: string;
+}) {
+  await sendKlyxProfileTransactionalEmail({
+    profileId: input.clientProfileId,
+    ...refundConfirmedEmail(input.bookingId),
   });
 }
 
