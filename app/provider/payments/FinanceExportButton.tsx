@@ -17,8 +17,7 @@ import {
 // KLYX_CANONICAL_FINANCE_EXPORT_UI_13_14
 
 type FinanceTransaction = {
-  id:
-    string;
+  id: string;
 
   bookingId:
     string;
