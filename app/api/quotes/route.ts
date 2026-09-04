@@ -1,4 +1,7 @@
+import { after } from "next/server";
+
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { sendKlyxProfileTransactionalEmail } from "@/lib/email/resend";
 import {
   quoteLifecycleQualificationPreflight,
   quoteTransactionQualificationPreflight,
@@ -73,6 +76,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const startedAt = Date.now();
+  const emailRequest = request.clone();
 
   try {
     const preflight = await quoteTransactionQualificationPreflight(
@@ -82,7 +86,36 @@ export async function POST(request: Request) {
     if (preflight) return preflight;
 
     const response = await corePost(request);
-    return secureCoreResponse(response, "POST", startedAt);
+    const securedResponse = await secureCoreResponse(
+      response,
+      "POST",
+      startedAt
+    );
+
+    if (securedResponse.ok) {
+      const emailBody = (await emailRequest
+        .json()
+        .catch(() => null)) as {
+        providerProfileId?: unknown;
+      } | null;
+      const providerProfileId =
+        typeof emailBody?.providerProfileId === "string"
+          ? emailBody.providerProfileId.trim()
+          : "";
+
+      if (providerProfileId) {
+        after(async () => {
+          await sendKlyxProfileTransactionalEmail({
+            profileId: providerProfileId,
+            subject: "Nouvelle demande de devis KLYX",
+            text:
+              "Une nouvelle demande de devis vous attend dans KLYX. Ouvrez KLYX pour consulter les détails et répondre.",
+          });
+        });
+      }
+    }
+
+    return securedResponse;
   } catch (error) {
     return secureApiErrorResponse({
       error,
