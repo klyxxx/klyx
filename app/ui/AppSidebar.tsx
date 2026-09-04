@@ -26,6 +26,7 @@ import {
   type KlyxLocale,
   type KlyxUiMessageKey,
 } from "@/lib/klyx-i18n";
+import { translateKlyxProviderAssistant } from "@/lib/klyx-provider-assistant-i18n";
 import { createClient } from "@/lib/supabase/client";
 
 type AccountType = "client" | "provider";
@@ -132,6 +133,7 @@ export default function AppSidebar() {
   const router = useRouter();
   const { locale } = useKlyxLocale();
   const t = (key: KlyxUiMessageKey) => translateKlyxUi(locale, key);
+  const providerAssistantLabel = translateKlyxProviderAssistant(locale, "badge");
   const [accountType, setAccountType] = useState<AccountType | null>(null);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -282,7 +284,7 @@ export default function AppSidebar() {
               }`}
             >
               <Sparkles size={18} />
-              Assistant KLYX
+              {providerAssistantLabel}
             </Link>
           )}
 
@@ -313,7 +315,7 @@ export default function AppSidebar() {
         <Link
           href={PROVIDER_ASSISTANT_HREF}
           data-testid="provider-assistant-launcher-mobile"
-          aria-label="Assistant KLYX"
+          aria-label={providerAssistantLabel}
           aria-current={providerAssistantActive ? "page" : undefined}
           className={`fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom))] right-4 z-50 grid h-12 w-12 place-items-center rounded-full border shadow-lg transition lg:hidden ${
             providerAssistantActive

@@ -37,6 +37,11 @@ describe("provider assistant global access contract", () => {
     expect(sidebar).toContain('data-testid="mobile-navigation"');
     expect(sidebar).toContain("grid-cols-4");
     expect(sidebar).toContain("bottom-[calc(5.25rem+env(safe-area-inset-bottom))]");
-    expect(sidebar).toContain('aria-label="Assistant KLYX"');
+    expect(sidebar).toContain(
+      'translateKlyxProviderAssistant(locale, "badge")'
+    );
+    expect(sidebar).toContain("{providerAssistantLabel}");
+    expect(sidebar).toContain("aria-label={providerAssistantLabel}");
+    expect(sidebar).not.toContain('aria-label="Assistant KLYX"');
   });
 });
