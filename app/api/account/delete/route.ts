@@ -1,9 +1,14 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import Stripe from "stripe";
 
 import { ACTIVE_PROFILE_COOKIE, getActiveProfile } from "@/lib/active-profile";
 import { resolveKlyxAccountDeletePlan } from "@/lib/account-delete-scope";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import {
+  accountDeletedEmail,
+  profileDeletedEmail,
+} from "@/lib/email/lifecycle-templates";
+import { sendKlyxTransactionalEmail } from "@/lib/email/resend";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -47,6 +52,8 @@ export async function DELETE(request: Request) {
     if (!user) {
       return NextResponse.json({ error: "Non connecté." }, { status: 401 });
     }
+
+    const userEmail = user.email?.trim() || null;
 
     const body = (await request.json()) as {
       confirmation?: unknown;
@@ -217,6 +224,15 @@ export async function DELETE(request: Request) {
 
       await removeProfileAvatars(deletePlan.targetProfileId);
 
+      if (userEmail) {
+        after(async () => {
+          await sendKlyxTransactionalEmail({
+            to: userEmail,
+            ...profileDeletedEmail(),
+          });
+        });
+      }
+
       const response = NextResponse.json({
         success: true,
         deletedScope: "profile" as const,
@@ -234,6 +250,15 @@ export async function DELETE(request: Request) {
       await supabaseAdmin.auth.admin.deleteUser(user.id);
 
     if (deleteError) throw deleteError;
+
+    if (userEmail) {
+      after(async () => {
+        await sendKlyxTransactionalEmail({
+          to: userEmail,
+          ...accountDeletedEmail(),
+        });
+      });
+    }
 
     return NextResponse.json({
       success: true,
