@@ -6,7 +6,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type FounderModeSwitcherProps = {
   currentProfileId: string | null;
@@ -20,6 +20,7 @@ export default function FounderModeSwitcher({
   providerProfileId,
 }: FounderModeSwitcherProps) {
   const router = useRouter();
+  const switchLockRef = useRef(false);
   const [switching, setSwitching] =
     useState<"client" | "provider" | null>(null);
   const [activeProfileId, setActiveProfileId] =
@@ -34,7 +35,7 @@ export default function FounderModeSwitcher({
     mode: "client" | "provider",
     profileId: string | null
   ) {
-    if (!profileId || switching) {
+    if (!profileId || switching || switchLockRef.current) {
       return;
     }
 
@@ -47,6 +48,7 @@ export default function FounderModeSwitcher({
       return;
     }
 
+    switchLockRef.current = true;
     setSwitching(mode);
     setError("");
 
@@ -93,6 +95,7 @@ export default function FounderModeSwitcher({
           : "Impossible de changer de mode."
       );
     } finally {
+      switchLockRef.current = false;
       setSwitching(null);
     }
   }
