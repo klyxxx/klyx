@@ -27,10 +27,27 @@ describe("KLYX profile switch UI state", () => {
     expect(source).toContain("profile.id === activeProfileId");
   });
 
+  it("serializes profile switches before React can rerender", () => {
+    const accountSource = compact(accountSwitcher);
+    const founderSource = compact(founderModeSwitcher);
+
+    expect(accountSource).toContain("const switchLockRef = useRef(false);");
+    expect(accountSource).toContain("switchLockRef.current");
+    expect(accountSource).toContain("switchLockRef.current = true;");
+    expect(accountSource).toContain("switchLockRef.current = false;");
+
+    expect(founderSource).toContain("const switchLockRef = useRef(false);");
+    expect(founderSource).toContain("switchLockRef.current");
+    expect(founderSource).toContain("switchLockRef.current = true;");
+    expect(founderSource).toContain("switchLockRef.current = false;");
+  });
+
   it("always releases the account switch spinner after success or failure", () => {
     const source = compact(accountSwitcher);
 
-    expect(source).toContain("} finally { setSwitchingId(null); }");
+    expect(source).toContain(
+      "} finally { switchLockRef.current = false; setSwitchingId(null); }"
+    );
   });
 
   it("hands successful role changes to the canonical full-document profile synchronizer", () => {
@@ -55,6 +72,7 @@ describe("KLYX profile switch UI state", () => {
     );
     expect(founderModeSwitcher).toContain("setActiveProfileId(profileId);");
     expect(founderModeSwitcher).toContain("} finally {");
+    expect(founderModeSwitcher).toContain("switchLockRef.current = false;");
     expect(founderModeSwitcher).toContain("setSwitching(null);");
     expect(founderModeSwitcher).toContain(
       "clientProfileId === activeProfileId"
