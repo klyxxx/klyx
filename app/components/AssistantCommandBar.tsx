@@ -13,6 +13,7 @@ import {
   Truck,
   Wrench,
 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
@@ -103,6 +104,8 @@ type FlowCopy = {
   confirm: string;
   edit: string;
   followUpPlaceholder: string;
+  published: string;
+  viewTracking: string;
 };
 
 function getVoiceSettings(locale: string): VoiceSettings {
@@ -153,6 +156,8 @@ function getFlowCopy(locale: string): FlowCopy {
       confirm: "Confirm",
       edit: "Edit",
       followUpPlaceholder: "Reply naturally to KLYX…",
+      published: "Request launched. KLYX is ready for the next one.",
+      viewTracking: "View tracking",
     };
   }
 
@@ -163,6 +168,8 @@ function getFlowCopy(locale: string): FlowCopy {
       confirm: "Bevestigen",
       edit: "Wijzigen",
       followUpPlaceholder: "Antwoord gewoon aan KLYX…",
+      published: "Aanvraag gestart. KLYX is klaar voor de volgende.",
+      viewTracking: "Opvolging bekijken",
     };
   }
 
@@ -173,6 +180,8 @@ function getFlowCopy(locale: string): FlowCopy {
       confirm: "Bestätigen",
       edit: "Ändern",
       followUpPlaceholder: "Antworte KLYX einfach…",
+      published: "Anfrage gestartet. KLYX ist bereit für die nächste.",
+      viewTracking: "Status ansehen",
     };
   }
 
@@ -182,6 +191,8 @@ function getFlowCopy(locale: string): FlowCopy {
     confirm: "Confirmer",
     edit: "Modifier",
     followUpPlaceholder: "Répondez simplement à KLYX…",
+    published: "Demande lancée. KLYX est prêt pour la suivante.",
+    viewTracking: "Voir le suivi",
   };
 }
 
@@ -265,6 +276,7 @@ export default function AssistantCommandBar(_props: Props) {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [payload, setPayload] = useState<BrainPayload | null>(null);
+  const [publishedHref, setPublishedHref] = useState<string | null>(null);
 
   useEffect(() => {
     setVoiceSupported(Boolean(getSpeechRecognitionConstructor()));
@@ -283,6 +295,7 @@ export default function AssistantCommandBar(_props: Props) {
 
     setBusy(true);
     setErrorMessage("");
+    setPublishedHref(null);
 
     try {
       const {
@@ -459,7 +472,12 @@ export default function AssistantCommandBar(_props: Props) {
         throw new Error("Publication unavailable");
       }
 
-      router.push(published.href || "/bookings");
+      setPublishedHref(published.href || "/bookings");
+      setConversationId(null);
+      setMessages([]);
+      setPayload(null);
+      setValue("");
+      requestAnimationFrame(() => textareaRef.current?.focus());
     } catch {
       setErrorMessage(t("genericError"));
     } finally {
@@ -550,6 +568,24 @@ export default function AssistantCommandBar(_props: Props) {
         </div>
       )}
 
+      {publishedHref && (
+        <div
+          role="status"
+          className="mb-5 flex items-start justify-between gap-4 rounded-2xl border border-blue-600/20 bg-blue-600/[0.04] p-4 sm:p-5"
+        >
+          <div className="flex min-w-0 items-start gap-3">
+            <CheckCircle2 className="mt-0.5 shrink-0 text-blue-600" size={19} />
+            <p className="text-sm font-semibold leading-6">{flowCopy.published}</p>
+          </div>
+          <Link
+            href={publishedHref}
+            className="shrink-0 text-sm font-semibold text-blue-600 transition hover:text-blue-500"
+          >
+            {flowCopy.viewTracking}
+          </Link>
+        </div>
+      )}
+
       {payload?.ready && (
         <div className="mb-5 rounded-2xl border border-blue-600/20 bg-blue-600/[0.04] p-4 sm:p-5">
           <div className="flex items-start gap-3">
@@ -611,7 +647,7 @@ export default function AssistantCommandBar(_props: Props) {
             maxLength={700}
             disabled={publishing}
             placeholder={
-              conversationId ? flowCopy.followUpPlaceholder : "Décrivez votre besoin..."
+              conversationId ? flowCopy.followUpPlaceholder : t("placeholder")
             }
             className="min-h-[112px] w-full resize-none bg-transparent px-2 py-2 text-base leading-7 text-foreground outline-none placeholder:text-muted-foreground disabled:opacity-60 sm:text-lg"
           />

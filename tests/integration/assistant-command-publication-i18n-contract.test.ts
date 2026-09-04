@@ -35,4 +35,26 @@ describe("assistant command publication i18n contract", () => {
       "`Demande KLYX pour ${payload.serviceSlug} à ${payload.city}.`"
     );
   });
+
+  it("keeps the assistant reusable after a successful publication", () => {
+    expect(commandBar).not.toContain(
+      'router.push(published.href || "/bookings")'
+    );
+    expect(commandBar).toContain(
+      'setPublishedHref(published.href || "/bookings")'
+    );
+    expect(commandBar).toContain("setConversationId(null)");
+    expect(commandBar).toContain("setMessages([])");
+    expect(commandBar).toContain("setPayload(null)");
+    expect(commandBar).toContain("requestAnimationFrame(() => textareaRef.current?.focus())");
+    expect(commandBar).toContain("href={publishedHref}");
+    expect(commandBar).toContain("flowCopy.viewTracking");
+  });
+
+  it("uses the localized initial prompt instead of terminal French-only copy", () => {
+    expect(commandBar).toContain(
+      'conversationId ? flowCopy.followUpPlaceholder : t("placeholder")'
+    );
+    expect(commandBar).not.toContain('"Décrivez votre besoin..."');
+  });
 });
