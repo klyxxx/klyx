@@ -40,7 +40,7 @@ async function splitFailureBelongsToActiveCheckout(
 
   const { data, error } = await supabaseAdmin
     .from("split_booking_payment_units")
-    .select("status, stripe_checkout_session_id")
+    .select("status, refund_status, stripe_checkout_session_id")
     .eq("id", unitId)
     .maybeSingle();
 
@@ -52,11 +52,55 @@ async function splitFailureBelongsToActiveCheckout(
     return false;
   }
 
-  if (data.status === "paid") {
+  if (data.status === "paid" || data.refund_status !== "none") {
     return false;
   }
 
   return data.stripe_checkout_session_id === checkoutSessionId;
+}
+
+// KLYX_SPLIT_REFUND_TERMINAL_GUARD_16_12
+// Once refund activity has started for a split unit, later/retried Checkout
+// success, failure or expiration webhooks must not rewrite payment snapshots.
+async function splitSessionCanMutatePayment(
+  session: Stripe.Checkout.Session
+): Promise<boolean> {
+  if (session.metadata?.klyx_flow !== "split_payment_13_27") {
+    return true;
+  }
+
+  const unitId = session.metadata?.split_payment_unit_id?.trim() ?? "";
+
+  if (!unitId) {
+    return false;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("split_booking_payment_units")
+    .select("refund_status, stripe_checkout_session_id")
+    .eq("id", unitId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    return false;
+  }
+
+  if (data.refund_status !== "none") {
+    return false;
+  }
+
+  if (
+    data.stripe_checkout_session_id &&
+    data.stripe_checkout_session_id !== session.id
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 export async function handleSplitStripeWebhookEvent(
@@ -71,6 +115,23 @@ export async function handleSplitStripeWebhookEvent(
         await splitFailureBelongsToActiveCheckout(stripe, intent);
 
       if (!belongsToActiveCheckout) {
+        return true;
+      }
+    }
+  }
+
+  if (
+    event.type === "checkout.session.completed" ||
+    event.type === "checkout.session.async_payment_succeeded" ||
+    event.type === "checkout.session.async_payment_failed" ||
+    event.type === "checkout.session.expired"
+  ) {
+    const session = event.data.object as Stripe.Checkout.Session;
+
+    if (session.metadata?.klyx_flow === "split_payment_13_27") {
+      const canMutatePayment = await splitSessionCanMutatePayment(session);
+
+      if (!canMutatePayment) {
         return true;
       }
     }
