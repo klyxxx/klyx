@@ -8,8 +8,14 @@ function read(relative: string) {
 }
 
 describe("KLYX provider finance visual contract", () => {
-  it("keeps finance data and Stripe actions while using the focused KLYX visual language", () => {
+  it("keeps finance behavior while using the exact KLYX blue across the provider finance surface", () => {
     const finance = read("app/provider/payments/page.tsx");
+    const exportButton = read("app/provider/payments/FinanceExportButton.tsx");
+    const reconciliation = read(
+      "app/provider/payments/FinanceReconciliationStatus.tsx"
+    );
+    const audit = read("app/provider/payments/ProviderFinanceAudit.tsx");
+    const surface = [finance, exportButton, reconciliation, audit].join("\n");
 
     expect(finance).toContain("KLYX_PROVIDER_FINANCE_VISUAL_2026_08_31");
     expect(finance).toContain("KLYX_PROVIDER_FINANCE_DESTINATION_2026_09_02");
@@ -25,14 +31,28 @@ describe("KLYX provider finance visual contract", () => {
     expect(finance).toContain("FinanceReconciliationStatus");
     expect(finance).toContain("FinanceExportButton");
     expect(finance).toContain("ProviderFinanceAudit");
+    expect(exportButton).toContain('"/api/provider/finance"');
+    expect(reconciliation).toContain('"/api/provider/finance"');
+    expect(audit).toContain('fetch("/api/provider/finance-audit"');
+    expect(audit).toContain('fetch("/api/stripe/connect/financial-status"');
 
-    expect(finance).toContain("text-blue-600");
-    expect(finance).not.toContain("violet-");
-    expect(finance).not.toContain("indigo-");
-    expect(finance).not.toContain("#2b1452");
-    expect(finance).not.toContain("bg-emerald-500/10");
-    expect(finance).not.toContain("bg-amber-500/10");
-    expect(finance).not.toContain("bg-rose-500/10");
+    expect(surface).toContain("#2563EB");
+    for (const legacyClass of [
+      "blue-300",
+      "blue-400",
+      "blue-500",
+      "blue-600",
+      "blue-700",
+      "violet-",
+      "indigo-",
+      "#2b1452",
+    ]) {
+      expect(surface).not.toContain(legacyClass);
+    }
+
+    expect(surface).toContain("emerald-500");
+    expect(surface).toContain("amber-500");
+    expect(surface).toContain("rose-500");
     expect(finance).not.toContain("function MoneyCard");
   });
 });

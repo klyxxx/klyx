@@ -325,7 +325,7 @@ export default function ProviderPaymentsPage() {
     <main className="klyx-page">
       <div className="mx-auto max-w-5xl">
         <header className="max-w-2xl">
-          <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+          <p className="text-sm font-semibold text-[#2563EB]">
             Finances
           </p>
           <h1 className="klyx-title mt-2 text-3xl sm:text-5xl">
@@ -346,7 +346,7 @@ export default function ProviderPaymentsPage() {
         {loading ? (
           <section className="mt-10 grid min-h-56 place-items-center">
             <div className="flex items-center gap-3 text-sm font-medium text-muted-foreground">
-              <LoaderCircle className="animate-spin text-blue-600" size={20} />
+              <LoaderCircle className="animate-spin text-[#2563EB]" size={20} />
               Chargement des finances…
             </div>
           </section>
@@ -493,7 +493,7 @@ export default function ProviderPaymentsPage() {
                           </p>
                           <Link
                             href={`/bookings/${entry.bookingId}`}
-                            className="text-sm font-semibold text-blue-600 dark:text-blue-400"
+                            className="text-sm font-semibold text-[#2563EB]"
                           >
                             Voir
                           </Link>
@@ -508,7 +508,7 @@ export default function ProviderPaymentsPage() {
                 <button
                   type="button"
                   onClick={() => setShowAllTransactions((current) => !current)}
-                  className="mt-3 inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400"
+                  className="mt-3 inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-[#2563EB]"
                 >
                   {showAllTransactions ? "Réduire" : "Voir toutes les transactions"}
                 </button>
@@ -579,7 +579,7 @@ function Metric({
   return (
     <div className="border-b border-border py-5 last:border-b-0 sm:border-b-0 sm:border-r sm:px-5 sm:first:pl-0 sm:last:border-r-0 sm:last:pr-0">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span className="text-blue-600 dark:text-blue-400">{icon}</span>
+        <span className="text-[#2563EB]">{icon}</span>
         {label}
       </div>
       <p className="mt-2 text-xl font-semibold tracking-[-0.02em]">{value}</p>
@@ -604,7 +604,7 @@ function StatusRow({
   return (
     <div className="flex items-center justify-between gap-4 rounded-2xl border border-border p-4">
       <div className="flex min-w-0 items-center gap-3">
-        <span className="text-blue-600 dark:text-blue-400">{icon}</span>
+        <span className="text-[#2563EB]">{icon}</span>
         <div className="min-w-0">
           <p className="text-sm font-semibold">{title}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
@@ -614,7 +614,7 @@ function StatusRow({
       </div>
 
       {ready ? (
-        <CheckCircle2 className="shrink-0 text-blue-600 dark:text-blue-400" size={18} />
+        <CheckCircle2 className="shrink-0 text-[#2563EB]" size={18} />
       ) : (
         <XCircle className="shrink-0 text-muted-foreground" size={18} />
       )}
