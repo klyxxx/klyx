@@ -370,8 +370,8 @@ export default function ProviderVerificationPage() {
   return (
     <main className="klyx-page">
       <div className="mx-auto max-w-6xl">
-        <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#111827,#1e3157_52%,#0f172a)] p-7 text-white sm:p-10">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white/70">
+        <section className="klyx-card p-7 sm:p-10">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[#2563EB]/20 bg-[#2563EB]/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-[#2563EB]">
             <BadgeCheck size={15} />
             {t("providerOnly")}
           </div>
@@ -380,11 +380,11 @@ export default function ProviderVerificationPage() {
             {t("title")}
           </h1>
 
-          <p className="mt-4 max-w-2xl text-sm leading-7 text-white/70">
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">
             {t("description")}
           </p>
 
-          <div className="mt-6 inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black">
+          <div className="mt-6 inline-flex items-center gap-2 rounded-2xl border border-[#2563EB]/20 bg-[#2563EB]/5 px-4 py-3 text-sm font-black text-[#2563EB]">
             <ShieldCheck size={18} />
             {t("statusPrefix")} {translateKlyxProviderVerificationStatus(
               locale,
