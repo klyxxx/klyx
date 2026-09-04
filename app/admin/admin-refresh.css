@@ -1,0 +1,110 @@
+/* KLYX admin visual refresh — presentation only, business logic stays in each page. */
+.klyx-admin-shell {
+  --klyx-admin-blue: #2563eb;
+  --klyx-admin-blue-soft: rgb(37 99 235 / 0.1);
+  --klyx-admin-blue-border: rgb(37 99 235 / 0.2);
+  min-height: 100vh;
+}
+
+.klyx-admin-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in oklab, var(--background) 92%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+.klyx-admin-brand-mark {
+  display: grid;
+  height: 2rem;
+  width: 2rem;
+  place-items: center;
+  border-radius: 0.75rem;
+  background: var(--klyx-admin-blue);
+  color: white;
+  box-shadow: 0 8px 22px rgb(37 99 235 / 0.2);
+}
+
+/* Legacy admin pages used dark purple gradients as page heroes. Keep their
+   content and actions intact, but render them as the current neutral KLYX card. */
+.klyx-admin-shell section[class*="bg-[linear-gradient"] {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border) !important;
+  background: var(--card) !important;
+  color: var(--foreground) !important;
+  box-shadow: 0 18px 55px rgb(24 24 27 / 0.07);
+}
+
+.klyx-admin-shell section[class*="bg-[linear-gradient"]::before {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: var(--klyx-admin-blue);
+  content: "";
+}
+
+.klyx-admin-shell section[class*="bg-[linear-gradient"] [class*="text-white/70"],
+.klyx-admin-shell section[class*="bg-[linear-gradient"] [class*="text-white/60"] {
+  color: var(--muted-foreground) !important;
+}
+
+.klyx-admin-shell section[class*="bg-[linear-gradient"] [class*="border-white"][class*="bg-white/5"] {
+  border-color: var(--klyx-admin-blue-border) !important;
+  background: var(--klyx-admin-blue-soft) !important;
+  color: var(--klyx-admin-blue) !important;
+}
+
+.klyx-admin-shell section[class*="bg-[linear-gradient"] a[class*="bg-white"],
+.klyx-admin-shell section[class*="bg-[linear-gradient"] button[class*="bg-white"] {
+  border-color: var(--klyx-admin-blue) !important;
+  background: var(--klyx-admin-blue) !important;
+  color: white !important;
+  box-shadow: 0 10px 24px rgb(37 99 235 / 0.18);
+}
+
+/* Old violet/indigo identity accents become the single KLYX blue.
+   Semantic green/amber/rose status colors remain untouched. */
+.klyx-admin-shell [class*="text-violet-"],
+.klyx-admin-shell [class*="text-indigo-"] {
+  color: var(--klyx-admin-blue) !important;
+}
+
+.klyx-admin-shell [class*="bg-violet-600"],
+.klyx-admin-shell [class*="bg-violet-700"],
+.klyx-admin-shell [class*="bg-indigo-600"],
+.klyx-admin-shell [class*="bg-indigo-700"] {
+  background: var(--klyx-admin-blue) !important;
+  color: white !important;
+}
+
+.klyx-admin-shell [class*="bg-violet-500/10"],
+.klyx-admin-shell [class*="bg-violet-600/10"],
+.klyx-admin-shell [class*="bg-indigo-500/10"],
+.klyx-admin-shell [class*="bg-indigo-600/10"] {
+  background: var(--klyx-admin-blue-soft) !important;
+}
+
+.klyx-admin-shell [class*="border-violet-"],
+.klyx-admin-shell [class*="border-indigo-"] {
+  border-color: var(--klyx-admin-blue-border) !important;
+}
+
+.klyx-admin-shell [class*="focus:border-violet-"]:focus,
+.klyx-admin-shell [class*="focus:border-indigo-"]:focus {
+  border-color: var(--klyx-admin-blue) !important;
+}
+
+.klyx-admin-shell .klyx-card:hover {
+  border-color: rgb(37 99 235 / 0.18);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .klyx-admin-shell .klyx-card {
+    transition:
+      border-color 160ms ease,
+      box-shadow 160ms ease,
+      transform 160ms ease;
+  }
+}
