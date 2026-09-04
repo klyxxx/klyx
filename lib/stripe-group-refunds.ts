@@ -2,7 +2,6 @@
 import "server-only";
 
 import type Stripe from "stripe";
-
 import { upsertFinancialLedgerEntry } from "@/lib/payment-ledger";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -55,9 +54,7 @@ async function findGroup(refund: Stripe.Refund): Promise<GroupRow | null> {
   if (metadataId) {
     const { data, error } = await supabaseAdmin
       .from("booking_groups")
-      .select(
-        "id, market_request_id, client_profile_id, provider_profile_id, status, payment_status, payment_mode, total_amount_cents, currency, stripe_payment_intent_id, stripe_refund_id, refund_status, cancellation_resolved_by"
-      )
+      .select("id, market_request_id, client_profile_id, provider_profile_id, status, payment_status, payment_mode, total_amount_cents, currency, stripe_payment_intent_id, stripe_refund_id, refund_status, cancellation_resolved_by")
       .eq("id", metadataId)
       .maybeSingle();
 
@@ -65,15 +62,13 @@ async function findGroup(refund: Stripe.Refund): Promise<GroupRow | null> {
     if (data) return data as unknown as GroupRow;
   }
 
-  const paymentIntentId = refundIntentId(refund);
-  if (!paymentIntentId) return null;
+  const intentId = refundIntentId(refund);
+  if (!intentId) return null;
 
   const { data, error } = await supabaseAdmin
     .from("booking_groups")
-    .select(
-      "id, market_request_id, client_profile_id, provider_profile_id, status, payment_status, payment_mode, total_amount_cents, currency, stripe_payment_intent_id, stripe_refund_id, refund_status, cancellation_resolved_by"
-    )
-    .eq("stripe_payment_intent_id", paymentIntentId)
+    .select("id, market_request_id, client_profile_id, provider_profile_id, status, payment_status, payment_mode, total_amount_cents, currency, stripe_payment_intent_id, stripe_refund_id, refund_status, cancellation_resolved_by")
+    .eq("stripe_payment_intent_id", intentId)
     .maybeSingle();
 
   if (error) throw new Error(error.message);
@@ -161,7 +156,7 @@ async function notify(params: {
         type: "system",
         title: params.title,
         message: params.message,
-        href: "/booking-groups/" + params.group.id,
+        href: `/booking-groups/${params.group.id}`,
         deduplication_key: params.key,
       },
       {
@@ -170,9 +165,7 @@ async function notify(params: {
       }
     );
 
-  if (error) {
-    console.error("Group refund notification:", error.message);
-  }
+  if (error) console.error("Group refund notification:", error.message);
 }
 
 function groupTotal(group: GroupRow): number {
@@ -183,17 +176,21 @@ function groupTotal(group: GroupRow): number {
   return total;
 }
 
+function refundAmountLabel(amount: number, currency: string): string {
+  const code = String(currency ?? "").trim().toUpperCase();
+  return /^[A-Z]{3}$/.test(code)
+    ? `${(amount / 100).toFixed(2)} ${code}`
+    : (amount / 100).toFixed(2);
+}
+
 function distributeRefundAmount(
   children: ChildRow[],
   total: number,
   refundAmount: number
 ): Array<{ child: ChildRow; share: number }> {
-  if (children.length === 0) {
-    throw new Error("KLYX_GROUP_REFUND_CHILDREN_MISSING");
-  }
+  if (children.length === 0) throw new Error("KLYX_GROUP_REFUND_CHILDREN_MISSING");
 
   let distributed = 0;
-
   return children.map((child, index) => {
     const gross = Math.max(Number(child.amount_total ?? 0), 0);
     const share =
@@ -213,22 +210,15 @@ async function persistSucceededRefundLedger(params: {
   intentId: string | null;
 }) {
   const total = groupTotal(params.group);
-  const allocations = distributeRefundAmount(
-    params.children,
-    total,
-    params.refund.amount
-  );
 
-  for (const { child, share } of allocations) {
-    const gross = Math.max(Number(child.amount_total ?? 0), 0);
-
+  for (const { child, share } of distributeRefundAmount(params.children, total, params.refund.amount)) {
     await upsertFinancialLedgerEntry({
       bookingId: child.id,
       entryKey: `booking:${child.id}:group-refund:${params.refund.id}`,
       entryType: "refund_succeeded",
       status: "succeeded",
       currency: child.currency ?? params.group.currency,
-      grossAmountCents: gross,
+      grossAmountCents: Math.max(Number(child.amount_total ?? 0), 0),
       refundAmountCents: share,
       paymentMode: child.payment_mode ?? params.group.payment_mode,
       stripePaymentIntentId: params.intentId,
@@ -251,9 +241,7 @@ async function aggregateSucceededRefunds(
     .eq("entry_type", "refund_succeeded")
     .eq("status", "succeeded");
 
-  if (intentId) {
-    query = query.eq("stripe_payment_intent_id", intentId);
-  }
+  if (intentId) query = query.eq("stripe_payment_intent_id", intentId);
 
   const { data, error } = await query;
   if (error) throw new Error(error.message);
@@ -264,22 +252,13 @@ async function aggregateSucceededRefunds(
   );
 }
 
-function refundAmountLabel(amount: number, currency: string): string {
-  const code = String(currency ?? "").trim().toUpperCase();
-  return /^[A-Z]{3}$/.test(code)
-    ? `${(amount / 100).toFixed(2)} ${code}`
-    : (amount / 100).toFixed(2);
-}
-
 async function finalizeRefundedGroup(params: {
   group: GroupRow;
   children: ChildRow[];
   refund: Stripe.Refund;
   now: string;
 }) {
-  const actorId =
-    params.group.cancellation_resolved_by ?? params.group.client_profile_id;
-
+  const actorId = params.group.cancellation_resolved_by ?? params.group.client_profile_id;
   const events = params.children
     .filter((child) => !["cancelled", "rejected"].includes(child.status))
     .map((child) => ({
@@ -291,14 +270,11 @@ async function finalizeRefundedGroup(params: {
     }));
 
   if (events.length > 0) {
-    const { error } = await supabaseAdmin
-      .from("booking_status_events")
-      .insert(events);
+    const { error } = await supabaseAdmin.from("booking_status_events").insert(events);
     if (error) throw new Error(error.message);
   }
 
   for (const child of params.children) {
-    const gross = Math.max(Number(child.amount_total ?? 0), 0);
     const { error } = await supabaseAdmin
       .from("bookings")
       .update({
@@ -307,7 +283,7 @@ async function finalizeRefundedGroup(params: {
         payment_status: "refunded",
         refund_status: "succeeded",
         stripe_refund_id: params.refund.id,
-        refunded_amount_cents: gross,
+        refunded_amount_cents: Math.max(Number(child.amount_total ?? 0), 0),
         refunded_at: params.now,
         updated_at: params.now,
       })
@@ -325,15 +301,10 @@ async function finalizeRefundedGroup(params: {
     stripeRefundId: params.refund.id,
   });
 
-  if (!auditRecorded) {
-    throw new Error("KLYX_GROUP_REFUND_SUCCESS_AUDIT_MISSING");
-  }
+  if (!auditRecorded) throw new Error("KLYX_GROUP_REFUND_SUCCESS_AUDIT_MISSING");
 
   const firstBookingId = params.children[0]?.id ?? null;
-  const amountLabel = refundAmountLabel(
-    groupTotal(params.group),
-    params.group.currency
-  );
+  const amountLabel = refundAmountLabel(groupTotal(params.group), params.group.currency);
 
   await Promise.all([
     notify({
@@ -341,10 +312,7 @@ async function finalizeRefundedGroup(params: {
       userId: params.group.client_profile_id,
       bookingId: firstBookingId,
       title: "Mission groupee remboursee",
-      message:
-        "Stripe a confirme le remboursement cumule de " +
-        amountLabel +
-        " pour toute la mission.",
+      message: `Stripe a confirme le remboursement cumule de ${amountLabel} pour toute la mission.`,
       key: `booking-group:${params.group.id}:refund-success:client`,
     }),
     notify({
@@ -352,8 +320,7 @@ async function finalizeRefundedGroup(params: {
       userId: params.group.provider_profile_id,
       bookingId: firstBookingId,
       title: "Mission groupee annulee",
-      message:
-        "Le remboursement groupe a ete confirme. Tous les creneaux sont annules.",
+      message: "Le remboursement groupe a ete confirme. Tous les creneaux sont annules.",
       key: `booking-group:${params.group.id}:refund-success:provider`,
     }),
   ]);
@@ -366,9 +333,6 @@ export async function tryReconcileBookingGroupStripeRefund(
   if (!group) return false;
 
   const incomingIntentId = refundIntentId(refund);
-
-  // Metadata can outlive a previous payment attempt. Never let an old refund
-  // mutate a group that is now attached to a newer Stripe PaymentIntent.
   if (
     group.stripe_payment_intent_id &&
     incomingIntentId &&
@@ -377,9 +341,7 @@ export async function tryReconcileBookingGroupStripeRefund(
     return true;
   }
 
-  if (group.refund_status === "refunded") {
-    return true;
-  }
+  if (group.refund_status === "refunded") return true;
 
   const intentId = incomingIntentId ?? group.stripe_payment_intent_id;
   const children = await loadChildren(group.id);
@@ -387,16 +349,10 @@ export async function tryReconcileBookingGroupStripeRefund(
   const normalized = normalizeRefundStatus(refund);
 
   if (normalized === "refunded") {
-    await persistSucceededRefundLedger({
-      group,
-      children,
-      refund,
-      intentId,
-    });
+    await persistSucceededRefundLedger({ group, children, refund, intentId });
   }
 
   const succeededAmount = await aggregateSucceededRefunds(children, intentId);
-
   if (succeededAmount > total) {
     throw new Error("KLYX_GROUP_REFUND_AGGREGATE_EXCEEDS_TOTAL");
   }
@@ -405,35 +361,28 @@ export async function tryReconcileBookingGroupStripeRefund(
   const hasSucceededPartial = succeededAmount > 0 && !fullyRefunded;
 
   let state: RefundState;
-  if (fullyRefunded) {
-    state = "refunded";
-  } else if (hasSucceededPartial || group.refund_status === "review_required") {
-    state = "review_required";
-  } else {
-    state = normalized;
-  }
+  if (fullyRefunded) state = "refunded";
+  else if (hasSucceededPartial || group.refund_status === "review_required") state = "review_required";
+  else state = normalized;
 
   const now = new Date().toISOString();
-
   const update = {
     stripe_refund_id: refund.id,
     refund_status: state,
     refunded_amount_cents: succeededAmount,
     refunded_at: state === "refunded" ? now : null,
     ...(state === "refunded"
-      ? {
-          status: "cancelled",
-          payment_status: "refunded",
-        }
+      ? { status: "cancelled", payment_status: "refunded" }
       : {}),
     updated_at: now,
   };
 
+  // SQL `<>` excludes NULL, so keep legacy rows eligible explicitly.
   let groupUpdate = supabaseAdmin
     .from("booking_groups")
     .update(update)
     .eq("id", group.id)
-    .neq("refund_status", "refunded");
+    .or("refund_status.is.null,refund_status.neq.refunded");
 
   if (state !== "refunded") {
     groupUpdate = groupUpdate.neq("payment_status", "refunded");
@@ -459,8 +408,8 @@ export async function tryReconcileBookingGroupStripeRefund(
       bookingId: firstBookingId,
       title: "Remboursement groupe a verifier",
       message:
-        `Stripe a confirme ${refundAmountLabel(succeededAmount, group.currency)} ` +
-        `sur ${refundAmountLabel(total, group.currency)}. ` +
+        `Stripe a confirme ${refundAmountLabel(succeededAmount, group.currency)} sur ` +
+        `${refundAmountLabel(total, group.currency)}. ` +
         "KLYX conserve la mission en verification jusqu'au remboursement complet.",
       key: `booking-group:${group.id}:refund-partial-review:client`,
     });
@@ -473,22 +422,16 @@ export async function tryReconcileBookingGroupStripeRefund(
   }
 
   if (state === "failed") {
-    const failure =
-      refund.failure_reason ||
-      "Stripe n a pas finalise le remboursement groupe.";
-
+    const failure = refund.failure_reason || "Stripe n a pas finalise le remboursement groupe.";
     const auditRecorded = await recordGroupRefundAudit({
       groupId: group.id,
-      actorProfileId:
-        group.cancellation_resolved_by ?? group.client_profile_id,
+      actorProfileId: group.cancellation_resolved_by ?? group.client_profile_id,
       action: "refund_failed",
       reason: failure,
       stripeRefundId: refund.id,
     });
 
-    if (!auditRecorded || (await groupRefundIsTerminal(group.id))) {
-      return true;
-    }
+    if (!auditRecorded || (await groupRefundIsTerminal(group.id))) return true;
 
     await Promise.all([
       notify({
