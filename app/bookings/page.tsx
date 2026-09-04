@@ -411,7 +411,7 @@ export default function BookingsPage() {
           </nav>
         )}
 
-        {!loading && (
+        {!loading && !errorKey && (
           <SplitMissionSection missions={splitMissions} filter={filter} />
         )}
 
@@ -422,7 +422,7 @@ export default function BookingsPage() {
               {t("loading")}
             </div>
           </div>
-        ) : bookings.length === 0 && splitMissions.length === 0 ? (
+        ) : errorKey ? null : bookings.length === 0 && splitMissions.length === 0 ? (
           <EmptyState />
         ) : visibleBookings.length === 0 && visibleSplitCount === 0 ? (
           <div className="mt-8 border-b border-border pb-8 text-sm text-muted-foreground">
