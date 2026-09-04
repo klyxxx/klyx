@@ -1,7 +1,7 @@
 import { after } from "next/server";
 
 import { secureApiErrorResponse } from "@/lib/api-error";
-import { sendKlyxProfileTransactionalEmail } from "@/lib/email/resend";
+import { sendKlyxDeduplicatedEmail } from "@/lib/email/deduplicated-delivery";
 import {
   quoteAcceptedEmail,
   quoteCancelledEmail,
@@ -41,6 +41,7 @@ function quoteLifecycleEmail(
   if (action === "send") {
     return {
       profileId: quote.client_profile_id,
+      templateKey: "quote.sent.client",
       ...quoteSentEmail(quoteId),
     };
   }
@@ -48,6 +49,7 @@ function quoteLifecycleEmail(
   if (action === "accept") {
     return {
       profileId: quote.provider_profile_id,
+      templateKey: "quote.accepted.provider",
       ...quoteAcceptedEmail(),
     };
   }
@@ -55,12 +57,14 @@ function quoteLifecycleEmail(
   if (action === "reject") {
     return {
       profileId: quote.provider_profile_id,
+      templateKey: "quote.rejected.provider",
       ...quoteRejectedEmail(),
     };
   }
 
   return {
     profileId: quote.provider_profile_id,
+    templateKey: "quote.cancelled.provider",
     ...quoteCancelledEmail(),
   };
 }
@@ -144,19 +148,28 @@ export async function POST(request: Request) {
     );
 
     if (securedResponse.ok) {
-      const emailBody = (await emailRequest
-        .json()
-        .catch(() => null)) as {
-        providerProfileId?: unknown;
-      } | null;
+      const [emailBody, responseBody] = await Promise.all([
+        emailRequest.json().catch(() => null) as Promise<{
+          providerProfileId?: unknown;
+        } | null>,
+        securedResponse.clone().json().catch(() => null) as Promise<{
+          quote?: { id?: unknown };
+        } | null>,
+      ]);
       const providerProfileId =
         typeof emailBody?.providerProfileId === "string"
           ? emailBody.providerProfileId.trim()
           : "";
+      const quoteId =
+        typeof responseBody?.quote?.id === "string"
+          ? responseBody.quote.id.trim()
+          : "";
 
-      if (providerProfileId) {
+      if (providerProfileId && quoteId) {
         after(async () => {
-          await sendKlyxProfileTransactionalEmail({
+          await sendKlyxDeduplicatedEmail({
+            deduplicationKey: `quote:${quoteId}:requested:provider`,
+            templateKey: "quote.requested.provider",
             profileId: providerProfileId,
             ...quoteRequestedEmail(),
           });
@@ -245,7 +258,14 @@ export async function PATCH(request: Request) {
             quoteId
           );
 
-          await sendKlyxProfileTransactionalEmail(email);
+          await sendKlyxDeduplicatedEmail({
+            deduplicationKey: `quote:${quoteId}:${action}:${email.profileId}`,
+            templateKey: email.templateKey,
+            profileId: email.profileId,
+            subject: email.subject,
+            text: email.text,
+            html: email.html,
+          });
         });
       }
     }

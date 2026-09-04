@@ -1,5 +1,7 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
+
 import {
   sendKlyxProfileTransactionalEmail,
   sendKlyxTransactionalEmail,
@@ -42,6 +44,14 @@ function warn(code: string): void {
   });
 }
 
+function recipientEmailHash(email: string | null | undefined): string | null {
+  const normalized = email?.trim().toLowerCase();
+
+  if (!normalized) return null;
+
+  return createHash("sha256").update(normalized).digest("hex");
+}
+
 async function claimDelivery(
   input: DeduplicatedDeliveryInput
 ): Promise<string | null> {
@@ -52,7 +62,8 @@ async function claimDelivery(
       deduplication_key: input.deduplicationKey,
       template_key: input.templateKey,
       recipient_profile_id: input.profileId?.trim() || null,
-      recipient_email: input.to?.trim() || null,
+      recipient_email: null,
+      recipient_email_hash: recipientEmailHash(input.to),
       status: "sending",
       attempts: 1,
       updated_at: now,

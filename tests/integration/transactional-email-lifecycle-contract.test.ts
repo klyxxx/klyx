@@ -92,7 +92,46 @@ describe("KLYX transactional email lifecycle contract", () => {
     expect(disputes).toContain("profileId: againstProfileId");
   });
 
-  it("deduplicates Stripe-driven email side effects with a persistent unique key", () => {
+  it("deduplicates every important transactional route with stable business keys", () => {
+    const profiles = source("app/api/profiles/manage/route.ts");
+    const accountDelete = source("app/api/account/delete/route.ts");
+    const bookingCreate = source("app/api/bookings/create/route.ts");
+    const bookingStatus = source("app/api/bookings/status/route.ts");
+    const quotes = source("app/api/quotes/route.ts");
+    const reviews = source("app/api/reviews/route.ts");
+    const groupReviews = source("app/api/group-reviews/route.ts");
+    const disputes = source("app/api/disputes/route.ts");
+
+    for (const route of [
+      profiles,
+      accountDelete,
+      bookingCreate,
+      bookingStatus,
+      quotes,
+      reviews,
+      groupReviews,
+      disputes,
+    ]) {
+      expect(route).toContain("sendKlyxDeduplicatedEmail");
+    }
+
+    expect(profiles).toContain("account:${user.id}:created:owner");
+    expect(profiles).toContain("profile:${profileId}:created:owner");
+    expect(profiles).toContain("profile:${body.profileId}:deleted:owner");
+    expect(accountDelete).toContain("account:${user.id}:deleted:owner");
+    expect(accountDelete).toContain("profile:${deletePlan.targetProfileId}:deleted:owner");
+    expect(bookingCreate).toContain("booking:${booking.id}:requested:provider");
+    expect(bookingStatus).toContain("booking:${booking.id}:accepted:client");
+    expect(bookingStatus).toContain("booking:${booking.id}:rejected:client");
+    expect(quotes).toContain("quote:${quoteId}:requested:provider");
+    expect(quotes).toContain("quote:${quoteId}:${action}:${email.profileId}");
+    expect(reviews).toContain("review:${review.id}:received:provider");
+    expect(groupReviews).toContain("review:${review.id}:received:provider");
+    expect(disputes).toContain("dispute:${dispute.id}:opened:${profile.id}");
+    expect(disputes).toContain("dispute:${dispute.id}:opened:${againstProfileId}");
+  });
+
+  it("keeps the registry fail-open, private and free of persisted raw direct addresses", () => {
     const registry = source("lib/email/deduplicated-delivery.ts");
     const migration = source(
       "supabase/migrations/20260904220000_klyx_transactional_email_delivery_registry.sql"
@@ -102,7 +141,14 @@ describe("KLYX transactional email lifecycle contract", () => {
     expect(registry).toContain("transactional_email_deliveries");
     expect(registry).toContain("deduplication_key");
     expect(registry).toContain("STALE_SENDING_MS");
+    expect(registry).toContain('createHash("sha256")');
+    expect(registry).toContain("recipient_email: null");
+    expect(registry).toContain("recipient_email_hash: recipientEmailHash(input.to)");
+    expect(registry).toContain("KLYX_EMAIL_REGISTRY_CLAIM_UNEXPECTED_FAILURE");
+    expect(registry).toContain("KLYX_EMAIL_REGISTRY_FINALIZE_UNEXPECTED_FAILURE");
     expect(migration).toContain("deduplication_key text not null unique");
+    expect(migration).toContain("recipient_email_hash text null");
+    expect(migration).toContain("enable row level security");
     expect(paymentEmails).toContain("sendKlyxDeduplicatedEmail");
     expect(paymentEmails).toContain("payment-succeeded:client");
     expect(paymentEmails).toContain("payment-failed:client");

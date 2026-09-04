@@ -7,8 +7,8 @@ import {
 import {
   secureApiErrorResponse,
 } from "@/lib/api-error";
+import { sendKlyxDeduplicatedEmail } from "@/lib/email/deduplicated-delivery";
 import { disputeOpenedEmail } from "@/lib/email/lifecycle-templates";
-import { sendKlyxProfileTransactionalEmail } from "@/lib/email/resend";
 import {
   logServerError,
 } from "@/lib/server-log";
@@ -297,11 +297,15 @@ export async function POST(request: Request) {
 
     after(async () => {
       await Promise.all([
-        sendKlyxProfileTransactionalEmail({
+        sendKlyxDeduplicatedEmail({
+          deduplicationKey: `dispute:${dispute.id}:opened:${profile.id}`,
+          templateKey: "dispute.opened.participant",
           profileId: profile.id,
           ...disputeOpenedEmail(booking.id),
         }),
-        sendKlyxProfileTransactionalEmail({
+        sendKlyxDeduplicatedEmail({
+          deduplicationKey: `dispute:${dispute.id}:opened:${againstProfileId}`,
+          templateKey: "dispute.opened.participant",
           profileId: againstProfileId,
           ...disputeOpenedEmail(booking.id),
         }),

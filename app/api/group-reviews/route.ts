@@ -6,8 +6,8 @@ import {
   getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
+import { sendKlyxDeduplicatedEmail } from "@/lib/email/deduplicated-delivery";
 import { reviewReceivedEmail } from "@/lib/email/lifecycle-templates";
-import { sendKlyxProfileTransactionalEmail } from "@/lib/email/resend";
 import { recalculateProviderScores } from "@/lib/provider-score";
 import { logServerError } from "@/lib/server-log";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -380,7 +380,9 @@ export async function POST(request: Request) {
 
     if (!existing) {
       after(async () => {
-        await sendKlyxProfileTransactionalEmail({
+        await sendKlyxDeduplicatedEmail({
+          deduplicationKey: `review:${review.id}:received:provider`,
+          templateKey: "review.received.provider",
           profileId: providerId,
           ...reviewReceivedEmail(),
         });

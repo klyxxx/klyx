@@ -5,12 +5,12 @@ import {
   getActiveProfile,
 } from "@/lib/active-profile";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { sendKlyxDeduplicatedEmail } from "@/lib/email/deduplicated-delivery";
 import {
   accountCreatedEmail,
   profileCreatedEmail,
   profileDeletedEmail,
 } from "@/lib/email/lifecycle-templates";
-import { sendKlyxTransactionalEmail } from "@/lib/email/resend";
 import { getKlyxMarket } from "@/lib/klyx-supported-markets";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/supabase/server";
@@ -319,16 +319,22 @@ export async function POST(request: Request) {
     const userEmail = user.email?.trim();
 
     if (userEmail) {
-      const content =
-        (existingProfileCount ?? 0) === 0
-          ? accountCreatedEmail({
-              firstName: profileInput.firstName,
-              accountType,
-            })
-          : profileCreatedEmail(accountType);
+      const isFirstProfile = (existingProfileCount ?? 0) === 0;
+      const content = isFirstProfile
+        ? accountCreatedEmail({
+            firstName: profileInput.firstName,
+            accountType,
+          })
+        : profileCreatedEmail(accountType);
 
       after(async () => {
-        await sendKlyxTransactionalEmail({
+        await sendKlyxDeduplicatedEmail({
+          deduplicationKey: isFirstProfile
+            ? `account:${user.id}:created:owner`
+            : `profile:${profileId}:created:owner`,
+          templateKey: isFirstProfile
+            ? "account.created.owner"
+            : "profile.created.owner",
           to: userEmail,
           ...content,
         });
@@ -537,7 +543,9 @@ export async function DELETE(request: Request) {
 
     if (userEmail) {
       after(async () => {
-        await sendKlyxTransactionalEmail({
+        await sendKlyxDeduplicatedEmail({
+          deduplicationKey: `profile:${body.profileId}:deleted:owner`,
+          templateKey: "profile.deleted.owner",
           to: userEmail,
           ...profileDeletedEmail(),
         });

@@ -7,6 +7,7 @@ create table if not exists public.transactional_email_deliveries (
   template_key text not null,
   recipient_profile_id uuid null,
   recipient_email text null,
+  recipient_email_hash text null,
   status text not null default 'sending'
     check (status in ('sending', 'sent', 'failed')),
   attempts integer not null default 1 check (attempts > 0),
@@ -18,6 +19,7 @@ create table if not exists public.transactional_email_deliveries (
     check (
       recipient_profile_id is not null
       or nullif(btrim(recipient_email), '') is not null
+      or nullif(btrim(recipient_email_hash), '') is not null
     )
 );
 
@@ -27,4 +29,4 @@ create index if not exists transactional_email_deliveries_status_idx
   on public.transactional_email_deliveries (status, updated_at desc);
 
 comment on table public.transactional_email_deliveries is
-  'Server-only idempotency and delivery audit for KLYX transactional email.';
+  'Server-only idempotency and delivery audit for KLYX transactional email. Direct recipient addresses are hashed before persistence.';

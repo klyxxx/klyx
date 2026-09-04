@@ -4,11 +4,11 @@ import Stripe from "stripe";
 import { ACTIVE_PROFILE_COOKIE, getActiveProfile } from "@/lib/active-profile";
 import { resolveKlyxAccountDeletePlan } from "@/lib/account-delete-scope";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { sendKlyxDeduplicatedEmail } from "@/lib/email/deduplicated-delivery";
 import {
   accountDeletedEmail,
   profileDeletedEmail,
 } from "@/lib/email/lifecycle-templates";
-import { sendKlyxTransactionalEmail } from "@/lib/email/resend";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -226,7 +226,9 @@ export async function DELETE(request: Request) {
 
       if (userEmail) {
         after(async () => {
-          await sendKlyxTransactionalEmail({
+          await sendKlyxDeduplicatedEmail({
+            deduplicationKey: `profile:${deletePlan.targetProfileId}:deleted:owner`,
+            templateKey: "profile.deleted.owner",
             to: userEmail,
             ...profileDeletedEmail(),
           });
@@ -253,7 +255,9 @@ export async function DELETE(request: Request) {
 
     if (userEmail) {
       after(async () => {
-        await sendKlyxTransactionalEmail({
+        await sendKlyxDeduplicatedEmail({
+          deduplicationKey: `account:${user.id}:deleted:owner`,
+          templateKey: "account.deleted.owner",
           to: userEmail,
           ...accountDeletedEmail(),
         });
