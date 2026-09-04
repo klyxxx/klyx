@@ -401,6 +401,61 @@ export async function POST(
         break;
       }
 
+      case "payment_intent.succeeded": {
+        const intent =
+          event.data
+            .object as
+            Stripe.PaymentIntent;
+
+        const sessions =
+          await stripe
+            .checkout
+            .sessions
+            .list({
+              payment_intent:
+                intent.id,
+              limit: 1,
+            });
+
+        const listedSession =
+          sessions.data[0];
+
+        if (!listedSession) {
+          throw new Error(
+            `Aucune session Checkout trouvée pour le paiement Stripe ${intent.id}.`
+          );
+        }
+
+        const session =
+          await stripe.checkout.sessions.retrieve(
+            listedSession.id
+          );
+
+        if (
+          session.payment_status !==
+          "paid"
+        ) {
+          throw new Error(
+            `Le PaymentIntent ${intent.id} est réussi mais la session Checkout ${session.id} n'est pas marquée payée.`
+          );
+        }
+
+        if (
+          isGroupIntent(intent) ||
+          isGroupSession(session)
+        ) {
+          await markBookingGroupPaidFromSession(
+            session
+          );
+        } else {
+          await markBookingPaidFromSession(
+            session
+          );
+        }
+
+        break;
+      }
+
       case "payment_intent.payment_failed": {
         const intent =
           event.data
