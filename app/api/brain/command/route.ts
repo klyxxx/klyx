@@ -117,16 +117,25 @@ export async function POST(
         );
 
       if (action) {
+        const localizedAction =
+          localizeKlyxGroundedAction(
+            action,
+            locale
+          );
+
         return NextResponse.json({
           mode:
             "existing_action",
           automaticExecutionAllowed:
             false,
           action:
-            localizeKlyxGroundedAction(
-              action,
-              locale
-            ),
+            action.kind === "compare_offers"
+              ? {
+                  ...localizedAction,
+                  description:
+                    action.description,
+                }
+              : localizedAction,
         });
       }
     }
