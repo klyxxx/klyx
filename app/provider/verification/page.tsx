@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
-import { getActiveClientProfile } from "@/lib/account-switcher";
+import { getActiveProfileAccount } from "@/lib/account-switcher";
 import {
   formatKlyxProviderVerificationFileSize,
   getKlyxProviderVerificationDocumentType,
@@ -119,7 +119,12 @@ export default function ProviderVerificationPage() {
     setErrorMessage("");
 
     try {
-      const profile = await getActiveClientProfile();
+      const profile = await getActiveProfileAccount();
+
+      if (profile.accountType !== "provider") {
+        throw new Error("KLYX_PROVIDER_VERIFICATION_PROVIDER_REQUIRED");
+      }
+
       setProfileId(profile.id);
 
       const token = await accessToken();
