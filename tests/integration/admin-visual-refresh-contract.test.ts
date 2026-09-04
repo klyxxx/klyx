@@ -29,20 +29,24 @@ describe("KLYX admin visual refresh contract", () => {
     expect(adminStylesSource).toContain("color: var(--foreground) !important");
   });
 
-  it("maps legacy violet and indigo identity accents to KLYX blue", () => {
+  it("maps legacy identity and shared controls to KLYX blue", () => {
+    expect(adminStylesSource).toContain(".klyx-admin-shell .klyx-eyebrow");
     expect(adminStylesSource).toContain('[class*="text-violet-"]');
     expect(adminStylesSource).toContain('[class*="text-indigo-"]');
+    expect(adminStylesSource).toContain('[class*="text-blue-600"]');
     expect(adminStylesSource).toContain('[class*="bg-violet-600"]');
     expect(adminStylesSource).toContain('[class*="bg-indigo-600"]');
+    expect(adminStylesSource).toContain(".klyx-admin-shell .klyx-input:focus");
   });
 
-  it("does not override semantic success, warning or error colors", () => {
+  it("preserves semantic status colors apart from the pale legacy hero badge", () => {
     expect(adminStylesSource).not.toContain('[class*="text-emerald-"]');
-    expect(adminStylesSource).not.toContain('[class*="text-amber-"]');
+    expect(adminStylesSource).not.toContain('[class*="text-amber-600"]');
     expect(adminStylesSource).not.toContain('[class*="text-rose-"]');
     expect(adminStylesSource).not.toContain('[class*="bg-emerald-"]');
     expect(adminStylesSource).not.toContain('[class*="bg-amber-"]');
     expect(adminStylesSource).not.toContain('[class*="bg-rose-"]');
+    expect(adminStylesSource).toContain('[class*="text-amber-200"]');
   });
 
   it("keeps admin routes excluded from indexing", () => {
