@@ -10,20 +10,34 @@ const INTENTS = {
     "payement",
     "regler",
     "carte bancaire",
+    "c est paye",
+    "est ce paye",
+    "deja paye",
+    "paiement confirme",
     "payment",
     "pay my",
     "pay for",
     "pay now",
     "want to pay",
     "card payment",
+    "is it paid",
+    "has it been paid",
+    "already paid",
+    "payment confirmed",
     "betalen",
     "betaling",
     "afrekenen",
     "bankkaart",
+    "is het betaald",
+    "al betaald",
+    "betaling bevestigd",
     "bezahlen",
     "zahlung",
     "bezahle",
     "karte bezahlen",
+    "ist es bezahlt",
+    "schon bezahlt",
+    "zahlung bestatigt",
   ],
   tracking: [
     "suivre",
@@ -171,6 +185,12 @@ const INTENTS = {
     "reprendre ma demande",
     "mes actions",
     "ma priorite",
+    "qu est ce qui bloque",
+    "qu est ce qui est bloque",
+    "j attends quoi",
+    "qu est ce que j attends",
+    "quel est le statut",
+    "statut actuel",
     "what should i do",
     "what to do now",
     "next action",
@@ -180,6 +200,11 @@ const INTENTS = {
     "resume my request",
     "my actions",
     "my priority",
+    "what is blocking",
+    "what am i waiting for",
+    "what are we waiting for",
+    "what is the status",
+    "current status",
     "wat moet ik doen",
     "wat nu",
     "volgende actie",
@@ -189,6 +214,10 @@ const INTENTS = {
     "mijn aanvraag hervatten",
     "mijn acties",
     "mijn prioriteit",
+    "wat blokkeert",
+    "waar wacht ik op",
+    "wat is de status",
+    "huidige status",
     "was soll ich tun",
     "was jetzt",
     "nachste aktion",
@@ -198,6 +227,10 @@ const INTENTS = {
     "anfrage wieder aufnehmen",
     "meine aktionen",
     "meine prioritat",
+    "was blockiert",
+    "worauf warte ich",
+    "wie ist der status",
+    "aktueller status",
   ],
   newNeed: [
     "j ai besoin de",
@@ -246,6 +279,39 @@ export function normalizeBrainCommandMessage(value: string): string {
 
 function includesAny(value: string, expressions: readonly string[]): boolean {
   return expressions.some((expression) => value.includes(expression));
+}
+
+export function brainCommandActionMatchesSpecificIntent(
+  action: BrainCommandActionLike,
+  message: string
+): boolean {
+  if (action.kind === "payment_pending") return includesAny(message, INTENTS.payment);
+
+  if (action.kind === "track_mission" || action.kind === "provider_track_mission") {
+    return includesAny(message, INTENTS.tracking);
+  }
+
+  if (action.kind === "confirm_completion") {
+    return includesAny(message, INTENTS.confirmCompletion);
+  }
+
+  if (action.kind === "provider_finish_mission") {
+    return includesAny(message, INTENTS.providerFinish);
+  }
+
+  if (action.kind === "provider_booking_request") {
+    return includesAny(message, INTENTS.providerBooking);
+  }
+
+  if (action.kind === "compare_offers") return includesAny(message, INTENTS.compareOffers);
+
+  if (action.kind === "finalize_booking") {
+    return includesAny(message, INTENTS.finalizeBooking);
+  }
+
+  if (action.kind === "review_completed") return includesAny(message, INTENTS.review);
+
+  return false;
 }
 
 export function brainCommandActionIntentScore(
@@ -316,4 +382,15 @@ export function bestBrainCommandAction<T extends BrainCommandActionLike>(
       brainCommandActionIntentScore(second, message) -
       brainCommandActionIntentScore(first, message)
   )[0] ?? null;
+}
+
+export function bestSpecificBrainCommandAction<T extends BrainCommandActionLike>(
+  actions: T[],
+  message: string
+): T | null {
+  const matchingActions = actions.filter((action) =>
+    brainCommandActionMatchesSpecificIntent(action, message)
+  );
+
+  return bestBrainCommandAction(matchingActions, message);
 }
