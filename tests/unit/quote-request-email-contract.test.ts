@@ -11,6 +11,10 @@ const serverEmail = fs.readFileSync(
   path.join(process.cwd(), "lib/email/resend.ts"),
   "utf8"
 );
+const deduplicatedDelivery = fs.readFileSync(
+  path.join(process.cwd(), "lib/email/deduplicated-delivery.ts"),
+  "utf8"
+);
 const resendCore = fs.readFileSync(
   path.join(process.cwd(), "lib/email/resend-core.ts"),
   "utf8"
@@ -28,20 +32,24 @@ describe("quote request transactional email contract", () => {
     expect(resendCore).not.toContain("RESEND_API_KEY");
   });
 
-  it("wires only successful quote creation to the provider email side effect", () => {
+  it("wires only successful quote creation to an idempotent provider email side effect", () => {
     expect(route).toContain('import { after } from "next/server"');
-    expect(route).toContain("sendKlyxProfileTransactionalEmail");
+    expect(route).toContain("sendKlyxDeduplicatedEmail");
     expect(route).toContain("quoteRequestedEmail");
     expect(route).toContain("const emailRequest = request.clone();");
     expect(route).toContain("if (securedResponse.ok)");
     expect(route).toContain("providerProfileId");
+    expect(route).toContain(
+      "deduplicationKey: `quote:${quoteId}:requested:provider`"
+    );
+    expect(route).toContain('templateKey: "quote.requested.provider"');
     expect(templates).toContain("Nouvelle demande de devis sur KLYX");
 
     const corePostIndex = route.indexOf("const response = await corePost(request)");
     const securedIndex = route.indexOf("const securedResponse", corePostIndex);
     const afterIndex = route.indexOf("after(async () =>", securedIndex);
     const emailIndex = route.indexOf(
-      "await sendKlyxProfileTransactionalEmail({",
+      "await sendKlyxDeduplicatedEmail({",
       afterIndex
     );
     const returnIndex = route.indexOf("return securedResponse;", emailIndex);
@@ -53,13 +61,19 @@ describe("quote request transactional email contract", () => {
     expect(returnIndex).toBeGreaterThan(emailIndex);
   });
 
-  it("keeps email delivery best-effort so quote creation is not failed by Resend", () => {
+  it("keeps email delivery best-effort so quote creation is not failed by Resend or registry errors", () => {
     expect(serverEmail).toContain("if (!apiKey)");
     expect(serverEmail).toContain("return skippedResult();");
     expect(serverEmail).toContain("catch {");
     expect(serverEmail).toContain("return failedResult();");
     expect(resendCore).toContain("if (!response.ok)");
     expect(resendCore).toContain('status: "failed"');
-    expect(route).not.toContain("throw await sendKlyxProfileTransactionalEmail");
+    expect(deduplicatedDelivery).toContain(
+      "KLYX_EMAIL_REGISTRY_CLAIM_UNEXPECTED_FAILURE"
+    );
+    expect(deduplicatedDelivery).toContain(
+      "KLYX_EMAIL_REGISTRY_FINALIZE_UNEXPECTED_FAILURE"
+    );
+    expect(route).not.toContain("throw await sendKlyxDeduplicatedEmail");
   });
 });
