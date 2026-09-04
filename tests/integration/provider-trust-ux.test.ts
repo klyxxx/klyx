@@ -27,9 +27,12 @@ describe("provider trust UX", () => {
     expect(source).not.toContain('method: "DELETE"');
   });
 
-  it("uses KLYX blue for identity, semantic state colors, and no arbitrary first-case priority", () => {
-    expect(source).toContain("bg-blue-600");
-    expect(source).toContain("text-blue-600");
+  it("uses the exact KLYX blue for identity, semantic state colors, and no arbitrary first-case priority", () => {
+    expect(source).toContain("#2563EB");
+    expect(source).not.toContain("text-blue-600");
+    expect(source).not.toContain("text-blue-700");
+    expect(source).not.toContain("bg-blue-600");
+    expect(source).not.toContain("border-blue-500");
     expect(source).not.toContain("text-violet-");
     expect(source).not.toContain("bg-violet-");
     expect(source).toContain("amber-500");
