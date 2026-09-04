@@ -12,11 +12,13 @@ describe("sidebar navigation accessibility i18n contract", () => {
     const sidebar = read("app/ui/AppSidebar.tsx");
 
     expect(sidebar).toContain(
-      'translateKlyxSidebarNavigation(locale,\n    "desktopNavigation"'
+      "const desktopNavigationLabel = translateKlyxSidebarNavigation("
     );
     expect(sidebar).toContain(
-      'translateKlyxSidebarNavigation(locale,\n    "mobileNavigation"'
+      "const mobileNavigationLabel = translateKlyxSidebarNavigation("
     );
+    expect(sidebar).toContain('"desktopNavigation"');
+    expect(sidebar).toContain('"mobileNavigation"');
     expect(sidebar).toContain("aria-label={desktopNavigationLabel}");
     expect(sidebar).toContain("aria-label={mobileNavigationLabel}");
     expect(sidebar).not.toContain('aria-label="Navigation principale KLYX"');
