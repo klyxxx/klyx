@@ -37,6 +37,62 @@ describe("KLYX assistant command bar i18n", () => {
     );
   });
 
+  it("localizes dynamic publication copy without changing its data", () => {
+    const params = { service: "plomberie", city: "Bruxelles" };
+
+    expect(
+      translateKlyxAssistantCommand("fr", "publishedRequestTitle", params)
+    ).toBe("Besoin de plomberie");
+    expect(
+      translateKlyxAssistantCommand(
+        "fr",
+        "publishedRequestFallbackDescription",
+        params
+      )
+    ).toBe("Demande KLYX pour plomberie à Bruxelles.");
+
+    expect(
+      translateKlyxAssistantCommand("en", "publishedRequestTitle", params)
+    ).toBe("Need for plomberie");
+    expect(
+      translateKlyxAssistantCommand(
+        "en",
+        "publishedRequestFallbackDescription",
+        params
+      )
+    ).toBe("KLYX request for plomberie in Bruxelles.");
+
+    expect(
+      translateKlyxAssistantCommand("nl", "publishedRequestTitle", params)
+    ).toBe("Nood aan plomberie");
+    expect(
+      translateKlyxAssistantCommand(
+        "nl",
+        "publishedRequestFallbackDescription",
+        params
+      )
+    ).toBe("KLYX-aanvraag voor plomberie in Bruxelles.");
+
+    expect(
+      translateKlyxAssistantCommand("de", "publishedRequestTitle", params)
+    ).toBe("Bedarf an plomberie");
+    expect(
+      translateKlyxAssistantCommand(
+        "de",
+        "publishedRequestFallbackDescription",
+        params
+      )
+    ).toBe("KLYX-Anfrage für plomberie in Bruxelles.");
+  });
+
+  it("keeps unsupported dynamic publication locales deterministic", () => {
+    expect(
+      translateKlyxAssistantCommand("es", "publishedRequestTitle", {
+        service: "plomberie",
+      })
+    ).toBe("Besoin de plomberie");
+  });
+
   it("keeps all localized examples compatible with the deterministic router", () => {
     for (const locale of KLYX_ASSISTANT_COMMAND_TRANSLATED_LOCALES) {
       const [newNeed, general, existing] = getKlyxAssistantCommandExamples(locale);

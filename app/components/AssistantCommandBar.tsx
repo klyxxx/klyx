@@ -246,8 +246,10 @@ function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | null 
 export default function AssistantCommandBar(_props: Props) {
   const router = useRouter();
   const { locale } = useKlyxLocale();
-  const t = (key: KlyxAssistantCommandMessageKey) =>
-    translateKlyxAssistantCommand(locale, key);
+  const t = (
+    key: KlyxAssistantCommandMessageKey,
+    params?: Record<string, string | number>
+  ) => translateKlyxAssistantCommand(locale, key, params);
   const voiceSettings = getVoiceSettings(locale);
   const flowCopy = getFlowCopy(locale);
   const quickServices = getQuickServices(locale);
@@ -418,11 +420,16 @@ export default function AssistantCommandBar(_props: Props) {
         .filter(Boolean)
         .join(" ")
         .slice(0, 2000);
-      const title = `Besoin de ${payload.serviceSlug}`.slice(0, 120);
+      const title = t("publishedRequestTitle", {
+        service: payload.serviceSlug,
+      }).slice(0, 120);
       const description =
         userDescription.length >= 10
           ? userDescription
-          : `Demande KLYX pour ${payload.serviceSlug} à ${payload.city}.`;
+          : t("publishedRequestFallbackDescription", {
+              service: payload.serviceSlug,
+              city: payload.city,
+            });
 
       const publishResponse = await fetch("/api/brain/market-publish", {
         method: "POST",

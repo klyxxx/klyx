@@ -17,10 +17,14 @@ export const KLYX_ASSISTANT_COMMAND_MESSAGE_KEYS = [
   "continue",
   "actionsDetected",
   "genericError",
+  "publishedRequestTitle",
+  "publishedRequestFallbackDescription",
 ] as const;
 
 export type KlyxAssistantCommandMessageKey =
   (typeof KLYX_ASSISTANT_COMMAND_MESSAGE_KEYS)[number];
+
+export type KlyxAssistantCommandParams = Record<string, string | number>;
 
 type Dictionary = Record<KlyxAssistantCommandMessageKey, string>;
 
@@ -32,6 +36,8 @@ const DICTIONARIES: Record<KlyxAssistantCommandLocale, Dictionary> = {
     continue: "Continuer",
     actionsDetected: "Actions détectées",
     genericError: "KLYX ne peut pas traiter cette commande pour le moment.",
+    publishedRequestTitle: "Besoin de {service}",
+    publishedRequestFallbackDescription: "Demande KLYX pour {service} à {city}.",
   },
   en: {
     eyebrow: "Ask KLYX",
@@ -40,6 +46,8 @@ const DICTIONARIES: Record<KlyxAssistantCommandLocale, Dictionary> = {
     continue: "Continue",
     actionsDetected: "Detected actions",
     genericError: "KLYX cannot process this command right now.",
+    publishedRequestTitle: "Need for {service}",
+    publishedRequestFallbackDescription: "KLYX request for {service} in {city}.",
   },
   nl: {
     eyebrow: "Vraag het aan KLYX",
@@ -48,6 +56,8 @@ const DICTIONARIES: Record<KlyxAssistantCommandLocale, Dictionary> = {
     continue: "Doorgaan",
     actionsDetected: "Gedetecteerde acties",
     genericError: "KLYX kan deze opdracht momenteel niet verwerken.",
+    publishedRequestTitle: "Nood aan {service}",
+    publishedRequestFallbackDescription: "KLYX-aanvraag voor {service} in {city}.",
   },
   de: {
     eyebrow: "KLYX fragen",
@@ -56,6 +66,8 @@ const DICTIONARIES: Record<KlyxAssistantCommandLocale, Dictionary> = {
     continue: "Weiter",
     actionsDetected: "Erkannte Aktionen",
     genericError: "KLYX kann diesen Befehl derzeit nicht verarbeiten.",
+    publishedRequestTitle: "Bedarf an {service}",
+    publishedRequestFallbackDescription: "KLYX-Anfrage für {service} in {city}.",
   },
 };
 
@@ -100,9 +112,16 @@ export function getKlyxAssistantCommandDictionary(
 
 export function translateKlyxAssistantCommand(
   locale: KlyxLocale | string,
-  key: KlyxAssistantCommandMessageKey
+  key: KlyxAssistantCommandMessageKey,
+  params?: KlyxAssistantCommandParams
 ): string {
-  return getKlyxAssistantCommandDictionary(locale)[key];
+  const template = getKlyxAssistantCommandDictionary(locale)[key];
+  if (!params) return template;
+
+  return template.replace(/\{(\w+)\}/g, (match, token: string) => {
+    const value = params[token];
+    return value === undefined ? match : String(value);
+  });
 }
 
 export function getKlyxAssistantCommandExamples(
