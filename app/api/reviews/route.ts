@@ -1,10 +1,12 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
 import { secureApiErrorResponse } from "@/lib/api-error";
 import {
   apiErrorStatus,
   getAuthenticatedProfile,
 } from "@/lib/api-auth";
+import { reviewReceivedEmail } from "@/lib/email/lifecycle-templates";
+import { sendKlyxProfileTransactionalEmail } from "@/lib/email/resend";
 import { recalculateProviderScores } from "@/lib/provider-score";
 import { logServerError } from "@/lib/server-log";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -357,6 +359,15 @@ export async function POST(request: Request) {
         "KLYX_REVIEW_NOTIFICATION_FAILED",
         startedAt
       );
+    }
+
+    if (!existing) {
+      after(async () => {
+        await sendKlyxProfileTransactionalEmail({
+          profileId: providerId,
+          ...reviewReceivedEmail(),
+        });
+      });
     }
 
     try {
