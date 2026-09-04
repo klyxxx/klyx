@@ -43,6 +43,6 @@ describe("KLYX provider studio visual contract", () => {
     expect(studio).toContain("saveStudio(true)");
     expect(studio).toContain("saveStudio(false)");
     expect(studio).toContain('uploadMedia("gallery"');
-    expect(studio).toContain('uploadMedia("document"');
+    expect(studio).toMatch(/uploadMedia\(\s*"document",\s*file,/);
   });
 });
