@@ -703,8 +703,7 @@ export async function revalidateProviderJobsPayload13_08(
           "/" +
           String(
             live.slotCount
-          ) +
-          " disponible",
+          ),
       },
 
       liveEligibility: {
