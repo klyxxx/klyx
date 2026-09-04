@@ -27,6 +27,7 @@ import { getActiveClientProfile } from "@/lib/account-switcher";
 import { supabase } from "@/lib/supabase";
 
 // KLYX_PREMIUM_PHOTO_ASSISTANT_16_01
+// KLYX_ASSISTANT_PHOTO_ATTACHMENT_RENDER_16_07
 
 type Candidate = {
   slug: string;
@@ -289,7 +290,7 @@ export default function PhotoRequestPage() {
 
   return (
     <main className="min-h-[calc(100vh-4rem)] px-4 py-6 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-3xl">
         <Link
           href="/assistant"
           className="inline-flex h-9 items-center gap-2 rounded-xl px-2 text-sm font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
@@ -306,47 +307,47 @@ export default function PhotoRequestPage() {
             Montre-moi ce qu’il faut faire.
           </h1>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            Ajoute une photo et quelques mots. KLYX t’aide à identifier le bon métier dans une interface compacte.
+            Ajoute une photo et quelques mots. KLYX garde l’image entière visible et t’aide à identifier le bon métier.
           </p>
         </header>
 
         <form
           onSubmit={analyze}
-          className="overflow-hidden rounded-[28px] border border-border bg-card/75 shadow-[0_24px_80px_rgba(0,0,0,0.08)] backdrop-blur-xl dark:border-white/8 dark:bg-[#0d0c12]/80"
+          className="overflow-hidden rounded-[26px] border border-border bg-background shadow-sm dark:border-white/10 dark:bg-zinc-950"
         >
-          <div className="grid gap-0 md:grid-cols-[280px_minmax(0,1fr)]">
-            <div className="border-b border-border p-4 dark:border-white/8 md:border-b-0 md:border-r">
-              {!previewUrl ? (
-                <label className="group grid min-h-44 cursor-pointer place-items-center rounded-[22px] border border-dashed border-border bg-background/45 p-5 text-center transition hover:border-[#2563EB]/35 hover:bg-[#2563EB]/[0.035] dark:border-white/10 dark:bg-white/[0.02]">
-                  <div>
-                    <span className="mx-auto grid h-11 w-11 place-items-center rounded-2xl bg-[#2563EB]/10 text-[#2563EB] transition group-hover:scale-105">
-                      <Upload size={20} />
-                    </span>
-                    <p className="mt-3 text-sm font-bold">Ajouter une photo</p>
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      JPG, PNG ou WEBP · 10 Mo max
-                    </p>
-                  </div>
-                  <input
-                    type="file"
-                    hidden
-                    accept="image/jpeg,image/png,image/webp"
-                    onChange={chooseFile}
-                  />
-                </label>
-              ) : (
-                <div className="relative min-h-44 overflow-hidden rounded-[22px] border border-border bg-black dark:border-white/10">
+          <div className="border-b border-border p-4 dark:border-white/10 sm:p-5">
+            {!previewUrl ? (
+              <label className="group grid min-h-52 cursor-pointer place-items-center rounded-[22px] border border-dashed border-border bg-muted/20 p-6 text-center transition hover:border-[#2563EB]/35 hover:bg-[#2563EB]/[0.035] dark:border-white/10">
+                <div>
+                  <span className="mx-auto grid h-11 w-11 place-items-center rounded-2xl bg-[#2563EB]/10 text-[#2563EB] transition group-hover:scale-105">
+                    <Upload size={20} />
+                  </span>
+                  <p className="mt-3 text-sm font-bold">Ajouter une photo</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    JPG, PNG ou WEBP · 10 Mo max
+                  </p>
+                </div>
+                <input
+                  type="file"
+                  hidden
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={chooseFile}
+                />
+              </label>
+            ) : (
+              <div className="overflow-hidden rounded-[22px] border border-border bg-muted/20 dark:border-white/10 dark:bg-white/[0.025]">
+                <div className="relative flex min-h-56 items-center justify-center p-3 sm:min-h-72 sm:p-4">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={previewUrl}
                     alt="Aperçu du problème"
-                    className="h-44 w-full object-contain"
+                    className="max-h-[420px] max-w-full rounded-[18px] object-contain"
                   />
                   <button
                     type="button"
                     onClick={() => void deletePhoto()}
                     disabled={deleting || uploading}
-                    className="absolute right-2 top-2 grid h-9 w-9 place-items-center rounded-xl bg-black/70 text-white backdrop-blur transition hover:bg-black/85 disabled:opacity-50"
+                    className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-xl border border-border bg-background/90 text-foreground shadow-sm backdrop-blur transition hover:bg-muted disabled:opacity-50 dark:border-white/10 dark:bg-zinc-950/90"
                     aria-label="Supprimer la photo"
                   >
                     {deleting ? (
@@ -356,34 +357,49 @@ export default function PhotoRequestPage() {
                     )}
                   </button>
                 </div>
-              )}
-            </div>
 
-            <div className="flex min-w-0 flex-col p-4 sm:p-5">
-              <label htmlFor="klyx-photo-description" className="text-xs font-bold text-muted-foreground">
-                Explique le besoin
-              </label>
-              <textarea
-                id="klyx-photo-description"
-                rows={5}
-                minLength={10}
-                maxLength={1500}
-                value={description}
-                onChange={(event) => {
-                  setDescription(event.target.value);
-                  setAnalysis(null);
-                }}
-                className="mt-2 min-h-32 flex-1 resize-none bg-transparent text-base leading-7 outline-none placeholder:text-muted-foreground/70"
-                placeholder="Ex. Il y a une fuite sous l’évier et je ne sais pas quel professionnel appeler."
-              />
-              <div className="mt-3 flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
-                <span>{description.trim().length}/1500</span>
-                <span>10 caractères minimum</span>
+                <div className="flex min-w-0 items-center justify-between gap-3 border-t border-border px-3 py-2.5 dark:border-white/10 sm:px-4">
+                  <span className="min-w-0 truncate text-xs font-medium text-muted-foreground">
+                    {file?.name}
+                  </span>
+                  <label className="shrink-0 cursor-pointer rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[#2563EB] transition hover:bg-[#2563EB]/[0.06]">
+                    Remplacer
+                    <input
+                      type="file"
+                      hidden
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={chooseFile}
+                    />
+                  </label>
+                </div>
               </div>
+            )}
+          </div>
+
+          <div className="p-4 sm:p-5">
+            <label htmlFor="klyx-photo-description" className="text-xs font-bold text-muted-foreground">
+              Explique le besoin
+            </label>
+            <textarea
+              id="klyx-photo-description"
+              rows={5}
+              minLength={10}
+              maxLength={1500}
+              value={description}
+              onChange={(event) => {
+                setDescription(event.target.value);
+                setAnalysis(null);
+              }}
+              className="mt-2 min-h-32 w-full resize-none bg-transparent text-base leading-7 outline-none placeholder:text-muted-foreground/70"
+              placeholder="Ex. Il y a une fuite sous l’évier et je ne sais pas quel professionnel appeler."
+            />
+            <div className="mt-3 flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
+              <span>{description.trim().length}/1500</span>
+              <span>10 caractères minimum</span>
             </div>
           </div>
 
-          <div className="border-t border-border px-4 py-3 dark:border-white/8 sm:px-5">
+          <div className="border-t border-border px-4 py-3 dark:border-white/10 sm:px-5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <label className="flex cursor-pointer items-center gap-3 rounded-2xl px-1 py-1">
                 <input
@@ -410,7 +426,7 @@ export default function PhotoRequestPage() {
               <button
                 type="submit"
                 disabled={!ready}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#2563EB] px-5 text-sm font-bold text-white shadow-[0_10px_30px_rgba(37,99,235,0.22)] transition hover:bg-[#1D4ED8] disabled:cursor-not-allowed disabled:opacity-35"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#2563EB] px-5 text-sm font-bold text-white shadow-sm transition hover:bg-[#1D4ED8] disabled:cursor-not-allowed disabled:opacity-35"
               >
                 {uploading ? (
                   <LoaderCircle className="animate-spin" size={17} />
@@ -427,7 +443,7 @@ export default function PhotoRequestPage() {
               </button>
             </div>
 
-            <div className="mt-3 flex items-start gap-2 border-t border-border/60 pt-3 text-[10px] leading-4 text-muted-foreground dark:border-white/6">
+            <div className="mt-3 flex items-start gap-2 border-t border-border/60 pt-3 text-[10px] leading-4 text-muted-foreground dark:border-white/10">
               <LockKeyhole size={13} className="mt-0.5 shrink-0" />
               <p>
                 Photo privée. Évite les visages, pièces d’identité, plaques et informations personnelles visibles.
@@ -447,6 +463,24 @@ export default function PhotoRequestPage() {
 
         {analysis && (
           <section className="mx-auto mt-8 max-w-3xl pb-10">
+            {previewUrl && (
+              <div className="mb-7 flex justify-end">
+                <div className="w-full max-w-md">
+                  <div className="overflow-hidden rounded-2xl border border-border bg-muted/20 dark:border-white/10 dark:bg-white/[0.025]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={previewUrl}
+                      alt="Photo envoyée à KLYX"
+                      className="max-h-72 w-full object-contain"
+                    />
+                  </div>
+                  <p className="mt-2 rounded-2xl rounded-tr-md bg-[#2563EB] px-4 py-3 text-sm leading-6 text-white">
+                    {description.trim()}
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-3 sm:gap-4">
               <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#2563EB] text-white">
                 <Sparkles size={17} />

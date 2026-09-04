@@ -120,7 +120,19 @@ describe(
         );
 
         expect(settings).toContain(
-          't("deleteForever")'
+          "const deleteActionKey: KlyxSettingsPageMessageKey"
+        );
+
+        expect(settings).toContain(
+          '"deleteProfileForever"'
+        );
+
+        expect(settings).toContain(
+          '"deleteForever"'
+        );
+
+        expect(settings).toContain(
+          "{t(deleteActionKey)}"
         );
 
         expect(settings).toContain(
@@ -129,6 +141,10 @@ describe(
 
         expect(settingsI18n).toContain(
           'deleteForever: "Supprimer définitivement"'
+        );
+
+        expect(settingsI18n).toContain(
+          'deleteProfileForever: "Supprimer ce profil"'
         );
       }
     );
