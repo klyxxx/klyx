@@ -15,10 +15,10 @@ describe("KLYX transactional email lifecycle contract", () => {
     expect(profiles).toContain("profileCreatedEmail");
     expect(profiles).toContain("profileDeletedEmail");
     expect(profiles.indexOf("const { data: profileId, error }")).toBeLessThan(
-      profiles.indexOf("accountCreatedEmail")
+      profiles.lastIndexOf("accountCreatedEmail({")
     );
     expect(profiles.indexOf('await supabase.rpc("klyx_delete_profile"')).toBeLessThan(
-      profiles.lastIndexOf("profileDeletedEmail")
+      profiles.lastIndexOf("profileDeletedEmail()")
     );
 
     expect(accountDelete).toContain("accountDeletedEmail");
@@ -82,7 +82,7 @@ describe("KLYX transactional email lifecycle contract", () => {
     const groupReviews = source("app/api/group-reviews/route.ts");
     const disputes = source("app/api/disputes/route.ts");
 
-    expect(tracking).toContain("missionReviewRequestedEmail");
+    expect(tracking).toContain("reviewRequestEmail(booking.id)");
     expect(reviews).toContain("reviewReceivedEmail");
     expect(reviews).toContain("if (!existing)");
     expect(groupReviews).toContain("reviewReceivedEmail");
