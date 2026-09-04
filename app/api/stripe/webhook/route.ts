@@ -2,9 +2,7 @@ import { handleSplitStripeWebhookEvent } from "@/lib/split-stripe-payments";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
-import {
-  secureApiErrorResponse,
-} from "@/lib/api-error";
+import { secureApiErrorResponse } from "@/lib/api-error";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   markBookingGroupFailedFromSession,
@@ -22,26 +20,16 @@ import {
   markStripeWebhookFailed,
   markStripeWebhookProcessed,
 } from "@/lib/stripe-webhook-events";
-import {
-  reconcileStripeRefund,
-} from "@/lib/stripe-refunds";
+import { reconcileStripeRefund } from "@/lib/stripe-refunds";
 
 // KLYX_GROUP_WEBHOOK_12_86
 // KLYX_STRIPE_WEBHOOK_RETRY_LEASE_16_07
 // KLYX_STRIPE_EXPIRED_CHECKOUT_RELEASE_16_08
+// KLYX_STRIPE_STALE_FAILURE_GUARD_16_09
 
 function getStripeWebhookConfig() {
-  const stripeSecretKey =
-    process.env
-      .STRIPE_SECRET_KEY
-      ?.trim() ??
-    "";
-
-  const webhookSecret =
-    process.env
-      .STRIPE_WEBHOOK_SECRET
-      ?.trim() ??
-    "";
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim() ?? "";
 
   if (!stripeSecretKey) {
     throw new Error(
@@ -56,109 +44,60 @@ function getStripeWebhookConfig() {
   }
 
   if (
-    !stripeSecretKey.startsWith(
-      "sk_test_"
-    ) &&
-    !stripeSecretKey.startsWith(
-      "sk_live_"
-    )
+    !stripeSecretKey.startsWith("sk_test_") &&
+    !stripeSecretKey.startsWith("sk_live_")
   ) {
-    throw new Error(
-      "STRIPE_SECRET_KEY invalide."
-    );
+    throw new Error("STRIPE_SECRET_KEY invalide.");
   }
 
-  if (
-    !webhookSecret.startsWith(
-      "whsec_"
-    )
-  ) {
-    throw new Error(
-      "STRIPE_WEBHOOK_SECRET doit commencer par whsec_."
-    );
+  if (!webhookSecret.startsWith("whsec_")) {
+    throw new Error("STRIPE_WEBHOOK_SECRET doit commencer par whsec_.");
   }
 
   return {
-    stripe:
-      new Stripe(
-        stripeSecretKey
-      ),
+    stripe: new Stripe(stripeSecretKey),
     webhookSecret,
   };
 }
 
-async function updateConnectedAccount(
-  account: Stripe.Account
-) {
-  const {
-    error,
-  } = await supabaseAdmin
+async function updateConnectedAccount(account: Stripe.Account) {
+  const { error } = await supabaseAdmin
     .from("profiles")
     .update({
-      stripe_onboarding_complete:
-        Boolean(
-          account.details_submitted
-        ),
-      stripe_charges_enabled:
-        Boolean(
-          account.charges_enabled
-        ),
-      stripe_payouts_enabled:
-        Boolean(
-          account.payouts_enabled
-        ),
+      stripe_onboarding_complete: Boolean(account.details_submitted),
+      stripe_charges_enabled: Boolean(account.charges_enabled),
+      stripe_payouts_enabled: Boolean(account.payouts_enabled),
     })
-    .eq(
-      "stripe_account_id",
-      account.id
-    );
+    .eq("stripe_account_id", account.id);
 
   if (error) {
-    throw new Error(
-      error.message
-    );
+    throw new Error(error.message);
   }
 }
 
-function isGroupSession(
-  session: Stripe.Checkout.Session
-) {
+function isGroupSession(session: Stripe.Checkout.Session) {
+  return Boolean(session.metadata?.booking_group_id);
+}
+
+function isGroupIntent(intent: Stripe.PaymentIntent) {
+  return Boolean(intent.metadata?.booking_group_id);
+}
+
+function isKlyxPaymentIntent(intent: Stripe.PaymentIntent) {
   return Boolean(
-    session.metadata
-      ?.booking_group_id
+    intent.metadata?.booking_id || intent.metadata?.booking_group_id
   );
 }
 
-function isGroupIntent(
-  intent: Stripe.PaymentIntent
-) {
-  return Boolean(
-    intent.metadata
-      ?.booking_group_id
-  );
-}
-
-function isKlyxPaymentIntent(
-  intent: Stripe.PaymentIntent
-) {
-  return Boolean(
-    intent.metadata?.booking_id ||
-    intent.metadata?.booking_group_id
-  );
-}
-
-async function releaseExpiredCheckoutSession(
-  session: Stripe.Checkout.Session
-) {
+async function releaseExpiredCheckoutSession(session: Stripe.Checkout.Session) {
   if (session.status !== "expired") {
     return;
   }
 
-  const groupId =
-    session.metadata?.booking_group_id?.trim() ??
-    "";
+  const groupId = session.metadata?.booking_group_id?.trim() ?? "";
 
   if (groupId) {
+    const now = new Date().toISOString();
     const { error } = await supabaseAdmin
       .from("booking_groups")
       .update({
@@ -169,8 +108,8 @@ async function releaseExpiredCheckoutSession(
         payment_failure_code: "checkout_expired",
         payment_failure_message:
           "La session de paiement a expiré. Tu peux recommencer le paiement.",
-        payment_failed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        payment_failed_at: now,
+        updated_at: now,
       })
       .eq("id", groupId)
       .eq("stripe_checkout_session_id", session.id)
@@ -184,9 +123,7 @@ async function releaseExpiredCheckoutSession(
     return;
   }
 
-  const bookingId =
-    session.metadata?.booking_id?.trim() ??
-    "";
+  const bookingId = session.metadata?.booking_id?.trim() ?? "";
 
   if (!bookingId) {
     return;
@@ -205,9 +142,7 @@ async function releaseExpiredCheckoutSession(
   }
 }
 
-function supersededClaimResponse(
-  event: Stripe.Event
-) {
+function supersededClaimResponse(event: Stripe.Event) {
   return NextResponse.json(
     {
       received: true,
@@ -216,161 +151,102 @@ function supersededClaimResponse(
       eventId: event.id,
       eventType: event.type,
     },
-    {
-      status: 200,
-    }
+    { status: 200 }
   );
 }
 
-export async function POST(
-  request: Request
-) {
-  const startedAt =
-    Date.now();
+export async function POST(request: Request) {
+  const startedAt = Date.now();
   let stripe: Stripe;
-  let webhookSecret:
-    string;
+  let webhookSecret: string;
 
   try {
-    const config =
-      getStripeWebhookConfig();
-
-    stripe =
-      config.stripe;
-
-    webhookSecret =
-      config.webhookSecret;
+    const config = getStripeWebhookConfig();
+    stripe = config.stripe;
+    webhookSecret = config.webhookSecret;
   } catch (error) {
     return secureApiErrorResponse({
       error,
-      event:
-        "stripe_webhook_configuration_failed",
-      route:
-        "/api/stripe/webhook",
+      event: "stripe_webhook_configuration_failed",
+      route: "/api/stripe/webhook",
       method: "POST",
-      code:
-        "stripe_webhook_configuration_failed",
+      code: "stripe_webhook_configuration_failed",
       status: 500,
       startedAt,
     });
   }
 
-  const signature =
-    request.headers.get(
-      "stripe-signature"
-    );
+  const signature = request.headers.get("stripe-signature");
 
   if (!signature) {
     return NextResponse.json(
-      {
-        error:
-          "Signature Stripe manquante.",
-      },
-      {
-        status: 400,
-      }
+      { error: "Signature Stripe manquante." },
+      { status: 400 }
     );
   }
 
-  let event:
-    Stripe.Event;
+  let event: Stripe.Event;
 
   try {
-    const rawBody =
-      await request.text();
-
-    event =
-      stripe.webhooks.constructEvent(
-        rawBody,
-        signature,
-        webhookSecret
-      );
+    const rawBody = await request.text();
+    event = stripe.webhooks.constructEvent(
+      rawBody,
+      signature,
+      webhookSecret
+    );
   } catch (error) {
     return secureApiErrorResponse({
       error,
-      event:
-        "stripe_webhook_signature_rejected",
-      route:
-        "/api/stripe/webhook",
+      event: "stripe_webhook_signature_rejected",
+      route: "/api/stripe/webhook",
       method: "POST",
-      code:
-        "invalid_stripe_signature",
+      code: "invalid_stripe_signature",
       status: 400,
-      publicMessage:
-        "Signature Stripe invalide.",
+      publicMessage: "Signature Stripe invalide.",
       startedAt,
     });
   }
 
-  let claimed =
-    false;
-  let claimAttemptCount:
-    number | null =
-    null;
+  let claimed = false;
+  let claimAttemptCount: number | null = null;
 
   try {
-    const claim =
-      await claimStripeWebhookEvent(
-        event
-      );
+    const claim = await claimStripeWebhookEvent(event);
 
-    if (
-      !claim.shouldProcess
-    ) {
+    if (!claim.shouldProcess) {
       return NextResponse.json(
         {
-          received:
-            true,
-          duplicate:
-            true,
-          reason:
-            claim.reason,
-          eventId:
-            event.id,
-          eventType:
-            event.type,
+          received: true,
+          duplicate: true,
+          reason: claim.reason,
+          eventId: event.id,
+          eventType: event.type,
         },
-        {
-          status: 200,
-        }
+        { status: 200 }
       );
     }
 
-    if (
-      claim.attemptCount ===
-      null
-    ) {
-      throw new Error(
-        "Stripe webhook claim attempt missing."
-      );
+    if (claim.attemptCount === null) {
+      throw new Error("Stripe webhook claim attempt missing.");
     }
 
-    const attemptCount =
-      claim.attemptCount;
+    const attemptCount = claim.attemptCount;
+    claimed = true;
+    claimAttemptCount = attemptCount;
 
-    claimed =
-      true;
-    claimAttemptCount =
-      attemptCount;
-
-    // KLYX_SPLIT_STRIPE_WEBHOOK_WIRING_13_27
-    const splitPaymentHandled =
-      await handleSplitStripeWebhookEvent(
-        stripe,
-        event
-      );
+    const splitPaymentHandled = await handleSplitStripeWebhookEvent(
+      stripe,
+      event
+    );
 
     if (splitPaymentHandled) {
-      const finalized =
-        await markStripeWebhookProcessed(
-          event.id,
-          attemptCount
-        );
+      const finalized = await markStripeWebhookProcessed(
+        event.id,
+        attemptCount
+      );
 
       if (!finalized) {
-        return supersededClaimResponse(
-          event
-        );
+        return supersededClaimResponse(event);
       }
 
       return NextResponse.json(
@@ -381,36 +257,20 @@ export async function POST(
           eventId: event.id,
           eventType: event.type,
         },
-        {
-          status: 200,
-        }
+        { status: 200 }
       );
     }
 
     switch (event.type) {
       case "checkout.session.completed":
       case "checkout.session.async_payment_succeeded": {
-        const session =
-          event.data
-            .object as
-            Stripe.Checkout.Session;
+        const session = event.data.object as Stripe.Checkout.Session;
 
-        if (
-          session.payment_status ===
-          "paid"
-        ) {
-          if (
-            isGroupSession(
-              session
-            )
-          ) {
-            await markBookingGroupPaidFromSession(
-              session
-            );
+        if (session.payment_status === "paid") {
+          if (isGroupSession(session)) {
+            await markBookingGroupPaidFromSession(session);
           } else {
-            await markBookingPaidFromSession(
-              session
-            );
+            await markBookingPaidFromSession(session);
           }
         }
 
@@ -418,93 +278,50 @@ export async function POST(
       }
 
       case "checkout.session.expired": {
-        const session =
-          event.data
-            .object as
-            Stripe.Checkout.Session;
-
-        await releaseExpiredCheckoutSession(
-          session
-        );
-
+        const session = event.data.object as Stripe.Checkout.Session;
+        await releaseExpiredCheckoutSession(session);
         break;
       }
 
       case "checkout.session.async_payment_failed": {
-        const session =
-          event.data
-            .object as
-            Stripe.Checkout.Session;
-
+        const session = event.data.object as Stripe.Checkout.Session;
         const paymentIntentId =
-          typeof session.payment_intent ===
-          "string"
+          typeof session.payment_intent === "string"
             ? session.payment_intent
-            : session.payment_intent
-                ?.id;
+            : session.payment_intent?.id;
 
-        const intent =
-          paymentIntentId
-            ? await stripe
-                .paymentIntents
-                .retrieve(
-                  paymentIntentId
-                )
-            : null;
+        const intent = paymentIntentId
+          ? await stripe.paymentIntents.retrieve(paymentIntentId)
+          : null;
 
-        const failure =
-          intent
-            ? getPaymentFailureDetails(
-                intent
-              )
-            : {
-                code:
-                  "payment_failed",
-                message:
-                  "Le paiement a ete refuse.",
-              };
+        const failure = intent
+          ? getPaymentFailureDetails(intent)
+          : {
+              code: "payment_failed",
+              message: "Le paiement a ete refuse.",
+            };
 
-        if (
-          isGroupSession(
-            session
-          )
-        ) {
-          await markBookingGroupFailedFromSession(
-            session,
-            failure
-          );
+        if (isGroupSession(session)) {
+          await markBookingGroupFailedFromSession(session, failure);
         } else {
-          await markBookingFailedFromSession(
-            session,
-            failure
-          );
+          await markBookingFailedFromSession(session, failure);
         }
 
         break;
       }
 
       case "payment_intent.succeeded": {
-        const intent =
-          event.data
-            .object as
-            Stripe.PaymentIntent;
+        const intent = event.data.object as Stripe.PaymentIntent;
 
         if (!isKlyxPaymentIntent(intent)) {
           break;
         }
 
-        const sessions =
-          await stripe
-            .checkout
-            .sessions
-            .list({
-              payment_intent:
-                intent.id,
-              limit: 1,
-            });
-
-        const listedSession =
-          sessions.data[0];
+        const sessions = await stripe.checkout.sessions.list({
+          payment_intent: intent.id,
+          limit: 1,
+        });
+        const listedSession = sessions.data[0];
 
         if (!listedSession) {
           throw new Error(
@@ -512,73 +329,53 @@ export async function POST(
           );
         }
 
-        const session =
-          await stripe.checkout.sessions.retrieve(
-            listedSession.id
-          );
+        const session = await stripe.checkout.sessions.retrieve(
+          listedSession.id
+        );
 
-        if (
-          session.payment_status !==
-          "paid"
-        ) {
+        if (session.payment_status !== "paid") {
           throw new Error(
             `Le PaymentIntent ${intent.id} est réussi mais la session Checkout ${session.id} n'est pas marquée payée.`
           );
         }
 
-        if (
-          isGroupIntent(intent) ||
-          isGroupSession(session)
-        ) {
-          await markBookingGroupPaidFromSession(
-            session
-          );
+        if (isGroupIntent(intent) || isGroupSession(session)) {
+          await markBookingGroupPaidFromSession(session);
         } else {
-          await markBookingPaidFromSession(
-            session
-          );
+          await markBookingPaidFromSession(session);
         }
 
         break;
       }
 
       case "payment_intent.payment_failed": {
-        const intent =
-          event.data
-            .object as
-            Stripe.PaymentIntent;
+        const intent = event.data.object as Stripe.PaymentIntent;
 
         if (!isKlyxPaymentIntent(intent)) {
           break;
         }
 
-        const sessions =
-          await stripe
-            .checkout
-            .sessions
-            .list({
-              payment_intent:
-                intent.id,
-              limit: 1,
-            });
+        const sessions = await stripe.checkout.sessions.list({
+          payment_intent: intent.id,
+          limit: 1,
+        });
+        const checkoutSessionId = sessions.data[0]?.id ?? null;
 
-        if (
-          isGroupIntent(
-            intent
-          )
-        ) {
+        // A failure without its originating Checkout Session is ambiguous.
+        // Never let an old PaymentIntent poison a newer KLYX payment attempt.
+        if (!checkoutSessionId) {
+          break;
+        }
+
+        if (isGroupIntent(intent)) {
           await recordBookingGroupPaymentFailure(
             intent,
-            sessions.data[0]
-              ?.id ??
-              null
+            checkoutSessionId
           );
         } else {
           await recordBookingPaymentFailure(
             intent,
-            sessions.data[0]
-              ?.id ??
-              null
+            checkoutSessionId
           );
         }
 
@@ -588,48 +385,24 @@ export async function POST(
       case "refund.created":
       case "refund.updated":
       case "refund.failed": {
-        const refund =
-          event.data
-            .object as
-            Stripe.Refund;
-
-        await reconcileStripeRefund(
-          refund
-        );
-
+        const refund = event.data.object as Stripe.Refund;
+        await reconcileStripeRefund(refund);
         break;
       }
 
       case "charge.refunded": {
-        const charge =
-          event.data
-            .object as
-            Stripe.Charge;
+        const charge = event.data.object as Stripe.Charge;
 
-        for (
-          const refund
-          of charge.refunds
-            ?.data ??
-            []
-        ) {
-          await reconcileStripeRefund(
-            refund
-          );
+        for (const refund of charge.refunds?.data ?? []) {
+          await reconcileStripeRefund(refund);
         }
 
         break;
       }
 
       case "account.updated": {
-        const account =
-          event.data
-            .object as
-            Stripe.Account;
-
-        await updateConnectedAccount(
-          account
-        );
-
+        const account = event.data.object as Stripe.Account;
+        await updateConnectedAccount(account);
         break;
       }
 
@@ -637,65 +410,43 @@ export async function POST(
         break;
     }
 
-    const finalized =
-      await markStripeWebhookProcessed(
-        event.id,
-        attemptCount
-      );
+    const finalized = await markStripeWebhookProcessed(
+      event.id,
+      attemptCount
+    );
 
     if (!finalized) {
-      return supersededClaimResponse(
-        event
-      );
+      return supersededClaimResponse(event);
     }
 
     return NextResponse.json(
       {
-        received:
-          true,
-        duplicate:
-          false,
-        eventId:
-          event.id,
-        eventType:
-          event.type,
+        received: true,
+        duplicate: false,
+        eventId: event.id,
+        eventType: event.type,
       },
-      {
-        status: 200,
-      }
+      { status: 200 }
     );
   } catch (error) {
-    if (
-      claimed &&
-      claimAttemptCount !==
-        null
-    ) {
-      const failureMarkResult =
-        await markStripeWebhookFailed(
-          event.id,
-          claimAttemptCount,
-          "stripe_webhook_processing_failed"
-        );
+    if (claimed && claimAttemptCount !== null) {
+      const failureMarkResult = await markStripeWebhookFailed(
+        event.id,
+        claimAttemptCount,
+        "stripe_webhook_processing_failed"
+      );
 
-      if (
-        failureMarkResult ===
-        "superseded"
-      ) {
-        return supersededClaimResponse(
-          event
-        );
+      if (failureMarkResult === "superseded") {
+        return supersededClaimResponse(event);
       }
     }
 
     return secureApiErrorResponse({
       error,
-      event:
-        "stripe_webhook_processing_failed",
-      route:
-        "/api/stripe/webhook",
+      event: "stripe_webhook_processing_failed",
+      route: "/api/stripe/webhook",
       method: "POST",
-      code:
-        "stripe_webhook_processing_failed",
+      code: "stripe_webhook_processing_failed",
       status: 500,
       startedAt,
     });
