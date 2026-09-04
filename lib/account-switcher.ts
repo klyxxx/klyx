@@ -66,6 +66,15 @@ function emitActiveProfileChanged(
   );
 }
 
+function failClosedAccountsLoad(status?: number) {
+  if (typeof window === "undefined") return;
+  if (window.location.pathname !== "/accounts") return;
+
+  window.location.replace(
+    status === 401 ? "/login" : "/accounts/load-error"
+  );
+}
+
 async function readResponse<T>(
   response: Response,
   fallbackMessage: string
@@ -85,26 +94,32 @@ export async function getProfilesState(): Promise<{
   profiles: SavedAccount[];
   activeProfileId: string | null;
 }> {
-  const response = await fetch("/api/profiles/active", {
-    method: "GET",
-    cache: "no-store",
-  });
+  try {
+    const response = await fetch("/api/profiles/active", {
+      method: "GET",
+      cache: "no-store",
+    });
 
-  const result = (await response.json()) as ProfilesResponse;
+    const result = (await response.json()) as ProfilesResponse;
 
-  if (!response.ok) {
-    throw new Error(
-      result.error ?? "Impossible de charger les profils."
-    );
+    if (!response.ok) {
+      failClosedAccountsLoad(response.status);
+      throw new Error(
+        result.error ?? "Impossible de charger les profils."
+      );
+    }
+
+    return {
+      profiles: Array.isArray(result.profiles) ? result.profiles : [],
+      activeProfileId:
+        typeof result.activeProfileId === "string"
+          ? result.activeProfileId
+          : null,
+    };
+  } catch (error) {
+    failClosedAccountsLoad();
+    throw error;
   }
-
-  return {
-    profiles: Array.isArray(result.profiles) ? result.profiles : [],
-    activeProfileId:
-      typeof result.activeProfileId === "string"
-        ? result.activeProfileId
-        : null,
-  };
 }
 
 export async function getProfiles(): Promise<SavedAccount[]> {
