@@ -11,23 +11,35 @@ import {
   UserRound,
 } from "lucide-react";
 
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import {
   getProfiles,
   switchAccount,
   type SavedAccount,
 } from "@/lib/account-switcher";
+import {
+  translateKlyxAccountSwitcher,
+  type KlyxAccountSwitcherMessageKey,
+} from "@/lib/klyx-account-switcher-i18n";
 
 type AccountSwitcherProps = {
   currentProfileId: string;
 };
 
-function profileName(profile: SavedAccount | undefined) {
-  if (!profile) return "Mon profil";
-  return `${profile.firstName} ${profile.lastName}`.trim() || "Mon profil";
+function profileName(
+  profile: SavedAccount | undefined,
+  fallbackLabel: string
+) {
+  if (!profile) return fallbackLabel;
+  return `${profile.firstName} ${profile.lastName}`.trim() || fallbackLabel;
 }
 
-function roleLabel(profile: SavedAccount | undefined) {
-  return profile?.accountType === "provider" ? "Prestataire" : "Client";
+function roleLabel(
+  profile: SavedAccount | undefined,
+  providerLabel: string,
+  clientLabel: string
+) {
+  return profile?.accountType === "provider" ? providerLabel : clientLabel;
 }
 
 function ProfileAvatar({ profile }: { profile: SavedAccount | undefined }) {
@@ -53,6 +65,9 @@ export default function AccountSwitcher({
   currentProfileId,
 }: AccountSwitcherProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxAccountSwitcherMessageKey) =>
+    translateKlyxAccountSwitcher(locale, key);
   const [profiles, setProfiles] = useState<SavedAccount[]>([]);
   const [activeProfileId, setActiveProfileId] = useState(currentProfileId);
   const [open, setOpen] = useState(false);
@@ -71,13 +86,9 @@ export default function AccountSwitcher({
       .then((result) => {
         if (active) setProfiles(result);
       })
-      .catch((loadError: unknown) => {
+      .catch(() => {
         if (!active) return;
-        setError(
-          loadError instanceof Error
-            ? loadError.message
-            : "Impossible de charger les profils."
-        );
+        setError(translateKlyxAccountSwitcher(locale, "loadError"));
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -86,7 +97,7 @@ export default function AccountSwitcher({
     return () => {
       active = false;
     };
-  }, []);
+  }, [locale]);
 
   useEffect(() => {
     function closeWhenClickingOutside(event: MouseEvent) {
@@ -119,7 +130,7 @@ export default function AccountSwitcher({
 
     const targetProfile = profiles.find((profile) => profile.id === profileId);
     if (!targetProfile) {
-      setError("Profil KLYX introuvable.");
+      setError(t("missingProfileError"));
       return;
     }
 
@@ -130,12 +141,8 @@ export default function AccountSwitcher({
       setActiveProfileId(profileId);
       setOpen(false);
       // ActiveProfileSync owns the full-document role transition.
-    } catch (switchError) {
-      setError(
-        switchError instanceof Error
-          ? switchError.message
-          : "Impossible de changer de profil."
-      );
+    } catch {
+      setError(t("switchError"));
     } finally {
       setSwitchingId(null);
     }
@@ -144,7 +151,9 @@ export default function AccountSwitcher({
   const currentProfile = profiles.find(
     (profile) => profile.id === activeProfileId
   );
-  const currentName = profileName(currentProfile);
+  const currentName = profileName(currentProfile, t("profileFallback"));
+  const providerRoleLabel = t("providerRole");
+  const clientRoleLabel = t("clientRole");
 
   return (
     <div
@@ -171,7 +180,7 @@ export default function AccountSwitcher({
         <span className="min-w-0 flex-1">
           <span className="block truncate font-semibold">{currentName}</span>
           <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
-            {roleLabel(currentProfile)}
+            {roleLabel(currentProfile, providerRoleLabel, clientRoleLabel)}
           </span>
         </span>
 
@@ -186,11 +195,11 @@ export default function AccountSwitcher({
       {open && (
         <div
           role="menu"
-          aria-label="Changer de profil KLYX"
+          aria-label={t("menuAria")}
           className="absolute left-0 right-0 top-full z-[70] mt-2 max-h-[min(22rem,calc(100dvh_-_13rem))] w-full overflow-y-auto overscroll-contain rounded-2xl border border-border bg-card p-2 shadow-xl dark:border-white/10"
         >
           <p className="px-2 pb-2 pt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-            Profils KLYX
+            {t("menuTitle")}
           </p>
 
           <div className="space-y-1">
@@ -219,10 +228,10 @@ export default function AccountSwitcher({
 
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold leading-5">
-                      {profileName(profile)}
+                      {profileName(profile, t("profileFallback"))}
                     </span>
                     <span className="block truncate text-[11px] leading-4 text-muted-foreground">
-                      {roleLabel(profile)}
+                      {roleLabel(profile, providerRoleLabel, clientRoleLabel)}
                     </span>
                   </span>
 
@@ -249,7 +258,7 @@ export default function AccountSwitcher({
               className="flex min-h-11 items-center gap-3 rounded-xl px-2.5 text-sm font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
             >
               <Settings size={16} />
-              <span className="truncate">Gérer les profils</span>
+              <span className="truncate">{t("manageProfiles")}</span>
             </Link>
           </div>
         </div>
