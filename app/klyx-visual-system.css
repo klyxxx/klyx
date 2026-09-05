@@ -1,138 +1,89 @@
 /*
-  KLYX — IDENTITÉ VISUELLE GLOBALE
-  Une seule direction : blanc/noir, un bleu KLYX, beaucoup d’espace.
-  Ce fichier agit uniquement sur l’apparence. Il ne change ni routes, ni rôles,
-  ni données, ni logique métier.
+  KLYX — AURA / NOIR
+  Mode clair : AURA. Mode sombre : NOIR.
+  Ce fichier ne contient que les tokens et compatibilités visuelles globales.
+  Aucune logique métier, donnée, route, rôle ou paiement n'est modifié ici.
 */
 
 :root {
-  --klyx-blue: 37 99 235;
-  --klyx-blue-soft: 239 246 255;
-  --klyx-surface: 255 255 255;
-  --klyx-ink: 24 24 27;
+  --klyx-accent: 124 58 237;
+  --klyx-accent-soft: 241 236 255;
 
-  --background: oklch(0.995 0 0);
-  --foreground: oklch(0.17 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.17 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.17 0 0);
-  --primary: rgb(var(--klyx-blue));
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.22 0 0);
-  --muted: oklch(0.965 0 0);
-  --muted-foreground: oklch(0.52 0 0);
-  --accent: rgb(var(--klyx-blue-soft));
-  --accent-foreground: rgb(var(--klyx-blue));
-  --border: oklch(0.90 0 0);
-  --input: oklch(0.90 0 0);
-  --ring: rgb(var(--klyx-blue));
-  --sidebar: oklch(0.995 0 0);
-  --sidebar-foreground: oklch(0.17 0 0);
-  --sidebar-primary: rgb(var(--klyx-blue));
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: rgb(var(--klyx-blue-soft));
-  --sidebar-accent-foreground: rgb(var(--klyx-blue));
-  --sidebar-border: oklch(0.90 0 0);
+  --background: rgb(247 245 255);
+  --foreground: rgb(24 17 46);
+  --card: rgb(255 255 255);
+  --card-foreground: rgb(24 17 46);
+  --popover: rgb(255 255 255);
+  --popover-foreground: rgb(24 17 46);
+  --primary: rgb(var(--klyx-accent));
+  --primary-foreground: rgb(255 255 255);
+  --secondary: rgb(248 246 255);
+  --secondary-foreground: rgb(56 45 86);
+  --muted: rgb(241 236 255);
+  --muted-foreground: rgb(104 95 123);
+  --accent: rgb(var(--klyx-accent-soft));
+  --accent-foreground: rgb(105 65 242);
+  --border: rgb(229 222 255);
+  --input: rgb(221 211 255);
+  --ring: rgb(var(--klyx-accent));
+  --sidebar: rgb(255 255 255);
+  --sidebar-foreground: rgb(24 17 46);
+  --sidebar-primary: rgb(var(--klyx-accent));
+  --sidebar-primary-foreground: rgb(255 255 255);
+  --sidebar-accent: rgb(237 231 255);
+  --sidebar-accent-foreground: rgb(105 65 242);
+  --sidebar-border: rgb(229 222 255);
 }
 
 .dark {
-  --klyx-blue-soft: 23 37 84;
-  --klyx-surface: 9 9 11;
-  --klyx-ink: 250 250 250;
+  --klyx-accent-soft: 36 27 63;
 
-  --background: oklch(0.11 0 0);
-  --foreground: oklch(0.97 0 0);
-  --card: oklch(0.145 0 0);
-  --card-foreground: oklch(0.97 0 0);
-  --popover: oklch(0.145 0 0);
-  --popover-foreground: oklch(0.97 0 0);
-  --primary: rgb(var(--klyx-blue));
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.19 0 0);
-  --secondary-foreground: oklch(0.96 0 0);
-  --muted: oklch(0.19 0 0);
-  --muted-foreground: oklch(0.70 0 0);
-  --accent: rgba(var(--klyx-blue), 0.14);
-  --accent-foreground: rgb(var(--klyx-blue));
-  --border: oklch(1 0 0 / 11%);
-  --input: oklch(1 0 0 / 14%);
-  --ring: rgb(var(--klyx-blue));
-  --sidebar: oklch(0.11 0 0);
-  --sidebar-foreground: oklch(0.97 0 0);
-  --sidebar-primary: rgb(var(--klyx-blue));
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: rgba(var(--klyx-blue), 0.14);
-  --sidebar-accent-foreground: rgb(var(--klyx-blue));
-  --sidebar-border: oklch(1 0 0 / 10%);
+  --background: rgb(11 11 18);
+  --foreground: rgb(243 244 246);
+  --card: rgb(23 26 40);
+  --card-foreground: rgb(243 244 246);
+  --popover: rgb(21 24 39);
+  --popover-foreground: rgb(243 244 246);
+  --primary: rgb(var(--klyx-accent));
+  --primary-foreground: rgb(255 255 255);
+  --secondary: rgb(27 31 48);
+  --secondary-foreground: rgb(243 244 246);
+  --muted: rgb(27 31 48);
+  --muted-foreground: rgb(167 176 195);
+  --accent: rgb(var(--klyx-accent-soft));
+  --accent-foreground: rgb(196 181 253);
+  --border: rgb(42 48 69);
+  --input: rgb(44 49 80);
+  --ring: rgb(var(--klyx-accent));
+  --sidebar: rgb(18 19 28);
+  --sidebar-foreground: rgb(243 244 246);
+  --sidebar-primary: rgb(var(--klyx-accent));
+  --sidebar-primary-foreground: rgb(255 255 255);
+  --sidebar-accent: rgb(91 33 182);
+  --sidebar-accent-foreground: rgb(255 255 255);
+  --sidebar-border: rgb(42 48 69);
 }
 
 html,
 body {
-  background: rgb(var(--klyx-surface));
+  background: var(--background);
 }
 
 body {
-  position: relative;
-  isolation: isolate;
-  min-height: 100vh;
-  overflow-x: hidden;
   background-image: none !important;
 }
 
-.klyx-app-shell,
-.klyx-app-content {
-  position: relative;
-  min-width: 0;
-}
-
-.klyx-app-shell {
-  min-height: 100vh;
-}
-
-.klyx-app-content {
-  flex: 1 1 0%;
-}
-
-/* Le décor global devient volontairement invisible : l’espace blanc/noir fait partie de l’identité. */
-.klyx-visual-background,
-.klyx-visual-orb,
-.klyx-visual-grid,
-.klyx-visual-noise,
-.klyx-visual-vignette {
-  display: none !important;
-}
-
-.klyx-page,
-.klyx-app-content > main {
-  position: relative;
-  isolation: isolate;
-  background: transparent !important;
-}
-
-.klyx-page::before,
-.klyx-page::after {
-  content: none !important;
-}
-
-/* Cartes : surfaces franches, bord fin, ombre discrète. */
+/* Surfaces */
 .klyx-card {
-  position: relative;
-  overflow: hidden;
   border-color: var(--border) !important;
   background: var(--card) !important;
   background-image: none !important;
-  box-shadow: 0 10px 32px rgba(24, 24, 27, 0.055) !important;
+  box-shadow: 0 10px 32px rgba(76, 29, 149, 0.07) !important;
   backdrop-filter: none !important;
 }
 
-.klyx-card::after {
-  content: none !important;
-}
-
 .dark .klyx-card {
-  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.28) !important;
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.30) !important;
 }
 
 .klyx-card-hover {
@@ -141,31 +92,30 @@ body {
 
 .klyx-card-hover:hover {
   transform: translateY(-2px);
-  border-color: rgba(var(--klyx-blue), 0.22) !important;
-  box-shadow: 0 14px 40px rgba(24, 24, 27, 0.075) !important;
+  border-color: rgba(var(--klyx-accent), 0.24) !important;
+  box-shadow: 0 14px 40px rgba(76, 29, 149, 0.11) !important;
 }
 
-/* Typographie et accent unique. */
+/* Accent unique pendant la migration des anciennes pages. */
 .klyx-eyebrow,
 .klyx-app-content [class*="text-violet-"],
 .klyx-app-content [class*="text-indigo-"],
 .klyx-app-content [class*="text-cyan-"] {
-  color: rgb(var(--klyx-blue)) !important;
+  color: rgb(var(--klyx-accent)) !important;
 }
 
 .klyx-app-content [class*="border-violet-"],
 .klyx-app-content [class*="border-indigo-"],
 .klyx-app-content [class*="border-cyan-"] {
-  border-color: rgba(var(--klyx-blue), 0.24) !important;
+  border-color: rgba(var(--klyx-accent), 0.24) !important;
 }
 
 .klyx-app-content [class*="ring-violet-"],
 .klyx-app-content [class*="ring-indigo-"],
 .klyx-app-content [class*="ring-cyan-"] {
-  --tw-ring-color: rgba(var(--klyx-blue), 0.18) !important;
+  --tw-ring-color: rgba(var(--klyx-accent), 0.18) !important;
 }
 
-/* Les anciens accents colorés doux deviennent le même bleu KLYX très léger. */
 .klyx-app-content [class*="bg-violet-500/10"],
 .klyx-app-content [class*="bg-violet-600/10"],
 .klyx-app-content [class*="bg-indigo-500/10"],
@@ -173,11 +123,11 @@ body {
 .klyx-app-content [class*="bg-cyan-500/10"],
 .klyx-app-content [class*="bg-blue-500/10"],
 .klyx-app-content [class*="bg-blue-600/10"] {
-  background-color: rgba(var(--klyx-blue), 0.08) !important;
+  background-color: rgba(var(--klyx-accent), 0.08) !important;
   background-image: none !important;
 }
 
-/* Boutons principaux : jamais de gradient, uniquement le bleu KLYX. */
+/* Actions */
 .klyx-button,
 .klyx-app-content [class~="bg-violet-600"],
 .klyx-app-content [class~="bg-violet-700"],
@@ -186,10 +136,10 @@ body {
 .klyx-app-content [class~="bg-blue-600"],
 .klyx-app-content [class~="bg-blue-700"] {
   border-color: transparent !important;
-  background: rgb(var(--klyx-blue)) !important;
+  background: rgb(var(--klyx-accent)) !important;
   background-image: none !important;
   color: white !important;
-  box-shadow: 0 8px 20px rgba(var(--klyx-blue), 0.16) !important;
+  box-shadow: 0 8px 20px rgba(var(--klyx-accent), 0.18) !important;
 }
 
 .klyx-button:hover,
@@ -211,7 +161,7 @@ body {
   box-shadow: none !important;
 }
 
-/* Formulaires : simples, lisibles, même focus bleu partout. */
+/* Formulaires */
 .klyx-input,
 .filter-control,
 .klyx-app-content input:not([type="checkbox"]):not([type="radio"]),
@@ -230,19 +180,19 @@ body {
 .klyx-app-content textarea:focus,
 .klyx-input:focus,
 .filter-control:focus {
-  border-color: rgba(var(--klyx-blue), 0.42) !important;
-  box-shadow: 0 0 0 4px rgba(var(--klyx-blue), 0.085) !important;
+  border-color: rgba(var(--klyx-accent), 0.42) !important;
+  box-shadow: 0 0 0 4px rgba(var(--klyx-accent), 0.085) !important;
   outline: none !important;
 }
 
-/* Anciennes surfaces sombres deviennent de vraies cartes du thème courant. */
+/* Compatibilité avec les anciennes surfaces zinc jusqu'à leur migration. */
 html:not(.dark) .klyx-app-content article[class*="dark:bg-zinc-900"],
 html:not(.dark) .klyx-app-content section[class*="dark:bg-zinc-900"],
 html:not(.dark) .klyx-app-content div[class*="dark:bg-zinc-900"] {
   border-color: var(--border) !important;
   background: var(--card) !important;
   background-image: none !important;
-  box-shadow: 0 10px 32px rgba(24, 24, 27, 0.05) !important;
+  box-shadow: 0 10px 32px rgba(76, 29, 149, 0.06) !important;
 }
 
 .dark .klyx-app-content article[class*="bg-zinc-900"],
@@ -251,17 +201,7 @@ html:not(.dark) .klyx-app-content div[class*="dark:bg-zinc-900"] {
   border-color: var(--border) !important;
   background: var(--card) !important;
   background-image: none !important;
-  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.24) !important;
-}
-
-/* Le bleu reste la seule couleur décorative. Rouge/vert restent réservés aux états métier. */
-.klyx-app-content [class*="shadow-[0_12px_28px_rgba(109,40,217"],
-.klyx-app-content [class*="shadow-[0_16px_35px_rgba(109,40,217"] {
-  box-shadow: 0 8px 20px rgba(var(--klyx-blue), 0.16) !important;
-}
-
-.klyx-app-content img {
-  image-rendering: auto;
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.26) !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
