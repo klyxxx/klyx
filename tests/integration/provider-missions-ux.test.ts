@@ -20,8 +20,9 @@ describe("provider missions UX", () => {
   it("uses the single-blue KLYX visual language", () => {
     const source = read("app/provider/jobs/page.tsx");
 
-    expect(source).toContain("bg-blue-600");
-    expect(source).toContain("text-blue-600");
+    expect(source).toContain("#2563EB");
+    expect(source).not.toContain("bg-blue-600");
+    expect(source).not.toContain("text-blue-600");
     expect(source).not.toContain("text-violet-");
     expect(source).not.toContain("bg-violet-");
     expect(source).not.toContain("border-violet-");
