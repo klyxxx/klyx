@@ -9,12 +9,13 @@ import {
 } from "@/lib/klyx-profile-page-i18n";
 
 describe("KLYX profile page i18n", () => {
-  it("certifies only the four current page locales", () => {
+  it("certifies the current page locales", () => {
     expect(KLYX_PROFILE_PAGE_TRANSLATED_LOCALES).toEqual([
       "fr",
       "en",
       "nl",
       "de",
+      "es",
     ]);
   });
 
@@ -26,9 +27,31 @@ describe("KLYX profile page i18n", () => {
     }
   });
 
+  it("certifies the Spanish profile labels and validation boundaries", () => {
+    expect(resolveKlyxProfilePageLocale("es")).toBe("es");
+    expect(translateKlyxProfilePage("es", "providerProfile")).toBe(
+      "Perfil de prestador"
+    );
+    expect(translateKlyxProfilePage("es", "clientProfile")).toBe(
+      "Perfil de cliente"
+    );
+    expect(translateKlyxProfilePage("es", "accessDenied")).toBe(
+      "Se ha denegado el acceso a este perfil."
+    );
+    expect(translateKlyxProfilePage("es", "ageInvalid")).toContain(
+      "entre 18 y 100 años"
+    );
+    expect(translateKlyxProfilePage("es", "avatarTypeInvalid")).toContain(
+      "JPG, PNG o WEBP"
+    );
+    expect(translateKlyxProfilePage("es", "avatarTooLarge")).toContain(
+      "5 MB"
+    );
+  });
+
   it("falls back explicitly to French outside certified page coverage", () => {
-    expect(resolveKlyxProfilePageLocale("es")).toBe("fr");
-    expect(translateKlyxProfilePage("es", "title")).toBe(
+    expect(resolveKlyxProfilePageLocale("it")).toBe("fr");
+    expect(translateKlyxProfilePage("it", "title")).toBe(
       translateKlyxProfilePage("fr", "title")
     );
   });
