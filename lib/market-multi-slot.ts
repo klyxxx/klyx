@@ -595,6 +595,8 @@ export async function notifyFullCoverageProviders(
           " creneaux. Ton planning couvre actuellement tous les creneaux.",
         href:
           "/provider/jobs",
+        idempotency_key:
+          `market-provider:${params.marketRequestId}:${providerId}`,
       })
     );
 
@@ -603,12 +605,21 @@ export async function notifyFullCoverageProviders(
       .from(
         "user_notifications"
       )
-      .insert(rows);
+      .upsert(rows, {
+        onConflict:
+          "idempotency_key",
+        ignoreDuplicates:
+          true,
+      });
 
   if (error) {
     console.error(
       "Multi-slot notification error:",
       error.message
+    );
+
+    throw new Error(
+      "KLYX_MULTI_SLOT_PROVIDER_NOTIFICATION_DELIVERY_FAILED"
     );
   }
 }
