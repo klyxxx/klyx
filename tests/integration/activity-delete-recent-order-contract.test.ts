@@ -57,7 +57,7 @@ describe("KLYX Activity recent-first deletion contract", () => {
     expect(migration).toContain("to service_role");
   });
 
-  it("keeps the Activity migration append-only after the current local migration history", () => {
+  it("keeps exactly one current Activity migration without depending on global tail order", () => {
     const migrationDir = path.join(process.cwd(), "supabase/migrations");
     const migrations = fs
       .readdirSync(migrationDir)
@@ -66,7 +66,9 @@ describe("KLYX Activity recent-first deletion contract", () => {
 
     expect(migrations).toContain(ACTIVITY_MIGRATION);
     expect(migrations).not.toContain(LEGACY_ACTIVITY_MIGRATION);
-    expect(migrations[migrations.length - 1]).toBe(ACTIVITY_MIGRATION);
+    expect(
+      migrations.filter((name) => name.endsWith("_klyx_activity_hidden_missions.sql"))
+    ).toEqual([ACTIVITY_MIGRATION]);
   });
 
   it("requires explicit confirmation and preserves the #543 fail-closed Activity rendering guard", () => {
