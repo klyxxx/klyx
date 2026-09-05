@@ -122,7 +122,7 @@ export default function FounderModeSwitcher({
           }
           className={`inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-40 ${
             clientActive
-              ? "bg-emerald-500 text-white"
+              ? "bg-[#2563EB] text-white"
               : "border border-white/10 bg-white/5 text-white hover:bg-white/10"
           }`}
         >
@@ -148,7 +148,7 @@ export default function FounderModeSwitcher({
           }
           className={`inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-40 ${
             providerActive
-              ? "bg-violet-600 text-white"
+              ? "bg-[#2563EB] text-white"
               : "border border-white/10 bg-white/5 text-white hover:bg-white/10"
           }`}
         >
