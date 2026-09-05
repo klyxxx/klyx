@@ -157,7 +157,7 @@ function statusClass(status: string) {
     status === "refund_processing" ||
     status === "refunded"
   ) {
-    return "border-[#2563EB]/20 bg-[#2563EB]/[0.06] text-[#2563EB]";
+    return "border-primary/20 bg-accent/40 text-primary";
   }
 
   return "border-border bg-background text-muted-foreground";
@@ -424,7 +424,7 @@ export default function BookingsPage() {
   if (accountType === "provider") {
     return (
       <main className="grid min-h-[40vh] place-items-center bg-background">
-        <LoaderCircle className="animate-spin text-[#2563EB]" size={28} />
+        <LoaderCircle className="animate-spin text-primary" size={28} />
       </main>
     );
   }
@@ -449,7 +449,7 @@ export default function BookingsPage() {
             disabled={loading}
             aria-label={t("refresh")}
             title={t("refresh")}
-            className="mt-1 inline-grid h-10 w-10 shrink-0 place-items-center rounded-full border border-border bg-background text-muted-foreground transition hover:border-[#2563EB]/30 hover:text-foreground disabled:opacity-50"
+            className="mt-1 inline-grid h-10 w-10 shrink-0 place-items-center rounded-full border border-border bg-background text-muted-foreground transition hover:border-primary/30 hover:text-foreground disabled:opacity-50"
           >
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
           </button>
@@ -457,7 +457,7 @@ export default function BookingsPage() {
 
         {hiddenChildren > 0 && (
           <p className="mt-5 inline-flex items-center gap-2 text-xs font-medium text-muted-foreground">
-            <Layers3 size={14} className="text-[#2563EB]" />
+            <Layers3 size={14} className="text-primary" />
             {t("groupedViewActive")}
           </p>
         )}
@@ -471,7 +471,7 @@ export default function BookingsPage() {
         {loading ? (
           <div className="mt-6 flex min-h-24 items-center justify-center rounded-2xl border border-border bg-card px-4">
             <div className="flex items-center gap-3 text-sm font-medium text-muted-foreground">
-              <LoaderCircle size={19} className="animate-spin text-[#2563EB]" />
+              <LoaderCircle size={19} className="animate-spin text-primary" />
               {t("loading")}
             </div>
           </div>
@@ -494,7 +494,7 @@ export default function BookingsPage() {
                     aria-current={active ? "page" : undefined}
                     className={`shrink-0 border-b-2 px-0.5 pb-3 text-sm font-medium transition ${
                       active
-                        ? "border-[#2563EB] text-foreground"
+                        ? "border-primary text-foreground"
                         : "border-transparent text-muted-foreground hover:text-foreground"
                     }`}
                   >
@@ -545,7 +545,7 @@ export default function BookingsPage() {
             <div className="mt-6">
               <Link
                 href="/assistant"
-                className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-[#2563EB] transition hover:opacity-75"
+                className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-primary transition hover:opacity-75"
               >
                 {t("organizeAnotherNeed")}
                 <ArrowRight size={16} />
@@ -565,7 +565,7 @@ function EmptyState() {
 
   return (
     <div className="mt-8 max-w-2xl rounded-2xl border border-border bg-card p-6 sm:p-8">
-      <CalendarDays className="text-[#2563EB]" size={30} />
+      <CalendarDays className="text-primary" size={30} />
       <h2 className="mt-4 text-xl font-semibold">{t("emptyTitle")}</h2>
       <p className="mt-2 text-sm leading-6 text-muted-foreground">
         {t("emptyClient")}
@@ -635,14 +635,14 @@ function BookingCardView({
             </span>
 
             {booking.actionRequired && (
-              <span className="text-xs font-semibold text-[#2563EB]">
+              <span className="text-xs font-semibold text-primary">
                 {t("actionRequiredNotice")}
               </span>
             )}
 
             {grouped && (
               <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Layers3 size={13} className="text-[#2563EB]" />
+                <Layers3 size={13} className="text-primary" />
                 {t("groupedMission")}
               </span>
             )}
@@ -670,7 +670,7 @@ function BookingCardView({
         <div className="flex shrink-0 flex-wrap items-center gap-3">
           <Link
             href={booking.href}
-            className="inline-flex min-h-10 items-center justify-center gap-2 text-sm font-semibold text-[#2563EB] transition hover:opacity-75"
+            className="inline-flex min-h-10 items-center justify-center gap-2 text-sm font-semibold text-primary transition hover:opacity-75"
           >
             {grouped ? t("openGroupedMission") : t("viewBooking")}
             <ArrowRight size={16} />
