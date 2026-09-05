@@ -268,12 +268,13 @@ export async function POST(
         time,
         budget:
           requestBudget,
+        requestMode:
+          schedule
+            ? "multi_slot"
+            : "single",
       };
 
     if (schedule) {
-      confirmedRequest.requestMode =
-        "multi_slot";
-
       confirmedRequest.schedule = {
         multiSlot: true,
         slots:
@@ -296,10 +297,22 @@ export async function POST(
         false,
     };
 
+    // Keep the pre-requestMode fingerprint for legacy single confirmations
+    // so a retry across this rollout reuses the same confirmation message.
+    // Multi-slot confirmations already included requestMode before this change.
     const fingerprint =
       confirmationFingerprint(
         conversationId,
-        confirmedRequest
+        schedule
+          ? confirmedRequest
+          : {
+              serviceSlug,
+              city,
+              date,
+              time,
+              budget:
+                requestBudget,
+            }
       );
 
     const {
