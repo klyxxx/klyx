@@ -12,6 +12,7 @@ type KlyxTransactionalEmailInput = {
   subject: string;
   text: string;
   html?: string;
+  idempotencyKey?: string;
 };
 
 type KlyxProfileTransactionalEmailInput = {
@@ -19,6 +20,7 @@ type KlyxProfileTransactionalEmailInput = {
   subject: string;
   text: string;
   html?: string;
+  idempotencyKey?: string;
 };
 
 function skippedResult(): KlyxEmailDeliveryResult {
@@ -116,6 +118,7 @@ export async function sendKlyxProfileTransactionalEmail(
         subject: input.subject,
         text: input.text,
         html: input.html,
+        idempotencyKey: input.idempotencyKey,
       },
       { apiKey }
     );
