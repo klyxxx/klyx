@@ -9,6 +9,7 @@ import {
 import { requireBrainMarketConfirmation } from "@/lib/brain-market-confirmation";
 
 // KLYX_BRAIN_PUBLISH_CONFIRMATION_IDEMPOTENCY_16_20
+// KLYX_BRAIN_PROVIDER_NOTIFICATION_RECOVERY_16_21
 
 function clean(
   value: unknown,
@@ -35,6 +36,29 @@ async function existingPublishedRequest(
   }
 
   return data;
+}
+
+async function requireProviderNotificationDelivery(params: {
+  marketRequestId: string;
+  serviceId: string;
+  serviceName: string;
+  city: string;
+}) {
+  const delivery = await notifyCompatibleProviders(params);
+
+  if (delivery.deliveryFailed) {
+    console.error(
+      "KLYX provider notification delivery requires retry",
+      {
+        marketRequestId: params.marketRequestId,
+        candidateCount: delivery.candidateCount,
+      }
+    );
+
+    throw new Error(
+      "KLYX_PROVIDER_NOTIFICATION_DELIVERY_FAILED"
+    );
+  }
 }
 
 function publishedResponse(requestId: string, replayed = false) {
@@ -83,15 +107,6 @@ export async function POST(request: Request) {
         },
         { status: 400 }
       );
-    }
-
-    const prior = await existingPublishedRequest(
-      confirmation.confirmationId,
-      profile.id
-    );
-
-    if (prior) {
-      return publishedResponse(prior.id, true);
     }
 
     const serviceSlug = clean(body.serviceSlug, 100);
@@ -181,6 +196,27 @@ export async function POST(request: Request) {
       }
     }
 
+    const notificationParams = {
+      serviceId: service.id,
+      serviceName:
+        service.name?.trim() || service.slug,
+      city,
+    };
+
+    const prior = await existingPublishedRequest(
+      confirmation.confirmationId,
+      profile.id
+    );
+
+    if (prior) {
+      await requireProviderNotificationDelivery({
+        marketRequestId: prior.id,
+        ...notificationParams,
+      });
+
+      return publishedResponse(prior.id, true);
+    }
+
     const {
       data: created,
       error: createError,
@@ -212,6 +248,11 @@ export async function POST(request: Request) {
         );
 
         if (raced) {
+          await requireProviderNotificationDelivery({
+            marketRequestId: raced.id,
+            ...notificationParams,
+          });
+
           return publishedResponse(raced.id, true);
         }
       }
@@ -219,12 +260,9 @@ export async function POST(request: Request) {
       throw new Error(createError.message);
     }
 
-    await notifyCompatibleProviders({
+    await requireProviderNotificationDelivery({
       marketRequestId: created.id,
-      serviceId: service.id,
-      serviceName:
-        service.name?.trim() || service.slug,
-      city,
+      ...notificationParams,
     });
 
     if (conversationId) {
