@@ -21,7 +21,7 @@ const dictionaries: Record<Locale, Dictionary> = {
     delete: "Delete",
     deleting: "Deleting...",
     confirm:
-      "Remove this mission from your activity? Booking, payment and refund records will remain محفوظed.",
+      "Remove this mission from your activity? Booking, payment and refund records will remain stored.",
     failed: "Unable to remove this mission from your activity.",
   },
   nl: {
