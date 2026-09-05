@@ -9,6 +9,8 @@ import {
 import {
   sendBookingPaymentFailedEmail,
   sendBookingPaymentSucceededEmails,
+  sendBookingRefundConfirmedEmail,
+  sendBookingRefundFailedEmail,
   sendGroupPaymentFailedEmail,
   sendGroupPaymentSucceededEmails,
   sendGroupRefundConfirmedEmails,
@@ -100,6 +102,27 @@ async function bookingFromIntent(
   query = bookingId
     ? query.eq("id", bookingId)
     : query.eq("stripe_payment_intent_id", intent.id);
+
+  const { data, error } = await query.maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return data ? (data as BookingPaymentEmailRow) : null;
+}
+
+async function bookingFromRefund(
+  refund: Stripe.Refund,
+  intentId: string | null
+): Promise<BookingPaymentEmailRow | null> {
+  const bookingId = refund.metadata?.booking_id?.trim();
+  if (!bookingId && !intentId) return null;
+
+  let query = supabaseAdmin
+    .from("bookings")
+    .select("id, parent_id, provider_id, babysitter_id, payment_status");
+
+  query = bookingId
+    ? query.eq("id", bookingId)
+    : query.eq("stripe_payment_intent_id", intentId as string);
 
   const { data, error } = await query.maybeSingle();
 
@@ -333,30 +356,48 @@ async function sendRefundEmail(refund: Stripe.Refund): Promise<void> {
       ? await groupFromIntentId(intentId)
       : null;
 
-  if (!group) return;
+  if (group) {
+    if (group.refund_status === "processing") {
+      await sendGroupRefundStartedEmails({
+        groupId: group.id,
+        refundId: refund.id,
+        clientProfileId: group.client_profile_id,
+        providerProfileId: group.provider_profile_id,
+      });
+    }
 
-  if (group.refund_status === "processing") {
-    await sendGroupRefundStartedEmails({
-      groupId: group.id,
-      refundId: refund.id,
-      clientProfileId: group.client_profile_id,
-      providerProfileId: group.provider_profile_id,
+    if (group.refund_status === "refunded") {
+      await sendGroupRefundConfirmedEmails({
+        groupId: group.id,
+        clientProfileId: group.client_profile_id,
+        providerProfileId: group.provider_profile_id,
+      });
+    }
+
+    if (group.refund_status === "failed") {
+      await sendGroupRefundFailedEmails({
+        groupId: group.id,
+        clientProfileId: group.client_profile_id,
+        providerProfileId: group.provider_profile_id,
+      });
+    }
+    return;
+  }
+
+  const booking = await bookingFromRefund(refund, intentId);
+  if (!booking) return;
+
+  if (refund.status === "succeeded") {
+    await sendBookingRefundConfirmedEmail({
+      bookingId: booking.id,
+      clientProfileId: booking.parent_id,
     });
   }
 
-  if (group.refund_status === "refunded") {
-    await sendGroupRefundConfirmedEmails({
-      groupId: group.id,
-      clientProfileId: group.client_profile_id,
-      providerProfileId: group.provider_profile_id,
-    });
-  }
-
-  if (group.refund_status === "failed") {
-    await sendGroupRefundFailedEmails({
-      groupId: group.id,
-      clientProfileId: group.client_profile_id,
-      providerProfileId: group.provider_profile_id,
+  if (refund.status === "failed" || refund.status === "canceled") {
+    await sendBookingRefundFailedEmail({
+      bookingId: booking.id,
+      clientProfileId: booking.parent_id,
     });
   }
 }
