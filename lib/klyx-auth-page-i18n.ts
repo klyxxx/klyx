@@ -1,6 +1,6 @@
 import type { KlyxLocale } from "./klyx-i18n";
 
-export const KLYX_LOGIN_PAGE_TRANSLATED_LOCALES = ["fr", "en", "nl", "de"] as const;
+export const KLYX_LOGIN_PAGE_TRANSLATED_LOCALES = ["fr", "en", "nl", "de", "es"] as const;
 
 type KlyxLoginPageLocale =
   (typeof KLYX_LOGIN_PAGE_TRANSLATED_LOCALES)[number];
@@ -183,6 +183,41 @@ const LOGIN_MESSAGES: Record<
     switchNotice: "Nach der Anmeldung kannst du zwischen deinen verknüpften KLYX-Profilen wechseln, ohne dass KLYX dein Passwort im Browser speichern muss.",
     newToKlyx: "Neu bei KLYX?",
     createAccount: "Konto erstellen",
+  },
+  es: {
+    captchaRequired: "Completa primero la verificación antirobot.",
+    credentialsRequired: "Introduce tu dirección de correo electrónico y tu contraseña.",
+    captchaFailed: "La verificación antirobot ha caducado o ha fallado. Inténtalo de nuevo.",
+    invalidCredentials: "La dirección de correo electrónico o la contraseña son incorrectas.",
+    emailNotConfirmed: "Confirma primero tu dirección de correo electrónico.",
+    loginFailed: "No se ha podido iniciar sesión.",
+    resetEmailRequired: "Introduce tu dirección de correo electrónico antes de restablecer la contraseña.",
+    resetSent: "Si esta dirección está asociada a una cuenta KLYX, se acaba de enviar un correo para restablecer la contraseña.",
+    resetFailed: "No se ha podido enviar el correo electrónico.",
+    checkingSession: "Comprobando la sesión",
+    connectionBadge: "Un inicio de sesión. Todos tus espacios KLYX.",
+    headline: "Tu día a día y tu actividad, en un mismo lugar.",
+    description: "Inicia sesión una sola vez. Si hay varios perfiles KLYX vinculados a tu cuenta, podrás cambiar de uno a otro sin volver a introducir tu contraseña.",
+    benefitProfiles: "Puedes vincular varios perfiles KLYX al mismo inicio de sesión.",
+    benefitSpaces: "Los perfiles de cliente y proveedor mantienen sus espacios y recorridos separados.",
+    benefitPassword: "Para cambiar de perfil, KLYX no necesita guardar tu contraseña.",
+    secureSession: "Sesión segura",
+    protectedPassword: "Contraseña protegida",
+    welcome: "Bienvenido",
+    loginTitle: "Iniciar sesión en KLYX",
+    loginSubtitle: "Un solo inicio de sesión basta para acceder a los perfiles KLYX vinculados a tu cuenta.",
+    emailLabel: "Dirección de correo electrónico",
+    emailPlaceholder: "tu@ejemplo.com",
+    passwordLabel: "Contraseña",
+    passwordPlaceholder: "Tu contraseña",
+    hidePassword: "Ocultar contraseña",
+    showPassword: "Mostrar contraseña",
+    forgotPassword: "¿Has olvidado tu contraseña?",
+    loggingIn: "Iniciando sesión...",
+    signIn: "Iniciar sesión",
+    switchNotice: "Después de iniciar sesión, puedes cambiar entre tus perfiles KLYX vinculados sin que KLYX tenga que guardar tu contraseña en el navegador.",
+    newToKlyx: "¿Eres nuevo en KLYX?",
+    createAccount: "Crear una cuenta",
   },
 };
 

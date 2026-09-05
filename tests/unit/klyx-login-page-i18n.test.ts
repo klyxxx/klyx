@@ -63,12 +63,18 @@ describe("KLYX login page i18n", () => {
     expect(translateKlyxLogin("de", "invalidCredentials")).toBe(
       "E-Mail-Adresse oder Passwort ist falsch."
     );
+    expect(translateKlyxLogin("es", "loginTitle")).toBe(
+      "Iniciar sesión en KLYX"
+    );
   });
 
   it("keeps partial login coverage explicit with French fallback", () => {
     expect(hasKlyxLoginPageTranslation("de")).toBe(true);
-    expect(hasKlyxLoginPageTranslation("es")).toBe(false);
-    expect(resolveKlyxLoginPageLocale("es")).toBe("fr");
-    expect(translateKlyxLogin("es", "signIn")).toBe("Se connecter");
+    expect(hasKlyxLoginPageTranslation("es")).toBe(true);
+    expect(resolveKlyxLoginPageLocale("es")).toBe("es");
+    expect(translateKlyxLogin("es", "signIn")).toBe("Iniciar sesión");
+    expect(hasKlyxLoginPageTranslation("it")).toBe(false);
+    expect(resolveKlyxLoginPageLocale("it")).toBe("fr");
+    expect(translateKlyxLogin("it", "signIn")).toBe("Se connecter");
   });
 });
