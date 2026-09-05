@@ -20,12 +20,13 @@ describe("KLYX install page i18n", () => {
     }
   });
 
-  it("ships real English, Dutch and German install copy", () => {
+  it("ships real English, Dutch, German and Spanish install copy", () => {
     expect(translateKlyxInstallPage("en", "backHome")).toBe("Back to home");
     expect(translateKlyxInstallPage("nl", "browserSignup")).toBe(
       "Een account maken"
     );
     expect(translateKlyxInstallPage("de", "desktopTitle")).toBe("Computer");
+    expect(translateKlyxInstallPage("es", "desktopTitle")).toBe("Ordenador");
   });
 
   it("keeps the PWA versus store-app distinction explicit in every certified locale", () => {
@@ -44,8 +45,34 @@ describe("KLYX install page i18n", () => {
     }
   });
 
-  it("makes four-language install coverage explicit and falls back to French", () => {
+  it("certifies the Spanish install page copy", () => {
+    expect(hasKlyxInstallPageTranslation("es")).toBe(true);
+    expect(resolveKlyxInstallPageLocale("es")).toBe("es");
+    expect(getKlyxInstallPageDictionary("es")).toMatchObject({
+      metadataTitle: "Instalar KLYX",
+      login: "Iniciar sesión",
+      androidTitle: "Android",
+      iosTitle: "iPhone / iPad",
+      desktopTitle: "Ordenador",
+      browserSignup: "Crear una cuenta",
+      currentVersionTitle: "Versión actual",
+    });
+  });
+
+  it("keeps the Spanish current-version honesty boundary explicit", () => {
+    const currentVersion = getKlyxInstallPageDictionary(
+      "es"
+    ).currentVersionDescription;
+
+    expect(currentVersion).toContain("PWA");
+    expect(currentVersion).toContain("Todavía no es una aplicación publicada");
+    expect(currentVersion).toContain("App Store");
+    expect(currentVersion).toContain("Google Play");
+  });
+
+  it("keeps five-language install coverage explicit and falls back to French", () => {
     expect(hasKlyxInstallPageTranslation("en")).toBe(true);
+    expect(hasKlyxInstallPageTranslation("es")).toBe(true);
     expect(hasKlyxInstallPageTranslation("ar")).toBe(false);
     expect(resolveKlyxInstallPageLocale("ar")).toBe("fr");
     expect(translateKlyxInstallPage("ar", "metadataTitle")).toBe(
