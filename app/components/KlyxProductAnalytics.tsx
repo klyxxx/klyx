@@ -54,17 +54,23 @@ export default function KlyxProductAnalytics() {
     let active = true;
     const supabase = createClient();
 
-    void supabase.auth.getUser().then(({ data }) => {
-      if (
-        active &&
-        !signupCapturedRef.current &&
-        data.user &&
-        isFreshlyCreatedAuthUser(data.user)
-      ) {
-        signupCapturedRef.current = true;
-        captureKlyxProductEvent("account signed up");
+    void (async () => {
+      try {
+        const { data } = await supabase.auth.getUser();
+
+        if (
+          active &&
+          !signupCapturedRef.current &&
+          data.user &&
+          isFreshlyCreatedAuthUser(data.user)
+        ) {
+          signupCapturedRef.current = true;
+          captureKlyxProductEvent("account signed up");
+        }
+      } catch {
+        // Analytics classification must never affect onboarding.
       }
-    });
+    })();
 
     return () => {
       active = false;
