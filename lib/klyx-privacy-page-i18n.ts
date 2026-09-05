@@ -5,6 +5,7 @@ export const KLYX_PRIVACY_PAGE_TRANSLATED_LOCALES = [
   "en",
   "nl",
   "de",
+  "es",
 ] as const;
 
 export type KlyxPrivacyPageLocale =
@@ -221,6 +222,49 @@ const PRIVACY_PAGE_MESSAGES: Record<
     section8Title: "8. Änderungen dieser Erklärung",
     section8Text:
       "Diese Erklärung kann sich mit KLYX weiterentwickeln. Das oben auf dieser Seite angezeigte Datum kennzeichnet die veröffentlichte Version.",
+  },
+  es: {
+    metadataTitle: "Política de privacidad",
+    metadataDescription:
+      "Política de privacidad de KLYX e información sobre el tratamiento de datos.",
+    backLegal: "Información de KLYX",
+    lastUpdated: "Última actualización: 10 de agosto de 2026",
+    title: "Política de privacidad",
+    section1Title: "1. Responsable del tratamiento",
+    controllerIntro:
+      "KLYX es el servicio responsable de los tratamientos descritos aquí. El editor público indicado por la configuración de la aplicación es",
+    addressLabel: "Dirección:",
+    companyNumberLabel: "Número de empresa:",
+    privacyContactLabel: "Contacto de privacidad:",
+    section2Title: "2. Datos que pueden tratarse",
+    section2AccountText:
+      "Según las funciones utilizadas, KLYX puede tratar datos de cuenta y perfil, datos de contacto, información de servicios, disponibilidad y zonas de intervención, reservas, presupuestos, mensajes, reseñas, preferencias, notificaciones y datos técnicos necesarios para la seguridad del servicio.",
+    section2PaymentText:
+      "Para los pagos, KLYX conserva los identificadores y estados necesarios para el seguimiento de las transacciones. Los datos de tarjeta son tratados por el proveedor de pagos y no están destinados a ser almacenados directamente por KLYX.",
+    section2OptionalText:
+      "Algunas funciones opcionales pueden tratar imágenes, información de ubicación introducida por el usuario, elementos de verificación de proveedores o contenido enviado a funciones de asistencia mediante inteligencia artificial.",
+    section3Title: "3. Finalidades",
+    section3Text:
+      "Estos datos se utilizan, entre otros fines, para crear y proteger cuentas, poner en contacto a clientes y proveedores, ofrecer búsquedas, presupuestos, reservas y seguimiento de servicios, procesar pagos y reembolsos, prevenir el fraude, gestionar la confianza y las reseñas, prestar asistencia y mejorar el funcionamiento de KLYX.",
+    section4Title: "4. Proveedores técnicos",
+    section4Text:
+      "KLYX puede apoyarse en proveedores técnicos necesarios para su funcionamiento, especialmente para el alojamiento, la base de datos y la autenticación, los pagos, la verificación de identidad cuando esté activada, la distribución de la aplicación y las funciones de inteligencia artificial. El acceso debe limitarse a lo necesario para su función.",
+    section5Title: "5. Conservación",
+    section5Text:
+      "KLYX conserva los datos durante el tiempo necesario para el servicio, la seguridad, la resolución de disputas y las obligaciones legales aplicables. Cuando se elimina una cuenta, los datos personales que ya no deban conservarse deben eliminarse o anonimizarse. Determinada información relacionada con transacciones, fraude, seguridad u obligaciones reglamentarias puede tener que conservarse durante un período adicional.",
+    section6Title: "6. Eliminación y derechos",
+    deletionIntro:
+      "Un usuario autenticado puede iniciar la eliminación desde Ajustes. También hay disponible un recurso web independiente en",
+    deletionAfterLink:
+      "Puede solicitarse una verificación de identidad antes de tramitar una solicitud externa para evitar la eliminación fraudulenta de una cuenta.",
+    rightsIntro:
+      "Para solicitar acceso, rectificación, supresión u otra acción relativa a tus datos, contacta con",
+    section7Title: "7. Seguridad",
+    section7Text:
+      "KLYX utiliza controles de acceso, mecanismos de autenticación y protecciones del lado del servidor. Ningún sistema está completamente libre de riesgos; los incidentes deben analizarse y tratarse de acuerdo con las obligaciones aplicables.",
+    section8Title: "8. Cambios en esta política",
+    section8Text:
+      "Esta política puede evolucionar junto con KLYX. La fecha que aparece en la parte superior de esta página identifica la versión publicada.",
   },
 };
 
