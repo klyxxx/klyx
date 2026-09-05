@@ -29,9 +29,26 @@ describe("KLYX legal page i18n", () => {
     }
   });
 
+  it("certifies the Spanish legal page copy", () => {
+    expect(resolveKlyxLegalPageLocale("es")).toBe("es");
+    expect(getKlyxLegalPageDictionary("es")).toMatchObject({
+      metadataTitle: "Información legal de KLYX",
+      privacyTitle: "Política de privacidad",
+      termsTitle: "Condiciones de uso",
+      supportTitle: "Asistencia",
+      deleteTitle: "Eliminación de la cuenta",
+    });
+  });
+
+  it("keeps the Spanish account-deletion destination explicit", () => {
+    expect(getKlyxLegalPageDictionary("es").deleteDescription).toContain(
+      "eliminación de tu cuenta y de los datos asociados"
+    );
+  });
+
   it("falls back explicitly to French outside the certified page locales", () => {
-    expect(resolveKlyxLegalPageLocale("es")).toBe("fr");
-    expect(getKlyxLegalPageDictionary("es")).toEqual(
+    expect(resolveKlyxLegalPageLocale("it")).toBe("fr");
+    expect(getKlyxLegalPageDictionary("it")).toEqual(
       getKlyxLegalPageDictionary("fr")
     );
   });
