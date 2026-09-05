@@ -13,6 +13,12 @@ test("provider Services keeps publish dominant and draft save secondary", () => 
 
   expect(publishIndex).toBeGreaterThan(-1);
   expect(draftIndex).toBeGreaterThan(publishIndex);
-  expect(source.slice(publishIndex, publishIndex + 700)).toContain("bg-blue-600");
-  expect(source.slice(draftIndex, draftIndex + 700)).toContain("border border-border");
+
+  const publishAction = source.slice(publishIndex, publishIndex + 700);
+  const draftAction = source.slice(draftIndex, draftIndex + 700);
+
+  expect(publishAction).toContain("bg-primary");
+  expect(publishAction).toContain("text-primary-foreground");
+  expect(publishAction).not.toContain("bg-blue-");
+  expect(draftAction).toContain("border border-border");
 });

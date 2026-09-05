@@ -68,7 +68,7 @@ const DOCUMENT_STATUS_CLASS: Record<string, string> = {
 };
 
 function inputClassName(): string {
-  return "w-full rounded-xl border border-border bg-background px-4 py-3 text-foreground outline-none transition placeholder:text-muted-foreground focus:border-blue-600/50 focus:ring-4 focus:ring-blue-600/10";
+  return "w-full rounded-xl border border-border bg-background px-4 py-3 text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary/50 focus:ring-4 focus:ring-primary/10";
 }
 
 function normalizeServiceSearch(value: string): string {
@@ -468,7 +468,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
     return (
       <main className="grid min-h-[55vh] place-items-center bg-background text-foreground">
         <div className="text-center">
-          <LoaderCircle className="mx-auto animate-spin text-blue-600" size={36} />
+          <LoaderCircle className="mx-auto animate-spin text-primary" size={36} />
           <p className="mt-4 text-sm text-muted-foreground">{t("loading")}</p>
         </div>
       </main>
@@ -491,7 +491,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
         <header className="flex flex-col gap-5 border-b border-border pb-7 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
                 {t("eyebrow")}
               </p>
               <StatusBadge
@@ -500,7 +500,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
               />
             </div>
             {/* KLYX_AI_FIRST_PROVIDER_STUDIO_15_03 */}
-            {/* KLYX_PROVIDER_STUDIO_NATIVE_SINGLE_BLUE */}
+            {/* KLYX_PROVIDER_STUDIO_AURA_NOIR */}
             <h1 className="mt-3 text-3xl font-bold tracking-[-0.04em] sm:text-5xl">
               {t("pageTitle")}
             </h1>
@@ -635,10 +635,10 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                             key={service.serviceId}
                             type="button"
                             onClick={() => activateService(service.serviceId)}
-                            className="flex w-full items-center justify-between gap-3 rounded-xl px-4 py-3 text-left transition hover:bg-blue-600/8 focus-visible:bg-blue-600/8 focus-visible:outline-none"
+                            className="flex w-full items-center justify-between gap-3 rounded-xl px-4 py-3 text-left transition hover:bg-accent/40 focus-visible:bg-accent/40 focus-visible:outline-none"
                           >
                             <span className="font-semibold">{label}</span>
-                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
                               <Plus size={16} />
                             </span>
                           </button>
@@ -671,7 +671,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                           key={service.serviceId}
                           className={`inline-flex items-center overflow-hidden rounded-full border text-sm font-semibold transition ${
                             active
-                              ? "border-blue-600 bg-blue-600 text-white"
+                              ? "border-primary bg-primary text-primary-foreground"
                               : "border-border bg-muted text-foreground"
                           }`}
                         >
@@ -727,11 +727,11 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
               title={t("galleryTitle")}
               description={t("galleryDescription")}
             >
-              <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-background px-6 py-9 text-center transition hover:border-blue-600/50 hover:bg-blue-600/[0.03]">
+              <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-background px-6 py-9 text-center transition hover:border-primary/50 hover:bg-accent/20">
                 {uploadingGallery ? (
-                  <LoaderCircle className="animate-spin text-blue-600" size={30} />
+                  <LoaderCircle className="animate-spin text-primary" size={30} />
                 ) : (
-                  <ImagePlus className="text-blue-600" size={30} />
+                  <ImagePlus className="text-primary" size={30} />
                 )}
                 <span className="mt-3 font-semibold">
                   {uploadingGallery ? t("galleryUploading") : t("galleryAddPhoto")}
@@ -794,7 +794,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                   ariaLabel={t("documentTypeAria")}
                 />
 
-                <label className="inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-500">
+                <label className="inline-flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 font-semibold text-primary-foreground transition hover:opacity-90">
                   {uploadingDocument ? (
                     <LoaderCircle className="animate-spin" size={18} />
                   ) : (
@@ -877,15 +877,15 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                   <p className="text-sm font-medium text-muted-foreground">
                     {t("completionTitle")}
                   </p>
-                  <p className="mt-1 text-3xl font-bold text-blue-600">
+                  <p className="mt-1 text-3xl font-bold text-primary">
                     {completionPercentage}%
                   </p>
                 </div>
-                <ShieldCheck size={30} className="text-blue-600" />
+                <ShieldCheck size={30} className="text-primary" />
               </div>
               <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
                 <div
-                  className="h-full rounded-full bg-blue-600 transition-all"
+                  className="h-full rounded-full bg-primary transition-all"
                   style={{ width: `${completionPercentage}%` }}
                 />
               </div>
@@ -917,7 +917,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                 type="button"
                 onClick={() => void saveStudio(true)}
                 disabled={saving}
-                className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white transition hover:bg-blue-500 disabled:opacity-50"
+                className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
               >
                 {saving ? (
                   <LoaderCircle className="animate-spin" size={18} />
@@ -979,7 +979,7 @@ export default function ProviderStudio({ profileId }: ProviderStudioProps) {
                   {t("personalInfoDescription")}
                 </p>
               </div>
-              <ChevronRight size={19} className="text-blue-600" />
+              <ChevronRight size={19} className="text-primary" />
             </Link>
           </aside>
         </div>
@@ -1018,7 +1018,7 @@ function ServiceEditor({
   return (
     <div className="space-y-7 rounded-2xl border border-border bg-background p-5 sm:p-6">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-600">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
           {getKlyxProviderStudioServiceLabel(locale, service.slug, service.name)}
         </p>
         <h3 className="mt-2 text-xl font-semibold">{t("configureService")}</h3>
@@ -1074,7 +1074,7 @@ function ServiceEditor({
               }
               className={`min-w-0 rounded-lg px-3 py-2 text-sm font-semibold transition ${
                 service.pricingType === "hourly"
-                  ? "bg-blue-600 text-white"
+                  ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-muted"
               }`}
             >
@@ -1087,7 +1087,7 @@ function ServiceEditor({
               }
               className={`min-w-0 rounded-lg px-3 py-2 text-sm font-semibold transition ${
                 service.pricingType === "fixed"
-                  ? "bg-blue-600 text-white"
+                  ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-muted"
               }`}
             >
@@ -1129,7 +1129,7 @@ function ServiceEditor({
 
       <div className="border-t border-border pt-6">
         <div className="flex items-center gap-2">
-          <MapPin size={19} className="text-blue-600" />
+          <MapPin size={19} className="text-primary" />
           <h3 className="font-semibold">{t("zonesTitle")}</h3>
         </div>
         <p className="mt-2 text-sm text-muted-foreground">
@@ -1163,7 +1163,7 @@ function ServiceEditor({
           {service.serviceArea.map((zone) => (
             <span
               key={zone}
-              className="inline-flex items-center gap-2 rounded-full border border-blue-600/25 bg-blue-600/8 px-3 py-1.5 text-sm text-blue-700 dark:text-blue-300"
+              className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-accent/40 px-3 py-1.5 text-sm text-primary"
             >
               {zone}
               <button
@@ -1194,7 +1194,7 @@ function ServiceEditor({
 
       <div className="border-t border-border pt-6">
         <div className="flex items-center gap-2">
-          <Clock3 size={19} className="text-blue-600" />
+          <Clock3 size={19} className="text-primary" />
           <h3 className="font-semibold">{t("availabilityTitle")}</h3>
         </div>
         <div className="mt-4 space-y-3">
@@ -1218,7 +1218,7 @@ function ServiceEditor({
                         enabled: event.target.checked,
                       })
                     }
-                    className="h-5 w-5 accent-blue-600"
+                    className="h-5 w-5 accent-primary"
                   />
                   {getKlyxProviderStudioDayLabel(locale, definition.value)}
                 </label>
@@ -1304,7 +1304,7 @@ function SectionCard({
   return (
     <section className="rounded-2xl border border-border bg-card p-5 sm:p-7">
       <div className="mb-6 flex items-start gap-4">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600/8 text-blue-600">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/40 text-primary">
           {icon}
         </span>
         <div>

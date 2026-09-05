@@ -4,6 +4,9 @@ import {
   getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
+import {
+  brainConfirmationModeMatches,
+} from "@/lib/brain-confirmation-mode";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 // KLYX_MULTI_SLOT_CONFIRMATION_PROOF_12_83
@@ -394,6 +397,17 @@ export async function requireBrainMultiSlotConfirmation(
   ) {
     throw new Error(
       "Cette preuve ne correspond pas a une confirmation explicite."
+    );
+  }
+
+  if (
+    !brainConfirmationModeMatches(
+      payload,
+      "multi_slot"
+    )
+  ) {
+    throw new Error(
+      "Type de confirmation KLYX invalide pour cette publication."
     );
   }
 
