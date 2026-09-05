@@ -277,15 +277,7 @@ jobs:
               "https://api.github.com/repos/$KLYX_REPOSITORY/pulls/$KLYX_PR_NUMBER"
           )"
 
-          auto_merge_state="$(
-            printf '%s' "$response" | python -c '
-import json
-import sys
-
-payload = json.load(sys.stdin)
-print("armed" if payload.get("auto_merge") is not None else "disabled")
-'
-          )"
+          auto_merge_state="$(printf '%s' "$response" | python -c 'import json, sys; payload = json.load(sys.stdin); print("armed" if payload.get("auto_merge") is not None else "disabled")')"
 
           if [ "$auto_merge_state" != "disabled" ]; then
             echo "GitHub auto-merge is armed for PR #$KLYX_PR_NUMBER."
