@@ -21,9 +21,31 @@ describe("KLYX assistant home i18n", () => {
     }
   });
 
+  it("localizes the canonical assistant heading and notification label", () => {
+    expect(translateKlyxAssistantHome("fr", "organizeTitle")).toBe(
+      "Que dois-je organiser pour vous ?"
+    );
+    expect(translateKlyxAssistantHome("en", "organizeTitle")).toBe(
+      "What should I organize for you?"
+    );
+    expect(translateKlyxAssistantHome("nl", "organizeTitle")).toBe(
+      "Wat zal ik voor je organiseren?"
+    );
+    expect(translateKlyxAssistantHome("de", "organizeTitle")).toBe(
+      "Was soll ich für dich organisieren?"
+    );
+    expect(translateKlyxAssistantHome("nl", "notifications")).toBe("Meldingen");
+    expect(translateKlyxAssistantHome("de", "notifications")).toBe(
+      "Benachrichtigungen"
+    );
+  });
+
   it("falls back explicitly to French", () => {
     expect(resolveKlyxAssistantHomeLocale("es")).toBe("fr");
     expect(translateKlyxAssistantHome("es", "open")).toBe("Ouvrir");
+    expect(translateKlyxAssistantHome("es", "organizeTitle")).toBe(
+      "Que dois-je organiser pour vous ?"
+    );
   });
 
   it("formats client action counts per locale", () => {
