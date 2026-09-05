@@ -485,7 +485,7 @@ export default function ProviderCapabilitiesPage() {
         {confirmed && (
           <div className="mt-6 border-t border-border/80 pt-5">
             <div className="flex items-center gap-2">
-              <Link2 size={16} className="text-violet-600 dark:text-violet-400" />
+              <Link2 size={16} className="text-[#2563EB]" />
               <p className="text-sm font-black">{t("linkedOffers")}</p>
             </div>
             <p className="mt-2 max-w-3xl text-xs leading-5 text-muted-foreground">
@@ -495,7 +495,7 @@ export default function ProviderCapabilitiesPage() {
             {services.length === 0 ? (
               <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-border/80 bg-muted/30 p-4 text-sm">
                 <span className="text-muted-foreground">{t("noActiveOffer")}</span>
-                <Link href="/provider" className="font-black text-blue-600 dark:text-blue-400">
+                <Link href="/provider" className="font-black text-[#2563EB] transition hover:opacity-80">
                   {t("manageOffers")}
                 </Link>
               </div>
@@ -526,7 +526,7 @@ export default function ProviderCapabilitiesPage() {
                         className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl px-3 text-xs font-black transition disabled:cursor-wait disabled:opacity-60 ${
                           linked
                             ? "border border-border bg-muted"
-                            : "bg-violet-600 text-white"
+                            : "bg-[#2563EB] text-white"
                         }`}
                       >
                         {pending ? (
@@ -560,8 +560,8 @@ export default function ProviderCapabilitiesPage() {
           {t("backToProvider")}
         </Link>
 
-        <section className="relative mt-6 overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#16112a_0%,#3b1b6d_52%,#111827_100%)] p-7 text-white shadow-[0_28px_90px_rgba(61,31,110,0.25)] sm:p-10">
-          <div className="absolute -right-20 -top-24 h-72 w-72 rounded-full bg-violet-400/20 blur-3xl" />
+        <section className="relative mt-6 overflow-hidden rounded-[2rem] border border-[#2563EB]/20 bg-[#2563EB] p-7 text-white shadow-[0_28px_90px_rgba(37,99,235,0.20)] sm:p-10">
+          <div className="absolute -right-20 -top-24 h-72 w-72 rounded-full bg-white/10 blur-3xl" />
           <div className="relative max-w-3xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/7 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white/70">
               <Sparkles size={15} />
@@ -594,7 +594,7 @@ export default function ProviderCapabilitiesPage() {
 
         <section className="klyx-card mt-8 p-6 sm:p-8">
           <div className="flex items-start gap-4">
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#2563EB]/10 text-[#2563EB]">
               <Plus size={21} />
             </span>
             <div>
@@ -638,7 +638,7 @@ export default function ProviderCapabilitiesPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="inline-flex min-h-12 w-fit items-center gap-2 rounded-2xl bg-violet-600 px-5 text-sm font-black text-white transition hover:bg-violet-500 disabled:cursor-wait disabled:opacity-60"
+              className="inline-flex min-h-12 w-fit items-center gap-2 rounded-2xl bg-[#2563EB] px-5 text-sm font-black text-white transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
             >
               {submitting ? (
                 <LoaderCircle size={17} className="animate-spin" />
@@ -657,7 +657,7 @@ export default function ProviderCapabilitiesPage() {
 
           {loading ? (
             <div className="mt-5 grid min-h-40 place-items-center rounded-[1.75rem] border border-border/80">
-              <LoaderCircle size={30} className="animate-spin text-violet-600" />
+              <LoaderCircle size={30} className="animate-spin text-[#2563EB]" />
             </div>
           ) : capabilities.length === 0 ? (
             <div className="klyx-card mt-5 p-7 text-center text-sm text-muted-foreground">

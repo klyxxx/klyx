@@ -1,5 +1,9 @@
 import type Stripe from "stripe";
 
+import {
+  sendBookingPaymentFailedEmail,
+  sendBookingPaymentSucceededEmails,
+} from "@/lib/email/payment-event-emails";
 import { upsertFinancialLedgerEntry } from "@/lib/payment-ledger";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -727,11 +731,21 @@ export async function markBookingPaidFromSession(
   }
 
   if (updatedBooking) {
+    const paidBooking =
+      updatedBooking as BookingPaymentRow;
+
     await ensurePaymentSucceededSideEffects(
-      updatedBooking as BookingPaymentRow,
+      paidBooking,
       session,
       economics
     );
+
+    await sendBookingPaymentSucceededEmails({
+      bookingId: paidBooking.id,
+      clientProfileId: paidBooking.parent_id,
+      providerProfileId:
+        paidBooking.provider_id ?? paidBooking.babysitter_id,
+    });
 
     return;
   }
@@ -967,6 +981,10 @@ export async function markBookingFailedFromSession(
       "payment_status",
       "refunded"
     )
+    .neq(
+      "payment_status",
+      "failed"
+    )
     .select("id")
     .maybeSingle();
 
@@ -1024,5 +1042,10 @@ export async function markBookingFailedFromSession(
       `booking:${booking.id}:payment-failed:${incomingPaymentIntentId ?? session.id}`,
     replaceExisting:
       true,
+  });
+
+  await sendBookingPaymentFailedEmail({
+    bookingId: booking.id,
+    clientProfileId: booking.parent_id,
   });
 }

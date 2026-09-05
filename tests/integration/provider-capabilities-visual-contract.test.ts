@@ -8,27 +8,46 @@ function read(relative: string) {
 }
 
 describe("KLYX provider capabilities visual contract", () => {
-  it("renders legacy capabilities styling through the KLYX blue theme without changing actions", () => {
-    const layout = read("app/provider/capabilities/layout.tsx");
-    const theme = read("app/provider/capabilities/capabilities.module.css");
-    const page = read("app/provider/capabilities/page.tsx");
+  it("keeps capability behavior while using the exact KLYX blue without branding overrides", () => {
+    const capabilities = read("app/provider/capabilities/page.tsx");
 
-    expect(layout).toContain('import styles from "./capabilities.module.css"');
-    expect(layout).toContain("className={styles.capabilities}");
+    expect(capabilities).toContain('fetch("/api/provider/capabilities"');
+    expect(capabilities).toContain('fetch("/api/provider/capability-links"');
+    expect(capabilities).toContain('fetch("/api/provider/studio"');
+    expect(capabilities).toContain('method: "POST"');
+    expect(capabilities).toContain('method: "PATCH"');
+    expect(capabilities).toContain('method: existing ? "DELETE" : "POST"');
+    expect(capabilities).toContain("changeStatus(capability: Capability)");
+    expect(capabilities).toContain("toggleLink(capabilityId: string, userServiceId: string)");
 
-    expect(theme).toContain("--klyx-capabilities-blue: #2563eb");
-    expect(theme).toContain('section[class*="bg-[linear-gradient"]');
-    expect(theme).toContain('[class~="text-violet-600"]');
-    expect(theme).toContain('[class~="bg-violet-600"]');
-    expect(theme).toContain("background-image: none");
-    expect(theme).not.toContain("#7c3aed");
-    expect(theme).not.toContain("indigo");
+    expect(capabilities).toContain("#2563EB");
+    for (const legacyBranding of [
+      "blue-300",
+      "blue-400",
+      "blue-500",
+      "blue-600",
+      "blue-700",
+      "violet-",
+      "indigo-",
+      "fuchsia-",
+      "linear-gradient",
+      "bg-gradient",
+      "#2b1452",
+    ]) {
+      expect(capabilities).not.toContain(legacyBranding);
+    }
 
-    expect(page).toContain('fetch("/api/provider/capabilities"');
-    expect(page).toContain('fetch("/api/provider/capability-links"');
-    expect(page).toContain('fetch("/api/provider/studio"');
-    expect(page).toContain('method: "POST"');
-    expect(page).toContain('method: "PATCH"');
-    expect(page).toContain('method: existing ? "DELETE" : "POST"');
+    expect(capabilities).toContain("emerald-500");
+    expect(capabilities).toContain("amber-500");
+    expect(capabilities).toContain("rose-500");
+
+    expect(
+      fs.existsSync(
+        path.join(process.cwd(), "app/provider/capabilities/capabilities.module.css")
+      )
+    ).toBe(false);
+    expect(
+      fs.existsSync(path.join(process.cwd(), "app/provider/capabilities/layout.tsx"))
+    ).toBe(false);
   });
 });

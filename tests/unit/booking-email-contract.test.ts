@@ -24,7 +24,7 @@ describe("booking transactional email contract", () => {
       bookingErrorIndex
     );
     const emailIndex = createRoute.indexOf(
-      "await sendKlyxProfileTransactionalEmail({",
+      "await sendKlyxDeduplicatedEmail({",
       afterIndex
     );
     const responseIndex = createRoute.indexOf(
@@ -39,6 +39,12 @@ describe("booking transactional email contract", () => {
     expect(responseIndex).toBeGreaterThan(emailIndex);
     expect(createRoute).toContain("bookingRequestedEmail({");
     expect(createRoute).toContain("profileId: providerId");
+    expect(createRoute).toContain(
+      "deduplicationKey: `booking:${booking.id}:requested:provider`"
+    );
+    expect(createRoute).toContain(
+      'templateKey: "booking.requested.provider"'
+    );
   });
 
   it("keeps accepted, rejected, cancelled and refund emails inside after()", () => {
@@ -64,16 +70,30 @@ describe("booking transactional email contract", () => {
     expect(deferredBlock).toContain("refundConfirmedEmail(booking.id)");
     expect(deferredBlock).toContain("refundStartedEmail(booking.id)");
     expect(
-      deferredBlock.match(/sendKlyxProfileTransactionalEmail\(\{/g)
-        ?.length
+      deferredBlock.match(/sendKlyxDeduplicatedEmail\(\{/g)?.length
     ).toBe(4);
+    expect(deferredBlock).toContain(
+      "deduplicationKey: `booking:${booking.id}:accepted:client`"
+    );
+    expect(deferredBlock).toContain(
+      "deduplicationKey: `booking:${booking.id}:rejected:client`"
+    );
+    expect(deferredBlock).toContain(
+      "deduplicationKey: `booking:${booking.id}:cancelled:${recipientId}`"
+    );
+    expect(deferredBlock).toContain(
+      "? `booking:${booking.id}:refund-succeeded:client`"
+    );
+    expect(deferredBlock).toContain(
+      ": `booking:${booking.id}:refund-processing:client`"
+    );
   });
 
   it("does not move Stripe refund execution into email delivery", () => {
     const refundIndex = statusRoute.indexOf("await refundPaidBooking({");
     const afterIndex = statusRoute.indexOf("after(async () =>", refundIndex);
     const firstEmailIndex = statusRoute.indexOf(
-      "sendKlyxProfileTransactionalEmail",
+      "sendKlyxDeduplicatedEmail",
       afterIndex
     );
 

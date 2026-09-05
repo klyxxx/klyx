@@ -44,6 +44,8 @@ export type ActiveProfileChangedDetail = {
   changedAt: number;
 };
 
+let activeProfileSwitchPromise: Promise<void> | null = null;
+
 function emitActiveProfileChanged(
   profileId: string,
   accountType: AccountType
@@ -61,6 +63,15 @@ function emitActiveProfileChanged(
         },
       }
     )
+  );
+}
+
+function failClosedAccountsLoad(status?: number) {
+  if (typeof window === "undefined") return;
+  if (window.location.pathname !== "/accounts") return;
+
+  window.location.replace(
+    status === 401 ? "/login" : "/accounts/load-error"
   );
 }
 
@@ -83,26 +94,37 @@ export async function getProfilesState(): Promise<{
   profiles: SavedAccount[];
   activeProfileId: string | null;
 }> {
-  const response = await fetch("/api/profiles/active", {
-    method: "GET",
-    cache: "no-store",
-  });
+  let responseHandled = false;
 
-  const result = (await response.json()) as ProfilesResponse;
+  try {
+    const response = await fetch("/api/profiles/active", {
+      method: "GET",
+      cache: "no-store",
+    });
 
-  if (!response.ok) {
-    throw new Error(
-      result.error ?? "Impossible de charger les profils."
-    );
+    const result = (await response.json()) as ProfilesResponse;
+
+    if (!response.ok) {
+      responseHandled = true;
+      failClosedAccountsLoad(response.status);
+      throw new Error(
+        result.error ?? "Impossible de charger les profils."
+      );
+    }
+
+    return {
+      profiles: Array.isArray(result.profiles) ? result.profiles : [],
+      activeProfileId:
+        typeof result.activeProfileId === "string"
+          ? result.activeProfileId
+          : null,
+    };
+  } catch (error) {
+    if (!responseHandled) {
+      failClosedAccountsLoad();
+    }
+    throw error;
   }
-
-  return {
-    profiles: Array.isArray(result.profiles) ? result.profiles : [],
-    activeProfileId:
-      typeof result.activeProfileId === "string"
-        ? result.activeProfileId
-        : null,
-  };
 }
 
 export async function getProfiles(): Promise<SavedAccount[]> {
@@ -125,10 +147,16 @@ export async function getActiveProfileAccount(): Promise<SavedAccount> {
 }
 
 export async function getActiveClientProfile(): Promise<SavedAccount> {
-  return getActiveProfileAccount();
+  const profile = await getActiveProfileAccount();
+
+  if (profile.accountType !== "client") {
+    throw new Error("Le profil KLYX actif n’est pas un profil client.");
+  }
+
+  return profile;
 }
 
-export async function switchAccount(profileId: string): Promise<void> {
+async function performAccountSwitch(profileId: string): Promise<void> {
   const response = await fetch("/api/profiles/active", {
     method: "POST",
     headers: {
@@ -156,6 +184,23 @@ export async function switchAccount(profileId: string): Promise<void> {
   }
 
   emitActiveProfileChanged(profileId, result.accountType);
+}
+
+export async function switchAccount(profileId: string): Promise<void> {
+  if (activeProfileSwitchPromise) {
+    throw new Error("Un changement de profil KLYX est déjà en cours.");
+  }
+
+  const pendingSwitch = performAccountSwitch(profileId);
+  activeProfileSwitchPromise = pendingSwitch;
+
+  try {
+    await pendingSwitch;
+  } finally {
+    if (activeProfileSwitchPromise === pendingSwitch) {
+      activeProfileSwitchPromise = null;
+    }
+  }
 }
 
 export async function getAvailableServices(): Promise<ServiceOption[]> {

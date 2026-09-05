@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   adminErrorPublicMessage,
@@ -6,6 +6,7 @@ import {
   requireKlyxAdmin,
 } from "@/lib/admin-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { sendProviderVerificationDecisionEmail } from "@/lib/email/operational-lifecycle-emails";
 import {
   runVerificationPrecheck,
   type VerificationDocumentInput,
@@ -236,7 +237,7 @@ export async function POST(request: Request) {
 
     if (updateError) throw new Error(updateError.message);
 
-    const { error: reviewError } = await supabaseAdmin
+    const { data: review, error: reviewError } = await supabaseAdmin
       .from("provider_verification_reviews")
       .insert({
         verification_id: verification.id,
@@ -245,7 +246,9 @@ export async function POST(request: Request) {
         action: selectedAction,
         note: note || null,
         automatic_checks: precheck,
-      });
+      })
+      .select("id")
+      .single();
 
     if (reviewError) throw new Error(reviewError.message);
 
@@ -284,6 +287,16 @@ export async function POST(request: Request) {
         durationMs: Math.max(0, Date.now() - startedAt),
       });
     }
+
+    after(async () => {
+      await sendProviderVerificationDecisionEmail({
+        verificationId: verification.id,
+        reviewId: review.id,
+        profileId: verification.profile_id,
+        status: selectedAction,
+        note,
+      });
+    });
 
     return NextResponse.json({
       message: "Décision enregistrée.",
