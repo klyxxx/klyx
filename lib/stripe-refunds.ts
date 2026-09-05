@@ -2,6 +2,10 @@
 // KLYX_REFUND_MONOTONE_RECONCILIATION_16_11
 import type Stripe from "stripe";
 import {
+  sendBookingRefundConfirmedEmail,
+  sendBookingRefundFailedEmail,
+} from "@/lib/email/payment-event-emails";
+import {
   tryReconcileBookingGroupStripeRefund,
 } from "@/lib/stripe-group-refunds";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -234,6 +238,9 @@ export async function reconcileStripeRefund(
     return;
   }
 
+  const emailStateChanged =
+    booking.refund_status !== refundStatus;
+
   const now = new Date().toISOString();
 
   const bookingUpdate = supabaseAdmin
@@ -326,6 +333,20 @@ export async function reconcileStripeRefund(
       status: refundStatus,
       amount: refund.amount,
       currency: booking.currency,
+    });
+  }
+
+  if (emailStateChanged && refundStatus === "succeeded") {
+    await sendBookingRefundConfirmedEmail({
+      bookingId: booking.id,
+      clientProfileId: booking.parent_id,
+    });
+  }
+
+  if (emailStateChanged && refundStatus === "failed") {
+    await sendBookingRefundFailedEmail({
+      bookingId: booking.id,
+      clientProfileId: booking.parent_id,
     });
   }
 }

@@ -34,7 +34,7 @@ describe("quote lifecycle transactional email contract", () => {
       successGuardIndex
     );
     const emailIndex = patchRoute.indexOf(
-      "await sendKlyxProfileTransactionalEmail(email);",
+      "await sendKlyxDeduplicatedEmail({",
       afterIndex
     );
 
@@ -43,16 +43,19 @@ describe("quote lifecycle transactional email contract", () => {
     expect(successGuardIndex).toBeGreaterThan(securedResponseIndex);
     expect(afterIndex).toBeGreaterThan(successGuardIndex);
     expect(emailIndex).toBeGreaterThan(afterIndex);
+    expect(patchRoute).toContain(
+      "deduplicationKey: `quote:${quoteId}:${action}:${email.profileId}`"
+    );
   });
 
-  it("resolves the persisted quote participants inside the deferred task", () => {
+  it("resolves persisted quote participants inside the deferred task", () => {
     const afterIndex = patchRoute.indexOf("after(async () =>");
     const lookupIndex = patchRoute.indexOf(
       '.from("service_quotes")',
       afterIndex
     );
     const sendIndex = patchRoute.indexOf(
-      "await sendKlyxProfileTransactionalEmail(email);",
+      "await sendKlyxDeduplicatedEmail({",
       lookupIndex
     );
 
@@ -61,6 +64,7 @@ describe("quote lifecycle transactional email contract", () => {
     expect(patchRoute).toContain(
       '"client_profile_id, provider_profile_id"'
     );
+    expect(patchRoute).toContain("profileId: email.profileId");
   });
 
   it("stops deferred delivery when the quote participant lookup fails", () => {
@@ -76,7 +80,7 @@ describe("quote lifecycle transactional email contract", () => {
       warningIndex
     );
     const emailIndex = patchRoute.indexOf(
-      "await sendKlyxProfileTransactionalEmail(email);",
+      "await sendKlyxDeduplicatedEmail({",
       returnIndex
     );
 
@@ -97,6 +101,10 @@ describe("quote lifecycle transactional email contract", () => {
     expect(route).toContain("quoteAcceptedEmail()");
     expect(route).toContain("quoteRejectedEmail()");
     expect(route).toContain("quoteCancelledEmail()");
+    expect(route).toContain('templateKey: "quote.sent.client"');
+    expect(route).toContain('templateKey: "quote.accepted.provider"');
+    expect(route).toContain('templateKey: "quote.rejected.provider"');
+    expect(route).toContain('templateKey: "quote.cancelled.provider"');
     expect(templates).toContain("Votre devis KLYX est prêt");
     expect(templates).toContain("Votre devis a été accepté");
     expect(templates).toContain("Votre devis n’a pas été retenu");

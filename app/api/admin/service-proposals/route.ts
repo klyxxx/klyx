@@ -1,10 +1,11 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import {
   adminErrorPublicMessage,
   adminErrorStatus,
   requireKlyxAdmin,
 } from "@/lib/admin-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { sendServiceProposalLifecycleEmail } from "@/lib/email/operational-lifecycle-emails";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 type ReviewBody = {
@@ -90,7 +91,7 @@ export async function PATCH(request: Request) {
 
     const { data: proposal, error: proposalError } = await supabaseAdmin
       .from("service_proposals")
-      .select("id, proposed_name, status")
+      .select("id, profile_id, proposed_name, status")
       .eq("id", proposalId)
       .maybeSingle();
 
@@ -156,6 +157,23 @@ export async function PATCH(request: Request) {
       .maybeSingle();
 
     if (reviewError) throw new Error(reviewError.message);
+
+    if (!reviewed) {
+      return NextResponse.json(
+        { error: "Cette proposition vient d’être examinée." },
+        { status: 409 }
+      );
+    }
+
+    after(async () => {
+      await sendServiceProposalLifecycleEmail({
+        proposalId: proposal.id,
+        profileId: proposal.profile_id,
+        proposalName: proposal.proposed_name,
+        status: reviewed.status === "approved" ? "approved" : "rejected",
+        note: adminNote,
+      });
+    });
 
     return NextResponse.json({ success: true, review: reviewed, service });
   } catch (error) {
