@@ -258,7 +258,7 @@ export default function ProviderZonesPage() {
       <div className="mx-auto max-w-5xl">
         <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div className="max-w-3xl">
-            <div className="flex items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400">
+            <div className="flex items-center gap-2 text-sm font-semibold text-[#2563EB]">
               <Navigation size={17} />
               <span>{t("providerOnly")}</span>
             </div>
@@ -304,7 +304,7 @@ export default function ProviderZonesPage() {
 
           {loading ? (
             <div className="grid min-h-44 place-items-center">
-              <LoaderCircle className="animate-spin text-blue-600" size={34} />
+              <LoaderCircle className="animate-spin text-[#2563EB]" size={34} />
             </div>
           ) : services.length === 0 ? (
             <div className="m-5 rounded-xl border border-amber-500/25 bg-amber-500/8 p-5 text-sm sm:m-6">
@@ -368,7 +368,7 @@ export default function ProviderZonesPage() {
                     type="checkbox"
                     checked={isPrimary}
                     onChange={(event) => setIsPrimary(event.target.checked)}
-                    className="mt-1 h-5 w-5 accent-blue-600"
+                    className="mt-1 h-5 w-5 accent-[#2563EB]"
                   />
                   <div>
                     <p className="font-semibold">{t("primary")}</p>
@@ -382,7 +382,7 @@ export default function ProviderZonesPage() {
               <button
                 type="submit"
                 disabled={saving || !userServiceId || !selectedLocality}
-                className="mt-6 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:opacity-50"
+                className="mt-6 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#2563EB] px-5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
               >
                 {saving ? (
                   <LoaderCircle className="animate-spin" size={18} />
@@ -396,7 +396,7 @@ export default function ProviderZonesPage() {
         </form>
 
         <section className="mt-10">
-          <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+          <p className="text-sm font-semibold text-[#2563EB]">
             {t("coverageEyebrow")}
           </p>
           <h2 className="mt-2 text-2xl font-semibold tracking-[-0.03em]">
@@ -405,7 +405,7 @@ export default function ProviderZonesPage() {
 
           {!loading && zones.length === 0 ? (
             <div className="mt-5 rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
-              <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-blue-600/8 text-blue-600">
+              <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-[#2563EB]/8 text-[#2563EB]">
                 <MapPin size={22} />
               </span>
               <p className="mt-4 font-semibold">{t("empty")}</p>
@@ -428,7 +428,7 @@ export default function ProviderZonesPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="text-lg font-semibold">{zone.locality}</h3>
                         {zone.is_primary && (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-blue-600/8 px-2.5 py-1 text-[10px] font-semibold uppercase text-blue-700 dark:text-blue-300">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-[#2563EB]/8 px-2.5 py-1 text-[10px] font-semibold uppercase text-[#2563EB]">
                             <Star size={12} />
                             {t("primaryBadge")}
                           </span>
@@ -451,7 +451,7 @@ export default function ProviderZonesPage() {
                           type="button"
                           disabled={busyId === zone.id}
                           onClick={() => void setPrimary(zone)}
-                          className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-border px-3 text-xs font-semibold text-blue-600 transition hover:bg-muted disabled:opacity-50"
+                          className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-border px-3 text-xs font-semibold text-[#2563EB] transition hover:bg-muted disabled:opacity-50"
                         >
                           <Star size={15} />
                           {t("setPrimary")}
