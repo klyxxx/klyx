@@ -475,7 +475,7 @@ export default function BookingsPage() {
               {t("loading")}
             </div>
           </div>
-        ) : counts.all === 0 ? (
+        ) : errorKey ? null : counts.all === 0 ? (
           <EmptyState />
         ) : (
           <>
