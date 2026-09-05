@@ -132,6 +132,36 @@ function profileName(profile: ProfileRow | null | undefined): string {
     .trim();
 }
 
+// KLYX_DESTRUCTIVE_BOOKING_CONFIRMATION_16_15
+function destructiveStatusConfirmation(
+  locale: string,
+  status: Extract<BookingStatusAction, "rejected" | "cancelled">
+): string {
+  const cancellation = status === "cancelled";
+
+  if (locale === "en") {
+    return cancellation
+      ? "Cancel this booking? This action changes the mission state and may start a refund if payment was already made."
+      : "Reject this request? The client will be informed and this request will no longer continue.";
+  }
+
+  if (locale === "nl") {
+    return cancellation
+      ? "Deze reservering annuleren? Deze actie wijzigt de missie en kan een terugbetaling starten als er al betaald is."
+      : "Deze aanvraag weigeren? De klant wordt geïnformeerd en deze aanvraag gaat niet verder.";
+  }
+
+  if (locale === "de") {
+    return cancellation
+      ? "Diese Buchung stornieren? Dadurch ändert sich der Missionsstatus und bei bereits erfolgter Zahlung kann eine Rückerstattung gestartet werden."
+      : "Diese Anfrage ablehnen? Der Kunde wird informiert und die Anfrage wird nicht fortgesetzt.";
+  }
+
+  return cancellation
+    ? "Annuler cette réservation ? Cette action modifie définitivement la mission et peut lancer un remboursement si le paiement a déjà été effectué."
+    : "Refuser cette demande ? Le client sera informé et cette demande ne poursuivra plus son parcours.";
+}
+
 export default function BookingDetailsPage() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
@@ -322,6 +352,13 @@ export default function BookingDetailsPage() {
   }, [activeProfile, booking]);
 
   async function updateStatus(status: BookingStatusAction) {
+    if (
+      (status === "rejected" || status === "cancelled") &&
+      !window.confirm(destructiveStatusConfirmation(locale, status))
+    ) {
+      return;
+    }
+
     setActiveAction(status);
     setErrorKey(null);
     setSuccessKey(null);

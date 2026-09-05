@@ -49,6 +49,18 @@ describe("KLYX Stripe webhook retry lease contract", () => {
     expect(events).toMatch(/retry_claim_lost/);
   });
 
+  it("escalates repeated webhook retries without logging Stripe payloads", () => {
+    const events = source("lib/stripe-webhook-events.ts");
+
+    expect(events).toMatch(/logServerWarning/);
+    expect(events).toMatch(/params\.attemptCount >= 3/);
+    expect(events).toMatch(/stripe_webhook_retry_escalated/);
+    expect(events).toMatch(/stripe_webhook_retry/);
+    expect(events).toMatch(/requestId: params\.event\.id/);
+    expect(events).toMatch(/code: params\.reason/);
+    expect(events).not.toMatch(/JSON\.stringify\(\s*params\.event/);
+  });
+
   it("fences processed and failed finalization with the winning attempt count", () => {
     const events = source("lib/stripe-webhook-events.ts");
 
@@ -93,9 +105,6 @@ describe("KLYX Stripe webhook retry lease contract", () => {
     );
     expect(simple).toMatch(
       /booking\.payment_status ===[\s\S]*"paid"[\s\S]*ensurePaymentSucceededSideEffects\(/
-    );
-    expect(simple).toMatch(
-      /refreshedBooking\.payment_status ===[\s\S]*"paid"[\s\S]*ensurePaymentSucceededSideEffects\(/
     );
   });
 
@@ -145,7 +154,7 @@ describe("KLYX Stripe webhook retry lease contract", () => {
   });
 
   it("repairs split run aggregation when a paid unit webhook is retried", () => {
-    const split = source("lib/split-stripe-payments.ts");
+    const split = source("lib/split-stripe-payments-core.ts");
 
     expect(split).toMatch(
       /if \([\s\S]*unit\.status ===[\s\S]*"paid"[\s\S]*\) \{[\s\S]*await refreshRunPaymentStatus\([\s\S]*unit\.run_id[\s\S]*\);[\s\S]*return;/

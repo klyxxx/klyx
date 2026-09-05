@@ -1,6 +1,7 @@
 import type Stripe from "stripe";
 import {
   logServerError,
+  logServerWarning,
 } from "@/lib/server-log";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -34,6 +35,24 @@ function normalizedAttemptCount(value: unknown): number {
   const count = Number(value);
 
   return Number.isInteger(count) && count >= 1 ? count : 1;
+}
+
+function logWebhookRetry(params: {
+  event: Stripe.Event;
+  attemptCount: number;
+  reason: "retry_failed_event" | "retry_stale_event";
+}) {
+  logServerWarning({
+    event:
+      params.attemptCount >= 3
+        ? "stripe_webhook_retry_escalated"
+        : "stripe_webhook_retry",
+    route: "/api/stripe/webhook",
+    method: "POST",
+    status: 500,
+    code: params.reason,
+    requestId: params.event.id,
+  });
 }
 
 export async function claimStripeWebhookEvent(
@@ -132,13 +151,24 @@ export async function claimStripeWebhookEvent(
     };
   }
 
+  const reclaimedAttemptCount = normalizedAttemptCount(
+    reclaimed.attempt_count
+  );
+  const retryReason =
+    stored.status === "failed"
+      ? "retry_failed_event"
+      : "retry_stale_event";
+
+  logWebhookRetry({
+    event,
+    attemptCount: reclaimedAttemptCount,
+    reason: retryReason,
+  });
+
   return {
     shouldProcess: true,
-    reason:
-      stored.status === "failed"
-        ? "retry_failed_event"
-        : "retry_stale_event",
-    attemptCount: normalizedAttemptCount(reclaimed.attempt_count),
+    reason: retryReason,
+    attemptCount: reclaimedAttemptCount,
   };
 }
 
