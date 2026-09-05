@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Inter } from "next/font/google";
+import { Suspense } from "react";
 
 import ActiveProfileSync from "@/app/components/ActiveProfileSync";
 import FounderAccessBar from "@/app/components/FounderAccessBar";
 import KlyxLocaleProvider from "@/app/components/KlyxLocaleProvider";
+import KlyxProductAnalytics from "@/app/components/KlyxProductAnalytics";
 import KlyxSkipLink from "@/app/components/KlyxSkipLink";
 import PwaRegistrar from "@/app/components/PwaRegistrar";
 import ThemeProvider from "@/app/components/ThemeProvider";
@@ -250,6 +252,9 @@ export default async function RootLayout({
           <KlyxSkipLink />
 
           <PwaRegistrar />
+          <Suspense fallback={null}>
+            <KlyxProductAnalytics />
+          </Suspense>
           <ActiveProfileSync />
           <AppVisualBackground />
 
