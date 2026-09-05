@@ -17,10 +17,13 @@ describe("provider missions UX", () => {
     expect(source).not.toContain("function TrackingCard(");
   });
 
-  it("uses the single-blue KLYX visual language", () => {
+  it("uses the Aura/Noir semantic accent", () => {
     const source = read("app/provider/jobs/page.tsx");
 
-    expect(source).toContain("#2563EB");
+    expect(source).toContain("text-primary");
+    expect(source).toContain("border-primary/20");
+    expect(source).toContain("bg-accent/40");
+    expect(source).not.toContain("#2563EB");
     expect(source).not.toContain("bg-blue-600");
     expect(source).not.toContain("text-blue-600");
     expect(source).not.toContain("text-violet-");

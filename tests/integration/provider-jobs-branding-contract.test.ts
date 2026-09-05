@@ -7,11 +7,14 @@ function read(relative: string) {
   return fs.readFileSync(path.join(process.cwd(), relative), "utf8");
 }
 
-describe("KLYX provider jobs branding contract", () => {
-  it("uses the exact KLYX blue while preserving jobs and offer behavior", () => {
+describe("KLYX provider jobs theme contract", () => {
+  it("uses the Aura/Noir semantic accent while preserving jobs and offer behavior", () => {
     const jobs = read("app/provider/jobs/page.tsx");
 
-    expect(jobs).toContain("#2563EB");
+    expect(jobs).toContain("text-primary");
+    expect(jobs).toContain("border-primary/20");
+    expect(jobs).toContain("bg-accent/40");
+    expect(jobs).not.toContain("#2563EB");
     for (const legacyAccent of [
       "blue-300",
       "blue-400",
