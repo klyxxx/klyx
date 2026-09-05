@@ -35,6 +35,24 @@ const checks = [
     pattern: /\bsk_(?:live|test)_[A-Za-z0-9]{16,}\b/g,
   },
   {
+    id: "stripe-webhook-secret",
+    severity: "critical",
+    description: "Possible Stripe webhook signing secret committed to the repository",
+    pattern: /\bwhsec_[A-Za-z0-9]{16,}\b/g,
+  },
+  {
+    id: "openai-api-key",
+    severity: "critical",
+    description: "Possible OpenAI API key committed to the repository",
+    pattern: /\bsk-(?!live_|test_)[A-Za-z0-9_-]{20,}\b/g,
+  },
+  {
+    id: "supabase-secret-key",
+    severity: "critical",
+    description: "Possible Supabase secret key committed to the repository",
+    pattern: /\bsb_secret_[A-Za-z0-9_-]{20,}\b/g,
+  },
+  {
     id: "github-token",
     severity: "critical",
     description: "Possible GitHub personal access token committed to the repository",

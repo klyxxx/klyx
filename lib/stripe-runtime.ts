@@ -1,3 +1,5 @@
+import "server-only";
+
 export type StripeRuntimeMode = "test" | "live";
 
 export type StripeRuntimeReport = {
