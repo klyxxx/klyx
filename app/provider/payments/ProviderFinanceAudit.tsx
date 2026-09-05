@@ -199,7 +199,7 @@ export default function ProviderFinanceAudit() {
     <section className="klyx-card mt-6 p-5 sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-[#2563EB]/10 text-[#2563EB]">
             <ShieldCheck size={21} />
           </div>
 
@@ -286,7 +286,7 @@ export default function ProviderFinanceAudit() {
               <div className="flex items-start gap-3">
                 <Clock3
                   size={18}
-                  className="mt-0.5 shrink-0 text-violet-600 dark:text-violet-400"
+                  className="mt-0.5 shrink-0 text-[#2563EB]"
                 />
 
                 <div className="min-w-0">

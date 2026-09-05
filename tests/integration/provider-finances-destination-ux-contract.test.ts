@@ -36,7 +36,8 @@ describe("KLYX provider Finances destination contract", () => {
   it("keeps KLYX blue as the only normal accent", () => {
     const page = read("app/provider/payments/page.tsx");
 
-    expect(page).toContain("text-blue-600");
+    expect(page).toContain("#2563EB");
+    expect(page).not.toMatch(/text-blue-(?:300|400|500|600|700)/);
     expect(page).not.toMatch(/violet|indigo|fuchsia|gradient/i);
     expect(page).not.toContain("bg-emerald-500/10");
     expect(page).not.toContain("bg-amber-500/10");

@@ -586,7 +586,7 @@ export default function FinanceExportButton() {
             () =>
               void exportFinance()
           }
-          className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl bg-violet-600 px-5 text-sm font-black text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl bg-[#2563EB] px-5 text-sm font-black text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {busy ? (
             <LoaderCircle
