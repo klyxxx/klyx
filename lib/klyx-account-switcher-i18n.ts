@@ -12,6 +12,7 @@ export type KlyxAccountSwitcherLocale =
 
 export const KLYX_ACCOUNT_SWITCHER_MESSAGE_KEYS = [
   "profileFallback",
+  "loadingRole",
   "providerRole",
   "clientRole",
   "loadError",
@@ -30,6 +31,7 @@ type Dictionary = Record<KlyxAccountSwitcherMessageKey, string>;
 const DICTIONARIES: Record<KlyxAccountSwitcherLocale, Dictionary> = {
   fr: {
     profileFallback: "Mon profil",
+    loadingRole: "Chargement du profil…",
     providerRole: "Prestataire",
     clientRole: "Client",
     loadError: "Impossible de charger les profils.",
@@ -41,6 +43,7 @@ const DICTIONARIES: Record<KlyxAccountSwitcherLocale, Dictionary> = {
   },
   en: {
     profileFallback: "My profile",
+    loadingRole: "Loading profile…",
     providerRole: "Provider",
     clientRole: "Client",
     loadError: "Unable to load profiles.",
@@ -52,6 +55,7 @@ const DICTIONARIES: Record<KlyxAccountSwitcherLocale, Dictionary> = {
   },
   nl: {
     profileFallback: "Mijn profiel",
+    loadingRole: "Profiel laden…",
     providerRole: "Dienstverlener",
     clientRole: "Klant",
     loadError: "Profielen konden niet worden geladen.",
@@ -63,6 +67,7 @@ const DICTIONARIES: Record<KlyxAccountSwitcherLocale, Dictionary> = {
   },
   de: {
     profileFallback: "Mein Profil",
+    loadingRole: "Profil wird geladen…",
     providerRole: "Dienstleister",
     clientRole: "Kunde",
     loadError: "Profile konnten nicht geladen werden.",

@@ -40,7 +40,9 @@ describe("KLYX refund reconciliation monotonicity", () => {
       /new\.action\s*=\s*'refund_failed'[\s\S]*refund_status\s*=\s*'refunded'[\s\S]*return\s+null;/i
     );
     expect(groupRefunds).toContain("groupRefundIsTerminal");
-    expect(groupRefunds).toContain("failureAuditRecorded");
+    expect(groupRefunds).toContain('if (group.refund_status === "refunded") return true;');
+    expect(groupRefunds).toContain("if (await groupRefundIsTerminal(group.id)) return true;");
+    expect(groupRefunds).toContain('action: "refund_failed"');
   });
 
   it("keeps simple succeeded refund state terminal while accepting null legacy state", () => {
@@ -54,12 +56,11 @@ describe("KLYX refund reconciliation monotonicity", () => {
   });
 
   it("keeps grouped refunded state terminal while accepting null legacy state", () => {
-    expect(groupRefunds).toMatch(
-      /state\s*!==\s*"refunded"[\s\S]*group\.refund_status\s*===\s*"refunded"/
-    );
+    expect(groupRefunds).toContain('if (group.refund_status === "refunded") return true;');
     expect(groupRefunds).toContain(
       "refund_status.is.null,refund_status.neq.refunded"
     );
+    expect(groupRefunds).toContain("groupRefundIsTerminal");
     expect(groupRefunds).toContain("KLYX_GROUP_REFUND_STATE_UPDATE_LOST");
   });
 
