@@ -52,10 +52,14 @@ describe("KLYX assistant confirmed market publish idempotency", () => {
   });
 
   it("notifies providers only after this request instance wins the insert", () => {
-    const insertIndex = route.indexOf('.from("market_service_requests")');
-    const notifyIndex = route.indexOf("await notifyCompatibleProviders({");
+    const createIndex = route.indexOf("data: created,");
+    const postInsertNotifyIndex = route.lastIndexOf(
+      "await requireProviderNotificationDelivery({"
+    );
 
-    expect(insertIndex).toBeGreaterThanOrEqual(0);
-    expect(notifyIndex).toBeGreaterThan(insertIndex);
+    expect(route).toContain("const delivery = await notifyCompatibleProviders(params);");
+    expect(route).toContain("if (delivery.deliveryFailed)");
+    expect(createIndex).toBeGreaterThanOrEqual(0);
+    expect(postInsertNotifyIndex).toBeGreaterThan(createIndex);
   });
 });

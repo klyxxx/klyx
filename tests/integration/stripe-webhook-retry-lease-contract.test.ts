@@ -154,7 +154,7 @@ describe("KLYX Stripe webhook retry lease contract", () => {
   });
 
   it("repairs split run aggregation when a paid unit webhook is retried", () => {
-    const split = source("lib/split-stripe-payments.ts");
+    const split = source("lib/split-stripe-payments-core.ts");
 
     expect(split).toMatch(
       /if \([\s\S]*unit\.status ===[\s\S]*"paid"[\s\S]*\) \{[\s\S]*await refreshRunPaymentStatus\([\s\S]*unit\.run_id[\s\S]*\);[\s\S]*return;/

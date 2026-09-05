@@ -24,14 +24,16 @@ describe("split payment stale failure guard", () => {
     expect(wrapper).toContain("return false;");
   });
 
-  it("requires the exact active split Checkout Session before delegating the failure", () => {
+  it("requires the exact active split Checkout Session and no refund activity before delegating failure", () => {
     expect(wrapper).toContain(
-      '.select("status, stripe_checkout_session_id")'
+      '.select("status, refund_status, stripe_checkout_session_id")'
     );
     expect(wrapper).toContain(
       "return data.stripe_checkout_session_id === checkoutSessionId;"
     );
-    expect(wrapper).toContain('if (data.status === "paid")');
+    expect(wrapper).toContain(
+      'if (data.status === "paid" || data.refund_status !== "none")'
+    );
     expect(wrapper).toContain("if (!belongsToActiveCheckout)");
     expect(wrapper).toContain("return true;");
   });

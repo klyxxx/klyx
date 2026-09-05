@@ -24,7 +24,7 @@ describe("stripe payment intent webhook scope contract", () => {
       succeededCase
     );
     const succeededList = source.indexOf(
-      ".sessions\n            .list",
+      "stripe.checkout.sessions.list({",
       succeededCase
     );
 
@@ -33,7 +33,7 @@ describe("stripe payment intent webhook scope contract", () => {
       failedCase
     );
     const failedList = source.indexOf(
-      ".sessions\n            .list",
+      "stripe.checkout.sessions.list({",
       failedCase
     );
 
