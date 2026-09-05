@@ -443,19 +443,32 @@ export default function ProviderCapabilitiesPage() {
 
         {editing && (
           <div className="mt-5 grid gap-4 rounded-2xl border border-border/80 bg-muted/30 p-4">
-            <input
-              value={editLabel}
-              onChange={(event) => setEditLabel(event.target.value)}
-              minLength={KLYX_PROVIDER_CAPABILITY_LABEL_MIN_LENGTH}
-              maxLength={KLYX_PROVIDER_CAPABILITY_LABEL_MAX_LENGTH}
-              className="klyx-input"
-            />
-            <textarea
-              value={editDescription}
-              onChange={(event) => setEditDescription(event.target.value)}
-              maxLength={DESCRIPTION_MAX_LENGTH}
-              className="klyx-input min-h-28 resize-y py-3"
-            />
+            <label className="grid gap-2">
+              <span className="text-xs font-black text-muted-foreground">
+                {t("label")}
+              </span>
+              <input
+                value={editLabel}
+                onChange={(event) => setEditLabel(event.target.value)}
+                minLength={KLYX_PROVIDER_CAPABILITY_LABEL_MIN_LENGTH}
+                maxLength={KLYX_PROVIDER_CAPABILITY_LABEL_MAX_LENGTH}
+                className="klyx-input"
+              />
+            </label>
+            <label className="grid gap-2">
+              <span className="flex items-center justify-between gap-3 text-xs font-black text-muted-foreground">
+                {t("descriptionLabel")}
+                <span className="font-medium">
+                  {t("optional")} · {editDescription.length}/{DESCRIPTION_MAX_LENGTH}
+                </span>
+              </span>
+              <textarea
+                value={editDescription}
+                onChange={(event) => setEditDescription(event.target.value)}
+                maxLength={DESCRIPTION_MAX_LENGTH}
+                className="klyx-input min-h-28 resize-y py-3"
+              />
+            </label>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
