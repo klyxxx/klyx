@@ -1,6 +1,11 @@
 // KLYX_REFUND_CURRENCY_PHASE_5G
 // KLYX_REFUND_MONOTONE_RECONCILIATION_16_11
+// KLYX_REFUND_AGGREGATE_RECONCILIATION_16_12
 import type Stripe from "stripe";
+import {
+  sendBookingRefundConfirmedEmail,
+  sendBookingRefundFailedEmail,
+} from "@/lib/email/payment-event-emails";
 import {
   tryReconcileBookingGroupStripeRefund,
 } from "@/lib/stripe-group-refunds";
@@ -17,6 +22,11 @@ type RefundBooking = {
   stripe_payment_intent_id: string | null;
   stripe_refund_id: string | null;
   refund_status: string | null;
+};
+
+type RefundAggregate = {
+  succeededAmount: number;
+  hasProcessing: boolean;
 };
 
 function paymentIntentId(
@@ -84,6 +94,46 @@ async function bookingRefundSucceeded(
   }
 
   return data?.refund_status === "succeeded";
+}
+
+async function aggregateBookingRefunds(
+  bookingId: string,
+  intentId: string | null
+): Promise<RefundAggregate> {
+  let query = supabaseAdmin
+    .from("booking_financial_ledger")
+    .select("status, refund_amount_cents, stripe_payment_intent_id")
+    .eq("booking_id", bookingId)
+    .in("entry_type", ["refund_succeeded", "refund_failed"]);
+
+  if (intentId) {
+    query = query.eq("stripe_payment_intent_id", intentId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  let succeededAmount = 0;
+  let hasProcessing = false;
+
+  for (const row of data ?? []) {
+    if (row.status === "succeeded") {
+      succeededAmount += Math.max(
+        Number(row.refund_amount_cents ?? 0),
+        0
+      );
+    } else if (row.status === "processing") {
+      hasProcessing = true;
+    }
+  }
+
+  return {
+    succeededAmount,
+    hasProcessing,
+  };
 }
 
 async function notifyRefundStatus(params: {
@@ -196,6 +246,7 @@ export async function reconcileStripeRefund(
       );
     }
   }
+
   // KLYX_GROUP_REFUND_ROUTER_12_90
   const handledAsGroup =
     await tryReconcileBookingGroupStripeRefund(
@@ -205,6 +256,7 @@ export async function reconcileStripeRefund(
   if (handledAsGroup) {
     return;
   }
+
   const booking = await findBookingFromRefund(refund);
 
   if (!booking) {
@@ -215,17 +267,89 @@ export async function reconcileStripeRefund(
     return;
   }
 
+  const incomingIntentId = paymentIntentId(refund);
+
+  // A refund from an older Stripe payment attempt must never mutate the
+  // currently attached payment for this booking.
+  if (
+    booking.stripe_payment_intent_id &&
+    incomingIntentId &&
+    booking.stripe_payment_intent_id !== incomingIntentId
+  ) {
+    return;
+  }
+
   const intentId =
-    paymentIntentId(refund) ??
+    incomingIntentId ??
     booking.stripe_payment_intent_id;
 
-  const refundStatus =
+  const stripeRefundStatus =
     refund.status === "succeeded"
       ? "succeeded"
       : refund.status === "failed" ||
           refund.status === "canceled"
         ? "failed"
         : "processing";
+
+  // Persist the individual Stripe refund first. entry_key makes webhook
+  // retries idempotent and lets us safely aggregate multiple partial refunds.
+  await upsertFinancialLedgerEntry({
+    bookingId: booking.id,
+    entryKey: `booking:${booking.id}:refund:${refund.id}`,
+    entryType:
+      stripeRefundStatus === "failed"
+        ? "refund_failed"
+        : "refund_succeeded",
+    status: stripeRefundStatus,
+    currency: booking.currency,
+    grossAmountCents: booking.amount_total,
+    refundAmountCents: refund.amount,
+    paymentMode: booking.payment_mode,
+    stripePaymentIntentId: intentId,
+    stripeRefundId: refund.id,
+    failureCode:
+      stripeRefundStatus === "failed"
+        ? refund.failure_reason || "refund_failed"
+        : null,
+    failureMessage:
+      stripeRefundStatus === "failed"
+        ? "Stripe n'a pas pu finaliser ce remboursement."
+        : null,
+  });
+
+  const aggregate = await aggregateBookingRefunds(
+    booking.id,
+    intentId
+  );
+
+  const grossAmount = Math.max(
+    Number(booking.amount_total ?? 0),
+    0
+  );
+
+  if (grossAmount <= 0) {
+    throw new Error("KLYX_REFUND_GROSS_AMOUNT_INVALID");
+  }
+
+  const succeededAmount = Math.min(
+    aggregate.succeededAmount,
+    grossAmount
+  );
+
+  const fullyRefunded = succeededAmount >= grossAmount;
+
+  const refundStatus: "processing" | "succeeded" | "failed" =
+    fullyRefunded
+      ? "succeeded"
+      : succeededAmount > 0 ||
+          aggregate.hasProcessing ||
+          stripeRefundStatus === "processing" ||
+          stripeRefundStatus === "succeeded"
+        ? "processing"
+        : "failed";
+
+  const emailStateChanged =
+    booking.refund_status !== refundStatus;
 
   if (
     refundStatus !== "succeeded" &&
@@ -241,11 +365,15 @@ export async function reconcileStripeRefund(
     .update({
       refund_status: refundStatus,
       stripe_refund_id: refund.id,
-      refunded_amount_cents: refund.amount,
+      refunded_amount_cents: succeededAmount,
       refunded_at:
         refundStatus === "succeeded"
           ? now
           : null,
+      payment_status:
+        refundStatus === "succeeded"
+          ? "refunded"
+          : booking.payment_status,
       updated_at: now,
     })
     .eq("id", booking.id);
@@ -283,49 +411,43 @@ export async function reconcileStripeRefund(
     );
   }
 
-  await upsertFinancialLedgerEntry({
-    bookingId: booking.id,
-    entryKey: `booking:${booking.id}:refund:${refund.id}`,
-    entryType:
-      refundStatus === "failed"
-        ? "refund_failed"
-        : "refund_succeeded",
-    status: refundStatus,
-    currency: booking.currency,
-    grossAmountCents: booking.amount_total,
-    refundAmountCents: refund.amount,
-    paymentMode: booking.payment_mode,
-    stripePaymentIntentId: intentId,
-    stripeRefundId: refund.id,
-    failureCode:
-      refundStatus === "failed"
-        ? refund.failure_reason || "refund_failed"
-        : null,
-    failureMessage:
-      refundStatus === "failed"
-        ? "Stripe n'a pas pu finaliser ce remboursement."
-        : null,
-  });
-
   if (
-    refundStatus === "failed" &&
-    await bookingRefundSucceeded(
-      booking.id
-    )
-  ) {
-    return;
-  }
-
-  if (
-    refundStatus === "succeeded" ||
-    refundStatus === "failed"
+    stripeRefundStatus === "failed" &&
+    refundStatus !== "succeeded" &&
+    succeededAmount === 0
   ) {
     await notifyRefundStatus({
       bookingId: booking.id,
       userId: booking.parent_id,
-      status: refundStatus,
+      status: "failed",
       amount: refund.amount,
       currency: booking.currency,
     });
+
+    if (emailStateChanged) {
+      await sendBookingRefundFailedEmail({
+        bookingId: booking.id,
+        clientProfileId: booking.parent_id,
+      });
+    }
+
+    return;
+  }
+
+  if (refundStatus === "succeeded") {
+    await notifyRefundStatus({
+      bookingId: booking.id,
+      userId: booking.parent_id,
+      status: "succeeded",
+      amount: succeededAmount,
+      currency: booking.currency,
+    });
+
+    if (emailStateChanged) {
+      await sendBookingRefundConfirmedEmail({
+        bookingId: booking.id,
+        clientProfileId: booking.parent_id,
+      });
+    }
   }
 }

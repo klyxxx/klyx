@@ -55,14 +55,21 @@ describe("KLYX refunded payment terminal state", () => {
     expect(migration).toContain("payment_status is distinct from 'refunded'");
   });
 
-  it("covers every existing single/group refund writer through the canonical guard", () => {
+  it("covers every single/group refund writer through cumulative canonical state", () => {
     expect(statusRoute).toContain("refund.status === \"succeeded\"");
     expect(statusRoute).toContain("refunded_amount_cents: refund.amount");
+
     expect(refundReconciliation).toContain("refund_status: refundStatus");
-    expect(refundReconciliation).toContain("refunded_amount_cents: refund.amount");
-    expect(groupRefunds).toContain("refund_status:");
-    expect(groupRefunds).toContain('"succeeded"');
-    expect(groupRefunds).toContain("refunded_amount_cents:");
+    expect(refundReconciliation).toContain("refundAmountCents: refund.amount");
+    expect(refundReconciliation).toContain("refunded_amount_cents: succeededAmount");
+    expect(refundReconciliation).toContain(
+      "const fullyRefunded = succeededAmount >= grossAmount"
+    );
+
+    expect(groupRefunds).toContain("refund_status: state");
+    expect(groupRefunds).toContain("refundAmountCents: share");
+    expect(groupRefunds).toContain("refunded_amount_cents: succeededAmount");
+    expect(groupRefunds).toContain('if (fullyRefunded) state = "refunded"');
   });
 
   it("makes refunded a no-op in late payment success and failure handlers", () => {

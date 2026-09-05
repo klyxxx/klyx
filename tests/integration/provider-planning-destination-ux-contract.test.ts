@@ -29,6 +29,6 @@ describe("KLYX provider Planning destination UX", () => {
 
     expect(planning).toContain("border-red-500/30");
     expect(planning).toContain("border-amber-500/35");
-    expect(planning).toContain("border-blue-600/25");
+    expect(planning).toContain("border-[#2563EB]/25");
   });
 });

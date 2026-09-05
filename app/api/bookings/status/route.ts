@@ -9,7 +9,7 @@ import {
   secureApiErrorResponse,
 } from "@/lib/api-error";
 import { isPastBookingStart } from "@/lib/brussels-time";
-import { sendKlyxProfileTransactionalEmail } from "@/lib/email/resend";
+import { sendKlyxDeduplicatedEmail } from "@/lib/email/deduplicated-delivery";
 import {
   bookingAcceptedEmail,
   bookingCancelledEmail,
@@ -651,7 +651,9 @@ export async function POST(request: Request) {
             `booking:${booking.id}:accepted`,
         });
 
-        await sendKlyxProfileTransactionalEmail({
+        await sendKlyxDeduplicatedEmail({
+          deduplicationKey: `booking:${booking.id}:accepted:client`,
+          templateKey: "booking.accepted.client",
           profileId: booking.parent_id,
           ...bookingAcceptedEmail(booking.id),
         });
@@ -670,7 +672,9 @@ export async function POST(request: Request) {
             `booking:${booking.id}:rejected`,
         });
 
-        await sendKlyxProfileTransactionalEmail({
+        await sendKlyxDeduplicatedEmail({
+          deduplicationKey: `booking:${booking.id}:rejected:client`,
+          templateKey: "booking.rejected.client",
           profileId: booking.parent_id,
           ...bookingRejectedEmail(booking.id),
         });
@@ -694,7 +698,9 @@ export async function POST(request: Request) {
               `booking:${booking.id}:cancelled:${profile.id}`,
           });
 
-          await sendKlyxProfileTransactionalEmail({
+          await sendKlyxDeduplicatedEmail({
+            deduplicationKey: `booking:${booking.id}:cancelled:${recipientId}`,
+            templateKey: "booking.cancelled.participant",
             profileId: recipientId,
             ...bookingCancelledEmail({
               bookingId: booking.id,
@@ -719,7 +725,13 @@ export async function POST(request: Request) {
               : `booking:${booking.id}:refund`,
           });
 
-          await sendKlyxProfileTransactionalEmail({
+          await sendKlyxDeduplicatedEmail({
+            deduplicationKey: refundConfirmed
+              ? `booking:${booking.id}:refund-succeeded:client`
+              : `booking:${booking.id}:refund-processing:client`,
+            templateKey: refundConfirmed
+              ? "booking.refund_succeeded.client"
+              : "booking.refund_processing.client",
             profileId: booking.parent_id,
             ...(refundConfirmed
               ? refundConfirmedEmail(booking.id)
