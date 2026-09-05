@@ -360,7 +360,7 @@ export default function ProviderVerificationPage() {
     return (
       <main className="klyx-page grid min-h-screen place-items-center">
         <LoaderCircle
-          className="animate-spin text-blue-600"
+          className="animate-spin text-[#2563EB]"
           size={38}
         />
       </main>
@@ -447,7 +447,7 @@ export default function ProviderVerificationPage() {
               >
                 <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex gap-4">
-                    <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                    <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#2563EB]/10 text-[#2563EB]">
                       <FileText size={22} />
                     </div>
 
@@ -476,7 +476,7 @@ export default function ProviderVerificationPage() {
                   </div>
 
                   {!locked && (
-                    <label className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-black text-white">
+                    <label className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#2563EB] px-4 text-sm font-black text-white">
                       {busy ? (
                         <LoaderCircle
                           className="animate-spin"
