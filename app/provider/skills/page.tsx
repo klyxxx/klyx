@@ -336,7 +336,7 @@ export default function ProviderSkillsPage() {
           {t("backProvider")}
         </Link>
 
-        <section className="mt-6 rounded-[2rem] bg-[linear-gradient(135deg,#17131f,#2b1452_52%,#111827)] p-8 text-white">
+        <section className="mt-6 rounded-[2rem] bg-[#2563EB] p-8 text-white shadow-[0_28px_90px_rgba(37,99,235,0.18)]">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em]">
             <GraduationCap size={15} />
             {t("eyebrow")}
@@ -351,9 +351,9 @@ export default function ProviderSkillsPage() {
           </p>
         </section>
 
-        <section className="mt-6 rounded-2xl border border-blue-500/20 bg-blue-500/10 p-5">
+        <section className="mt-6 rounded-2xl border border-[#2563EB]/20 bg-[#2563EB]/10 p-5">
           <div className="flex gap-3">
-            <ShieldCheck size={21} className="shrink-0 text-blue-600" />
+            <ShieldCheck size={21} className="shrink-0 text-[#2563EB]" />
             <div>
               <p className="font-black">{t("trustTitle")}</p>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -402,7 +402,7 @@ export default function ProviderSkillsPage() {
             </p>
             <Link
               href="/provider/services/new"
-              className="mt-5 inline-flex h-11 items-center rounded-xl bg-violet-600 px-4 text-sm font-black text-white"
+              className="mt-5 inline-flex h-11 items-center rounded-xl bg-[#2563EB] px-4 text-sm font-black text-white transition hover:opacity-90"
             >
               {t("addSkill")}
             </Link>
@@ -420,7 +420,7 @@ export default function ProviderSkillsPage() {
                 <article key={skill.userServiceId} className="klyx-card p-6">
                   <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
                     <div className="flex gap-4">
-                      <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-violet-500/10 text-violet-600">
+                      <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#2563EB]/10 text-[#2563EB]">
                         {status === "approved" ? (
                           <BadgeCheck size={23} />
                         ) : (
@@ -536,7 +536,7 @@ export default function ProviderSkillsPage() {
                             key={document.id}
                             className="flex items-center gap-3 rounded-xl border border-border p-3"
                           >
-                            <FileText size={17} className="text-violet-600" />
+                            <FileText size={17} className="text-[#2563EB]" />
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-sm font-black">
                                 {document.original_name}
@@ -602,7 +602,7 @@ export default function ProviderSkillsPage() {
                             : t("submitBlockedTitle")
                         }
                         onClick={() => void save(skill, true)}
-                        className="inline-flex h-11 items-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-45"
+                        className="inline-flex h-11 items-center gap-2 rounded-xl bg-[#2563EB] px-4 text-sm font-black text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
                       >
                         <Send size={17} />
                         {t("submit")}
