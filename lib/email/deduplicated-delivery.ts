@@ -3,6 +3,10 @@ import "server-only";
 import { createHash } from "node:crypto";
 
 import {
+  buildEmailProviderIdempotencyKey,
+  nextEmailDeliveryAttempt,
+} from "@/lib/email/delivery-idempotency";
+import {
   sendKlyxProfileTransactionalEmail,
   sendKlyxTransactionalEmail,
 } from "@/lib/email/resend";
@@ -25,6 +29,11 @@ type DeliveryRow = {
   status: "sending" | "sent" | "failed";
   attempts: number;
   updated_at: string;
+};
+
+type DeliveryClaim = {
+  id: string;
+  deliveryAttempt: number;
 };
 
 const STALE_SENDING_MS = 15 * 60 * 1000;
@@ -54,7 +63,7 @@ function recipientEmailHash(email: string | null | undefined): string | null {
 
 async function claimDelivery(
   input: DeduplicatedDeliveryInput
-): Promise<string | null> {
+): Promise<DeliveryClaim | null> {
   const now = new Date().toISOString();
   const insert = await supabaseAdmin
     .from("transactional_email_deliveries")
@@ -72,7 +81,10 @@ async function claimDelivery(
     .maybeSingle();
 
   if (!insert.error && insert.data?.id) {
-    return insert.data.id;
+    return {
+      id: insert.data.id,
+      deliveryAttempt: 1,
+    };
   }
 
   if (insert.error?.code !== "23505") {
@@ -106,11 +118,15 @@ async function claimDelivery(
     return null;
   }
 
+  const deliveryAttempt = nextEmailDeliveryAttempt(
+    existing.status,
+    existing.attempts
+  );
   let retry = supabaseAdmin
     .from("transactional_email_deliveries")
     .update({
       status: "sending",
-      attempts: Math.max(1, Number(existing.attempts) + 1),
+      attempts: deliveryAttempt,
       last_error: null,
       updated_at: now,
     })
@@ -128,7 +144,9 @@ async function claimDelivery(
     return null;
   }
 
-  return retryResult.data?.id ?? null;
+  return retryResult.data?.id
+    ? { id: retryResult.data.id, deliveryAttempt }
+    : null;
 }
 
 async function finishDelivery(
@@ -166,10 +184,10 @@ export async function sendKlyxDeduplicatedEmail(
     return skipped();
   }
 
-  let claimId: string | null;
+  let claim: DeliveryClaim | null;
 
   try {
-    claimId = await claimDelivery({
+    claim = await claimDelivery({
       ...input,
       deduplicationKey,
       templateKey,
@@ -181,10 +199,14 @@ export async function sendKlyxDeduplicatedEmail(
     return skipped();
   }
 
-  if (!claimId) {
+  if (!claim) {
     return skipped();
   }
 
+  const idempotencyKey = buildEmailProviderIdempotencyKey(
+    deduplicationKey,
+    claim.deliveryAttempt
+  );
   let result: KlyxEmailDeliveryResult;
 
   try {
@@ -194,12 +216,14 @@ export async function sendKlyxDeduplicatedEmail(
           subject: input.subject,
           text: input.text,
           html: input.html,
+          idempotencyKey,
         })
       : await sendKlyxTransactionalEmail({
           to: to as string,
           subject: input.subject,
           text: input.text,
           html: input.html,
+          idempotencyKey,
         });
   } catch {
     result = {
@@ -210,7 +234,7 @@ export async function sendKlyxDeduplicatedEmail(
   }
 
   try {
-    await finishDelivery(claimId, result);
+    await finishDelivery(claim.id, result);
   } catch {
     warn("KLYX_EMAIL_REGISTRY_FINALIZE_UNEXPECTED_FAILURE");
   }
