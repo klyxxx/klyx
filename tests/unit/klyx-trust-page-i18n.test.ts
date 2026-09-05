@@ -48,6 +48,7 @@ describe("KLYX trust page i18n", () => {
   it("keeps Spanish trust and dispute boundaries explicit", () => {
     const dictionary = getKlyxTrustDictionary("es");
 
+    expect(resolveKlyxTrustLocale("es")).toBe("es");
     expect(dictionary.description).toBe(
       "Informa de un problema relacionado con un servicio, conserva los hechos y sigue la decisión de KLYX.",
     );
