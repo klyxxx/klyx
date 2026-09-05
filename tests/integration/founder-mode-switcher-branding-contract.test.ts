@@ -7,9 +7,10 @@ const source = readFileSync(
   "utf8"
 );
 
-describe("KLYX FounderModeSwitcher branding contract", () => {
-  it("uses the exact KLYX blue for active client and provider modes", () => {
-    expect(source.match(/bg-\[#2563EB\] text-white/g)?.length).toBe(2);
+describe("KLYX FounderModeSwitcher theme contract", () => {
+  it("inherits the semantic KLYX primary accent for active client and provider modes", () => {
+    expect(source.match(/bg-primary text-primary-foreground/g)?.length).toBe(2);
+    expect(source).not.toContain("#2563EB");
     expect(source).not.toMatch(/(?:bg|text|border|ring)-(?:blue|violet|indigo|fuchsia)-/);
     expect(source).not.toContain("bg-gradient-");
     expect(source).not.toContain("from-");
