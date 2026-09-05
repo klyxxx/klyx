@@ -42,7 +42,7 @@ describe("profile owner id privacy", () => {
       ownershipGuard
     );
     const legacyReturn = activeProfile.indexOf(
-      "normalizeProfile(\n      legacyProfile as ProfileRow",
+      "normalizeProfile(\n      profileToReturn,",
       ownershipGuard
     );
 
@@ -72,6 +72,34 @@ describe("profile owner id privacy", () => {
     expect(repairStart).toBeGreaterThanOrEqual(0);
     expect(repairEnd).toBeGreaterThan(repairStart);
     expect(repairBlock).toContain("owner_user_id:\n            user.id");
-    expect(repairBlock).toContain("legacyProfile.owner_user_id =\n      user.id");
+    expect(repairBlock).toContain(
+      '.is(\n          "owner_user_id",\n          null\n        )'
+    );
+    expect(repairBlock).not.toContain("legacyProfile.owner_user_id =");
+  });
+
+  it("makes the legacy owner repair compare-and-set and fails closed on a race", () => {
+    const atomicMarker = activeProfile.indexOf(
+      "KLYX_LEGACY_PROFILE_OWNER_ATOMIC_REPAIR_20260905"
+    );
+    const ownerPrecondition = activeProfile.indexOf(
+      '.is(\n          "owner_user_id",\n          null\n        )',
+      atomicMarker
+    );
+    const repairedRowRead = activeProfile.indexOf(".maybeSingle();", ownerPrecondition);
+    const raceGuard = activeProfile.indexOf("if (!repairedProfile)", repairedRowRead);
+    const repairedAssignment = activeProfile.indexOf(
+      "profileToReturn =\n      repairedProfile as ProfileRow;",
+      raceGuard
+    );
+
+    expect(atomicMarker).toBeGreaterThanOrEqual(0);
+    expect(ownerPrecondition).toBeGreaterThan(atomicMarker);
+    expect(repairedRowRead).toBeGreaterThan(ownerPrecondition);
+    expect(raceGuard).toBeGreaterThan(repairedRowRead);
+    expect(repairedAssignment).toBeGreaterThan(raceGuard);
+
+    const raceGuardBlock = activeProfile.slice(raceGuard, repairedAssignment);
+    expect(raceGuardBlock).toContain("return [];");
   });
 });
