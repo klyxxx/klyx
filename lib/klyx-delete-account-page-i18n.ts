@@ -5,6 +5,7 @@ export const KLYX_DELETE_ACCOUNT_PAGE_TRANSLATED_LOCALES = [
   "en",
   "nl",
   "de",
+  "es",
 ] as const;
 
 export type KlyxDeleteAccountPageLocale =
@@ -155,6 +156,34 @@ const DELETE_ACCOUNT_PAGE_MESSAGES: Record<
     emailAccountLabel: "E-Mail-Adresse des Kontos:",
     emailIdentityAcknowledgement:
       "Ich verstehe, dass vor der Bearbeitung eine Überprüfung meiner Identität erforderlich sein kann.",
+  },
+  es: {
+    metadataTitle: "Eliminación de la cuenta",
+    metadataDescription:
+      "Solicitar la eliminación de una cuenta KLYX y de los datos asociados.",
+    backLegal: "Información de KLYX",
+    title: "Eliminar una cuenta KLYX",
+    description:
+      "Esta página es accesible incluso sin la aplicación y permite iniciar una solicitud para eliminar la cuenta y los datos personales asociados.",
+    fromKlyxTitle: "Desde KLYX",
+    fromKlyxDescription:
+      "Si todavía puedes iniciar sesión, abre Ajustes → Eliminar mi cuenta. Esta vía permite a KLYX verificar directamente la cuenta.",
+    openSettings: "Abrir los ajustes",
+    webRequestTitle: "Solicitud desde la web",
+    webRequestDescription:
+      "Si ya no tienes acceso a la aplicación, envía una solicitud al soporte. Si es posible, utiliza la dirección de correo electrónico de la cuenta. KLYX puede solicitar una verificación razonable para evitar que otra persona elimine tu cuenta.",
+    requestDeletion: "Solicitar la eliminación",
+    processingAddress: "Dirección de tramitación:",
+    retainedTitle: "Datos conservados cuando sea necesario",
+    retainedDescription:
+      "Los datos personales que ya no sean necesarios deben eliminarse o anonimizarse. Determinada información puede conservarse cuando lo exijan una obligación legal, la prevención del fraude, la seguridad o la gestión de un litigio.",
+    emailSubject: "Solicitud de eliminación de cuenta KLYX",
+    emailGreeting: "Hola KLYX,",
+    emailRequest:
+      "Quiero solicitar la eliminación de mi cuenta KLYX y de los datos asociados.",
+    emailAccountLabel: "Dirección de correo electrónico de la cuenta:",
+    emailIdentityAcknowledgement:
+      "Entiendo que puede ser necesaria una verificación de mi identidad antes de tramitar la solicitud.",
   },
 };
 
