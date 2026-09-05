@@ -133,6 +133,15 @@ async function releaseExpiredCheckout(
   return data === true;
 }
 
+async function expireUnpersistedCheckoutSession(
+  stripe: Stripe,
+  session: Stripe.Checkout.Session
+) {
+  if (session.status !== "open") return;
+
+  await stripe.checkout.sessions.expire(session.id);
+}
+
 async function getBooking(
   bookingId: string
 ): Promise<BookingRow> {
@@ -697,6 +706,7 @@ export async function POST(request: Request) {
     });
 
     if (!session.url) {
+      await expireUnpersistedCheckoutSession(stripe, session);
       throw new Error("Stripe n'a pas renvoyé de lien de paiement.");
     }
 
@@ -710,51 +720,57 @@ export async function POST(request: Request) {
         ? applicationFeeAmount
         : 0;
 
-    const { data: updatedBooking, error: updateError } =
-      await supabaseAdmin
-        .from("bookings")
-        .update({
-          provider_id: providerId,
-          service_id: service.id,
-          user_service_id: userServiceId,
-          payment_status: "checkout_created",
-          stripe_checkout_session_id:
-            session.id,
-          amount_total: amountTotal,
-          payment_mode: paymentMode,
-          application_fee_amount:
-            platformFeeAmount,
-          platform_fee_amount:
-            platformFeeAmount,
-          provider_amount: providerAmount,
-          payment_attempt_token: null,
-          payment_checkout_started_at: null,
-        })
-        .eq("id", booking.id)
-        .eq("payment_attempt_token", attemptToken)
-        .select("id")
-        .maybeSingle();
+    try {
+      const { data: updatedBooking, error: updateError } =
+        await supabaseAdmin
+          .from("bookings")
+          .update({
+            provider_id: providerId,
+            service_id: service.id,
+            user_service_id: userServiceId,
+            payment_status: "checkout_created",
+            stripe_checkout_session_id:
+              session.id,
+            amount_total: amountTotal,
+            payment_mode: paymentMode,
+            application_fee_amount:
+              platformFeeAmount,
+            platform_fee_amount:
+              platformFeeAmount,
+            provider_amount: providerAmount,
+            payment_attempt_token: null,
+            payment_checkout_started_at: null,
+          })
+          .eq("id", booking.id)
+          .eq("payment_attempt_token", attemptToken)
+          .select("id")
+          .maybeSingle();
 
-    if (updateError) {
-      throw new Error(updateError.message);
-    }
-
-    if (!updatedBooking) {
-      const latestBooking = await getBooking(booking.id);
-
-      if (latestBooking.payment_status === "paid") {
-        return NextResponse.json(
-          {
-            error: "Cette réservation est déjà payée.",
-            alreadyPaid: true,
-          },
-          { status: 409 }
-        );
+      if (updateError) {
+        throw new Error(updateError.message);
       }
 
-      if (latestBooking.stripe_checkout_session_id !== session.id) {
-        throw new Error("Le verrou de paiement a changé. Aucun nouveau débit n'a été lancé.");
+      if (!updatedBooking) {
+        const latestBooking = await getBooking(booking.id);
+
+        if (latestBooking.payment_status === "paid") {
+          await expireUnpersistedCheckoutSession(stripe, session);
+          return NextResponse.json(
+            {
+              error: "Cette réservation est déjà payée.",
+              alreadyPaid: true,
+            },
+            { status: 409 }
+          );
+        }
+
+        if (latestBooking.stripe_checkout_session_id !== session.id) {
+          throw new Error("Le verrou de paiement a changé. Aucun nouveau débit n'a été lancé.");
+        }
       }
+    } catch (error) {
+      await expireUnpersistedCheckoutSession(stripe, session);
+      throw error;
     }
 
     logServerInfo({
