@@ -201,6 +201,20 @@ export async function getOwnedProfiles(): Promise<
     return [];
   }
 
+  /*
+   * KLYX_LEGACY_PROFILE_OWNER_FAIL_CLOSED_20260905
+   *
+   * Le fallback legacy ne doit réparer que l'absence d'owner_user_id.
+   * Une ligne déjà rattachée à un autre compte Auth est incohérente et
+   * ne doit jamais être adoptée implicitement sous prétexte que id=user.id.
+   */
+  if (
+    legacyProfile.owner_user_id &&
+    legacyProfile.owner_user_id !== user.id
+  ) {
+    return [];
+  }
+
   if (
     !legacyProfile.owner_user_id
   ) {
