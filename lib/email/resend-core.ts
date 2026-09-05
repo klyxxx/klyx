@@ -12,6 +12,7 @@ export type KlyxResendEmailInput = {
   subject: string;
   text: string;
   html?: string;
+  idempotencyKey?: string;
 };
 
 type KlyxResendOptions = {
@@ -36,6 +37,7 @@ export async function sendResendEmail(
   const subject = input.subject.trim();
   const text = input.text.trim();
   const html = input.html?.trim() || undefined;
+  const idempotencyKey = input.idempotencyKey?.trim() || undefined;
 
   if (!apiKey || !to || !subject || !text) {
     return skippedResult();
@@ -49,6 +51,9 @@ export async function sendResendEmail(
         headers: {
           Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
+          ...(idempotencyKey
+            ? { "Idempotency-Key": idempotencyKey }
+            : {}),
         },
         body: JSON.stringify({
           from: KLYX_RESEND_FROM,
