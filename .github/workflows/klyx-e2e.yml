@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 # The authenticated E2E suite uses one dedicated KLYX account and
 # changes its active profile. Serialize all runs so two PRs cannot
@@ -255,3 +256,41 @@ jobs:
           path: playwright-report/
           if-no-files-found: ignore
           retention-days: 7
+
+      # KLYX_AUTO_MERGE_GUARD_PHASE_12A_11
+      - name: Reject armed GitHub auto-merge
+        if: ${{ always() && github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KLYX_PR_NUMBER: ${{ github.event.pull_request.number }}
+          KLYX_REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          response="$(
+            curl \
+              --fail-with-body \
+              --silent \
+              --show-error \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/$KLYX_REPOSITORY/pulls/$KLYX_PR_NUMBER"
+          )"
+
+          auto_merge_state="$(
+            printf '%s' "$response" | python -c '
+import json
+import sys
+
+payload = json.load(sys.stdin)
+print("armed" if payload.get("auto_merge") is not None else "disabled")
+'
+          )"
+
+          if [ "$auto_merge_state" != "disabled" ]; then
+            echo "GitHub auto-merge is armed for PR #$KLYX_PR_NUMBER."
+            echo "KLYX policy requires an explicit manual merge command."
+            exit 1
+          fi
+
+          echo "GitHub auto-merge guard: PASS"
