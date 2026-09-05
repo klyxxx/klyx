@@ -9,6 +9,14 @@ import {
   secureApiErrorResponse,
 } from "@/lib/api-error";
 import { isPastBookingStart } from "@/lib/brussels-time";
+import { sendKlyxDeduplicatedEmail } from "@/lib/email/deduplicated-delivery";
+import {
+  bookingAcceptedEmail,
+  bookingCancelledEmail,
+  bookingRejectedEmail,
+  refundConfirmedEmail,
+  refundStartedEmail,
+} from "@/lib/email/templates";
 import { upsertFinancialLedgerEntry } from "@/lib/payment-ledger";
 import {
   logServerError,
@@ -430,7 +438,6 @@ export async function POST(request: Request) {
       );
     }
 
-
     const providerId =
       booking.provider_id ?? booking.babysitter_id;
     const isClient = booking.parent_id === profile.id;
@@ -643,6 +650,13 @@ export async function POST(request: Request) {
           deduplicationKey:
             `booking:${booking.id}:accepted`,
         });
+
+        await sendKlyxDeduplicatedEmail({
+          deduplicationKey: `booking:${booking.id}:accepted:client`,
+          templateKey: "booking.accepted.client",
+          profileId: booking.parent_id,
+          ...bookingAcceptedEmail(booking.id),
+        });
       }
 
       if (nextStatus === "rejected") {
@@ -656,6 +670,13 @@ export async function POST(request: Request) {
             "Le prestataire n’est pas disponible pour cette demande.",
           deduplicationKey:
             `booking:${booking.id}:rejected`,
+        });
+
+        await sendKlyxDeduplicatedEmail({
+          deduplicationKey: `booking:${booking.id}:rejected:client`,
+          templateKey: "booking.rejected.client",
+          profileId: booking.parent_id,
+          ...bookingRejectedEmail(booking.id),
         });
       }
 
@@ -676,6 +697,16 @@ export async function POST(request: Request) {
             deduplicationKey:
               `booking:${booking.id}:cancelled:${profile.id}`,
           });
+
+          await sendKlyxDeduplicatedEmail({
+            deduplicationKey: `booking:${booking.id}:cancelled:${recipientId}`,
+            templateKey: "booking.cancelled.participant",
+            profileId: recipientId,
+            ...bookingCancelledEmail({
+              bookingId: booking.id,
+              refundStarted: refundCompleted,
+            }),
+          });
         }
 
         if (refundCompleted) {
@@ -692,6 +723,19 @@ export async function POST(request: Request) {
             deduplicationKey: refundConfirmed
               ? `booking:${booking.id}:refund-confirmed`
               : `booking:${booking.id}:refund`,
+          });
+
+          await sendKlyxDeduplicatedEmail({
+            deduplicationKey: refundConfirmed
+              ? `booking:${booking.id}:refund-succeeded:client`
+              : `booking:${booking.id}:refund-processing:client`,
+            templateKey: refundConfirmed
+              ? "booking.refund_succeeded.client"
+              : "booking.refund_processing.client",
+            profileId: booking.parent_id,
+            ...(refundConfirmed
+              ? refundConfirmedEmail(booking.id)
+              : refundStartedEmail(booking.id)),
           });
         }
       }

@@ -182,8 +182,8 @@ export default function AssistantActionsPage() {
   return (
     <main className="klyx-page">
       <div className="mx-auto max-w-6xl">
-        <section className="rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#17131f,#4c1d95_52%,#111827)] p-7 text-white sm:p-10">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white/70">
+        <section className="klyx-card p-7 sm:p-10">
+          <div className="klyx-eyebrow inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5">
             <Sparkles size={14} />
             {t("eyebrow")}
           </div>
@@ -192,7 +192,7 @@ export default function AssistantActionsPage() {
             {t("title")}
           </h1>
 
-          <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">
+          <p className="mt-4 max-w-3xl text-sm leading-7 text-muted-foreground">
             {t("description")}
           </p>
         </section>
@@ -238,7 +238,7 @@ export default function AssistantActionsPage() {
           <div className="grid min-h-72 place-items-center">
             <div className="flex items-center gap-3 text-sm font-black text-muted-foreground">
               <LoaderCircle
-                className="animate-spin text-violet-600"
+                className="animate-spin text-blue-600"
                 size={36}
               />
               {t("loading")}
@@ -267,7 +267,7 @@ export default function AssistantActionsPage() {
                   key={action.id}
                   className="klyx-card grid gap-5 p-5 sm:grid-cols-[52px_1fr_auto] sm:items-center sm:p-6"
                 >
-                  <div className="grid h-12 w-12 place-items-center rounded-2xl bg-violet-500/10 text-violet-600">
+                  <div className="grid h-12 w-12 place-items-center rounded-2xl bg-blue-500/10 text-blue-600">
                     <ActionIcon
                       kind={action.kind}
                     />

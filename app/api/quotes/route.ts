@@ -1,8 +1,20 @@
+import { after } from "next/server";
+
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { sendKlyxDeduplicatedEmail } from "@/lib/email/deduplicated-delivery";
+import {
+  quoteAcceptedEmail,
+  quoteCancelledEmail,
+  quoteRejectedEmail,
+  quoteRequestedEmail,
+  quoteSentEmail,
+} from "@/lib/email/templates";
 import {
   quoteLifecycleQualificationPreflight,
   quoteTransactionQualificationPreflight,
 } from "@/lib/quote-transaction-qualification-preflight";
+import { logServerWarning } from "@/lib/server-log";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   GET as coreGet,
   PATCH as corePatch,
@@ -10,6 +22,52 @@ import {
 } from "./quote-route-core";
 
 type QuoteMethod = "GET" | "POST" | "PATCH";
+type QuoteLifecycleEmailAction =
+  | "send"
+  | "accept"
+  | "reject"
+  | "cancel";
+
+type QuoteLifecycleEmailTarget = {
+  client_profile_id: string;
+  provider_profile_id: string;
+};
+
+function quoteLifecycleEmail(
+  action: QuoteLifecycleEmailAction,
+  quote: QuoteLifecycleEmailTarget,
+  quoteId: string
+) {
+  if (action === "send") {
+    return {
+      profileId: quote.client_profile_id,
+      templateKey: "quote.sent.client",
+      ...quoteSentEmail(quoteId),
+    };
+  }
+
+  if (action === "accept") {
+    return {
+      profileId: quote.provider_profile_id,
+      templateKey: "quote.accepted.provider",
+      ...quoteAcceptedEmail(),
+    };
+  }
+
+  if (action === "reject") {
+    return {
+      profileId: quote.provider_profile_id,
+      templateKey: "quote.rejected.provider",
+      ...quoteRejectedEmail(),
+    };
+  }
+
+  return {
+    profileId: quote.provider_profile_id,
+    templateKey: "quote.cancelled.provider",
+    ...quoteCancelledEmail(),
+  };
+}
 
 async function secureCoreResponse(
   response: Response,
@@ -73,6 +131,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const startedAt = Date.now();
+  const emailRequest = request.clone();
 
   try {
     const preflight = await quoteTransactionQualificationPreflight(
@@ -82,7 +141,43 @@ export async function POST(request: Request) {
     if (preflight) return preflight;
 
     const response = await corePost(request);
-    return secureCoreResponse(response, "POST", startedAt);
+    const securedResponse = await secureCoreResponse(
+      response,
+      "POST",
+      startedAt
+    );
+
+    if (securedResponse.ok) {
+      const [emailBody, responseBody] = await Promise.all([
+        emailRequest.json().catch(() => null) as Promise<{
+          providerProfileId?: unknown;
+        } | null>,
+        securedResponse.clone().json().catch(() => null) as Promise<{
+          quote?: { id?: unknown };
+        } | null>,
+      ]);
+      const providerProfileId =
+        typeof emailBody?.providerProfileId === "string"
+          ? emailBody.providerProfileId.trim()
+          : "";
+      const quoteId =
+        typeof responseBody?.quote?.id === "string"
+          ? responseBody.quote.id.trim()
+          : "";
+
+      if (providerProfileId && quoteId) {
+        after(async () => {
+          await sendKlyxDeduplicatedEmail({
+            deduplicationKey: `quote:${quoteId}:requested:provider`,
+            templateKey: "quote.requested.provider",
+            profileId: providerProfileId,
+            ...quoteRequestedEmail(),
+          });
+        });
+      }
+    }
+
+    return securedResponse;
   } catch (error) {
     return secureApiErrorResponse({
       error,
@@ -98,6 +193,7 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   const startedAt = Date.now();
+  const emailRequest = request.clone();
 
   try {
     const preflight = await quoteLifecycleQualificationPreflight(
@@ -107,7 +203,74 @@ export async function PATCH(request: Request) {
     if (preflight) return preflight;
 
     const response = await corePatch(request);
-    return secureCoreResponse(response, "PATCH", startedAt);
+    const securedResponse = await secureCoreResponse(
+      response,
+      "PATCH",
+      startedAt
+    );
+
+    if (securedResponse.ok) {
+      const emailBody = (await emailRequest
+        .json()
+        .catch(() => null)) as {
+        quoteId?: unknown;
+        action?: unknown;
+      } | null;
+      const quoteId =
+        typeof emailBody?.quoteId === "string"
+          ? emailBody.quoteId.trim()
+          : "";
+      const action =
+        typeof emailBody?.action === "string"
+          ? emailBody.action.trim()
+          : "";
+      const isEmailAction = [
+        "send",
+        "accept",
+        "reject",
+        "cancel",
+      ].includes(action);
+
+      if (quoteId && isEmailAction) {
+        after(async () => {
+          const { data: quote, error: quoteError } =
+            await supabaseAdmin
+              .from("service_quotes")
+              .select(
+                "client_profile_id, provider_profile_id"
+              )
+              .eq("id", quoteId)
+              .maybeSingle();
+
+          if (quoteError || !quote) {
+            logServerWarning({
+              event: "quote_lifecycle_email_lookup_failed",
+              route: "/api/quotes",
+              method: "PATCH",
+              code: "KLYX_QUOTE_EMAIL_LOOKUP_FAILED",
+            });
+            return;
+          }
+
+          const email = quoteLifecycleEmail(
+            action as QuoteLifecycleEmailAction,
+            quote as QuoteLifecycleEmailTarget,
+            quoteId
+          );
+
+          await sendKlyxDeduplicatedEmail({
+            deduplicationKey: `quote:${quoteId}:${action}:${email.profileId}`,
+            templateKey: email.templateKey,
+            profileId: email.profileId,
+            subject: email.subject,
+            text: email.text,
+            html: email.html,
+          });
+        });
+      }
+    }
+
+    return securedResponse;
   } catch (error) {
     return secureApiErrorResponse({
       error,

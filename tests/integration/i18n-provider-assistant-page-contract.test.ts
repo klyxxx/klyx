@@ -61,7 +61,7 @@ describe("KLYX provider assistant i18n safety contract", () => {
     expect(pageSource).toContain("{entry.title}");
     expect(pageSource).toContain("{entry.text}");
     expect(pageSource).toContain("{draft.title}");
-    expect(pageSource).toContain("draftPreview(draft)");
+    expect(pageSource).toContain('draftPreview(draft, t("draftReady"))');
     expect(pageSource).toContain("{preview}");
     expect(pageSource).not.toContain("JSON.stringify(draft.payload, null, 2)");
     expect(pageSource).toContain("translateKlyxProviderAssistantStatus(");

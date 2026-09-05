@@ -86,7 +86,7 @@ function missionHref(card: ProviderMissionCard) {
 
 function statusClass(card: ProviderMissionCard) {
   if (card.actionRequired) {
-    return "border-blue-600/20 bg-blue-600/[0.06] text-blue-700 dark:text-blue-300";
+    return "border-[#2563EB]/20 bg-[#2563EB]/[0.06] text-[#2563EB]";
   }
 
   return "border-border bg-background text-muted-foreground";
@@ -179,14 +179,14 @@ export function ProviderConfirmedMissionCard({
             </span>
 
             {mission.actionRequired && (
-              <span className="text-xs font-semibold text-blue-600">
+              <span className="text-xs font-semibold text-[#2563EB]">
                 {t("actionRequired")}
               </span>
             )}
 
             {mission.entityType === "group" && (
               <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                <Layers3 size={13} className="text-blue-600" />
+                <Layers3 size={13} className="text-[#2563EB]" />
                 {formatKlyxBookingSlotCount(locale, mission.slotCount)}
               </span>
             )}
@@ -220,7 +220,7 @@ export function ProviderConfirmedMissionCard({
           className={
             featured
               ? "klyx-button inline-flex min-h-11 shrink-0 items-center justify-center gap-2 px-4 text-sm font-semibold"
-              : "inline-flex min-h-11 shrink-0 items-center justify-center gap-2 text-sm font-semibold text-blue-600 transition hover:text-blue-700"
+              : "inline-flex min-h-11 shrink-0 items-center justify-center gap-2 text-sm font-semibold text-[#2563EB] transition hover:opacity-80"
           }
         >
           {t("viewMission")}

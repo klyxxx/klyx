@@ -15,6 +15,8 @@ import {
 import {
   secureApiErrorResponse,
 } from "@/lib/api-error";
+import { sendKlyxDeduplicatedEmail } from "@/lib/email/deduplicated-delivery";
+import { bookingRequestedEmail } from "@/lib/email/templates";
 import {
   isPastBookingStart,
   isValidCalendarDate,
@@ -794,13 +796,26 @@ export async function POST(request: Request) {
         });
       }
 
+      const label = serviceLabel(service);
+
       await createNotification({
         userId: providerId,
         bookingId: booking.id,
         title: "Nouvelle demande reçue",
-        message: `${serviceLabel(
-          service.slug
-        )} demandé pour le ${bookingDate} de ${startTime} à ${endTime}.`,
+        message: `${label} demandé pour le ${bookingDate} de ${startTime} à ${endTime}.`,
+      });
+
+      await sendKlyxDeduplicatedEmail({
+        deduplicationKey: `booking:${booking.id}:requested:provider`,
+        templateKey: "booking.requested.provider",
+        profileId: providerId,
+        ...bookingRequestedEmail({
+          bookingId: booking.id,
+          service: label,
+          bookingDate,
+          startTime,
+          endTime,
+        }),
       });
     });
 
@@ -838,5 +853,3 @@ export async function POST(request: Request) {
     });
   }
 }
-
-

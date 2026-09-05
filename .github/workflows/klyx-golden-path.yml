@@ -17,6 +17,8 @@ on:
       - main
     paths:
       - ".github/workflows/klyx-golden-path.yml"
+      - ".github/workflows/klyx-supabase-production-migrations.yml"
+      - "tests/supabase-production-migration-workflow.test.ts"
       - "scripts/golden-path-*.mjs"
       - "supabase/migrations/**"
       - "proxy.ts"
@@ -63,6 +65,8 @@ on:
       - main
     paths:
       - ".github/workflows/klyx-golden-path.yml"
+      - ".github/workflows/klyx-supabase-production-migrations.yml"
+      - "tests/supabase-production-migration-workflow.test.ts"
       - "scripts/golden-path-*.mjs"
       - "supabase/migrations/**"
       - "proxy.ts"

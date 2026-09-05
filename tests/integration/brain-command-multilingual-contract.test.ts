@@ -27,7 +27,8 @@ describe("KLYX multilingual brain command router contract", () => {
   it("preserves authentication, message validation and the 20-action cap", () => {
     expect(routeSource).toContain("getAuthenticatedProfile(");
     expect(routeSource).toContain('body.message?.trim() ?? ""');
-    expect(routeSource).toContain("rawMessage.length > 700");
+    expect(routeSource).toContain('from "@/lib/klyx-assistant-message-limits"');
+    expect(routeSource).toContain("isKlyxAssistantMessageTooLong(rawMessage)");
     expect(routeSource).toContain("getBrainActions(");
     expect(routeSource).toContain(").slice(0, 20)");
   });
@@ -45,10 +46,11 @@ describe("KLYX multilingual brain command router contract", () => {
     expect(routeSource).toContain('"/assistant/market?" +');
   });
 
-  it("preserves no-action fallback and never adds financial execution", () => {
+  it("preserves every no-execution path including unsafe href rejection", () => {
     expect(routeSource).toContain('mode:\n        "no_action"');
     expect(routeSource).toContain('href:\n        "/assistant/actions"');
-    expect(routeSource.match(/automaticExecutionAllowed:\s*false/g)?.length).toBe(3);
+    expect(routeSource).toContain("if (!safeHref)");
+    expect(routeSource.match(/automaticExecutionAllowed:\s*false/g)?.length).toBe(4);
     expect(routeSource).not.toContain("payment_intents");
     expect(routeSource).not.toContain("checkout.sessions");
     expect(routeSource).not.toContain("refunds.create");

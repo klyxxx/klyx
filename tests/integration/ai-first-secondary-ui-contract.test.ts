@@ -37,6 +37,11 @@ describe(
             "app/provider/assistant/page.tsx"
           );
 
+        const assistantI18n =
+          read(
+            "lib/klyx-provider-assistant-i18n.ts"
+          );
+
         const jobs =
           read(
             "app/provider/jobs/page.tsx"
@@ -87,9 +92,18 @@ describe(
         );
 
         expect(assistant).toContain(
-          'placeholder="Demander à KLYX…"'
+          'placeholder={t("placeholder")}'
         );
         expect(assistant).toContain(
+          '{t("surfaceDescription")}'
+        );
+        expect(assistant).toContain(
+          '{t("controlNote")}'
+        );
+        expect(assistantI18n).toContain(
+          'placeholder: "Demander à KLYX…"'
+        );
+        expect(assistantI18n).toContain(
           "Rien n’est appliqué ni envoyé sans ta confirmation."
         );
 

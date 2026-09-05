@@ -9,11 +9,24 @@ import {
 } from "@/lib/brain-actions";
 import {
   bestBrainCommandAction,
+  bestSpecificBrainCommandAction,
   hasGeneralBrainCommandIntent,
   hasNewNeedBrainCommandIntent,
   hasSpecificBrainCommandIntent,
   normalizeBrainCommandMessage,
 } from "@/lib/brain-command-intent";
+import {
+  normalizeKlyxAssistantActionHref,
+} from "@/lib/klyx-assistant-action-href";
+import {
+  isKlyxAssistantMessageTooLong,
+} from "@/lib/klyx-assistant-message-limits";
+import {
+  localizeKlyxGroundedAction,
+} from "@/lib/klyx-grounded-action-i18n";
+import {
+  getServerKlyxLocale,
+} from "@/lib/klyx-server-i18n";
 
 // KLYX_TRUSTED_COMMAND_ROUTER_12_81
 
@@ -49,7 +62,7 @@ export async function POST(
     }
 
     if (
-      rawMessage.length > 700
+      isKlyxAssistantMessageTooLong(rawMessage)
     ) {
       return NextResponse.json(
         {
@@ -66,6 +79,9 @@ export async function POST(
       normalizeBrainCommandMessage(
         rawMessage
       );
+
+    const locale =
+      await getServerKlyxLocale();
 
     // IMPORTANT 12.81:
     // actions recalculated from DB server-side.
@@ -99,25 +115,66 @@ export async function POST(
       )
     ) {
       const action =
-        bestBrainCommandAction(
-          actions,
-          message
-        );
+        specificExistingIntent
+          ? bestSpecificBrainCommandAction(
+              actions,
+              message
+            )
+          : bestBrainCommandAction(
+              actions,
+              message
+            );
 
       if (action) {
+        const localizedAction =
+          localizeKlyxGroundedAction(
+            action,
+            locale
+          );
+
+        const safeHref =
+          normalizeKlyxAssistantActionHref(
+            localizedAction.href
+          );
+
+        if (!safeHref) {
+          return NextResponse.json({
+            mode:
+              "no_action",
+            automaticExecutionAllowed:
+              false,
+            href:
+              "/assistant/actions",
+          });
+        }
+
         return NextResponse.json({
           mode:
             "existing_action",
           automaticExecutionAllowed:
             false,
-          action,
+          action:
+            action.kind === "compare_offers"
+              ? {
+                  ...localizedAction,
+                  description:
+                    action.description,
+                  href: safeHref,
+                }
+              : {
+                  ...localizedAction,
+                  href: safeHref,
+                },
         });
       }
     }
 
     if (
       newNeedIntent ||
-      !generalActionIntent
+      (
+        !generalActionIntent &&
+        !specificExistingIntent
+      )
     ) {
       const params =
         new URLSearchParams();

@@ -1,4 +1,4 @@
-﻿import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   apiErrorStatus,
@@ -6,6 +6,7 @@ import {
   requireAccountType,
 } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { sendProviderVerificationSubmittedEmail } from "@/lib/email/operational-lifecycle-emails";
 
 const DOCUMENT_TYPES = [
   "identity",
@@ -277,7 +278,7 @@ export async function PATCH(request: Request) {
       await supabaseAdmin
         .from("provider_verifications")
         .select(
-          "identity_status, address_status, business_status, insurance_status, professional_status, status"
+          "id, identity_status, address_status, business_status, insurance_status, professional_status, status"
         )
         .eq("profile_id", profile.id)
         .maybeSingle();
@@ -319,7 +320,7 @@ export async function PATCH(request: Request) {
 
     const now = new Date().toISOString();
 
-    const { error } = await supabaseAdmin
+    const { data: submittedVerification, error } = await supabaseAdmin
       .from("provider_verifications")
       .update({
         status: "submitted",
@@ -340,9 +341,26 @@ export async function PATCH(request: Request) {
         submitted_at: now,
         updated_at: now,
       })
-      .eq("profile_id", profile.id);
+      .eq("id", verification.id)
+      .select("id")
+      .maybeSingle();
 
     if (error) throw new Error(error.message);
+
+    if (!submittedVerification) {
+      return NextResponse.json(
+        { error: "Le dossier vient d’être modifié. Actualise la page." },
+        { status: 409 }
+      );
+    }
+
+    after(async () => {
+      await sendProviderVerificationSubmittedEmail({
+        verificationId: submittedVerification.id,
+        profileId: profile.id,
+        submissionToken: now,
+      });
+    });
 
     return NextResponse.json({
       message:

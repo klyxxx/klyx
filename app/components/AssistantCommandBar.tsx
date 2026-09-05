@@ -13,9 +13,13 @@ import {
   Truck,
   Wrench,
 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import {
+  KLYX_ASSISTANT_MESSAGE_MAX_LENGTH,
+} from "@/lib/klyx-assistant-message-limits";
 import {
   translateKlyxAssistantCommand,
   type KlyxAssistantCommandMessageKey,
@@ -30,7 +34,10 @@ type CommandResponse = {
   mode?: "existing_action" | "new_request" | "no_action";
   href?: string;
   action?: {
+    title?: string;
+    description?: string;
     href?: string;
+    label?: string;
   };
 };
 
@@ -54,6 +61,10 @@ type BrainResponse = {
 type ConversationMessage = {
   role: "user" | "assistant";
   content: string;
+  action?: {
+    href: string;
+    label: string;
+  };
 };
 
 type ConfirmationResponse = {
@@ -103,6 +114,8 @@ type FlowCopy = {
   confirm: string;
   edit: string;
   followUpPlaceholder: string;
+  published: string;
+  viewTracking: string;
 };
 
 function getVoiceSettings(locale: string): VoiceSettings {
@@ -153,6 +166,8 @@ function getFlowCopy(locale: string): FlowCopy {
       confirm: "Confirm",
       edit: "Edit",
       followUpPlaceholder: "Reply naturally to KLYX…",
+      published: "Request launched. KLYX is ready for the next one.",
+      viewTracking: "View tracking",
     };
   }
 
@@ -163,6 +178,8 @@ function getFlowCopy(locale: string): FlowCopy {
       confirm: "Bevestigen",
       edit: "Wijzigen",
       followUpPlaceholder: "Antwoord gewoon aan KLYX…",
+      published: "Aanvraag gestart. KLYX is klaar voor de volgende.",
+      viewTracking: "Opvolging bekijken",
     };
   }
 
@@ -173,6 +190,8 @@ function getFlowCopy(locale: string): FlowCopy {
       confirm: "Bestätigen",
       edit: "Ändern",
       followUpPlaceholder: "Antworte KLYX einfach…",
+      published: "Anfrage gestartet. KLYX ist bereit für die nächste.",
+      viewTracking: "Status ansehen",
     };
   }
 
@@ -182,6 +201,8 @@ function getFlowCopy(locale: string): FlowCopy {
     confirm: "Confirmer",
     edit: "Modifier",
     followUpPlaceholder: "Répondez simplement à KLYX…",
+    published: "Demande lancée. KLYX est prêt pour la suivante.",
+    viewTracking: "Voir le suivi",
   };
 }
 
@@ -246,8 +267,10 @@ function getSpeechRecognitionConstructor(): SpeechRecognitionConstructor | null 
 export default function AssistantCommandBar(_props: Props) {
   const router = useRouter();
   const { locale } = useKlyxLocale();
-  const t = (key: KlyxAssistantCommandMessageKey) =>
-    translateKlyxAssistantCommand(locale, key);
+  const t = (
+    key: KlyxAssistantCommandMessageKey,
+    params?: Record<string, string | number>
+  ) => translateKlyxAssistantCommand(locale, key, params);
   const voiceSettings = getVoiceSettings(locale);
   const flowCopy = getFlowCopy(locale);
   const quickServices = getQuickServices(locale);
@@ -263,6 +286,7 @@ export default function AssistantCommandBar(_props: Props) {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [payload, setPayload] = useState<BrainPayload | null>(null);
+  const [publishedHref, setPublishedHref] = useState<string | null>(null);
 
   useEffect(() => {
     setVoiceSupported(Boolean(getSpeechRecognitionConstructor()));
@@ -281,6 +305,7 @@ export default function AssistantCommandBar(_props: Props) {
 
     setBusy(true);
     setErrorMessage("");
+    setPublishedHref(null);
 
     try {
       const {
@@ -305,19 +330,49 @@ export default function AssistantCommandBar(_props: Props) {
         const result = (await response.json()) as CommandResponse;
         if (!response.ok) throw new Error("Command unavailable");
 
-        if (result.mode === "existing_action" && result.action?.href) {
-          router.push(result.action.href);
+        if (result.mode === "existing_action") {
+          const title = result.action?.title?.trim();
+          const description = result.action?.description?.trim();
+
+          if (!title || !description) {
+            throw new Error("Grounded action unavailable");
+          }
+
+          const action =
+            result.action?.href && result.action?.label
+              ? {
+                  href: result.action.href,
+                  label: result.action.label,
+                }
+              : undefined;
+
+          setMessages((current) => [
+            ...current,
+            { role: "user", content: message },
+            {
+              role: "assistant",
+              content: `${title}. ${description}`,
+              action,
+            },
+          ]);
+          setValue("");
+          requestAnimationFrame(() => textareaRef.current?.focus());
+          return;
+        }
+
+        if (result.mode === "no_action") {
+          setMessages((current) => [
+            ...current,
+            { role: "user", content: message },
+            { role: "assistant", content: t("noPendingAction") },
+          ]);
+          setValue("");
+          requestAnimationFrame(() => textareaRef.current?.focus());
           return;
         }
 
         if (result.mode !== "new_request") {
-          if (result.href) {
-            router.push(result.href);
-            return;
-          }
-
-          router.push("/assistant/actions");
-          return;
+          throw new Error("Unsupported command mode");
         }
       }
 
@@ -418,11 +473,16 @@ export default function AssistantCommandBar(_props: Props) {
         .filter(Boolean)
         .join(" ")
         .slice(0, 2000);
-      const title = `Besoin de ${payload.serviceSlug}`.slice(0, 120);
+      const title = t("publishedRequestTitle", {
+        service: payload.serviceSlug,
+      }).slice(0, 120);
       const description =
         userDescription.length >= 10
           ? userDescription
-          : `Demande KLYX pour ${payload.serviceSlug} à ${payload.city}.`;
+          : t("publishedRequestFallbackDescription", {
+              service: payload.serviceSlug,
+              city: payload.city,
+            });
 
       const publishResponse = await fetch("/api/brain/market-publish", {
         method: "POST",
@@ -452,7 +512,12 @@ export default function AssistantCommandBar(_props: Props) {
         throw new Error("Publication unavailable");
       }
 
-      router.push(published.href || "/bookings");
+      setPublishedHref(published.href || "/bookings");
+      setConversationId(null);
+      setMessages([]);
+      setPayload(null);
+      setValue("");
+      requestAnimationFrame(() => textareaRef.current?.focus());
     } catch {
       setErrorMessage(t("genericError"));
     } finally {
@@ -483,9 +548,13 @@ export default function AssistantCommandBar(_props: Props) {
         const transcript = event.results[0]?.[0]?.transcript?.trim();
         if (!transcript) return;
 
-        setValue((current) =>
-          current.trim() ? `${current.trim()} ${transcript}` : transcript
-        );
+        setValue((current) => {
+          const nextValue = current.trim()
+            ? `${current.trim()} ${transcript}`
+            : transcript;
+
+          return nextValue.slice(0, KLYX_ASSISTANT_MESSAGE_MAX_LENGTH);
+        });
         setErrorMessage("");
       };
 
@@ -527,7 +596,15 @@ export default function AssistantCommandBar(_props: Props) {
                     : "border border-border bg-background text-foreground dark:border-white/10 dark:bg-zinc-950"
                 }`}
               >
-                {message.content}
+                <p>{message.content}</p>
+                {message.action && (
+                  <Link
+                    href={message.action.href}
+                    className="mt-3 inline-flex min-h-10 items-center justify-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500"
+                  >
+                    {message.action.label}
+                  </Link>
+                )}
               </div>
             </div>
           ))}
@@ -540,6 +617,24 @@ export default function AssistantCommandBar(_props: Props) {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {publishedHref && (
+        <div
+          role="status"
+          className="mb-5 flex items-start justify-between gap-4 rounded-2xl border border-blue-600/20 bg-blue-600/[0.04] p-4 sm:p-5"
+        >
+          <div className="flex min-w-0 items-start gap-3">
+            <CheckCircle2 className="mt-0.5 shrink-0 text-blue-600" size={19} />
+            <p className="text-sm font-semibold leading-6">{flowCopy.published}</p>
+          </div>
+          <Link
+            href={publishedHref}
+            className="shrink-0 text-sm font-semibold text-blue-600 transition hover:text-blue-500"
+          >
+            {flowCopy.viewTracking}
+          </Link>
         </div>
       )}
 
@@ -601,10 +696,10 @@ export default function AssistantCommandBar(_props: Props) {
               }
             }}
             rows={conversationId ? 3 : 5}
-            maxLength={700}
+            maxLength={KLYX_ASSISTANT_MESSAGE_MAX_LENGTH}
             disabled={publishing}
             placeholder={
-              conversationId ? flowCopy.followUpPlaceholder : "Décrivez votre besoin..."
+              conversationId ? flowCopy.followUpPlaceholder : t("placeholder")
             }
             className="min-h-[112px] w-full resize-none bg-transparent px-2 py-2 text-base leading-7 text-foreground outline-none placeholder:text-muted-foreground disabled:opacity-60 sm:text-lg"
           />

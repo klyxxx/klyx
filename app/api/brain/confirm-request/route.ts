@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { NextResponse } from "next/server";
 
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -11,6 +13,7 @@ import {
 } from "@/lib/brain-multi-slot-proof";
 
 // KLYX_CONFIRM_REQUEST_MULTI_SLOT_12_83
+// KLYX_BRAIN_CONFIRMATION_IDEMPOTENCY_2026_09_05
 
 type ConfirmedRequestInput = {
   serviceSlug?: string | null;
@@ -73,6 +76,20 @@ function totalBudget(
       ) * 100
     ) / 100
   );
+}
+
+function confirmationFingerprint(
+  conversationId: string,
+  requestSnapshot: Record<string, unknown>
+) {
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        conversationId,
+        request: requestSnapshot,
+      })
+    )
+    .digest("hex");
 }
 
 export async function POST(
@@ -279,6 +296,12 @@ export async function POST(
         false,
     };
 
+    const fingerprint =
+      confirmationFingerprint(
+        conversationId,
+        confirmedRequest
+      );
+
     const {
       data:
         confirmationMessage,
@@ -297,21 +320,62 @@ export async function POST(
             : "Confirmation explicite de la demande KLYX.",
         payload:
           confirmationPayload,
+        confirmation_fingerprint:
+          fingerprint,
       })
       .select("id")
       .single();
 
-    if (messageError) {
-      throw new Error(
-        messageError.message
-      );
-    }
+    let confirmationId: string;
 
-    const confirmationId =
-      (
-        confirmationMessage as
-          ConfirmationMessageRow
-      ).id;
+    if (messageError) {
+      if (messageError.code !== "23505") {
+        throw new Error(
+          messageError.message
+        );
+      }
+
+      const {
+        data: existingConfirmation,
+        error: existingError,
+      } = await supabaseAdmin
+        .from("brain_messages")
+        .select("id")
+        .eq(
+          "conversation_id",
+          conversationId
+        )
+        .eq(
+          "confirmation_fingerprint",
+          fingerprint
+        )
+        .eq("role", "user")
+        .maybeSingle();
+
+      if (existingError) {
+        throw new Error(
+          existingError.message
+        );
+      }
+
+      if (!existingConfirmation) {
+        throw new Error(
+          "Confirmation KLYX concurrente introuvable."
+        );
+      }
+
+      confirmationId =
+        (
+          existingConfirmation as
+            ConfirmationMessageRow
+        ).id;
+    } else {
+      confirmationId =
+        (
+          confirmationMessage as
+            ConfirmationMessageRow
+        ).id;
+    }
 
     const { error: updateError } =
       await supabaseAdmin

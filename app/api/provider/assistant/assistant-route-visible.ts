@@ -53,9 +53,10 @@ export async function POST(request: Request): Promise<Response> {
     return response;
   }
 
-  // Unknown/unstructured provider conversation already uses the shared LLM in
-  // the deterministic core. Avoid paying for a second model call.
-  if (responseBody.aiMode === "openai") {
+  // Unknown/unstructured provider conversation is finalized in the core after
+  // its single shared-LLM attempt and deterministic safety validation. Never
+  // send that result through a second model call, including on safe fallback.
+  if (responseBody.intent === "unknown") {
     return response;
   }
 

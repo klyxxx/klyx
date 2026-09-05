@@ -26,6 +26,8 @@ import {
   type KlyxLocale,
   type KlyxUiMessageKey,
 } from "@/lib/klyx-i18n";
+import { translateKlyxProviderAssistant } from "@/lib/klyx-provider-assistant-i18n";
+import { translateKlyxSidebarNavigation } from "@/lib/klyx-sidebar-navigation-i18n";
 import { createClient } from "@/lib/supabase/client";
 
 type AccountType = "client" | "provider";
@@ -110,6 +112,8 @@ const providerItems: MenuItem[] = [
   },
 ];
 
+const PROVIDER_ASSISTANT_HREF = "/provider/assistant";
+
 function matchesRoute(pathname: string, route: string) {
   return pathname === route || pathname.startsWith(`${route}/`);
 }
@@ -130,6 +134,15 @@ export default function AppSidebar() {
   const router = useRouter();
   const { locale } = useKlyxLocale();
   const t = (key: KlyxUiMessageKey) => translateKlyxUi(locale, key);
+  const providerAssistantLabel = translateKlyxProviderAssistant(locale, "badge");
+  const desktopNavigationLabel = translateKlyxSidebarNavigation(
+    locale,
+    "desktopNavigation"
+  );
+  const mobileNavigationLabel = translateKlyxSidebarNavigation(
+    locale,
+    "mobileNavigation"
+  );
   const [accountType, setAccountType] = useState<AccountType | null>(null);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -191,6 +204,8 @@ export default function AppSidebar() {
   );
 
   const homeHref = accountType ? getKlyxAccountHome(accountType) : "/dashboard";
+  const providerAssistantActive =
+    accountType === "provider" && matchesRoute(pathname, PROVIDER_ASSISTANT_HREF);
 
   if (hideNavigation) return null;
 
@@ -235,7 +250,7 @@ export default function AppSidebar() {
         <nav
           data-testid="desktop-navigation"
           className="mt-2 min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-2"
-          aria-label="Navigation principale KLYX"
+          aria-label={desktopNavigationLabel}
         >
           <div className="space-y-2">
             {items.map((item) => {
@@ -266,6 +281,22 @@ export default function AppSidebar() {
         </nav>
 
         <div className="shrink-0 px-4 pb-5 pt-2">
+          {accountType === "provider" && (
+            <Link
+              href={PROVIDER_ASSISTANT_HREF}
+              data-testid="provider-assistant-launcher-desktop"
+              aria-current={providerAssistantActive ? "page" : undefined}
+              className={`mb-2 flex min-h-12 w-full items-center gap-3 rounded-xl px-4 text-sm font-semibold transition ${
+                providerAssistantActive
+                  ? "bg-blue-600/8 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400"
+                  : "text-foreground hover:bg-muted"
+              }`}
+            >
+              <Sparkles size={18} />
+              {providerAssistantLabel}
+            </Link>
+          )}
+
           <button
             type="button"
             onClick={logout}
@@ -289,10 +320,26 @@ export default function AppSidebar() {
         </span>
       </header>
 
+      {accountType === "provider" && (
+        <Link
+          href={PROVIDER_ASSISTANT_HREF}
+          data-testid="provider-assistant-launcher-mobile"
+          aria-label={providerAssistantLabel}
+          aria-current={providerAssistantActive ? "page" : undefined}
+          className={`fixed bottom-[calc(5.25rem+env(safe-area-inset-bottom))] right-4 z-50 grid h-12 w-12 place-items-center rounded-full border shadow-lg transition lg:hidden ${
+            providerAssistantActive
+              ? "border-blue-600 bg-blue-600 text-white"
+              : "border-border bg-background text-blue-600 active:scale-95 dark:border-white/10 dark:bg-zinc-950"
+          }`}
+        >
+          <Sparkles size={20} />
+        </Link>
+      )}
+
       {items.length > 0 && (
         <nav
           data-testid="mobile-navigation"
-          aria-label="Navigation mobile KLYX"
+          aria-label={mobileNavigationLabel}
           className="fixed inset-x-0 bottom-0 z-50 transform-gpu border-t border-border bg-background/96 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-2xl lg:hidden dark:border-white/10"
         >
           <div className="mx-auto grid max-w-lg grid-cols-4 gap-1">
