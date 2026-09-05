@@ -13,6 +13,8 @@ import {
 import {
   secureApiErrorResponse,
 } from "@/lib/api-error";
+import { sendKlyxDeduplicatedEmail } from "@/lib/email/deduplicated-delivery";
+import { reviewRequestEmail } from "@/lib/email/lifecycle-templates";
 import {
   logServerError,
 } from "@/lib/server-log";
@@ -400,6 +402,12 @@ export async function POST(request: Request) {
               "La mission est terminée. Ton avis aidera les prochains utilisateurs.",
             deduplicationKey:
               `booking:${booking.id}:review-client`,
+          }),
+          sendKlyxDeduplicatedEmail({
+            deduplicationKey: `booking:${booking.id}:review-request:client`,
+            templateKey: "booking.review_request.client",
+            profileId: booking.parent_id,
+            ...reviewRequestEmail(booking.id),
           }),
         ];
 

@@ -15,7 +15,7 @@ import {
 import {
   secureApiErrorResponse,
 } from "@/lib/api-error";
-import { sendKlyxProfileTransactionalEmail } from "@/lib/email/resend";
+import { sendKlyxDeduplicatedEmail } from "@/lib/email/deduplicated-delivery";
 import { bookingRequestedEmail } from "@/lib/email/templates";
 import {
   isPastBookingStart,
@@ -805,7 +805,9 @@ export async function POST(request: Request) {
         message: `${label} demandé pour le ${bookingDate} de ${startTime} à ${endTime}.`,
       });
 
-      await sendKlyxProfileTransactionalEmail({
+      await sendKlyxDeduplicatedEmail({
+        deduplicationKey: `booking:${booking.id}:requested:provider`,
+        templateKey: "booking.requested.provider",
         profileId: providerId,
         ...bookingRequestedEmail({
           bookingId: booking.id,
