@@ -250,25 +250,34 @@ describe(
           routeSource.indexOf(
             "await rankProvidersForMultiSlots"
           );
+        const candidateTable =
+          routeSource.indexOf(
+            '"market_request_provider_candidates"',
+            rank
+          );
         const candidateWrite =
           routeSource.indexOf(
-            '"market_request_id,provider_profile_id"',
-            rank
+            ".insert(",
+            candidateTable
+          );
+        const slotTable =
+          routeSource.indexOf(
+            '"market_service_request_slots"',
+            candidateWrite
           );
         const slotMarker =
           routeSource.indexOf(
-            '"market_request_id,position"',
-            candidateWrite
+            ".insert(slotRows);",
+            slotTable
           );
 
         expect(rank).toBeGreaterThan(-1);
-        expect(candidateWrite).toBeGreaterThan(rank);
-        expect(slotMarker).toBeGreaterThan(candidateWrite);
+        expect(candidateTable).toBeGreaterThan(rank);
+        expect(candidateWrite).toBeGreaterThan(candidateTable);
+        expect(slotTable).toBeGreaterThan(candidateWrite);
+        expect(slotMarker).toBeGreaterThan(slotTable);
         expect(routeSource).toContain(
           "candidateSnapshotPersisted ="
-        );
-        expect(routeSource).toContain(
-          ".insert(slotRows);"
         );
       }
     );
