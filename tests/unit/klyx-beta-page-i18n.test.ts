@@ -31,11 +31,25 @@ describe("KLYX beta page i18n", () => {
     expect(getKlyxBetaPageDictionary("de").verificationWarning).toContain(
       "erst dann als verifiziert"
     );
+    expect(getKlyxBetaPageDictionary("es").verificationWarning).toContain(
+      "no las presenta como verificadas"
+    );
+  });
+
+  it("certifies the Spanish beta experience", () => {
+    expect(resolveKlyxBetaPageLocale("es")).toBe("es");
+    expect(getKlyxBetaPageDictionary("es")).toMatchObject({
+      metadataTitle: "Beta de KLYX",
+      login: "Iniciar sesión",
+      clientTitle: "Soy cliente",
+      providerTitle: "Soy profesional",
+      installTitle: "Instalar KLYX",
+    });
   });
 
   it("falls back explicitly to French outside the certified page locales", () => {
-    expect(resolveKlyxBetaPageLocale("es")).toBe("fr");
-    expect(getKlyxBetaPageDictionary("es")).toEqual(
+    expect(resolveKlyxBetaPageLocale("it")).toBe("fr");
+    expect(getKlyxBetaPageDictionary("it")).toEqual(
       getKlyxBetaPageDictionary("fr")
     );
   });
