@@ -5,6 +5,7 @@ export const KLYX_RESET_PASSWORD_PAGE_TRANSLATED_LOCALES = [
   "en",
   "nl",
   "de",
+  "es",
 ] as const;
 
 type KlyxResetPasswordPageLocale =
@@ -68,6 +69,17 @@ const RESET_PASSWORD_MESSAGES: Record<
     confirmPasswordPlaceholder: "Passwort bestätigen",
     updating: "Wird aktualisiert...",
     updatePassword: "Passwort aktualisieren",
+  },
+  es: {
+    passwordTooShort: "La contraseña debe contener al menos 6 caracteres.",
+    passwordMismatch: "Las contraseñas no coinciden.",
+    passwordUpdated: "Contraseña actualizada correctamente.",
+    title: "Nueva contraseña",
+    subtitle: "Elige una nueva contraseña para tu cuenta.",
+    newPasswordPlaceholder: "Nueva contraseña",
+    confirmPasswordPlaceholder: "Confirmar contraseña",
+    updating: "Actualizando...",
+    updatePassword: "Actualizar contraseña",
   },
 };
 
