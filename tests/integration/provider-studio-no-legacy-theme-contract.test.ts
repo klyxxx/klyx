@@ -7,10 +7,13 @@ const source = fs.readFileSync(
   "utf8"
 );
 
-test("provider Services source contains no legacy palette or dashboard wording", () => {
-  expect(source).not.toMatch(/violet-|indigo-|fuchsia-|bg-gradient|from-violet|Tableau de bord/);
-  expect(source).toContain("KLYX_PROVIDER_STUDIO_NATIVE_SINGLE_BLUE");
-  expect(source).toContain("bg-blue-600");
-  expect(source).toContain("text-blue-600");
-  expect(source).toContain("accent-blue-600");
+test("provider Services source contains no legacy identity palette or dashboard wording", () => {
+  expect(source).not.toMatch(
+    /#2563EB|blue-|violet-|indigo-|fuchsia-|bg-gradient|linear-gradient|Tableau de bord|KLYX_PROVIDER_STUDIO_NATIVE_SINGLE_BLUE/
+  );
+
+  expect(source).toContain("text-primary");
+  expect(source).toContain("bg-primary");
+  expect(source).toContain("text-primary-foreground");
+  expect(source).toContain("accent-primary");
 });
