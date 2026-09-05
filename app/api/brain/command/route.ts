@@ -9,6 +9,7 @@ import {
 } from "@/lib/brain-actions";
 import {
   bestBrainCommandAction,
+  bestSpecificBrainCommandAction,
   hasGeneralBrainCommandIntent,
   hasNewNeedBrainCommandIntent,
   hasSpecificBrainCommandIntent,
@@ -20,6 +21,12 @@ import {
 import {
   isKlyxAssistantMessageTooLong,
 } from "@/lib/klyx-assistant-message-limits";
+import {
+  localizeKlyxGroundedAction,
+} from "@/lib/klyx-grounded-action-i18n";
+import {
+  getServerKlyxLocale,
+} from "@/lib/klyx-server-i18n";
 
 // KLYX_TRUSTED_COMMAND_ROUTER_12_81
 
@@ -73,6 +80,9 @@ export async function POST(
         rawMessage
       );
 
+    const locale =
+      await getServerKlyxLocale();
+
     // IMPORTANT 12.81:
     // actions recalculated from DB server-side.
     const actions =
@@ -105,15 +115,26 @@ export async function POST(
       )
     ) {
       const action =
-        bestBrainCommandAction(
-          actions,
-          message
-        );
+        specificExistingIntent
+          ? bestSpecificBrainCommandAction(
+              actions,
+              message
+            )
+          : bestBrainCommandAction(
+              actions,
+              message
+            );
 
       if (action) {
+        const localizedAction =
+          localizeKlyxGroundedAction(
+            action,
+            locale
+          );
+
         const safeHref =
           normalizeKlyxAssistantActionHref(
-            action.href
+            localizedAction.href
           );
 
         if (!safeHref) {
@@ -132,17 +153,28 @@ export async function POST(
             "existing_action",
           automaticExecutionAllowed:
             false,
-          action: {
-            ...action,
-            href: safeHref,
-          },
+          action:
+            action.kind === "compare_offers"
+              ? {
+                  ...localizedAction,
+                  description:
+                    action.description,
+                  href: safeHref,
+                }
+              : {
+                  ...localizedAction,
+                  href: safeHref,
+                },
         });
       }
     }
 
     if (
       newNeedIntent ||
-      !generalActionIntent
+      (
+        !generalActionIntent &&
+        !specificExistingIntent
+      )
     ) {
       const params =
         new URLSearchParams();

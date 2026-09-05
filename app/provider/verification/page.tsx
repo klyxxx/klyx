@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
-import { getActiveClientProfile } from "@/lib/account-switcher";
+import { getActiveProfileAccount } from "@/lib/account-switcher";
 import {
   formatKlyxProviderVerificationFileSize,
   getKlyxProviderVerificationDocumentType,
@@ -119,7 +119,12 @@ export default function ProviderVerificationPage() {
     setErrorMessage("");
 
     try {
-      const profile = await getActiveClientProfile();
+      const profile = await getActiveProfileAccount();
+
+      if (profile.accountType !== "provider") {
+        throw new Error("KLYX_PROVIDER_VERIFICATION_PROVIDER_REQUIRED");
+      }
+
       setProfileId(profile.id);
 
       const token = await accessToken();
@@ -355,7 +360,7 @@ export default function ProviderVerificationPage() {
     return (
       <main className="klyx-page grid min-h-screen place-items-center">
         <LoaderCircle
-          className="animate-spin text-blue-600"
+          className="animate-spin text-[#2563EB]"
           size={38}
         />
       </main>
@@ -365,8 +370,8 @@ export default function ProviderVerificationPage() {
   return (
     <main className="klyx-page">
       <div className="mx-auto max-w-6xl">
-        <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,#111827,#1e3157_52%,#0f172a)] p-7 text-white sm:p-10">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-white/70">
+        <section className="klyx-card p-7 sm:p-10">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[#2563EB]/20 bg-[#2563EB]/5 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-[#2563EB]">
             <BadgeCheck size={15} />
             {t("providerOnly")}
           </div>
@@ -375,11 +380,11 @@ export default function ProviderVerificationPage() {
             {t("title")}
           </h1>
 
-          <p className="mt-4 max-w-2xl text-sm leading-7 text-white/70">
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground">
             {t("description")}
           </p>
 
-          <div className="mt-6 inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-black">
+          <div className="mt-6 inline-flex items-center gap-2 rounded-2xl border border-[#2563EB]/20 bg-[#2563EB]/5 px-4 py-3 text-sm font-black text-[#2563EB]">
             <ShieldCheck size={18} />
             {t("statusPrefix")} {translateKlyxProviderVerificationStatus(
               locale,
@@ -442,7 +447,7 @@ export default function ProviderVerificationPage() {
               >
                 <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex gap-4">
-                    <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                    <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-[#2563EB]/10 text-[#2563EB]">
                       <FileText size={22} />
                     </div>
 
@@ -471,7 +476,7 @@ export default function ProviderVerificationPage() {
                   </div>
 
                   {!locked && (
-                    <label className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-black text-white">
+                    <label className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#2563EB] px-4 text-sm font-black text-white">
                       {busy ? (
                         <LoaderCircle
                           className="animate-spin"

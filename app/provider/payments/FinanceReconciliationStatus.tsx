@@ -280,7 +280,7 @@ export default function FinanceReconciliationStatus() {
       <section className="klyx-card mt-6 p-6 sm:p-8">
         <div className="flex items-center gap-3">
           <LoaderCircle
-            className="animate-spin text-violet-600"
+            className="animate-spin text-[#2563EB]"
             size={22}
           />
 
