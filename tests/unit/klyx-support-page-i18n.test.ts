@@ -31,11 +31,26 @@ describe("KLYX support page i18n", () => {
     expect(getKlyxSupportPageDictionary("de").paymentBody).toContain(
       "keine vollständigen Zahlungskartendaten"
     );
+    expect(getKlyxSupportPageDictionary("es").paymentBody).toContain(
+      "No envío ningún dato completo de mi tarjeta de pago"
+    );
+  });
+
+  it("certifies the Spanish support experience", () => {
+    expect(resolveKlyxSupportPageLocale("es")).toBe("es");
+    expect(getKlyxSupportPageDictionary("es")).toMatchObject({
+      metadataTitle: "Soporte de KLYX",
+      title: "Soporte de KLYX",
+      contactSupport: "Contactar con soporte",
+      paymentTitle: "Pago",
+      securityTitle: "Seguridad",
+      open: "Abrir",
+    });
   });
 
   it("falls back explicitly to French outside the certified page locales", () => {
-    expect(resolveKlyxSupportPageLocale("es")).toBe("fr");
-    expect(getKlyxSupportPageDictionary("es")).toEqual(
+    expect(resolveKlyxSupportPageLocale("it")).toBe("fr");
+    expect(getKlyxSupportPageDictionary("it")).toEqual(
       getKlyxSupportPageDictionary("fr")
     );
   });
