@@ -293,10 +293,10 @@ export default function SkillRequirementsPanel({
       )}
 
       {rule.ruleLevel === "regulated" && (
-        <div className="mt-5 flex gap-3 rounded-xl border border-violet-500/20 bg-violet-500/10 p-4">
+        <div className="mt-5 flex gap-3 rounded-xl border border-[#2563EB]/20 bg-[#2563EB]/10 p-4">
           <ShieldCheck
             size={18}
-            className="mt-0.5 shrink-0 text-violet-600"
+            className="mt-0.5 shrink-0 text-[#2563EB]"
           />
           <div>
             <p className="text-sm font-black">{t("regulatedTitle")}</p>
