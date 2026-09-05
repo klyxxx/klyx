@@ -31,13 +31,27 @@ describe("provider quotes UX", () => {
     expect(source).not.toContain("/api/stripe");
   });
 
-  it("uses the single-blue KLYX visual language", () => {
-    expect(source).toContain("bg-blue-600");
-    expect(source).toContain("text-blue-600");
-    expect(source).not.toContain("text-cyan-");
-    expect(source).not.toContain("bg-cyan-");
-    expect(source).not.toContain("text-violet-");
-    expect(source).not.toContain("bg-violet-");
-    expect(source).not.toContain("bg-[linear-gradient");
+  it("uses the exact single-blue KLYX visual language", () => {
+    expect(source).toContain("#2563EB");
+
+    for (const legacyBranding of [
+      "blue-300",
+      "blue-400",
+      "blue-500",
+      "blue-600",
+      "blue-700",
+      "cyan-",
+      "violet-",
+      "indigo-",
+      "fuchsia-",
+      "bg-gradient",
+      "linear-gradient",
+      "#2b1452",
+    ]) {
+      expect(source).not.toContain(legacyBranding);
+    }
+
+    expect(source).toContain("amber-700");
+    expect(source).toContain("red-500");
   });
 });
