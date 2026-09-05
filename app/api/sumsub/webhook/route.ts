@@ -12,18 +12,19 @@ import {
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 type SumsubWebhook = {
-  applicantId?: string;
-  externalUserId?: string;
-  type?: string;
-  reviewStatus?: string;
-  sandboxMode?: boolean;
+  applicantId?: string | null;
+  externalUserId?: string | null;
+  type?: string | null;
+  reviewStatus?: string | null;
+  sandboxMode?: boolean | null;
+  testMode?: boolean | null;
   reviewResult?: {
-    reviewAnswer?: string;
-    reviewRejectType?: string;
-    moderationComment?: string;
-    clientComment?: string;
-    rejectLabels?: string[];
-  };
+    reviewAnswer?: string | null;
+    reviewRejectType?: string | null;
+    moderationComment?: string | null;
+    clientComment?: string | null;
+    rejectLabels?: string[] | null;
+  } | null;
 };
 
 function finalStatus(
@@ -84,6 +85,39 @@ function finalStatus(
   }
 
   return null;
+}
+
+function isProductionRuntime(): boolean {
+  const runtime =
+    process.env.VERCEL_ENV ??
+    process.env.NODE_ENV;
+
+  return runtime === "production";
+}
+
+async function markEventProcessed(
+  eventHash: string,
+  now: string
+): Promise<void> {
+  const {
+    error: eventUpdateError,
+  } = await supabaseAdmin
+    .from("sumsub_webhook_events")
+    .update({
+      processed: true,
+      processed_at: now,
+      last_error: null,
+    })
+    .eq(
+      "event_hash",
+      eventHash
+    );
+
+  if (eventUpdateError) {
+    throw new Error(
+      eventUpdateError.message
+    );
+  }
 }
 
 export async function POST(
@@ -171,17 +205,13 @@ export async function POST(
       processed: false,
     });
 
+  const duplicateEvent =
+    insertEventError?.code === "23505";
+
   if (
     insertEventError &&
-    insertEventError.code === "23505"
+    !duplicateEvent
   ) {
-    return NextResponse.json({
-      received: true,
-      duplicate: true,
-    });
-  }
-
-  if (insertEventError) {
     return secureApiErrorResponse({
       error:
         insertEventError,
@@ -197,7 +227,80 @@ export async function POST(
     });
   }
 
+  if (duplicateEvent) {
+    const {
+      data: existingEvent,
+      error: existingEventError,
+    } = await supabaseAdmin
+      .from("sumsub_webhook_events")
+      .select("processed")
+      .eq(
+        "event_hash",
+        eventHash
+      )
+      .maybeSingle();
+
+    if (existingEventError) {
+      return secureApiErrorResponse({
+        error:
+          existingEventError,
+        event:
+          "sumsub_webhook_duplicate_lookup_failed",
+        route:
+          "/api/sumsub/webhook",
+        method: "POST",
+        code:
+          "sumsub_webhook_duplicate_lookup_failed",
+        status: 500,
+        startedAt,
+      });
+    }
+
+    if (existingEvent?.processed) {
+      return NextResponse.json({
+        received: true,
+        processed: true,
+        duplicate: true,
+      });
+    }
+  }
+
   try {
+    const now =
+      new Date().toISOString();
+
+    if (payload.testMode === true) {
+      await markEventProcessed(
+        eventHash,
+        now
+      );
+
+      return NextResponse.json({
+        received: true,
+        processed: true,
+        duplicate: duplicateEvent,
+        ignored: "test_mode",
+      });
+    }
+
+    if (
+      payload.sandboxMode === true &&
+      isProductionRuntime()
+    ) {
+      await markEventProcessed(
+        eventHash,
+        now
+      );
+
+      return NextResponse.json({
+        received: true,
+        processed: true,
+        duplicate: duplicateEvent,
+        ignored:
+          "sandbox_in_production",
+      });
+    }
+
     const profileId =
       payload.externalUserId?.trim();
 
@@ -207,29 +310,62 @@ export async function POST(
       );
     }
 
-    const now =
-      new Date().toISOString();
-
-    const commonUpdate = {
+    const commonUpdate: Record<
+      string,
+      unknown
+    > = {
       external_provider: "sumsub",
-      external_applicant_id:
-        payload.applicantId ?? null,
-      external_review_status:
-        payload.reviewStatus ?? null,
-      external_review_answer:
-        payload.reviewResult
-          ?.reviewAnswer ?? null,
-      external_reject_type:
-        payload.reviewResult
-          ?.reviewRejectType ?? null,
-      external_moderation_comment:
-        payload.reviewResult
-          ?.moderationComment ?? null,
-      external_sandbox_mode:
-        payload.sandboxMode ?? null,
       external_updated_at: now,
       updated_at: now,
     };
+
+    if (
+      payload.applicantId !==
+      undefined
+    ) {
+      commonUpdate.external_applicant_id =
+        payload.applicantId;
+    }
+
+    if (
+      payload.reviewStatus !==
+      undefined
+    ) {
+      commonUpdate.external_review_status =
+        payload.reviewStatus;
+    }
+
+    if (
+      payload.sandboxMode !==
+      undefined
+    ) {
+      commonUpdate.external_sandbox_mode =
+        payload.sandboxMode;
+    }
+
+    if (
+      payload.reviewResult
+        ?.reviewAnswer !== undefined
+    ) {
+      commonUpdate.external_review_answer =
+        payload.reviewResult.reviewAnswer;
+    }
+
+    if (
+      payload.reviewResult
+        ?.reviewRejectType !== undefined
+    ) {
+      commonUpdate.external_reject_type =
+        payload.reviewResult.reviewRejectType;
+    }
+
+    if (
+      payload.reviewResult
+        ?.moderationComment !== undefined
+    ) {
+      commonUpdate.external_moderation_comment =
+        payload.reviewResult.moderationComment;
+    }
 
     const { data: existing, error: existingError } =
       await supabaseAdmin
@@ -336,29 +472,15 @@ export async function POST(
       }
     }
 
-    const {
-      error: eventUpdateError,
-    } = await supabaseAdmin
-      .from("sumsub_webhook_events")
-      .update({
-        processed: true,
-        processed_at: now,
-        last_error: null,
-      })
-      .eq(
-        "event_hash",
-        eventHash
-      );
-
-    if (eventUpdateError) {
-      throw new Error(
-        eventUpdateError.message
-      );
-    }
+    await markEventProcessed(
+      eventHash,
+      now
+    );
 
     return NextResponse.json({
       received: true,
       processed: true,
+      duplicate: duplicateEvent,
     });
   } catch (error) {
     await supabaseAdmin
