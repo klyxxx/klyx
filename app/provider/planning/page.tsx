@@ -63,7 +63,7 @@ function warningTone(severity: Warning["severity"]) {
     return "border-amber-500/35 text-amber-700 dark:text-amber-300";
   }
 
-  return "border-blue-600/25 text-blue-700 dark:text-blue-300";
+  return "border-[#2563EB]/25 text-[#2563EB]";
 }
 
 export default function ProviderPlanningPage() {
@@ -118,7 +118,7 @@ export default function ProviderPlanningPage() {
       <div className="mx-auto max-w-4xl">
         <header className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
           <div className="max-w-2xl">
-            <div className="flex items-center gap-2 text-sm font-semibold text-blue-600 dark:text-blue-400">
+            <div className="flex items-center gap-2 text-sm font-semibold text-[#2563EB]">
               <CalendarClock size={17} />
               <span>{t("eyebrow")}</span>
             </div>
@@ -132,7 +132,7 @@ export default function ProviderPlanningPage() {
             type="button"
             onClick={() => void load()}
             disabled={loading}
-            className="inline-flex min-h-10 w-fit shrink-0 items-center justify-center gap-2 rounded-xl border border-border px-3 text-sm font-semibold text-muted-foreground transition hover:border-blue-600/25 hover:text-foreground disabled:opacity-50"
+            className="inline-flex min-h-10 w-fit shrink-0 items-center justify-center gap-2 rounded-xl border border-border px-3 text-sm font-semibold text-muted-foreground transition hover:border-[#2563EB]/25 hover:text-foreground disabled:opacity-50"
           >
             <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
             {t("refresh")}
@@ -141,7 +141,7 @@ export default function ProviderPlanningPage() {
 
         {loading && (
           <div className="grid min-h-72 place-items-center" aria-label={t("title")}>
-            <LoaderCircle className="animate-spin text-blue-600" size={28} />
+            <LoaderCircle className="animate-spin text-[#2563EB]" size={28} />
           </div>
         )}
 
@@ -174,7 +174,7 @@ export default function ProviderPlanningPage() {
                   <article key={day.date} className="border-b border-border py-7 sm:py-8">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-600 dark:text-blue-400">
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2563EB]">
                           {day.date}
                         </p>
                         <h2 className="mt-1 text-xl font-semibold capitalize sm:text-2xl">
@@ -189,7 +189,7 @@ export default function ProviderPlanningPage() {
                         </h2>
                       </div>
 
-                      <span className="inline-flex w-fit items-center gap-2 text-xs font-semibold text-blue-700 dark:text-blue-300">
+                      <span className="inline-flex w-fit items-center gap-2 text-xs font-semibold text-[#2563EB]">
                         <Clock3 size={14} />
                         {formatKlyxProviderPlanningDuration(day.totalMinutes)}
                       </span>
@@ -235,7 +235,7 @@ export default function ProviderPlanningPage() {
                         <Link
                           key={booking.id}
                           href={`/bookings/${booking.id}`}
-                          className="flex flex-col gap-2 py-4 transition hover:text-blue-600 sm:flex-row sm:items-center sm:justify-between"
+                          className="flex flex-col gap-2 py-4 transition hover:text-[#2563EB] sm:flex-row sm:items-center sm:justify-between"
                         >
                           <div>
                             <p className="font-semibold">
