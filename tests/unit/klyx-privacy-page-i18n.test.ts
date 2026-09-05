@@ -31,6 +31,9 @@ describe("KLYX privacy page i18n", () => {
     expect(getKlyxPrivacyPageDictionary("de").section2PaymentText).toContain(
       "Kartendaten werden vom Zahlungsdienstleister verarbeitet und sind nicht dafür bestimmt, direkt von KLYX gespeichert zu werden"
     );
+    expect(getKlyxPrivacyPageDictionary("es").section2PaymentText).toContain(
+      "Los datos de tarjeta son tratados por el proveedor de pagos y no están destinados a ser almacenados directamente por KLYX"
+    );
   });
 
   it("keeps deletion, retention and external identity verification explicit", () => {
@@ -46,6 +49,9 @@ describe("KLYX privacy page i18n", () => {
     expect(getKlyxPrivacyPageDictionary("de").section5Text).toContain(
       "gelöscht oder anonymisiert"
     );
+    expect(getKlyxPrivacyPageDictionary("es").section5Text).toContain(
+      "eliminarse o anonimizarse"
+    );
 
     expect(getKlyxPrivacyPageDictionary("fr").deletionAfterLink).toContain(
       "vérification d’identité peut être demandée avant de traiter une demande externe"
@@ -58,6 +64,9 @@ describe("KLYX privacy page i18n", () => {
     );
     expect(getKlyxPrivacyPageDictionary("de").deletionAfterLink).toContain(
       "Bearbeitung eines externen Antrags kann eine Identitätsprüfung verlangt werden"
+    );
+    expect(getKlyxPrivacyPageDictionary("es").deletionAfterLink).toContain(
+      "verificación de identidad antes de tramitar una solicitud externa"
     );
   });
 
@@ -74,11 +83,23 @@ describe("KLYX privacy page i18n", () => {
     expect(getKlyxPrivacyPageDictionary("de").section7Text).toContain(
       "Kein System ist jedoch völlig risikofrei"
     );
+    expect(getKlyxPrivacyPageDictionary("es").section7Text).toContain(
+      "Ningún sistema está completamente libre de riesgos"
+    );
+  });
+
+  it("certifies the Spanish privacy page copy", () => {
+    expect(resolveKlyxPrivacyPageLocale("es")).toBe("es");
+    expect(getKlyxPrivacyPageDictionary("es")).toMatchObject({
+      metadataTitle: "Política de privacidad",
+      backLegal: "Información de KLYX",
+      title: "Política de privacidad",
+    });
   });
 
   it("falls back explicitly to French outside the certified page locales", () => {
-    expect(resolveKlyxPrivacyPageLocale("es")).toBe("fr");
-    expect(getKlyxPrivacyPageDictionary("es")).toEqual(
+    expect(resolveKlyxPrivacyPageLocale("it")).toBe("fr");
+    expect(getKlyxPrivacyPageDictionary("it")).toEqual(
       getKlyxPrivacyPageDictionary("fr")
     );
   });
