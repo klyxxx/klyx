@@ -5,6 +5,7 @@ export const KLYX_TERMS_PAGE_TRANSLATED_LOCALES = [
   "en",
   "nl",
   "de",
+  "es",
 ] as const;
 
 export type KlyxTermsPageLocale =
@@ -188,6 +189,42 @@ const TERMS_PAGE_MESSAGES: Record<KlyxTermsPageLocale, TermsPageDictionary> = {
     privacyLink: "Datenschutzerklärung",
     section10Title: "10. Kontakt",
     contactIntro: "Bei Fragen zu diesen Bedingungen:",
+  },
+  es: {
+    metadataTitle: "Condiciones de uso",
+    metadataDescription: "Condiciones de uso de la plataforma KLYX.",
+    backLegal: "Información de KLYX",
+    lastUpdated: "Última actualización: 10 de agosto de 2026",
+    title: "Condiciones de uso",
+    section1Title: "1. Objeto",
+    section1Text:
+      "KLYX es una plataforma que permite, entre otras cosas, buscar servicios, consultar proveedores, solicitar presupuestos, reservar, comunicarse, pagar y seguir una misión.",
+    section2Title: "2. Cuentas",
+    section2Text:
+      "El usuario debe proporcionar información exacta, proteger sus datos de acceso y no utilizar la cuenta de otra persona sin autorización. KLYX puede aplicar verificaciones adicionales a los proveedores antes de publicar determinadas profesiones.",
+    section3Title: "3. Proveedores",
+    section3Text:
+      "Salvo indicación contraria, los proveedores presentes en KLYX prestan sus servicios bajo su propia responsabilidad. Deben describir honestamente sus competencias, precios, disponibilidad y zonas de intervención, y respetar las normas profesionales aplicables a su actividad.",
+    section4Title: "4. Reservas, precios y pago",
+    section4Text:
+      "El precio y el método de tarificación aplicables se presentan durante el proceso de reserva o en un presupuesto aceptado. El pago puede ser procesado por un proveedor de pagos externo. Una reserva no debe considerarse pagada hasta que KLYX haya recibido la confirmación correspondiente.",
+    section5Title: "5. Cancelaciones y reembolsos",
+    section5Text:
+      "Las posibilidades de cancelación dependen del estado de la reserva y de la misión. Cuando un pago deba reembolsarse, el procesamiento puede depender del proveedor de pagos. Un servicio que ya haya comenzado puede requerir un procedimiento de disputa en lugar de una cancelación automática.",
+    section6Title: "6. Reseñas y confianza",
+    section6Text:
+      "KLYX puede limitar las reseñas a las misiones realmente finalizadas. Las puntuaciones, insignias y verificaciones son indicadores de confianza y no sustituyen el criterio del usuario ni constituyen una garantía absoluta sobre la ejecución futura de un servicio.",
+    section7Title: "7. Usos prohibidos",
+    section7Text:
+      "Está prohibido utilizar KLYX para cometer fraude, suplantar una identidad, eludir mecanismos de pago o seguridad, publicar información engañosa, acosar a un usuario u ofrecer una actividad ilegal.",
+    section8Title: "8. Disponibilidad",
+    section8Text:
+      "KLYX procura mantener el servicio disponible y fiable, pero las operaciones de mantenimiento, fallos externos o eventos técnicos pueden provocar interrupciones.",
+    section9Title: "9. Datos personales",
+    section9Intro: "El tratamiento de los datos personales se describe en la",
+    privacyLink: "política de privacidad",
+    section10Title: "10. Contacto",
+    contactIntro: "Para cualquier pregunta relacionada con estas condiciones:",
   },
 };
 
