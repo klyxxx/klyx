@@ -71,12 +71,13 @@ describe("KLYX Activity recent-first deletion contract", () => {
 
   it("requires explicit confirmation and preserves the #543 fail-closed Activity rendering guard", () => {
     const page = read("app/bookings/page.tsx");
+    const compactPage = page.replace(/\s+/g, " ");
 
     expect(page).toContain("window.confirm");
     expect(page).toContain('method: "POST"');
     expect(page).toContain("!Array.isArray(body.cards)");
     expect(page).toContain("hiddenBody.ok !== true");
     expect(page).toContain("!Array.isArray(hiddenBody.hidden)");
-    expect(page).toContain(") : errorKey ? null : counts.all === 0 ? (");
+    expect(compactPage).toContain(") : errorKey ? null : counts.all === 0 ? (");
   });
 });

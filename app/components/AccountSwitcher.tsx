@@ -180,7 +180,7 @@ export default function AccountSwitcher({
         aria-expanded={open}
         aria-haspopup="menu"
       >
-        <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-blue-600/10 text-blue-700 dark:text-blue-300">
+        <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-[#2563EB]/10 text-[#2563EB]">
           {loading || switchingId ? (
             <LoaderCircle size={17} className="animate-spin" />
           ) : (
@@ -231,7 +231,7 @@ export default function AccountSwitcher({
                   onClick={() => void handleSwitch(profile.id)}
                   disabled={switchingId !== null}
                   className={`flex min-h-12 w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition disabled:cursor-wait disabled:opacity-60 ${
-                    active ? "bg-blue-600/10" : "hover:bg-muted"
+                    active ? "bg-[#2563EB]/10" : "hover:bg-muted"
                   }`}
                 >
                   <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full bg-muted text-muted-foreground">
@@ -256,7 +256,7 @@ export default function AccountSwitcher({
                     </span>
                   </span>
 
-                  {active && <Check size={16} className="shrink-0 text-blue-600" />}
+                  {active && <Check size={16} className="shrink-0 text-[#2563EB]" />}
                 </button>
               );
             })}
