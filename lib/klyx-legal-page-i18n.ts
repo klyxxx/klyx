@@ -1,6 +1,12 @@
 import type { KlyxLocale } from "./klyx-i18n";
 
-export const KLYX_LEGAL_PAGE_TRANSLATED_LOCALES = ["fr", "en", "nl", "de"] as const;
+export const KLYX_LEGAL_PAGE_TRANSLATED_LOCALES = [
+  "fr",
+  "en",
+  "nl",
+  "de",
+  "es",
+] as const;
 
 export type KlyxLegalPageLocale =
   (typeof KLYX_LEGAL_PAGE_TRANSLATED_LOCALES)[number];
@@ -110,6 +116,27 @@ const LEGAL_PAGE_MESSAGES: Record<KlyxLegalPageLocale, LegalPageDictionary> = {
     deleteTitle: "Konto löschen",
     deleteDescription:
       "Fordere die Löschung deines Kontos und der zugehörigen Daten an.",
+  },
+  es: {
+    metadataTitle: "Información legal de KLYX",
+    metadataDescription:
+      "Accede a la información legal, privacidad, asistencia y eliminación de cuenta de KLYX.",
+    badge: "Información de KLYX",
+    title: "Información legal, privacidad y asistencia",
+    description:
+      "Información esencial para comprender tus derechos y utilizar KLYX con transparencia.",
+    privacyTitle: "Política de privacidad",
+    privacyDescription:
+      "Datos recopilados, finalidades, proveedores, conservación y derechos.",
+    termsTitle: "Condiciones de uso",
+    termsDescription:
+      "Reglas de uso de KLYX para clientes y prestadores de servicios.",
+    supportTitle: "Asistencia",
+    supportDescription:
+      "Contacta con KLYX por un problema de cuenta, pago o reserva.",
+    deleteTitle: "Eliminación de la cuenta",
+    deleteDescription:
+      "Solicita la eliminación de tu cuenta y de los datos asociados.",
   },
 };
 
