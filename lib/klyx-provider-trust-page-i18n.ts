@@ -1,6 +1,6 @@
 import type { KlyxLocale } from "./klyx-i18n";
 
-export const KLYX_PROVIDER_TRUST_TRANSLATED_LOCALES = ["fr", "en", "nl", "de"] as const;
+export const KLYX_PROVIDER_TRUST_TRANSLATED_LOCALES = ["fr", "en", "nl", "de", "es"] as const;
 export type KlyxProviderTrustLocale = (typeof KLYX_PROVIDER_TRUST_TRANSLATED_LOCALES)[number];
 
 export const KLYX_PROVIDER_TRUST_MESSAGE_KEYS = [
@@ -21,6 +21,9 @@ const MESSAGES: Record<KlyxProviderTrustLocale, Dictionary> = {
   },
   de: {
     sessionMissing:"KLYX-Sitzung fehlt.", loadError:"Professionelle Fälle sind derzeit nicht verfügbar.", eyebrow:"Beruflicher Schutz", title:"Vertrauenszentrum für Dienstleister", description:"Sieh eingegangene Meldungen ein und verfolge die Fälle, die mit deiner beruflichen Tätigkeit verbunden sind.", receivedTitle:"Eingegangene Meldungen", receivedDescription:"Fälle, die gegen dein berufliches Profil eröffnet wurden.", receivedEmpty:"Keine Meldung eingegangen.", openedTitle:"Von mir eröffnete Meldungen", openedDescription:"Fälle, die du zu einem Kunden eröffnet hast.", openedEmpty:"Kein Fall von dir eröffnet.", viewMission:"Mission ansehen",
+  },
+  es: {
+    sessionMissing:"Falta la sesión de KLYX.", loadError:"No se pueden cargar los expedientes profesionales en este momento.", eyebrow:"Protección profesional", title:"Centro de confianza para proveedores", description:"Consulta las incidencias recibidas y sigue los expedientes vinculados a tu actividad profesional.", receivedTitle:"Incidencias recibidas", receivedDescription:"Expedientes abiertos contra tu perfil profesional.", receivedEmpty:"Ninguna incidencia recibida.", openedTitle:"Incidencias abiertas por mí", openedDescription:"Expedientes que has abierto sobre un cliente.", openedEmpty:"Ningún expediente abierto por ti.", viewMission:"Ver la misión",
   },
 };
 
