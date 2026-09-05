@@ -110,7 +110,7 @@ export function splitMissionMatchesFilter(
 
 function statusClass(mission: SplitMissionSummary) {
   if (splitMissionNeedsAction(mission)) {
-    return "border-[#2563EB]/20 bg-[#2563EB]/[0.06] text-[#2563EB]";
+    return "border-primary/20 bg-accent/40 text-primary";
   }
 
   return "border-border bg-background text-muted-foreground";
@@ -172,7 +172,7 @@ export function SplitMissionCardView({
           </div>
 
           {needsAction && (
-            <p className="mt-3 max-w-2xl border-l-2 border-[#2563EB] pl-3 text-sm leading-6 text-muted-foreground">
+            <p className="mt-3 max-w-2xl border-l-2 border-primary pl-3 text-sm leading-6 text-muted-foreground">
               {t("dangerNotice")}
             </p>
           )}
@@ -187,7 +187,7 @@ export function SplitMissionCardView({
         <div className="flex shrink-0 flex-wrap items-center gap-3">
           <Link
             href={"/bookings/split/" + mission.batchId}
-            className="inline-flex min-h-10 items-center justify-center gap-2 text-sm font-semibold text-[#2563EB] transition hover:opacity-75"
+            className="inline-flex min-h-10 items-center justify-center gap-2 text-sm font-semibold text-primary transition hover:opacity-75"
           >
             {t("viewMission")}
             <ArrowRight size={16} />
@@ -292,7 +292,7 @@ export default function SplitMissionSection({
   return (
     <section className="mt-6">
       <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
-        <Layers3 size={16} className="text-[#2563EB]" />
+        <Layers3 size={16} className="text-primary" />
         <span>{t("sectionTitle")}</span>
       </div>
 
