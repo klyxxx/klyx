@@ -199,10 +199,14 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Parallel PRs can legitimately land a migration whose timestamp is
+          # older than the latest version already recorded in production.
+          # --include-all lets Supabase apply every local migration missing
+          # from remote history instead of refusing that valid ordering gap.
           if [ "$SUPABASE_DEPLOY_MODE" = "db_url" ]; then
-            supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run | tee migration-proof/dry-run-before.txt
+            supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --include-all --dry-run | tee migration-proof/dry-run-before.txt
           else
-            supabase db push --linked --dry-run | tee migration-proof/dry-run-before.txt
+            supabase db push --linked --include-all --dry-run | tee migration-proof/dry-run-before.txt
           fi
 
       - name: Apply pending production migrations
@@ -211,9 +215,9 @@ jobs:
           set -euo pipefail
 
           if [ "$SUPABASE_DEPLOY_MODE" = "db_url" ]; then
-            supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL"
+            supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --include-all
           else
-            supabase db push --linked
+            supabase db push --linked --include-all
           fi
 
       - name: Verify production migration status
@@ -223,10 +227,10 @@ jobs:
 
           if [ "$SUPABASE_DEPLOY_MODE" = "db_url" ]; then
             supabase migration list --db-url "$SUPABASE_EFFECTIVE_DB_URL" | tee migration-proof/after.txt
-            supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run | tee migration-proof/dry-run-after.txt
+            supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --include-all --dry-run | tee migration-proof/dry-run-after.txt
           else
             supabase migration list --linked | tee migration-proof/after.txt
-            supabase db push --linked --dry-run | tee migration-proof/dry-run-after.txt
+            supabase db push --linked --include-all --dry-run | tee migration-proof/dry-run-after.txt
           fi
 
           if grep -Fqi "Would push these migrations" migration-proof/dry-run-after.txt; then
