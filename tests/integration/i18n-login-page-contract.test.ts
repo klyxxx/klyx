@@ -24,7 +24,7 @@ describe("KLYX login page-i18n integration", () => {
 
   it("keeps login page coverage explicit and fail-closed", () => {
     expect(loginI18n).toContain(
-      'KLYX_LOGIN_PAGE_TRANSLATED_LOCALES = ["fr", "en", "nl", "de"]'
+      'KLYX_LOGIN_PAGE_TRANSLATED_LOCALES = ["fr", "en", "nl", "de", "es"]'
     );
     expect(loginI18n).toContain(': "fr"');
     expect(loginI18n).toContain("hasKlyxLoginPageTranslation");
