@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { sendStripeLifecycleEmails } from "@/lib/email/stripe-lifecycle-hook";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   markBookingGroupFailedFromSession,
@@ -240,6 +241,8 @@ export async function POST(request: Request) {
     );
 
     if (splitPaymentHandled) {
+      await sendStripeLifecycleEmails(event);
+
       const finalized = await markStripeWebhookProcessed(
         event.id,
         attemptCount
@@ -409,6 +412,8 @@ export async function POST(request: Request) {
       default:
         break;
     }
+
+    await sendStripeLifecycleEmails(event);
 
     const finalized = await markStripeWebhookProcessed(
       event.id,
