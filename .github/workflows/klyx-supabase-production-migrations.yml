@@ -199,21 +199,70 @@ jobs:
         run: |
           set -euo pipefail
 
+          approved_historical_migration="supabase/migrations/20260904213000_klyx_profile_delete_execution_hardening.sql"
+          historical_gap_message="Found local migration files to be inserted before the last migration on remote database."
+
+          set +e
           if [ "$SUPABASE_DEPLOY_MODE" = "db_url" ]; then
-            supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run | tee migration-proof/dry-run-before.txt
+            supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run > migration-proof/dry-run-before.txt 2>&1
+            preview_status=$?
           else
-            supabase db push --linked --dry-run | tee migration-proof/dry-run-before.txt
+            supabase db push --linked --dry-run > migration-proof/dry-run-before.txt 2>&1
+            preview_status=$?
           fi
+          set -e
+
+          cat migration-proof/dry-run-before.txt
+
+          if [ "$preview_status" -eq 0 ]; then
+            echo "SUPABASE_INCLUDE_ALL=false" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          if ! grep -Fq "$historical_gap_message" migration-proof/dry-run-before.txt; then
+            echo "::error::Supabase dry-run failed for a reason other than a historical migration gap."
+            exit "$preview_status"
+          fi
+
+          mapfile -t historical_migrations < <(
+            grep -Eo 'supabase/migrations/[0-9]{14}_[A-Za-z0-9_.-]+\.sql' migration-proof/dry-run-before.txt \
+              | sort -u
+          )
+
+          if [ "${#historical_migrations[@]}" -ne 1 ] \
+            || [ "${historical_migrations[0]:-}" != "$approved_historical_migration" ]; then
+            echo "::error::Refusing --include-all: the historical migration gap is not the single approved KLYX migration."
+            printf 'Detected historical migration: %s\n' "${historical_migrations[@]:-<none>}"
+            exit 1
+          fi
+
+          echo "Approved one-time historical migration gap detected: $approved_historical_migration"
+          echo "Running a second dry-run with --include-all before any production write."
+
+          if [ "$SUPABASE_DEPLOY_MODE" = "db_url" ]; then
+            supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run --include-all \
+              | tee migration-proof/dry-run-include-all.txt
+          else
+            supabase db push --linked --dry-run --include-all \
+              | tee migration-proof/dry-run-include-all.txt
+          fi
+
+          echo "SUPABASE_INCLUDE_ALL=true" >> "$GITHUB_ENV"
 
       - name: Apply pending production migrations
         shell: bash
         run: |
           set -euo pipefail
 
+          push_args=()
+          if [ "${SUPABASE_INCLUDE_ALL:-false}" = "true" ]; then
+            push_args+=(--include-all)
+          fi
+
           if [ "$SUPABASE_DEPLOY_MODE" = "db_url" ]; then
-            supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL"
+            supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" "${push_args[@]}"
           else
-            supabase db push --linked
+            supabase db push --linked "${push_args[@]}"
           fi
 
       - name: Verify production migration status

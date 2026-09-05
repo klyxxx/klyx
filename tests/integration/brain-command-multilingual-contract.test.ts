@@ -46,10 +46,11 @@ describe("KLYX multilingual brain command router contract", () => {
     expect(routeSource).toContain('"/assistant/market?" +');
   });
 
-  it("preserves no-action fallback and never adds financial execution", () => {
+  it("preserves every no-execution path including unsafe href rejection", () => {
     expect(routeSource).toContain('mode:\n        "no_action"');
     expect(routeSource).toContain('href:\n        "/assistant/actions"');
-    expect(routeSource.match(/automaticExecutionAllowed:\s*false/g)?.length).toBe(3);
+    expect(routeSource).toContain("if (!safeHref)");
+    expect(routeSource.match(/automaticExecutionAllowed:\s*false/g)?.length).toBe(4);
     expect(routeSource).not.toContain("payment_intents");
     expect(routeSource).not.toContain("checkout.sessions");
     expect(routeSource).not.toContain("refunds.create");

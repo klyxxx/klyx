@@ -16,7 +16,8 @@ describe("provider planning UX", () => {
   });
 
   it("uses KLYX blue for identity and semantic colors only for real states", () => {
-    expect(source).toContain("text-blue-600");
+    expect(source).toContain("text-[#2563EB]");
+    expect(source).not.toContain("text-blue-");
     expect(source).not.toContain("text-violet-");
     expect(source).not.toContain("bg-violet-");
   });

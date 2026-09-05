@@ -1,6 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import {
+  formatKlyxProviderAvailabilityActiveDays,
+  formatKlyxProviderAvailabilityInvalidTime,
+  translateKlyxProviderAvailability,
+  translateKlyxProviderAvailabilityDay,
+  type KlyxProviderAvailabilityDayKey,
+  type KlyxProviderAvailabilityMessageKey,
+} from "@/lib/klyx-provider-availability-i18n";
 import { supabase } from "@/lib/supabase";
 
 type AvailabilitySlotRow = {
@@ -23,14 +33,17 @@ type AvailabilityEditorProps = {
   userServiceId: string;
 };
 
-const DAYS = [
-  { value: 1, label: "Lundi" },
-  { value: 2, label: "Mardi" },
-  { value: 3, label: "Mercredi" },
-  { value: 4, label: "Jeudi" },
-  { value: 5, label: "Vendredi" },
-  { value: 6, label: "Samedi" },
-  { value: 0, label: "Dimanche" },
+const DAYS: ReadonlyArray<{
+  value: number;
+  key: KlyxProviderAvailabilityDayKey;
+}> = [
+  { value: 1, key: "monday" },
+  { value: 2, key: "tuesday" },
+  { value: 3, key: "wednesday" },
+  { value: 4, key: "thursday" },
+  { value: 5, key: "friday" },
+  { value: 6, key: "saturday" },
+  { value: 0, key: "sunday" },
 ];
 
 function createDefaultDays(): DayAvailability[] {
@@ -45,6 +58,10 @@ function createDefaultDays(): DayAvailability[] {
 export default function AvailabilityEditor({
   userServiceId,
 }: AvailabilityEditorProps) {
+  const { locale } = useKlyxLocale();
+  const t = (key: KlyxProviderAvailabilityMessageKey) =>
+    translateKlyxProviderAvailability(locale, key);
+
   const [days, setDays] = useState<DayAvailability[]>(createDefaultDays);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -76,7 +93,7 @@ export default function AvailabilityEditor({
         .order("day_of_week", { ascending: true });
 
       if (error) {
-        throw new Error(error.message);
+        throw new Error("KLYX_PROVIDER_AVAILABILITY_LOAD_FAILED");
       }
 
       const slots = (data ?? []) as AvailabilitySlotRow[];
@@ -99,16 +116,12 @@ export default function AvailabilityEditor({
           };
         })
       );
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Impossible de charger les disponibilités."
-      );
+    } catch {
+      setErrorMessage(t("loadError"));
     } finally {
       setLoading(false);
     }
-  }, [userServiceId]);
+  }, [locale, userServiceId]);
 
   useEffect(() => {
     void loadAvailability();
@@ -127,7 +140,7 @@ export default function AvailabilityEditor({
 
   async function saveAvailability() {
     if (!userServiceId) {
-      setErrorMessage("Le service utilisateur est introuvable.");
+      setErrorMessage(t("serviceMissing"));
       return;
     }
 
@@ -136,12 +149,15 @@ export default function AvailabilityEditor({
     );
 
     if (invalidDay) {
-      const label =
-        DAYS.find((day) => day.value === invalidDay.dayOfWeek)?.label ??
-        "Un jour";
+      const dayKey = DAYS.find(
+        (day) => day.value === invalidDay.dayOfWeek
+      )?.key;
+      const label = dayKey
+        ? translateKlyxProviderAvailabilityDay(locale, dayKey)
+        : t("dayFallback");
 
       setErrorMessage(
-        `${label} : l'heure de fin doit être après l'heure de début.`
+        formatKlyxProviderAvailabilityInvalidTime(locale, label)
       );
       return;
     }
@@ -157,7 +173,7 @@ export default function AvailabilityEditor({
         .eq("user_service_id", userServiceId);
 
       if (deleteError) {
-        throw new Error(deleteError.message);
+        throw new Error("KLYX_PROVIDER_AVAILABILITY_DELETE_FAILED");
       }
 
       const enabledDays = days.filter((day) => day.enabled);
@@ -177,17 +193,13 @@ export default function AvailabilityEditor({
           );
 
         if (insertError) {
-          throw new Error(insertError.message);
+          throw new Error("KLYX_PROVIDER_AVAILABILITY_INSERT_FAILED");
         }
       }
 
-      setMessage("Disponibilités enregistrées.");
-    } catch (error) {
-      setErrorMessage(
-        error instanceof Error
-          ? error.message
-          : "Impossible d'enregistrer les disponibilités."
-      );
+      setMessage(t("saved"));
+    } catch {
+      setErrorMessage(t("saveError"));
     } finally {
       setSaving(false);
     }
@@ -195,23 +207,23 @@ export default function AvailabilityEditor({
 
   if (loading) {
     return (
-      <section className="rounded-3xl border border-border dark:border-zinc-800 bg-card/60 dark:bg-zinc-900/60 p-6 sm:p-8">
-        <p className="text-muted-foreground dark:text-zinc-400">Chargement des disponibilités...</p>
+      <section className="rounded-3xl border border-border bg-card/60 p-6 dark:border-zinc-800 dark:bg-zinc-900/60 sm:p-8">
+        <p className="text-muted-foreground dark:text-zinc-400">
+          {t("loading")}
+        </p>
       </section>
     );
   }
 
   return (
-    <section className="rounded-3xl border border-border dark:border-zinc-800 bg-card/60 dark:bg-zinc-900/60 p-6 sm:p-8">
+    <section className="rounded-3xl border border-border bg-card/60 p-6 dark:border-zinc-800 dark:bg-zinc-900/60 sm:p-8">
       <div className="mb-6">
-        <h2 className="text-xl font-semibold">Disponibilités hebdomadaires</h2>
+        <h2 className="text-xl font-semibold">{t("title")}</h2>
         <p className="mt-2 text-sm text-muted-foreground dark:text-zinc-400">
-          Sélectionne les jours et les horaires pendant lesquels les clients
-          peuvent te réserver.
+          {t("description")}
         </p>
-        <p className="mt-2 text-sm text-violet-300">
-          {activeDaysCount} jour{activeDaysCount > 1 ? "s" : ""} actif
-          {activeDaysCount > 1 ? "s" : ""}
+        <p className="mt-2 text-sm font-medium text-[#2563EB]">
+          {formatKlyxProviderAvailabilityActiveDays(locale, activeDaysCount)}
         </p>
       </div>
 
@@ -240,7 +252,7 @@ export default function AvailabilityEditor({
           return (
             <div
               key={day.dayOfWeek}
-              className="grid gap-4 rounded-2xl border border-border dark:border-zinc-800 bg-background dark:bg-zinc-950 p-4 md:grid-cols-[160px_1fr_1fr]"
+              className="grid gap-4 rounded-2xl border border-border bg-background p-4 dark:border-zinc-800 dark:bg-zinc-950 md:grid-cols-[160px_1fr_1fr]"
             >
               <label className="flex items-center gap-3 font-medium">
                 <input
@@ -251,14 +263,14 @@ export default function AvailabilityEditor({
                       enabled: event.target.checked,
                     })
                   }
-                  className="h-5 w-5 accent-violet-600"
+                  className="h-5 w-5 accent-[#2563EB]"
                 />
-                {dayDefinition.label}
+                {translateKlyxProviderAvailabilityDay(locale, dayDefinition.key)}
               </label>
 
               <div>
                 <label className="mb-2 block text-xs text-muted-foreground dark:text-zinc-500">
-                  Début
+                  {t("start")}
                 </label>
                 <input
                   type="time"
@@ -269,13 +281,13 @@ export default function AvailabilityEditor({
                       startTime: event.target.value,
                     })
                   }
-                  className="w-full rounded-xl border border-border dark:border-zinc-700 bg-card dark:bg-zinc-900 px-4 py-3 outline-none focus:border-violet-500 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="w-full rounded-xl border border-border bg-card px-4 py-3 outline-none focus:border-[#2563EB] disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-900"
                 />
               </div>
 
               <div>
                 <label className="mb-2 block text-xs text-muted-foreground dark:text-zinc-500">
-                  Fin
+                  {t("end")}
                 </label>
                 <input
                   type="time"
@@ -286,7 +298,7 @@ export default function AvailabilityEditor({
                       endTime: event.target.value,
                     })
                   }
-                  className="w-full rounded-xl border border-border dark:border-zinc-700 bg-card dark:bg-zinc-900 px-4 py-3 outline-none focus:border-violet-500 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="w-full rounded-xl border border-border bg-card px-4 py-3 outline-none focus:border-[#2563EB] disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:bg-zinc-900"
                 />
               </div>
             </div>
@@ -298,11 +310,9 @@ export default function AvailabilityEditor({
         type="button"
         onClick={saveAvailability}
         disabled={saving}
-        className="mt-6 w-full rounded-2xl bg-violet-600 px-6 py-4 text-lg font-semibold hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
+        className="mt-6 w-full rounded-2xl bg-[#2563EB] px-6 py-4 text-lg font-semibold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {saving
-          ? "Enregistrement..."
-          : "Enregistrer les disponibilités"}
+        {saving ? t("saving") : t("save")}
       </button>
     </section>
   );
