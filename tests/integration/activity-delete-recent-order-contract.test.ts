@@ -24,12 +24,27 @@ describe("KLYX Activity recent-first deletion contract", () => {
     expect(page).not.toContain("const nextBooking = useMemo");
   });
 
-  it("keeps the video-driven Activity layout wide, compact and branded with exact KLYX blue", () => {
+  it("keeps the video-driven Activity layout wide, compact and aligned with Aura Noir", () => {
     const page = read("app/bookings/page.tsx");
+    const split = read("app/bookings/SplitMissionSection.tsx");
 
     expect(page).toContain("max-w-6xl");
     expect(page).toContain("min-h-24");
-    expect(page).toContain("#2563EB");
+    expect(page).toContain("text-primary");
+    expect(page).toContain("border-primary");
+    expect(page).toContain("bg-accent/40");
+    expect(split).toContain("text-primary");
+    expect(split).toContain("border-primary");
+    expect(split).toContain("bg-accent/40");
+
+    for (const source of [page, split]) {
+      expect(source).not.toContain("#2563EB");
+      expect(source).not.toMatch(
+        /\b(?:bg|text|border|ring|from|via|to)-(?:blue|violet|indigo|fuchsia)-/
+      );
+      expect(source).not.toMatch(/\bbg-gradient-/);
+    }
+
     expect(page).not.toContain("max-w-4xl");
     expect(page).not.toContain("min-h-56");
   });
