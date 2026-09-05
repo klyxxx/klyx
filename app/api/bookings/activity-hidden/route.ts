@@ -87,7 +87,7 @@ export async function GET(request: Request) {
       hiddenAt: row.created_at,
     }));
 
-    return NextResponse.json({ ok: true, hidden });
+    return NextResponse.json({ ok: true, hidden, ownershipScope: "client" });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Impossible de charger les missions masquées.";
@@ -152,6 +152,7 @@ export async function POST(request: Request) {
       entityType,
       entityId,
       sourceRecordsDeleted: false,
+      ownershipScope: "client",
     });
   } catch (error) {
     const message =
@@ -167,7 +168,7 @@ export async function POST(request: Request) {
       code: "activity_hidden_mission_write_failed",
       publicMessage: status < 500 ? message : undefined,
       startedAt,
-      details: { sourceRecordsDeleted: false },
+      details: { sourceRecordsDeleted: false, ownershipScope: "client" },
     });
   }
 }

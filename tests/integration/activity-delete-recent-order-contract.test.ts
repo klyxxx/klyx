@@ -45,6 +45,7 @@ describe("KLYX Activity recent-first deletion contract", () => {
     expect(route).toContain('.eq("client_profile_id", clientProfileId)');
     expect(route).toContain('.from("split_booking_batches")');
     expect(route).toContain('sourceRecordsDeleted: false');
+    expect(route).toContain('ownershipScope: "client"');
     expect(route).not.toContain('.from("bookings").delete');
     expect(route).not.toContain('.from("booking_groups").delete');
     expect(route).not.toContain('.from("split_booking_batches").delete');
