@@ -1,3 +1,4 @@
+// KLYX_SUMSUB_PROTECTED_CI_RETRIGGER
 import fs from "node:fs";
 import path from "node:path";
 
