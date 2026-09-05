@@ -7,6 +7,11 @@ function read(relative: string) {
   return fs.readFileSync(path.join(process.cwd(), relative), "utf8");
 }
 
+const ACTIVITY_MIGRATION =
+  "20260905235000_klyx_activity_hidden_missions.sql";
+const LEGACY_ACTIVITY_MIGRATION =
+  "20260905081500_klyx_activity_hidden_missions.sql";
+
 describe("KLYX Activity recent-first deletion contract", () => {
   it("renders one chronological stream newest first across booking and split missions", () => {
     const page = read("app/bookings/page.tsx");
@@ -31,9 +36,7 @@ describe("KLYX Activity recent-first deletion contract", () => {
 
   it("removes missions only from Activity and validates client ownership server-side", () => {
     const route = read("app/api/bookings/activity-hidden/route.ts");
-    const migration = read(
-      "supabase/migrations/20260905081500_klyx_activity_hidden_missions.sql"
-    );
+    const migration = read(`supabase/migrations/${ACTIVITY_MIGRATION}`);
 
     expect(route).toContain('requireAccountType(profile, "client")');
     expect(route).toContain('.from("bookings")');
@@ -54,7 +57,19 @@ describe("KLYX Activity recent-first deletion contract", () => {
     expect(migration).toContain("to service_role");
   });
 
-  it("requires explicit confirmation and fails closed on malformed Activity data", () => {
+  it("keeps the Activity migration append-only after the current local migration history", () => {
+    const migrationDir = path.join(process.cwd(), "supabase/migrations");
+    const migrations = fs
+      .readdirSync(migrationDir)
+      .filter((name) => /^\d{14}_.+\.sql$/.test(name))
+      .sort();
+
+    expect(migrations).toContain(ACTIVITY_MIGRATION);
+    expect(migrations).not.toContain(LEGACY_ACTIVITY_MIGRATION);
+    expect(migrations[migrations.length - 1]).toBe(ACTIVITY_MIGRATION);
+  });
+
+  it("requires explicit confirmation and preserves the #543 fail-closed Activity rendering guard", () => {
     const page = read("app/bookings/page.tsx");
 
     expect(page).toContain("window.confirm");
@@ -62,5 +77,6 @@ describe("KLYX Activity recent-first deletion contract", () => {
     expect(page).toContain("!Array.isArray(body.cards)");
     expect(page).toContain("hiddenBody.ok !== true");
     expect(page).toContain("!Array.isArray(hiddenBody.hidden)");
+    expect(page).toContain(") : errorKey ? null : counts.all === 0 ? (");
   });
 });
