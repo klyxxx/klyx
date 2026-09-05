@@ -1,5 +1,10 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
+type CompatibleProviderNotificationResult = {
+  candidateCount: number;
+  deliveryFailed: boolean;
+};
+
 export async function createMarketNotification(params: {
   userId: string;
   marketRequestId: string;
@@ -32,7 +37,7 @@ export async function notifyCompatibleProviders(params: {
   serviceId: string;
   serviceName: string;
   city: string;
-}) {
+}): Promise<CompatibleProviderNotificationResult> {
   const { data: userServices, error } =
     await supabaseAdmin
       .from("user_services")
@@ -46,19 +51,25 @@ export async function notifyCompatibleProviders(params: {
       "Compatible provider notification lookup error:",
       error.message
     );
-    return;
+    return {
+      candidateCount: 0,
+      deliveryFailed: true,
+    };
   }
 
   const providerIds = [
     ...new Set(
       (userServices ?? [])
         .map((item) => item.user_id)
-        .filter(Boolean)
+        .filter((value): value is string => Boolean(value))
     ),
   ];
 
   if (providerIds.length === 0) {
-    return;
+    return {
+      candidateCount: 0,
+      deliveryFailed: false,
+    };
   }
 
   const rows = providerIds.map((providerId) => ({
@@ -69,17 +80,31 @@ export async function notifyCompatibleProviders(params: {
     title: "Nouvelle mission compatible",
     message: `${params.serviceName} · ${params.city}. Une nouvelle demande correspond à un métier actif de ton profil.`,
     href: "/provider/jobs",
+    idempotency_key:
+      `market-provider:${params.marketRequestId}:${providerId}`,
   }));
 
   const { error: insertError } =
     await supabaseAdmin
       .from("user_notifications")
-      .insert(rows);
+      .upsert(rows, {
+        onConflict: "idempotency_key",
+        ignoreDuplicates: true,
+      });
 
   if (insertError) {
     console.error(
       "Compatible provider notifications insert error:",
       insertError.message
     );
+    return {
+      candidateCount: providerIds.length,
+      deliveryFailed: true,
+    };
   }
+
+  return {
+    candidateCount: providerIds.length,
+    deliveryFailed: false,
+  };
 }

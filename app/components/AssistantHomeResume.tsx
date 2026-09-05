@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, LoaderCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
@@ -20,24 +20,25 @@ type ActionsResponse = {
 
 function copy(locale: string) {
   if (locale === "en") {
-    return { title: "In progress", continue: "Continue" };
+    return { title: "In progress", continue: "Continue", loading: "Loading what is in progress…" };
   }
 
   if (locale === "nl") {
-    return { title: "Bezig", continue: "Doorgaan" };
+    return { title: "Bezig", continue: "Doorgaan", loading: "Lopende acties laden…" };
   }
 
   if (locale === "de") {
-    return { title: "Läuft", continue: "Fortsetzen" };
+    return { title: "Läuft", continue: "Fortsetzen", loading: "Laufende Aktionen werden geladen…" };
   }
 
-  return { title: "En cours", continue: "Continuer" };
+  return { title: "En cours", continue: "Continuer", loading: "Chargement de ce qui est en cours…" };
 }
 
 export default function AssistantHomeResume() {
   const { locale } = useKlyxLocale();
   const labels = copy(locale);
   const [action, setAction] = useState<ActionItem | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
@@ -65,6 +66,8 @@ export default function AssistantHomeResume() {
         if (active) setAction(firstAction);
       } catch {
         // The home remains intentionally quiet if the resume surface is unavailable.
+      } finally {
+        if (active) setLoading(false);
       }
     }
 
@@ -74,6 +77,21 @@ export default function AssistantHomeResume() {
       active = false;
     };
   }, []);
+
+  if (loading) {
+    return (
+      <section
+        aria-live="polite"
+        aria-busy="true"
+        className="flex min-h-[8.5rem] w-full max-w-sm items-center justify-center rounded-2xl border border-border bg-background p-5 shadow-sm dark:border-white/10 dark:bg-zinc-950"
+      >
+        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <LoaderCircle size={17} className="animate-spin text-blue-600" />
+          <span>{labels.loading}</span>
+        </div>
+      </section>
+    );
+  }
 
   if (!action) return null;
 

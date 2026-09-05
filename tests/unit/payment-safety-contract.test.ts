@@ -178,21 +178,31 @@ describe(
     it(
       "keeps split Stripe webhook routing active",
       () => {
-        const source =
+        const route =
           read(
             "app/api/stripe/webhook/route.ts"
           );
+        const engine =
+          read(
+            "lib/split-stripe-payments-core.ts"
+          );
 
         expect(
-          source
+          route
         ).toContain(
           "handleSplitStripeWebhookEvent"
         );
 
         expect(
-          source
+          engine
         ).toContain(
-          "KLYX_SPLIT_STRIPE_WEBHOOK_WIRING_13_27"
+          "KLYX_SPLIT_STRIPE_WEBHOOK_13_27"
+        );
+
+        expect(
+          engine
+        ).toContain(
+          "export async function handleSplitStripeWebhookEvent("
         );
       }
     );
