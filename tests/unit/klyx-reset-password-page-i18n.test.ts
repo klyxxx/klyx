@@ -39,13 +39,19 @@ describe("KLYX reset-password page i18n", () => {
     expect(translateKlyxResetPassword("de", "passwordMismatch")).toBe(
       "Die Passwörter stimmen nicht überein."
     );
+    expect(translateKlyxResetPassword("es", "title")).toBe("Nueva contraseña");
+    expect(translateKlyxResetPassword("es", "updatePassword")).toBe(
+      "Actualizar contraseña"
+    );
   });
 
   it("keeps partial reset-password coverage explicit with French fallback", () => {
     expect(hasKlyxResetPasswordPageTranslation("de")).toBe(true);
-    expect(hasKlyxResetPasswordPageTranslation("es")).toBe(false);
-    expect(resolveKlyxResetPasswordPageLocale("es")).toBe("fr");
-    expect(translateKlyxResetPassword("es", "title")).toBe(
+    expect(hasKlyxResetPasswordPageTranslation("es")).toBe(true);
+    expect(resolveKlyxResetPasswordPageLocale("es")).toBe("es");
+    expect(hasKlyxResetPasswordPageTranslation("it")).toBe(false);
+    expect(resolveKlyxResetPasswordPageLocale("it")).toBe("fr");
+    expect(translateKlyxResetPassword("it", "title")).toBe(
       "Nouveau mot de passe"
     );
   });
