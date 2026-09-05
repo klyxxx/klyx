@@ -24,12 +24,36 @@ describe("provider verification branding contract", () => {
     expect(verificationPage).not.toContain("text-white/70");
   });
 
-  it("preserves the explicit provider role boundary", () => {
+  it("uses the exact KLYX blue for normal verification accents", () => {
+    expect(verificationPage).toContain("text-[#2563EB]");
+    expect(verificationPage).toContain("bg-[#2563EB]/10");
+    expect(verificationPage).toContain("bg-[#2563EB]");
+
+    for (const legacyClass of [
+      "text-blue-600",
+      "text-blue-400",
+      "bg-blue-500/10",
+      "bg-blue-600",
+    ]) {
+      expect(verificationPage).not.toContain(legacyClass);
+    }
+  });
+
+  it("preserves semantic states and provider verification boundaries", () => {
+    expect(verificationPage).toContain("amber-500");
+    expect(verificationPage).toContain("emerald-500");
+    expect(verificationPage).toContain("rose-500");
+
     expect(verificationPage).toContain(
       "const profile = await getActiveProfileAccount();"
     );
     expect(verificationPage).toContain(
       'if (profile.accountType !== "provider")'
     );
+    expect(verificationPage).toContain('"/api/provider/verification"');
+    expect(verificationPage).toContain(
+      '"/api/provider/verification/document"'
+    );
+    expect(verificationPage).toContain('.from("provider-verification")');
   });
 });
