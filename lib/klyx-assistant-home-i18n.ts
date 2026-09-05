@@ -13,6 +13,8 @@ export type KlyxAssistantHomeLocale =
 export const KLYX_ASSISTANT_HOME_MESSAGE_KEYS = [
   "badge",
   "title",
+  "organizeTitle",
+  "notifications",
   "description",
   "loadError",
   "priority",
@@ -44,6 +46,8 @@ const DICTIONARIES: Record<KlyxAssistantHomeLocale, Dictionary> = {
   fr: {
     badge: "KLYX Assistant",
     title: "Dis-moi ce qu’il faut faire.",
+    organizeTitle: "Que dois-je organiser pour vous ?",
+    notifications: "Notifications",
     description: "KLYX rassemble tes prochaines actions, tes demandes et les outils utiles de ton profil actif au même endroit.",
     loadError: "KLYX ne peut pas charger tes prochaines actions pour le moment.",
     priority: "Priorité KLYX",
@@ -68,6 +72,8 @@ const DICTIONARIES: Record<KlyxAssistantHomeLocale, Dictionary> = {
   en: {
     badge: "KLYX Assistant",
     title: "Tell me what needs to be done.",
+    organizeTitle: "What should I organize for you?",
+    notifications: "Notifications",
     description: "KLYX brings your next actions, requests and useful tools for the active profile together in one place.",
     loadError: "KLYX cannot load your next actions right now.",
     priority: "KLYX priority",
@@ -92,6 +98,8 @@ const DICTIONARIES: Record<KlyxAssistantHomeLocale, Dictionary> = {
   nl: {
     badge: "KLYX Assistent",
     title: "Vertel me wat er moet gebeuren.",
+    organizeTitle: "Wat zal ik voor je organiseren?",
+    notifications: "Meldingen",
     description: "KLYX brengt je volgende acties, aanvragen en nuttige tools voor het actieve profiel op één plek samen.",
     loadError: "KLYX kan je volgende acties momenteel niet laden.",
     priority: "KLYX-prioriteit",
@@ -116,6 +124,8 @@ const DICTIONARIES: Record<KlyxAssistantHomeLocale, Dictionary> = {
   de: {
     badge: "KLYX Assistent",
     title: "Sag mir, was erledigt werden muss.",
+    organizeTitle: "Was soll ich für dich organisieren?",
+    notifications: "Benachrichtigungen",
     description: "KLYX bündelt deine nächsten Aktionen, Anfragen und nützlichen Werkzeuge für das aktive Profil an einem Ort.",
     loadError: "KLYX kann deine nächsten Aktionen derzeit nicht laden.",
     priority: "KLYX-Priorität",

@@ -8,9 +8,15 @@ const source = fs.readFileSync(
 );
 
 describe("KLYX unified assistant home contract", () => {
-  it("keeps the client home as one conversational surface", () => {
+  it("keeps the client home as one localized conversational surface", () => {
     expect(source).toContain("<ClientRouteGuard>");
-    expect(source).toContain("Que dois-je organiser pour vous ?");
+    expect(source).toContain("useKlyxLocale()");
+    expect(source).toContain(
+      'translateKlyxAssistantHome(locale, "organizeTitle")'
+    );
+    expect(source).toContain(
+      'translateKlyxAssistantHome(locale, "notifications")'
+    );
     expect(source).toContain("<AssistantCommandBar />");
     expect(source).not.toContain("/api/brain/actions");
     expect(source).not.toContain("<AssistantBrief />");
