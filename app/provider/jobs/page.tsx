@@ -342,7 +342,7 @@ export default function ProviderJobsPage() {
         </header>
 
         {successMessage && (
-          <div className="mt-6 rounded-2xl border border-blue-600/20 bg-blue-600/[0.05] p-4 text-sm font-medium text-foreground">
+          <div className="mt-6 rounded-2xl border border-primary/20 bg-accent/40 p-4 text-sm font-medium text-foreground">
             {successMessage}
           </div>
         )}
@@ -355,14 +355,14 @@ export default function ProviderJobsPage() {
 
         {loading ? (
           <div className="grid min-h-72 place-items-center" aria-label={t("missions")}>
-            <LoaderCircle className="animate-spin text-blue-600" size={30} />
+            <LoaderCircle className="animate-spin text-primary" size={30} />
           </div>
         ) : (
           <>
             {(priorityMission || priorityRequest) && (
               <section className="mt-8" aria-label={t("priority")}>
                 <p className="klyx-eyebrow uppercase">{t("nextAction")}</p>
-                <p className="mt-2 text-sm font-semibold text-blue-600">
+                <p className="mt-2 text-sm font-semibold text-primary">
                   {priorityMission?.actionRequired
                     ? missionT("actionRequired")
                     : priorityRequest
@@ -475,7 +475,7 @@ function MissionCard({
       <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs font-medium text-muted-foreground">
-            <span className="font-semibold text-blue-600">
+            <span className="font-semibold text-primary">
               {item.service?.name ?? t("fallbackService")}
             </span>
 
@@ -552,7 +552,7 @@ function MissionCard({
             className={
               featured
                 ? "klyx-button mt-4 inline-flex min-h-11 items-center justify-center gap-2 px-4 text-sm font-semibold"
-                : "mt-4 inline-flex min-h-10 items-center justify-center gap-2 text-sm font-semibold text-blue-600 transition hover:text-blue-700"
+                : "mt-4 inline-flex min-h-10 items-center justify-center gap-2 text-sm font-semibold text-primary transition hover:opacity-80"
             }
           >
             {item.myOffer ? t("updateOffer") : t("sendOffer")}
@@ -634,7 +634,7 @@ function MissionCard({
           <div className="flex flex-col gap-3 border-b border-border pb-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <Sparkles size={16} className="text-blue-600" />
+                <Sparkles size={16} className="text-primary" />
                 <p className="font-semibold">{t("needHelp")}</p>
               </div>
               <p className="mt-1 text-xs leading-5 text-muted-foreground">
@@ -656,7 +656,7 @@ function MissionCard({
                   })
                 )
               }
-              className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 text-sm font-semibold text-blue-600 transition hover:text-blue-700"
+              className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 text-sm font-semibold text-primary transition hover:opacity-80"
             >
               <Sparkles size={15} />
               {t("prepareWithKlyx")}
