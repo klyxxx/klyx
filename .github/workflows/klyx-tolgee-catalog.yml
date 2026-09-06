@@ -57,16 +57,19 @@ jobs:
       - name: Validate Tolgee source seed
         run: npm run i18n:tolgee:seed:check
 
-      - name: Generate Tolgee catalog baseline
-        run: npm run i18n:tolgee:seed
+      - name: Validate committed Tolgee baseline
+        run: npm run i18n:tolgee:catalogs:check
+
+      - name: Generate complete Tolgee artifact
+        run: node scripts/i18n/export-tolgee-seed.mjs --output-dir .klyx-tolgee-artifact
 
       - name: Run Tolgee unit contracts
-        run: npm test -- tests/unit/klyx-tolgee.test.ts tests/unit/klyx-tolgee-seed.test.ts
+        run: npm test -- tests/unit/klyx-tolgee.test.ts tests/unit/klyx-tolgee-seed.test.ts tests/unit/klyx-tolgee-catalogs.test.ts
 
       - name: Upload generated Tolgee catalogs
         uses: actions/upload-artifact@v4
         with:
           name: klyx-tolgee-catalogs-${{ github.sha }}
-          path: messages/tolgee/*.json
+          path: .klyx-tolgee-artifact/*.json
           if-no-files-found: error
           retention-days: 7
