@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Stripe from "stripe";
+import KlyxPaymentSuccessAnalytics from "@/app/payment/success/KlyxPaymentSuccessAnalytics";
 import { markBookingPaidFromSession } from "@/lib/stripe-payments";
 
 type ConfirmationResult = {
@@ -99,6 +100,8 @@ export default async function PaymentSuccessPage({
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-6 text-foreground">
+      {confirmation.confirmed ? <KlyxPaymentSuccessAnalytics /> : null}
+
       <section className="klyx-card w-full max-w-lg p-8 text-center">
         <div
           className={`mx-auto grid h-16 w-16 place-items-center rounded-full text-3xl ${
