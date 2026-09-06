@@ -1,6 +1,6 @@
 # KLYX — Tolgee i18n foundation
 
-This document defines the first Tolgee integration phase for KLYX.
+This document defines the Tolgee integration path for KLYX.
 
 ## Goal
 
@@ -13,16 +13,41 @@ Use Tolgee as the translation-management plane for every locale already register
 
 ## Why the CLI comes first
 
-KLYX already has a large in-repo translation system. Replacing it in one commit would create unnecessary risk and overlap with the existing Spanish certification PRs.
+KLYX already has a large in-repo translation system. Replacing it in one commit would create unnecessary risk and overlap with existing translation work.
 
-The first phase therefore installs a reproducible Tolgee synchronization workflow without changing the production runtime:
+The first phases therefore install a reproducible Tolgee synchronization workflow without changing the production runtime:
 
 - Tolgee CLI is pinned to `2.20.0` through `npx` scripts.
 - No Tolgee package is added to runtime dependencies yet, so `package-lock.json` stays unchanged.
 - Translation snapshots live under `messages/tolgee`.
 - Tolgee credentials stay outside the repository.
+- Existing KLYX shell/navigation translations can be exported as a non-destructive Tolgee seed.
 
-A later isolated phase can add the Tolgee React/Next.js runtime SDK and migrate page bundles progressively after the Tolgee project is connected and seeded.
+## Seed the existing KLYX translations
+
+KLYX already contains translated shell and navigation dictionaries for every registered locale. The seed exporter turns those existing dictionaries into Tolgee `JSON_TOLGEE` catalogs without changing the runtime.
+
+Validate that all registered locale catalogs can be produced:
+
+```powershell
+npm run i18n:tolgee:seed:check
+```
+
+Generate or update the locale files under `messages/tolgee`:
+
+```powershell
+npm run i18n:tolgee:seed
+```
+
+The exporter is deliberately non-destructive:
+
+- existing reviewed keys in a local Tolgee JSON file win over generated seed values;
+- missing shell/navigation keys are filled from the current KLYX source dictionaries;
+- navigation fallback behavior mirrors the existing KLYX runtime: locale translation → English → French source label;
+- generating an `es.json` file does not publish Spanish in Settings;
+- no Tolgee credential is required to build or validate the seed.
+
+The seed currently covers the shared KLYX shell/UI and navigation dictionaries. Page-specific bundles remain on the progressive migration path and must retain their existing certification boundaries until migrated.
 
 ## Create the Tolgee project
 
@@ -33,6 +58,7 @@ Recommended initial setup:
 3. Add `en`, `nl`, `de`, and `es` first.
 4. Add the remaining KLYX registered locales progressively in Tolgee. They can exist in Tolgee without being exposed in KLYX.
 5. Create a Project API Key for CLI synchronization.
+6. Run `npm run i18n:tolgee:seed`, then push the generated baseline with `npm run i18n:tolgee:push`.
 
 Do not commit the API key and do not put the management key in a `NEXT_PUBLIC_*` environment variable.
 
@@ -46,7 +72,7 @@ $env:TOLGEE_API_KEY = "<project-api-key>"
 
 If you use a Personal Access Token instead of a Project API Key, pass the project id to the Tolgee CLI according to Tolgee documentation.
 
-## Commands
+## Synchronization commands
 
 Pull all languages configured in the Tolgee project:
 
@@ -76,14 +102,14 @@ A locale may exist in `messages/tolgee` and in the Tolgee project while remainin
 
 For Spanish specifically:
 
-- Tolgee may store and synchronize `es` now.
+- Tolgee may store, seed and synchronize `es` now.
 - `es` remains outside `KLYX_TOLGEE_PUBLISHED_LOCALES`.
 - `es` remains absent from Settings.
-- Existing page-by-page Spanish certification PRs stay valid and isolated.
+- Existing Spanish certification PRs stay valid and isolated.
 
-## Next phase
+## Runtime migration phase
 
-After the Tolgee Cloud project is created and the initial translations are synchronized, migrate the runtime in a separate branch:
+After the Tolgee Cloud project is created and the initial seed is synchronized, migrate the runtime in a separate branch:
 
 1. add the current Tolgee React/Next.js SDK;
 2. wrap the runtime without changing the existing language-selection contract;
