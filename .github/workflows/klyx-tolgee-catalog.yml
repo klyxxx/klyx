@@ -61,7 +61,7 @@ jobs:
         run: npm run i18n:tolgee:catalogs:check
 
       - name: Generate complete Tolgee artifact
-        run: node scripts/i18n/export-tolgee-seed.mjs --output-dir .klyx-tolgee-artifact
+        run: node scripts/i18n/export-tolgee-seed.mjs --output-dir tolgee-artifact
 
       - name: Run Tolgee unit contracts
         run: npm test -- tests/unit/klyx-tolgee.test.ts tests/unit/klyx-tolgee-seed.test.ts tests/unit/klyx-tolgee-catalogs.test.ts
@@ -70,6 +70,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: klyx-tolgee-catalogs-${{ github.sha }}
-          path: .klyx-tolgee-artifact/*.json
+          path: tolgee-artifact/*.json
           if-no-files-found: error
           retention-days: 7
