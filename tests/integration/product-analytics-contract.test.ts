@@ -109,6 +109,10 @@ describe("KLY-5 privacy-first product analytics contract", () => {
 
   it("captures profile milestones only after successful profile operations", () => {
     const accounts = read("lib/account-switcher.ts");
+    const onboarding = read("app/onboarding/page.tsx");
+    const firstProfileAnalytics = read(
+      "app/onboarding/KlyxFirstProfileAnalytics.tsx"
+    );
 
     expect(accounts).toContain(
       'captureKlyxProductEvent("profile selected")'
@@ -119,6 +123,20 @@ describe("KLY-5 privacy-first product analytics contract", () => {
     expect(accounts).toContain("if (!response.ok)");
     expect(accounts).toContain("if (!result.profileId)");
     expect(accounts).not.toContain('captureKlyxProductEvent("profile deleted")');
+
+    expect(onboarding).toContain(
+      '<KlyxFirstProfileAnalytics phase="pending" />'
+    );
+    expect(onboarding).toContain(
+      '<KlyxFirstProfileAnalytics phase="completed" />'
+    );
+    expect(firstProfileAnalytics).toContain("FIRST_PROFILE_PENDING_KEY");
+    expect(firstProfileAnalytics).toContain("FIRST_PROFILE_CAPTURED_KEY");
+    expect(firstProfileAnalytics).toContain("sessionStorage");
+    expect(firstProfileAnalytics).toContain(
+      'captureKlyxProductEvent("profile created")'
+    );
+    expect(firstProfileAnalytics).not.toContain("profileId");
   });
 
   it("captures payment only after the server confirms Stripe paid state", () => {
