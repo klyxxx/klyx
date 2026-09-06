@@ -1,0 +1,72 @@
+name: KLYX Tolgee Catalog Certification
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/klyx-tolgee-catalog.yml"
+      - ".tolgeerc.json"
+      - "lib/klyx-i18n.ts"
+      - "lib/klyx-i18n-batch-*.ts"
+      - "lib/klyx-tolgee.ts"
+      - "messages/tolgee/**"
+      - "scripts/i18n/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tests/unit/klyx-tolgee*.test.ts"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/klyx-tolgee-catalog.yml"
+      - ".tolgeerc.json"
+      - "lib/klyx-i18n.ts"
+      - "lib/klyx-i18n-batch-*.ts"
+      - "lib/klyx-tolgee.ts"
+      - "messages/tolgee/**"
+      - "scripts/i18n/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tests/unit/klyx-tolgee*.test.ts"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: klyx-tolgee-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  catalog:
+    name: Tolgee catalog certification
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Validate Tolgee source seed
+        run: npm run i18n:tolgee:seed:check
+
+      - name: Generate Tolgee catalog baseline
+        run: npm run i18n:tolgee:seed
+
+      - name: Run Tolgee unit contracts
+        run: npm test -- tests/unit/klyx-tolgee.test.ts tests/unit/klyx-tolgee-seed.test.ts
+
+      - name: Upload generated Tolgee catalogs
+        uses: actions/upload-artifact@v4
+        with:
+          name: klyx-tolgee-catalogs-${{ github.sha }}
+          path: messages/tolgee/*.json
+          if-no-files-found: error
+          retention-days: 7
