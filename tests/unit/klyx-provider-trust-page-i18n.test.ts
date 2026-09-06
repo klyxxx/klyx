@@ -23,8 +23,10 @@ describe("KLYX provider trust i18n", () => {
     expect(spanish.description).toBe("Consulta las incidencias recibidas y sigue los expedientes vinculados a tu actividad profesional.");
     expect(spanish.receivedTitle).toBe("Incidencias recibidas");
     expect(spanish.receivedDescription).toBe("Expedientes abiertos contra tu perfil profesional.");
+    expect(spanish.receivedEmpty).toBe("Ninguna incidencia recibida.");
     expect(spanish.openedTitle).toBe("Incidencias abiertas por mí");
     expect(spanish.openedDescription).toBe("Expedientes que has abierto sobre un cliente.");
+    expect(spanish.openedEmpty).toBe("Ningún expediente abierto por ti.");
     expect(spanish.viewMission).toBe("Ver la misión");
   });
 
