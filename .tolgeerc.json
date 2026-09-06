@@ -1,0 +1,15 @@
+{
+  "$schema": "https://docs.tolgee.io/cli-schema.json",
+  "format": "JSON_TOLGEE",
+  "pull": {
+    "path": "./messages/tolgee",
+    "delimiter": null,
+    "fileStructureTemplate": "{languageTag}.{extension}",
+    "emptyDir": false
+  },
+  "push": {
+    "filesTemplate": "./messages/tolgee/{languageTag}.json",
+    "forceMode": "NO_FORCE",
+    "removeOtherKeys": false
+  }
+}
