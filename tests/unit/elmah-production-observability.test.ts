@@ -54,10 +54,14 @@ describe("KLYX elmah.io production observability", () => {
     expect(elmahRuntime).not.toContain("request.body");
   });
 
-  it("exposes a minimal no-store health endpoint", () => {
+  it("preserves the operational liveness contract for uptime probes", () => {
     expect(healthRoute).toContain('status: "ok"');
     expect(healthRoute).toContain('service: "klyx"');
+    expect(healthRoute).toContain('check: "liveness"');
     expect(healthRoute).toContain('"Cache-Control": "no-store"');
+    expect(healthRoute).toContain('"X-Content-Type-Options": "nosniff"');
+    expect(healthRoute).toContain("export function HEAD()");
+    expect(healthRoute).toContain("status: 204");
     expect(healthRoute).not.toContain("process.env");
   });
 
