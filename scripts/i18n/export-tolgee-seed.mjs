@@ -7,7 +7,7 @@ const LIB_DIR = path.join(ROOT, "lib");
 const DEFAULT_OUTPUT_DIR = path.join(ROOT, "messages", "tolgee");
 const BATCH_FILE_PATTERN = /^klyx-i18n-batch-(\d+)\.ts$/;
 const BATCH_CONSTANT_PATTERN =
-  /^KLYX_BATCH_(\d+)_(LANGUAGE_OPTIONS|UI_MESSAGES|NAVIGATION_TRANSLATIONS)$/;
+  /^KLYX_BATCH_(\d+)_(LANGUAGE_OPTIONS|UI_MESSAGES|NAVIGATION_KEYS|NAVIGATION_TRANSLATIONS)$/;
 
 function parseArgs(argv) {
   const options = {
@@ -73,7 +73,7 @@ function resolvePropertyName(node) {
   throw new Error(`Unsupported object key syntax: ${node.getText()}`);
 }
 
-function evaluateExpression(input, environment) {
+function evaluateExpression(input, environment, context = {}) {
   const node = unwrapExpression(input);
 
   if (
@@ -92,7 +92,7 @@ function evaluateExpression(input, environment) {
   if (node.kind === ts.SyntaxKind.NullKeyword) return null;
 
   if (ts.isPrefixUnaryExpression(node)) {
-    const value = evaluateExpression(node.operand, environment);
+    const value = evaluateExpression(node.operand, environment, context);
     if (typeof value !== "number") {
       throw new Error(`Unsupported unary operand: ${node.getText()}`);
     }
@@ -108,18 +108,60 @@ function evaluateExpression(input, environment) {
     return environment.get(node.text);
   }
 
+  if (ts.isCallExpression(node)) {
+    if (
+      !ts.isIdentifier(node.expression) ||
+      node.expression.text !== "buildNavigation" ||
+      node.arguments.length !== 1
+    ) {
+      throw new Error(`Unsupported translation call: ${node.getText()}`);
+    }
+
+    const navigationKeys = context.navigationKeys;
+    if (!Array.isArray(navigationKeys)) {
+      throw new Error(
+        "buildNavigation requires the current KLYX batch navigation keys"
+      );
+    }
+
+    const values = evaluateExpression(node.arguments[0], environment, context);
+    if (!Array.isArray(values)) {
+      throw new Error("buildNavigation requires an array argument");
+    }
+    if (values.length !== navigationKeys.length) {
+      throw new Error("KLYX navigation catalog is incomplete");
+    }
+
+    for (const [index, key] of navigationKeys.entries()) {
+      if (typeof key !== "string" || key.length === 0) {
+        throw new Error(`Invalid KLYX navigation key at index ${index}`);
+      }
+      if (typeof values[index] !== "string" || values[index].length === 0) {
+        throw new Error(`Invalid KLYX navigation value at index ${index}`);
+      }
+    }
+
+    return Object.fromEntries(
+      navigationKeys.map((key, index) => [key, values[index]])
+    );
+  }
+
   if (ts.isArrayLiteralExpression(node)) {
     const result = [];
 
     for (const element of node.elements) {
       if (ts.isSpreadElement(element)) {
-        const spread = evaluateExpression(element.expression, environment);
+        const spread = evaluateExpression(
+          element.expression,
+          environment,
+          context
+        );
         if (!Array.isArray(spread)) {
           throw new Error(`Array spread is not an array: ${element.getText()}`);
         }
         result.push(...spread);
       } else {
-        result.push(evaluateExpression(element, environment));
+        result.push(evaluateExpression(element, environment, context));
       }
     }
 
@@ -131,7 +173,11 @@ function evaluateExpression(input, environment) {
 
     for (const property of node.properties) {
       if (ts.isSpreadAssignment(property)) {
-        const spread = evaluateExpression(property.expression, environment);
+        const spread = evaluateExpression(
+          property.expression,
+          environment,
+          context
+        );
         if (!spread || typeof spread !== "object" || Array.isArray(spread)) {
           throw new Error(`Object spread is not an object: ${property.getText()}`);
         }
@@ -142,7 +188,8 @@ function evaluateExpression(input, environment) {
       if (ts.isPropertyAssignment(property)) {
         result[resolvePropertyName(property.name)] = evaluateExpression(
           property.initializer,
-          environment
+          environment,
+          context
         );
         continue;
       }
@@ -150,7 +197,8 @@ function evaluateExpression(input, environment) {
       if (ts.isShorthandPropertyAssignment(property)) {
         result[property.name.text] = evaluateExpression(
           property.name,
-          environment
+          environment,
+          context
         );
         continue;
       }
@@ -186,8 +234,22 @@ async function loadConstants(filePath, environment, shouldLoad) {
         continue;
       }
 
-      const value = evaluateExpression(declaration.initializer, environment);
-      environment.set(declaration.name.text, value);
+      const constantName = declaration.name.text;
+      const batchMatch = constantName.match(BATCH_CONSTANT_PATTERN);
+      const batch = batchMatch?.[1];
+      const context = batch
+        ? {
+            navigationKeys: environment.get(
+              `KLYX_BATCH_${batch}_NAVIGATION_KEYS`
+            ),
+          }
+        : {};
+      const value = evaluateExpression(
+        declaration.initializer,
+        environment,
+        context
+      );
+      environment.set(constantName, value);
     }
   }
 }
