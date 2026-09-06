@@ -41,7 +41,8 @@ describe("KLYX Tolgee runtime bridge", () => {
     );
 
     for (const locale of KLYX_TOLGEE_PUBLISHED_LOCALES) {
-      const entries = getUiEntries(SOURCE_CATALOGS[locale]);
+      const publishedLocale = locale as KlyxSelectableLocale;
+      const entries = getUiEntries(SOURCE_CATALOGS[publishedLocale]);
       expect(entries.length).toBeGreaterThan(0);
 
       for (const [fullKey, value] of entries) {
