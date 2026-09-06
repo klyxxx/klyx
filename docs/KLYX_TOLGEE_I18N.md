@@ -33,19 +33,28 @@ Validate that all registered locale catalogs can be produced:
 npm run i18n:tolgee:seed:check
 ```
 
-Generate or update the locale files under `messages/tolgee`:
+Generate or update locale files under `messages/tolgee`:
 
 ```powershell
 npm run i18n:tolgee:seed
 ```
 
-The exporter is deliberately non-destructive:
+Validate the committed bootstrap catalogs:
+
+```powershell
+npm run i18n:tolgee:catalogs:check
+```
+
+The exporter and committed-baseline checker are deliberately non-destructive:
 
 - existing reviewed keys in a local Tolgee JSON file win over generated seed values;
 - missing shell/navigation keys are filled from the current KLYX source dictionaries;
+- committed catalogs must retain every generated seed key, but reviewed values are allowed to differ;
 - navigation fallback behavior mirrors the existing KLYX runtime: locale translation → English → French source label;
-- generating an `es.json` file does not publish Spanish in Settings;
+- generating or committing an `es.json` file does not publish Spanish in Settings;
 - no Tolgee credential is required to build or validate the seed.
+
+The committed bootstrap currently contains `fr`, `en`, `nl`, `de`, and staged `es`. CI also generates every registered KLYX locale into a short-lived artifact, so the remaining locales can move into Tolgee progressively without widening runtime exposure.
 
 The seed currently covers the shared KLYX shell/UI and navigation dictionaries. Page-specific bundles remain on the progressive migration path and must retain their existing certification boundaries until migrated.
 
@@ -58,7 +67,7 @@ Recommended initial setup:
 3. Add `en`, `nl`, `de`, and `es` first.
 4. Add the remaining KLYX registered locales progressively in Tolgee. They can exist in Tolgee without being exposed in KLYX.
 5. Create a Project API Key for CLI synchronization.
-6. Run `npm run i18n:tolgee:seed`, then push the generated baseline with `npm run i18n:tolgee:push`.
+6. Push the committed bootstrap with `npm run i18n:tolgee:push`.
 
 Do not commit the API key and do not put the management key in a `NEXT_PUBLIC_*` environment variable.
 
