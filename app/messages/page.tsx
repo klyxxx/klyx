@@ -72,6 +72,7 @@ const LOCALE_TAGS = {
   en: "en-GB",
   nl: "nl-BE",
   de: "de-DE",
+  es: "es-BE",
 } as const;
 
 function localeTag(locale: KlyxLocale) {

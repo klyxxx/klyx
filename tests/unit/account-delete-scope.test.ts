@@ -28,7 +28,7 @@ describe("KLYX account deletion isolation", () => {
     });
   });
 
-  it("deletes the authentication account only for the last profile", () => {
+  it("keeps the last-profile case behind the dedicated account-deletion flow", () => {
     expect(
       resolveKlyxAccountDeletePlan([{ id: "client-profile" }], "client-profile")
     ).toEqual({
@@ -36,6 +36,9 @@ describe("KLYX account deletion isolation", () => {
       targetProfileId: "client-profile",
       replacementProfileId: null,
     });
+
+    expect(deleteRoute).toContain('if (deletePlan.scope === "account")');
+    expect(deleteRoute).toContain('ACCOUNT_DELETION_PAGE = "/delete-account"');
   });
 
   it("rejects a profile that does not belong to the authenticated owner", () => {
@@ -47,20 +50,13 @@ describe("KLYX account deletion isolation", () => {
     ).toBeNull();
   });
 
-  it("keeps profile deletion ahead of the irreversible auth deletion", () => {
-    const profileScopeIndex = deleteRoute.indexOf(
-      'if (deletePlan.scope === "profile" && deletePlan.targetProfileId)'
-    );
-    const authDeleteIndex = deleteRoute.indexOf(
+  it("never deletes the primary Auth identity from the profile endpoint", () => {
+    expect(deleteRoute).not.toContain(
       "supabaseAdmin.auth.admin.deleteUser(user.id)"
     );
-
-    expect(profileScopeIndex).toBeGreaterThanOrEqual(0);
-    expect(authDeleteIndex).toBeGreaterThan(profileScopeIndex);
-    expect(deleteRoute).toContain(
-      'deletePlan.scope === "profile" && deletePlan.targetProfileId\n        ? [deletePlan.targetProfileId]'
-    );
+    expect(deleteRoute).not.toContain("accountDeletedEmail()");
     expect(deleteRoute).toContain('deletedScope: "profile" as const');
+    expect(deleteRoute).toContain("klyx_delete_profile");
   });
 
   it("sends the active profile id and preserves the remaining sign-in", () => {
