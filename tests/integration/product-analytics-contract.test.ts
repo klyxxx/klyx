@@ -13,15 +13,19 @@ function read(relativePath: string) {
 }
 
 describe("KLY-5 privacy-first product analytics contract", () => {
-  it("keeps exactly the seven requested funnel events", () => {
+  it("keeps the complete anonymous product journey allowlist", () => {
     expect(KLYX_PRODUCT_ANALYTICS_EVENTS).toEqual([
+      "visit started",
       "account signed up",
       "account signed in",
+      "profile created",
+      "profile selected",
       "service searched",
       "provider opened",
       "booking started",
       "booking confirmed",
       "booking abandoned",
+      "payment confirmed",
     ]);
 
     for (const event of KLYX_PRODUCT_ANALYTICS_EVENTS) {
@@ -74,13 +78,24 @@ describe("KLY-5 privacy-first product analytics contract", () => {
     }
   });
 
-  it("wires the real KLYX funnel without sending route ids or search text", () => {
+  it("wires acquisition, signup, search and booking without route ids or search text", () => {
     const observer = read("app/components/KlyxProductAnalytics.tsx");
 
-    for (const event of KLYX_PRODUCT_ANALYTICS_EVENTS) {
+    for (const event of [
+      "visit started",
+      "account signed up",
+      "account signed in",
+      "service searched",
+      "provider opened",
+      "booking started",
+      "booking confirmed",
+      "booking abandoned",
+    ]) {
       expect(observer).toContain(`captureKlyxProductEvent("${event}")`);
     }
 
+    expect(observer).toContain("VISIT_STARTED_STORAGE_KEY");
+    expect(observer).toContain("sessionStorage");
     expect(observer).toContain('pathname === "/recommendations"');
     expect(observer).toContain("PROVIDER_PATH");
     expect(observer).toContain("BOOKING_FORM_PATH");
@@ -90,6 +105,39 @@ describe("KLY-5 privacy-first product analytics contract", () => {
     expect(observer).not.toContain("providerId:");
     expect(observer).not.toContain("bookingId:");
     expect(observer).not.toContain("query:");
+  });
+
+  it("captures profile milestones only after successful profile operations", () => {
+    const accounts = read("lib/account-switcher.ts");
+
+    expect(accounts).toContain(
+      'captureKlyxProductEvent("profile selected")'
+    );
+    expect(accounts).toContain(
+      'captureKlyxProductEvent("profile created")'
+    );
+    expect(accounts).toContain("if (!response.ok)");
+    expect(accounts).toContain("if (!result.profileId)");
+    expect(accounts).not.toContain('captureKlyxProductEvent("profile deleted")');
+  });
+
+  it("captures payment only after the server confirms Stripe paid state", () => {
+    const page = read("app/payment/success/page.tsx");
+    const analytics = read(
+      "app/payment/success/KlyxPaymentSuccessAnalytics.tsx"
+    );
+
+    expect(page).toContain('session.payment_status === "paid"');
+    expect(page).toContain("await markBookingPaidFromSession(session)");
+    expect(page).toContain(
+      "confirmation.confirmed ? <KlyxPaymentSuccessAnalytics /> : null"
+    );
+    expect(analytics).toContain(
+      'captureKlyxProductEvent("payment confirmed")'
+    );
+    expect(analytics).not.toContain("bookingId");
+    expect(analytics).not.toContain("sessionId");
+    expect(analytics).not.toContain("amount");
   });
 
   it("mounts analytics once at the root behind Suspense", () => {
