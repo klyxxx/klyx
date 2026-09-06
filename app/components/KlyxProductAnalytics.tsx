@@ -11,6 +11,8 @@ const BOOKING_FORM_PATH = /^\/providers\/[^/]+\/book$/;
 const BOOKING_DETAIL_PATH = /^\/bookings\/[^/]+$/;
 
 const FRESH_SIGNUP_WINDOW_MS = 5 * 60 * 1000;
+const VISIT_STARTED_STORAGE_KEY =
+  "klyx:product-analytics-visit-started";
 
 function isFreshlyCreatedAuthUser(user: {
   created_at?: string;
@@ -45,6 +47,27 @@ export default function KlyxProductAnalytics() {
   const bookingInProgressRef = useRef(false);
   const abandonmentSentRef = useRef(false);
   const signupCapturedRef = useRef(false);
+
+  useEffect(() => {
+    let shouldCapture = true;
+
+    try {
+      if (
+        window.sessionStorage.getItem(VISIT_STARTED_STORAGE_KEY) ===
+        "1"
+      ) {
+        shouldCapture = false;
+      } else {
+        window.sessionStorage.setItem(VISIT_STARTED_STORAGE_KEY, "1");
+      }
+    } catch {
+      // Analytics storage availability must never affect navigation.
+    }
+
+    if (shouldCapture) {
+      captureKlyxProductEvent("visit started");
+    }
+  }, []);
 
   useEffect(() => {
     if (pathname !== "/onboarding" || signupCapturedRef.current) {
