@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/klyx-tolgee-catalog.yml"
+      - ".github/workflows/klyx-tolgee-cloud.yml"
       - ".tolgeerc.json"
       - "app/components/KlyxLocaleProvider.tsx"
       - "lib/klyx-i18n.ts"
@@ -19,6 +20,7 @@ on:
       - main
     paths:
       - ".github/workflows/klyx-tolgee-catalog.yml"
+      - ".github/workflows/klyx-tolgee-cloud.yml"
       - ".tolgeerc.json"
       - "app/components/KlyxLocaleProvider.tsx"
       - "lib/klyx-i18n.ts"

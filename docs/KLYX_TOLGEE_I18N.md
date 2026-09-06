@@ -76,18 +76,32 @@ This means a reviewed Tolgee shell translation can reach KLYX after the normal T
 
 The runtime catalog is typed against `KlyxSelectableLocale`, so promoting a locale requires the runtime bridge to explicitly provide that locale before TypeScript can pass.
 
-## Create the Tolgee project
+## Tolgee Cloud project
 
-Recommended initial setup:
+The live Tolgee Cloud project for KLYX is:
 
-1. Create a Tolgee Cloud project named `KLYX`.
-2. Use French (`fr`) as the base language.
-3. Add `en`, `nl`, `de`, and `es` first.
-4. Add the remaining KLYX registered locales progressively in Tolgee. They can exist in Tolgee without being exposed in KLYX.
-5. Create a Project API Key for CLI synchronization.
-6. Push the committed bootstrap with `npm run i18n:tolgee:push`.
+- Project name: `klyx`
+- Project ID: `34751`
+- Tolgee base language: English (`en`)
 
-Do not commit the API key and do not put the management key in a `NEXT_PUBLIC_*` environment variable.
+The Tolgee base language is a translation-management setting only. It does **not** change the KLYX application default locale: KLYX still uses French (`fr`) as `KLYX_DEFAULT_LOCALE` and still publishes only certified locales.
+
+The repository stores the non-secret project id in `.tolgeerc.json`. The Project API Key must never be committed.
+
+When adding languages in Tolgee, prefer the exact KLYX tags whenever Tolgee allows a custom tag (`gu`, `mr`, `pa`, `sr`, `uz`, `zh-Hans`, `zh-Hant`, etc.). Regional/script variants can be normalized by the KLYX browser locale resolver, but exact project tags make CLI file synchronization predictable.
+
+## Project API Key
+
+Create a **Project API Key** for project `34751`. It should have the minimum project permissions needed to read translations for verification; grant write permissions only when intentional Tolgee push synchronization is required.
+
+Never:
+
+- commit the key in `.tolgeerc.json`;
+- add it to a `NEXT_PUBLIC_*` variable;
+- expose it to the browser;
+- print it in CI logs.
+
+Tolgee CLI reads the key from `TOLGEE_API_KEY`.
 
 ## Local setup — PowerShell
 
@@ -97,7 +111,26 @@ Set the key only for the current terminal session:
 $env:TOLGEE_API_KEY = "<project-api-key>"
 ```
 
-If you use a Personal Access Token instead of a Project API Key, pass the project id to the Tolgee CLI according to Tolgee documentation.
+The project id is already configured in `.tolgeerc.json`, so the CLI does not need `--project-id` for normal KLYX commands.
+
+## GitHub Actions secret
+
+For repository-side Cloud verification, add one GitHub Actions repository secret named exactly:
+
+```text
+TOLGEE_API_KEY
+```
+
+The secret is consumed only by the manual workflow `KLYX Tolgee Cloud Verification`.
+
+That workflow is intentionally read-only against Tolgee:
+
+1. it requires `TOLGEE_API_KEY` without printing it;
+2. it pulls only `en`, `fr`, `nl`, `de`, and staged `es` into an ephemeral CI directory;
+3. it validates the pulled files against the KLYX Tolgee catalog contract;
+4. it does not commit files, deploy code, or push translations back to Tolgee.
+
+This provides a safe first proof that the Tolgee Cloud project, API key and KLYX repository are connected correctly.
 
 ## Synchronization commands
 
@@ -121,6 +154,8 @@ npm run i18n:tolgee:push
 
 The repository configuration uses `NO_FORCE` for push conflicts. A conflict must be resolved deliberately rather than overwriting remote work.
 
+Do not use the push command until the Tolgee project language tags intended for synchronization are aligned with the corresponding KLYX catalog filenames.
+
 ## Publication invariant
 
 Tolgee management and KLYX runtime publication are separate concerns.
@@ -141,7 +176,8 @@ Continue one surface at a time:
 
 1. keep the static shell bridge and the existing KLYX dictionary fallback;
 2. migrate shared navigation labels to the same Tolgee snapshots in a separate certified PR;
-3. after the Tolgee Cloud project is synchronized, evaluate the current Tolgee React/Next.js SDK without changing the language-selection contract;
-4. migrate page-specific translation bundles independently, preserving their safety tests;
-5. keep local static data as a production fallback until the migration is complete;
-6. expose a new locale only after its critical KLYX surfaces are certified end-to-end.
+3. verify Tolgee Cloud through the read-only manual workflow before enabling any automated push path;
+4. evaluate the current Tolgee React/Next.js SDK without changing the language-selection contract;
+5. migrate page-specific translation bundles independently, preserving their safety tests;
+6. keep local static data as a production fallback until the migration is complete;
+7. expose a new locale only after its critical KLYX surfaces are certified end-to-end.

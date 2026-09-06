@@ -18,6 +18,8 @@ import {
   isKlyxTolgeeStagedLocale,
 } from "@/lib/klyx-tolgee";
 
+const KLYX_TOLGEE_PROJECT_ID = 34751;
+
 describe("KLYX Tolgee foundation", () => {
   it("manages every locale already registered by KLYX", () => {
     expect(KLYX_TOLGEE_MANAGED_LOCALES).toEqual(KLYX_LOCALES);
@@ -51,7 +53,7 @@ describe("KLYX Tolgee foundation", () => {
     }
   });
 
-  it("keeps Tolgee CLI pinned and credentials out of repository config", () => {
+  it("keeps Tolgee CLI pinned, the Cloud project explicit and credentials out of repository config", () => {
     const packageJson = JSON.parse(
       readFileSync(path.resolve(process.cwd(), "package.json"), "utf8")
     ) as {
@@ -91,7 +93,7 @@ describe("KLYX Tolgee foundation", () => {
     expect(packageJson.devDependencies?.["@tolgee/cli"]).toBeUndefined();
 
     expect(tolgeeConfig.apiKey).toBeUndefined();
-    expect(tolgeeConfig.projectId).toBeUndefined();
+    expect(tolgeeConfig.projectId).toBe(KLYX_TOLGEE_PROJECT_ID);
     expect(tolgeeConfig.pull?.path).toBe("./messages/tolgee");
     expect(tolgeeConfig.pull?.languages).toBeUndefined();
     expect(tolgeeConfig.push?.forceMode).toBe("NO_FORCE");
