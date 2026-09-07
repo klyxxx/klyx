@@ -19,11 +19,11 @@ describe("client Activity UX", () => {
     expect(activitySource).not.toContain('href="/provider/assistant"');
   });
 
-  it("keeps the next client action primary and returns new needs to KLYX", () => {
-    expect(activitySource).toContain('t("nextStepKlyx")');
+  it("keeps the client Activity entry point focused on KLYX", () => {
+    expect(activitySource).toContain('t("clientTracking")');
+    expect(activitySource).toContain('t("organizeAnotherNeed")');
     expect(activitySource).toContain('href="/assistant"');
     expect(activitySource).not.toContain('href="/search"');
-    expect(activitySource).toContain('t("explicitConfirmationBoundary")');
   });
 
   it("uses the Aura Noir semantic KLYX identity without legacy brand colors", () => {

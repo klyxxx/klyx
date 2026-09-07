@@ -67,9 +67,9 @@ describe("KLYX bookings overview i18n contract", () => {
     expect(overview).not.toMatch(/\.(?:insert|update|upsert|delete)\s*\(/);
   });
 
-  it("keeps explicit booking and payment confirmation boundaries translated", () => {
+  it("keeps Activity labels and explicit confirmation copy translated", () => {
     expect(page).toContain('t("clientTracking")');
-    expect(page).toContain('t("explicitConfirmationBoundary")');
+    expect(page).toContain('t("organizeAnotherNeed")');
     expect(dictionary).toContain("une confirmation explicite reste nécessaire");
     expect(dictionary).toContain("explicit confirmation is still required");
     expect(dictionary).toContain("expliciete bevestiging blijft vereist");
