@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 
 import { captureKlyxProductEvent } from "@/lib/klyx-product-analytics-client";
 import { createClient } from "@/lib/supabase/client";
@@ -15,6 +16,8 @@ const VISIT_STARTED_STORAGE_KEY =
   "klyx:product-analytics-visit-started";
 const SIGNUP_CAPTURED_STORAGE_KEY =
   "klyx:product-analytics-signup-captured";
+const SIGNIN_CAPTURED_STORAGE_KEY =
+  "klyx:product-analytics-signin-captured";
 
 function isFreshlyCreatedAuthUser(user: {
   created_at?: string;
@@ -67,6 +70,30 @@ function markSignupCapturedInSession(): void {
   }
 }
 
+function wasSignInCapturedInSession(): boolean {
+  try {
+    return window.sessionStorage.getItem(SIGNIN_CAPTURED_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markSignInCapturedInSession(): void {
+  try {
+    window.sessionStorage.setItem(SIGNIN_CAPTURED_STORAGE_KEY, "1");
+  } catch {
+    // Analytics storage availability must never affect authentication.
+  }
+}
+
+function clearSignInCapturedInSession(): void {
+  try {
+    window.sessionStorage.removeItem(SIGNIN_CAPTURED_STORAGE_KEY);
+  } catch {
+    // Analytics storage availability must never affect authentication.
+  }
+}
+
 export default function KlyxProductAnalytics() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -103,26 +130,38 @@ export default function KlyxProductAnalytics() {
     const supabase = createClient();
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event: string) => {
-      if (event !== "SIGNED_IN") {
-        return;
-      }
+    } = supabase.auth.onAuthStateChange(
+      (event: AuthChangeEvent, session: Session | null) => {
+        if (event === "SIGNED_OUT") {
+          clearSignInCapturedInSession();
+          return;
+        }
 
-      if (pathname === "/login") {
-        captureKlyxProductEvent("account signed in");
-        return;
-      }
+        if (event !== "SIGNED_IN") {
+          return;
+        }
 
-      if (
-        pathname === "/signup" &&
-        !signupCapturedRef.current &&
-        !wasSignupCapturedInSession()
-      ) {
-        signupCapturedRef.current = true;
-        markSignupCapturedInSession();
-        captureKlyxProductEvent("account signed up");
+        const isFreshSignup =
+          session?.user && isFreshlyCreatedAuthUser(session.user);
+
+        if (
+          !signupCapturedRef.current &&
+          !wasSignupCapturedInSession() &&
+          (pathname === "/signup" || isFreshSignup)
+        ) {
+          signupCapturedRef.current = true;
+          markSignupCapturedInSession();
+          markSignInCapturedInSession();
+          captureKlyxProductEvent("account signed up");
+          return;
+        }
+
+        if (!wasSignInCapturedInSession()) {
+          markSignInCapturedInSession();
+          captureKlyxProductEvent("account signed in");
+        }
       }
-    });
+    );
 
     return () => {
       subscription.unsubscribe();
@@ -154,6 +193,7 @@ export default function KlyxProductAnalytics() {
         ) {
           signupCapturedRef.current = true;
           markSignupCapturedInSession();
+          markSignInCapturedInSession();
           captureKlyxProductEvent("account signed up");
         }
       } catch {
