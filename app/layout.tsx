@@ -41,9 +41,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const appUrl =
-  process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-  "http://localhost:3000";
+const appUrl = "https://www.klyx.be";
 
 type SeoCopy = {
   title: string;
