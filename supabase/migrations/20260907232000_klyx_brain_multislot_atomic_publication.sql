@@ -46,9 +46,12 @@ begin
       using errcode = '22023';
   end if;
 
-  if coalesce(jsonb_typeof(p_slots), '') <> 'array'
-    or jsonb_array_length(p_slots) <> p_slot_count
-  then
+  if coalesce(jsonb_typeof(p_slots), '') <> 'array' then
+    raise exception 'KLYX_MULTI_SLOT_ATOMIC_INVALID_SLOTS'
+      using errcode = '22023';
+  end if;
+
+  if jsonb_array_length(p_slots) <> p_slot_count then
     raise exception 'KLYX_MULTI_SLOT_ATOMIC_INVALID_SLOTS'
       using errcode = '22023';
   end if;
