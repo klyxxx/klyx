@@ -1,6 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="KLYX">
   <rect x="2" y="2" width="60" height="60" rx="15" fill="#ffffff"/>
-  <path d="M18 14h9v14.7L39.7 14H51L35.8 31.1 52 50H40.3L27 34.2V50h-9V14Z" fill="#09090b"/>
-  <path d="M43.5 10.5 52 15 35.3 33.2l-5.6-6.4 13.8-16.3Z" fill="#7c3aed"/>
+  <g transform="scale(1.6)">
+    <path d="M10 7v26h6V22.8L26.5 33H35L21.6 19.7 34 7h-8.1L16 17.4V7H10Z" fill="#09090b"/>
+    <path d="M25.8 7 20 13l4.1 4.1L34 7h-8.2Z" fill="#2563eb"/>
+  </g>
   <rect x="2" y="2" width="60" height="60" rx="15" fill="none" stroke="#e4e4e7" stroke-width="2"/>
 </svg>

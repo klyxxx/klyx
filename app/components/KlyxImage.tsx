@@ -9,10 +9,12 @@ export type KlyxImageProps = Omit<ImageProps, "quality" | "src"> & {
   fallbackSrc?: ImageProps["src"];
 };
 
+const DEFAULT_FALLBACK_SRC = "/klyx-image-fallback.svg";
+
 function shouldBypassNextOptimization(src: ImageProps["src"]): boolean {
   return (
     typeof src === "string" &&
-    /^(?:https?:\/\/|blob:|data:)/i.test(src)
+    (/^(?:https?:\/\/|blob:|data:)/i.test(src) || src.endsWith(".svg"))
   );
 }
 
@@ -24,8 +26,9 @@ function shouldBypassNextOptimization(src: ImageProps["src"]): boolean {
  * bypasses the Next.js image optimizer for dynamic external/blob/data URLs so
  * user/provider imagery can render reliably without widening remote hosts.
  *
- * `fallbackSrc` provides a fail-soft visual replacement when the requested
- * image cannot load. Theme-specific assets belong in KlyxThemeImage.
+ * Every image fails soft to the neutral KLYX fallback unless a dedicated
+ * fallbackSrc is supplied. External images never receive the KLYX page URL as
+ * a referrer. Theme-specific assets belong in KlyxThemeImage.
  */
 export default function KlyxImage({
   src,
@@ -34,10 +37,12 @@ export default function KlyxImage({
   sizes = "(max-width: 640px) 100vw, (max-width: 1200px) 50vw, 33vw",
   unoptimized,
   onError,
+  referrerPolicy,
   ...props
 }: KlyxImageProps) {
   const [resolvedSrc, setResolvedSrc] = useState<ImageProps["src"]>(src);
   const [fallbackUsed, setFallbackUsed] = useState(false);
+  const effectiveFallbackSrc = fallbackSrc ?? DEFAULT_FALLBACK_SRC;
 
   useEffect(() => {
     setResolvedSrc(src);
@@ -45,9 +50,9 @@ export default function KlyxImage({
   }, [src]);
 
   const handleError: NonNullable<ImageProps["onError"]> = (event) => {
-    if (fallbackSrc && !fallbackUsed) {
+    if (!fallbackUsed && resolvedSrc !== effectiveFallbackSrc) {
       setFallbackUsed(true);
-      setResolvedSrc(fallbackSrc);
+      setResolvedSrc(effectiveFallbackSrc);
     }
 
     onError?.(event);
@@ -56,9 +61,11 @@ export default function KlyxImage({
   return (
     <Image
       {...props}
+      data-klyx-managed-image="true"
       src={resolvedSrc}
       quality={quality}
       sizes={sizes}
+      referrerPolicy={referrerPolicy ?? "no-referrer"}
       unoptimized={
         unoptimized ?? shouldBypassNextOptimization(resolvedSrc)
       }
