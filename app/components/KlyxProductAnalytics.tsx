@@ -103,7 +103,7 @@ export default function KlyxProductAnalytics() {
     const supabase = createClient();
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event) => {
+    } = supabase.auth.onAuthStateChange((event: string) => {
       if (event !== "SIGNED_IN") {
         return;
       }
