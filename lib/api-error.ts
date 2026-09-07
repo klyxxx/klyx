@@ -1,7 +1,11 @@
 import { randomUUID } from "node:crypto";
 
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
+import {
+  isKlyxElmahIoConfigured,
+  reportKlyxApiError,
+} from "@/lib/elmah-io";
 import { logServerError } from "@/lib/server-log";
 
 export const INTERNAL_API_ERROR_MESSAGE =
@@ -152,6 +156,24 @@ export function secureApiErrorResponse(
     requestId,
     error: input.error,
   });
+
+  if (
+    status >= 500 &&
+    isKlyxElmahIoConfigured()
+  ) {
+    after(async () => {
+      await reportKlyxApiError({
+        event: input.event,
+        route: input.route,
+        method: input.method,
+        status,
+        code,
+        durationMs,
+        requestId,
+        error: input.error,
+      });
+    });
+  }
 
   return NextResponse.json(
     {

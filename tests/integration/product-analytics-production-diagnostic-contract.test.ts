@@ -17,7 +17,9 @@ describe("KLY-9 PostHog production diagnostic contract", () => {
     expect(getStart).toBeGreaterThanOrEqual(0);
     expect(postStart).toBeGreaterThan(getStart);
     expect(getBlock).toContain("await requireKlyxAdmin()");
-    expect(getBlock).toContain("NextResponse.json(runtime.diagnostic");
+    expect(getBlock).toContain("validatePostHogRuntime(");
+    expect(getBlock).toContain("...runtime.diagnostic");
+    expect(getBlock).toContain("...validation");
     expect(getBlock).toContain('"Cache-Control": "no-store"');
     expect(getBlock).toContain("adminErrorStatus(error)");
     expect(getBlock).toContain("adminErrorPublicMessage(status)");
@@ -25,7 +27,7 @@ describe("KLY-9 PostHog production diagnostic contract", () => {
     expect(getBlock).not.toContain("process.env.POSTHOG_HOST");
   });
 
-  it("exposes only safe configuration booleans and never secret values", () => {
+  it("exposes only safe configuration state and never secret values", () => {
     expect(route).toContain("const tokenConfigured = Boolean(projectToken)");
     expect(route).toContain("const hostConfigured = Boolean(rawHost)");
     expect(route).toContain("const hostAllowed = Boolean(origin)");
@@ -43,6 +45,40 @@ describe("KLY-9 PostHog production diagnostic contract", () => {
     expect(diagnosticBlock).not.toContain("rawProjectToken");
     expect(diagnosticBlock).not.toContain("rawHost");
     expect(diagnosticBlock).not.toContain("origin,");
+  });
+
+  it("validates the project token without ingesting a synthetic product event", () => {
+    expect(route).toContain('fetch(`${origin}/flags?v=2`');
+    expect(route).toContain("api_key: projectToken");
+    expect(route).toContain(
+      'distinct_id: "klyx-posthog-config-diagnostic"'
+    );
+    expect(route).toContain('validationState: "valid"');
+    expect(route).toContain('validationState: "invalid_token"');
+    expect(route).toContain('validationState: "upstream_error"');
+    expect(route).toContain('validationState: "unreachable"');
+    expect(route).toContain("validationHttpStatus: response.status");
+
+    const validationStart = route.indexOf("async function validatePostHogRuntime(");
+    const getStart = route.indexOf("export async function GET()");
+    const validationBlock = route.slice(validationStart, getStart);
+
+    expect(validationStart).toBeGreaterThanOrEqual(0);
+    expect(validationBlock).not.toContain("/i/v0/e/");
+    expect(validationBlock).not.toContain("visit started");
+    expect(validationBlock).not.toContain("account signed up");
+  });
+
+  it("logs only safe upstream capture status while preserving fail-open 204", () => {
+    expect(route).toContain('fetch(`${origin}/i/v0/e/`');
+    expect(route).toContain("if (!response.ok)");
+    expect(route).toContain("logServerWarning({");
+    expect(route).toContain('event: "posthog_product_capture_rejected"');
+    expect(route).toContain("status: response.status");
+    expect(route).toContain("logServerError({");
+    expect(route).toContain('event: "posthog_product_capture_failed"');
+    expect(route).toContain('code: "posthog_capture_failed"');
+    expect(route).toContain("return noContent();");
   });
 
   it("preserves the privacy-first capture path and fail-open user journey", () => {

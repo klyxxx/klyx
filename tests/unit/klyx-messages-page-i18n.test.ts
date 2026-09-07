@@ -31,6 +31,22 @@ describe("KLYX messages overview i18n", () => {
     expect(getKlyxMessagesPageDictionary("de").description).toContain(
       "KLYX-Buchungen"
     );
+    expect(getKlyxMessagesPageDictionary("es").description).toContain(
+      "reservas KLYX"
+    );
+  });
+
+  it("certifies the Spanish messages overview copy", () => {
+    expect(resolveKlyxMessagesPageLocale("es")).toBe("es");
+
+    const spanish = getKlyxMessagesPageDictionary("es");
+    expect(spanish.title).toBe("Mensajes");
+    expect(spanish.emptyTitle).toBe("No hay conversaciones");
+    expect(spanish.unknownUser).toBe("Usuario de KLYX");
+    expect(spanish.unreadSingle).toBe("sin leer");
+    expect(spanish.unreadPlural).toBe("sin leer");
+    expect(spanish.youPrefix).toBe("Tú:");
+    expect(spanish.openConversation).toBe("Abrir");
   });
 
   it("uses a generic localized loading failure instead of backend details", () => {
@@ -44,8 +60,8 @@ describe("KLYX messages overview i18n", () => {
   });
 
   it("falls back explicitly to French outside the certified page locales", () => {
-    expect(resolveKlyxMessagesPageLocale("es")).toBe("fr");
-    expect(getKlyxMessagesPageDictionary("es")).toEqual(
+    expect(resolveKlyxMessagesPageLocale("it")).toBe("fr");
+    expect(getKlyxMessagesPageDictionary("it")).toEqual(
       getKlyxMessagesPageDictionary("fr")
     );
   });

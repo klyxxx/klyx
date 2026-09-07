@@ -7,7 +7,7 @@ function source(path: string) {
 }
 
 describe("KLYX transactional email lifecycle contract", () => {
-  it("covers account and profile creation/deletion only after successful mutations", () => {
+  it("covers account/profile creation and profile deletion only after successful mutations", () => {
     const profiles = source("app/api/profiles/manage/route.ts");
     const accountDelete = source("app/api/account/delete/route.ts");
 
@@ -21,10 +21,11 @@ describe("KLYX transactional email lifecycle contract", () => {
       profiles.lastIndexOf("profileDeletedEmail()")
     );
 
-    expect(accountDelete).toContain("accountDeletedEmail");
     expect(accountDelete).toContain("profileDeletedEmail");
-    expect(accountDelete.indexOf("await supabaseAdmin.auth.admin.deleteUser(user.id)")).toBeLessThan(
-      accountDelete.indexOf("accountDeletedEmail()")
+    expect(accountDelete).not.toContain("accountDeletedEmail");
+    expect(accountDelete).not.toContain("supabaseAdmin.auth.admin.deleteUser(user.id)");
+    expect(accountDelete.indexOf('"klyx_delete_profile"')).toBeLessThan(
+      accountDelete.indexOf("profileDeletedEmail()")
     );
   });
 
@@ -118,7 +119,7 @@ describe("KLYX transactional email lifecycle contract", () => {
     expect(profiles).toContain("account:${user.id}:created:owner");
     expect(profiles).toContain("profile:${profileId}:created:owner");
     expect(profiles).toContain("profile:${body.profileId}:deleted:owner");
-    expect(accountDelete).toContain("account:${user.id}:deleted:owner");
+    expect(accountDelete).not.toContain("account:${user.id}:deleted:owner");
     expect(accountDelete).toContain("profile:${deletePlan.targetProfileId}:deleted:owner");
     expect(bookingCreate).toContain("booking:${booking.id}:requested:provider");
     expect(bookingStatus).toContain("booking:${booking.id}:accepted:client");

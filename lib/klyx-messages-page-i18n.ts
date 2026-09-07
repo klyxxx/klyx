@@ -5,6 +5,7 @@ export const KLYX_MESSAGES_PAGE_TRANSLATED_LOCALES = [
   "en",
   "nl",
   "de",
+  "es",
 ] as const;
 
 export type KlyxMessagesPageLocale =
@@ -111,6 +112,25 @@ const MESSAGES_PAGE_MESSAGES: Record<
     unreadPlural: "ungelesen",
     youPrefix: "Du:",
     openConversation: "Öffnen",
+  },
+  es: {
+    backDashboard: "Panel de control",
+    title: "Mensajes",
+    description:
+      "Encuentra las conversaciones vinculadas a tus reservas KLYX. Al abrir una conversación, puedes leer y enviar mensajes.",
+    loading: "Cargando conversaciones...",
+    errorTitle: "Conversaciones no disponibles",
+    loadError:
+      "No se pueden cargar las conversaciones en este momento. Vuelve a intentarlo dentro de unos instantes.",
+    retry: "Reintentar",
+    emptyTitle: "No hay conversaciones",
+    emptyDescription:
+      "Tus conversaciones aparecerán aquí en cuanto un intercambio esté vinculado a una reserva.",
+    unknownUser: "Usuario de KLYX",
+    unreadSingle: "sin leer",
+    unreadPlural: "sin leer",
+    youPrefix: "Tú:",
+    openConversation: "Abrir",
   },
 };
 
