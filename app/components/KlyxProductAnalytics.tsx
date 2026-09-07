@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
+import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 
 import { captureKlyxProductEvent } from "@/lib/klyx-product-analytics-client";
 import { createClient } from "@/lib/supabase/client";
@@ -129,36 +130,38 @@ export default function KlyxProductAnalytics() {
     const supabase = createClient();
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_OUT") {
-        clearSignInCapturedInSession();
-        return;
-      }
+    } = supabase.auth.onAuthStateChange(
+      (event: AuthChangeEvent, session: Session | null) => {
+        if (event === "SIGNED_OUT") {
+          clearSignInCapturedInSession();
+          return;
+        }
 
-      if (event !== "SIGNED_IN") {
-        return;
-      }
+        if (event !== "SIGNED_IN") {
+          return;
+        }
 
-      const isFreshSignup =
-        session?.user && isFreshlyCreatedAuthUser(session.user);
+        const isFreshSignup =
+          session?.user && isFreshlyCreatedAuthUser(session.user);
 
-      if (
-        !signupCapturedRef.current &&
-        !wasSignupCapturedInSession() &&
-        (pathname === "/signup" || isFreshSignup)
-      ) {
-        signupCapturedRef.current = true;
-        markSignupCapturedInSession();
-        markSignInCapturedInSession();
-        captureKlyxProductEvent("account signed up");
-        return;
-      }
+        if (
+          !signupCapturedRef.current &&
+          !wasSignupCapturedInSession() &&
+          (pathname === "/signup" || isFreshSignup)
+        ) {
+          signupCapturedRef.current = true;
+          markSignupCapturedInSession();
+          markSignInCapturedInSession();
+          captureKlyxProductEvent("account signed up");
+          return;
+        }
 
-      if (!wasSignInCapturedInSession()) {
-        markSignInCapturedInSession();
-        captureKlyxProductEvent("account signed in");
+        if (!wasSignInCapturedInSession()) {
+          markSignInCapturedInSession();
+          captureKlyxProductEvent("account signed in");
+        }
       }
-    });
+    );
 
     return () => {
       subscription.unsubscribe();
