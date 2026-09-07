@@ -4,6 +4,7 @@ import { Suspense } from "react";
 
 import ActiveProfileSync from "@/app/components/ActiveProfileSync";
 import FounderAccessBar from "@/app/components/FounderAccessBar";
+import KlyxImageGuard from "@/app/components/KlyxImageGuard";
 import KlyxLocaleProvider from "@/app/components/KlyxLocaleProvider";
 import KlyxProductAnalytics from "@/app/components/KlyxProductAnalytics";
 import KlyxSkipLink from "@/app/components/KlyxSkipLink";
@@ -250,6 +251,7 @@ export default async function RootLayout({
       <body className="min-h-full bg-background text-foreground">
         <KlyxLocaleProvider initialLocale={locale}>
           <KlyxSkipLink />
+          <KlyxImageGuard />
 
           <PwaRegistrar />
           <Suspense fallback={null}>
