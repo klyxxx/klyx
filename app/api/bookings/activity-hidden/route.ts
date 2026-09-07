@@ -79,7 +79,39 @@ export async function GET(request: Request) {
       .order("created_at", { ascending: false })
       .limit(500);
 
-    if (error) throw new Error(error.message);
+    if (error) {
+      // The hidden registry is a presentation layer only. A temporary registry
+      // failure must never hide the source bookings themselves or turn a real
+      // Activity list into an empty/error state. Log the server failure, then
+      // fail open for visibility only. Mutations remain fail closed below.
+      secureApiErrorResponse({
+        error: new Error(error.message),
+        event: "activity_hidden_missions_load_failed",
+        route: "/api/bookings/activity-hidden",
+        method: "GET",
+        status: 500,
+        code: "activity_hidden_missions_load_failed",
+        startedAt,
+        details: {
+          sourceRecordsDeleted: false,
+          ownershipScope: "client",
+        },
+      });
+
+      return NextResponse.json(
+        {
+          ok: true,
+          hidden: [],
+          ownershipScope: "client",
+          registryAvailable: false,
+          sourceRecordsDeleted: false,
+        },
+        {
+          status: 200,
+          headers: { "Cache-Control": "no-store" },
+        }
+      );
+    }
 
     const hidden = ((data ?? []) as HiddenMissionRow[]).map((row) => ({
       entityType: row.entity_type,
@@ -87,7 +119,13 @@ export async function GET(request: Request) {
       hiddenAt: row.created_at,
     }));
 
-    return NextResponse.json({ ok: true, hidden, ownershipScope: "client" });
+    return NextResponse.json({
+      ok: true,
+      hidden,
+      ownershipScope: "client",
+      registryAvailable: true,
+      sourceRecordsDeleted: false,
+    });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Impossible de charger les missions masquées.";
