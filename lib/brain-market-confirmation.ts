@@ -1,5 +1,8 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
+  brainConfirmationModeMatches,
+} from "@/lib/brain-confirmation-mode";
+import {
   getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
@@ -307,6 +310,17 @@ export async function requireBrainMarketConfirmation(
   if (payload.automaticExecutionAllowed !== false) {
     throw new Error(
       "Politique de confirmation KLYX invalide."
+    );
+  }
+
+  if (
+    !brainConfirmationModeMatches(
+      payload,
+      "single"
+    )
+  ) {
+    throw new Error(
+      "Type de confirmation KLYX invalide pour cette publication."
     );
   }
 

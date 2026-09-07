@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { NextResponse } from "next/server";
 
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -11,6 +13,7 @@ import {
 import {
   notifyFullCoverageProviders,
   rankProvidersForMultiSlots,
+  type MultiSlotCandidate,
 } from "@/lib/market-multi-slot";
 
 // KLYX_MULTI_SLOT_MARKET_PUBLISH_12_83
@@ -112,11 +115,336 @@ function totalBudget(
   );
 }
 
+async function existingPublishedRequest(
+  confirmationId: string,
+  profileId: string
+) {
+  const {
+    data,
+    error,
+  } = await supabaseAdmin
+    .from(
+      "market_service_requests"
+    )
+    .select("id")
+    .eq(
+      "brain_confirmation_message_id",
+      confirmationId
+    )
+    .eq(
+      "client_profile_id",
+      profileId
+    )
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      error.message
+    );
+  }
+
+  return data;
+}
+
+function publicationMessageId(
+  requestId: string
+) {
+  const hex =
+    createHash("sha256")
+      .update(
+        "klyx:brain:multi-slot-published:" +
+        requestId
+      )
+      .digest("hex")
+      .slice(0, 32);
+
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20, 32),
+  ].join("-");
+}
+
+async function publicationWasCommitted(
+  params: {
+    conversationId: string;
+    confirmationId: string;
+    requestId: string;
+  }
+) {
+  const {
+    data,
+    error,
+  } = await supabaseAdmin
+    .from(
+      "brain_messages"
+    )
+    .select("id")
+    .eq(
+      "id",
+      publicationMessageId(
+        params.requestId
+      )
+    )
+    .eq(
+      "conversation_id",
+      params.conversationId
+    )
+    .eq(
+      "role",
+      "assistant"
+    )
+    .contains(
+      "payload",
+      {
+        action:
+          "multi_slot_market_request_published",
+        marketRequestId:
+          params.requestId,
+        confirmationId:
+          params.confirmationId,
+      }
+    )
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      error.message
+    );
+  }
+
+  return Boolean(data);
+}
+
+async function ensurePublicationMarker(
+  params: {
+    conversationId: string;
+    confirmationId: string;
+    requestId: string;
+    slotCount: number;
+    fullCoverageCount: number;
+  }
+) {
+  const messageId =
+    publicationMessageId(
+      params.requestId
+    );
+
+  const { error } =
+    await supabaseAdmin
+      .from(
+        "brain_messages"
+      )
+      .insert({
+        id: messageId,
+        conversation_id:
+          params.conversationId,
+        role:
+          "assistant",
+        content:
+          params.fullCoverageCount >
+          0
+            ? "Demande multi-creneaux publiee. KLYX a trouve des prestataires couvrant tous les creneaux."
+            : "Demande multi-creneaux publiee. Aucun prestataire ne couvre encore tous les creneaux.",
+        payload: {
+          action:
+            "multi_slot_market_request_published",
+          marketRequestId:
+            params.requestId,
+          confirmationId:
+            params.confirmationId,
+          slotCount:
+            params.slotCount,
+          fullCoverageCount:
+            params.fullCoverageCount,
+          automaticExecutionAllowed:
+            false,
+        },
+      });
+
+  if (!error) {
+    return;
+  }
+
+  if (error.code !== "23505") {
+    throw new Error(
+      error.message
+    );
+  }
+
+  const committed =
+    await publicationWasCommitted({
+      conversationId:
+        params.conversationId,
+      confirmationId:
+        params.confirmationId,
+      requestId:
+        params.requestId,
+    });
+
+  if (!committed) {
+    throw new Error(
+      "KLYX_MULTI_SLOT_PUBLICATION_MARKER_COLLISION"
+    );
+  }
+}
+
+async function loadPersistedCandidates(
+  requestId: string
+) {
+  const {
+    data,
+    error,
+  } = await supabaseAdmin
+    .from(
+      "market_request_provider_candidates"
+    )
+    .select(
+      "provider_profile_id, coverage_count, slot_count, full_coverage"
+    )
+    .eq(
+      "market_request_id",
+      requestId
+    );
+
+  if (error) {
+    throw new Error(
+      error.message
+    );
+  }
+
+  return (
+    data ?? []
+  ).map(
+    (item): MultiSlotCandidate => ({
+      providerProfileId:
+        item.provider_profile_id,
+      coverageCount:
+        item.coverage_count,
+      slotCount:
+        item.slot_count,
+      fullCoverage:
+        item.full_coverage,
+    })
+  );
+}
+
+async function candidateSnapshotWasPersisted(
+  requestId: string,
+  expectedSlotCount: number
+) {
+  const {
+    data,
+    error,
+  } = await supabaseAdmin
+    .from(
+      "market_service_request_slots"
+    )
+    .select("position")
+    .eq(
+      "market_request_id",
+      requestId
+    )
+    .order(
+      "position",
+      {
+        ascending: true,
+      }
+    );
+
+  if (error) {
+    throw new Error(
+      error.message
+    );
+  }
+
+  if (
+    data?.length !==
+    expectedSlotCount
+  ) {
+    return false;
+  }
+
+  return data.every(
+    (item, index) =>
+      Number(
+        item.position
+      ) ===
+      index + 1
+  );
+}
+
+function publicationInProgressResponse(
+  requestId: string
+) {
+  return NextResponse.json(
+    {
+      requestId,
+      requestMode:
+        "multi_slot",
+      replayed: true,
+      inProgress: true,
+      automaticExecutionAllowed:
+        false,
+      message:
+        "Publication KLYX deja en cours pour cette confirmation.",
+    },
+    {
+      status: 409,
+    }
+  );
+}
+
+async function replayedResponse(
+  params: {
+    requestId: string;
+    slotCount: number;
+  }
+) {
+  const candidates =
+    await loadPersistedCandidates(
+      params.requestId
+    );
+
+  const fullCoverageCount =
+    candidates.filter(
+      (item) =>
+        item.fullCoverage
+    ).length;
+
+  return NextResponse.json({
+    requestId:
+      params.requestId,
+    requestMode:
+      "multi_slot",
+    slotCount:
+      params.slotCount,
+    candidateCount:
+      candidates.length,
+    fullCoverageCount,
+    preferSingleProvider:
+      true,
+    href:
+      "/assistant/market/" +
+      params.requestId,
+    replayed: true,
+    message:
+      "Demande groupee deja publiee avec cette confirmation.",
+    automaticExecutionAllowed:
+      false,
+  });
+}
+
 export async function POST(
   request: Request
 ) {
-  let createdRequestId:
+  let cleanupRequestId:
     string | null = null;
+
+  let candidateSnapshotPersisted =
+    false;
 
   try {
     const body =
@@ -205,6 +533,23 @@ export async function POST(
       );
     }
 
+    const serviceName =
+      service.name
+        ?.trim() ||
+      service.slug;
+
+    const prior =
+      await existingPublishedRequest(
+        proof.confirmationId,
+        proof.profileId
+      );
+
+    let marketRequestId =
+      prior?.id ?? null;
+
+    let replayed =
+      Boolean(prior);
+
     const durations =
       proof.slots.map(
         durationMinutes
@@ -235,57 +580,109 @@ export async function POST(
     const first =
       proof.slots[0];
 
-    const {
-      data: created,
-      error: createError,
-    } = await supabaseAdmin
-      .from(
-        "market_service_requests"
-      )
-      .insert({
-        client_profile_id:
-          proof.profileId,
-        service_id:
-          service.id,
-        title,
-        description,
-        city:
-          proof.city,
-        requested_date:
-          first.date,
-        requested_time:
-          first.startTime +
-          ":00",
-        budget_max:
-          budgetTotal,
-        budget_total:
-          budgetTotal,
-        request_mode:
-          "multi_slot",
-        slot_count:
-          proof.slots.length,
-        prefer_single_provider:
-          true,
-        status:
-          "open",
-      })
-      .select("id")
-      .single();
+    if (!marketRequestId) {
+      const {
+        data: created,
+        error: createError,
+      } = await supabaseAdmin
+        .from(
+          "market_service_requests"
+        )
+        .insert({
+          client_profile_id:
+            proof.profileId,
+          service_id:
+            service.id,
+          title,
+          description,
+          city:
+            proof.city,
+          requested_date:
+            first.date,
+          requested_time:
+            first.startTime +
+            ":00",
+          budget_max:
+            budgetTotal,
+          budget_total:
+            budgetTotal,
+          request_mode:
+            "multi_slot",
+          slot_count:
+            proof.slots.length,
+          prefer_single_provider:
+            true,
+          status:
+            "open",
+          brain_confirmation_message_id:
+            proof.confirmationId,
+        })
+        .select("id")
+        .single();
 
-    if (createError) {
+      if (createError) {
+        if (
+          createError.code !==
+          "23505"
+        ) {
+          throw new Error(
+            createError.message
+          );
+        }
+
+        const raced =
+          await existingPublishedRequest(
+            proof.confirmationId,
+            proof.profileId
+          );
+
+        if (!raced) {
+          throw new Error(
+            "Publication KLYX concurrente introuvable."
+          );
+        }
+
+        marketRequestId =
+          raced.id;
+        replayed = true;
+      } else {
+        marketRequestId =
+          created.id;
+        cleanupRequestId =
+          created.id;
+      }
+    }
+
+    if (!marketRequestId) {
       throw new Error(
-        createError.message
+        "Demande KLYX introuvable apres publication."
       );
     }
 
-    createdRequestId =
-      created.id;
+    if (
+      replayed &&
+      await publicationWasCommitted({
+        conversationId:
+          proof.conversationId,
+        confirmationId:
+          proof.confirmationId,
+        requestId:
+          marketRequestId,
+      })
+    ) {
+      return replayedResponse({
+        requestId:
+          marketRequestId,
+        slotCount:
+          proof.slots.length,
+      });
+    }
 
     const slotRows =
       proof.slots.map(
         (slot, index) => ({
           market_request_id:
-            created.id,
+            marketRequestId,
           position:
             index + 1,
           requested_date:
@@ -301,76 +698,91 @@ export async function POST(
         })
       );
 
-    const {
-      error: slotsError,
-    } = await supabaseAdmin
-      .from(
-        "market_service_request_slots"
-      )
-      .insert(slotRows);
+    let candidates:
+      MultiSlotCandidate[];
 
-    if (slotsError) {
-      throw new Error(
-        slotsError.message
-      );
-    }
-
-    const candidates =
-      await rankProvidersForMultiSlots({
-        serviceId:
-          service.id,
-        slots:
-          proof.slots,
-      });
-
-    if (
-      candidates.length > 0
-    ) {
-      const {
-        error:
-          candidateError,
-      } = await supabaseAdmin
-        .from(
-          "market_request_provider_candidates"
-        )
-        .insert(
-          candidates.map(
-            (candidate) => ({
-              market_request_id:
-                created.id,
-              provider_profile_id:
-                candidate.providerProfileId,
-              coverage_count:
-                candidate.coverageCount,
-              slot_count:
-                candidate.slotCount,
-              full_coverage:
-                candidate.fullCoverage,
-            })
-          )
+    if (replayed) {
+      const snapshotReady =
+        await candidateSnapshotWasPersisted(
+          marketRequestId,
+          proof.slots.length
         );
 
-      if (candidateError) {
-        throw new Error(
-          candidateError
-            .message
+      if (!snapshotReady) {
+        return publicationInProgressResponse(
+          marketRequestId
         );
       }
-    }
 
-    await notifyFullCoverageProviders({
-      marketRequestId:
-        created.id,
-      candidates,
-      serviceName:
-        service.name
-          ?.trim() ||
-        service.slug,
-      city:
-        proof.city,
-      slotCount:
-        proof.slots.length,
-    });
+      candidates =
+        await loadPersistedCandidates(
+          marketRequestId
+        );
+    } else {
+      candidates =
+        await rankProvidersForMultiSlots({
+          serviceId:
+            service.id,
+          slots:
+            proof.slots,
+        });
+
+      // Only the creator writes the frozen ranking on its fresh parent.
+      // Replays are read-only, so a second ranking can never be unioned in.
+      if (
+        candidates.length > 0
+      ) {
+        const {
+          error:
+            candidateError,
+        } = await supabaseAdmin
+          .from(
+            "market_request_provider_candidates"
+          )
+          .insert(
+            candidates.map(
+              (candidate) => ({
+                market_request_id:
+                  marketRequestId,
+                provider_profile_id:
+                  candidate.providerProfileId,
+                coverage_count:
+                  candidate.coverageCount,
+                slot_count:
+                  candidate.slotCount,
+                full_coverage:
+                  candidate.fullCoverage,
+              })
+            )
+          );
+
+        if (candidateError) {
+          throw new Error(
+            candidateError
+              .message
+          );
+        }
+      }
+
+      // Slots are the durable completion marker for the candidate snapshot.
+      // This also covers the valid zero-candidate snapshot.
+      const {
+        error: slotsError,
+      } = await supabaseAdmin
+        .from(
+          "market_service_request_slots"
+        )
+        .insert(slotRows);
+
+      if (slotsError) {
+        throw new Error(
+          slotsError.message
+        );
+      }
+
+      candidateSnapshotPersisted =
+        true;
+    }
 
     const fullCoverageCount =
       candidates.filter(
@@ -378,36 +790,32 @@ export async function POST(
           item.fullCoverage
       ).length;
 
-    await supabaseAdmin
-      .from(
-        "brain_messages"
-      )
-      .insert({
-        conversation_id:
-          proof.conversationId,
-        role:
-          "assistant",
-        content:
-          fullCoverageCount >
-          0
-            ? "Demande multi-creneaux publiee. KLYX a trouve des prestataires couvrant tous les creneaux."
-            : "Demande multi-creneaux publiee. Aucun prestataire ne couvre encore tous les creneaux.",
-        payload: {
-          action:
-            "multi_slot_market_request_published",
-          marketRequestId:
-            created.id,
-          slotCount:
-            proof.slots.length,
-          fullCoverageCount,
-          automaticExecutionAllowed:
-            false,
-        },
-      });
+    await notifyFullCoverageProviders({
+      marketRequestId:
+        marketRequestId,
+      candidates,
+      serviceName,
+      city:
+        proof.city,
+      slotCount:
+        proof.slots.length,
+    });
+
+    await ensurePublicationMarker({
+      conversationId:
+        proof.conversationId,
+      confirmationId:
+        proof.confirmationId,
+      requestId:
+        marketRequestId,
+      slotCount:
+        proof.slots.length,
+      fullCoverageCount,
+    });
 
     return NextResponse.json({
       requestId:
-        created.id,
+        marketRequestId,
       requestMode:
         "multi_slot",
       slotCount:
@@ -419,7 +827,8 @@ export async function POST(
         true,
       href:
         "/assistant/market/" +
-        created.id,
+        marketRequestId,
+      replayed,
       message:
         fullCoverageCount >
         0
@@ -430,7 +839,8 @@ export async function POST(
     });
   } catch (error) {
     if (
-      createdRequestId
+      cleanupRequestId &&
+      !candidateSnapshotPersisted
     ) {
       await supabaseAdmin
         .from(
@@ -439,7 +849,7 @@ export async function POST(
         .delete()
         .eq(
           "id",
-          createdRequestId
+          cleanupRequestId
         );
     }
 
