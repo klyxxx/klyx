@@ -73,6 +73,26 @@ describe("KLYX Activity recent-first deletion contract", () => {
     expect(migration).toContain("to service_role");
   });
 
+  it("fails soft only when the hidden registry read is unavailable", () => {
+    const route = read("app/api/bookings/activity-hidden/route.ts");
+    const getStart = route.indexOf("export async function GET");
+    const postStart = route.indexOf("export async function POST");
+    const getSection = route.slice(getStart, postStart);
+    const postSection = route.slice(postStart);
+
+    expect(getStart).toBeGreaterThan(-1);
+    expect(getSection).toContain("activity_hidden_missions_load_failed");
+    expect(getSection).toContain("secureApiErrorResponse({");
+    expect(getSection).toContain("registryAvailable: false");
+    expect(getSection).toContain("hidden: []");
+    expect(getSection).toContain("status: 200");
+    expect(getSection).toContain('"Cache-Control": "no-store"');
+
+    expect(postSection).toContain("activity_hidden_mission_write_failed");
+    expect(postSection).not.toContain("registryAvailable: false");
+    expect(postSection).not.toContain("status: 200");
+  });
+
   it("keeps exactly one current Activity migration without depending on global tail order", () => {
     const migrationDir = path.join(process.cwd(), "supabase/migrations");
     const migrations = fs
