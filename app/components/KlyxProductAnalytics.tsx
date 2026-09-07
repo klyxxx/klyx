@@ -13,28 +13,58 @@ const BOOKING_DETAIL_PATH = /^\/bookings\/[^/]+$/;
 const FRESH_SIGNUP_WINDOW_MS = 5 * 60 * 1000;
 const VISIT_STARTED_STORAGE_KEY =
   "klyx:product-analytics-visit-started";
+const SIGNUP_CAPTURED_STORAGE_KEY =
+  "klyx:product-analytics-signup-captured";
 
 function isFreshlyCreatedAuthUser(user: {
   created_at?: string;
   last_sign_in_at?: string;
+  email_confirmed_at?: string;
+  confirmed_at?: string;
 }): boolean {
-  if (!user.created_at || !user.last_sign_in_at) {
+  if (!user.last_sign_in_at) {
     return false;
   }
 
-  const createdAt = Date.parse(user.created_at);
+  const createdAt = user.created_at ? Date.parse(user.created_at) : Number.NaN;
   const lastSignInAt = Date.parse(user.last_sign_in_at);
+  const confirmedAtValue = user.email_confirmed_at ?? user.confirmed_at;
+  const confirmedAt = confirmedAtValue
+    ? Date.parse(confirmedAtValue)
+    : Number.NaN;
   const now = Date.now();
 
-  if (!Number.isFinite(createdAt) || !Number.isFinite(lastSignInAt)) {
+  if (!Number.isFinite(lastSignInAt)) {
     return false;
   }
 
-  return (
-    Math.abs(lastSignInAt - createdAt) <= FRESH_SIGNUP_WINDOW_MS &&
+  const isRecentSignIn =
     now - lastSignInAt >= 0 &&
-    now - lastSignInAt <= FRESH_SIGNUP_WINDOW_MS
-  );
+    now - lastSignInAt <= FRESH_SIGNUP_WINDOW_MS;
+  const createdMatchesSignIn =
+    Number.isFinite(createdAt) &&
+    Math.abs(lastSignInAt - createdAt) <= FRESH_SIGNUP_WINDOW_MS;
+  const confirmationMatchesSignIn =
+    Number.isFinite(confirmedAt) &&
+    Math.abs(lastSignInAt - confirmedAt) <= FRESH_SIGNUP_WINDOW_MS;
+
+  return isRecentSignIn && (createdMatchesSignIn || confirmationMatchesSignIn);
+}
+
+function wasSignupCapturedInSession(): boolean {
+  try {
+    return window.sessionStorage.getItem(SIGNUP_CAPTURED_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markSignupCapturedInSession(): void {
+  try {
+    window.sessionStorage.setItem(SIGNUP_CAPTURED_STORAGE_KEY, "1");
+  } catch {
+    // Analytics storage availability must never affect authentication.
+  }
 }
 
 export default function KlyxProductAnalytics() {
@@ -70,7 +100,42 @@ export default function KlyxProductAnalytics() {
   }, []);
 
   useEffect(() => {
+    const supabase = createClient();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event !== "SIGNED_IN") {
+        return;
+      }
+
+      if (pathname === "/login") {
+        captureKlyxProductEvent("account signed in");
+        return;
+      }
+
+      if (
+        pathname === "/signup" &&
+        !signupCapturedRef.current &&
+        !wasSignupCapturedInSession()
+      ) {
+        signupCapturedRef.current = true;
+        markSignupCapturedInSession();
+        captureKlyxProductEvent("account signed up");
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [pathname]);
+
+  useEffect(() => {
     if (pathname !== "/onboarding" || signupCapturedRef.current) {
+      return;
+    }
+
+    if (wasSignupCapturedInSession()) {
+      signupCapturedRef.current = true;
       return;
     }
 
@@ -88,6 +153,7 @@ export default function KlyxProductAnalytics() {
           isFreshlyCreatedAuthUser(data.user)
         ) {
           signupCapturedRef.current = true;
+          markSignupCapturedInSession();
           captureKlyxProductEvent("account signed up");
         }
       } catch {
@@ -106,19 +172,6 @@ export default function KlyxProductAnalytics() {
     const currentIsConfirmedBooking =
       BOOKING_DETAIL_PATH.test(pathname) &&
       searchParams.get("created") === "1";
-
-    if (previousPath === "/login" && pathname === "/dashboard") {
-      captureKlyxProductEvent("account signed in");
-    }
-
-    if (
-      previousPath === "/signup" &&
-      pathname === "/onboarding" &&
-      !signupCapturedRef.current
-    ) {
-      signupCapturedRef.current = true;
-      captureKlyxProductEvent("account signed up");
-    }
 
     if (pathname === "/recommendations" && searchKey) {
       const localDedupeKey = `${pathname}?${searchKey}`;
