@@ -78,7 +78,7 @@ describe("KLY-5 privacy-first product analytics contract", () => {
     }
   });
 
-  it("wires acquisition, signup, search and booking without route ids or search text", () => {
+  it("wires acquisition, auth, search and booking without route ids or search text", () => {
     const observer = read("app/components/KlyxProductAnalytics.tsx");
 
     for (const event of [
@@ -95,13 +95,20 @@ describe("KLY-5 privacy-first product analytics contract", () => {
     }
 
     expect(observer).toContain("VISIT_STARTED_STORAGE_KEY");
+    expect(observer).toContain("SIGNUP_CAPTURED_STORAGE_KEY");
     expect(observer).toContain("sessionStorage");
+    expect(observer).toContain("onAuthStateChange");
+    expect(observer).toContain('event !== "SIGNED_IN"');
+    expect(observer).toContain("email_confirmed_at");
+    expect(observer).toContain("confirmationMatchesSignIn");
     expect(observer).toContain('pathname === "/recommendations"');
     expect(observer).toContain("PROVIDER_PATH");
     expect(observer).toContain("BOOKING_FORM_PATH");
     expect(observer).toContain("BOOKING_DETAIL_PATH");
     expect(observer).toContain('searchParams.get("created") === "1"');
     expect(observer).toContain("isFreshlyCreatedAuthUser");
+    expect(observer).not.toContain('previousPath === "/login"');
+    expect(observer).not.toContain('previousPath === "/signup"');
     expect(observer).not.toContain("providerId:");
     expect(observer).not.toContain("bookingId:");
     expect(observer).not.toContain("query:");
