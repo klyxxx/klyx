@@ -26,13 +26,16 @@ describe("client Activity UX", () => {
     expect(activitySource).toContain('t("explicitConfirmationBoundary")');
   });
 
-  it("uses one KLYX blue identity without old violet activity styling", () => {
-    expect(activitySource).toContain("bg-blue-600");
-    expect(activitySource).toContain("text-blue-600");
-    expect(activitySource).not.toContain("bg-violet-");
-    expect(activitySource).not.toContain("text-violet-");
-    expect(splitMissionSource).not.toContain("bg-violet-");
-    expect(splitMissionSource).not.toContain("text-violet-");
+  it("uses the Aura Noir semantic KLYX identity without legacy brand colors", () => {
+    for (const source of [activitySource, splitMissionSource]) {
+      expect(source).toContain("text-primary");
+      expect(source).toContain("border-primary");
+      expect(source).toContain("bg-accent/40");
+      expect(source).not.toMatch(
+        /\b(?:bg|text|border|ring|from|via|to)-(?:blue|violet|indigo|fuchsia)-/
+      );
+      expect(source).not.toMatch(/\bbg-gradient-/);
+    }
   });
 
   it("keeps grouped mission details progressively disclosed", () => {
