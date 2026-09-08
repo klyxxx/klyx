@@ -1,0 +1,46 @@
+name: KLYX Tolgee Cloud Verification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: klyx-tolgee-cloud-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Tolgee Cloud connection verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TOLGEE_API_KEY: ${{ secrets.TOLGEE_API_KEY }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Require Tolgee project API key
+        shell: bash
+        run: |
+          if [ -z "${TOLGEE_API_KEY:-}" ]; then
+            echo "::error::Missing GitHub Actions secret TOLGEE_API_KEY."
+            exit 1
+          fi
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Pull KLYX bootstrap catalogs from Tolgee Cloud
+        run: npx --yes @tolgee/cli@2.20.0 pull --path tolgee-cloud-check --languages en fr nl de es
+
+      - name: Validate Tolgee Cloud catalog contract
+        run: node scripts/i18n/check-tolgee-catalogs.mjs --catalog-dir tolgee-cloud-check

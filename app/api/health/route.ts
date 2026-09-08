@@ -1,14 +1,12 @@
-import { NextResponse } from "next/server";
-
 export const dynamic = "force-dynamic";
 
-const HEALTH_HEADERS = {
-  "Cache-Control": "no-store, max-age=0",
+const responseHeaders = {
+  "Cache-Control": "no-store",
   "X-Content-Type-Options": "nosniff",
-} as const;
+};
 
-export function GET() {
-  return NextResponse.json(
+export function GET(): Response {
+  return Response.json(
     {
       status: "ok",
       service: "klyx",
@@ -16,14 +14,14 @@ export function GET() {
     },
     {
       status: 200,
-      headers: HEALTH_HEADERS,
+      headers: responseHeaders,
     }
   );
 }
 
-export function HEAD() {
+export function HEAD(): Response {
   return new Response(null, {
     status: 204,
-    headers: HEALTH_HEADERS,
+    headers: responseHeaders,
   });
 }

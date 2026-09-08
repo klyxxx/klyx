@@ -11,6 +11,7 @@ import {
   UserRound,
 } from "lucide-react";
 
+import KlyxImage from "@/app/components/KlyxImage";
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import {
   getProfiles,
@@ -47,10 +48,12 @@ function roleLabel(
 function ProfileAvatar({ profile }: { profile: SavedAccount | undefined }) {
   if (profile?.avatarUrl) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
+      <KlyxImage
         src={profile.avatarUrl}
         alt=""
+        width={36}
+        height={36}
+        sizes="36px"
         className="h-full w-full rounded-full object-cover"
       />
     );
