@@ -42,30 +42,51 @@ const openAiProvider = read("lib/brain/llm/openai-provider.ts");
 const shadow = read("lib/brain/llm/shadow.ts");
 
 describe("KLYX Brain converse + Visible AI security boundary", () => {
-  it("lets authoritative /respond run before any wrapper body parsing", () => {
+  it("uses only the certified bounded parser before authoritative /respond", () => {
     expect(route).not.toContain("request.clone().json()");
-    expect(route).not.toContain("isKlyxAssistantMessageTooLong");
-    expect(route).toContain("const visibleAiRequest = request.clone();");
-    expect(route).toContain("deterministicPost(request)");
-    expect(route).toContain("await parseBrainRespondRequest(visibleAiRequest)");
+    expect(route).toContain("const deterministicRequest = request.clone();");
+    expect(route).toContain("await parseBrainRespondRequest(request)");
+    expect(route).toContain("deterministicPost(deterministicRequest)");
 
-    const deterministicCall = route.indexOf("deterministicPost(request)");
-    const errorGate = route.indexOf("if (!response.ok)");
     const boundedParse = route.indexOf(
-      "await parseBrainRespondRequest(visibleAiRequest)"
+      "await parseBrainRespondRequest(request)"
     );
+    const capacityGuard = route.indexOf(
+      "isKlyxAssistantMessageTooLong(message)"
+    );
+    const deterministicCall = route.indexOf(
+      "deterministicPost(deterministicRequest)"
+    );
+    const errorGate = route.indexOf("!response.ok");
     const visibleAiCall = route.indexOf("await generateKlyxVisibleAiReply");
 
-    expect(deterministicCall).toBeGreaterThan(-1);
+    expect(boundedParse).toBeGreaterThan(-1);
+    expect(capacityGuard).toBeGreaterThan(boundedParse);
+    expect(deterministicCall).toBeGreaterThan(capacityGuard);
     expect(errorGate).toBeGreaterThan(deterministicCall);
-    expect(boundedParse).toBeGreaterThan(errorGate);
-    expect(visibleAiCall).toBeGreaterThan(boundedParse);
+    expect(visibleAiCall).toBeGreaterThan(errorGate);
 
     expect(respondRoute).toContain("API_RATE_LIMIT_POLICIES.brainRespond");
     expect(respondRoute).toContain("await consumeApiRateLimit(");
     expect(respondRoute.indexOf("await consumeApiRateLimit(")).toBeLessThan(
       respondRoute.indexOf("await parseBrainRespondRequest(request)")
     );
+  });
+
+  it("keeps /respond authoritative even when wrapper parsing rejects", () => {
+    const boundedParse = route.indexOf(
+      "await parseBrainRespondRequest(request)"
+    );
+    const deterministicCall = route.indexOf(
+      "deterministicPost(deterministicRequest)"
+    );
+    const parsedGate = route.indexOf("!parsedRequest.ok");
+    const visibleAiCall = route.indexOf("await generateKlyxVisibleAiReply");
+
+    expect(boundedParse).toBeLessThan(deterministicCall);
+    expect(deterministicCall).toBeLessThan(parsedGate);
+    expect(parsedGate).toBeLessThan(visibleAiCall);
+    expect(route).toContain("return response;");
   });
 
   it("inherits the certified 32 KiB / 4,000-character parser for malformed and oversized input", async () => {
@@ -136,7 +157,7 @@ describe("KLYX Brain converse + Visible AI security boundary", () => {
   });
 
   it("propagates deterministic failures and useful rate-limit headers without invoking Visible AI", () => {
-    expect(route).toContain("if (!response.ok)");
+    expect(route).toContain("!response.ok");
     expect(route).toContain("return response;");
     expect(route).toContain("headers: response.headers");
 
@@ -147,8 +168,12 @@ describe("KLYX Brain converse + Visible AI security boundary", () => {
     expect(respondRoute).toContain('.eq("user_id", userId)');
     expect(respondRoute).toContain('message === "Conversation introuvable."');
 
-    const errorGate = route.indexOf("if (!response.ok)");
+    const deterministicCall = route.indexOf(
+      "deterministicPost(deterministicRequest)"
+    );
+    const errorGate = route.indexOf("!response.ok");
     const visibleAiCall = route.indexOf("await generateKlyxVisibleAiReply");
+    expect(errorGate).toBeGreaterThan(deterministicCall);
     expect(errorGate).toBeLessThan(visibleAiCall);
   });
 
