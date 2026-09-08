@@ -31,6 +31,9 @@ describe("KLYX delete-account page i18n", () => {
     expect(getKlyxDeleteAccountPageDictionary("de").webRequestDescription).toContain(
       "angemessene Überprüfung verlangen, um zu verhindern, dass eine andere Person dein Konto löscht"
     );
+    expect(getKlyxDeleteAccountPageDictionary("es").webRequestDescription).toContain(
+      "verificación razonable para evitar que otra persona elimine tu cuenta"
+    );
   });
 
   it("keeps identity verification acknowledged in every email template", () => {
@@ -46,6 +49,9 @@ describe("KLYX delete-account page i18n", () => {
     expect(
       getKlyxDeleteAccountPageDictionary("de").emailIdentityAcknowledgement
     ).toContain("Überprüfung meiner Identität erforderlich sein kann");
+    expect(
+      getKlyxDeleteAccountPageDictionary("es").emailIdentityAcknowledgement
+    ).toContain("verificación de mi identidad");
   });
 
   it("keeps deletion/anonymization and exceptional retention explicit", () => {
@@ -61,6 +67,9 @@ describe("KLYX delete-account page i18n", () => {
     expect(getKlyxDeleteAccountPageDictionary("de").retainedDescription).toContain(
       "gelöscht oder anonymisiert"
     );
+    expect(getKlyxDeleteAccountPageDictionary("es").retainedDescription).toContain(
+      "eliminarse o anonimizarse"
+    );
 
     expect(getKlyxDeleteAccountPageDictionary("fr").retainedDescription).toContain(
       "obligation légale, la prévention de la fraude, la sécurité ou la gestion d’un litige"
@@ -68,11 +77,24 @@ describe("KLYX delete-account page i18n", () => {
     expect(getKlyxDeleteAccountPageDictionary("en").retainedDescription).toContain(
       "legal obligation, fraud prevention, security, or the management of a dispute"
     );
+    expect(getKlyxDeleteAccountPageDictionary("es").retainedDescription).toContain(
+      "obligación legal, la prevención del fraude, la seguridad o la gestión de un litigio"
+    );
+  });
+
+  it("certifies the Spanish delete-account page copy", () => {
+    expect(resolveKlyxDeleteAccountPageLocale("es")).toBe("es");
+    expect(getKlyxDeleteAccountPageDictionary("es")).toMatchObject({
+      metadataTitle: "Eliminación de la cuenta",
+      backLegal: "Información de KLYX",
+      title: "Eliminar una cuenta KLYX",
+      requestDeletion: "Solicitar la eliminación",
+    });
   });
 
   it("falls back explicitly to French outside the certified page locales", () => {
-    expect(resolveKlyxDeleteAccountPageLocale("es")).toBe("fr");
-    expect(getKlyxDeleteAccountPageDictionary("es")).toEqual(
+    expect(resolveKlyxDeleteAccountPageLocale("it")).toBe("fr");
+    expect(getKlyxDeleteAccountPageDictionary("it")).toEqual(
       getKlyxDeleteAccountPageDictionary("fr")
     );
   });
