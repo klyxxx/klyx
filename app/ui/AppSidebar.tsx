@@ -25,7 +25,6 @@ import {
   type KlyxLocale,
 } from "@/lib/klyx-i18n";
 import { translateKlyxProviderAssistant } from "@/lib/klyx-provider-assistant-i18n";
-import { translateKlyxSidebarNavigation } from "@/lib/klyx-sidebar-navigation-i18n";
 import { createClient } from "@/lib/supabase/client";
 
 type AccountType = "client" | "provider";
@@ -132,14 +131,8 @@ export default function AppSidebar() {
   const router = useRouter();
   const { locale, t } = useKlyxLocale();
   const providerAssistantLabel = translateKlyxProviderAssistant(locale, "badge");
-  const desktopNavigationLabel = translateKlyxSidebarNavigation(
-    locale,
-    "desktopNavigation"
-  );
-  const mobileNavigationLabel = translateKlyxSidebarNavigation(
-    locale,
-    "mobileNavigation"
-  );
+  const desktopNavigationLabel = t("sidebar.desktopNavigation");
+  const mobileNavigationLabel = t("sidebar.mobileNavigation");
   const [accountType, setAccountType] = useState<AccountType | null>(null);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
