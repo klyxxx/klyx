@@ -1,6 +1,6 @@
 import type { KlyxLocale } from "./klyx-i18n";
 
-export const KLYX_BETA_PAGE_TRANSLATED_LOCALES = ["fr", "en", "nl", "de"] as const;
+export const KLYX_BETA_PAGE_TRANSLATED_LOCALES = ["fr", "en", "nl", "de", "es"] as const;
 
 export type KlyxBetaPageLocale =
   (typeof KLYX_BETA_PAGE_TRANSLATED_LOCALES)[number];
@@ -151,6 +151,35 @@ const BETA_PAGE_MESSAGES: Record<KlyxBetaPageLocale, BetaPageDictionary> = {
       "KLYX kann wie eine App auf einem kompatiblen Gerät installiert werden, ohne einen App-Store zu verwenden.",
     installCta: "Installation ansehen",
     footer: "KLYX Beta · Test unter realen Bedingungen",
+  },
+  es: {
+    metadataTitle: "Beta de KLYX",
+    metadataDescription:
+      "Prueba KLYX con una cuenta real de cliente o profesional durante la fase Beta.",
+    login: "Iniciar sesión",
+    badge: "Beta de KLYX",
+    heroTitle: "Prueba KLYX con una cuenta real.",
+    heroDescription:
+      "Crea tu espacio, elige tu rol y usa KLYX desde tu teléfono u ordenador. Esta versión sigue en fase Beta.",
+    clientTitle: "Soy cliente",
+    clientDescription: "Busco, comparo y reservo servicios.",
+    clientCta: "Crear mi cuenta",
+    providerTitle: "Soy profesional",
+    providerDescription:
+      "Ofrezco mis habilidades y desarrollo mi actividad en KLYX.",
+    providerCta: "Crear mi espacio",
+    testSection: "Lo que puedes probar",
+    featureAccount: "Creación de una cuenta real",
+    featureProfile: "Perfil de Cliente o Profesional",
+    featureBookingsQuotes: "Reservas y presupuestos de KLYX",
+    featureInstall: "Instalación en teléfono u ordenador",
+    verificationWarning:
+      "Algunas verificaciones externas de profesionales pueden quedar pendientes durante la Beta. KLYX no las presenta como verificadas hasta que realmente lo estén.",
+    installTitle: "Instalar KLYX",
+    installDescription:
+      "KLYX puede instalarse como una aplicación en un dispositivo compatible sin pasar por una tienda de aplicaciones.",
+    installCta: "Ver la instalación",
+    footer: "KLYX Beta · Pruebas en condiciones reales",
   },
 };
 
