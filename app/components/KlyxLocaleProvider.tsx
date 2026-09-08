@@ -16,14 +16,16 @@ import {
   getKlyxLocaleMetadata,
   normalizeKlyxSelectableLocale,
   type KlyxLocale,
-  type KlyxUiMessageKey,
 } from "@/lib/klyx-i18n";
-import { translateKlyxTolgeeRuntimeUi } from "@/lib/klyx-tolgee-runtime";
+import {
+  translateKlyxTolgeeRuntimeUi,
+  type KlyxTolgeeUiMessageKey,
+} from "@/lib/klyx-tolgee-runtime";
 
 type KlyxLocaleContextValue = {
   locale: KlyxLocale;
   setLocale: (locale: string) => void;
-  t: (key: KlyxUiMessageKey) => string;
+  t: (key: KlyxTolgeeUiMessageKey) => string;
 };
 
 type KlyxLocaleProviderProps = {
