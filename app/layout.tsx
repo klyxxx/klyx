@@ -10,7 +10,7 @@ import KlyxProductAnalytics from "@/app/components/KlyxProductAnalytics";
 import KlyxSkipLink from "@/app/components/KlyxSkipLink";
 import PwaRegistrar from "@/app/components/PwaRegistrar";
 import ThemeProvider from "@/app/components/ThemeProvider";
-import AppSidebar from "@/app/ui/AppSidebar";
+import AssistantShell from "@/app/ui/AssistantShell";
 import AppVisualBackground from "@/app/ui/AppVisualBackground";
 import { TooltipProvider } from "@/app/ui/tooltip";
 import {
@@ -261,7 +261,7 @@ export default async function RootLayout({
           <ThemeProvider>
             <TooltipProvider>
               <div className="klyx-app-shell min-h-screen lg:flex">
-                <AppSidebar />
+                <AssistantShell />
 
                 <div className="klyx-app-content min-w-0 flex-1">
                   <FounderAccessBar />
