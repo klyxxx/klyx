@@ -15,21 +15,23 @@ function read(relativePath: string) {
 }
 
 describe("KLYX visible AI journeys", () => {
-  it("keeps the canonical client composer while making new requests conversational", () => {
+  it("keeps new client requests conversational through Phase B without transactional side effects", () => {
     const home = read("app/assistant/page.tsx");
-    const composer = read("app/components/AssistantCommandBar.tsx");
+    const thread = read("app/components/assistant/AssistantThread.tsx");
+    const compatibility = read("app/components/AssistantCommandBar.tsx");
 
-    expect(home).toContain("<AssistantCommandBar />");
-    expect(home).toContain("<AssistantHomeResume />");
+    expect(home).toContain("<AssistantThread />");
+    expect(home).not.toContain("<AssistantHomeResume />");
+    expect(compatibility).toContain("<AssistantThread />");
 
-    expect(composer).toContain('fetch("/api/brain/command"');
-    expect(composer).toContain('result.mode !== "new_request"');
-    expect(composer).toContain('fetch("/api/brain/converse"');
-    expect(composer).toContain('"/api/brain/confirm-request"');
-    expect(composer).toContain('fetch("/api/brain/market-publish"');
-    expect(composer).toContain("flowCopy.confirm");
-    expect(composer).toContain("flowCopy.edit");
-    expect(composer).toContain('router.push("/request/photo")');
+    expect(thread).toContain('fetch("/api/brain/command"');
+    expect(thread).toContain('command.mode !== "new_request"');
+    expect(thread).toContain('fetch("/api/brain/converse"');
+    expect(thread).toContain('router.push("/request/photo")');
+    expect(thread).not.toContain('"/api/brain/confirm-request"');
+    expect(thread).not.toContain('fetch("/api/brain/market-publish"');
+    expect(thread).not.toContain("flowCopy.confirm");
+    expect(thread).not.toContain("flowCopy.edit");
   });
 
   it("uses one visible OpenAI wording call without changing deterministic facts", () => {
