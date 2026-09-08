@@ -5,6 +5,7 @@ export const KLYX_SUPPORT_PAGE_TRANSLATED_LOCALES = [
   "en",
   "nl",
   "de",
+  "es",
 ] as const;
 
 export type KlyxSupportPageLocale =
@@ -152,6 +153,34 @@ const SUPPORT_PAGE_MESSAGES: Record<
     fallbackAfterEmail:
       "in Gmail, Outlook oder deine E-Mail-App.",
     open: "Öffnen",
+  },
+  es: {
+    metadataTitle: "Soporte de KLYX",
+    metadataDescription: "Soporte y contacto de KLYX.",
+    backLegal: "Información de KLYX",
+    title: "Soporte de KLYX",
+    description:
+      "Elige el tema de tu solicitud. KLYX abre tu aplicación de correo electrónico con la dirección, el asunto y un mensaje ya preparados.",
+    generalSubject: "Soporte de KLYX",
+    generalBody: "Hola KLYX,\n\nNecesito ayuda con:\n\n",
+    contactSupport: "Contactar con soporte",
+    paymentTitle: "Pago",
+    paymentDescription:
+      "Reserva, cargo, reembolso o pago al profesional.",
+    paymentSubject: "KLYX — problema de pago",
+    paymentBody:
+      "Hola KLYX,\n\nIdentificador de la reserva:\nProblema encontrado:\n\nNo envío ningún dato completo de mi tarjeta de pago.",
+    securityTitle: "Seguridad",
+    securityDescription:
+      "Cuenta sospechosa, acceso no autorizado o problema de confianza.",
+    securitySubject: "KLYX — seguridad de la cuenta",
+    securityBody:
+      "Hola KLYX,\n\nDirección de correo electrónico de la cuenta:\nProblema de seguridad encontrado:\n\n",
+    fallbackBeforeEmail:
+      "Si no tienes ninguna aplicación de correo configurada en tu dispositivo, copia directamente la dirección",
+    fallbackAfterEmail:
+      "en Gmail, Outlook o tu aplicación de correo electrónico.",
+    open: "Abrir",
   },
 };
 
