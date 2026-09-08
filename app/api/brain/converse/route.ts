@@ -11,6 +11,9 @@ import {
   parseBrainRespondRequest,
 } from "@/lib/brain/respond-http-boundary";
 import {
+  isKlyxAssistantMessageTooLong,
+} from "@/lib/klyx-assistant-message-limits";
+import {
   generateKlyxVisibleAiReply,
 } from "@/lib/klyx-visible-ai";
 import {
@@ -44,34 +47,35 @@ function normalizedMissing(value: unknown): string[] {
 }
 
 export async function POST(request: Request) {
-  // Keep a second stream only for the optional Visible AI wording pass.
-  // The authoritative /respond route consumes and validates the original body
-  // first, including auth, durable rate limiting and the certified 32 KiB / 4k
-  // HTTP boundary. Cloning itself does not parse or materialize the body.
-  const visibleAiRequest = request.clone();
+  // The wrapper may inspect the body only through the certified bounded parser
+  // from /respond. The cloned request remains reserved for the authoritative
+  // deterministic route, which owns authentication, durable rate limiting,
+  // the final HTTP status and the same 32 KiB / 4,000-character boundary.
+  const deterministicRequest = request.clone();
+  const parsedRequest =
+    await parseBrainRespondRequest(request);
+  const message = parsedRequest.ok
+    ? parsedRequest.value.message
+    : "";
+
+  // This guard is only a fail-closed Visible-AI compatibility check. It never
+  // creates an HTTP response or bypasses /respond; the deterministic route is
+  // still called for every request and remains the sole authority on limits.
+  const suppressVisibleAiForCapacity =
+    Boolean(message) &&
+    isKlyxAssistantMessageTooLong(message);
 
   const response = await withoutKlyxLlmShadow(
-    () => deterministicPost(request)
+    () => deterministicPost(deterministicRequest)
   );
 
-  if (!response.ok) {
+  if (
+    !response.ok ||
+    !parsedRequest.ok ||
+    suppressVisibleAiForCapacity
+  ) {
     return response;
   }
-
-  // Reuse the exact certified parser from /respond rather than maintaining a
-  // second message/body limit in this wrapper. This happens only after the
-  // deterministic route has already consumed the durable Brain quota.
-  const parsedRequest =
-    await parseBrainRespondRequest(visibleAiRequest);
-
-  if (!parsedRequest.ok) {
-    // A successful deterministic response and a failed parse of the identical
-    // cloned body should be unreachable. Fail closed to deterministic output
-    // and never invoke the provider if the two views ever disagree.
-    return response;
-  }
-
-  const message = parsedRequest.value.message;
 
   let responseBody: BrainResponseBody = {};
 
