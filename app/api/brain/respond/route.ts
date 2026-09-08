@@ -5,6 +5,12 @@ import {
   getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
+import {
+  API_RATE_LIMIT_POLICIES,
+  apiRateLimitExceededResponse,
+  consumeApiRateLimit,
+  rateLimitResponseHeaders,
+} from "@/lib/api-rate-limit";
 import { secureApiErrorResponse } from "@/lib/api-error";
 import {
   brainServiceLabel,
@@ -15,6 +21,9 @@ import {
 import {
   runKlyxLlmShadow,
 } from "@/lib/brain/llm/shadow";
+import {
+  parseBrainRespondRequest,
+} from "@/lib/brain/respond-http-boundary";
 import type {
   KlyxPublicShadowStatus,
 } from "@/lib/brain/shadow/shadow-public";
@@ -784,32 +793,53 @@ export async function POST(request: Request) {
     const { profile } = await getAuthenticatedProfile(request);
     requireAccountType(profile, "client");
 
-    const body = (await request.json()) as {
-      conversationId?: string;
-      message?: string;
-    };
-    const message = body.message?.trim();
+    const policy = API_RATE_LIMIT_POLICIES.brainRespond;
+    const rateLimit = await consumeApiRateLimit(
+      profile.id,
+      policy
+    );
 
-    if (!message) {
+    if (!rateLimit.allowed) {
+      return apiRateLimitExceededResponse(policy, rateLimit);
+    }
+
+    const parsedRequest =
+      await parseBrainRespondRequest(request);
+
+    if (!parsedRequest.ok) {
       logServerWarning({
         event: "brain_request_rejected",
         route: "/api/brain/respond",
         method: "POST",
-        status: 400,
-        code: "message_required",
+        status: parsedRequest.status,
+        code: parsedRequest.code,
         durationMs: Date.now() - startedAt,
       });
 
       return NextResponse.json(
-        { error: "Écris un message." },
-        { status: 400 }
+        {
+          error: parsedRequest.error,
+          code: parsedRequest.code,
+        },
+        {
+          status: parsedRequest.status,
+          headers: rateLimitResponseHeaders(
+            policy,
+            rateLimit
+          ),
+        }
       );
     }
+
+    const {
+      conversationId: requestedConversationId,
+      message,
+    } = parsedRequest.value;
 
     const [conversationId, services] = await Promise.all([
       resolveConversationId(
         profile.id,
-        body.conversationId,
+        requestedConversationId,
         message
       ),
       loadServiceCatalog(),
@@ -915,16 +945,21 @@ export async function POST(request: Request) {
       durationMs: Date.now() - startedAt,
     });
 
-    return NextResponse.json({
-      conversationId,
-      reply,
-      payload,
-      memoryUsed: memoryApplied,
-      memoryFields: memoryApplication.memoryFields,
-      memoryMessage: memoryApplied
-        ? "KLYX a utilisé les habitudes autorisées de ta mémoire pour compléter cette demande."
-        : null,
-    });
+    return NextResponse.json(
+      {
+        conversationId,
+        reply,
+        payload,
+        memoryUsed: memoryApplied,
+        memoryFields: memoryApplication.memoryFields,
+        memoryMessage: memoryApplied
+          ? "KLYX a utilisé les habitudes autorisées de ta mémoire pour compléter cette demande."
+          : null,
+      },
+      {
+        headers: rateLimitResponseHeaders(policy, rateLimit),
+      }
+    );
   } catch (error) {
     const message =
       error instanceof Error
