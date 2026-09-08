@@ -215,10 +215,22 @@ export async function getOwnedProfiles(): Promise<
     return [];
   }
 
+  let profileToReturn =
+    legacyProfile as ProfileRow;
+
   if (
     !legacyProfile.owner_user_id
   ) {
+    /*
+     * KLYX_LEGACY_PROFILE_OWNER_ATOMIC_REPAIR_20260905
+     *
+     * Le owner absent est une précondition de l'UPDATE, pas seulement une
+     * observation faite avant l'écriture. Si une autre requête rattache la
+     * ligne entre le SELECT et l'UPDATE, la réparation ne doit jamais écraser
+     * ce rattachement concurrent. Dans ce cas, on échoue fermé.
+     */
     const {
+      data: repairedProfile,
       error: repairError,
     } =
       await supabaseAdmin
@@ -233,7 +245,25 @@ export async function getOwnedProfiles(): Promise<
         .eq(
           "id",
           legacyProfile.id
-        );
+        )
+        .is(
+          "owner_user_id",
+          null
+        )
+        .select(
+          `
+          id,
+          owner_user_id,
+          first_name,
+          last_name,
+          city,
+          country_code,
+          currency_code,
+          account_type,
+          avatar_url
+          `
+        )
+        .maybeSingle();
 
     if (repairError) {
       throw new Error(
@@ -241,13 +271,17 @@ export async function getOwnedProfiles(): Promise<
       );
     }
 
-    legacyProfile.owner_user_id =
-      user.id;
+    if (!repairedProfile) {
+      return [];
+    }
+
+    profileToReturn =
+      repairedProfile as ProfileRow;
   }
 
   return [
     normalizeProfile(
-      legacyProfile as ProfileRow,
+      profileToReturn,
       user.id
     ),
   ];

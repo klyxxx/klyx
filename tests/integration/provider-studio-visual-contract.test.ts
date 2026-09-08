@@ -8,7 +8,7 @@ function read(relative: string) {
 }
 
 describe("KLYX provider studio visual contract", () => {
-  it("renders Services natively in the definitive KLYX language without a legacy theme shim", () => {
+  it("renders Services natively with the Aura/Noir semantic theme and no legacy shim", () => {
     const page = read("app/provider/studio/page.tsx");
     const studio = read("app/components/ProviderStudio.tsx");
     const studioI18n = read("lib/klyx-provider-studio-i18n.ts");
@@ -19,17 +19,16 @@ describe("KLYX provider studio visual contract", () => {
     expect(page).toContain("<ProviderCapabilitiesEntry />");
     expect(page).toContain("<ProviderStudio profileId={profile.id} />");
 
-    expect(studio).toContain("KLYX_PROVIDER_STUDIO_NATIVE_SINGLE_BLUE");
-    expect(studio).toContain("text-blue-600");
-    expect(studio).toContain("bg-blue-600");
-    expect(studio).toContain("accent-blue-600");
+    expect(studio).toContain("text-primary");
+    expect(studio).toContain("bg-primary");
+    expect(studio).toContain("text-primary-foreground");
+    expect(studio).toContain("accent-primary");
     expect(studio).toContain('{t("pageTitle")}');
     expect(studioI18n).toContain('pageTitle: "Configurer mes services"');
-    expect(studio).not.toContain("violet-");
-    expect(studio).not.toContain("indigo-");
-    expect(studio).not.toContain("fuchsia-");
-    expect(studio).not.toContain("gradient");
-    expect(studio).not.toContain("Tableau de bord");
+
+    expect(studio).not.toMatch(
+      /#2563EB|blue-|violet-|indigo-|fuchsia-|gradient|Tableau de bord|KLYX_PROVIDER_STUDIO_NATIVE_SINGLE_BLUE/
+    );
   });
 
   it("preserves the real provider Studio actions and unified API boundary", () => {
