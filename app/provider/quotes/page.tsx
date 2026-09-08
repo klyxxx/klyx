@@ -54,6 +54,10 @@ type SmartQuoteDraft = {
   source: "quote_snapshot";
 };
 
+const PROVIDER_QUOTE_REVIEW_CONTRACT = {
+  requiresConfirmation: true,
+} as const;
+
 type Translator = (key: KlyxProviderQuotesMessageKey) => string;
 
 export default function ProviderQuotesPage() {
@@ -179,7 +183,12 @@ export default function ProviderQuotesPage() {
         error?: string;
       };
 
-      if (!response.ok || !body.draft) {
+      if (
+        !response.ok ||
+        !body.draft ||
+        body.draft.requiresConfirmation !==
+          PROVIDER_QUOTE_REVIEW_CONTRACT.requiresConfirmation
+      ) {
         throw new Error("provider-quotes-draft-failed");
       }
 
