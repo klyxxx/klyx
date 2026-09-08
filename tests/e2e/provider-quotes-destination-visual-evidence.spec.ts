@@ -5,6 +5,10 @@ import {
   hasE2ECredentials,
   loginKlyxE2E,
 } from "./helpers/authenticated-session";
+import {
+  expectAssistantFirstDesktopShell,
+  expectAssistantFirstMobileShell,
+} from "./helpers/assistant-shell";
 
 async function attachViewport(page: Page, testInfo: TestInfo, name: string) {
   await page.evaluate(async () => {
@@ -32,11 +36,7 @@ const quotesPayload = {
       provider_message: null,
       status: "requested",
       created_at: "2026-09-02T18:00:00.000Z",
-      client: {
-        id: "quote-client-e2e-1",
-        first_name: "Client",
-        last_name: "KLYX",
-      },
+      client: { id: "quote-client-e2e-1", first_name: "Client", last_name: "KLYX" },
     },
     {
       id: "quote-history-e2e-2",
@@ -51,20 +51,13 @@ const quotesPayload = {
       provider_message: "Devis envoyé au client.",
       status: "sent",
       created_at: "2026-08-27T12:00:00.000Z",
-      client: {
-        id: "quote-client-e2e-2",
-        first_name: "Autre",
-        last_name: "Client",
-      },
+      client: { id: "quote-client-e2e-2", first_name: "Autre", last_name: "Client" },
     },
   ],
 };
 
 test.describe("KLYX provider Quotes destination", () => {
-  test.skip(
-    !hasE2ECredentials,
-    "Dedicated KLYX E2E credentials are not configured."
-  );
+  test.skip(!hasE2ECredentials, "Dedicated KLYX E2E credentials are not configured.");
 
   test.afterEach(async ({ page }) => {
     await clearSensitivePassword(page);
@@ -97,6 +90,7 @@ test.describe("KLYX provider Quotes destination", () => {
 
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/provider/quotes", { waitUntil: "domcontentloaded" });
+    await expectAssistantFirstDesktopShell(page, "/provider/assistant");
 
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await expect(page.locator('[data-quote-priority="true"]')).toBeVisible();
@@ -104,7 +98,7 @@ test.describe("KLYX provider Quotes destination", () => {
     await expect(page.getByText("Ancien devis KLYX")).toBeHidden();
     await expect(page.locator("main .shadow-sm")).toHaveCount(0);
 
-    const otherQuotes = page.locator("details").first();
+    const otherQuotes = page.getByRole("main").locator("details").first();
     await otherQuotes.locator("summary").click();
     await expect(page.getByText("Ancien devis KLYX")).toBeVisible();
     await otherQuotes.locator("summary").click();
@@ -113,7 +107,7 @@ test.describe("KLYX provider Quotes destination", () => {
     await attachViewport(page, testInfo, "provider-quotes-focused-desktop");
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await expect(page.getByTestId("mobile-navigation")).toBeVisible();
+    await expectAssistantFirstMobileShell(page);
     await expect(page.getByText("Nettoyage appartement")).toBeVisible();
     await expect(page.getByText("Ancien devis KLYX")).toBeHidden();
     await attachViewport(page, testInfo, "provider-quotes-focused-mobile");

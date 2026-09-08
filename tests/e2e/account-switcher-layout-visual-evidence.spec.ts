@@ -5,6 +5,11 @@ import {
   hasE2ECredentials,
   loginKlyxE2E,
 } from "./helpers/authenticated-session";
+import {
+  expectAssistantFirstDesktopShell,
+  expectAssistantFirstMobileShell,
+  openAssistantFirstMobileDrawer,
+} from "./helpers/assistant-shell";
 
 async function attachViewport(page: Page, testInfo: TestInfo, name: string) {
   await page.evaluate(async () => {
@@ -37,7 +42,7 @@ test.describe("KLYX profile switcher stable layout", () => {
     await clearSensitivePassword(page);
   });
 
-  test("provider sidebar never moves and mobile controls stay fixed", async ({
+  test("provider mission rail never moves and mobile header stays fixed", async ({
     page,
   }, testInfo) => {
     test.setTimeout(180_000);
@@ -46,44 +51,40 @@ test.describe("KLYX profile switcher stable layout", () => {
 
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/profile", { waitUntil: "domcontentloaded" });
+    await expectAssistantFirstDesktopShell(page, "/provider/assistant");
 
-    const desktopSidebar = page.getByTestId("desktop-sidebar");
-    const desktopNavigation = page.getByTestId("desktop-navigation");
-    const trigger = page
+    const desktopRail = page.getByTestId("desktop-mission-rail");
+    const trigger = desktopRail
       .locator(
-        '[data-testid="desktop-sidebar"] [data-testid="account-switcher"] button[aria-haspopup="menu"]:not([disabled])'
+        '[data-testid="account-switcher"] button[aria-haspopup="menu"]:not([disabled])'
       )
       .last();
 
     await expect(trigger).toBeVisible();
     await expect(trigger).toBeEnabled();
-    await expect(desktopSidebar).toBeVisible();
-    await expect(desktopNavigation).toBeVisible();
 
-    const sidebarBefore = await desktopSidebar.boundingBox();
-    const navigationBefore = await desktopNavigation.boundingBox();
+    const railBefore = await desktopRail.boundingBox();
     const triggerBefore = await trigger.boundingBox();
-    expect(sidebarBefore).not.toBeNull();
-    expect(navigationBefore).not.toBeNull();
+    expect(railBefore).not.toBeNull();
     expect(triggerBefore).not.toBeNull();
 
     await trigger.click();
 
-    const menu = page
+    const menu = desktopRail
       .locator(
-        '[data-testid="desktop-sidebar"] [data-testid="account-switcher"] [role="menu"][aria-label="Changer de profil KLYX"]'
+        '[data-testid="account-switcher"] [role="menu"][aria-label="Changer de profil KLYX"]'
       )
       .last();
     await expect(menu).toBeVisible();
 
-    const navigationAfter = await desktopNavigation.boundingBox();
+    const railAfter = await desktopRail.boundingBox();
     const triggerAfter = await trigger.boundingBox();
     const menuBox = await menu.boundingBox();
-    expect(navigationAfter).not.toBeNull();
+    expect(railAfter).not.toBeNull();
     expect(triggerAfter).not.toBeNull();
     expect(menuBox).not.toBeNull();
 
-    expectSameGeometry(navigationBefore!, navigationAfter!);
+    expectSameGeometry(railBefore!, railAfter!);
     expectSameGeometry(triggerBefore!, triggerAfter!);
     expect(menuBox!.x).toBeCloseTo(triggerAfter!.x, 0);
     expect(menuBox!.width).toBeCloseTo(triggerAfter!.width, 0);
@@ -98,30 +99,34 @@ test.describe("KLYX profile switcher stable layout", () => {
 
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
 
-    const sidebarAfterScroll = await desktopSidebar.boundingBox();
-    expect(sidebarAfterScroll).not.toBeNull();
-    expectSameGeometry(sidebarBefore!, sidebarAfterScroll!);
-    expect(sidebarAfterScroll!.y).toBeCloseTo(0, 0);
-    expect(sidebarAfterScroll!.height).toBeCloseTo(900, 0);
+    const railAfterScroll = await desktopRail.boundingBox();
+    expect(railAfterScroll).not.toBeNull();
+    expectSameGeometry(railBefore!, railAfterScroll!);
+    expect(railAfterScroll!.y).toBeCloseTo(0, 0);
+    expect(railAfterScroll!.height).toBeCloseTo(900, 0);
 
-    await attachViewport(page, testInfo, "provider-sidebar-fixed-after-scroll");
+    await attachViewport(page, testInfo, "provider-mission-rail-fixed-after-scroll");
 
     await page.setViewportSize({ width: 390, height: 844 });
-    const mobileNavigation = page.getByTestId("mobile-navigation");
-    await expect(mobileNavigation).toBeVisible();
+    await expectAssistantFirstMobileShell(page);
 
-    const mobileBefore = await mobileNavigation.boundingBox();
+    const mobileHeader = page.getByTestId("assistant-shell-mobile-header");
+    const mobileBefore = await mobileHeader.boundingBox();
     expect(mobileBefore).not.toBeNull();
 
     await page.evaluate(() => {
       window.scrollTo(0, document.documentElement.scrollHeight);
     });
 
-    const mobileAfter = await mobileNavigation.boundingBox();
+    const mobileAfter = await mobileHeader.boundingBox();
     expect(mobileAfter).not.toBeNull();
     expectSameGeometry(mobileBefore!, mobileAfter!);
-    expect(mobileAfter!.y + mobileAfter!.height).toBeLessThanOrEqual(844.5);
+    expect(mobileAfter!.y).toBeCloseTo(0, 0);
 
-    await attachViewport(page, testInfo, "provider-mobile-navigation-fixed-after-scroll");
+    const drawer = await openAssistantFirstMobileDrawer(page, "/provider/assistant");
+    await expect(drawer).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    await attachViewport(page, testInfo, "provider-mobile-header-fixed-after-scroll");
   });
 });

@@ -5,6 +5,10 @@ import {
   hasE2ECredentials,
   loginKlyxE2E,
 } from "./helpers/authenticated-session";
+import {
+  expectAssistantFirstDesktopShell,
+  expectAssistantFirstMobileShell,
+} from "./helpers/assistant-shell";
 
 async function attachViewport(page: Page, testInfo: TestInfo, name: string) {
   await page.evaluate(async () => {
@@ -86,16 +90,13 @@ const stripePayload = {
 };
 
 test.describe("KLYX provider Finances destination", () => {
-  test.skip(
-    !hasE2ECredentials,
-    "Dedicated KLYX E2E credentials are not configured."
-  );
+  test.skip(!hasE2ECredentials, "Dedicated KLYX E2E credentials are not configured.");
 
   test.afterEach(async ({ page }) => {
     await clearSensitivePassword(page);
   });
 
-  test("keeps finances calm on desktop and mobile", async ({ page }, testInfo) => {
+  test("keeps finances calm and secondary on desktop and mobile", async ({ page }, testInfo) => {
     test.setTimeout(180_000);
     await loginKlyxE2E(page);
     await activateKlyxE2EProfile(page, "provider");
@@ -118,6 +119,7 @@ test.describe("KLYX provider Finances destination", () => {
 
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/provider/payments", { waitUntil: "domcontentloaded" });
+    await expectAssistantFirstDesktopShell(page, "/provider/assistant");
 
     await expect(
       page.getByRole("heading", { name: "Ton argent, sans détour." })
@@ -125,12 +127,14 @@ test.describe("KLYX provider Finances destination", () => {
     await expect(page.getByText("740,00 €", { exact: true })).toBeVisible();
     await expect(page.getByText("Transactions récentes")).toBeVisible();
     await expect(page.getByText("Détails du compte de paiement")).toBeVisible();
-    await expect(page.getByText("Compte prêt à recevoir des paiements", { exact: false })).toBeVisible();
+    await expect(
+      page.getByText("Compte prêt à recevoir des paiements", { exact: false })
+    ).toBeVisible();
 
     await attachViewport(page, testInfo, "provider-finances-focused-desktop");
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await expect(page.getByTestId("mobile-navigation")).toBeVisible();
+    await expectAssistantFirstMobileShell(page);
     await expect(
       page.getByRole("heading", { name: "Ton argent, sans détour." })
     ).toBeVisible();

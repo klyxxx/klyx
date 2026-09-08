@@ -5,6 +5,10 @@ import {
   hasE2ECredentials,
   loginKlyxE2E,
 } from "./helpers/authenticated-session";
+import {
+  expectAssistantFirstDesktopShell,
+  expectAssistantFirstMobileShell,
+} from "./helpers/assistant-shell";
 
 async function attachViewport(page: Page, testInfo: TestInfo, name: string) {
   await page.evaluate(async () => {
@@ -57,10 +61,7 @@ const planningPayload = {
 };
 
 test.describe("KLYX provider Planning destination", () => {
-  test.skip(
-    !hasE2ECredentials,
-    "Dedicated KLYX E2E credentials are not configured."
-  );
+  test.skip(!hasE2ECredentials, "Dedicated KLYX E2E credentials are not configured.");
 
   test.afterEach(async ({ page }) => {
     await clearSensitivePassword(page);
@@ -88,6 +89,7 @@ test.describe("KLYX provider Planning destination", () => {
 
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/provider/planning", { waitUntil: "domcontentloaded" });
+    await expectAssistantFirstDesktopShell(page, "/provider/assistant");
 
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await expect(page.getByText("Client KLYX").first()).toBeVisible();
@@ -96,7 +98,7 @@ test.describe("KLYX provider Planning destination", () => {
     await attachViewport(page, testInfo, "provider-planning-focused-desktop");
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await expect(page.getByTestId("mobile-navigation")).toBeVisible();
+    await expectAssistantFirstMobileShell(page);
     await expect(page.getByText("Client KLYX").first()).toBeVisible();
     await attachViewport(page, testInfo, "provider-planning-focused-mobile");
 
