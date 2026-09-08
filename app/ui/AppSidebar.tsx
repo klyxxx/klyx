@@ -20,11 +20,9 @@ import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import KlyxLogo from "@/app/ui/KlyxLogo";
 import { getKlyxAccountHome } from "@/lib/account-home";
 import { KLYX_ACTIVE_PROFILE_CHANGED } from "@/lib/account-switcher";
-import {
-  translateKlyxNavigationLabel,
-  type KlyxLocale,
-} from "@/lib/klyx-i18n";
+import { type KlyxLocale } from "@/lib/klyx-i18n";
 import { translateKlyxProviderAssistant } from "@/lib/klyx-provider-assistant-i18n";
+import { translateKlyxTolgeeRuntimeNavigation } from "@/lib/klyx-tolgee-runtime";
 import { createClient } from "@/lib/supabase/client";
 
 type AccountType = "client" | "provider";
@@ -123,7 +121,7 @@ function activeHrefFor(pathname: string, items: MenuItem[]) {
 
 function translatedMenuTitle(locale: KlyxLocale, item: MenuItem) {
   if (locale === "fr") return item.title;
-  return translateKlyxNavigationLabel(locale, item.translationLabel);
+  return translateKlyxTolgeeRuntimeNavigation(locale, item.translationLabel);
 }
 
 export default function AppSidebar() {
