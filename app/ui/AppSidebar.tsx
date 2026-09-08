@@ -22,9 +22,7 @@ import { getKlyxAccountHome } from "@/lib/account-home";
 import { KLYX_ACTIVE_PROFILE_CHANGED } from "@/lib/account-switcher";
 import {
   translateKlyxNavigationLabel,
-  translateKlyxUi,
   type KlyxLocale,
-  type KlyxUiMessageKey,
 } from "@/lib/klyx-i18n";
 import { translateKlyxProviderAssistant } from "@/lib/klyx-provider-assistant-i18n";
 import { translateKlyxSidebarNavigation } from "@/lib/klyx-sidebar-navigation-i18n";
@@ -132,8 +130,7 @@ function translatedMenuTitle(locale: KlyxLocale, item: MenuItem) {
 export default function AppSidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { locale } = useKlyxLocale();
-  const t = (key: KlyxUiMessageKey) => translateKlyxUi(locale, key);
+  const { locale, t } = useKlyxLocale();
   const providerAssistantLabel = translateKlyxProviderAssistant(locale, "badge");
   const desktopNavigationLabel = translateKlyxSidebarNavigation(
     locale,
