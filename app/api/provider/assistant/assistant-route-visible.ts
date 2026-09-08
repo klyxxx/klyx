@@ -30,7 +30,7 @@ export async function POST(request: Request): Promise<Response> {
 
   // The core has already authenticated, consumed the durable AI quota and
   // accepted the authoritative bounded payload. Re-read only the bounded clone
-  // for cosmetic wording; never call requestCopy.json() directly.
+  // for cosmetic wording; never parse that clone directly as unbounded JSON.
   const parsedRequest =
     await parseProviderAssistantPostRequest(requestCopy);
 
