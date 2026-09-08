@@ -44,19 +44,19 @@ const shadow = read("lib/brain/llm/shadow.ts");
 describe("KLYX Brain converse + Visible AI security boundary", () => {
   it("uses only the certified bounded parser before authoritative /respond", () => {
     expect(route).not.toContain("request.clone().json()");
-    expect(route).toContain("const deterministicRequest = request.clone();");
-    expect(route).toContain("await parseBrainRespondRequest(request)");
-    expect(route).toContain("deterministicPost(deterministicRequest)");
+    expect(route).toContain("const boundedInspectionRequest = request.clone();");
+    expect(route).toContain(
+      "await parseBrainRespondRequest(boundedInspectionRequest)"
+    );
+    expect(route).toContain("deterministicPost(request)");
 
     const boundedParse = route.indexOf(
-      "await parseBrainRespondRequest(request)"
+      "await parseBrainRespondRequest(boundedInspectionRequest)"
     );
     const capacityGuard = route.indexOf(
       "isKlyxAssistantMessageTooLong(message)"
     );
-    const deterministicCall = route.indexOf(
-      "deterministicPost(deterministicRequest)"
-    );
+    const deterministicCall = route.indexOf("deterministicPost(request)");
     const errorGate = route.indexOf("!response.ok");
     const visibleAiCall = route.indexOf("await generateKlyxVisibleAiReply");
 
@@ -75,11 +75,9 @@ describe("KLYX Brain converse + Visible AI security boundary", () => {
 
   it("keeps /respond authoritative even when wrapper parsing rejects", () => {
     const boundedParse = route.indexOf(
-      "await parseBrainRespondRequest(request)"
+      "await parseBrainRespondRequest(boundedInspectionRequest)"
     );
-    const deterministicCall = route.indexOf(
-      "deterministicPost(deterministicRequest)"
-    );
+    const deterministicCall = route.indexOf("deterministicPost(request)");
     const parsedGate = route.indexOf("!parsedRequest.ok");
     const visibleAiCall = route.indexOf("await generateKlyxVisibleAiReply");
 
@@ -102,9 +100,7 @@ describe("KLYX Brain converse + Visible AI security boundary", () => {
     });
 
     await expect(
-      parseBrainRespondRequest(
-        post(JSON.stringify({ message: 42 }))
-      )
+      parseBrainRespondRequest(post(JSON.stringify({ message: 42 })))
     ).resolves.toMatchObject({
       ok: false,
       status: 400,
@@ -127,12 +123,9 @@ describe("KLYX Brain converse + Visible AI security boundary", () => {
 
     await expect(
       parseBrainRespondRequest(
-        post(
-          JSON.stringify({ message: "Bonjour" }),
-          {
-            "content-length": String(BRAIN_RESPOND_MAX_REQUEST_BYTES + 1),
-          }
-        )
+        post(JSON.stringify({ message: "Bonjour" }), {
+          "content-length": String(BRAIN_RESPOND_MAX_REQUEST_BYTES + 1),
+        })
       )
     ).resolves.toMatchObject({
       ok: false,
@@ -161,16 +154,18 @@ describe("KLYX Brain converse + Visible AI security boundary", () => {
     expect(route).toContain("return response;");
     expect(route).toContain("headers: response.headers");
 
-    expect(respondRoute).toContain("apiRateLimitExceededResponse(policy, rateLimit)");
-    expect(respondRoute).toContain("rateLimitResponseHeaders(policy, rateLimit)");
+    expect(respondRoute).toContain(
+      "apiRateLimitExceededResponse(policy, rateLimit)"
+    );
+    expect(respondRoute).toContain(
+      "rateLimitResponseHeaders(policy, rateLimit)"
+    );
     expect(respondRoute).toContain("secureApiErrorResponse({");
     expect(respondRoute).toContain('.eq("id", conversationId)');
     expect(respondRoute).toContain('.eq("user_id", userId)');
     expect(respondRoute).toContain('message === "Conversation introuvable."');
 
-    const deterministicCall = route.indexOf(
-      "deterministicPost(deterministicRequest)"
-    );
+    const deterministicCall = route.indexOf("deterministicPost(request)");
     const errorGate = route.indexOf("!response.ok");
     const visibleAiCall = route.indexOf("await generateKlyxVisibleAiReply");
     expect(errorGate).toBeGreaterThan(deterministicCall);
@@ -191,8 +186,12 @@ describe("KLYX Brain converse + Visible AI security boundary", () => {
   it("keeps Visible AI cosmetic and falls back instead of repairing or re-prompting unsafe output", () => {
     expect(visibleAi).toContain("deterministic application result");
     expect(visibleAi).toContain("ne change aucun fait verrouillé");
-    expect(visibleAi).toContain("ne change aucun montant, date, heure, lieu, statut ou action");
-    expect(visibleAi).toContain("ne prétends jamais qu'une action a été exécutée");
+    expect(visibleAi).toContain(
+      "ne change aucun montant, date, heure, lieu, statut ou action"
+    );
+    expect(visibleAi).toContain(
+      "ne prétends jamais qu'une action a été exécutée"
+    );
     expect(visibleAi).toContain('ai.mode !== "openai" || !ai.text.trim()');
     expect(visibleAi).toContain("if (!safety.safe)");
     expect(visibleAi).toContain('mode: "fallback"');
