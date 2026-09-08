@@ -1,6 +1,6 @@
 import type { KlyxLocale } from "./klyx-i18n";
 
-export const KLYX_TRUST_TRANSLATED_LOCALES = ["fr", "en", "nl", "de"] as const;
+export const KLYX_TRUST_TRANSLATED_LOCALES = ["fr", "en", "nl", "de", "es"] as const;
 
 export type KlyxTrustLocale = (typeof KLYX_TRUST_TRANSLATED_LOCALES)[number];
 
@@ -121,6 +121,28 @@ const MESSAGES: Record<KlyxTrustLocale, Dictionary> = {
     unknownReason: "Anderes Problem",
     unknownStatus: "Status muss geprüft werden",
   },
+  es: {
+    sessionMissing: "Falta la sesión de KLYX.",
+    loadError: "No se puede cargar el Centro de confianza en este momento.",
+    eyebrow: "Protección del cliente",
+    title: "Centro de confianza del cliente",
+    description:
+      "Informa de un problema relacionado con un servicio, conserva los hechos y sigue la decisión de KLYX.",
+    openReport: "Abrir una incidencia",
+    factsTitle: "Describir los hechos",
+    factsText: "Indica con precisión qué ha ocurrido.",
+    protectedTitle: "Expediente protegido",
+    protectedText: "El expediente permanece vinculado a la reserva.",
+    decisionTitle: "Seguir la decisión",
+    decisionText: "El estado se actualizará en este espacio.",
+    filesEyebrow: "Mis expedientes",
+    filesTitle: "Mis disputas e incidencias",
+    emptyTitle: "Ningún expediente activo",
+    emptyText: "Tus incidencias aparecerán aquí.",
+    viewBooking: "Ver la reserva",
+    unknownReason: "Otro problema",
+    unknownStatus: "Estado por verificar",
+  },
 };
 
 const REASONS: Record<KlyxTrustLocale, ReasonDictionary> = {
@@ -164,6 +186,16 @@ const REASONS: Record<KlyxTrustLocale, ReasonDictionary> = {
     payment_problem: "Zahlungsproblem",
     other: "Anderes Problem",
   },
+  es: {
+    provider_absent: "Proveedor ausente",
+    client_absent: "Cliente ausente",
+    major_delay: "Retraso importante",
+    unfinished_work: "Servicio no finalizado",
+    unsatisfactory_work: "Trabajo insatisfactorio",
+    unsafe_behavior: "Comportamiento peligroso",
+    payment_problem: "Problema de pago",
+    other: "Otro problema",
+  },
 };
 
 const STATUSES: Record<KlyxTrustLocale, StatusDictionary> = {
@@ -195,6 +227,13 @@ const STATUSES: Record<KlyxTrustLocale, StatusDictionary> = {
     resolved: "Gelöst",
     closed: "Geschlossen",
   },
+  es: {
+    open: "Abierto",
+    under_review: "En revisión",
+    waiting_user: "Información pendiente",
+    resolved: "Resuelto",
+    closed: "Cerrado",
+  },
 };
 
 const INTL_LOCALES: Record<KlyxTrustLocale, string> = {
@@ -202,6 +241,7 @@ const INTL_LOCALES: Record<KlyxTrustLocale, string> = {
   en: "en-BE",
   nl: "nl-BE",
   de: "de-BE",
+  es: "es-BE",
 };
 
 const LOCALE_SET = new Set<string>(KLYX_TRUST_TRANSLATED_LOCALES);
