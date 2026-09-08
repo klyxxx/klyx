@@ -1,9 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Inter } from "next/font/google";
+import { Suspense } from "react";
 
 import ActiveProfileSync from "@/app/components/ActiveProfileSync";
 import FounderAccessBar from "@/app/components/FounderAccessBar";
+import KlyxImageGuard from "@/app/components/KlyxImageGuard";
 import KlyxLocaleProvider from "@/app/components/KlyxLocaleProvider";
+import KlyxProductAnalytics from "@/app/components/KlyxProductAnalytics";
 import KlyxSkipLink from "@/app/components/KlyxSkipLink";
 import PwaRegistrar from "@/app/components/PwaRegistrar";
 import ThemeProvider from "@/app/components/ThemeProvider";
@@ -38,9 +41,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const appUrl =
-  process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-  "http://localhost:3000";
+const appUrl = "https://www.klyx.be";
 
 type SeoCopy = {
   title: string;
@@ -248,8 +249,12 @@ export default async function RootLayout({
       <body className="min-h-full bg-background text-foreground">
         <KlyxLocaleProvider initialLocale={locale}>
           <KlyxSkipLink />
+          <KlyxImageGuard />
 
           <PwaRegistrar />
+          <Suspense fallback={null}>
+            <KlyxProductAnalytics />
+          </Suspense>
           <ActiveProfileSync />
           <AppVisualBackground />
 

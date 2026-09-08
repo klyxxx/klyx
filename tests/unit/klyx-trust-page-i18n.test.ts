@@ -45,16 +45,30 @@ describe("KLYX trust page i18n", () => {
     }
   });
 
+  it("keeps Spanish trust and dispute boundaries explicit", () => {
+    const dictionary = getKlyxTrustDictionary("es");
+
+    expect(resolveKlyxTrustLocale("es")).toBe("es");
+    expect(dictionary.description).toBe(
+      "Informa de un problema relacionado con un servicio, conserva los hechos y sigue la decisión de KLYX.",
+    );
+    expect(dictionary.protectedText).toBe("El expediente permanece vinculado a la reserva.");
+    expect(dictionary.filesTitle).toBe("Mis disputas e incidencias");
+    expect(translateKlyxTrustReason("es", "payment_problem")).toBe("Problema de pago");
+    expect(translateKlyxTrustStatus("es", "under_review")).toBe("En revisión");
+  });
+
   it("uses Belgian locale tags for certified languages", () => {
     expect(getKlyxTrustIntlLocale("fr")).toBe("fr-BE");
     expect(getKlyxTrustIntlLocale("en")).toBe("en-BE");
     expect(getKlyxTrustIntlLocale("nl")).toBe("nl-BE");
     expect(getKlyxTrustIntlLocale("de")).toBe("de-BE");
+    expect(getKlyxTrustIntlLocale("es")).toBe("es-BE");
   });
 
   it("falls back explicitly to French outside certified page locales", () => {
-    expect(resolveKlyxTrustLocale("es")).toBe("fr");
-    expect(getKlyxTrustDictionary("es")).toEqual(getKlyxTrustDictionary("fr"));
-    expect(getKlyxTrustIntlLocale("es")).toBe("fr-BE");
+    expect(resolveKlyxTrustLocale("it")).toBe("fr");
+    expect(getKlyxTrustDictionary("it")).toEqual(getKlyxTrustDictionary("fr"));
+    expect(getKlyxTrustIntlLocale("it")).toBe("fr-BE");
   });
 });

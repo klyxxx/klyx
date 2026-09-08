@@ -17,10 +17,16 @@ const dictionary = read("lib/klyx-bookings-page-i18n.ts");
 const serviceDictionary = read("lib/klyx-bookings-service-i18n.ts");
 
 describe("KLYX bookings overview i18n contract", () => {
-  it("keeps the bookings page read-only and on the historical GET boundaries", () => {
+  it("keeps historical reads and limits the only client write to the Activity hidden registry", () => {
+    const compactPage = page.replace(/\s+/g, " ");
+
     expect(page).toContain('fetch("/api/bookings/overview"');
     expect(page).toContain('fetch("/api/bookings/split-missions"');
-    expect(page).not.toMatch(/method:\s*["'](?:POST|PUT|PATCH|DELETE)["']/);
+    expect(compactPage).toContain(
+      'fetch("/api/bookings/activity-hidden", { method: "POST"'
+    );
+    expect(page.match(/method:\s*"POST"/g)?.length).toBe(1);
+    expect(page).not.toMatch(/method:\s*["'](?:PUT|PATCH|DELETE)["']/);
     expect(page).not.toContain("supabase.from(");
     expect(page).not.toContain("supabaseAdmin");
   });
@@ -61,9 +67,9 @@ describe("KLYX bookings overview i18n contract", () => {
     expect(overview).not.toMatch(/\.(?:insert|update|upsert|delete)\s*\(/);
   });
 
-  it("keeps explicit booking and payment confirmation boundaries translated", () => {
+  it("keeps Activity labels and explicit confirmation copy translated", () => {
     expect(page).toContain('t("clientTracking")');
-    expect(page).toContain('t("explicitConfirmationBoundary")');
+    expect(page).toContain('t("organizeAnotherNeed")');
     expect(dictionary).toContain("une confirmation explicite reste nécessaire");
     expect(dictionary).toContain("explicit confirmation is still required");
     expect(dictionary).toContain("expliciete bevestiging blijft vereist");
