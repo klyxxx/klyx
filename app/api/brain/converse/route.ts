@@ -8,6 +8,9 @@ import {
   withoutKlyxLlmShadow,
 } from "@/lib/brain/llm/shadow";
 import {
+  parseBrainRespondRequest,
+} from "@/lib/brain/respond-http-boundary";
+import {
   isKlyxAssistantMessageTooLong,
 } from "@/lib/klyx-assistant-message-limits";
 import {
@@ -16,10 +19,6 @@ import {
 import {
   POST as deterministicPost,
 } from "../respond/route";
-
-type RequestBody = {
-  message?: unknown;
-};
 
 type BrainPayload = {
   serviceSlug?: unknown;
@@ -48,31 +47,34 @@ function normalizedMissing(value: unknown): string[] {
 }
 
 export async function POST(request: Request) {
-  let requestBody: RequestBody = {};
+  // The wrapper may inspect only a clone, and only through the certified
+  // bounded parser from /respond. The original request remains untouched for
+  // the authoritative deterministic route, which owns auth, durable quota,
+  // final status and the same 32 KiB / 4,000-character boundary.
+  const boundedInspectionRequest = request.clone();
+  const parsedRequest =
+    await parseBrainRespondRequest(boundedInspectionRequest);
+  const message = parsedRequest.ok
+    ? parsedRequest.value.message
+    : "";
 
-  try {
-    requestBody = (await request.clone().json()) as RequestBody;
-  } catch {
-    // Let the deterministic route keep ownership of malformed-body handling.
-  }
-
-  const message =
-    typeof requestBody.message === "string"
-      ? requestBody.message.trim()
-      : "";
-
-  if (message && isKlyxAssistantMessageTooLong(message)) {
-    return NextResponse.json(
-      { error: "Message trop long." },
-      { status: 400 }
-    );
-  }
+  // This shared-capacity check is fail-closed for Visible AI only. It never
+  // returns an HTTP decision and therefore cannot replace or bypass /respond.
+  // The certified parser above already enforces the authoritative 4,000-char
+  // Brain boundary even if a UI capacity constant ever drifts.
+  const suppressVisibleAiForCapacity =
+    Boolean(message) &&
+    isKlyxAssistantMessageTooLong(message);
 
   const response = await withoutKlyxLlmShadow(
     () => deterministicPost(request)
   );
 
-  if (!response.ok) {
+  if (
+    !response.ok ||
+    !parsedRequest.ok ||
+    suppressVisibleAiForCapacity
+  ) {
     return response;
   }
 
@@ -89,7 +91,7 @@ export async function POST(request: Request) {
       ? responseBody.reply.trim()
       : "";
 
-  if (!message || !deterministicReply) {
+  if (!deterministicReply) {
     return response;
   }
 
@@ -126,6 +128,7 @@ export async function POST(request: Request) {
     },
     {
       status: response.status,
+      headers: response.headers,
     }
   );
 }
