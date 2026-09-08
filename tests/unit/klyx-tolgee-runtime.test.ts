@@ -67,9 +67,13 @@ describe("KLYX Tolgee runtime bridge", () => {
     );
   });
 
-  it("wires KlyxLocaleProvider through the static Tolgee bridge without network secrets", () => {
+  it("wires KlyxLocaleProvider and AppSidebar through the static Tolgee bridge", () => {
     const providerSource = readFileSync(
       path.resolve(process.cwd(), "app/components/KlyxLocaleProvider.tsx"),
+      "utf8"
+    );
+    const sidebarSource = readFileSync(
+      path.resolve(process.cwd(), "app/ui/AppSidebar.tsx"),
       "utf8"
     );
     const runtimeSource = readFileSync(
@@ -81,6 +85,13 @@ describe("KLYX Tolgee runtime bridge", () => {
     expect(providerSource).toContain("normalizeKlyxSelectableLocale");
     expect(providerSource).not.toContain("t: (key) => translateKlyxUi(locale, key)");
 
+    expect(sidebarSource).toContain("const { locale, t } = useKlyxLocale();");
+    expect(sidebarSource).not.toContain("translateKlyxUi");
+    expect(sidebarSource).toContain("translateKlyxNavigationLabel");
+    expect(sidebarSource).toContain("translateKlyxProviderAssistant");
+    expect(sidebarSource).toContain("translateKlyxSidebarNavigation");
+
+    expect(runtimeSource).toContain("translateKlyxUi(locale, key)");
     expect(runtimeSource).not.toContain("TOLGEE_API_KEY");
     expect(runtimeSource).not.toContain("NEXT_PUBLIC_TOLGEE");
     expect(runtimeSource).not.toContain("process.env");
