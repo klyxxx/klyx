@@ -5,6 +5,11 @@ import {
   hasE2ECredentials,
   loginKlyxE2E,
 } from "./helpers/authenticated-session";
+import {
+  expectAssistantFirstDesktopShell,
+  expectAssistantFirstMobileShell,
+  openAssistantFirstMobileDrawer,
+} from "./helpers/assistant-shell";
 
 test.use({ trace: "off", screenshot: "off", video: "off" });
 
@@ -18,69 +23,51 @@ test.describe("KLYX strict role navigation", () => {
     await clearSensitivePassword(page);
   });
 
-  test("client desktop exposes exactly KLYX, Activité, Messages and Profil", async ({
+  test("client desktop centers the Assistant and missions instead of SaaS navigation", async ({
     page,
   }) => {
     await loginKlyxE2E(page);
     await activateKlyxE2EProfile(page, "client");
     await page.goto("/assistant");
 
-    const navigation = page.getByRole("navigation", {
-      name: "Navigation principale KLYX",
-    });
+    await expectAssistantFirstDesktopShell(page, "/assistant");
 
-    await expect(navigation).toBeVisible();
-    await expect(navigation.getByRole("link")).toHaveCount(4);
+    const rail = page.getByTestId("desktop-mission-rail");
+    await expect(rail.getByRole("region", { name: "En cours" })).toBeVisible();
+    await expect(rail.getByRole("region", { name: "Récentes" })).toBeVisible();
+    await expect(rail.getByText("Messages", { exact: true })).toHaveCount(0);
+    await expect(rail.getByRole("navigation")).toHaveCount(0);
 
-    for (const label of ["KLYX", "Activité", "Messages", "Profil"] as const) {
-      await expect(
-        navigation.getByRole("link", { name: label, exact: true })
-      ).toBeVisible();
-    }
-
-    await expect(navigation.getByText("Missions", { exact: true })).toHaveCount(0);
-    await expect(navigation.getByText("Gestion", { exact: true })).toHaveCount(0);
+    const account = rail.locator("details").filter({ hasText: "Compte" });
+    await account.locator("summary").click();
+    await expect(account.locator('a[href="/profile"]')).toBeVisible();
+    await expect(account.locator('a[href="/settings"]')).toBeVisible();
+    await expect(account.locator('a[href="/messages"]')).toHaveCount(0);
   });
 
-  test("provider desktop exposes exactly Missions, Services, Finances and Profil", async ({
+  test("provider desktop keeps Services and Finances secondary to the Assistant", async ({
     page,
   }) => {
     await loginKlyxE2E(page);
     await activateKlyxE2EProfile(page, "provider");
     await page.goto("/provider/assistant");
 
-    const navigation = page.getByRole("navigation", {
-      name: "Navigation principale KLYX",
-    });
+    await expectAssistantFirstDesktopShell(page, "/provider/assistant");
 
-    await expect(navigation).toBeVisible();
-    await expect(navigation.getByRole("link")).toHaveCount(4);
+    const rail = page.getByTestId("desktop-mission-rail");
+    await expect(rail.getByRole("navigation")).toHaveCount(0);
 
-    for (const label of ["Missions", "Services", "Finances", "Profil"] as const) {
-      await expect(
-        navigation.getByRole("link", { name: label, exact: true })
-      ).toBeVisible();
-    }
-
-    await expect(navigation.getByText("KLYX", { exact: true })).toHaveCount(0);
-    await expect(navigation.getByText("Messages", { exact: true })).toHaveCount(0);
-    await expect(navigation.getByText("Gestion", { exact: true })).toHaveCount(0);
-
-    await expect(
-      navigation.getByRole("link", { name: "Missions", exact: true })
-    ).toHaveAttribute("href", "/provider/jobs");
-    await expect(
-      navigation.getByRole("link", { name: "Services", exact: true })
-    ).toHaveAttribute("href", "/provider/studio");
-    await expect(
-      navigation.getByRole("link", { name: "Finances", exact: true })
-    ).toHaveAttribute("href", "/provider/payments");
-    await expect(
-      navigation.getByRole("link", { name: "Profil", exact: true })
-    ).toHaveAttribute("href", "/profile");
+    const account = rail.locator("details").filter({ hasText: "Compte" });
+    await expect(account.locator('a[href="/provider/studio"]')).toBeHidden();
+    await expect(account.locator('a[href="/provider/payments"]')).toBeHidden();
+    await account.locator("summary").click();
+    await expect(account.locator('a[href="/provider/studio"]')).toBeVisible();
+    await expect(account.locator('a[href="/provider/payments"]')).toBeVisible();
+    await expect(account.locator('a[href="/profile"]')).toBeVisible();
+    await expect(account.locator('a[href="/messages"]')).toHaveCount(0);
   });
 
-  test("mobile uses a four-entry bottom bar with touch-friendly targets", async ({
+  test("mobile uses a header and drawer with no four-entry bottom bar", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
@@ -88,18 +75,18 @@ test.describe("KLYX strict role navigation", () => {
     await activateKlyxE2EProfile(page, "client");
     await page.goto("/assistant");
 
-    const navigation = page.getByRole("navigation", {
-      name: "Navigation mobile KLYX",
-    });
-    const links = navigation.getByRole("link");
+    await expectAssistantFirstMobileShell(page);
 
-    await expect(navigation).toBeVisible();
-    await expect(links).toHaveCount(4);
+    const trigger = page.getByTestId("assistant-shell-mobile-menu");
+    const triggerBox = await trigger.boundingBox();
+    expect(triggerBox).not.toBeNull();
+    expect(triggerBox!.height).toBeGreaterThanOrEqual(40);
+    expect(triggerBox!.width).toBeGreaterThanOrEqual(40);
 
-    for (let index = 0; index < 4; index += 1) {
-      const box = await links.nth(index).boundingBox();
-      expect(box).not.toBeNull();
-      expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
-    }
+    const drawer = await openAssistantFirstMobileDrawer(page, "/assistant");
+    await expect(drawer.getByText("En cours", { exact: true })).toBeVisible();
+    await expect(drawer.getByText("Récentes", { exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(drawer).toHaveCount(0);
   });
 });

@@ -5,6 +5,10 @@ import {
   hasE2ECredentials,
   loginKlyxE2E,
 } from "./helpers/authenticated-session";
+import {
+  expectAssistantFirstDesktopShell,
+  expectAssistantFirstMobileShell,
+} from "./helpers/assistant-shell";
 
 async function attachViewport(
   page: Page,
@@ -100,10 +104,7 @@ async function mockActivity(page: Page) {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({
-        missions: [],
-        childBookingIds: [],
-      }),
+      body: JSON.stringify({ missions: [], childBookingIds: [] }),
     });
   });
 }
@@ -116,17 +117,12 @@ test.describe("KLYX Activity destination visual evidence", () => {
 
   test.afterEach(async ({ page }) => {
     await clearSensitivePassword(page);
-
     try {
       await activateKlyxE2EProfile(page, "client");
-    } catch {
-      // Best-effort reset for the dedicated E2E account after a failed assertion.
-    }
+    } catch {}
   });
 
-  test("keeps Activity calm with one obvious next action", async ({
-    page,
-  }, testInfo) => {
+  test("keeps Activity calm with one obvious next action", async ({ page }, testInfo) => {
     test.setTimeout(180_000);
     await loginKlyxE2E(page);
     await activateKlyxE2EProfile(page, "client");
@@ -139,10 +135,7 @@ test.describe("KLYX Activity destination visual evidence", () => {
       .getByRole("main")
       .locator('a[href="/bookings/e2e-action"]');
     await expect(nextAction).toBeVisible();
-    await expect(
-      page.getByRole("navigation", { name: "Navigation principale KLYX" })
-    ).toBeVisible();
-
+    await expectAssistantFirstDesktopShell(page, "/assistant");
     await expect(
       page
         .getByRole("main")
@@ -153,10 +146,7 @@ test.describe("KLYX Activity destination visual evidence", () => {
 
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(nextAction).toBeVisible();
-    await expect(
-      page.getByRole("navigation", { name: "Navigation mobile KLYX" })
-    ).toBeVisible();
-
+    await expectAssistantFirstMobileShell(page);
     await attachViewport(page, testInfo, "client-activity-calm-mobile");
   });
 });

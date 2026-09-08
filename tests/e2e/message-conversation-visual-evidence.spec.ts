@@ -10,6 +10,10 @@ import {
   hasE2ECredentials,
   loginKlyxE2E,
 } from "./helpers/authenticated-session";
+import {
+  expectAssistantFirstDesktopShell,
+  expectAssistantFirstMobileShell,
+} from "./helpers/assistant-shell";
 
 const BOOKING_ID = "00000000-0000-4000-8000-000000000474";
 const OTHER_PROFILE_ID = "00000000-0000-4000-8000-000000000475";
@@ -34,10 +38,7 @@ async function attachScreenshot(
   });
 
   await testInfo.attach(name, {
-    body: await page.screenshot({
-      fullPage,
-      animations: "disabled",
-    }),
+    body: await page.screenshot({ fullPage, animations: "disabled" }),
     contentType: "image/png",
   });
 }
@@ -96,11 +97,7 @@ async function mockConversationReads(page: Page, activeProfileId: string) {
 
     if (method === "POST") {
       sentMessages.push(route.request().postDataJSON() as SentMessage);
-      await route.fulfill({
-        status: 201,
-        contentType: "application/json",
-        body: "[]",
-      });
+      await route.fulfill({ status: 201, contentType: "application/json", body: "[]" });
       return;
     }
 
@@ -139,16 +136,13 @@ async function mockConversationReads(page: Page, activeProfileId: string) {
 }
 
 test.describe("KLYX message conversation visual evidence", () => {
-  test.skip(
-    !hasE2ECredentials,
-    "Dedicated KLYX E2E credentials are not configured."
-  );
+  test.skip(!hasE2ECredentials, "Dedicated KLYX E2E credentials are not configured.");
 
   test.afterEach(async ({ page }) => {
     await clearSensitivePassword(page);
   });
 
-  test("archives a universal-provider conversation and sends to the canonical provider", async ({
+  test("archives a contextual conversation and sends to the canonical provider", async ({
     page,
   }, testInfo) => {
     test.setTimeout(180_000);
@@ -157,9 +151,8 @@ test.describe("KLYX message conversation visual evidence", () => {
     const sentMessages = await mockConversationReads(page, activeProfile.id);
 
     await page.setViewportSize({ width: 1440, height: 1000 });
-    await page.goto(`/messages/${BOOKING_ID}`, {
-      waitUntil: "domcontentloaded",
-    });
+    await page.goto(`/messages/${BOOKING_ID}`, { waitUntil: "domcontentloaded" });
+    await expectAssistantFirstDesktopShell(page, "/assistant");
 
     await expect(
       page.getByRole("heading", { name: "Prestataire KLYX", exact: true })
@@ -170,7 +163,6 @@ test.describe("KLYX message conversation visual evidence", () => {
     await expect(page.getByText("Parfait, merci. À samedi !")).toBeVisible();
 
     const composer = page.getByRole("textbox");
-    await expect(composer).toBeVisible();
     await composer.fill(SENT_MESSAGE);
     await composer.press("Enter");
 
@@ -186,28 +178,13 @@ test.describe("KLYX message conversation visual evidence", () => {
     await attachScreenshot(page, testInfo, "message-conversation-desktop");
 
     await page.setViewportSize({ width: 390, height: 844 });
-
-    const mobileNavigation = page.getByRole("navigation", {
-      name: "Navigation mobile KLYX",
-    });
-
+    await expectAssistantFirstMobileShell(page);
     await expect(composer).toBeInViewport();
-    await expect(mobileNavigation).toBeVisible();
 
     const composerBox = await composer.boundingBox();
-    const navigationBox = await mobileNavigation.boundingBox();
-
     expect(composerBox).not.toBeNull();
-    expect(navigationBox).not.toBeNull();
-    expect(composerBox!.y + composerBox!.height).toBeLessThanOrEqual(
-      navigationBox!.y
-    );
+    expect(composerBox!.y + composerBox!.height).toBeLessThanOrEqual(844);
 
-    await attachScreenshot(
-      page,
-      testInfo,
-      "message-conversation-mobile",
-      false
-    );
+    await attachScreenshot(page, testInfo, "message-conversation-mobile", false);
   });
 });

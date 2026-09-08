@@ -7,6 +7,7 @@ import {
   readKlyxE2EProfiles,
   type KlyxE2EProfile,
 } from "./helpers/authenticated-session";
+import { expectAssistantFirstDesktopShell } from "./helpers/assistant-shell";
 
 test.use({
   trace: "off",
@@ -72,36 +73,23 @@ test.describe("KLYX authenticated multi-profile", () => {
     await expect(
       page.getByRole("heading", { name: "Que dois-je organiser pour vous ?" })
     ).toBeVisible();
+    await expectAssistantFirstDesktopShell(page, "/assistant");
 
     await page.goto("/profile");
     await expect(page.getByTestId("account-switcher")).toBeVisible();
     await switchThroughUi(page, client!, provider!);
     await page.waitForURL((url) => url.pathname === "/provider/assistant");
-
-    const providerNavigation = page.getByRole("navigation", {
-      name: "Navigation principale KLYX",
-    });
+    await expectAssistantFirstDesktopShell(page, "/provider/assistant");
     await expect(
-      providerNavigation.getByRole("link", { name: "Missions", exact: true })
+      page.getByRole("heading", { name: "Que dois-je préparer pour ton activité ?" })
     ).toBeVisible();
-    await expect(
-      providerNavigation.getByRole("link", { name: "Services", exact: true })
-    ).toBeVisible();
-    await expect(
-      providerNavigation.getByRole("link", { name: "KLYX", exact: true })
-    ).toHaveCount(0);
 
     const providerState = await readKlyxE2EProfiles(page);
     expect(providerState.activeProfileId).toBe(provider!.id);
 
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect(page).toHaveURL(/\/provider\/assistant(?:\?|$)/);
-    await expect(
-      providerNavigation.getByRole("link", { name: "Finances", exact: true })
-    ).toBeVisible();
-    await expect(
-      providerNavigation.getByRole("link", { name: "Profil", exact: true })
-    ).toBeVisible();
+    await expectAssistantFirstDesktopShell(page, "/provider/assistant");
 
     await page.goto("/profile");
     await expect(page.getByTestId("account-switcher")).toBeVisible();
@@ -110,6 +98,7 @@ test.describe("KLYX authenticated multi-profile", () => {
     await expect(
       page.getByRole("heading", { name: "Que dois-je organiser pour vous ?" })
     ).toBeVisible();
+    await expectAssistantFirstDesktopShell(page, "/assistant");
 
     const clientState = await readKlyxE2EProfiles(page);
     expect(clientState.activeProfileId).toBe(client!.id);

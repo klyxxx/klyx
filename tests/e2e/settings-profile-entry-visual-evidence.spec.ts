@@ -5,6 +5,10 @@ import {
   hasE2ECredentials,
   loginKlyxE2E,
 } from "./helpers/authenticated-session";
+import {
+  expectAssistantFirstDesktopShell,
+  expectAssistantFirstMobileShell,
+} from "./helpers/assistant-shell";
 
 async function attachViewport(
   page: Page,
@@ -27,7 +31,6 @@ async function mockPhoneReads(page: Page) {
       await route.fallback();
       return;
     }
-
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -40,7 +43,6 @@ async function mockPhoneReads(page: Page) {
       await route.fallback();
       return;
     }
-
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -57,7 +59,6 @@ async function mockPhoneReads(page: Page) {
       await route.fallback();
       return;
     }
-
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -70,27 +71,15 @@ async function mockPhoneReads(page: Page) {
   });
 }
 
-async function expectAboveMobileNavigation(page: Page) {
+async function expectMobileSettingsEntryVisible(page: Page) {
   const settingsLink = page.getByRole("main").locator('a[href="/settings"]');
-  const mobileNavigation = page.getByRole("navigation", {
-    name: "Navigation mobile KLYX",
-  });
-
   await settingsLink.scrollIntoViewIfNeeded();
   await expect(settingsLink).toBeInViewport();
-  await expect(mobileNavigation).toBeVisible();
+  await expectAssistantFirstMobileShell(page);
 
-  const [settingsBox, navigationBox] = await Promise.all([
-    settingsLink.boundingBox(),
-    mobileNavigation.boundingBox(),
-  ]);
-
-  expect(settingsBox, "Settings entry must have a measurable mobile box").not.toBeNull();
-  expect(navigationBox, "Mobile navigation must have a measurable box").not.toBeNull();
-  expect(
-    settingsBox!.y + settingsBox!.height,
-    "Settings entry must stay fully above the fixed mobile navigation"
-  ).toBeLessThanOrEqual(navigationBox!.y);
+  const box = await settingsLink.boundingBox();
+  expect(box, "Settings entry must have a measurable mobile box").not.toBeNull();
+  expect(box!.y + box!.height).toBeLessThanOrEqual(844);
 }
 
 function disclosureButtons(page: Page) {
@@ -105,12 +94,9 @@ test.describe("KLYX Profile → Settings destination visual evidence", () => {
 
   test.afterEach(async ({ page }) => {
     await clearSensitivePassword(page);
-
     try {
       await activateKlyxE2EProfile(page, "client");
-    } catch {
-      // Best-effort reset for the dedicated E2E account after a failed assertion.
-    }
+    } catch {}
   });
 
   test("keeps destinations calm by revealing details only on demand", async ({
@@ -123,14 +109,12 @@ test.describe("KLYX Profile → Settings destination visual evidence", () => {
 
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto("/profile", { waitUntil: "domcontentloaded" });
+    await expectAssistantFirstDesktopShell(page, "/assistant");
 
     const clientSettingsLink = page
       .getByRole("main")
       .locator('a[href="/settings"]');
     await expect(clientSettingsLink).toBeVisible();
-    await expect(
-      page.getByRole("navigation", { name: "Navigation principale KLYX" })
-    ).toBeVisible();
 
     const profileEditorToggle = disclosureButtons(page).first();
     await expect(profileEditorToggle).toHaveAttribute("aria-expanded", "false");
@@ -147,20 +131,18 @@ test.describe("KLYX Profile → Settings destination visual evidence", () => {
     await expect(page.locator("#firstName")).toHaveCount(0);
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await expectAboveMobileNavigation(page);
+    await expectMobileSettingsEntryVisible(page);
     await attachViewport(page, testInfo, "client-profile-calm-mobile");
 
     await clientSettingsLink.click();
     await expect(page).toHaveURL(/\/settings(?:\?|$)/);
+    await expectAssistantFirstMobileShell(page);
 
     const settingsBackLink = page
       .getByRole("main")
       .locator('a[href="/profile"]');
     await expect(settingsBackLink).toBeVisible();
     await expect(page.getByRole("switch")).toHaveCount(0);
-    await expect(
-      page.getByRole("navigation", { name: "Navigation mobile KLYX" })
-    ).toBeVisible();
 
     const clientPanels = disclosureButtons(page);
     await expect(clientPanels.first()).toHaveAttribute("aria-expanded", "false");
@@ -172,13 +154,12 @@ test.describe("KLYX Profile → Settings destination visual evidence", () => {
     await clientPanels.nth(1).click();
 
     await page.setViewportSize({ width: 1440, height: 1000 });
-    await expect(
-      page.getByRole("navigation", { name: "Navigation principale KLYX" })
-    ).toBeVisible();
+    await expectAssistantFirstDesktopShell(page, "/assistant");
     await attachViewport(page, testInfo, "client-settings-calm-desktop");
 
     await activateKlyxE2EProfile(page, "provider");
     await page.goto("/profile", { waitUntil: "domcontentloaded" });
+    await expectAssistantFirstDesktopShell(page, "/provider/assistant");
 
     const providerSettingsLink = page
       .getByRole("main")
