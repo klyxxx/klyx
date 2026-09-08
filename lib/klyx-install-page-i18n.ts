@@ -1,6 +1,12 @@
 import type { KlyxLocale } from "./klyx-i18n";
 
-export const KLYX_INSTALL_PAGE_TRANSLATED_LOCALES = ["fr", "en", "nl", "de"] as const;
+export const KLYX_INSTALL_PAGE_TRANSLATED_LOCALES = [
+  "fr",
+  "en",
+  "nl",
+  "de",
+  "es",
+] as const;
 
 export type KlyxInstallPageLocale =
   (typeof KLYX_INSTALL_PAGE_TRANSLATED_LOCALES)[number];
@@ -176,6 +182,42 @@ const INSTALL_PAGE_MESSAGES: Record<
     currentVersionTitle: "Aktuelle Version",
     currentVersionDescription:
       "Diese Version ist eine installierbare Webanwendung (PWA). Sie ist noch keine im App Store oder bei Google Play veröffentlichte App. Store-Apps folgen nach der Stabilisierung von KLYX.",
+  },
+  es: {
+    metadataTitle: "Instalar KLYX",
+    metadataDescription:
+      "Instala KLYX en tu teléfono, tableta u ordenador.",
+    login: "Iniciar sesión",
+    backHome: "Volver al inicio",
+    badge: "Instalar KLYX",
+    heroTitle: "KLYX directamente en tu dispositivo.",
+    heroDescription:
+      "KLYX ya funciona en tu navegador. La instalación es opcional: añade un icono de KLYX y permite abrir KLYX de una forma más parecida a una aplicación tradicional.",
+    androidTitle: "Android",
+    androidDescription:
+      "En Chrome o Edge compatibles, utiliza el botón Instalar KLYX cuando aparezca.",
+    iosTitle: "iPhone / iPad",
+    iosDescription:
+      "En Safari: Compartir → Añadir a pantalla de inicio → Añadir.",
+    desktopTitle: "Ordenador",
+    desktopDescription:
+      "Chrome o Edge puede instalar KLYX en una ventana independiente con su icono.",
+    benefitsEyebrow: "Lo que obtienes",
+    benefitIcon: "Un icono de KLYX en tu dispositivo",
+    benefitAppMode:
+      "Una apertura en modo aplicación cuando el navegador lo permite",
+    benefitSameAccount:
+      "La misma cuenta y los mismos datos que en el sitio web",
+    benefitNoStore:
+      "No necesitas App Store ni Google Play para esta versión",
+    browserTitle: "¿No quieres instalarlo?",
+    browserDescription:
+      "No hay problema. KLYX sigue siendo totalmente accesible desde el navegador en teléfono, tableta y ordenador.",
+    browserLogin: "Iniciar sesión",
+    browserSignup: "Crear una cuenta",
+    currentVersionTitle: "Versión actual",
+    currentVersionDescription:
+      "Esta versión es una aplicación web instalable (PWA). Todavía no es una aplicación publicada en App Store o Google Play. Las aplicaciones de las tiendas llegarán después de que KLYX se estabilice.",
   },
 };
 
