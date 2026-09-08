@@ -16,11 +16,21 @@ const root =
     )
   );
 
+const serverOnlyStub =
+  fileURLToPath(
+    new URL(
+      "./tests/stubs/server-only.ts",
+      import.meta.url
+    )
+  );
+
 export default defineConfig({
   resolve: {
     alias: {
       "@":
         root,
+      "server-only":
+        serverOnlyStub,
     },
   },
 
@@ -40,6 +50,19 @@ export default defineConfig({
       ".next/**",
       "scripts/backups/**",
     ],
+
+    alias: {
+      "server-only":
+        serverOnlyStub,
+    },
+
+    server: {
+      deps: {
+        inline: [
+          "server-only",
+        ],
+      },
+    },
 
     clearMocks:
       true,
