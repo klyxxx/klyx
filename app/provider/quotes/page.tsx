@@ -3,7 +3,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
-  ChevronDown,
   FileText,
   LoaderCircle,
   Send,
@@ -55,6 +54,10 @@ type SmartQuoteDraft = {
   source: "quote_snapshot";
 };
 
+const PROVIDER_QUOTE_REVIEW_CONTRACT = {
+  requiresConfirmation: true,
+} as const;
+
 type Translator = (key: KlyxProviderQuotesMessageKey) => string;
 
 export default function ProviderQuotesPage() {
@@ -78,12 +81,6 @@ export default function ProviderQuotesPage() {
       `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() ||
       t("clientFallback")
     );
-  }
-
-  function confidenceLabel(confidence: SmartQuoteDraft["confidence"]): string {
-    if (confidence === "high") return t("confidenceHigh");
-    if (confidence === "medium") return t("confidenceMedium");
-    return t("confidenceLow");
   }
 
   async function token(): Promise<string> {
@@ -160,9 +157,7 @@ export default function ProviderQuotesPage() {
   );
 
   const priorityQuote = prioritizedQuotes[0] ?? null;
-  const otherQuotes = priorityQuote
-    ? prioritizedQuotes.filter((quote) => quote.id !== priorityQuote.id)
-    : [];
+  const otherQuotes = priorityQuote ? prioritizedQuotes.slice(1) : [];
   const requestedCount = prioritizedQuotes.filter(
     (quote) => quote.status === "requested"
   ).length;
@@ -190,7 +185,12 @@ export default function ProviderQuotesPage() {
         error?: string;
       };
 
-      if (!response.ok || !body.draft) {
+      if (
+        !response.ok ||
+        !body.draft ||
+        body.draft.requiresConfirmation !==
+          PROVIDER_QUOTE_REVIEW_CONTRACT.requiresConfirmation
+      ) {
         throw new Error("provider-quotes-draft-failed");
       }
 
@@ -258,50 +258,42 @@ export default function ProviderQuotesPage() {
     }
   }
 
-  function quoteView(quote: Quote, featured = false) {
+  function quoteView(quote: Quote, priority = false) {
     const smartDraft = smartDrafts[quote.id];
+    const requested = quote.status === "requested";
 
     return (
       <article
         key={quote.id}
-        data-quote-priority={featured ? "true" : "false"}
-        className={featured ? "border-t border-border pt-6" : "py-6"}
+        data-quote-priority={priority ? "true" : "false"}
+        className={`py-5 ${priority ? "bg-muted/20 px-3 sm:px-4" : "px-0 sm:px-1"}`}
       >
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#2563EB]">
-                {translateKlyxProviderQuoteStatus(locale, quote.status)}
-              </p>
-              <span className="text-xs text-muted-foreground">
-                {clientName(quote.client)}
-              </span>
-            </div>
-            <h2
-              className={`${featured ? "text-2xl sm:text-3xl" : "text-xl"} mt-2 font-semibold tracking-[-0.03em]`}
-            >
+            <h2 className="text-base font-semibold leading-6 tracking-[-0.015em] sm:text-lg">
               {quote.title}
             </h2>
-          </div>
-
-          <div className="shrink-0 sm:text-right">
-            <p className="text-xs text-muted-foreground">{t("estimate")}</p>
-            <p className="mt-1 text-base font-semibold">
-              {quote.estimated_total == null
-                ? t("toConfirm")
-                : formatKlyxProviderQuoteMoney(
-                    locale,
-                    Number(quote.estimated_total)
-                  )}
+            <p className="mt-1 text-sm text-muted-foreground">
+              {clientName(quote.client)}
             </p>
           </div>
+
+          <span
+            className={`shrink-0 text-xs font-medium ${
+              requested ? "text-[#2563EB]" : "text-muted-foreground"
+            }`}
+          >
+            {translateKlyxProviderQuoteStatus(locale, quote.status)}
+          </span>
         </div>
 
-        <p className="mt-4 max-w-3xl text-sm leading-7 text-muted-foreground">
-          {quote.description}
-        </p>
+        {quote.description && (
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
+            {quote.description}
+          </p>
+        )}
 
-        <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground">
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
           {quote.requested_date && (
             <span>
               {t("date")} :{" "}
@@ -318,15 +310,26 @@ export default function ProviderQuotesPage() {
               {t("duration")} : {quote.duration_hours} h
             </span>
           )}
+          <span>
+            {t("estimate")} :{" "}
+            <strong className="font-medium text-foreground">
+              {quote.estimated_total == null
+                ? t("toConfirm")
+                : formatKlyxProviderQuoteMoney(
+                    locale,
+                    Number(quote.estimated_total)
+                  )}
+            </strong>
+          </span>
         </div>
 
-        {quote.status === "requested" && (
+        {requested && (
           <form
             onSubmit={(event) => void sendQuote(event, quote.id)}
-            className="mt-6 border-t border-border pt-6"
+            className="mt-4 border-t border-border pt-4"
           >
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="max-w-2xl">
                 <p className="text-sm font-semibold">{t("prepare")}</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
                   {t("editableNotice")}
@@ -337,32 +340,32 @@ export default function ProviderQuotesPage() {
                 type="button"
                 disabled={draftBusyId === quote.id || busyId === quote.id}
                 onClick={() => void prepareSmartDraft(quote.id)}
-                className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-semibold text-[#2563EB] transition hover:bg-muted disabled:opacity-50"
+                className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-border bg-background px-3.5 text-sm font-semibold text-foreground transition hover:bg-muted disabled:opacity-50"
               >
                 {draftBusyId === quote.id ? (
-                  <LoaderCircle className="animate-spin" size={17} />
+                  <LoaderCircle className="animate-spin" size={16} />
                 ) : (
-                  <Sparkles size={17} />
+                  <Sparkles size={16} />
                 )}
                 {t("prepare")}
               </button>
             </div>
 
             {smartDraft && (
-              <div className="mt-5 border-l-2 border-[#2563EB] pl-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-sm font-semibold">{t("smartDraft")}</p>
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    {confidenceLabel(smartDraft.confidence)}
-                  </span>
-                </div>
+              <section
+                className="mt-4 rounded-xl border border-border bg-muted/20 p-4"
+                aria-label={t("smartDraft")}
+              >
+                <p className="text-xs font-semibold text-foreground">
+                  {t("smartDraft")}
+                </p>
 
-                <p className="mt-3 text-xs leading-6 text-muted-foreground">
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">
                   {smartDraft.explanation}
                 </p>
 
                 {smartDraft.assumptions.length > 0 && (
-                  <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+                  <div className="mt-2 space-y-1 text-xs leading-5 text-muted-foreground">
                     {smartDraft.assumptions.map((assumption) => (
                       <p key={assumption}>• {assumption}</p>
                     ))}
@@ -383,15 +386,19 @@ export default function ProviderQuotesPage() {
                   </div>
                 )}
 
-                <p className="mt-3 text-[11px] font-semibold text-[#2563EB]">
+                <p className="mt-3 flex items-start gap-2 text-xs font-semibold leading-5 text-foreground">
+                  <AlertTriangle
+                    className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-300"
+                    size={14}
+                  />
                   {t("approvalRequired")}
                 </p>
-              </div>
+              </section>
             )}
 
-            <div className="mt-5 grid gap-4 sm:grid-cols-[190px_1fr]">
+            <div className="mt-4 grid gap-3 sm:grid-cols-[170px_1fr]">
               <label>
-                <span className="mb-2 block text-sm font-semibold">
+                <span className="mb-1.5 block text-sm font-semibold">
                   {t("priceLabel")}
                 </span>
                 <input
@@ -410,11 +417,11 @@ export default function ProviderQuotesPage() {
               </label>
 
               <label>
-                <span className="mb-2 block text-sm font-semibold">
+                <span className="mb-1.5 block text-sm font-semibold">
                   {t("messageLabel")}
                 </span>
                 <textarea
-                  rows={3}
+                  rows={2}
                   maxLength={1500}
                   value={messages[quote.id] ?? ""}
                   onChange={(event) =>
@@ -432,31 +439,36 @@ export default function ProviderQuotesPage() {
             <button
               type="submit"
               disabled={busyId === quote.id || draftBusyId === quote.id}
-              className="mt-4 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#2563EB] px-5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+              className="mt-3 inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#2563EB] px-4 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
             >
               {busyId === quote.id ? (
-                <LoaderCircle className="animate-spin" size={18} />
+                <LoaderCircle className="animate-spin" size={17} />
               ) : (
-                <Send size={18} />
+                <Send size={17} />
               )}
               {t("send")}
             </button>
           </form>
         )}
 
-        {quote.status !== "requested" && (
-          <div className="mt-5 border-t border-border pt-4">
-            <p className="text-sm font-semibold">
-              {t("sentPrice")} :{" "}
-              {quote.provider_price == null
-                ? "—"
-                : formatKlyxProviderQuoteMoney(
-                    locale,
-                    Number(quote.provider_price)
-                  )}
-            </p>
+        {!requested && (
+          <div className="mt-4 border-t border-border pt-3 text-sm">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+              <span className="text-xs font-medium text-muted-foreground">
+                {translateKlyxProviderQuoteStatus(locale, quote.status)}
+              </span>
+              <span className="font-semibold">
+                {t("sentPrice")} :{" "}
+                {quote.provider_price == null
+                  ? "—"
+                  : formatKlyxProviderQuoteMoney(
+                      locale,
+                      Number(quote.provider_price)
+                    )}
+              </span>
+            </div>
             {quote.provider_message && (
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
                 {quote.provider_message}
               </p>
             )}
@@ -470,72 +482,59 @@ export default function ProviderQuotesPage() {
     <main className="klyx-page">
       <div className="mx-auto max-w-4xl">
         <header className="max-w-2xl">
-          <p className="text-sm font-semibold text-[#2563EB]">
+          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
             {t("providerOnly")}
           </p>
-          <h1 className="klyx-title mt-2 text-3xl sm:text-5xl">{t("title")}</h1>
-          <p className="mt-3 text-sm leading-7 text-muted-foreground sm:text-base">
+          <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] sm:text-3xl">
+            {t("title")}
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">
             {t("intro")}
           </p>
         </header>
 
         {errorMessage && (
-          <div className="mt-6 border-l-2 border-red-500 py-1 pl-4 text-sm text-red-700 dark:text-red-300">
+          <div className="mt-5 border-l-2 border-red-500 py-1 pl-3 text-sm text-red-700 dark:text-red-300">
             {errorMessage}
           </div>
         )}
 
         {successMessage && (
-          <div className="mt-6 border-l-2 border-[#2563EB] py-1 pl-4 text-sm text-foreground">
+          <div className="mt-5 border-l-2 border-[#2563EB] py-1 pl-3 text-sm text-foreground">
             {successMessage}
           </div>
         )}
 
         {loading ? (
-          <div className="flex min-h-32 items-center gap-3 text-sm text-muted-foreground">
-            <LoaderCircle className="animate-spin text-[#2563EB]" size={20} />
+          <div className="flex min-h-28 items-center gap-3 text-sm text-muted-foreground">
+            <LoaderCircle className="animate-spin text-[#2563EB]" size={18} />
             <span>{t("title")}</span>
           </div>
         ) : !priorityQuote ? (
-          <section className="mt-8 border-t border-border py-10">
+          <section className="mt-7 border-t border-border py-8">
             <div className="flex items-start gap-3">
-              <FileText className="mt-0.5 text-[#2563EB]" size={20} />
+              <FileText className="mt-0.5 text-muted-foreground" size={18} />
               <div>
-                <h2 className="text-lg font-semibold">{t("empty")}</h2>
-                <p className="mt-2 text-sm text-muted-foreground">
+                <h2 className="text-base font-semibold">{t("empty")}</h2>
+                <p className="mt-1.5 text-sm text-muted-foreground">
                   {t("intro")}
                 </p>
               </div>
             </div>
           </section>
         ) : (
-          <>
-            <section className="mt-9" aria-label={t("title")}>
-              {requestedCount > 0 && (
-                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                  {requestedCount} · {translateKlyxProviderQuoteStatus(locale, "requested")}
-                </p>
-              )}
-              {quoteView(priorityQuote, true)}
-            </section>
-
-            {otherQuotes.length > 0 && (
-              <details className="group mt-8 border-t border-border">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-sm font-semibold">
-                  <span>
-                    {t("title")} · {otherQuotes.length}
-                  </span>
-                  <ChevronDown
-                    size={18}
-                    className="text-muted-foreground transition group-open:rotate-180"
-                  />
-                </summary>
-                <div className="divide-y divide-border border-t border-border">
-                  {otherQuotes.map((quote) => quoteView(quote))}
-                </div>
-              </details>
+          <section className="mt-7" aria-label={t("title")}>
+            {requestedCount > 0 && (
+              <p className="mb-2 text-xs font-medium text-muted-foreground">
+                {requestedCount} ·{" "}
+                {translateKlyxProviderQuoteStatus(locale, "requested")}
+              </p>
             )}
-          </>
+            <div className="divide-y divide-border border-y border-border">
+              {quoteView(priorityQuote, priorityQuote.status === "requested")}
+              {otherQuotes.map((quote) => quoteView(quote))}
+            </div>
+          </section>
         )}
       </div>
     </main>
