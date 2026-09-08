@@ -176,7 +176,7 @@ export default function AssistantShell() {
 
       <header
         data-testid="assistant-shell-mobile-header"
-        className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-background/94 px-4 backdrop-blur-xl lg:hidden dark:border-white/8"
+        className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-background/94 px-4 backdrop-blur-xl lg:hidden dark:border-white/8"
       >
         <KlyxLogo href={homeHref} compact />
         <button
@@ -192,6 +192,7 @@ export default function AssistantShell() {
           <Menu size={21} />
         </button>
       </header>
+      <div aria-hidden="true" className="h-14 lg:hidden" />
 
       {mobileOpen && (
         <div className="fixed inset-0 z-[70] lg:hidden" data-testid="mobile-mission-drawer-layer">
