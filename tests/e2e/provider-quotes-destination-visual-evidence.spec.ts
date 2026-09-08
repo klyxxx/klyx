@@ -95,21 +95,17 @@ test.describe("KLYX provider Quotes destination", () => {
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await expect(page.locator('[data-quote-priority="true"]')).toBeVisible();
     await expect(page.getByText("Nettoyage appartement")).toBeVisible();
-    await expect(page.getByText("Ancien devis KLYX")).toBeHidden();
-    await expect(page.locator("main .shadow-sm")).toHaveCount(0);
-
-    const otherQuotes = page.getByRole("main").locator("details").first();
-    await otherQuotes.locator("summary").click();
     await expect(page.getByText("Ancien devis KLYX")).toBeVisible();
-    await otherQuotes.locator("summary").click();
-    await expect(page.getByText("Ancien devis KLYX")).toBeHidden();
+    await expect(page.getByRole("main").locator("details")).toHaveCount(0);
+    await expect(page.locator("main .shadow-sm")).toHaveCount(0);
 
     await attachViewport(page, testInfo, "provider-quotes-focused-desktop");
 
     await page.setViewportSize({ width: 390, height: 844 });
     await expectAssistantFirstMobileShell(page);
     await expect(page.getByText("Nettoyage appartement")).toBeVisible();
-    await expect(page.getByText("Ancien devis KLYX")).toBeHidden();
+    await expect(page.getByText("Ancien devis KLYX")).toBeVisible();
+    await expect(page.getByRole("main").locator("details")).toHaveCount(0);
     await attachViewport(page, testInfo, "provider-quotes-focused-mobile");
 
     expect(mutationRequests).toBe(0);
