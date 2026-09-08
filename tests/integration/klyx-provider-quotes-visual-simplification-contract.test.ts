@@ -12,7 +12,10 @@ describe("KLYX provider quotes visual simplification contract", () => {
     const page = read("app/provider/quotes/page.tsx");
 
     expect(page).toContain("divide-y divide-border border-y border-border");
-    expect(page).toContain("prioritizedQuotes.map((quote, index)");
+    expect(page).toContain("const priorityQuote = prioritizedQuotes[0] ?? null");
+    expect(page).toContain("const otherQuotes = priorityQuote ? prioritizedQuotes.slice(1) : []");
+    expect(page).toContain("quoteView(priorityQuote");
+    expect(page).toContain("otherQuotes.map((quote) => quoteView(quote))");
     expect(page).toContain("text-base font-semibold leading-6");
     expect(page).toContain('data-quote-priority={priority ? "true" : "false"}');
     expect(page).not.toContain("<details");
