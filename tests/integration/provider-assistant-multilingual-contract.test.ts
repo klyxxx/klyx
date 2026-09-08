@@ -16,9 +16,11 @@ const boundary = fs.readFileSync(
 );
 
 describe("KLYX provider assistant multilingual engine contract", () => {
-  it("keeps POST as an explicit draft-preparation action", () => {
+  it("keeps POST as an explicit bounded draft-preparation action", () => {
     expect(core).toContain("analyzeProviderAssistantMessage(");
-    expect(core).toMatch(/body\.message\.trim\(\)\.slice\(0,\s*1000\)/);
+    expect(core).toContain("parseProviderAssistantPostRequest(request)");
+    expect(core).not.toContain("request.json()");
+    expect(core).not.toContain("slice(0, 1000)");
     expect(core).toContain('result.intent !== "unknown"');
     expect(core).toContain('.from("provider_assistant_drafts")');
     expect(core).toContain('status: "draft"');
@@ -27,10 +29,9 @@ describe("KLYX provider assistant multilingual engine contract", () => {
   });
 
   it("keeps PATCH limited to explicit apply or discard", () => {
-    expect(core).toContain('body.action === "apply"');
-    expect(core).toContain('body.action === "discard"');
-    expect(core).toContain('draft.status !== "draft"');
+    expect(core).toContain("parseProviderAssistantPatchRequest(request)");
     expect(core).toContain('action === "discard"');
+    expect(core).toContain('draft.status !== "draft"');
     expect(core).toContain('status: "discarded"');
   });
 
