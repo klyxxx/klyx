@@ -1,6 +1,6 @@
 import type { KlyxLocale } from "./klyx-i18n";
 
-export const KLYX_OFFLINE_PAGE_TRANSLATED_LOCALES = ["fr", "en", "nl", "de"] as const;
+export const KLYX_OFFLINE_PAGE_TRANSLATED_LOCALES = ["fr", "en", "nl", "de", "es"] as const;
 
 export type KlyxOfflinePageLocale =
   (typeof KLYX_OFFLINE_PAGE_TRANSLATED_LOCALES)[number];
@@ -69,6 +69,18 @@ const OFFLINE_PAGE_MESSAGES: Record<KlyxOfflinePageLocale, OfflinePageDictionary
       "KLYX speichert nur die visuellen Ressourcen, die die Anwendung benötigt. Sensible Vorgänge bleiben mit den KLYX-Servern verbunden.",
     retryOnline: "Zurück zu KLYX",
     retryOffline: "Erneut versuchen",
+  },
+  es: {
+    metadataTitle: "KLYX sin conexión",
+    metadataDescription: "KLYX está temporalmente sin conexión en este dispositivo.",
+    badge: "Conexión no disponible",
+    title: "KLYX está temporalmente sin conexión.",
+    description:
+      "Comprueba tu conexión a Internet y vuelve a intentarlo. Los pagos, las reservas, los mensajes y los datos personales nunca se sirven desde una caché sin conexión.",
+    safetyInfo:
+      "KLYX solo conserva los recursos visuales necesarios para la aplicación. Las operaciones sensibles permanecen conectadas a los servidores de KLYX.",
+    retryOnline: "Volver a KLYX",
+    retryOffline: "Volver a intentarlo",
   },
 };
 
