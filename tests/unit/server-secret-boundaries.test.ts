@@ -33,10 +33,11 @@ describe("server secret boundaries", () => {
     expect(audit).toContain('id: "private-key"');
   });
 
-  it("keeps the server-only Vitest stub inside the Vite module runner", () => {
-    const config = read("vitest.config.ts");
+  it("keeps the server-only Vitest stub inside the canonical Vitest config", () => {
+    const config = read("vitest.config.mts");
 
     expect(config).toContain("./tests/stubs/server-only.ts");
-    expect(config).toContain('inline: ["server-only"]');
+    expect(config).toContain('"server-only"');
+    expect(config).toContain("serverOnlyStub");
   });
 });
