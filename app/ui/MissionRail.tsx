@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
@@ -78,6 +78,8 @@ type Copy = {
   collapse: string;
   expand: string;
 };
+
+const RAIL_COLLAPSED_STORAGE_KEY = "klyx:mission-rail:collapsed";
 
 const COPY: Record<string, Copy> = {
   fr: {
@@ -194,6 +196,12 @@ function compareMissions(left: RailMission, right: RailMission) {
   return right.createdAt.localeCompare(left.createdAt);
 }
 
+function normalizePath(value: string) {
+  const pathname = value.split(/[?#]/, 1)[0] || "/";
+  if (pathname === "/") return pathname;
+  return pathname.replace(/\/+$/, "") || "/";
+}
+
 function hrefForMission(mission: MissionCard) {
   if (mission.href) return mission.href;
   return mission.entityType === "booking"
@@ -240,12 +248,27 @@ export default function MissionRail({
   onNavigate?: () => void;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const copy = copyFor(locale);
   const [collapsed, setCollapsed] = useState(false);
   const [missions, setMissions] = useState<RailMission[]>([]);
   const [loading, setLoading] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const compact = !mobile && collapsed;
+  const currentPath = normalizePath(pathname || "/");
+
+  useEffect(() => {
+    if (mobile) return;
+
+    try {
+      const stored = window.localStorage.getItem(RAIL_COLLAPSED_STORAGE_KEY);
+      if (stored === "true" || stored === "false") {
+        setCollapsed(stored === "true");
+      }
+    } catch {
+      // The rail remains expanded when storage is unavailable.
+    }
+  }, [mobile]);
 
   useEffect(() => {
     let cancelled = false;
@@ -358,6 +381,19 @@ export default function MissionRail({
     [missions]
   );
 
+  function setCollapsedPreference(next: boolean) {
+    setCollapsed(next);
+    try {
+      window.localStorage.setItem(RAIL_COLLAPSED_STORAGE_KEY, String(next));
+    } catch {
+      // Persistence is optional; never block the rail interaction.
+    }
+  }
+
+  function isMissionActive(mission: RailMission) {
+    return normalizePath(mission.href) === currentPath;
+  }
+
   async function logout() {
     if (loggingOut) return;
     setLoggingOut(true);
@@ -378,17 +414,31 @@ export default function MissionRail({
     if (compact) {
       return (
         <div className="space-y-1.5" aria-label={label}>
-          {rows.slice(0, 3).map((mission) => (
-            <Link
-              key={mission.key}
-              href={mission.href}
-              onClick={onNavigate}
-              title={mission.title}
-              className="grid h-10 w-10 place-items-center rounded-xl text-muted-foreground transition hover:bg-muted hover:text-foreground"
-            >
-              <Icon size={17} />
-            </Link>
-          ))}
+          {rows.slice(0, 3).map((mission) => {
+            const active = isMissionActive(mission);
+            return (
+              <Link
+                key={mission.key}
+                href={mission.href}
+                onClick={onNavigate}
+                title={mission.title}
+                aria-current={active ? "page" : undefined}
+                className={`relative grid h-10 w-10 place-items-center rounded-xl transition ${
+                  active
+                    ? "text-[#2563EB]"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                {active && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute left-0 h-5 w-0.5 rounded-full bg-[#2563EB]"
+                  />
+                )}
+                <Icon size={17} />
+              </Link>
+            );
+          })}
         </div>
       );
     }
@@ -405,26 +455,44 @@ export default function MissionRail({
           </p>
         ) : (
           <div className="space-y-1">
-            {rows.map((mission) => (
-              <Link
-                key={mission.key}
-                href={mission.href}
-                onClick={onNavigate}
-                className="block rounded-xl px-2.5 py-2.5 transition hover:bg-muted"
-              >
-                <div className="flex min-w-0 items-center gap-2">
-                  {mission.actionRequired && (
-                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#2563EB]" />
+            {rows.map((mission) => {
+              const active = isMissionActive(mission);
+              return (
+                <Link
+                  key={mission.key}
+                  href={mission.href}
+                  onClick={onNavigate}
+                  aria-current={active ? "page" : undefined}
+                  className={`relative block rounded-xl px-2.5 py-2.5 transition ${
+                    active ? "bg-muted/50" : "hover:bg-muted"
+                  }`}
+                >
+                  {active && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-[#2563EB]"
+                    />
                   )}
-                  <span className="truncate text-sm font-semibold">{mission.title}</span>
-                </div>
-                {mission.meta && (
-                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                    {mission.meta}
-                  </p>
-                )}
-              </Link>
-            ))}
+                  <div className="flex min-w-0 items-center gap-2">
+                    {mission.actionRequired && (
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#2563EB]" />
+                    )}
+                    <span
+                      className={`truncate text-sm font-semibold ${
+                        active ? "text-[#2563EB]" : ""
+                      }`}
+                    >
+                      {mission.title}
+                    </span>
+                  </div>
+                  {mission.meta && (
+                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                      {mission.meta}
+                    </p>
+                  )}
+                </Link>
+              );
+            })}
           </div>
         )}
       </section>
@@ -448,7 +516,7 @@ export default function MissionRail({
           {!mobile && (
             <button
               type="button"
-              onClick={() => setCollapsed((value) => !value)}
+              onClick={() => setCollapsedPreference(!collapsed)}
               aria-label={compact ? copy.expand : copy.collapse}
               title={compact ? copy.expand : copy.collapse}
               className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-muted-foreground transition hover:bg-muted hover:text-foreground"
@@ -496,7 +564,7 @@ export default function MissionRail({
         {compact ? (
           <button
             type="button"
-            onClick={() => setCollapsed(false)}
+            onClick={() => setCollapsedPreference(false)}
             aria-label={copy.account}
             title={copy.account}
             className="grid h-11 w-11 place-items-center rounded-xl text-muted-foreground transition hover:bg-muted hover:text-foreground"
@@ -517,29 +585,49 @@ export default function MissionRail({
                 {copy.account}
               </summary>
               <div className="mt-1 space-y-1 pl-1">
-                <Link href="/profile" onClick={onNavigate} className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground">
+                <Link
+                  href="/profile"
+                  onClick={onNavigate}
+                  className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                >
                   <CircleUserRound size={15} />
                   {copy.profile}
                 </Link>
 
                 {accountType === "provider" && (
                   <>
-                    <Link href="/provider/studio" onClick={onNavigate} className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground">
+                    <Link
+                      href="/provider/studio"
+                      onClick={onNavigate}
+                      className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                    >
                       <Wrench size={15} />
                       {copy.services}
                     </Link>
-                    <Link href="/provider/payments" onClick={onNavigate} className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground">
+                    <Link
+                      href="/provider/payments"
+                      onClick={onNavigate}
+                      className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                    >
                       <WalletCards size={15} />
                       {copy.finances}
                     </Link>
                   </>
                 )}
 
-                <Link href="/settings" onClick={onNavigate} className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground">
+                <Link
+                  href="/settings"
+                  onClick={onNavigate}
+                  className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                >
                   <Settings size={15} />
                   {copy.settings}
                 </Link>
-                <Link href="/accounts" onClick={onNavigate} className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground">
+                <Link
+                  href="/accounts"
+                  onClick={onNavigate}
+                  className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                >
                   <CircleUserRound size={15} />
                   {copy.manageProfiles}
                 </Link>
