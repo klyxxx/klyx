@@ -5,6 +5,10 @@ import {
   hasE2ECredentials,
   loginKlyxE2E,
 } from "./helpers/authenticated-session";
+import {
+  expectAssistantFirstDesktopShell,
+  expectAssistantFirstMobileShell,
+} from "./helpers/assistant-shell";
 
 async function attachViewport(
   page: Page,
@@ -21,27 +25,15 @@ async function attachViewport(
   });
 }
 
-async function expectAboveMobileNavigation(page: Page) {
+async function expectMobileContentUnobstructed(page: Page) {
   const profileLink = page.getByRole("main").locator('a[href="/profile"]');
-  const mobileNavigation = page.getByRole("navigation", {
-    name: "Navigation mobile KLYX",
-  });
-
   await profileLink.scrollIntoViewIfNeeded();
   await expect(profileLink).toBeInViewport();
-  await expect(mobileNavigation).toBeVisible();
+  await expectAssistantFirstMobileShell(page);
 
-  const [profileBox, navigationBox] = await Promise.all([
-    profileLink.boundingBox(),
-    mobileNavigation.boundingBox(),
-  ]);
-
-  expect(profileBox, "Provider profile link must have a measurable mobile box").not.toBeNull();
-  expect(navigationBox, "Mobile navigation must have a measurable box").not.toBeNull();
-  expect(
-    profileBox!.y + profileBox!.height,
-    "Provider Services content must stay fully above the fixed mobile navigation"
-  ).toBeLessThanOrEqual(navigationBox!.y);
+  const box = await profileLink.boundingBox();
+  expect(box, "Provider profile link must have a measurable mobile box").not.toBeNull();
+  expect(box!.y + box!.height).toBeLessThanOrEqual(844);
 }
 
 test.describe("KLYX provider Services visual evidence", () => {
@@ -54,12 +46,10 @@ test.describe("KLYX provider Services visual evidence", () => {
     await clearSensitivePassword(page);
     try {
       await activateKlyxE2EProfile(page, "client");
-    } catch {
-      // Best-effort reset for the dedicated E2E account.
-    }
+    } catch {}
   });
 
-  test("keeps provider navigation frozen and renders Services as a focused single-blue surface", async ({
+  test("keeps Services secondary and renders a focused single-blue surface", async ({
     page,
   }, testInfo) => {
     test.setTimeout(240_000);
@@ -75,10 +65,10 @@ test.describe("KLYX provider Services visual evidence", () => {
     });
     await heading.scrollIntoViewIfNeeded();
     await expect(heading).toBeVisible();
+    await expectAssistantFirstDesktopShell(page, "/provider/assistant");
     await expect(
-      page.getByRole("navigation", { name: "Navigation principale KLYX" })
+      page.getByRole("searchbox", { name: "Rechercher un service à proposer" })
     ).toBeVisible();
-    await expect(page.getByRole("searchbox", { name: "Rechercher un service à proposer" })).toBeVisible();
 
     await attachViewport(page, testInfo, "provider-services-desktop");
 
@@ -87,18 +77,18 @@ test.describe("KLYX provider Services visual evidence", () => {
     });
     await publishButton.scrollIntoViewIfNeeded();
     await expect(publishButton).toBeVisible();
-    await expect(page.getByRole("button", { name: "Enregistrer le brouillon" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Enregistrer le brouillon" })
+    ).toBeVisible();
 
     await attachViewport(page, testInfo, "provider-services-publication-desktop");
 
     await page.setViewportSize({ width: 390, height: 844 });
     await heading.scrollIntoViewIfNeeded();
-    await expect(
-      page.getByRole("navigation", { name: "Navigation mobile KLYX" })
-    ).toBeVisible();
+    await expectAssistantFirstMobileShell(page);
     await attachViewport(page, testInfo, "provider-services-mobile");
 
-    await expectAboveMobileNavigation(page);
+    await expectMobileContentUnobstructed(page);
     await attachViewport(page, testInfo, "provider-services-mobile-bottom");
   });
 });
