@@ -8,18 +8,14 @@ import {
   withoutKlyxLlmShadow,
 } from "@/lib/brain/llm/shadow";
 import {
-  isKlyxAssistantMessageTooLong,
-} from "@/lib/klyx-assistant-message-limits";
+  parseBrainRespondRequest,
+} from "@/lib/brain/respond-http-boundary";
 import {
   generateKlyxVisibleAiReply,
 } from "@/lib/klyx-visible-ai";
 import {
   POST as deterministicPost,
 } from "../respond/route";
-
-type RequestBody = {
-  message?: unknown;
-};
 
 type BrainPayload = {
   serviceSlug?: unknown;
@@ -48,25 +44,11 @@ function normalizedMissing(value: unknown): string[] {
 }
 
 export async function POST(request: Request) {
-  let requestBody: RequestBody = {};
-
-  try {
-    requestBody = (await request.clone().json()) as RequestBody;
-  } catch {
-    // Let the deterministic route keep ownership of malformed-body handling.
-  }
-
-  const message =
-    typeof requestBody.message === "string"
-      ? requestBody.message.trim()
-      : "";
-
-  if (message && isKlyxAssistantMessageTooLong(message)) {
-    return NextResponse.json(
-      { error: "Message trop long." },
-      { status: 400 }
-    );
-  }
+  // Keep a second stream only for the optional Visible AI wording pass.
+  // The authoritative /respond route consumes and validates the original body
+  // first, including auth, durable rate limiting and the certified 32 KiB / 4k
+  // HTTP boundary. Cloning itself does not parse or materialize the body.
+  const visibleAiRequest = request.clone();
 
   const response = await withoutKlyxLlmShadow(
     () => deterministicPost(request)
@@ -75,6 +57,21 @@ export async function POST(request: Request) {
   if (!response.ok) {
     return response;
   }
+
+  // Reuse the exact certified parser from /respond rather than maintaining a
+  // second message/body limit in this wrapper. This happens only after the
+  // deterministic route has already consumed the durable Brain quota.
+  const parsedRequest =
+    await parseBrainRespondRequest(visibleAiRequest);
+
+  if (!parsedRequest.ok) {
+    // A successful deterministic response and a failed parse of the identical
+    // cloned body should be unreachable. Fail closed to deterministic output
+    // and never invoke the provider if the two views ever disagree.
+    return response;
+  }
+
+  const message = parsedRequest.value.message;
 
   let responseBody: BrainResponseBody = {};
 
@@ -89,7 +86,7 @@ export async function POST(request: Request) {
       ? responseBody.reply.trim()
       : "";
 
-  if (!message || !deterministicReply) {
+  if (!deterministicReply) {
     return response;
   }
 
@@ -126,6 +123,7 @@ export async function POST(request: Request) {
     },
     {
       status: response.status,
+      headers: response.headers,
     }
   );
 }
