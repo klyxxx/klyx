@@ -493,6 +493,10 @@ export async function POST(
       .eq(
         "event_hash",
         eventHash
+      )
+      .eq(
+        "processed",
+        false
       );
 
     return secureApiErrorResponse({
