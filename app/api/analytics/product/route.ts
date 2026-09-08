@@ -7,6 +7,7 @@ import {
 } from "@/lib/admin-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { isKlyxProductAnalyticsEvent } from "@/lib/klyx-product-analytics-events";
+import { logServerError, logServerWarning } from "@/lib/server-log";
 
 const MAX_BODY_BYTES = 2048;
 const CAPTURE_TIMEOUT_MS = 2000;
@@ -74,18 +75,92 @@ function resolvePostHogRuntime() {
   };
 }
 
+async function validatePostHogRuntime(
+  projectToken: string | null,
+  origin: string | null
+) {
+  if (!projectToken || !origin) {
+    return {
+      tokenValid: null,
+      validationState: "not_configured" as const,
+      validationHttpStatus: null,
+    };
+  }
+
+  try {
+    const response = await fetch(`${origin}/flags?v=2`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        api_key: projectToken,
+        distinct_id: "klyx-posthog-config-diagnostic",
+      }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(CAPTURE_TIMEOUT_MS),
+    });
+
+    if (response.ok) {
+      return {
+        tokenValid: true,
+        validationState: "valid" as const,
+        validationHttpStatus: response.status,
+      };
+    }
+
+    if (response.status === 401) {
+      return {
+        tokenValid: false,
+        validationState: "invalid_token" as const,
+        validationHttpStatus: response.status,
+      };
+    }
+
+    return {
+      tokenValid: null,
+      validationState: "upstream_error" as const,
+      validationHttpStatus: response.status,
+    };
+  } catch (error) {
+    logServerError({
+      event: "posthog_product_validation_failed",
+      route: "/api/analytics/product",
+      method: "GET",
+      code: "posthog_validation_unreachable",
+      error,
+    });
+
+    return {
+      tokenValid: null,
+      validationState: "unreachable" as const,
+      validationHttpStatus: null,
+    };
+  }
+}
+
 export async function GET() {
   const startedAt = Date.now();
 
   try {
     await requireKlyxAdmin();
     const runtime = resolvePostHogRuntime();
+    const validation = await validatePostHogRuntime(
+      runtime.projectToken,
+      runtime.origin
+    );
 
-    return NextResponse.json(runtime.diagnostic, {
-      headers: {
-        "Cache-Control": "no-store",
+    return NextResponse.json(
+      {
+        ...runtime.diagnostic,
+        ...validation,
       },
-    });
+      {
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
+    );
   } catch (error) {
     const status = adminErrorStatus(error);
 
@@ -145,23 +220,47 @@ export async function POST(request: Request) {
       return noContent();
     }
 
-    await fetch(`${origin}/i/v0/e/`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        api_key: projectToken,
-        event,
-        distinct_id: `klyx-session:${sessionId}`,
-        properties: {
-          $process_person_profile: false,
-          $geoip_disable: true,
+    const captureStartedAt = Date.now();
+
+    try {
+      const response = await fetch(`${origin}/i/v0/e/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      }),
-      cache: "no-store",
-      signal: AbortSignal.timeout(CAPTURE_TIMEOUT_MS),
-    });
+        body: JSON.stringify({
+          api_key: projectToken,
+          event,
+          distinct_id: `klyx-session:${sessionId}`,
+          properties: {
+            $process_person_profile: false,
+            $geoip_disable: true,
+          },
+        }),
+        cache: "no-store",
+        signal: AbortSignal.timeout(CAPTURE_TIMEOUT_MS),
+      });
+
+      if (!response.ok) {
+        logServerWarning({
+          event: "posthog_product_capture_rejected",
+          route: "/api/analytics/product",
+          method: "POST",
+          status: response.status,
+          code: "posthog_capture_rejected",
+          durationMs: Date.now() - captureStartedAt,
+        });
+      }
+    } catch (error) {
+      logServerError({
+        event: "posthog_product_capture_failed",
+        route: "/api/analytics/product",
+        method: "POST",
+        code: "posthog_capture_failed",
+        durationMs: Date.now() - captureStartedAt,
+        error,
+      });
+    }
 
     return noContent();
   } catch {

@@ -73,7 +73,13 @@ describe(
         expect(
           bookings
         ).toContain(
-          't("nextStepKlyx")'
+          't("organizeAnotherNeed")'
+        );
+
+        expect(
+          bookings
+        ).toContain(
+          'href="/assistant"'
         );
 
         expect(
