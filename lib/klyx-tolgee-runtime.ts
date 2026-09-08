@@ -4,6 +4,7 @@ import frCatalog from "@/messages/tolgee/fr.json";
 import nlCatalog from "@/messages/tolgee/nl.json";
 
 import {
+  translateKlyxNavigationLabel,
   translateKlyxUi,
   type KlyxLocale,
   type KlyxSelectableLocale,
@@ -35,12 +36,42 @@ function isKlyxTolgeeOnlyUiMessageKey(
 
 // Keep runtime consumption stricter than management: a staged locale can have a
 // Tolgee snapshot without becoming reachable from the published KLYX shell.
-export const KLYX_TOLGEE_RUNTIME_CATALOGS = {
+export const KLYX_TOLGEE_RUNTIME_CATALOGS: Record<
+  KlyxSelectableLocale,
+  KlyxTolgeeStaticCatalog
+> = {
   fr: frCatalog,
   en: enCatalog,
   nl: nlCatalog,
   de: deCatalog,
-} satisfies Record<KlyxSelectableLocale, KlyxTolgeeStaticCatalog>;
+};
+
+export function getKlyxTolgeeRuntimeNavigationTranslation(
+  locale: KlyxLocale,
+  frenchLabel: string
+) {
+  if (!isKlyxTolgeePublishedLocale(locale)) {
+    return null;
+  }
+
+  const catalog =
+    KLYX_TOLGEE_RUNTIME_CATALOGS[locale as KlyxSelectableLocale];
+  const value = catalog[`navigation.${frenchLabel}`];
+
+  return typeof value === "string" && value.trim().length > 0
+    ? value
+    : null;
+}
+
+export function translateKlyxTolgeeRuntimeNavigation(
+  locale: KlyxLocale,
+  frenchLabel: string
+) {
+  return (
+    getKlyxTolgeeRuntimeNavigationTranslation(locale, frenchLabel) ??
+    translateKlyxNavigationLabel(locale, frenchLabel)
+  );
+}
 
 export function getKlyxTolgeeRuntimeUiTranslation(
   locale: KlyxLocale,
