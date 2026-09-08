@@ -26,25 +26,20 @@ describe("assistant message capacity contract", () => {
     expect(commandBar).not.toContain("maxLength={700}");
   });
 
-  it("keeps follow-up capacity authoritative in /respond before any Visible AI pass", () => {
+  it("rejects oversized follow-ups before deterministic or visible AI processing", () => {
+    const guardIndex = converseRoute.indexOf(
+      "isKlyxAssistantMessageTooLong(message)"
+    );
     const deterministicIndex = converseRoute.indexOf(
       "deterministicPost(request)"
-    );
-    const errorGateIndex = converseRoute.indexOf("if (!response.ok)");
-    const boundedParseIndex = converseRoute.indexOf(
-      "await parseBrainRespondRequest(visibleAiRequest)"
     );
     const visibleAiIndex = converseRoute.indexOf(
       "await generateKlyxVisibleAiReply"
     );
 
-    expect(converseRoute).not.toContain(
-      "isKlyxAssistantMessageTooLong(message)"
-    );
-    expect(deterministicIndex).toBeGreaterThan(-1);
-    expect(errorGateIndex).toBeGreaterThan(deterministicIndex);
-    expect(boundedParseIndex).toBeGreaterThan(errorGateIndex);
-    expect(visibleAiIndex).toBeGreaterThan(boundedParseIndex);
+    expect(guardIndex).toBeGreaterThan(-1);
+    expect(deterministicIndex).toBeGreaterThan(guardIndex);
+    expect(visibleAiIndex).toBeGreaterThan(guardIndex);
   });
 
   it("caps speech input with the same shared capacity", () => {
