@@ -12,6 +12,7 @@ const composer = read("app/components/assistant/AssistantComposer.tsx");
 const turns = read("app/components/assistant/AssistantTurns.tsx");
 const suggestions = read("app/components/assistant/SuggestionGroup.tsx");
 const ready = read("app/components/assistant/ReadyForSearchSummary.tsx");
+const compactThread = thread.replace(/\s+/g, " ");
 
 describe("KLYX Phase B D01-D03 thread contract", () => {
   it("keeps the thread as the product without marketplace or transactional mutations", () => {
@@ -32,16 +33,26 @@ describe("KLYX Phase B D01-D03 thread contract", () => {
     expect(ready).toContain("Je peux chercher maintenant.");
   });
 
-  it("maps structured Brain state to clarification and ready_for_search only", () => {
+  it("maps the complete D01-D03 state contract to structured Brain state", () => {
     expect(thread).toContain("payload?.readiness?.nextMissing");
     expect(thread).toContain("payload?.missing?.[0]");
     expect(thread).toContain("payload?.ready === true");
     expect(thread).toContain("nextPayload?.readiness?.summary");
-    expect(thread).toContain('"clarification_needed"');
-    expect(thread).toContain('"ready_for_search"');
-    expect(thread).toContain('"typing"');
-    expect(thread).toContain('"submitting"');
-    expect(thread).toContain('"assistant_processing"');
+
+    for (const state of [
+      "empty",
+      "typing",
+      "submitting",
+      "user_submitted",
+      "assistant_thinking",
+      "assistant_replied",
+      "clarification_needed",
+      "user_response",
+      "assistant_processing",
+      "ready_for_search",
+    ]) {
+      expect(thread).toContain(`"${state}"`);
+    }
   });
 
   it("keeps clarification conversational instead of turning missing fields into a form", () => {
@@ -50,7 +61,20 @@ describe("KLYX Phase B D01-D03 thread contract", () => {
     expect(suggestions).toContain("suggestions.slice(0, 3)");
     expect(thread).not.toContain("Service / Ville / Date / Heure");
     expect(thread).not.toContain("grid-cols-4");
-    expect(thread).toContain("void submitMessage(suggestion.value, { forceFocus: true });");
+    expect(thread).toContain("void submitMessage(suggestion.value");
+    expect(thread).toContain("forceFocus: true");
+  });
+
+  it("honors the hardened Brain boundary for first and follow-up messages", () => {
+    expect(thread).toContain("KLYX_ASSISTANT_MESSAGE_MAX_LENGTH");
+    expect(compactThread).toContain(
+      "const brainRequest = requestConversationId ? { conversationId: requestConversationId, message } : { message };"
+    );
+    expect(thread).toContain("body: JSON.stringify(brainRequest)");
+    expect(thread).not.toContain("conversationId: null");
+    expect(thread).not.toContain(
+      "JSON.stringify({ conversationId: expectedConversationId"
+    );
   });
 
   it("uses guarded async work and silently discards stale responses", () => {
