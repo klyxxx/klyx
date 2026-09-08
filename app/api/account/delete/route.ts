@@ -5,14 +5,12 @@ import { ACTIVE_PROFILE_COOKIE, getActiveProfile } from "@/lib/active-profile";
 import { resolveKlyxAccountDeletePlan } from "@/lib/account-delete-scope";
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { sendKlyxDeduplicatedEmail } from "@/lib/email/deduplicated-delivery";
-import {
-  accountDeletedEmail,
-  profileDeletedEmail,
-} from "@/lib/email/lifecycle-templates";
+import { profileDeletedEmail } from "@/lib/email/lifecycle-templates";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 const AVATAR_BUCKET = "avatars";
+const ACCOUNT_DELETION_PAGE = "/delete-account";
 
 function setActiveProfileCookie(response: NextResponse, profileId: string) {
   response.cookies.set(ACTIVE_PROFILE_COOKIE, profileId, {
@@ -35,9 +33,7 @@ async function removeProfileAvatars(profileId: string) {
 
   await supabaseAdmin.storage
     .from(AVATAR_BUCKET)
-    .remove(
-      storedAvatarObjects.map((object) => `${profileId}/${object.name}`)
-    );
+    .remove(storedAvatarObjects.map((object) => `${profileId}/${object.name}`));
 }
 
 export async function DELETE(request: Request) {
@@ -94,11 +90,25 @@ export async function DELETE(request: Request) {
       );
     }
 
-    const profileIds = ownedProfiles.map((profile) => profile.id);
-    const affectedProfileIds =
-      deletePlan.scope === "profile" && deletePlan.targetProfileId
-        ? [deletePlan.targetProfileId]
-        : profileIds;
+    // KLY-11 / KLYX_PROFILE_DELETE_NEVER_DELETES_AUTH_IDENTITY
+    // This endpoint is intentionally profile-only. Deleting auth.users would
+    // cascade every profile owned by the same primary sign-in, including a
+    // sibling profile created or preserved concurrently after this request's
+    // initial profile snapshot. Full identity deletion stays behind the
+    // dedicated /delete-account flow.
+    if (deletePlan.scope === "account") {
+      return NextResponse.json(
+        {
+          error:
+            `Le dernier profil ne peut pas être supprimé ici. Utilise ${ACCOUNT_DELETION_PAGE} pour supprimer la connexion principale.`,
+        },
+        { status: 409 }
+      );
+    }
+
+    const affectedProfileIds = deletePlan.targetProfileId
+      ? [deletePlan.targetProfileId]
+      : [];
 
     if (affectedProfileIds.length > 0) {
       const [
@@ -168,12 +178,9 @@ export async function DELETE(request: Request) {
       }
     }
 
-    const profilesToDisconnect =
-      deletePlan.scope === "profile"
-        ? ownedProfiles.filter(
-            (profile) => profile.id === deletePlan.targetProfileId
-          )
-        : ownedProfiles;
+    const profilesToDisconnect = ownedProfiles.filter(
+      (profile) => profile.id === deletePlan.targetProfileId
+    );
     const stripeKey = process.env.STRIPE_SECRET_KEY?.trim();
 
     if (stripeKey) {
@@ -200,75 +207,61 @@ export async function DELETE(request: Request) {
       }
     }
 
-    if (deletePlan.scope === "profile" && deletePlan.targetProfileId) {
-      const { error: profileDeleteError } = await supabase.rpc(
-        "klyx_delete_profile",
+    if (!deletePlan.targetProfileId) {
+      return NextResponse.json(
         {
-          p_profile_id: deletePlan.targetProfileId,
-        }
+          error:
+            `Aucun profil supprimable. Utilise ${ACCOUNT_DELETION_PAGE} pour supprimer la connexion principale.`,
+        },
+        { status: 409 }
       );
-
-      if (profileDeleteError) {
-        return secureApiErrorResponse({
-          error: profileDeleteError,
-          event: "account_delete_profile_conflict",
-          route: "/api/account/delete",
-          method: "DELETE",
-          status: 409,
-          code: "KLYX_ACCOUNT_DELETE_PROFILE_BLOCKED",
-          publicMessage:
-            "Ce profil contient encore des données à conserver. Supprime d’abord son activité.",
-          startedAt,
-        });
-      }
-
-      await removeProfileAvatars(deletePlan.targetProfileId);
-
-      if (userEmail) {
-        after(async () => {
-          await sendKlyxDeduplicatedEmail({
-            deduplicationKey: `profile:${deletePlan.targetProfileId}:deleted:owner`,
-            templateKey: "profile.deleted.owner",
-            to: userEmail,
-            ...profileDeletedEmail(),
-          });
-        });
-      }
-
-      const response = NextResponse.json({
-        success: true,
-        deletedScope: "profile" as const,
-        remainingProfileId: deletePlan.replacementProfileId,
-      });
-
-      if (deletePlan.replacementProfileId) {
-        setActiveProfileCookie(response, deletePlan.replacementProfileId);
-      }
-
-      return response;
     }
 
-    const { error: deleteError } =
-      await supabaseAdmin.auth.admin.deleteUser(user.id);
+    const { error: profileDeleteError } = await supabase.rpc(
+      "klyx_delete_profile",
+      {
+        p_profile_id: deletePlan.targetProfileId,
+      }
+    );
 
-    if (deleteError) throw deleteError;
+    if (profileDeleteError) {
+      return secureApiErrorResponse({
+        error: profileDeleteError,
+        event: "account_delete_profile_conflict",
+        route: "/api/account/delete",
+        method: "DELETE",
+        status: 409,
+        code: "KLYX_ACCOUNT_DELETE_PROFILE_BLOCKED",
+        publicMessage:
+          "Ce profil contient encore des données à conserver. Supprime d’abord son activité.",
+        startedAt,
+      });
+    }
+
+    await removeProfileAvatars(deletePlan.targetProfileId);
 
     if (userEmail) {
       after(async () => {
         await sendKlyxDeduplicatedEmail({
-          deduplicationKey: `account:${user.id}:deleted:owner`,
-          templateKey: "account.deleted.owner",
+          deduplicationKey: `profile:${deletePlan.targetProfileId}:deleted:owner`,
+          templateKey: "profile.deleted.owner",
           to: userEmail,
-          ...accountDeletedEmail(),
+          ...profileDeletedEmail(),
         });
       });
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
-      deletedScope: "account" as const,
-      remainingProfileId: null,
+      deletedScope: "profile" as const,
+      remainingProfileId: deletePlan.replacementProfileId,
     });
+
+    if (deletePlan.replacementProfileId) {
+      setActiveProfileCookie(response, deletePlan.replacementProfileId);
+    }
+
+    return response;
   } catch (error) {
     return secureApiErrorResponse({
       error,

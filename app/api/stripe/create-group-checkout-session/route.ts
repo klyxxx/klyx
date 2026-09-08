@@ -71,6 +71,15 @@ async function claim(
   return row;
 }
 
+async function expireUnpersistedCheckoutSession(
+  stripe: Stripe,
+  session: Stripe.Checkout.Session
+) {
+  if (session.status !== "open") return;
+
+  await stripe.checkout.sessions.expire(session.id);
+}
+
 export async function POST(request: Request) {
   const startedAt = Date.now();
 
@@ -217,7 +226,6 @@ export async function POST(request: Request) {
     }
 
     const checkoutCurrency = groupCurrency.toLowerCase();
-
     const { data: userService, error: serviceLinkError } = await supabaseAdmin
       .from("user_services")
       .select("id, user_id, service_id, active")
@@ -426,7 +434,6 @@ export async function POST(request: Request) {
         { status: 409 }
       );
     }
-
     if (
       paymentClaim.action === "reuse" &&
       paymentClaim.checkout_session_id
@@ -507,55 +514,62 @@ export async function POST(request: Request) {
     });
 
     if (!session.url) {
+      await expireUnpersistedCheckoutSession(stripe, session);
       throw new Error("Stripe n a pas renvoye de lien de paiement.");
     }
 
-    const { data: updatedGroup, error: updateError } = await supabaseAdmin
-      .from("booking_groups")
-      .update({
-        payment_status: "processing",
-        payment_mode: paymentMode,
-        stripe_checkout_session_id: session.id,
-        application_fee_amount: fee,
-        platform_fee_amount: fee,
-        provider_amount: providerAmount,
-        payment_attempt_token: null,
-        payment_checkout_started_at: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", group.id)
-      .eq("payment_attempt_token", attemptToken)
-      .select("id")
-      .maybeSingle();
-
-    if (updateError) {
-      throw new Error(updateError.message);
-    }
-
-    if (!updatedGroup) {
-      const { data: latest, error: latestError } = await supabaseAdmin
+    try {
+      const { data: updatedGroup, error: updateError } = await supabaseAdmin
         .from("booking_groups")
-        .select("payment_status, stripe_checkout_session_id")
+        .update({
+          payment_status: "processing",
+          payment_mode: paymentMode,
+          stripe_checkout_session_id: session.id,
+          application_fee_amount: fee,
+          platform_fee_amount: fee,
+          provider_amount: providerAmount,
+          payment_attempt_token: null,
+          payment_checkout_started_at: null,
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", group.id)
+        .eq("payment_attempt_token", attemptToken)
+        .select("id")
         .maybeSingle();
 
-      if (latestError) {
-        throw new Error(latestError.message);
+      if (updateError) {
+        throw new Error(updateError.message);
       }
 
-      if (latest?.payment_status === "paid") {
-        return NextResponse.json(
-          {
-            error: "Cette reservation groupee est deja payee.",
-            alreadyPaid: true,
-          },
-          { status: 409 }
-        );
-      }
+      if (!updatedGroup) {
+        const { data: latest, error: latestError } = await supabaseAdmin
+          .from("booking_groups")
+          .select("payment_status, stripe_checkout_session_id")
+          .eq("id", group.id)
+          .maybeSingle();
 
-      if (latest?.stripe_checkout_session_id !== session.id) {
-        throw new Error("Le verrou du paiement groupe a change.");
+        if (latestError) {
+          throw new Error(latestError.message);
+        }
+
+        if (latest?.payment_status === "paid") {
+          await expireUnpersistedCheckoutSession(stripe, session);
+          return NextResponse.json(
+            {
+              error: "Cette reservation groupee est deja payee.",
+              alreadyPaid: true,
+            },
+            { status: 409 }
+          );
+        }
+
+        if (latest?.stripe_checkout_session_id !== session.id) {
+          throw new Error("Le verrou du paiement groupe a change.");
+        }
       }
+    } catch (error) {
+      await expireUnpersistedCheckoutSession(stripe, session);
+      throw error;
     }
 
     return NextResponse.json({

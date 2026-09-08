@@ -16,6 +16,8 @@ import {
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import KlyxThemeImage from "@/app/components/KlyxThemeImage";
+
 type FounderCompactMenuProps = {
   currentProfileId: string | null;
   currentMode: "client" | "provider" | null;
@@ -31,42 +33,23 @@ export default function FounderCompactMenu({
 }: FounderCompactMenuProps) {
   const router = useRouter();
 
-  const [open, setOpen] =
-    useState(false);
-
-  const [switching, setSwitching] =
-    useState<
-      "client" |
-      "provider" |
-      null
-    >(null);
-
-  const [error, setError] =
-    useState("");
+  const [open, setOpen] = useState(false);
+  const [switching, setSwitching] = useState<"client" | "provider" | null>(
+    null
+  );
+  const [error, setError] = useState("");
 
   async function switchMode(
     mode: "client" | "provider",
     profileId: string | null
   ) {
-    if (
-      !profileId ||
-      switching
-    ) {
+    if (!profileId || switching) {
       return;
     }
 
-    if (
-      profileId ===
-      currentProfileId
-    ) {
+    if (profileId === currentProfileId) {
       setOpen(false);
-
-      router.push(
-        mode === "provider"
-          ? "/provider"
-          : "/dashboard"
-      );
-
+      router.push(mode === "provider" ? "/provider" : "/dashboard");
       return;
     }
 
@@ -74,50 +57,29 @@ export default function FounderCompactMenu({
     setError("");
 
     try {
-      const response =
-        await fetch(
-          "/api/profiles/active",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-            body:
-              JSON.stringify({
-                profileId,
-              }),
-          }
-        );
+      const response = await fetch("/api/profiles/active", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          profileId,
+        }),
+      });
 
-      const body =
-        (await response.json()) as {
-          success?: boolean;
-          error?: string;
-        };
+      const body = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+      };
 
-      if (
-        !response.ok ||
-        !body.success
-      ) {
-        throw new Error(
-          body.error ||
-            "Impossible de changer de mode."
-        );
+      if (!response.ok || !body.success) {
+        throw new Error(body.error || "Impossible de changer de mode.");
       }
 
       setOpen(false);
-
-      router.replace(
-        mode === "provider"
-          ? "/provider"
-          : "/dashboard"
-      );
-
+      router.replace(mode === "provider" ? "/provider" : "/dashboard");
       router.refresh();
-    } catch (
-      switchError
-    ) {
+    } catch (switchError) {
       setError(
         switchError instanceof Error
           ? switchError.message
@@ -135,27 +97,27 @@ export default function FounderCompactMenu({
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <div>
               <div className="flex items-center gap-2">
-                <Crown
-                  size={17}
-                  className="text-amber-500"
+                <KlyxThemeImage
+                  srcLight="/icon.svg"
+                  srcDark="/apple-icon.svg"
+                  alt=""
+                  width={24}
+                  height={24}
+                  className="h-6 w-6 rounded-lg border border-border"
                 />
 
-                <p className="font-black">
-                  Founder
-                </p>
+                <p className="font-black">Founder</p>
 
-                <span className="rounded-full bg-violet-500/10 px-2 py-1 text-[10px] font-black text-violet-600">
+                <span className="rounded-full bg-[#2563EB]/10 px-2 py-1 text-[10px] font-black text-[#2563EB]">
                   ADMIN
                 </span>
               </div>
 
               <p className="mt-1 text-xs text-muted-foreground">
-                Mode actif :{" "}
-                {currentMode ===
-                "provider"
+                Mode actif:{" "}
+                {currentMode === "provider"
                   ? "Prestataire"
-                  : currentMode ===
-                      "client"
+                  : currentMode === "client"
                     ? "Client"
                     : "Aucun"}
               </p>
@@ -163,9 +125,7 @@ export default function FounderCompactMenu({
 
             <button
               type="button"
-              onClick={() =>
-                setOpen(false)
-              }
+              onClick={() => setOpen(false)}
               className="grid h-9 w-9 place-items-center rounded-xl hover:bg-muted"
               aria-label="Fermer"
             >
@@ -176,140 +136,86 @@ export default function FounderCompactMenu({
           <div className="p-2">
             <button
               type="button"
-              disabled={
-                !clientProfileId ||
-                switching !==
-                  null
-              }
-              onClick={() =>
-                void switchMode(
-                  "client",
-                  clientProfileId
-                )
-              }
+              disabled={!clientProfileId || switching !== null}
+              onClick={() => void switchMode("client", clientProfileId)}
               className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-bold transition disabled:opacity-40 ${
-                currentMode ===
-                "client"
-                  ? "bg-emerald-500/10 text-emerald-600"
+                currentMode === "client"
+                  ? "bg-[#2563EB]/10 text-[#2563EB]"
                   : "hover:bg-muted"
               }`}
             >
-              {switching ===
-              "client" ? (
-                <LoaderCircle
-                  size={18}
-                  className="animate-spin"
-                />
+              {switching === "client" ? (
+                <LoaderCircle size={18} className="animate-spin" />
               ) : (
-                <UserRound
-                  size={18}
-                />
+                <UserRound size={18} />
               )}
 
-              <span className="flex-1">
-                Client
-              </span>
+              <span className="flex-1">Client</span>
             </button>
 
             <button
               type="button"
-              disabled={
-                !providerProfileId ||
-                switching !==
-                  null
-              }
-              onClick={() =>
-                void switchMode(
-                  "provider",
-                  providerProfileId
-                )
-              }
+              disabled={!providerProfileId || switching !== null}
+              onClick={() => void switchMode("provider", providerProfileId)}
               className={`mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-bold transition disabled:opacity-40 ${
-                currentMode ===
-                "provider"
-                  ? "bg-violet-500/10 text-violet-600"
+                currentMode === "provider"
+                  ? "bg-[#2563EB]/10 text-[#2563EB]"
                   : "hover:bg-muted"
               }`}
             >
-              {switching ===
-              "provider" ? (
-                <LoaderCircle
-                  size={18}
-                  className="animate-spin"
-                />
+              {switching === "provider" ? (
+                <LoaderCircle size={18} className="animate-spin" />
               ) : (
-                <BriefcaseBusiness
-                  size={18}
-                />
+                <BriefcaseBusiness size={18} />
               )}
 
-              <span className="flex-1">
-                Prestataire
-              </span>
+              <span className="flex-1">Prestataire</span>
             </button>
           </div>
 
           <div className="border-t border-border p-2">
             <Link
               href="/founder"
-              onClick={() =>
-                setOpen(false)
-              }
+              onClick={() => setOpen(false)}
               className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold transition hover:bg-muted"
             >
-              <Crown size={18} />
+              <Crown size={18} className="text-[#2563EB]" />
               Console Founder
             </Link>
 
             <Link
               href="/admin"
-              onClick={() =>
-                setOpen(false)
-              }
+              onClick={() => setOpen(false)}
               className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold transition hover:bg-muted"
             >
-              <ShieldCheck
-                size={18}
-              />
+              <ShieldCheck size={18} className="text-[#2563EB]" />
               Centre Admin
             </Link>
 
             <Link
               href="/founder/test"
-              onClick={() =>
-                setOpen(false)
-              }
+              onClick={() => setOpen(false)}
               className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold transition hover:bg-muted"
             >
-              <TestTube2
-                size={18}
-              />
+              <TestTube2 size={18} className="text-[#2563EB]" />
               Tests Founder
             </Link>
 
             <Link
               href="/founder/cleanup"
-              onClick={() =>
-                setOpen(false)
-              }
+              onClick={() => setOpen(false)}
               className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold transition hover:bg-muted"
             >
-              <UsersRound
-                size={18}
-              />
+              <UsersRound size={18} className="text-[#2563EB]" />
               Comptes de test
             </Link>
 
             <Link
               href="/founder/final-check"
-              onClick={() =>
-                setOpen(false)
-              }
+              onClick={() => setOpen(false)}
               className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold transition hover:bg-muted"
             >
-              <CheckCircle2
-                size={18}
-              />
+              <CheckCircle2 size={18} className="text-[#2563EB]" />
               Validation finale
             </Link>
           </div>
@@ -324,29 +230,24 @@ export default function FounderCompactMenu({
 
       <button
         type="button"
-        onClick={() =>
-          setOpen(
-            (value) =>
-              !value
-          )
-        }
-        className="inline-flex h-11 items-center gap-2 rounded-full border border-amber-400/20 bg-background dark:bg-zinc-950 px-4 text-sm font-black text-foreground dark:text-white shadow-xl transition hover:bg-card dark:bg-zinc-900"
+        onClick={() => setOpen((value) => !value)}
+        className="inline-flex h-11 items-center gap-2 rounded-full border border-border bg-background px-3.5 text-sm font-black text-foreground shadow-xl transition hover:bg-card dark:bg-zinc-950 dark:text-white dark:hover:bg-zinc-900"
         aria-expanded={open}
       >
-        <Crown
-          size={16}
-          className="text-amber-400"
+        <KlyxThemeImage
+          srcLight="/icon.svg"
+          srcDark="/apple-icon.svg"
+          alt=""
+          width={22}
+          height={22}
+          className="h-[22px] w-[22px] rounded-md border border-border"
         />
 
         Founder
 
         <ChevronDown
           size={15}
-          className={`transition ${
-            open
-              ? "rotate-180"
-              : ""
-          }`}
+          className={`transition ${open ? "rotate-180" : ""}`}
         />
       </button>
     </div>
