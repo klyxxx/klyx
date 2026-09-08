@@ -20,6 +20,7 @@ import {
   type KlyxAssistantCommandMessageKey,
 } from "@/lib/klyx-assistant-command-i18n";
 import { translateKlyxAssistantHome } from "@/lib/klyx-assistant-home-i18n";
+import { KLYX_ASSISTANT_MESSAGE_MAX_LENGTH } from "@/lib/klyx-assistant-message-limits";
 import { supabase } from "@/lib/supabase";
 
 import AssistantComposer from "./AssistantComposer";
@@ -75,6 +76,18 @@ type SubmitOptions = {
   forceFocus?: boolean;
 };
 
+type PhaseState =
+  | "empty"
+  | "typing"
+  | "submitting"
+  | "user_submitted"
+  | "assistant_thinking"
+  | "assistant_replied"
+  | "clarification_needed"
+  | "user_response"
+  | "assistant_processing"
+  | "ready_for_search";
+
 const NEAR_BOTTOM_THRESHOLD_PX = 120;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -92,9 +105,10 @@ function presentationReply(
   payload: BrainPayload | null,
   fallbackQuestion: string
 ) {
-  let value = rawReply.trim();
+  if (payload?.ready === true) return "";
 
-  value = value
+  const value = rawReply
+    .trim()
     .replace(
       /^(?:Demande complète|Presque prête|Demande en cours|Je précise ton besoin)\s*(?:\(\s*\d{1,3}\s*%\s*\))?\s*(?:-\s*\d+\s+informations?\s+restantes?)?\s*/i,
       ""
@@ -105,16 +119,7 @@ function presentationReply(
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
-  if (payload?.ready === true) {
-    value = value
-      .replace(/^\s*(?:Demande complète|Ta demande est complète)\.?\s*/i, "")
-      .replace(/^\s*Service:[^\n]*(?:\n|$)/i, "")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
-  }
-
-  if (!value && payload?.ready !== true) return fallbackQuestion;
-  return value;
+  return value || fallbackQuestion;
 }
 
 function fallbackQuestion(locale: string, nextMissing: string | null) {
@@ -143,7 +148,13 @@ function fallbackQuestion(locale: string, nextMissing: string | null) {
     heure: "Zu welcher Zeit möchtest du die Dienstleistung?",
   };
   const table = locale === "en" ? en : locale === "nl" ? nl : locale === "de" ? de : fr;
-  return (nextMissing && table[nextMissing]) || (locale === "en" ? "Could you clarify your request?" : "Pouvez-vous préciser votre demande ?");
+
+  return (
+    (nextMissing && table[nextMissing]) ||
+    (locale === "en"
+      ? "Could you clarify your request?"
+      : "Pouvez-vous préciser votre demande ?")
+  );
 }
 
 function starterSuggestions(locale: string): readonly AssistantSuggestion[] {
@@ -182,9 +193,8 @@ function clarificationSuggestions(
   locale: string,
   nextMissing: string | null
 ): readonly AssistantSuggestion[] {
-  // The deterministic parser on the current Brain route understands these
-  // French natural-language date/time answers. Other locales stay text-first
-  // instead of presenting chips that the server may not parse reliably.
+  // The current deterministic Brain parser understands these French date/time
+  // answers. Other locales stay text-first rather than offering unreliable chips.
   if (locale !== "fr") return [];
 
   if (nextMissing === "heure") {
@@ -218,7 +228,8 @@ export default function AssistantThread() {
   const router = useRouter();
   const { locale } = useKlyxLocale();
   const t = useCallback(
-    (key: KlyxAssistantCommandMessageKey) => translateKlyxAssistantCommand(locale, key),
+    (key: KlyxAssistantCommandMessageKey) =>
+      translateKlyxAssistantCommand(locale, key),
     [locale]
   );
 
@@ -229,6 +240,7 @@ export default function AssistantThread() {
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [liveAnnouncement, setLiveAnnouncement] = useState("");
+  const [phaseState, setPhaseState] = useState<PhaseState>("empty");
 
   const conversationIdRef = useRef<string | null>(null);
   const activeProfileIdRef = useRef<string | null>(null);
@@ -248,20 +260,6 @@ export default function AssistantThread() {
   const nextMissing = payload?.readiness?.nextMissing ?? payload?.missing?.[0] ?? null;
   const ready = payload?.ready === true;
   const empty = turns.length === 0 && !busy;
-
-  const phaseState = busy
-    ? conversationId
-      ? "assistant_processing"
-      : "submitting"
-    : ready
-      ? "ready_for_search"
-      : nextMissing
-        ? "clarification_needed"
-        : turns.length > 0
-          ? "assistant_replied"
-          : value.trim()
-            ? "typing"
-            : "empty";
 
   const starters = useMemo(() => starterSuggestions(locale), [locale]);
   const quickReplies = useMemo(
@@ -283,7 +281,10 @@ export default function AssistantThread() {
   const isNearBottom = useCallback(() => {
     const node = scrollRef.current;
     if (!node) return true;
-    return node.scrollHeight - node.scrollTop - node.clientHeight <= NEAR_BOTTOM_THRESHOLD_PX;
+    return (
+      node.scrollHeight - node.scrollTop - node.clientHeight <=
+      NEAR_BOTTOM_THRESHOLD_PX
+    );
   }, []);
 
   useEffect(() => {
@@ -298,9 +299,22 @@ export default function AssistantThread() {
         if (mountedRef.current) activeProfileIdRef.current = profile.id;
       })
       .catch(() => {
-        // ClientRouteGuard remains responsible for access. This lookup exists
-        // only to reject responses that belong to a profile that was switched.
+        // ClientRouteGuard owns access. This profile lookup only protects async
+        // responses from being applied after a profile switch.
       });
+
+    function resetVisibleThread(nextConversation: string | null) {
+      conversationIdRef.current = nextConversation;
+      setConversationId(nextConversation);
+      setTurns([]);
+      setPayload(null);
+      setValue("");
+      setBusy(false);
+      busyRef.current = false;
+      setErrorMessage("");
+      setLiveAnnouncement("");
+      setPhaseState("empty");
+    }
 
     function onProfileChanged(event: Event) {
       const detail = (event as CustomEvent<ActiveProfileChangedDetail>).detail;
@@ -308,13 +322,7 @@ export default function AssistantThread() {
 
       activeProfileIdRef.current = detail.profileId;
       invalidatePending();
-      setBusy(false);
-      setErrorMessage("");
-      setLiveAnnouncement("");
-      setTurns([]);
-      setPayload(null);
-      setConversationId(null);
-      conversationIdRef.current = null;
+      resetVisibleThread(null);
     }
 
     function onHistoryNavigation() {
@@ -322,14 +330,7 @@ export default function AssistantThread() {
       if (nextConversation === conversationIdRef.current) return;
 
       invalidatePending();
-      conversationIdRef.current = nextConversation;
-      setConversationId(nextConversation);
-      setTurns([]);
-      setPayload(null);
-      setValue("");
-      setBusy(false);
-      setErrorMessage("");
-      setLiveAnnouncement("");
+      resetVisibleThread(nextConversation);
     }
 
     window.addEventListener(KLYX_ACTIVE_PROFILE_CHANGED, onProfileChanged);
@@ -364,7 +365,10 @@ export default function AssistantThread() {
 
   useEffect(() => {
     if (!nearBottomRef.current) return;
-    bottomRef.current?.scrollIntoView({ behavior: busy ? "auto" : "smooth", block: "end" });
+    bottomRef.current?.scrollIntoView({
+      behavior: busy ? "auto" : "smooth",
+      block: "end",
+    });
   }, [busy, turns.length]);
 
   const apiErrorMessage = useCallback(
@@ -378,9 +382,13 @@ export default function AssistantThread() {
   );
 
   const finishFocus = useCallback(() => {
-    if (shouldRestoreFocusRef.current && !focusMovedDuringRequestRef.current) {
+    if (
+      shouldRestoreFocusRef.current &&
+      !focusMovedDuringRequestRef.current
+    ) {
       requestAnimationFrame(() => textareaRef.current?.focus());
     }
+
     shouldRestoreFocusRef.current = false;
     focusMovedDuringRequestRef.current = false;
   }, []);
@@ -393,7 +401,9 @@ export default function AssistantThread() {
       if (typeof window === "undefined") return;
       const url = new URL(window.location.href);
       url.searchParams.set("conversation", nextConversationId);
-      router.replace(`${url.pathname}?${url.searchParams.toString()}`, { scroll: false });
+      router.replace(`${url.pathname}?${url.searchParams.toString()}`, {
+        scroll: false,
+      });
     },
     [router]
   );
@@ -402,6 +412,11 @@ export default function AssistantThread() {
     async (rawMessage: string, options: SubmitOptions = {}) => {
       const message = rawMessage.trim();
       if (!message || busyRef.current) return;
+
+      if (message.length > KLYX_ASSISTANT_MESSAGE_MAX_LENGTH) {
+        setErrorMessage(t("invalidMessageError"));
+        return;
+      }
 
       const expectedConversationId = conversationIdRef.current;
       let requestConversationId = expectedConversationId;
@@ -413,14 +428,15 @@ export default function AssistantThread() {
       const controller = new AbortController();
       requestControllerRef.current = controller;
 
-      const activeElement = typeof document === "undefined" ? null : document.activeElement;
+      const activeElement =
+        typeof document === "undefined" ? null : document.activeElement;
       shouldRestoreFocusRef.current =
         options.forceFocus === true ||
         Boolean(
-          activeElement &&
-            composerFormRef.current?.contains(activeElement)
+          activeElement && composerFormRef.current?.contains(activeElement)
         );
       focusMovedDuringRequestRef.current = false;
+      nearBottomRef.current = isNearBottom();
 
       setErrorMessage("");
       setLiveAnnouncement(t("thinking"));
@@ -431,10 +447,25 @@ export default function AssistantThread() {
       setValue("");
       setBusy(true);
       busyRef.current = true;
+      setPhaseState(
+        expectedConversationId
+          ? nextMissing
+            ? "user_response"
+            : "user_submitted"
+          : "submitting"
+      );
 
       const isCurrentRequest = () => {
-        if (!mountedRef.current || requestGenerationRef.current !== generation) return false;
+        if (
+          !mountedRef.current ||
+          requestGenerationRef.current !== generation ||
+          controller.signal.aborted
+        ) {
+          return false;
+        }
+
         if (conversationIdRef.current !== requestConversationId) return false;
+
         if (
           expectedProfileId &&
           activeProfileIdRef.current &&
@@ -442,6 +473,7 @@ export default function AssistantThread() {
         ) {
           return false;
         }
+
         return true;
       };
 
@@ -478,11 +510,16 @@ export default function AssistantThread() {
           if (command.mode === "existing_action") {
             const title = command.action?.title?.trim();
             const description = command.action?.description?.trim();
-            if (!title || !description) throw new Error("grounded_action_unavailable");
+            if (!title || !description) {
+              throw new Error("grounded_action_unavailable");
+            }
 
             const action: AssistantAction | undefined =
               command.action?.href && command.action?.label
-                ? { href: command.action.href, label: command.action.label }
+                ? {
+                    href: command.action.href,
+                    label: command.action.label,
+                  }
                 : undefined;
             const content = `${title}. ${description}`;
 
@@ -497,6 +534,7 @@ export default function AssistantThread() {
               },
             ]);
             setLiveAnnouncement(content);
+            setPhaseState("assistant_replied");
             return;
           }
 
@@ -504,16 +542,35 @@ export default function AssistantThread() {
             const content = t("noPendingAction");
             setTurns((current) => [
               ...current,
-              { id: nextTurnId("assistant"), role: "assistant", content },
+              {
+                id: nextTurnId("assistant"),
+                role: "assistant",
+                content,
+              },
             ]);
             setLiveAnnouncement(content);
+            setPhaseState("assistant_replied");
             return;
           }
 
           if (command.mode !== "new_request") {
             throw new Error("unsupported_command_mode");
           }
+
+          setPhaseState("user_submitted");
         }
+
+        setPhaseState(
+          expectedConversationId
+            ? "assistant_processing"
+            : "assistant_thinking"
+        );
+
+        // #656 accepts an omitted conversationId for a new conversation and a
+        // valid UUID for a continuation. Never serialize `conversationId: null`.
+        const brainRequest = requestConversationId
+          ? { conversationId: requestConversationId, message }
+          : { message };
 
         const brainResponse = await fetch("/api/brain/converse", {
           method: "POST",
@@ -521,10 +578,7 @@ export default function AssistantThread() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({
-            conversationId: expectedConversationId,
-            message,
-          }),
+          body: JSON.stringify(brainRequest),
           signal: controller.signal,
         });
         const brain = await responseBody<BrainResponse>(brainResponse);
@@ -541,15 +595,20 @@ export default function AssistantThread() {
 
         const nextPayload = brain.payload ?? null;
         const returnedConversationId = brain.conversationId?.trim();
+
         if (returnedConversationId && UUID_PATTERN.test(returnedConversationId)) {
           requestConversationId = returnedConversationId;
           applyConversationAnchor(returnedConversationId);
+        } else if (!requestConversationId) {
+          throw new Error("conversation_unavailable");
         }
 
         setPayload(nextPayload);
 
         const missingField =
-          nextPayload?.readiness?.nextMissing ?? nextPayload?.missing?.[0] ?? null;
+          nextPayload?.readiness?.nextMissing ??
+          nextPayload?.missing?.[0] ??
+          null;
         const visibleReply = presentationReply(
           brain.reply,
           nextPayload,
@@ -571,18 +630,29 @@ export default function AssistantThread() {
             id: nextTurnId("ready"),
             role: "ready",
             summary,
-            budget: typeof nextPayload.budget === "number" ? nextPayload.budget : null,
+            budget:
+              typeof nextPayload.budget === "number"
+                ? nextPayload.budget
+                : null,
           });
         }
 
         if (additions.length > 0) {
           setTurns((current) => [...current, ...additions]);
         }
-        setLiveAnnouncement(
-          nextPayload?.ready === true
-            ? t("readyAnnouncement")
-            : visibleReply || fallbackQuestion(locale, missingField)
-        );
+
+        if (nextPayload?.ready === true && summary) {
+          setPhaseState("ready_for_search");
+          setLiveAnnouncement(t("readyAnnouncement"));
+        } else if (missingField) {
+          setPhaseState("clarification_needed");
+          setLiveAnnouncement(
+            visibleReply || fallbackQuestion(locale, missingField)
+          );
+        } else {
+          setPhaseState("assistant_replied");
+          setLiveAnnouncement(visibleReply);
+        }
       } catch (error) {
         if (controller.signal.aborted || !isCurrentRequest()) return;
 
@@ -594,8 +664,16 @@ export default function AssistantThread() {
             ? (error as { status: number }).status
             : 0;
         const message = apiErrorMessage(status);
+
         setErrorMessage(message);
         setLiveAnnouncement("");
+        setPhaseState(
+          expectedConversationId
+            ? nextMissing
+              ? "clarification_needed"
+              : "assistant_replied"
+            : "assistant_replied"
+        );
       } finally {
         if (isCurrentRequest()) {
           setBusy(false);
@@ -605,18 +683,40 @@ export default function AssistantThread() {
         }
       }
     },
-    [apiErrorMessage, applyConversationAnchor, finishFocus, locale, nextTurnId, router, t]
+    [
+      apiErrorMessage,
+      applyConversationAnchor,
+      finishFocus,
+      isNearBottom,
+      locale,
+      nextMissing,
+      nextTurnId,
+      router,
+      t,
+    ]
   );
 
-  const placeholder = conversationId || turns.length > 0
-    ? t("followUpPlaceholder")
-    : t("placeholder");
+  const placeholder =
+    conversationId || turns.length > 0
+      ? t("followUpPlaceholder")
+      : t("placeholder");
+
+  function onComposerChange(nextValue: string) {
+    setValue(nextValue);
+    setErrorMessage("");
+
+    if (turns.length === 0 && !busy) {
+      setPhaseState(nextValue.trim() ? "typing" : "empty");
+    }
+  }
 
   return (
     <section
       data-testid="assistant-thread"
       data-state={phaseState}
-      data-continuity={conversationId ? "conversation-id" : "new-conversation"}
+      data-continuity={
+        conversationId ? "conversation-id" : "new-conversation"
+      }
       className="mx-auto flex h-[calc(100dvh-3.5rem)] w-full max-w-3xl flex-col px-4 sm:px-6 lg:h-dvh lg:px-8"
     >
       <div
@@ -631,14 +731,12 @@ export default function AssistantThread() {
             <h1 className="text-balance text-center text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">
               {translateKlyxAssistantHome(locale, "organizeTitle")}
             </h1>
+
             <div className="mx-auto mt-7 w-full max-w-2xl">
               <AssistantComposer
                 locale={locale}
                 value={value}
-                onChange={(next) => {
-                  setValue(next);
-                  setErrorMessage("");
-                }}
+                onChange={onComposerChange}
                 onSubmit={(message) => void submitMessage(message)}
                 onPhoto={() => router.push("/request/photo")}
                 onError={setErrorMessage}
@@ -647,19 +745,27 @@ export default function AssistantThread() {
                 textareaRef={textareaRef}
                 formRef={composerFormRef}
               />
+
               <div className="mt-4 flex justify-center">
                 <SuggestionGroup
                   suggestions={starters}
                   ariaLabel={t("starterSuggestionsLabel")}
                   onSelect={(suggestion) => {
                     setValue(suggestion.value);
+                    setPhaseState("typing");
                     setErrorMessage("");
-                    requestAnimationFrame(() => textareaRef.current?.focus());
+                    requestAnimationFrame(() =>
+                      textareaRef.current?.focus()
+                    );
                   }}
                 />
               </div>
+
               {errorMessage && (
-                <p role="alert" className="mt-3 text-center text-sm font-medium text-rose-600 dark:text-rose-300">
+                <p
+                  role="alert"
+                  className="mt-3 text-center text-sm font-medium text-rose-600 dark:text-rose-300"
+                >
                   {errorMessage}
                 </p>
               )}
@@ -668,7 +774,10 @@ export default function AssistantThread() {
         ) : (
           <>
             <h1 className="sr-only">KLYX Assistant</h1>
-            <ol aria-label={t("conversationLabel")} className="space-y-6">
+            <ol
+              aria-label={t("conversationLabel")}
+              className="space-y-6"
+            >
               {turns.map((turn) => (
                 <li key={turn.id}>
                   {turn.role === "user" ? (
@@ -690,9 +799,13 @@ export default function AssistantThread() {
                   )}
                 </li>
               ))}
+
               {busy && (
                 <li>
-                  <KlyxTurn content={t("thinking")} variant="thinking" />
+                  <KlyxTurn
+                    content={t("thinking")}
+                    variant="thinking"
+                  />
                 </li>
               )}
             </ol>
@@ -703,14 +816,19 @@ export default function AssistantThread() {
                   suggestions={quickReplies}
                   ariaLabel={t("quickRepliesLabel")}
                   onSelect={(suggestion) => {
-                    void submitMessage(suggestion.value, { forceFocus: true });
+                    void submitMessage(suggestion.value, {
+                      forceFocus: true,
+                    });
                   }}
                 />
               </div>
             )}
 
             {errorMessage && (
-              <p role="alert" className="mt-4 text-sm font-medium text-rose-600 dark:text-rose-300">
+              <p
+                role="alert"
+                className="mt-4 text-sm font-medium text-rose-600 dark:text-rose-300"
+              >
                 {errorMessage}
               </p>
             )}
@@ -724,10 +842,7 @@ export default function AssistantThread() {
           <AssistantComposer
             locale={locale}
             value={value}
-            onChange={(next) => {
-              setValue(next);
-              setErrorMessage("");
-            }}
+            onChange={onComposerChange}
             onSubmit={(message) => void submitMessage(message)}
             onPhoto={() => router.push("/request/photo")}
             onError={setErrorMessage}
