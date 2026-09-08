@@ -156,6 +156,8 @@ export default function ProviderQuotesPage() {
     [quotes]
   );
 
+  const priorityQuote = prioritizedQuotes[0] ?? null;
+  const otherQuotes = priorityQuote ? prioritizedQuotes.slice(1) : [];
   const requestedCount = prioritizedQuotes.filter(
     (quote) => quote.status === "requested"
   ).length;
@@ -508,7 +510,7 @@ export default function ProviderQuotesPage() {
             <LoaderCircle className="animate-spin text-[#2563EB]" size={18} />
             <span>{t("title")}</span>
           </div>
-        ) : prioritizedQuotes.length === 0 ? (
+        ) : !priorityQuote ? (
           <section className="mt-7 border-t border-border py-8">
             <div className="flex items-start gap-3">
               <FileText className="mt-0.5 text-muted-foreground" size={18} />
@@ -529,9 +531,8 @@ export default function ProviderQuotesPage() {
               </p>
             )}
             <div className="divide-y divide-border border-y border-border">
-              {prioritizedQuotes.map((quote, index) =>
-                quoteView(quote, index === 0 && quote.status === "requested")
-              )}
+              {quoteView(priorityQuote, priorityQuote.status === "requested")}
+              {otherQuotes.map((quote) => quoteView(quote))}
             </div>
           </section>
         )}
