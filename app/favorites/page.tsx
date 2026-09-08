@@ -16,6 +16,7 @@ import {
 import { supabase } from "@/lib/supabase";
 
 // KLYX_FAVORITES_PAGE_I18N
+// KLYX_FAVORITES_VISUAL_SIMPLIFICATION
 
 type FavoriteRow = { id: string; service_profile_id: string };
 type ServiceProfileRow = {
@@ -194,10 +195,10 @@ export default function FavoritesPage() {
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-background px-3 py-5 text-foreground dark:bg-zinc-950 dark:text-white sm:px-6 sm:py-8 lg:px-8">
-      <div className="mx-auto min-w-0 max-w-7xl">
+      <div className="mx-auto min-w-0 max-w-5xl">
         <Link
           href="/search"
-          className="inline-flex items-center gap-2 text-sm font-bold text-muted-foreground transition hover:text-foreground dark:text-zinc-400 dark:hover:text-white"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition hover:text-foreground dark:text-zinc-400 dark:hover:text-white"
         >
           <ArrowLeft size={17} />
           {t("backToSearch")}
@@ -205,7 +206,7 @@ export default function FavoritesPage() {
 
         <div className="mt-6 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-violet-300">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground dark:text-zinc-500">
               KLYX
             </p>
             <h1 className="mt-2 text-3xl font-black tracking-[-0.04em] sm:text-4xl">
@@ -218,7 +219,7 @@ export default function FavoritesPage() {
 
           <Link
             href="/search"
-            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-violet-600 px-5 text-sm font-black text-white transition hover:bg-violet-700"
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#2563EB] px-5 text-sm font-bold text-white transition hover:bg-[#2563EB]/90"
           >
             <Search size={17} />
             {t("findService")}
@@ -233,8 +234,8 @@ export default function FavoritesPage() {
 
         {favorites.length === 0 ? (
           <section className="mt-8 rounded-3xl border border-border bg-card/60 p-7 text-center dark:border-zinc-800 dark:bg-zinc-900/60 sm:p-10">
-            <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-violet-500/10 text-violet-300">
-              <Heart size={25} />
+            <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-muted text-muted-foreground dark:bg-zinc-800 dark:text-zinc-400">
+              <Heart size={22} />
             </span>
             <h2 className="mt-5 text-xl font-black">{t("emptyTitle")}</h2>
             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-muted-foreground dark:text-zinc-400">
@@ -242,81 +243,86 @@ export default function FavoritesPage() {
             </p>
             <Link
               href="/search"
-              className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl bg-violet-600 px-6 text-sm font-black text-white transition hover:bg-violet-700"
+              className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#2563EB] px-6 text-sm font-bold text-white transition hover:bg-[#2563EB]/90"
             >
               <Search size={17} />
               {t("findService")}
             </Link>
           </section>
         ) : (
-          <div className="mt-8 grid min-w-0 gap-5 sm:grid-cols-2 xl:grid-cols-3">
-            {favorites.map((favorite) => {
-              const displayName = favorite.fullName || t("providerFallback");
-              const displayTitle = favorite.title || t("serviceFallback");
-              const displayCity = favorite.city || t("cityFallback");
+          <section className="mt-8 overflow-hidden rounded-3xl border border-border bg-card/70 dark:border-zinc-800 dark:bg-zinc-900/70">
+            <div className="divide-y divide-border dark:divide-zinc-800">
+              {favorites.map((favorite) => {
+                const displayName = favorite.fullName || t("providerFallback");
+                const displayTitle = favorite.title || t("serviceFallback");
+                const displayCity = favorite.city || t("cityFallback");
 
-              return (
-                <article
-                  key={favorite.serviceProfileId}
-                  className="min-w-0 overflow-hidden rounded-3xl border border-border bg-card dark:border-zinc-800 dark:bg-zinc-900"
-                >
-                  <div className="relative aspect-[16/10] overflow-hidden bg-muted dark:bg-zinc-800">
-                    {favorite.avatarUrl ? (
-                      <img
-                        src={favorite.avatarUrl}
-                        alt={displayName}
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <div className="grid h-full place-items-center text-center text-muted-foreground dark:text-zinc-500">
-                        <div>
-                          <Heart className="mx-auto" size={30} />
-                          <p className="mt-2 text-xs font-bold">{t("providerFallback")}</p>
+                return (
+                  <article
+                    key={favorite.serviceProfileId}
+                    className="flex min-w-0 flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:px-5"
+                  >
+                    <div className="flex min-w-0 flex-1 items-center gap-4">
+                      <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-2xl border border-border bg-muted dark:border-zinc-700 dark:bg-zinc-800">
+                        {favorite.avatarUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={favorite.avatarUrl}
+                            alt={displayName}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <Heart
+                            size={22}
+                            className="text-muted-foreground dark:text-zinc-500"
+                          />
+                        )}
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <h2 className="truncate text-base font-bold sm:text-lg">
+                          {displayName}
+                        </h2>
+                        <p className="mt-0.5 truncate text-sm font-semibold text-foreground/80 dark:text-zinc-200">
+                          {displayTitle}
+                        </p>
+                        <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground dark:text-zinc-400">
+                          <span className="inline-flex min-w-0 items-center gap-1.5">
+                            <MapPin size={14} className="shrink-0" />
+                            <span className="truncate">{displayCity}</span>
+                          </span>
+                          <span className="inline-flex items-center gap-1.5">
+                            <Star size={14} />
+                            {favorite.rating.toFixed(1)} ({favorite.reviewCount})
+                          </span>
                         </div>
                       </div>
-                    )}
-
-                    <div className="absolute right-3 top-3">
-                      <FavoriteButton
-                        serviceProfileId={favorite.serviceProfileId}
-                        compact
-                      />
                     </div>
-                  </div>
 
-                  <div className="min-w-0 p-5">
-                    <p className="truncate text-sm font-bold text-violet-700 dark:text-violet-300">
-                      {displayTitle}
-                    </p>
-                    <h2 className="mt-2 truncate text-xl font-black">{displayName}</h2>
-                    <p className="mt-3 flex min-w-0 items-center gap-2 text-sm text-muted-foreground dark:text-zinc-400">
-                      <MapPin size={16} className="shrink-0" />
-                      <span className="truncate">{displayCity}</span>
-                    </p>
-                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                      <p className="font-black">
+                    <div className="flex items-center justify-between gap-3 sm:justify-end">
+                      <p className="shrink-0 text-sm font-bold">
                         {formatKlyxFavoritePrice(
                           locale,
                           favorite.price,
                           favorite.pricingType
                         )}
                       </p>
-                      <p className="inline-flex items-center gap-1 text-sm text-muted-foreground dark:text-zinc-400">
-                        <Star size={15} />
-                        {favorite.rating.toFixed(1)} ({favorite.reviewCount})
-                      </p>
+                      <FavoriteButton
+                        serviceProfileId={favorite.serviceProfileId}
+                        compact
+                      />
+                      <Link
+                        href={`/providers/${favorite.userId}`}
+                        className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl bg-[#2563EB] px-4 text-sm font-bold text-white transition hover:bg-[#2563EB]/90"
+                      >
+                        {t("viewProfile")}
+                      </Link>
                     </div>
-                    <Link
-                      href={`/providers/${favorite.userId}`}
-                      className="mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-violet-600 px-5 text-sm font-black text-white transition hover:bg-violet-700"
-                    >
-                      {t("viewProfile")}
-                    </Link>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
         )}
       </div>
     </main>
