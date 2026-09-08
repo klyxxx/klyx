@@ -47,26 +47,27 @@ function normalizedMissing(value: unknown): string[] {
 }
 
 export async function POST(request: Request) {
-  // The wrapper may inspect the body only through the certified bounded parser
-  // from /respond. The cloned request remains reserved for the authoritative
-  // deterministic route, which owns authentication, durable rate limiting,
-  // the final HTTP status and the same 32 KiB / 4,000-character boundary.
-  const deterministicRequest = request.clone();
+  // The wrapper may inspect only a clone, and only through the certified
+  // bounded parser from /respond. The original request remains untouched for
+  // the authoritative deterministic route, which owns auth, durable quota,
+  // final status and the same 32 KiB / 4,000-character boundary.
+  const boundedInspectionRequest = request.clone();
   const parsedRequest =
-    await parseBrainRespondRequest(request);
+    await parseBrainRespondRequest(boundedInspectionRequest);
   const message = parsedRequest.ok
     ? parsedRequest.value.message
     : "";
 
-  // This guard is only a fail-closed Visible-AI compatibility check. It never
-  // creates an HTTP response or bypasses /respond; the deterministic route is
-  // still called for every request and remains the sole authority on limits.
+  // This shared-capacity check is fail-closed for Visible AI only. It never
+  // returns an HTTP decision and therefore cannot replace or bypass /respond.
+  // The certified parser above already enforces the authoritative 4,000-char
+  // Brain boundary even if a UI capacity constant ever drifts.
   const suppressVisibleAiForCapacity =
     Boolean(message) &&
     isKlyxAssistantMessageTooLong(message);
 
   const response = await withoutKlyxLlmShadow(
-    () => deterministicPost(deterministicRequest)
+    () => deterministicPost(request)
   );
 
   if (
