@@ -51,7 +51,7 @@ describe("KLYX settings container i18n contract", () => {
     expect(source).toContain("onChange={setLocale}");
   });
 
-  it("keeps account deletion explicit, server-side and fail-closed", () => {
+  it("keeps profile deletion explicit, server-side and isolated from auth identity deletion", () => {
     const source = read("app/settings/page.tsx");
     const api = read("app/api/account/delete/route.ts");
 
@@ -59,12 +59,16 @@ describe("KLYX settings container i18n contract", () => {
     expect(source).toContain("deleteConfirmation !== DELETE_CONFIRMATION");
     expect(source).toMatch(/fetch\(\s*["']\/api\/account\/delete["'][\s\S]*?method:\s*["']DELETE["']/);
     expect(source).toContain("resolveKlyxSettingsDeleteErrorKey(result.error)");
-    expect(source).toContain('router.replace("/signup?deleted=1")');
+    expect(source).toContain('result.deletedScope === "profile"');
+    expect(source).toContain('router.replace("/accounts")');
     expect(api).toContain('body.confirmation !== "SUPPRIMER"');
     expect(api).toContain("pending");
     expect(api).toContain("accepted");
     expect(api).toContain("payment_status");
-    expect(api).toContain("supabaseAdmin.auth.admin.deleteUser(user.id)");
+    expect(api).toContain("KLYX_PROFILE_DELETE_NEVER_DELETES_AUTH_IDENTITY");
+    expect(api).toContain('deletePlan.scope === "account"');
+    expect(api).toContain('const ACCOUNT_DELETION_PAGE = "/delete-account"');
+    expect(api).not.toContain("supabaseAdmin.auth.admin.deleteUser(user.id)");
   });
 
   it("does not reflect arbitrary SDK or server error messages from the parent page", () => {

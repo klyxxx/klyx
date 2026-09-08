@@ -15,10 +15,10 @@ import {
   KLYX_LANGUAGE_STORAGE_KEY,
   getKlyxLocaleMetadata,
   normalizeKlyxSelectableLocale,
-  translateKlyxUi,
   type KlyxLocale,
   type KlyxUiMessageKey,
 } from "@/lib/klyx-i18n";
+import { translateKlyxTolgeeRuntimeUi } from "@/lib/klyx-tolgee-runtime";
 
 type KlyxLocaleContextValue = {
   locale: KlyxLocale;
@@ -103,7 +103,7 @@ export default function KlyxLocaleProvider({
     () => ({
       locale,
       setLocale,
-      t: (key) => translateKlyxUi(locale, key),
+      t: (key) => translateKlyxTolgeeRuntimeUi(locale, key),
     }),
     [locale, setLocale]
   );

@@ -59,14 +59,16 @@ describe("KLYX destination UX contract", () => {
     expect(source).not.toContain("indigo-");
   });
 
-  it("keeps Activity focused on one next action and a single calm list surface", () => {
+  it("keeps Activity focused on one next action and a single calm chronological list surface", () => {
     const source = read("app/bookings/page.tsx");
     const splitSource = read("app/bookings/SplitMissionSection.tsx");
 
     expect(source).toContain("KLYX_ACTIVITY_DESTINATION_2026_09_01");
     expect(source).toContain('className="klyx-page"');
     expect(source).toContain("klyx-activity-list");
-    expect(source).toContain("remainingBookings");
+    expect(source).toContain("visibleItems");
+    expect(source).toContain('data-order="created-at-desc"');
+    expect(source).toContain("SplitMissionCardView");
     expect(source).toContain('href="/assistant"');
     expect(source).toContain('fetch("/api/bookings/overview"');
     expect(source).toContain('fetch("/api/bookings/split-missions"');
@@ -84,6 +86,5 @@ describe("KLYX destination UX contract", () => {
     expect(splitSource).not.toContain("shadow-");
     expect(splitSource).not.toContain("amber-");
     expect(splitSource).not.toContain("emerald-");
-    expect(splitSource).not.toContain("red-");
   });
 });

@@ -12,6 +12,7 @@ import {
   UserRound,
 } from "lucide-react";
 
+import KlyxImage from "@/app/components/KlyxImage";
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import {
   resolveKlyxMessagesPageLocale,
@@ -72,6 +73,7 @@ const LOCALE_TAGS = {
   en: "en-GB",
   nl: "nl-BE",
   de: "de-DE",
+  es: "es-BE",
 } as const;
 
 function localeTag(locale: KlyxLocale) {
@@ -132,6 +134,8 @@ function ConversationAvatar({
   name: string;
   large?: boolean;
 }) {
+  const size = large ? 56 : 44;
+
   return (
     <div
       className={`grid shrink-0 place-items-center overflow-hidden rounded-full bg-muted ${
@@ -139,9 +143,12 @@ function ConversationAvatar({
       }`}
     >
       {conversation.otherProfile?.avatar_url ? (
-        <img
+        <KlyxImage
           src={conversation.otherProfile.avatar_url}
           alt={name}
+          width={size}
+          height={size}
+          sizes={`${size}px`}
           className="h-full w-full object-cover"
         />
       ) : (
