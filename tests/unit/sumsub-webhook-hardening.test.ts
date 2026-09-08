@@ -42,6 +42,35 @@ describe("Sumsub webhook hardening", () => {
     );
   });
 
+  it("does not let a failing concurrent replay reopen an event already processed", () => {
+    const failurePathIndex = route.lastIndexOf(
+      "} catch (error) {"
+    );
+    const failureUpdateIndex = route.indexOf(
+      '.from("sumsub_webhook_events")',
+      failurePathIndex
+    );
+    const responseIndex = route.indexOf(
+      "return secureApiErrorResponse",
+      failureUpdateIndex
+    );
+    const failureUpdate = route.slice(
+      failureUpdateIndex,
+      responseIndex
+    );
+
+    expect(failurePathIndex).toBeGreaterThanOrEqual(0);
+    expect(failureUpdateIndex).toBeGreaterThan(
+      failurePathIndex
+    );
+    expect(failureUpdate).toContain(
+      "processed: false"
+    );
+    expect(failureUpdate).toMatch(
+      /\.eq\(\s*"event_hash",\s*eventHash\s*\)[\s\S]*\.eq\(\s*"processed",\s*false\s*\)/
+    );
+  });
+
   it("never applies manually triggered Sumsub test callbacks", () => {
     const testModeIndex = route.indexOf(
       "if (payload.testMode === true)"
