@@ -42,10 +42,25 @@ describe("KLYX assistant-first shell and mission rail", () => {
     expect(rail).toContain('compact ? "w-[76px]" : "w-[256px]"');
     expect(rail).toContain('current: "En cours"');
     expect(rail).toContain('recent: "Récentes"');
-    expect(rail).toContain("setCollapsed((value) => !value)");
+    expect(rail).toContain("setCollapsedPreference(!collapsed)");
     expect(rail).toContain('fetch("/api/bookings/overview"');
     expect(rail).toContain('fetch("/api/bookings/split-missions"');
     expect(rail).toContain('fetch("/api/provider/jobs"');
+  });
+
+  it("persists only the desktop rail collapsed preference", () => {
+    expect(rail).toContain('const RAIL_COLLAPSED_STORAGE_KEY = "klyx:mission-rail:collapsed";');
+    expect(rail).toContain("window.localStorage.getItem(RAIL_COLLAPSED_STORAGE_KEY)");
+    expect(rail).toContain("window.localStorage.setItem(RAIL_COLLAPSED_STORAGE_KEY, String(next))");
+    expect(rail).toContain('stored === "true" || stored === "false"');
+  });
+
+  it("marks the mission matching the current route accessibly and discreetly", () => {
+    expect(rail).toContain("usePathname");
+    expect(rail).toContain("normalizePath(mission.href) === currentPath");
+    expect(rail).toContain('aria-current={active ? "page" : undefined}');
+    expect(rail).toContain('bg-[#2563EB]');
+    expect(rail).toContain('title={mission.title}');
   });
 
   it("removes permanent SaaS destinations while keeping provider tools secondary", () => {
