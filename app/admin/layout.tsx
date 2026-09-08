@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ShieldCheck } from "lucide-react";
+
+import KlyxThemeImage from "@/app/components/KlyxThemeImage";
 
 import "./admin-refresh.css";
 
@@ -22,9 +23,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             aria-label="KLYX Admin"
             className="inline-flex items-center gap-3 rounded-xl font-black tracking-[-0.02em] text-foreground"
           >
-            <span className="klyx-admin-brand-mark" aria-hidden="true">
-              <ShieldCheck size={17} />
-            </span>
+            <KlyxThemeImage
+              srcLight="/icon.svg"
+              srcDark="/apple-icon.svg"
+              alt=""
+              width={32}
+              height={32}
+              className="klyx-admin-brand-mark h-8 w-8"
+            />
             <span>KLYX</span>
             <span className="text-sm font-bold text-muted-foreground">Admin</span>
           </Link>

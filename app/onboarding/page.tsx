@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getActiveProfile } from "@/lib/active-profile";
 import { createClient } from "@/lib/supabase/server";
 import FirstProfileSetup from "./FirstProfileSetup";
+import KlyxFirstProfileAnalytics from "./KlyxFirstProfileAnalytics";
 import OnboardingOverview from "./OnboardingOverview";
 
 // KLYX_ONBOARDING_REAL_WORKFLOWS_13_86
@@ -29,10 +30,13 @@ export default async function OnboardingPage() {
       metadata.account_type === "provider" ? "provider" : "client";
 
     return (
-      <FirstProfileSetup
-        initialFullName={fullName}
-        initialAccountType={accountType}
-      />
+      <>
+        <KlyxFirstProfileAnalytics phase="pending" />
+        <FirstProfileSetup
+          initialFullName={fullName}
+          initialAccountType={accountType}
+        />
+      </>
     );
   }
 
@@ -46,5 +50,10 @@ export default async function OnboardingPage() {
   // KLYX_AI_FIRST_ONBOARDING_15_04
   // KLYX_ROLE_SAFETY_CONTEXT_14_03
   // KLYX_PROVIDER_ONBOARDING_SHORTCUTS_13_86
-  return <OnboardingOverview provider={provider} firstName={firstName} />;
+  return (
+    <>
+      <KlyxFirstProfileAnalytics phase="completed" />
+      <OnboardingOverview provider={provider} firstName={firstName} />
+    </>
+  );
 }

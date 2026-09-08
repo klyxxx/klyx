@@ -1,5 +1,7 @@
 "use client";
 
+import { captureKlyxProductEvent } from "@/lib/klyx-product-analytics-client";
+
 export type AccountType = "client" | "provider";
 
 export type SavedAccount = {
@@ -183,6 +185,7 @@ async function performAccountSwitch(profileId: string): Promise<void> {
     throw new Error("Rôle du profil KLYX introuvable.");
   }
 
+  captureKlyxProductEvent("profile selected");
   emitActiveProfileChanged(profileId, result.accountType);
 }
 
@@ -234,6 +237,8 @@ export async function createProfile(
   if (!result.profileId) {
     throw new Error("Le nouveau profil est introuvable.");
   }
+
+  captureKlyxProductEvent("profile created");
 
   return result.profileId;
 }
