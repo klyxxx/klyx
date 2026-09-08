@@ -64,7 +64,11 @@ describe("KLYX i18n foundation shell contract", () => {
     expect(layout).toContain("dir={localeMetadata.dir}");
     expect(layout).toContain("<KlyxSkipLink />");
     expect(sidebar).toContain("useKlyxLocale()");
-    expect(sidebar).toContain("translateKlyxNavigationLabel(locale, item.translationLabel)");
+    expect(sidebar).toContain(
+      "translateKlyxTolgeeRuntimeNavigation(locale, item.translationLabel)"
+    );
+    expect(sidebar).not.toContain("translateKlyxNavigationLabel");
+    expect(sidebar).toContain("translateKlyxProviderAssistant");
     expect(sidebar).toContain('title: "Activité"');
     expect(sidebar).toContain('title: "Missions"');
     expect(sidebar).toContain('title: "Services"');
