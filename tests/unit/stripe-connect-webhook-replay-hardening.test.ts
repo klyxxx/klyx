@@ -22,9 +22,12 @@ function accountUpdater(route: string): string {
   return route.slice(start, end + 2);
 }
 
-function assertFreshStripeAccountBoundary(route: string): void {
+function assertFreshStripeAccountBoundary(
+  route: string,
+  accountEventMarker: string
+): void {
   const signatureVerification = route.indexOf("stripe.webhooks.constructEvent(");
-  const accountEvent = route.indexOf('event.type === "account.updated"');
+  const accountEvent = route.indexOf(accountEventMarker);
   const accountSync = route.indexOf("updateConnectedAccount(", accountEvent);
   const updater = accountUpdater(route);
   const retrieve = updater.indexOf(
@@ -69,10 +72,16 @@ describe("Stripe account.updated replay hardening", () => {
   });
 
   it("does not trust mutable account flags from a replayed platform event", () => {
-    assertFreshStripeAccountBoundary(platformWebhook);
+    assertFreshStripeAccountBoundary(
+      platformWebhook,
+      'case "account.updated": {'
+    );
   });
 
   it("does not trust mutable account flags from a replayed Connect event", () => {
-    assertFreshStripeAccountBoundary(connectWebhook);
+    assertFreshStripeAccountBoundary(
+      connectWebhook,
+      'event.type === "account.updated"'
+    );
   });
 });
