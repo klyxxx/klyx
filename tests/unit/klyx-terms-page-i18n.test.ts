@@ -31,6 +31,9 @@ describe("KLYX terms page i18n", () => {
     expect(getKlyxTermsPageDictionary("de").section4Text).toContain(
       "darf erst dann als bezahlt gelten, wenn KLYX die entsprechende Bestätigung erhalten hat"
     );
+    expect(getKlyxTermsPageDictionary("es").section4Text).toContain(
+      "no debe considerarse pagada hasta que KLYX haya recibido la confirmación correspondiente"
+    );
   });
 
   it("keeps refund disputes and non-guaranteed trust signals explicit", () => {
@@ -46,16 +49,32 @@ describe("KLYX terms page i18n", () => {
     expect(getKlyxTermsPageDictionary("de").section5Text).toContain(
       "Streitbeilegungsverfahren erfordern statt einer automatischen Stornierung"
     );
+    expect(getKlyxTermsPageDictionary("es").section5Text).toContain(
+      "procedimiento de disputa en lugar de una cancelación automática"
+    );
 
     expect(getKlyxTermsPageDictionary("fr").section6Text).toContain("garantie absolue");
     expect(getKlyxTermsPageDictionary("en").section6Text).toContain("absolute guarantee");
     expect(getKlyxTermsPageDictionary("nl").section6Text).toContain("absolute garantie");
     expect(getKlyxTermsPageDictionary("de").section6Text).toContain("absolute Garantie");
+    expect(getKlyxTermsPageDictionary("es").section6Text).toContain("garantía absoluta");
+  });
+
+  it("certifies the Spanish terms page copy", () => {
+    expect(resolveKlyxTermsPageLocale("es")).toBe("es");
+    expect(getKlyxTermsPageDictionary("es")).toMatchObject({
+      metadataTitle: "Condiciones de uso",
+      backLegal: "Información de KLYX",
+      title: "Condiciones de uso",
+      section4Title: "4. Reservas, precios y pago",
+      section5Title: "5. Cancelaciones y reembolsos",
+      privacyLink: "política de privacidad",
+    });
   });
 
   it("falls back explicitly to French outside the certified page locales", () => {
-    expect(resolveKlyxTermsPageLocale("es")).toBe("fr");
-    expect(getKlyxTermsPageDictionary("es")).toEqual(
+    expect(resolveKlyxTermsPageLocale("it")).toBe("fr");
+    expect(getKlyxTermsPageDictionary("it")).toEqual(
       getKlyxTermsPageDictionary("fr")
     );
   });

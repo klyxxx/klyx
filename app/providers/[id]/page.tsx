@@ -31,6 +31,7 @@ import PublicReviews from "./PublicReviews";
 
 // KLYX_PUBLIC_PROVIDER_I18N
 // KLYX_PUBLIC_PROVIDER_READ_ONLY
+// KLYX_PUBLIC_PROVIDER_VISUAL_SIMPLIFICATION
 
 type ProfileRow = {
   id: string;
@@ -155,7 +156,7 @@ export default function ProviderProfilePage() {
             .select("id, public_url, caption")
             .eq("profile_id", providerId)
             .order("position", { ascending: true })
-            .limit(8),
+            .limit(3),
           fetch(`/api/providers/${providerId}/verified-services`, {
             cache: "no-store",
           }),
@@ -336,7 +337,7 @@ export default function ProviderProfilePage() {
 
   return (
     <main className="min-h-screen bg-background px-5 py-10 text-foreground dark:bg-zinc-950 dark:text-white">
-      <div className="mx-auto max-w-6xl">
+      <div className="mx-auto max-w-5xl">
         <Link
           href="/search"
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground dark:text-zinc-400 dark:hover:text-white"
@@ -345,108 +346,89 @@ export default function ProviderProfilePage() {
           {t("backToSearch")}
         </Link>
 
-        <section className="mt-8 overflow-hidden rounded-3xl border border-border bg-card/70 dark:border-zinc-800 dark:bg-zinc-900/70">
-          <div className="grid md:grid-cols-[340px_1fr]">
-            <div className="flex min-h-96 items-center justify-center bg-muted dark:bg-zinc-800">
+        <section className="mt-8 rounded-3xl border border-border bg-card/70 p-6 dark:border-zinc-800 dark:bg-zinc-900/70 sm:p-8">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
+            <div className="grid h-24 w-24 shrink-0 place-items-center overflow-hidden rounded-3xl border border-border bg-muted dark:border-zinc-700 dark:bg-zinc-800">
               {profile.avatar_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={profile.avatar_url}
                   alt={fullName}
-                  className="h-full min-h-96 w-full object-cover"
+                  className="h-full w-full object-cover"
                 />
               ) : (
                 <UserRound
-                  size={90}
+                  size={40}
                   className="text-muted-foreground dark:text-zinc-500"
                 />
               )}
             </div>
 
-            <div className="p-6 sm:p-10">
-              <div className="flex flex-wrap items-start justify-between gap-5">
-                <div className="max-w-2xl">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <p className="text-sm font-semibold uppercase tracking-[0.2em] text-violet-400">
-                      {t("providerEyebrow")}
-                    </p>
-                    {providerProfile.verification_status === "verified" && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                        <BadgeCheck size={15} /> {t("identityVerified")}
-                      </span>
-                    )}
-                  </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-violet-400">
+                  {t("providerEyebrow")}
+                </p>
+                {providerProfile.verification_status === "verified" && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                    <BadgeCheck size={15} /> {t("identityVerified")}
+                  </span>
+                )}
+              </div>
 
-                  <h1 className="mt-3 text-3xl font-bold sm:text-5xl">{fullName}</h1>
+              <h1 className="mt-3 text-3xl font-bold sm:text-4xl">{fullName}</h1>
 
-                  {providerProfile.business_name && (
-                    <p className="mt-2 text-lg text-muted-foreground dark:text-zinc-400">
-                      {providerProfile.business_name}
-                    </p>
+              {providerProfile.business_name && (
+                <p className="mt-2 text-base text-muted-foreground dark:text-zinc-400">
+                  {providerProfile.business_name}
+                </p>
+              )}
+
+              <p className="mt-4 text-lg font-semibold text-foreground dark:text-white">
+                {providerProfile.headline || t("headlineFallback")}
+              </p>
+
+              <div className="mt-5 flex flex-wrap gap-4 text-sm text-muted-foreground dark:text-zinc-400">
+                <span className="inline-flex items-center gap-2">
+                  <MapPin size={17} /> {profile.city || "Bruxelles"}
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <BriefcaseBusiness size={17} />
+                  {formatKlyxPublicProviderExperience(
+                    locale,
+                    Number(providerProfile.years_experience ?? 0)
                   )}
-
-                  <p className="mt-5 text-xl font-semibold text-foreground dark:text-white">
-                    {providerProfile.headline || t("headlineFallback")}
-                  </p>
-
-                  {providerProfile.bio && (
-                    <p className="mt-4 whitespace-pre-line leading-7 text-foreground/80 dark:text-zinc-300">
-                      {providerProfile.bio}
-                    </p>
-                  )}
-
-                  <div className="mt-6 flex flex-wrap gap-4 text-sm text-muted-foreground dark:text-zinc-400">
-                    <span className="inline-flex items-center gap-2">
-                      <MapPin size={17} /> {profile.city || "Bruxelles"}
-                    </span>
-                    <span className="inline-flex items-center gap-2">
-                      <BriefcaseBusiness size={17} />
-                      {formatKlyxPublicProviderExperience(
-                        locale,
-                        Number(providerProfile.years_experience ?? 0)
-                      )}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-violet-500/30 bg-violet-500/10 px-5 py-4 text-center">
-                  <div className="flex items-center justify-center gap-2 text-violet-700 dark:text-violet-300">
-                    <ShieldCheck size={20} />
-                    <span className="text-sm font-semibold">{t("score")}</span>
-                  </div>
-                  <p className="mt-2 text-4xl font-bold text-violet-700 dark:text-violet-300">
-                    {bestScore.toFixed(0)}
-                  </p>
-                  <p className="text-sm text-muted-foreground dark:text-zinc-400">/100</p>
-                  <p className="mt-2 text-sm font-semibold text-violet-700 dark:text-violet-200">
-                    {formatKlyxPublicProviderScoreLabel(locale, bestScore)}
-                  </p>
-                </div>
+                </span>
               </div>
             </div>
-          </div>
-        </section>
 
-        {gallery.length > 0 && (
-          <section className="mt-8">
-            <h2 className="text-2xl font-bold">{t("galleryTitle")}</h2>
-            <div className="mt-5 grid grid-cols-2 gap-4 md:grid-cols-4">
-              {gallery.map((item) => (
-                <figure
-                  key={item.id}
-                  className="aspect-square overflow-hidden rounded-2xl border border-border bg-card dark:border-zinc-800 dark:bg-zinc-900"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={item.public_url}
-                    alt={item.caption || t("galleryAlt")}
-                    className="h-full w-full object-cover"
-                  />
-                </figure>
-              ))}
+            <div className="w-full rounded-2xl border border-violet-500/25 bg-violet-500/[0.07] px-4 py-3 sm:w-auto sm:min-w-36">
+              <div className="flex items-center gap-2 text-violet-700 dark:text-violet-300">
+                <ShieldCheck size={18} />
+                <span className="text-xs font-semibold uppercase tracking-wide">
+                  {t("score")}
+                </span>
+              </div>
+              <div className="mt-2 flex items-end gap-2">
+                <p className="text-3xl font-bold text-violet-700 dark:text-violet-300">
+                  {bestScore.toFixed(0)}
+                </p>
+                <p className="pb-1 text-sm text-muted-foreground dark:text-zinc-400">
+                  /100
+                </p>
+              </div>
+              <p className="mt-1 text-xs font-semibold text-violet-700 dark:text-violet-200">
+                {formatKlyxPublicProviderScoreLabel(locale, bestScore)}
+              </p>
             </div>
-          </section>
-        )}
+          </div>
+
+          {providerProfile.bio && (
+            <p className="mt-6 max-w-3xl whitespace-pre-line border-t border-border pt-6 leading-7 text-foreground/80 dark:border-zinc-800 dark:text-zinc-300">
+              {providerProfile.bio}
+            </p>
+          )}
+        </section>
 
         <section className="mt-8">
           <h2 className="text-2xl font-bold">{t("servicesTitle")}</h2>
@@ -554,6 +536,27 @@ export default function ProviderProfilePage() {
             </div>
           )}
         </section>
+
+        {gallery.length > 0 && (
+          <section className="mt-8">
+            <h2 className="text-2xl font-bold">{t("galleryTitle")}</h2>
+            <div className="mt-5 grid gap-4 sm:grid-cols-3">
+              {gallery.map((item) => (
+                <figure
+                  key={item.id}
+                  className="aspect-[4/3] overflow-hidden rounded-2xl border border-border bg-card dark:border-zinc-800 dark:bg-zinc-900"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={item.public_url}
+                    alt={item.caption || t("galleryAlt")}
+                    className="h-full w-full object-cover"
+                  />
+                </figure>
+              ))}
+            </div>
+          </section>
+        )}
 
         <PublicReviews
           providerId={profile.id}

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="KLYX image indisponible">
+  <style>
+    .bg { fill: #F4F4F5; }
+    .panel { fill: #E4E4E7; }
+    .brand-fill { fill: #2563EB; }
+    .brand-stroke { fill: none; stroke: #2563EB; stroke-linecap: round; stroke-linejoin: round; stroke-width: 24; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #18181B; }
+      .panel { fill: #27272A; }
+    }
+  </style>
+  <rect class="bg" width="512" height="512" rx="96" />
+  <rect class="panel" x="112" y="128" width="288" height="256" rx="48" />
+  <circle class="brand-fill" cx="320" cy="208" r="30" opacity="0.18" />
+  <circle class="brand-stroke" cx="320" cy="208" r="30" />
+  <path class="brand-stroke" d="M148 336l82-86 62 64 42-44 30 32" />
+</svg>
