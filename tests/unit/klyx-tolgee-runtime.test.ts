@@ -28,12 +28,15 @@ import {
   KLYX_TOLGEE_STAGED_LOCALES,
 } from "@/lib/klyx-tolgee";
 
-const SOURCE_CATALOGS = {
+const SOURCE_CATALOGS: Record<
+  KlyxSelectableLocale,
+  Readonly<Record<string, string>>
+> = {
   fr: frCatalog,
   en: enCatalog,
   nl: nlCatalog,
   de: deCatalog,
-} satisfies Record<KlyxSelectableLocale, Readonly<Record<string, string>>>;
+};
 
 const TOLGEE_ONLY_UI_KEY_SET = new Set<string>(
   KLYX_TOLGEE_ONLY_UI_MESSAGE_KEYS

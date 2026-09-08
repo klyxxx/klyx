@@ -36,12 +36,15 @@ function isKlyxTolgeeOnlyUiMessageKey(
 
 // Keep runtime consumption stricter than management: a staged locale can have a
 // Tolgee snapshot without becoming reachable from the published KLYX shell.
-export const KLYX_TOLGEE_RUNTIME_CATALOGS = {
+export const KLYX_TOLGEE_RUNTIME_CATALOGS: Record<
+  KlyxSelectableLocale,
+  KlyxTolgeeStaticCatalog
+> = {
   fr: frCatalog,
   en: enCatalog,
   nl: nlCatalog,
   de: deCatalog,
-} satisfies Record<KlyxSelectableLocale, KlyxTolgeeStaticCatalog>;
+};
 
 export function getKlyxTolgeeRuntimeNavigationTranslation(
   locale: KlyxLocale,
