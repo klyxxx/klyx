@@ -5,6 +5,7 @@ export const KLYX_AI_STATUS_PAGE_TRANSLATED_LOCALES = [
   "en",
   "nl",
   "de",
+  "es",
 ] as const;
 
 export type KlyxAiStatusPageLocale =
@@ -173,6 +174,39 @@ const AI_STATUS_PAGE_MESSAGES: Record<
     probeDisabled: "Vision deaktiviert",
     probeUnavailable: "Diagnose nicht verfügbar",
     probeAdminOnly: "Diese echte Diagnose ist dem angemeldeten KLYX-Administrator vorbehalten.",
+  },
+  es: {
+    metadataTitle: "Estado de la IA de KLYX",
+    metadataDescription:
+      "Consulta el modo de IA actualmente activo y las salvaguardas del asistente KLYX.",
+    backDashboard: "Panel de control",
+    badge: "Base de IA de KLYX",
+    title: "Asistente inteligente, activación progresiva",
+    description:
+      "KLYX mantiene su asistente gratuito actual. Cuando se añada una clave API más adelante, el motor inteligente se activará automáticamente sin reconstruir toda la aplicación.",
+    enabledTitle: "OpenAI activado",
+    fallbackTitle: "Modo gratuito activado",
+    enabledDescription:
+      "Las respuestas pueden usar el modelo configurado en el servidor.",
+    fallbackDescription:
+      "No se consumen créditos. KLYX utiliza sus reglas locales de respaldo.",
+    safetyTitle: "Seguridad preservada",
+    safetyDescription:
+      "La IA no puede confirmar por sí sola un pago, un reembolso, una reserva ni una actividad regulada.",
+    probeTitle: "Prueba integral de OpenAI",
+    probeDescription:
+      "Ejecuta dos llamadas sintéticas desde el servidor de KLYX: una mediante el asistente conversacional real y otra mediante el análisis Vision real. No se utilizan datos de usuario, reservas ni pagos.",
+    probeRun: "Probar Asistente + Vision",
+    probeRunning: "Prueba en curso…",
+    probeReady: "El Asistente y Vision de OpenAI están validados.",
+    probeNotReady: "Al menos una ruta de OpenAI sigue usando el modo de respaldo.",
+    probeAssistant: "Asistente",
+    probeVision: "Vision",
+    probeFallback: "Modo de respaldo",
+    probeDisabled: "Vision desactivado",
+    probeUnavailable: "Diagnóstico no disponible",
+    probeAdminOnly:
+      "Este diagnóstico real está reservado al administrador de KLYX que ha iniciado sesión.",
   },
 };
 
