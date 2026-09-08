@@ -23,11 +23,22 @@ describe("KLYX offline page i18n", () => {
     expect(getKlyxOfflinePageDictionary("en").description).toContain("never served from an offline cache");
     expect(getKlyxOfflinePageDictionary("nl").description).toContain("nooit vanuit een offline cache");
     expect(getKlyxOfflinePageDictionary("de").description).toContain("niemals aus einem Offline-Cache");
+    expect(getKlyxOfflinePageDictionary("es").description).toContain("nunca se sirven desde una caché sin conexión");
+  });
+
+  it("certifies the Spanish offline page copy", () => {
+    expect(resolveKlyxOfflinePageLocale("es")).toBe("es");
+    expect(getKlyxOfflinePageDictionary("es")).toMatchObject({
+      metadataTitle: "KLYX sin conexión",
+      badge: "Conexión no disponible",
+      retryOnline: "Volver a KLYX",
+      retryOffline: "Volver a intentarlo",
+    });
   });
 
   it("falls back explicitly to French outside the certified page locales", () => {
-    expect(resolveKlyxOfflinePageLocale("es")).toBe("fr");
-    expect(getKlyxOfflinePageDictionary("es")).toEqual(
+    expect(resolveKlyxOfflinePageLocale("it")).toBe("fr");
+    expect(getKlyxOfflinePageDictionary("it")).toEqual(
       getKlyxOfflinePageDictionary("fr")
     );
   });
