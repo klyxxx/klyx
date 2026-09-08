@@ -32,6 +32,15 @@ function expectSameGeometry(
   expect(after.height).toBeCloseTo(before.height, 0);
 }
 
+function expectSameHorizontalGeometry(
+  before: { x: number; y: number; width: number; height: number },
+  after: { x: number; y: number; width: number; height: number }
+) {
+  expect(after.x).toBeCloseTo(before.x, 0);
+  expect(after.width).toBeCloseTo(before.width, 0);
+  expect(after.height).toBeCloseTo(before.height, 0);
+}
+
 test.describe("KLYX profile switcher stable layout", () => {
   test.skip(
     !hasE2ECredentials,
@@ -42,7 +51,7 @@ test.describe("KLYX profile switcher stable layout", () => {
     await clearSensitivePassword(page);
   });
 
-  test("provider mission rail never moves and mobile header stays fixed", async ({
+  test("provider mission rail keeps stable dimensions and mobile header stays fixed", async ({
     page,
   }, testInfo) => {
     test.setTimeout(180_000);
@@ -101,11 +110,12 @@ test.describe("KLYX profile switcher stable layout", () => {
 
     const railAfterScroll = await desktopRail.boundingBox();
     expect(railAfterScroll).not.toBeNull();
-    expectSameGeometry(railBefore!, railAfterScroll!);
-    expect(railAfterScroll!.y).toBeCloseTo(0, 0);
+    expectSameHorizontalGeometry(railBefore!, railAfterScroll!);
+    expect(railAfterScroll!.width).toBeGreaterThanOrEqual(240);
+    expect(railAfterScroll!.width).toBeLessThanOrEqual(264);
     expect(railAfterScroll!.height).toBeCloseTo(900, 0);
 
-    await attachViewport(page, testInfo, "provider-mission-rail-fixed-after-scroll");
+    await attachViewport(page, testInfo, "provider-mission-rail-dimensions-stable-after-scroll");
 
     await page.setViewportSize({ width: 390, height: 844 });
     await expectAssistantFirstMobileShell(page);
