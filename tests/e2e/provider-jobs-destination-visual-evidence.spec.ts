@@ -5,6 +5,10 @@ import {
   hasE2ECredentials,
   loginKlyxE2E,
 } from "./helpers/authenticated-session";
+import {
+  expectAssistantFirstDesktopShell,
+  expectAssistantFirstMobileShell,
+} from "./helpers/assistant-shell";
 
 async function attachViewport(
   page: Page,
@@ -104,19 +108,13 @@ async function mockProviderJobs(page: Page) {
 }
 
 test.describe("KLYX provider Missions destination visual evidence", () => {
-  test.skip(
-    !hasE2ECredentials,
-    "Dedicated KLYX E2E credentials are not configured."
-  );
+  test.skip(!hasE2ECredentials, "Dedicated KLYX E2E credentials are not configured.");
 
   test.afterEach(async ({ page }) => {
     await clearSensitivePassword(page);
-
     try {
       await activateKlyxE2EProfile(page, "client");
-    } catch {
-      // Best-effort reset after a failed assertion.
-    }
+    } catch {}
   });
 
   test("keeps the best mission primary and reveals the offer only on request", async ({
@@ -129,10 +127,7 @@ test.describe("KLYX provider Missions destination visual evidence", () => {
 
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto("/provider/jobs", { waitUntil: "domcontentloaded" });
-
-    await expect(
-      page.getByRole("navigation", { name: "Navigation principale KLYX" })
-    ).toBeVisible();
+    await expectAssistantFirstDesktopShell(page, "/provider/assistant");
 
     const offerToggles = page.getByRole("main").locator('button[aria-expanded]');
     await expect(offerToggles.first()).toHaveAttribute("aria-expanded", "false");
@@ -152,9 +147,7 @@ test.describe("KLYX provider Missions destination visual evidence", () => {
 
     await offerToggles.first().click();
     await page.setViewportSize({ width: 390, height: 844 });
-    await expect(
-      page.getByRole("navigation", { name: "Navigation mobile KLYX" })
-    ).toBeVisible();
+    await expectAssistantFirstMobileShell(page);
     await expect(offerToggles.first()).toBeVisible();
     await attachViewport(page, testInfo, "provider-missions-calm-mobile");
 

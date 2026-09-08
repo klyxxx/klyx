@@ -5,6 +5,10 @@ import {
   hasE2ECredentials,
   loginKlyxE2E,
 } from "./helpers/authenticated-session";
+import {
+  expectAssistantFirstDesktopShell,
+  expectAssistantFirstMobileShell,
+} from "./helpers/assistant-shell";
 
 async function attachViewport(page: Page, testInfo: TestInfo, name: string) {
   await page.evaluate(async () => {
@@ -23,11 +27,7 @@ const draftsPayload = {
       id: "assistant-draft-e2e-1",
       draft_type: "availability",
       title: "Disponibilité vendredi matin",
-      payload: {
-        dayLabel: "Vendredi",
-        startTime: "09:00",
-        endTime: "12:00",
-      },
+      payload: { dayLabel: "Vendredi", startTime: "09:00", endTime: "12:00" },
       status: "draft",
       created_at: "2026-09-02T08:30:00.000Z",
     },
@@ -35,10 +35,7 @@ const draftsPayload = {
 };
 
 test.describe("KLYX provider Assistant destination", () => {
-  test.skip(
-    !hasE2ECredentials,
-    "Dedicated KLYX E2E credentials are not configured."
-  );
+  test.skip(!hasE2ECredentials, "Dedicated KLYX E2E credentials are not configured.");
 
   test.afterEach(async ({ page }) => {
     await clearSensitivePassword(page);
@@ -66,13 +63,14 @@ test.describe("KLYX provider Assistant destination", () => {
 
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/provider/assistant", { waitUntil: "domcontentloaded" });
+    await expectAssistantFirstDesktopShell(page, "/provider/assistant");
 
     await expect(
       page.getByRole("heading", { name: "Que dois-je préparer pour ton activité ?" })
     ).toBeVisible();
     await expect(page.getByPlaceholder("Demander à KLYX…")).toBeVisible();
 
-    const draftsSummary = page.locator("summary").filter({
+    const draftsSummary = page.locator("main summary").filter({
       hasText: "Brouillons à vérifier",
     });
     await expect(draftsSummary).toBeVisible();
@@ -84,7 +82,7 @@ test.describe("KLYX provider Assistant destination", () => {
     await attachViewport(page, testInfo, "provider-assistant-focused-desktop");
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await expect(page.getByTestId("mobile-navigation")).toBeVisible();
+    await expectAssistantFirstMobileShell(page);
     await expect(
       page.getByRole("heading", { name: "Que dois-je préparer pour ton activité ?" })
     ).toBeVisible();
