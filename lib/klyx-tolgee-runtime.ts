@@ -13,6 +13,26 @@ import { isKlyxTolgeePublishedLocale } from "./klyx-tolgee";
 
 type KlyxTolgeeStaticCatalog = Readonly<Record<string, string>>;
 
+export const KLYX_TOLGEE_ONLY_UI_MESSAGE_KEYS = [
+  "sidebar.desktopNavigation",
+  "sidebar.mobileNavigation",
+] as const;
+
+export type KlyxTolgeeOnlyUiMessageKey =
+  (typeof KLYX_TOLGEE_ONLY_UI_MESSAGE_KEYS)[number];
+
+export type KlyxTolgeeUiMessageKey =
+  | KlyxUiMessageKey
+  | KlyxTolgeeOnlyUiMessageKey;
+
+function isKlyxTolgeeOnlyUiMessageKey(
+  key: KlyxTolgeeUiMessageKey
+): key is KlyxTolgeeOnlyUiMessageKey {
+  return KLYX_TOLGEE_ONLY_UI_MESSAGE_KEYS.includes(
+    key as KlyxTolgeeOnlyUiMessageKey
+  );
+}
+
 // Keep runtime consumption stricter than management: a staged locale can have a
 // Tolgee snapshot without becoming reachable from the published KLYX shell.
 export const KLYX_TOLGEE_RUNTIME_CATALOGS = {
@@ -24,7 +44,7 @@ export const KLYX_TOLGEE_RUNTIME_CATALOGS = {
 
 export function getKlyxTolgeeRuntimeUiTranslation(
   locale: KlyxLocale,
-  key: KlyxUiMessageKey
+  key: KlyxTolgeeUiMessageKey
 ) {
   if (!isKlyxTolgeePublishedLocale(locale)) {
     return null;
@@ -41,10 +61,19 @@ export function getKlyxTolgeeRuntimeUiTranslation(
 
 export function translateKlyxTolgeeRuntimeUi(
   locale: KlyxLocale,
-  key: KlyxUiMessageKey
+  key: KlyxTolgeeUiMessageKey
 ) {
-  return (
-    getKlyxTolgeeRuntimeUiTranslation(locale, key) ??
-    translateKlyxUi(locale, key)
-  );
+  const translated = getKlyxTolgeeRuntimeUiTranslation(locale, key);
+  if (translated) return translated;
+
+  if (isKlyxTolgeeOnlyUiMessageKey(key)) {
+    const fallback = frCatalog[`ui.${key}`];
+    if (typeof fallback === "string" && fallback.trim().length > 0) {
+      return fallback;
+    }
+
+    throw new Error(`Missing required Tolgee UI fallback: ui.${key}`);
+  }
+
+  return translateKlyxUi(locale, key);
 }
