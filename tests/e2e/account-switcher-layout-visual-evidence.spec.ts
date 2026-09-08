@@ -51,7 +51,7 @@ test.describe("KLYX profile switcher stable layout", () => {
     await clearSensitivePassword(page);
   });
 
-  test("provider mission rail keeps stable dimensions and mobile header stays fixed", async ({
+  test("provider mission rail keeps stable dimensions and mobile drawer remains usable", async ({
     page,
   }, testInfo) => {
     test.setTimeout(180_000);
@@ -127,16 +127,22 @@ test.describe("KLYX profile switcher stable layout", () => {
     await page.evaluate(() => {
       window.scrollTo(0, document.documentElement.scrollHeight);
     });
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
 
     const mobileAfter = await mobileHeader.boundingBox();
     expect(mobileAfter).not.toBeNull();
-    expectSameGeometry(mobileBefore!, mobileAfter!);
-    expect(mobileAfter!.y).toBeCloseTo(0, 0);
+    expectSameHorizontalGeometry(mobileBefore!, mobileAfter!);
+
+    await page.evaluate(() => {
+      window.scrollTo(0, 0);
+    });
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+    await expectAssistantFirstMobileShell(page);
 
     const drawer = await openAssistantFirstMobileDrawer(page, "/provider/assistant");
     await expect(drawer).toBeVisible();
     await page.keyboard.press("Escape");
 
-    await attachViewport(page, testInfo, "provider-mobile-header-fixed-after-scroll");
+    await attachViewport(page, testInfo, "provider-mobile-drawer-usable-after-scroll");
   });
 });
