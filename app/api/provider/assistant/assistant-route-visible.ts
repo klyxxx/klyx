@@ -6,10 +6,9 @@ import {
 import {
   POST as deterministicPost,
 } from "./assistant-route-core";
-
-type ProviderAssistantBody = {
-  message?: unknown;
-};
+import {
+  parseProviderAssistantPostRequest,
+} from "./provider-assistant-http-boundary";
 
 type ProviderAssistantResponse = {
   reply?: unknown;
@@ -29,27 +28,32 @@ export async function POST(request: Request): Promise<Response> {
     return response;
   }
 
-  let requestBody: ProviderAssistantBody = {};
+  // The core has already authenticated, consumed the durable AI quota and
+  // accepted the authoritative bounded payload. Re-read only the bounded clone
+  // for cosmetic wording; never parse that clone directly as unbounded JSON.
+  const parsedRequest =
+    await parseProviderAssistantPostRequest(requestCopy);
+
+  if (!parsedRequest.ok) {
+    return response;
+  }
+
   let responseBody: ProviderAssistantResponse = {};
 
   try {
-    requestBody = (await requestCopy.json()) as ProviderAssistantBody;
     responseBody =
       (await response.clone().json()) as ProviderAssistantResponse;
   } catch {
     return response;
   }
 
-  const message =
-    typeof requestBody.message === "string"
-      ? requestBody.message.trim()
-      : "";
+  const message = parsedRequest.value.message;
   const deterministicReply =
     typeof responseBody.reply === "string"
       ? responseBody.reply.trim()
       : "";
 
-  if (!message || !deterministicReply) {
+  if (!deterministicReply) {
     return response;
   }
 
@@ -67,7 +71,6 @@ export async function POST(request: Request): Promise<Response> {
     lockedFacts: {
       intent: responseBody.intent ?? null,
       title: responseBody.title ?? null,
-      draftId: responseBody.draftId ?? null,
       payload: responseBody.payload ?? null,
     },
   });
@@ -81,6 +84,7 @@ export async function POST(request: Request): Promise<Response> {
     },
     {
       status: response.status,
+      headers: response.headers,
     }
   );
 }

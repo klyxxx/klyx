@@ -6,8 +6,13 @@ import {
   requireAccountType,
 } from "@/lib/api-auth";
 import {
+  API_RATE_LIMIT_POLICIES,
+  apiRateLimitExceededResponse,
+  consumeApiRateLimit,
+  rateLimitResponseHeaders,
+} from "@/lib/api-rate-limit";
+import {
   analyzeProviderAssistantMessage,
-  type ProviderAssistantIntent,
 } from "@/lib/provider-assistant";
 import {
   generateKlyxAiReply,
@@ -15,6 +20,10 @@ import {
 import {
   finalizeProviderUnknownAiReply,
 } from "@/lib/provider-assistant-visible-ai";
+import {
+  parseProviderAssistantPatchRequest,
+  parseProviderAssistantPostRequest,
+} from "./provider-assistant-http-boundary";
 
 async function getHourlyRate(
   profileId: string
@@ -119,22 +128,38 @@ export async function POST(request: Request) {
 
     requireAccountType(profile, "provider");
 
-    const body = (await request.json()) as {
-      message?: unknown;
-    };
+    // Every successful Provider Assistant POST can reach at most one shared
+    // LLM pass (unknown in this core, structured intent in the Visible AI
+    // wrapper). Reuse the durable shared AI quota before parsing, DB reads or
+    // any model work so `/api/provider/assistant` cannot bypass AI spend limits.
+    const policy = API_RATE_LIMIT_POLICIES.aiRespond;
+    const rateLimit = await consumeApiRateLimit(
+      profile.id,
+      policy
+    );
 
-    const message =
-      typeof body.message === "string"
-        ? body.message.trim().slice(0, 1000)
-        : "";
+    if (!rateLimit.allowed) {
+      return apiRateLimitExceededResponse(policy, rateLimit);
+    }
 
-    if (message.length < 3) {
+    const headers = rateLimitResponseHeaders(policy, rateLimit);
+    const parsedRequest =
+      await parseProviderAssistantPostRequest(request);
+
+    if (!parsedRequest.ok) {
       return NextResponse.json(
-        { error: "Décris ce que tu veux préparer." },
-        { status: 400 }
+        {
+          error: parsedRequest.error,
+          code: parsedRequest.code,
+        },
+        {
+          status: parsedRequest.status,
+          headers,
+        }
       );
     }
 
+    const message = parsedRequest.value.message;
     const hourlyRate = await getHourlyRate(profile.id);
     const result = analyzeProviderAssistantMessage(
       message,
@@ -158,7 +183,6 @@ export async function POST(request: Request) {
           {
             intent: result.intent,
             title: result.title,
-            draftId: null,
             payload: result.payload,
           }
         );
@@ -187,12 +211,15 @@ export async function POST(request: Request) {
       draftId = data.id;
     }
 
-    return NextResponse.json({
-      draftId,
-      ...result,
-      reply,
-      aiMode,
-    });
+    return NextResponse.json(
+      {
+        draftId,
+        ...result,
+        reply,
+        aiMode,
+      },
+      { headers }
+    );
   } catch (error) {
     const message =
       error instanceof Error
@@ -213,27 +240,20 @@ export async function PATCH(request: Request) {
 
     requireAccountType(profile, "provider");
 
-    const body = (await request.json()) as {
-      draftId?: unknown;
-      action?: unknown;
-    };
+    const parsedRequest =
+      await parseProviderAssistantPatchRequest(request);
 
-    const draftId =
-      typeof body.draftId === "string"
-        ? body.draftId.trim()
-        : "";
-    const action =
-      body.action === "apply" ||
-      body.action === "discard"
-        ? body.action
-        : null;
-
-    if (!draftId || !action) {
+    if (!parsedRequest.ok) {
       return NextResponse.json(
-        { error: "Action invalide." },
-        { status: 400 }
+        {
+          error: parsedRequest.error,
+          code: parsedRequest.code,
+        },
+        { status: parsedRequest.status }
       );
     }
+
+    const { draftId, action } = parsedRequest.value;
 
     const { data: draft, error: draftError } =
       await supabaseAdmin
