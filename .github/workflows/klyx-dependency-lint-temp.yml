@@ -1,0 +1,31 @@
+name: KLYX Temporary Dependency Lint Certification
+
+on:
+  push:
+    branches:
+      - security/dependency-audit-remediation-20260909
+
+permissions:
+  contents: read
+
+jobs:
+  lint-exact-head:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact dependency head
+        uses: actions/checkout@v4
+        with:
+          ref: a4ae47ce021a57aea6ff4d700bbef642104a210f
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Lint exact dependency head
+        run: npm run lint
