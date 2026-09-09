@@ -26,6 +26,10 @@ type SpeechRecognitionEventLike = {
   };
 };
 
+type SpeechRecognitionErrorEventLike = {
+  error?: string;
+};
+
 type SpeechRecognitionLike = {
   lang: string;
   interimResults: boolean;
@@ -33,12 +37,14 @@ type SpeechRecognitionLike = {
   start: () => void;
   stop: () => void;
   abort: () => void;
+  onstart: (() => void) | null;
   onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
   onend: (() => void) | null;
 };
 
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+type VoicePhase = "idle" | "starting" | "listening" | "stopping";
 
 function speechRecognitionConstructor(): SpeechRecognitionConstructor | null {
   if (typeof window === "undefined") return null;
@@ -58,6 +64,10 @@ function voiceCopy(locale: string) {
       stop: "Stop voice input",
       unavailable: "Voice input is not supported by this browser.",
       failed: "Voice input is unavailable right now.",
+      permissionDenied: "Allow microphone access to use voice input.",
+      noMicrophone: "No usable microphone was detected.",
+      noSpeech: "No speech was detected. Try again.",
+      secureContextRequired: "Voice input requires a secure HTTPS connection.",
       speechLocale: "en-GB",
     };
   }
@@ -68,6 +78,10 @@ function voiceCopy(locale: string) {
       stop: "Spraakinvoer stoppen",
       unavailable: "Spraakinvoer wordt niet ondersteund door deze browser.",
       failed: "Spraakinvoer is momenteel niet beschikbaar.",
+      permissionDenied: "Sta microfoontoegang toe om spraakinvoer te gebruiken.",
+      noMicrophone: "Er is geen bruikbare microfoon gedetecteerd.",
+      noSpeech: "Er werd geen spraak gedetecteerd. Probeer opnieuw.",
+      secureContextRequired: "Spraakinvoer vereist een beveiligde HTTPS-verbinding.",
       speechLocale: "nl-BE",
     };
   }
@@ -78,6 +92,10 @@ function voiceCopy(locale: string) {
       stop: "Spracheingabe stoppen",
       unavailable: "Spracheingabe wird von diesem Browser nicht unterstützt.",
       failed: "Spracheingabe ist derzeit nicht verfügbar.",
+      permissionDenied: "Erlauben Sie den Mikrofonzugriff für die Spracheingabe.",
+      noMicrophone: "Es wurde kein nutzbares Mikrofon erkannt.",
+      noSpeech: "Es wurde keine Sprache erkannt. Versuchen Sie es erneut.",
+      secureContextRequired: "Spracheingabe erfordert eine sichere HTTPS-Verbindung.",
       speechLocale: "de-DE",
     };
   }
@@ -87,6 +105,10 @@ function voiceCopy(locale: string) {
     stop: "Arrêter la saisie vocale",
     unavailable: "La saisie vocale n’est pas prise en charge par ce navigateur.",
     failed: "Impossible d’utiliser la saisie vocale pour le moment.",
+    permissionDenied: "Autorisez l’accès au microphone pour utiliser la saisie vocale.",
+    noMicrophone: "Aucun microphone utilisable n’a été détecté.",
+    noSpeech: "Aucune parole n’a été détectée. Réessayez.",
+    secureContextRequired: "La saisie vocale nécessite une connexion HTTPS sécurisée.",
     speechLocale: "fr-BE",
   };
 }
@@ -115,9 +137,12 @@ export default function AssistantComposer({
   formRef: RefObject<HTMLFormElement | null>;
 }) {
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const voicePhaseRef = useRef<VoicePhase>("idle");
+  const voiceStopRequestedRef = useRef(false);
   const valueRef = useRef(value);
   valueRef.current = value;
   const [listening, setListening] = useState(false);
+  const [voiceStarting, setVoiceStarting] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
   const voice = voiceCopy(locale);
 
@@ -125,8 +150,16 @@ export default function AssistantComposer({
     setVoiceSupported(Boolean(speechRecognitionConstructor()));
 
     return () => {
-      recognitionRef.current?.abort();
+      const recognition = recognitionRef.current;
       recognitionRef.current = null;
+      voiceStopRequestedRef.current = true;
+      voicePhaseRef.current = "stopping";
+
+      try {
+        recognition?.abort();
+      } catch {
+        // The browser can already have closed the recognition session.
+      }
     };
   }, []);
 
@@ -146,8 +179,49 @@ export default function AssistantComposer({
   }
 
   function toggleVoice() {
-    if (listening) {
-      recognitionRef.current?.stop();
+    if (
+      voicePhaseRef.current === "starting" ||
+      voicePhaseRef.current === "stopping"
+    ) {
+      return;
+    }
+
+    if (voicePhaseRef.current === "listening") {
+      const recognition = recognitionRef.current;
+      if (!recognition) {
+        voicePhaseRef.current = "idle";
+        voiceStopRequestedRef.current = false;
+        setVoiceStarting(false);
+        setListening(false);
+        return;
+      }
+
+      voicePhaseRef.current = "stopping";
+      voiceStopRequestedRef.current = true;
+
+      try {
+        recognition.stop();
+      } catch {
+        try {
+          recognition.abort();
+        } catch {
+          // Nothing else to stop.
+        }
+
+        if (recognitionRef.current === recognition) {
+          recognitionRef.current = null;
+        }
+        voicePhaseRef.current = "idle";
+        voiceStopRequestedRef.current = false;
+        setVoiceStarting(false);
+        setListening(false);
+        onError(voice.failed);
+      }
+      return;
+    }
+
+    if (typeof window === "undefined" || !window.isSecureContext) {
+      onError(voice.secureContextRequired);
       return;
     }
 
@@ -158,12 +232,24 @@ export default function AssistantComposer({
       return;
     }
 
+    setVoiceSupported(true);
+
     try {
       const recognition = new Recognition();
       recognition.lang = voice.speechLocale;
       recognition.interimResults = false;
       recognition.continuous = false;
+
+      recognition.onstart = () => {
+        if (recognitionRef.current !== recognition) return;
+        voicePhaseRef.current = "listening";
+        setVoiceStarting(false);
+        setListening(true);
+      };
+
       recognition.onresult = (event) => {
+        if (recognitionRef.current !== recognition) return;
+
         const transcript = event.results[0]?.[0]?.transcript?.trim();
         if (!transcript) return;
 
@@ -174,19 +260,58 @@ export default function AssistantComposer({
 
         onChange(nextValue.slice(0, KLYX_ASSISTANT_MESSAGE_MAX_LENGTH));
         onError("");
+        requestAnimationFrame(() => textareaRef.current?.focus());
       };
-      recognition.onerror = () => onError(voice.failed);
-      recognition.onend = () => {
+
+      recognition.onerror = (event) => {
+        if (recognitionRef.current !== recognition) return;
+
+        let message = voice.failed;
+        switch (event.error) {
+          case "not-allowed":
+          case "service-not-allowed":
+            message = voice.permissionDenied;
+            break;
+          case "audio-capture":
+            message = voice.noMicrophone;
+            break;
+          case "no-speech":
+            message = voice.noSpeech;
+            break;
+          case "aborted":
+            message = voiceStopRequestedRef.current ? "" : voice.failed;
+            break;
+          default:
+            message = voice.failed;
+        }
+
+        voicePhaseRef.current = "stopping";
+        setVoiceStarting(false);
         setListening(false);
+        if (message) onError(message);
+      };
+
+      recognition.onend = () => {
+        if (recognitionRef.current !== recognition) return;
         recognitionRef.current = null;
+        voicePhaseRef.current = "idle";
+        voiceStopRequestedRef.current = false;
+        setVoiceStarting(false);
+        setListening(false);
       };
 
       recognitionRef.current = recognition;
-      setListening(true);
+      voicePhaseRef.current = "starting";
+      voiceStopRequestedRef.current = false;
       onError("");
+      setVoiceStarting(true);
+      setListening(false);
       recognition.start();
     } catch {
       recognitionRef.current = null;
+      voicePhaseRef.current = "idle";
+      voiceStopRequestedRef.current = false;
+      setVoiceStarting(false);
       setListening(false);
       onError(voice.failed);
     }
@@ -229,10 +354,12 @@ export default function AssistantComposer({
       <button
         type="button"
         onClick={toggleVoice}
+        disabled={voiceStarting}
         aria-label={listening ? voice.stop : voice.voice}
         aria-pressed={listening}
+        aria-busy={voiceStarting}
         title={!voiceSupported && !listening ? voice.unavailable : undefined}
-        className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] ${
+        className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB] disabled:cursor-not-allowed disabled:opacity-45 ${
           listening
             ? "bg-[#2563EB]/10 text-[#2563EB]"
             : "text-muted-foreground hover:bg-muted hover:text-foreground"
