@@ -11,6 +11,7 @@ function source(relativePath: string): string {
 
 const platformWebhook = source("app/api/stripe/webhook/route.ts");
 const connectWebhook = source("app/api/stripe/connect-webhook/route.ts");
+const webhookEvents = source("lib/stripe-webhook-events.ts");
 
 function accountUpdater(route: string): string {
   const start = route.indexOf("async function updateConnectedAccount(");
@@ -69,6 +70,49 @@ describe("Stripe account.updated replay hardening", () => {
     expect(platformWebhook).not.toContain("STRIPE_CONNECT_WEBHOOK_SECRET");
     expect(connectWebhook).toContain("STRIPE_CONNECT_WEBHOOK_SECRET");
     expect(connectWebhook).not.toContain("process.env.STRIPE_WEBHOOK_SECRET");
+  });
+
+  it("claims Connect events only after signature verification and before business mutation", () => {
+    const signatureVerification = connectWebhook.indexOf(
+      "stripe.webhooks.constructEvent("
+    );
+    const claim = connectWebhook.indexOf("claimStripeWebhookEvent(event)");
+    const accountMutation = connectWebhook.indexOf(
+      'event.type === "account.updated"'
+    );
+
+    expect(signatureVerification).toBeGreaterThanOrEqual(0);
+    expect(claim).toBeGreaterThan(signatureVerification);
+    expect(accountMutation).toBeGreaterThan(claim);
+    expect(connectWebhook).toContain("if (!claim.shouldProcess)");
+    expect(connectWebhook).toContain("reason: claim.reason");
+  });
+
+  it("threads the existing #307 lease and fencing through the Connect route", () => {
+    expect(connectWebhook).toContain("claim.attemptCount");
+    expect(connectWebhook).toMatch(
+      /markStripeWebhookProcessed\(\s*event\.id,\s*attemptCount\s*\)/
+    );
+    expect(connectWebhook).toMatch(
+      /markStripeWebhookFailed\(\s*event\.id,\s*claimAttemptCount,\s*"stripe_connect_webhook_processing_failed"\s*\)/
+    );
+    expect(connectWebhook).toContain('reason: "claim_superseded"');
+    expect(connectWebhook).toMatch(
+      /failureMarkResult === "superseded"[\s\S]*supersededClaimResponse\(event\)/
+    );
+
+    expect(webhookEvents).toMatch(/\.eq\("status", stored\.status\)/);
+    expect(webhookEvents).toMatch(
+      /\.eq\("attempt_count", stored\.attempt_count\)/
+    );
+    expect(webhookEvents).toMatch(/\.eq\("updated_at", stored\.updated_at\)/);
+    expect(webhookEvents).toContain("retry_claim_lost");
+    expect(webhookEvents).toMatch(
+      /markStripeWebhookProcessed\([\s\S]*\.eq\("attempt_count", attemptCount\)/
+    );
+    expect(webhookEvents).toMatch(
+      /markStripeWebhookFailed\([\s\S]*\.eq\("attempt_count", attemptCount\)/
+    );
   });
 
   it("does not trust mutable account flags from a replayed platform event", () => {
