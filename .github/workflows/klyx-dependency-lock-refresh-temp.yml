@@ -26,8 +26,15 @@ jobs:
 
       - name: Raise direct vulnerable floors
         run: |
-          npm install --package-lock-only --ignore-scripts --save-prod 'next@^16.3.3'
-          npm install --package-lock-only --ignore-scripts --save-dev 'vitest@^4.1.11'
+          node <<'NODE'
+          const fs = require('node:fs')
+          const path = 'package.json'
+          const pkg = JSON.parse(fs.readFileSync(path, 'utf8'))
+          pkg.dependencies.next = '^16.3.3'
+          pkg.devDependencies.vitest = '^4.1.11'
+          fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + '\n')
+          NODE
+          npm install --package-lock-only --ignore-scripts
 
       - name: Apply compatible transitive security fixes
         run: npm audit fix --package-lock-only --ignore-scripts
