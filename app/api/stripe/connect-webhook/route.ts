@@ -3,6 +3,11 @@ import Stripe from "stripe";
 
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import {
+  claimStripeWebhookEvent,
+  markStripeWebhookFailed,
+  markStripeWebhookProcessed,
+} from "@/lib/stripe-webhook-events";
 
 function getStripeConnectWebhookConfig() {
   const stripeSecretKey =
@@ -65,6 +70,19 @@ async function updateConnectedAccount(
   }
 }
 
+function supersededClaimResponse(event: Stripe.Event) {
+  return NextResponse.json(
+    {
+      received: true,
+      duplicate: true,
+      reason: "claim_superseded",
+      eventId: event.id,
+      eventType: event.type,
+    },
+    { status: 200 }
+  );
+}
+
 export async function POST(request: Request) {
   const startedAt = Date.now();
 
@@ -118,7 +136,33 @@ export async function POST(request: Request) {
     });
   }
 
+  let claimed = false;
+  let claimAttemptCount: number | null = null;
+
   try {
+    const claim = await claimStripeWebhookEvent(event);
+
+    if (!claim.shouldProcess) {
+      return NextResponse.json(
+        {
+          received: true,
+          duplicate: true,
+          reason: claim.reason,
+          eventId: event.id,
+          eventType: event.type,
+        },
+        { status: 200 }
+      );
+    }
+
+    if (claim.attemptCount === null) {
+      throw new Error("Stripe Connect webhook claim attempt missing.");
+    }
+
+    const attemptCount = claim.attemptCount;
+    claimed = true;
+    claimAttemptCount = attemptCount;
+
     if (event.type === "account.updated") {
       await updateConnectedAccount(
         stripe,
@@ -126,12 +170,34 @@ export async function POST(request: Request) {
       );
     }
 
+    const finalized = await markStripeWebhookProcessed(
+      event.id,
+      attemptCount
+    );
+
+    if (!finalized) {
+      return supersededClaimResponse(event);
+    }
+
     return NextResponse.json({
       received: true,
+      duplicate: false,
       eventId: event.id,
       eventType: event.type,
     });
   } catch (error) {
+    if (claimed && claimAttemptCount !== null) {
+      const failureMarkResult = await markStripeWebhookFailed(
+        event.id,
+        claimAttemptCount,
+        "stripe_connect_webhook_processing_failed"
+      );
+
+      if (failureMarkResult === "superseded") {
+        return supersededClaimResponse(event);
+      }
+    }
+
     return secureApiErrorResponse({
       error,
       event: "stripe_connect_webhook_processing_failed",
