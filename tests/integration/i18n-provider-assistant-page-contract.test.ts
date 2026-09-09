@@ -15,6 +15,14 @@ const routeSource = fs.readFileSync(
   "utf8"
 );
 
+const boundarySource = fs.readFileSync(
+  path.join(
+    process.cwd(),
+    "app/api/provider/assistant/provider-assistant-http-boundary.ts"
+  ),
+  "utf8"
+);
+
 describe("KLYX provider assistant i18n safety contract", () => {
   it("keeps the authenticated GET/POST/PATCH surface and bounded payloads", () => {
     expect(pageSource).toContain('fetch("/api/provider/assistant", {');
@@ -35,7 +43,11 @@ describe("KLYX provider assistant i18n safety contract", () => {
     expect(pageSource).toContain(
       "onClick={() => void submit(undefined, example)}"
     );
-    expect(routeSource).toContain("body.message.trim().slice(0, 1000)");
+    expect(routeSource).toContain("parseProviderAssistantPostRequest(request)");
+    expect(routeSource).not.toContain("body.message.trim().slice(0, 1000)");
+    expect(boundarySource).toContain(
+      "PROVIDER_ASSISTANT_MAX_MESSAGE_CHARACTERS = 1000"
+    );
     expect(pageSource).not.toContain("setInterval(");
     expect(pageSource).not.toContain("setTimeout(");
   });
