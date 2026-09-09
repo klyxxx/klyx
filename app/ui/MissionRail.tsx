@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  BriefcaseBusiness,
   ChevronLeft,
   ChevronRight,
   CircleUserRound,
@@ -71,6 +72,7 @@ type Copy = {
   profile: string;
   settings: string;
   manageProfiles: string;
+  commercialProfile: string;
   services: string;
   finances: string;
   logout: string;
@@ -92,6 +94,7 @@ const COPY: Record<string, Copy> = {
     profile: "Profil",
     settings: "Paramètres",
     manageProfiles: "Gérer les profils",
+    commercialProfile: "Fiche commerciale",
     services: "Services",
     finances: "Finances",
     logout: "Déconnexion",
@@ -109,6 +112,7 @@ const COPY: Record<string, Copy> = {
     profile: "Profile",
     settings: "Settings",
     manageProfiles: "Manage profiles",
+    commercialProfile: "Business profile",
     services: "Services",
     finances: "Finances",
     logout: "Log out",
@@ -126,6 +130,7 @@ const COPY: Record<string, Copy> = {
     profile: "Profiel",
     settings: "Instellingen",
     manageProfiles: "Profielen beheren",
+    commercialProfile: "Bedrijfsprofiel",
     services: "Diensten",
     finances: "Financiën",
     logout: "Uitloggen",
@@ -143,6 +148,7 @@ const COPY: Record<string, Copy> = {
     profile: "Profil",
     settings: "Einstellungen",
     manageProfiles: "Profile verwalten",
+    commercialProfile: "Geschäftsprofil",
     services: "Services",
     finances: "Finanzen",
     logout: "Abmelden",
@@ -160,6 +166,7 @@ const COPY: Record<string, Copy> = {
     profile: "Perfil",
     settings: "Ajustes",
     manageProfiles: "Gestionar perfiles",
+    commercialProfile: "Perfil comercial",
     services: "Servicios",
     finances: "Finanzas",
     logout: "Cerrar sesión",
@@ -596,6 +603,14 @@ export default function MissionRail({
 
                 {accountType === "provider" && (
                   <>
+                    <Link
+                      href="/provider"
+                      onClick={onNavigate}
+                      className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                    >
+                      <BriefcaseBusiness size={15} />
+                      {copy.commercialProfile}
+                    </Link>
                     <Link
                       href="/provider/studio"
                       onClick={onNavigate}

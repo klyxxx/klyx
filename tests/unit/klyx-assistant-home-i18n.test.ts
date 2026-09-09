@@ -21,18 +21,18 @@ describe("KLYX assistant home i18n", () => {
     }
   });
 
-  it("localizes the canonical assistant heading and notification label", () => {
+  it("localizes the validated D01 assistant heading and notification label", () => {
     expect(translateKlyxAssistantHome("fr", "organizeTitle")).toBe(
-      "Que dois-je organiser pour vous ?"
+      "Que puis-je organiser pour vous ?"
     );
     expect(translateKlyxAssistantHome("en", "organizeTitle")).toBe(
-      "What should I organize for you?"
+      "What can I organize for you?"
     );
     expect(translateKlyxAssistantHome("nl", "organizeTitle")).toBe(
-      "Wat zal ik voor je organiseren?"
+      "Wat kan ik voor je organiseren?"
     );
     expect(translateKlyxAssistantHome("de", "organizeTitle")).toBe(
-      "Was soll ich für dich organisieren?"
+      "Was kann ich für dich organisieren?"
     );
     expect(translateKlyxAssistantHome("nl", "notifications")).toBe("Meldingen");
     expect(translateKlyxAssistantHome("de", "notifications")).toBe(
@@ -44,7 +44,7 @@ describe("KLYX assistant home i18n", () => {
     expect(resolveKlyxAssistantHomeLocale("es")).toBe("fr");
     expect(translateKlyxAssistantHome("es", "open")).toBe("Ouvrir");
     expect(translateKlyxAssistantHome("es", "organizeTitle")).toBe(
-      "Que dois-je organiser pour vous ?"
+      "Que puis-je organiser pour vous ?"
     );
   });
 

@@ -32,15 +32,16 @@ describe("KLYX destination UX contract", () => {
     expect(source).not.toContain("indigo");
   });
 
-  it("keeps Profile calm by hiding editing until the user asks for it", () => {
+  it("keeps Profile calm by hiding editing and account shortcuts until requested elsewhere", () => {
     const source = read("app/profile/page.tsx");
 
     expect(source).toContain("KLYX_PROFILE_PROGRESSIVE_DISCLOSURE");
     expect(source).toContain("const [editingProfile, setEditingProfile] = useState(false)");
     expect(source).toContain("aria-expanded={editingProfile}");
     expect(source).toContain("{editingProfile && (");
-    expect(source).toContain('href="/settings"');
-    expect(source).toContain('t("settings")');
+    expect(source).not.toContain('href="/settings"');
+    expect(source).not.toContain('t("settings")');
+    expect(source).not.toContain('href="/provider"');
   });
 
   it("keeps Settings compact and reveals one focused group at a time", () => {
