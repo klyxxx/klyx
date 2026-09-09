@@ -143,6 +143,9 @@ test.describe("KLYX assistant voice input", () => {
 
     const textarea = page.locator("form textarea").first();
     const voiceButton = page.locator('form button[aria-pressed]').first();
+    const assistantAlert = page
+      .getByTestId("assistant-thread")
+      .locator('p[role="alert"]');
     await expect(textarea).toBeVisible();
     await expect(voiceButton).toBeEnabled();
     await textarea.fill("J’ai déjà");
@@ -217,7 +220,7 @@ test.describe("KLYX assistant voice input", () => {
         }
       ).__klyxVoiceMock?.emitError("not-allowed")
     );
-    await expect(page.getByRole("alert")).toContainText(
+    await expect(assistantAlert).toContainText(
       /microphone|microfoon|mikrofon/i
     );
 
@@ -229,7 +232,7 @@ test.describe("KLYX assistant voice input", () => {
       ).__klyxVoiceMock?.disable()
     );
     await voiceButton.click();
-    await expect(page.getByRole("alert")).toContainText(
+    await expect(assistantAlert).toContainText(
       /n’est pas prise en charge|not supported|niet ondersteund|nicht unterstützt/i
     );
   });
