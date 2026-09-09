@@ -283,23 +283,26 @@ export default function PhotoRequestPage() {
       if (uploadError) throw new Error("Photo upload unavailable");
 
       const accessToken = await token();
-      const response = await fetch("/api/requests/photo", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          storagePath: uploadedPath,
-          originalName: file.name,
-          mimeType: file.type,
-          sizeBytes: file.size,
-          width: dimensions.width,
-          height: dimensions.height,
-          description,
-          useVision,
-        }),
-      });
+      const response = await fetch(
+        "/api/requests/photo",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            storagePath: uploadedPath,
+            originalName: file.name,
+            mimeType: file.type,
+            sizeBytes: file.size,
+            width: dimensions.width,
+            height: dimensions.height,
+            description,
+            useVision,
+          }),
+        }
+      );
 
       const body = (await response.json()) as {
         requestId?: string;
