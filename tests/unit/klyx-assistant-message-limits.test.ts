@@ -6,8 +6,8 @@ import {
 } from "@/lib/klyx-assistant-message-limits";
 
 describe("KLYX assistant message capacity", () => {
-  it("allows detailed service requests up to the shared product boundary", () => {
-    expect(KLYX_ASSISTANT_MESSAGE_MAX_LENGTH).toBe(5000);
+  it("allows detailed service requests up to the hardened Brain boundary", () => {
+    expect(KLYX_ASSISTANT_MESSAGE_MAX_LENGTH).toBe(4000);
     expect(
       isKlyxAssistantMessageTooLong(
         "a".repeat(KLYX_ASSISTANT_MESSAGE_MAX_LENGTH)

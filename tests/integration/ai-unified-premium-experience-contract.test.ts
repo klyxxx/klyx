@@ -145,7 +145,7 @@ describe(
     );
 
     it(
-      "keeps one canonical localized client assistant surface while retiring duplicate UI shortcuts",
+      "keeps one canonical client assistant surface while retiring duplicate UI shortcuts",
       () => {
         const brain =
           read("app/brain/page.tsx");
@@ -159,12 +159,9 @@ describe(
           "<ClientRouteGuard>"
         );
         expect(assistant).toContain(
-          "useKlyxLocale()"
+          "<AssistantThread />"
         );
-        expect(assistant).toContain(
-          'translateKlyxAssistantHome(locale, "organizeTitle")'
-        );
-        expect(assistant).toContain(
+        expect(assistant).not.toContain(
           "<AssistantCommandBar />"
         );
         expect(assistant).not.toContain(
