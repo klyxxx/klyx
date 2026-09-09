@@ -8,23 +8,28 @@ function read(relativePath: string) {
 }
 
 const commandBar = read("app/components/AssistantCommandBar.tsx");
+const composer = read("app/components/assistant/AssistantComposer.tsx");
 const securityHeaders = read("lib/security-headers.ts");
-const voiceBlock = commandBar.slice(
-  commandBar.indexOf("function toggleVoice()"),
-  commandBar.indexOf("\n  return (", commandBar.indexOf("function toggleVoice()"))
+const voiceBlock = composer.slice(
+  composer.indexOf("function toggleVoice()"),
+  composer.indexOf("\n  return (", composer.indexOf("function toggleVoice()"))
 );
 
 describe("KLYX assistant browser voice input", () => {
-  it("keeps Web Speech progressive and never invents browser support", () => {
-    expect(commandBar).toContain("SpeechRecognition");
-    expect(commandBar).toContain("webkitSpeechRecognition");
-    expect(commandBar).toContain("getSpeechRecognitionConstructor()");
-    expect(commandBar).toContain("voiceSettings.unavailable");
-    expect(commandBar).not.toContain("(!voiceSupported && !listening)");
+  it("keeps the Phase B wrapper intact and owns voice in AssistantComposer", () => {
+    expect(commandBar).toContain(
+      'import AssistantThread from "@/app/components/assistant/AssistantThread"'
+    );
+    expect(commandBar).toContain("return <AssistantThread />");
+    expect(commandBar).not.toContain("SpeechRecognition");
+    expect(composer).toContain("SpeechRecognition");
+    expect(composer).toContain("webkitSpeechRecognition");
+    expect(composer).toContain("speechRecognitionConstructor()");
+    expect(composer).toContain("voice.unavailable");
   });
 
   it("uses a real recognition lifecycle and guards concurrent starts", () => {
-    expect(commandBar).toContain('useRef<VoicePhase>("idle")');
+    expect(composer).toContain('useRef<VoicePhase>("idle")');
     expect(voiceBlock).toContain('voicePhaseRef.current === "starting"');
     expect(voiceBlock).toContain('voicePhaseRef.current === "stopping"');
     expect(voiceBlock).toContain("recognition.onstart");
@@ -42,17 +47,25 @@ describe("KLYX assistant browser voice input", () => {
     expect(voiceBlock).toContain('case "service-not-allowed"');
     expect(voiceBlock).toContain('case "audio-capture"');
     expect(voiceBlock).toContain('case "no-speech"');
-    expect(voiceBlock).toContain("setValue((current) =>");
+    expect(voiceBlock).toContain("onChange(nextValue.slice");
     expect(voiceBlock).toContain("transcript");
     expect(voiceBlock).toContain("KLYX_ASSISTANT_MESSAGE_MAX_LENGTH");
     expect(voiceBlock).not.toContain("fetch(");
   });
 
   it("keeps the four published speech locales exact", () => {
-    expect(commandBar).toContain('speechLocale: "fr-BE"');
-    expect(commandBar).toContain('speechLocale: "en-GB"');
-    expect(commandBar).toContain('speechLocale: "nl-BE"');
-    expect(commandBar).toContain('speechLocale: "de-DE"');
+    expect(composer).toContain('speechLocale: "fr-BE"');
+    expect(composer).toContain('speechLocale: "en-GB"');
+    expect(composer).toContain('speechLocale: "nl-BE"');
+    expect(composer).toContain('speechLocale: "de-DE"');
+  });
+
+  it("keeps unsupported browsers explicit instead of simulating voice support", () => {
+    expect(voiceBlock).toContain("if (!Recognition)");
+    expect(voiceBlock).toContain("setVoiceSupported(false)");
+    expect(voiceBlock).toContain("onError(voice.unavailable)");
+    expect(composer).not.toContain("SpeechRecognition =");
+    expect(composer).not.toContain("webkitSpeechRecognition =");
   });
 
   it("keeps microphone permission delegated to KLYX itself without a transcription vendor", () => {
