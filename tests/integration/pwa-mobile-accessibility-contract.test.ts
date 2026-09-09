@@ -62,7 +62,10 @@ describe("KLYX PWA and mobile accessibility contract", () => {
     expect(offlineContent).not.toContain("supabase");
     expect(offlineContent).not.toContain("stripe");
 
-    expect(offlineRetry).toContain('window.location.href = "/"');
+    expect(offlineRetry).toContain('import { useRouter } from "next/navigation"');
+    expect(offlineRetry).toContain("const router = useRouter()");
+    expect(offlineRetry).toContain('router.push("/")');
+    expect(offlineRetry).not.toContain("window.location.href");
     expect(offlineRetry).toContain('window.addEventListener("online", handleOnline)');
     expect(offlineRetry).toContain('window.addEventListener("offline", handleOffline)');
   });
