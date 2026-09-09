@@ -3,6 +3,11 @@ import Stripe from "stripe";
 
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import {
+  claimStripeWebhookEvent,
+  markStripeWebhookFailed,
+  markStripeWebhookProcessed,
+} from "@/lib/stripe-webhook-events";
 
 function getStripeConnectWebhookConfig() {
   const stripeSecretKey =
@@ -42,7 +47,15 @@ function getStripeConnectWebhookConfig() {
   };
 }
 
-async function updateConnectedAccount(account: Stripe.Account) {
+async function updateConnectedAccount(
+  stripe: Stripe,
+  signedAccount: Stripe.Account
+) {
+  // The signed event authenticates the account identity, but its mutable
+  // readiness flags can be stale if account.updated is replayed or delivered
+  // out of order. Re-read Stripe's current account state before mutating KLYX.
+  const account = await stripe.accounts.retrieve(signedAccount.id);
+
   const { error } = await supabaseAdmin
     .from("profiles")
     .update({
@@ -55,6 +68,19 @@ async function updateConnectedAccount(account: Stripe.Account) {
   if (error) {
     throw new Error(error.message);
   }
+}
+
+function supersededClaimResponse(event: Stripe.Event) {
+  return NextResponse.json(
+    {
+      received: true,
+      duplicate: true,
+      reason: "claim_superseded",
+      eventId: event.id,
+      eventType: event.type,
+    },
+    { status: 200 }
+  );
 }
 
 export async function POST(request: Request) {
@@ -110,17 +136,68 @@ export async function POST(request: Request) {
     });
   }
 
+  let claimed = false;
+  let claimAttemptCount: number | null = null;
+
   try {
+    const claim = await claimStripeWebhookEvent(event);
+
+    if (!claim.shouldProcess) {
+      return NextResponse.json(
+        {
+          received: true,
+          duplicate: true,
+          reason: claim.reason,
+          eventId: event.id,
+          eventType: event.type,
+        },
+        { status: 200 }
+      );
+    }
+
+    if (claim.attemptCount === null) {
+      throw new Error("Stripe Connect webhook claim attempt missing.");
+    }
+
+    const attemptCount = claim.attemptCount;
+    claimed = true;
+    claimAttemptCount = attemptCount;
+
     if (event.type === "account.updated") {
-      await updateConnectedAccount(event.data.object as Stripe.Account);
+      await updateConnectedAccount(
+        stripe,
+        event.data.object as Stripe.Account
+      );
+    }
+
+    const finalized = await markStripeWebhookProcessed(
+      event.id,
+      attemptCount
+    );
+
+    if (!finalized) {
+      return supersededClaimResponse(event);
     }
 
     return NextResponse.json({
       received: true,
+      duplicate: false,
       eventId: event.id,
       eventType: event.type,
     });
   } catch (error) {
+    if (claimed && claimAttemptCount !== null) {
+      const failureMarkResult = await markStripeWebhookFailed(
+        event.id,
+        claimAttemptCount,
+        "stripe_connect_webhook_processing_failed"
+      );
+
+      if (failureMarkResult === "superseded") {
+        return supersededClaimResponse(event);
+      }
+    }
+
     return secureApiErrorResponse({
       error,
       event: "stripe_connect_webhook_processing_failed",
