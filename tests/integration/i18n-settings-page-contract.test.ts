@@ -44,7 +44,8 @@ describe("KLYX settings container i18n contract", () => {
     expect(source).toContain('href="/profile"');
     expect(source).toContain("supabase.auth.updateUser({");
     expect(source).toContain("email: newEmail.trim().toLowerCase()");
-    expect(source).toContain("password: newPassword");
+    expect(source).toContain("supabase.auth.resetPasswordForEmail(");
+    expect(source).not.toContain("password: newPassword");
     expect(source).toContain("await supabase.auth.signOut()");
     expect(source).toContain("setTheme(value)");
     expect(source).toContain("KLYX_LANGUAGE_OPTIONS");
@@ -77,7 +78,7 @@ describe("KLYX settings container i18n contract", () => {
     expect(source).not.toContain("error instanceof Error");
     expect(source).not.toContain("error.message");
     expect(source).toContain('failure("emailUpdateFailed")');
-    expect(source).toContain('failure("passwordUpdateFailed")');
+    expect(source).toContain('failure("passwordResetFailed")');
     expect(source).toContain('failure("deleteFailed")');
   });
 });

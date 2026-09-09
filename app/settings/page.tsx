@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -18,6 +18,10 @@ import {
   Trash2,
 } from "lucide-react";
 
+import AuthTurnstile, {
+  AUTH_TURNSTILE_ENABLED,
+  type AuthTurnstileHandle,
+} from "@/app/components/AuthTurnstile";
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import KlyxSelect from "@/app/components/KlyxSelect";
 import { useTheme } from "@/app/components/ThemeProvider";
@@ -59,6 +63,7 @@ export default function SettingsPage() {
   const { locale, setLocale } = useKlyxLocale();
   const t = (key: KlyxSettingsPageMessageKey) =>
     translateKlyxSettingsPage(locale, key);
+  const passwordCaptchaRef = useRef<AuthTurnstileHandle | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [savingEmail, setSavingEmail] = useState(false);
@@ -73,8 +78,7 @@ export default function SettingsPage() {
   const [profileCount, setProfileCount] = useState(1);
   const [email, setEmail] = useState("");
   const [newEmail, setNewEmail] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordCaptchaToken, setPasswordCaptchaToken] = useState("");
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [messageKey, setMessageKey] =
     useState<KlyxSettingsPageMessageKey | null>(null);
@@ -186,35 +190,48 @@ export default function SettingsPage() {
     }
   }
 
-  async function updatePassword(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function resetPasswordCaptcha() {
+    passwordCaptchaRef.current?.reset();
+    setPasswordCaptchaToken("");
+  }
+
+  async function requestPasswordReset() {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      failure("passwordResetFailed");
+      return;
+    }
+
+    if (AUTH_TURNSTILE_ENABLED && !passwordCaptchaToken) {
+      failure("passwordResetCaptchaRequired");
+      return;
+    }
+
     setSavingPassword(true);
 
     try {
-      if (newPassword.length < 8) {
-        failure("passwordMin");
-        return;
-      }
-      if (newPassword !== confirmPassword) {
-        failure("passwordMismatch");
-        return;
-      }
-
       const supabase = createClient();
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
+      const { error } = await supabase.auth.resetPasswordForEmail(
+        normalizedEmail,
+        {
+          redirectTo: `${window.location.origin}/reset-password`,
+          captchaToken: AUTH_TURNSTILE_ENABLED
+            ? passwordCaptchaToken
+            : undefined,
+        }
+      );
 
       if (error) {
-        failure("passwordUpdateFailed");
+        failure("passwordResetFailed");
         return;
       }
-      setNewPassword("");
-      setConfirmPassword("");
-      success("passwordChanged");
+
+      success("passwordResetSent");
     } catch {
-      failure("passwordUpdateFailed");
+      failure("passwordResetFailed");
     } finally {
+      resetPasswordCaptcha();
       setSavingPassword(false);
     }
   }
@@ -435,24 +452,25 @@ export default function SettingsPage() {
                 <Button loading={savingEmail}>{t("updateEmail")}</Button>
               </form>
 
-              <form
-                onSubmit={updatePassword}
-                className="space-y-4 border-t border-border pt-6"
-              >
-                <Input
-                  label={t("newPassword")}
-                  type="password"
-                  value={newPassword}
-                  onChange={setNewPassword}
+              {/* KLYX_SETTINGS_PASSWORD_RECOVERY_20260909 */}
+              <div className="space-y-4 border-t border-border pt-6">
+                <AuthTurnstile
+                  ref={passwordCaptchaRef}
+                  action="password-reset"
+                  onTokenChange={setPasswordCaptchaToken}
                 />
-                <Input
-                  label={t("confirmPassword")}
-                  type="password"
-                  value={confirmPassword}
-                  onChange={setConfirmPassword}
-                />
-                <Button loading={savingPassword}>{t("updatePassword")}</Button>
-              </form>
+                <button
+                  type="button"
+                  onClick={() => void requestPasswordReset()}
+                  disabled={savingPassword}
+                  className="inline-flex min-h-12 items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-500 disabled:opacity-60"
+                >
+                  {savingPassword && (
+                    <LoaderCircle className="animate-spin" size={17} />
+                  )}
+                  {t("updatePassword")}
+                </button>
+              </div>
             </div>
           </SettingsDisclosure>
 
