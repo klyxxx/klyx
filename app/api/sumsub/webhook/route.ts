@@ -9,6 +9,11 @@ import {
   hashWebhookPayload,
   verifySumsubWebhook,
 } from "@/lib/sumsub";
+import {
+  claimSumsubWebhookEvent,
+  markSumsubWebhookFailed,
+  markSumsubWebhookProcessed,
+} from "@/lib/sumsub-webhook-events";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 type SumsubWebhook = {
@@ -95,31 +100,6 @@ function isProductionRuntime(): boolean {
   return runtime === "production";
 }
 
-async function markEventProcessed(
-  eventHash: string,
-  now: string
-): Promise<void> {
-  const {
-    error: eventUpdateError,
-  } = await supabaseAdmin
-    .from("sumsub_webhook_events")
-    .update({
-      processed: true,
-      processed_at: now,
-      last_error: null,
-    })
-    .eq(
-      "event_hash",
-      eventHash
-    );
-
-  if (eventUpdateError) {
-    throw new Error(
-      eventUpdateError.message
-    );
-  }
-}
-
 export async function POST(
   request: Request
 ) {
@@ -182,39 +162,32 @@ export async function POST(
     );
   }
 
-  const {
-    error: insertEventError,
-  } = await supabaseAdmin
-    .from("sumsub_webhook_events")
-    .insert({
-      event_hash: eventHash,
-      event_type:
-        payload.type ?? null,
-      applicant_id:
-        payload.applicantId ?? null,
-      external_user_id:
-        payload.externalUserId ??
-        null,
-      review_status:
-        payload.reviewStatus ?? null,
-      review_answer:
-        payload.reviewResult
-          ?.reviewAnswer ?? null,
-      sandbox_mode:
-        payload.sandboxMode ?? null,
-      processed: false,
+  let claim: Awaited<
+    ReturnType<typeof claimSumsubWebhookEvent>
+  >;
+
+  try {
+    claim = await claimSumsubWebhookEvent({
+      eventHash,
+      metadata: {
+        eventType:
+          payload.type ?? null,
+        applicantId:
+          payload.applicantId ?? null,
+        externalUserId:
+          payload.externalUserId ?? null,
+        reviewStatus:
+          payload.reviewStatus ?? null,
+        reviewAnswer:
+          payload.reviewResult
+            ?.reviewAnswer ?? null,
+        sandboxMode:
+          payload.sandboxMode ?? null,
+      },
     });
-
-  const duplicateEvent =
-    insertEventError?.code === "23505";
-
-  if (
-    insertEventError &&
-    !duplicateEvent
-  ) {
+  } catch (error) {
     return secureApiErrorResponse({
-      error:
-        insertEventError,
+      error,
       event:
         "sumsub_webhook_claim_failed",
       route:
@@ -227,59 +200,42 @@ export async function POST(
     });
   }
 
-  if (duplicateEvent) {
-    const {
-      data: existingEvent,
-      error: existingEventError,
-    } = await supabaseAdmin
-      .from("sumsub_webhook_events")
-      .select("processed")
-      .eq(
-        "event_hash",
-        eventHash
-      )
-      .maybeSingle();
-
-    if (existingEventError) {
-      return secureApiErrorResponse({
-        error:
-          existingEventError,
-        event:
-          "sumsub_webhook_duplicate_lookup_failed",
-        route:
-          "/api/sumsub/webhook",
-        method: "POST",
-        code:
-          "sumsub_webhook_duplicate_lookup_failed",
-        status: 500,
-        startedAt,
-      });
-    }
-
-    if (existingEvent?.processed) {
-      return NextResponse.json({
-        received: true,
-        processed: true,
-        duplicate: true,
-      });
-    }
+  if (
+    !claim.shouldProcess ||
+    claim.attemptCount === null
+  ) {
+    return NextResponse.json({
+      received: true,
+      processed:
+        claim.reason ===
+        "already_processed",
+      duplicate: true,
+      ignored: claim.reason,
+    });
   }
+
+  const attemptCount =
+    claim.attemptCount;
+  const duplicateEvent =
+    claim.reason !== "new_event";
 
   try {
     const now =
       new Date().toISOString();
 
     if (payload.testMode === true) {
-      await markEventProcessed(
-        eventHash,
-        now
-      );
+      const processed =
+        await markSumsubWebhookProcessed(
+          eventHash,
+          attemptCount
+        );
 
       return NextResponse.json({
         received: true,
-        processed: true,
+        processed,
         duplicate: duplicateEvent,
         ignored: "test_mode",
+        superseded: !processed,
       });
     }
 
@@ -287,17 +243,19 @@ export async function POST(
       payload.sandboxMode === true &&
       isProductionRuntime()
     ) {
-      await markEventProcessed(
-        eventHash,
-        now
-      );
+      const processed =
+        await markSumsubWebhookProcessed(
+          eventHash,
+          attemptCount
+        );
 
       return NextResponse.json({
         received: true,
-        processed: true,
+        processed,
         duplicate: duplicateEvent,
         ignored:
           "sandbox_in_production",
+        superseded: !processed,
       });
     }
 
@@ -472,28 +430,24 @@ export async function POST(
       }
     }
 
-    await markEventProcessed(
-      eventHash,
-      now
-    );
+    const processed =
+      await markSumsubWebhookProcessed(
+        eventHash,
+        attemptCount
+      );
 
     return NextResponse.json({
       received: true,
-      processed: true,
+      processed,
       duplicate: duplicateEvent,
+      superseded: !processed,
     });
   } catch (error) {
-    await supabaseAdmin
-      .from("sumsub_webhook_events")
-      .update({
-        processed: false,
-        last_error:
-          "sumsub_webhook_processing_failed",
-      })
-      .eq(
-        "event_hash",
-        eventHash
-      );
+    await markSumsubWebhookFailed(
+      eventHash,
+      attemptCount,
+      "sumsub_webhook_processing_failed"
+    );
 
     return secureApiErrorResponse({
       error,
