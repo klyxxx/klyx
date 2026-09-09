@@ -141,15 +141,15 @@ test.describe("KLYX assistant voice input", () => {
       };
     });
 
-    const textarea = page.locator("textarea").first();
-    const voiceButton = page.locator('button[aria-pressed]').first();
+    const textarea = page.locator("form textarea").first();
+    const voiceButton = page.locator('form button[aria-pressed]').first();
     await expect(textarea).toBeVisible();
     await expect(voiceButton).toBeEnabled();
     await textarea.fill("J’ai déjà");
 
     await page.evaluate(() => {
       const button = document.querySelector<HTMLButtonElement>(
-        'button[aria-pressed]'
+        'form button[aria-pressed]'
       );
       if (!button) throw new Error("Voice button missing");
       button.click();
@@ -217,7 +217,9 @@ test.describe("KLYX assistant voice input", () => {
         }
       ).__klyxVoiceMock?.emitError("not-allowed")
     );
-    await expect(page.getByRole("alert")).toContainText(/microphone/i);
+    await expect(page.getByRole("alert")).toContainText(
+      /microphone|microfoon|mikrofon/i
+    );
 
     await page.evaluate(() =>
       (
