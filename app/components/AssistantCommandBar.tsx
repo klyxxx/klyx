@@ -86,6 +86,10 @@ type SpeechRecognitionEventLike = {
   };
 };
 
+type SpeechRecognitionErrorEventLike = {
+  error?: string;
+};
+
 type SpeechRecognitionLike = {
   lang: string;
   interimResults: boolean;
@@ -93,18 +97,24 @@ type SpeechRecognitionLike = {
   start: () => void;
   stop: () => void;
   abort: () => void;
+  onstart: (() => void) | null;
   onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
   onend: (() => void) | null;
 };
 
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+type VoicePhase = "idle" | "starting" | "listening" | "stopping";
 
 type VoiceSettings = {
   voice: string;
   stop: string;
   unavailable: string;
   failed: string;
+  permissionDenied: string;
+  noMicrophone: string;
+  noSpeech: string;
+  secureContextRequired: string;
   speechLocale: string;
 };
 
@@ -125,6 +135,10 @@ function getVoiceSettings(locale: string): VoiceSettings {
       stop: "Stop",
       unavailable: "Voice input is not supported by this browser.",
       failed: "Voice input is unavailable right now.",
+      permissionDenied: "Allow microphone access to use voice input.",
+      noMicrophone: "No usable microphone was detected.",
+      noSpeech: "No speech was detected. Try again.",
+      secureContextRequired: "Voice input requires a secure HTTPS connection.",
       speechLocale: "en-GB",
     };
   }
@@ -135,6 +149,10 @@ function getVoiceSettings(locale: string): VoiceSettings {
       stop: "Stoppen",
       unavailable: "Spraakinvoer wordt niet ondersteund door deze browser.",
       failed: "Spraakinvoer is momenteel niet beschikbaar.",
+      permissionDenied: "Sta microfoontoegang toe om spraakinvoer te gebruiken.",
+      noMicrophone: "Er is geen bruikbare microfoon gedetecteerd.",
+      noSpeech: "Er werd geen spraak gedetecteerd. Probeer opnieuw.",
+      secureContextRequired: "Spraakinvoer vereist een beveiligde HTTPS-verbinding.",
       speechLocale: "nl-BE",
     };
   }
@@ -145,6 +163,10 @@ function getVoiceSettings(locale: string): VoiceSettings {
       stop: "Stoppen",
       unavailable: "Spracheingabe wird von diesem Browser nicht unterstützt.",
       failed: "Spracheingabe ist derzeit nicht verfügbar.",
+      permissionDenied: "Erlauben Sie den Mikrofonzugriff für die Spracheingabe.",
+      noMicrophone: "Es wurde kein nutzbares Mikrofon erkannt.",
+      noSpeech: "Es wurde keine Sprache erkannt. Versuchen Sie es erneut.",
+      secureContextRequired: "Spracheingabe erfordert eine sichere HTTPS-Verbindung.",
       speechLocale: "de-DE",
     };
   }
@@ -154,6 +176,10 @@ function getVoiceSettings(locale: string): VoiceSettings {
     stop: "Arrêter",
     unavailable: "La saisie vocale n’est pas prise en charge par ce navigateur.",
     failed: "Impossible d’utiliser la saisie vocale pour le moment.",
+    permissionDenied: "Autorisez l’accès au microphone pour utiliser la saisie vocale.",
+    noMicrophone: "Aucun microphone utilisable n’a été détecté.",
+    noSpeech: "Aucune parole n’a été détectée. Réessayez.",
+    secureContextRequired: "La saisie vocale nécessite une connexion HTTPS sécurisée.",
     speechLocale: "fr-BE",
   };
 }
@@ -276,12 +302,15 @@ export default function AssistantCommandBar(_props: Props) {
   const quickServices = getQuickServices(locale);
 
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const voicePhaseRef = useRef<VoicePhase>("idle");
+  const voiceStopRequestedRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [listening, setListening] = useState(false);
-  const [voiceSupported, setVoiceSupported] = useState(false);
+  const [voiceStarting, setVoiceStarting] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState<boolean | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
@@ -292,8 +321,16 @@ export default function AssistantCommandBar(_props: Props) {
     setVoiceSupported(Boolean(getSpeechRecognitionConstructor()));
 
     return () => {
-      recognitionRef.current?.abort();
+      const recognition = recognitionRef.current;
       recognitionRef.current = null;
+      voiceStopRequestedRef.current = true;
+      voicePhaseRef.current = "stopping";
+
+      try {
+        recognition?.abort();
+      } catch {
+        // The browser can already have closed the recognition session.
+      }
     };
   }, []);
 
@@ -526,8 +563,49 @@ export default function AssistantCommandBar(_props: Props) {
   }
 
   function toggleVoice() {
-    if (listening) {
-      recognitionRef.current?.stop();
+    if (
+      voicePhaseRef.current === "starting" ||
+      voicePhaseRef.current === "stopping"
+    ) {
+      return;
+    }
+
+    if (voicePhaseRef.current === "listening") {
+      const recognition = recognitionRef.current;
+      if (!recognition) {
+        voicePhaseRef.current = "idle";
+        voiceStopRequestedRef.current = false;
+        setVoiceStarting(false);
+        setListening(false);
+        return;
+      }
+
+      voicePhaseRef.current = "stopping";
+      voiceStopRequestedRef.current = true;
+
+      try {
+        recognition.stop();
+      } catch {
+        try {
+          recognition.abort();
+        } catch {
+          // Nothing else to stop.
+        }
+
+        if (recognitionRef.current === recognition) {
+          recognitionRef.current = null;
+        }
+        voicePhaseRef.current = "idle";
+        voiceStopRequestedRef.current = false;
+        setVoiceStarting(false);
+        setListening(false);
+        setErrorMessage(voiceSettings.failed);
+      }
+      return;
+    }
+
+    if (typeof window === "undefined" || !window.isSecureContext) {
+      setErrorMessage(voiceSettings.secureContextRequired);
       return;
     }
 
@@ -538,13 +616,24 @@ export default function AssistantCommandBar(_props: Props) {
       return;
     }
 
+    setVoiceSupported(true);
+
     try {
       const recognition = new Recognition();
       recognition.lang = voiceSettings.speechLocale;
       recognition.interimResults = false;
       recognition.continuous = false;
 
+      recognition.onstart = () => {
+        if (recognitionRef.current !== recognition) return;
+        voicePhaseRef.current = "listening";
+        setVoiceStarting(false);
+        setListening(true);
+      };
+
       recognition.onresult = (event) => {
+        if (recognitionRef.current !== recognition) return;
+
         const transcript = event.results[0]?.[0]?.transcript?.trim();
         if (!transcript) return;
 
@@ -556,23 +645,58 @@ export default function AssistantCommandBar(_props: Props) {
           return nextValue.slice(0, KLYX_ASSISTANT_MESSAGE_MAX_LENGTH);
         });
         setErrorMessage("");
+        requestAnimationFrame(() => textareaRef.current?.focus());
       };
 
-      recognition.onerror = () => {
-        setErrorMessage(voiceSettings.failed);
+      recognition.onerror = (event) => {
+        if (recognitionRef.current !== recognition) return;
+
+        let message = voiceSettings.failed;
+        switch (event.error) {
+          case "not-allowed":
+          case "service-not-allowed":
+            message = voiceSettings.permissionDenied;
+            break;
+          case "audio-capture":
+            message = voiceSettings.noMicrophone;
+            break;
+          case "no-speech":
+            message = voiceSettings.noSpeech;
+            break;
+          case "aborted":
+            message = voiceStopRequestedRef.current ? "" : voiceSettings.failed;
+            break;
+          default:
+            message = voiceSettings.failed;
+        }
+
+        voicePhaseRef.current = "stopping";
+        setVoiceStarting(false);
+        setListening(false);
+        if (message) setErrorMessage(message);
       };
 
       recognition.onend = () => {
-        setListening(false);
+        if (recognitionRef.current !== recognition) return;
         recognitionRef.current = null;
+        voicePhaseRef.current = "idle";
+        voiceStopRequestedRef.current = false;
+        setVoiceStarting(false);
+        setListening(false);
       };
 
       recognitionRef.current = recognition;
+      voicePhaseRef.current = "starting";
+      voiceStopRequestedRef.current = false;
       setErrorMessage("");
-      setListening(true);
+      setVoiceStarting(true);
+      setListening(false);
       recognition.start();
     } catch {
       recognitionRef.current = null;
+      voicePhaseRef.current = "idle";
+      voiceStopRequestedRef.current = false;
+      setVoiceStarting(false);
       setListening(false);
       setErrorMessage(voiceSettings.failed);
     }
@@ -719,9 +843,12 @@ export default function AssistantCommandBar(_props: Props) {
               <button
                 type="button"
                 onClick={toggleVoice}
-                disabled={publishing || (!voiceSupported && !listening)}
+                disabled={publishing || voiceStarting}
                 aria-pressed={listening}
-                title={!voiceSupported ? voiceSettings.unavailable : undefined}
+                aria-busy={voiceStarting}
+                title={
+                  voiceSupported === false ? voiceSettings.unavailable : undefined
+                }
                 className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-45 ${
                   listening
                     ? "border-blue-600/25 bg-blue-600/10 text-blue-700 dark:text-blue-300"
