@@ -20,7 +20,8 @@ describe("KLYX provider Quotes destination UX", () => {
 
     expect(quotes).toContain("priorityQuote");
     expect(quotes).toContain("otherQuotes");
-    expect(quotes).toContain("<details");
+    expect(quotes).not.toContain("<details");
+    expect(quotes).toContain("divide-y divide-border border-y border-border");
     expect(quotes).toContain("data-quote-priority");
     expect(quotes).toContain('className="klyx-page"');
     expect(quotes).toContain("#2563EB");
