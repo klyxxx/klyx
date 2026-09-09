@@ -23,6 +23,7 @@ describe("KLYX profile page i18n contract", () => {
 
   it("preserves the existing profile read, save and avatar write boundaries", () => {
     const source = read("app/profile/page.tsx");
+    const rail = read("app/ui/MissionRail.tsx");
 
     expect(source).toContain('fetch("/api/profile/me", {');
     expect(source).toMatch(/fetch\("\/api\/profile\/me", \{[\s\S]*?method: "PATCH"/);
@@ -30,7 +31,8 @@ describe("KLYX profile page i18n contract", () => {
     expect(source).toMatch(/fetch\("\/api\/profile\/avatar", \{[\s\S]*?method: "POST"[\s\S]*?body: formData/);
     expect(source).toContain('["image/jpeg", "image/png", "image/webp"]');
     expect(source).toContain('file.size > 5 * 1024 * 1024');
-    expect(source).toContain('href="/provider"');
+    expect(source).not.toContain('href="/provider"');
+    expect(rail).toContain('href="/provider"');
     expect(source).toContain('KLYX_AI_FIRST_PROFILE_15_03');
   });
 
