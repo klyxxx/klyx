@@ -17,6 +17,14 @@ type KlyxTolgeeStaticCatalog = Readonly<Record<string, string>>;
 export const KLYX_TOLGEE_ONLY_UI_MESSAGE_KEYS = [
   "sidebar.desktopNavigation",
   "sidebar.mobileNavigation",
+  "assistant.voice.label",
+  "assistant.voice.stop",
+  "assistant.voice.unavailable",
+  "assistant.voice.failed",
+  "assistant.voice.permissionDenied",
+  "assistant.voice.noMicrophone",
+  "assistant.voice.noSpeech",
+  "assistant.voice.secureContextRequired",
 ] as const;
 
 export type KlyxTolgeeOnlyUiMessageKey =
