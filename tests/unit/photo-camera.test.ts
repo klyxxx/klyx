@@ -42,8 +42,9 @@ describe("photo camera lifecycle", () => {
     expect(stopAudio).toHaveBeenCalledOnce();
   });
 
-  it("captures one frame successfully", async () => {
+  it("captures one frame successfully and runs cleanup before JPEG encoding", async () => {
     const drawImage = vi.fn();
+    const afterFrameCaptured = vi.fn();
     const blob = new Blob(["frame"], { type: "image/jpeg" });
     const video = {
       videoWidth: 1280,
@@ -53,10 +54,15 @@ describe("photo camera lifecycle", () => {
       width: 0,
       height: 0,
       getContext: vi.fn(() => ({ drawImage })),
-      toBlob: vi.fn((callback: BlobCallback) => callback(blob)),
+      toBlob: vi.fn((callback: BlobCallback) => {
+        expect(afterFrameCaptured).toHaveBeenCalledOnce();
+        callback(blob);
+      }),
     } as unknown as HTMLCanvasElement;
 
-    await expect(captureVideoFrame(video, canvas)).resolves.toBe(blob);
+    await expect(
+      captureVideoFrame(video, canvas, afterFrameCaptured)
+    ).resolves.toBe(blob);
     expect(canvas.width).toBe(1280);
     expect(canvas.height).toBe(720);
     expect(drawImage).toHaveBeenCalledWith(video, 0, 0, 1280, 720);
