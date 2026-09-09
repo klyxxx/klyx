@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-
 import { describe, expect, it } from "vitest";
 
 const photoPage = fs.readFileSync(
@@ -14,8 +13,10 @@ describe("KLYX assistant photo rendering", () => {
     expect(photoPage).toContain('className="max-h-[420px] max-w-full rounded-[18px] object-contain"');
     expect(photoPage).toContain("{file?.name}");
     expect(photoPage).toContain("Remplacer");
+    expect(photoPage).toContain(
+      'className="overflow-hidden rounded-[22px] border border-border bg-muted/20 dark:border-white/10 dark:bg-white/[0.025]"'
+    );
     expect(photoPage).not.toContain('className="h-44 w-full object-contain"');
-    expect(photoPage).not.toContain('rounded-[22px] border border-border bg-black');
   });
 
   it("renders the submitted photo with the user message before the KLYX answer", () => {
