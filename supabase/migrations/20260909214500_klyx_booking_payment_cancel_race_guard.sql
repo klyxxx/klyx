@@ -2,16 +2,16 @@ begin;
 
 -- KLYX_BOOKING_PAYMENT_CANCEL_RACE_GUARD_17_01
 --
--- Individual booking payment claims and booking cancellation both mutate the
--- same bookings row. The payment claim already locks that row and transitions
--- payment_status to creating_checkout before Stripe session creation. Once a
--- checkout is being created or has been handed to the client, leaving the
--- accepted lifecycle would make that Stripe session payable for a booking that
--- KLYX considers cancelled/completed.
+-- Payment claim and booking lifecycle mutations serialize on the same bookings
+-- row. A fresh creating_checkout claim represents an in-flight Stripe side
+-- effect and an attached checkout_created session is already payable. Neither
+-- state may coexist with a lifecycle exit from accepted.
 --
--- Returning NULL from this BEFORE UPDATE trigger skips the competing lifecycle
--- mutation. PostgREST therefore returns no updated row and the existing booking
--- status API answers 409 instead of committing an impossible transition.
+-- A creating_checkout claim older than the claim lease is different: Stripe or
+-- the network may have failed before KLYX persisted a session. In that case we
+-- allow the lifecycle change, but atomically invalidate the attempt token. Any
+-- delayed checkout creator still holding that token can no longer attach its
+-- Stripe session and the existing route expires the unpersisted session.
 
 create or replace function public.klyx_guard_individual_booking_payment_cancel_race_17_01()
 returns trigger
@@ -19,11 +19,29 @@ language plpgsql
 set search_path = public
 as $$
 begin
-  if old.booking_group_id is null
-     and old.status = 'accepted'
-     and new.status is distinct from old.status
-     and coalesce(old.payment_status, '') in ('creating_checkout', 'checkout_created') then
+  if old.booking_group_id is not null
+     or old.status is distinct from 'accepted'
+     or new.status is not distinct from old.status then
+    return new;
+  end if;
+
+  if old.payment_status = 'checkout_created' then
     return null;
+  end if;
+
+  if old.payment_status = 'creating_checkout' then
+    if old.payment_checkout_started_at is not null
+       and old.payment_checkout_started_at > now() - interval '2 minutes' then
+      return null;
+    end if;
+
+    new.payment_status := 'failed';
+    new.payment_attempt_token := null;
+    new.payment_checkout_started_at := null;
+    new.payment_failure_code := 'checkout_claim_stale';
+    new.payment_failure_message :=
+      'La tentative de paiement a expire avant la creation de la session Stripe.';
+    new.payment_failed_at := now();
   end if;
 
   return new;
@@ -45,6 +63,6 @@ for each row
 execute function public.klyx_guard_individual_booking_payment_cancel_race_17_01();
 
 comment on function public.klyx_guard_individual_booking_payment_cancel_race_17_01() is
-  'KLYX 17.01: serializes individual booking lifecycle changes against creating/open Stripe checkout state so a payable session cannot outlive accepted booking status.';
+  'KLYX 17.01: prevents accepted lifecycle exit while an individual Stripe checkout is active and invalidates stale creating-checkout claims before allowing lifecycle changes.';
 
 commit;
