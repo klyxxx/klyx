@@ -42,11 +42,13 @@ async function openPhotoRequest(page: Page) {
 }
 
 async function addSyntheticPhoto(page: Page) {
-  await page.locator('input[type="file"]').setInputFiles({
-    name: "klyx-safe-visual-fixture.png",
-    mimeType: "image/png",
-    buffer: SYNTHETIC_PHOTO,
-  });
+  await page
+    .locator('input[type="file"][accept="image/jpeg,image/png,image/webp"]')
+    .setInputFiles({
+      name: "klyx-safe-visual-fixture.png",
+      mimeType: "image/png",
+      buffer: SYNTHETIC_PHOTO,
+    });
   await expect(page.getByAltText("Aperçu du problème")).toBeVisible();
   await page.getByLabel("Explique le besoin").fill(
     "Une fuite synthétique sous un évier pour vérifier seulement le rendu visuel KLYX."
