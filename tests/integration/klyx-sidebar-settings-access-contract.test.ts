@@ -8,6 +8,7 @@ function read(relativePath: string) {
 
 describe("KLYX frozen sidebar and settings access contract", () => {
   const sidebar = read("app/ui/AppSidebar.tsx");
+  const rail = read("app/ui/MissionRail.tsx");
   const profile = read("app/profile/page.tsx");
   const settings = read("app/settings/page.tsx");
 
@@ -28,10 +29,11 @@ describe("KLYX frozen sidebar and settings access contract", () => {
     expect(sidebar).not.toContain('href: "/settings"');
   });
 
-  it("exposes Settings through Profile instead of adding sidebar navigation", () => {
-    expect(profile).toContain("KLYX_PROFILE_SETTINGS_ENTRY");
-    expect(profile).toContain('href="/settings"');
-    expect(profile).toContain('t("settings")');
+  it("exposes Settings through MissionRail instead of duplicating Profile navigation", () => {
+    expect(profile).not.toContain('href="/settings"');
+    expect(profile).not.toContain('t("settings")');
+    expect(rail).toContain('href="/settings"');
+    expect(rail).toContain("{copy.settings}");
     expect(settings).toContain('href="/profile"');
   });
 

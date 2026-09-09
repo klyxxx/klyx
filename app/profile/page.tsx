@@ -11,12 +11,10 @@ import {
 import Link from "next/link";
 import {
   ArrowLeft,
-  BriefcaseBusiness,
   Camera,
   ChevronRight,
   LoaderCircle,
   Save,
-  Settings,
   UserRound,
 } from "lucide-react";
 
@@ -392,36 +390,6 @@ export default function ProfilePage() {
             </button>
           </form>
         )}
-
-        <div className="mt-5 overflow-hidden rounded-2xl border border-border bg-card">
-          {accountType === "provider" && (
-            <Link
-              href="/provider"
-              className="flex min-h-16 items-center justify-between gap-4 border-b border-border px-5 py-4 transition hover:bg-muted/55 sm:px-6"
-            >
-              <div className="flex min-w-0 items-center gap-4">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600/8 text-blue-600">
-                  <BriefcaseBusiness size={20} />
-                </span>
-                <p className="truncate font-semibold">{t("manageProviderProfile")}</p>
-              </div>
-              <ChevronRight size={20} className="shrink-0 text-blue-600" />
-            </Link>
-          )}
-
-          <Link
-            href="/settings"
-            className="flex min-h-16 items-center justify-between gap-4 px-5 py-4 transition hover:bg-muted/55 sm:px-6"
-          >
-            <div className="flex min-w-0 items-center gap-4">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600/8 text-blue-600">
-                <Settings size={20} />
-              </span>
-              <p className="truncate font-semibold">{t("settings")}</p>
-            </div>
-            <ChevronRight size={20} className="shrink-0 text-blue-600" />
-          </Link>
-        </div>
       </div>
     </main>
   );
