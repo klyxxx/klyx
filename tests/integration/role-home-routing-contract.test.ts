@@ -53,14 +53,9 @@ describe("KLYX canonical role home routing", () => {
     expect(dashboard).not.toContain("<main");
   });
 
-  it("exposes profile switching from Profil without adding a client primary navigation item", () => {
-    expect(profileLayout).toContain(
-      'import AccountSwitcher from "@/app/components/AccountSwitcher";'
-    );
-    expect(profileLayout).toContain("const profile = await getActiveProfile();");
-    expect(profileLayout).toContain(
-      "<AccountSwitcher currentProfileId={profile.id} />"
-    );
+  it("does not duplicate the account switcher inside profile content", () => {
+    expect(profileLayout).not.toContain("AccountSwitcher");
+    expect(profileLayout).not.toContain("getActiveProfile");
   });
 
   it("returns from Profil directly to the active role home", () => {
