@@ -134,8 +134,9 @@ test.describe("KLYX Assistant Phase B D01-D03", () => {
     await expect(thread).toHaveAttribute("data-state", "typing");
     await input.press("Enter");
 
+    const conversation = thread.getByLabel("Conversation KLYX");
     await expect(thread.getByText("J’ai besoin d’un ménage demain", { exact: true })).toBeVisible();
-    await expect(thread.getByText(/Dans quelle ville ou commune \?/)).toBeVisible();
+    await expect(conversation.getByText(/Dans quelle ville ou commune \?/)).toBeVisible();
     await expect(thread).toHaveAttribute("data-state", "clarification_needed");
     await expect(page).toHaveURL(new RegExp(`conversation=${conversationId}`));
     await expect(thread.getByText(/50\s*%/)).toHaveCount(0);
@@ -145,7 +146,7 @@ test.describe("KLYX Assistant Phase B D01-D03", () => {
     await followUp.fill("Bruxelles");
     await followUp.press("Enter");
 
-    await expect(thread.getByText(/À quel moment souhaitez-vous la prestation \?/)).toBeVisible();
+    await expect(conversation.getByText(/À quel moment souhaitez-vous la prestation \?/)).toBeVisible();
     await expect(thread.getByRole("button", { name: "L’après-midi" })).toBeVisible();
     await thread.getByRole("button", { name: "L’après-midi" }).click();
 
