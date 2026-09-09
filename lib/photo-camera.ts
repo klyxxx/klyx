@@ -5,6 +5,15 @@ export class CameraUnavailableError extends Error {
   }
 }
 
+export function isCameraPermissionDenied(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    error.name === "NotAllowedError"
+  );
+}
+
 export async function requestEnvironmentCamera(
   mediaDevices?: Pick<MediaDevices, "getUserMedia">
 ): Promise<MediaStream> {
