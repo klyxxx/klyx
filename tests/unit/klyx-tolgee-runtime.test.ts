@@ -64,6 +64,67 @@ const EXPECTED_NAVIGATION_LABELS = {
   { desktopNavigation: string; mobileNavigation: string }
 >;
 
+const EXPECTED_VOICE_COPY = {
+  fr: {
+    "assistant.voice.label": "Voix",
+    "assistant.voice.stop": "Arrêter la saisie vocale",
+    "assistant.voice.unavailable":
+      "La saisie vocale n’est pas prise en charge par ce navigateur.",
+    "assistant.voice.failed":
+      "Impossible d’utiliser la saisie vocale pour le moment.",
+    "assistant.voice.permissionDenied":
+      "Autorisez l’accès au microphone pour utiliser la saisie vocale.",
+    "assistant.voice.noMicrophone":
+      "Aucun microphone utilisable n’a été détecté.",
+    "assistant.voice.noSpeech": "Aucune parole n’a été détectée. Réessayez.",
+    "assistant.voice.secureContextRequired":
+      "La saisie vocale nécessite une connexion HTTPS sécurisée.",
+  },
+  en: {
+    "assistant.voice.label": "Voice",
+    "assistant.voice.stop": "Stop voice input",
+    "assistant.voice.unavailable":
+      "Voice input is not supported by this browser.",
+    "assistant.voice.failed": "Voice input is unavailable right now.",
+    "assistant.voice.permissionDenied":
+      "Allow microphone access to use voice input.",
+    "assistant.voice.noMicrophone": "No usable microphone was detected.",
+    "assistant.voice.noSpeech": "No speech was detected. Try again.",
+    "assistant.voice.secureContextRequired":
+      "Voice input requires a secure HTTPS connection.",
+  },
+  nl: {
+    "assistant.voice.label": "Spraak",
+    "assistant.voice.stop": "Spraakinvoer stoppen",
+    "assistant.voice.unavailable":
+      "Spraakinvoer wordt niet ondersteund door deze browser.",
+    "assistant.voice.failed": "Spraakinvoer is momenteel niet beschikbaar.",
+    "assistant.voice.permissionDenied":
+      "Sta microfoontoegang toe om spraakinvoer te gebruiken.",
+    "assistant.voice.noMicrophone":
+      "Er is geen bruikbare microfoon gedetecteerd.",
+    "assistant.voice.noSpeech":
+      "Er werd geen spraak gedetecteerd. Probeer opnieuw.",
+    "assistant.voice.secureContextRequired":
+      "Spraakinvoer vereist een beveiligde HTTPS-verbinding.",
+  },
+  de: {
+    "assistant.voice.label": "Sprache",
+    "assistant.voice.stop": "Spracheingabe stoppen",
+    "assistant.voice.unavailable":
+      "Spracheingabe wird von diesem Browser nicht unterstützt.",
+    "assistant.voice.failed": "Spracheingabe ist derzeit nicht verfügbar.",
+    "assistant.voice.permissionDenied":
+      "Erlauben Sie den Mikrofonzugriff für die Spracheingabe.",
+    "assistant.voice.noMicrophone":
+      "Es wurde kein nutzbares Mikrofon erkannt.",
+    "assistant.voice.noSpeech":
+      "Es wurde keine Sprache erkannt. Versuchen Sie es erneut.",
+    "assistant.voice.secureContextRequired":
+      "Spracheingabe erfordert eine sichere HTTPS-Verbindung.",
+  },
+} satisfies Record<KlyxSelectableLocale, Record<string, string>>;
+
 const EXPECTED_APP_SIDEBAR_NAVIGATION = {
   fr: {
     "Mon activité": "Mon activité",
@@ -129,28 +190,44 @@ describe("KLYX Tolgee runtime bridge", () => {
     }
   });
 
-  it("serves migrated sidebar navigation labels only from committed Tolgee catalogs", () => {
+  it("serves migrated sidebar and assistant voice copy only from committed Tolgee catalogs", () => {
     expect(KLYX_TOLGEE_ONLY_UI_MESSAGE_KEYS).toEqual([
       "sidebar.desktopNavigation",
       "sidebar.mobileNavigation",
+      "assistant.voice.label",
+      "assistant.voice.stop",
+      "assistant.voice.unavailable",
+      "assistant.voice.failed",
+      "assistant.voice.permissionDenied",
+      "assistant.voice.noMicrophone",
+      "assistant.voice.noSpeech",
+      "assistant.voice.secureContextRequired",
     ]);
 
     for (const locale of KLYX_TOLGEE_PUBLISHED_LOCALES) {
       const publishedLocale = locale as KlyxSelectableLocale;
-      const expected = EXPECTED_NAVIGATION_LABELS[publishedLocale];
+      const expectedNavigation = EXPECTED_NAVIGATION_LABELS[publishedLocale];
+      const expectedVoice = EXPECTED_VOICE_COPY[publishedLocale];
 
       expect(
         SOURCE_CATALOGS[publishedLocale]["ui.sidebar.desktopNavigation"]
-      ).toBe(expected.desktopNavigation);
+      ).toBe(expectedNavigation.desktopNavigation);
       expect(
         SOURCE_CATALOGS[publishedLocale]["ui.sidebar.mobileNavigation"]
-      ).toBe(expected.mobileNavigation);
+      ).toBe(expectedNavigation.mobileNavigation);
       expect(
         translateKlyxTolgeeRuntimeUi(locale, "sidebar.desktopNavigation")
-      ).toBe(expected.desktopNavigation);
+      ).toBe(expectedNavigation.desktopNavigation);
       expect(
         translateKlyxTolgeeRuntimeUi(locale, "sidebar.mobileNavigation")
-      ).toBe(expected.mobileNavigation);
+      ).toBe(expectedNavigation.mobileNavigation);
+
+      for (const [key, expected] of Object.entries(expectedVoice)) {
+        expect(SOURCE_CATALOGS[publishedLocale][`ui.${key}`]).toBe(expected);
+        expect(
+          translateKlyxTolgeeRuntimeUi(locale, key as KlyxTolgeeUiMessageKey)
+        ).toBe(expected);
+      }
     }
 
     expect(
@@ -159,6 +236,9 @@ describe("KLYX Tolgee runtime bridge", () => {
     expect(
       translateKlyxTolgeeRuntimeUi("es", "sidebar.mobileNavigation")
     ).toBe("Navigation mobile KLYX");
+    expect(translateKlyxTolgeeRuntimeUi("es", "assistant.voice.label")).toBe(
+      "Voix"
+    );
   });
 
   it("serves AppSidebar business navigation from published Tolgee catalogs", () => {
@@ -219,13 +299,20 @@ describe("KLYX Tolgee runtime bridge", () => {
     );
   });
 
-  it("wires KlyxLocaleProvider and AppSidebar through the static Tolgee bridge", () => {
+  it("wires KlyxLocaleProvider, AppSidebar and AssistantComposer through the static Tolgee bridge", () => {
     const providerSource = readFileSync(
       path.resolve(process.cwd(), "app/components/KlyxLocaleProvider.tsx"),
       "utf8"
     );
     const sidebarSource = readFileSync(
       path.resolve(process.cwd(), "app/ui/AppSidebar.tsx"),
+      "utf8"
+    );
+    const composerSource = readFileSync(
+      path.resolve(
+        process.cwd(),
+        "app/components/assistant/AssistantComposer.tsx"
+      ),
       "utf8"
     );
     const runtimeSource = readFileSync(
@@ -253,6 +340,13 @@ describe("KLYX Tolgee runtime bridge", () => {
     expect(sidebarSource).not.toContain("klyx-sidebar-navigation-i18n");
     expect(sidebarSource).not.toContain("translateKlyxNavigationLabel");
     expect(sidebarSource).toContain("translateKlyxProviderAssistant");
+
+    expect(composerSource).toContain("translateKlyxTolgeeRuntimeUi");
+    expect(composerSource).toContain('"assistant.voice.label"');
+    expect(composerSource).toContain('"assistant.voice.unavailable"');
+    expect(composerSource).not.toContain(
+      'unavailable: "Voice input is not supported by this browser."'
+    );
 
     expect(runtimeSource).toContain("translateKlyxUi(locale, key)");
     expect(runtimeSource).toContain("translateKlyxNavigationLabel(locale, frenchLabel)");

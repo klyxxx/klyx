@@ -15,6 +15,11 @@ import {
 } from "react";
 
 import { KLYX_ASSISTANT_MESSAGE_MAX_LENGTH } from "@/lib/klyx-assistant-message-limits";
+import {
+  getKlyxLocaleMetadata,
+  type KlyxLocale,
+} from "@/lib/klyx-i18n";
+import { translateKlyxTolgeeRuntimeUi } from "@/lib/klyx-tolgee-runtime";
 
 type SpeechRecognitionEventLike = {
   results: {
@@ -46,6 +51,15 @@ type SpeechRecognitionLike = {
 type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
 type VoicePhase = "idle" | "starting" | "listening" | "stopping";
 
+const KLYX_VOICE_SPEECH_LOCALE_OVERRIDES: Partial<
+  Record<KlyxLocale, string>
+> = {
+  fr: "fr-BE",
+  en: "en-GB",
+  nl: "nl-BE",
+  de: "de-DE",
+};
+
 function speechRecognitionConstructor(): SpeechRecognitionConstructor | null {
   if (typeof window === "undefined") return null;
 
@@ -57,59 +71,39 @@ function speechRecognitionConstructor(): SpeechRecognitionConstructor | null {
   return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition ?? null;
 }
 
-function voiceCopy(locale: string) {
-  if (locale === "en") {
-    return {
-      voice: "Voice",
-      stop: "Stop voice input",
-      unavailable: "Voice input is not supported by this browser.",
-      failed: "Voice input is unavailable right now.",
-      permissionDenied: "Allow microphone access to use voice input.",
-      noMicrophone: "No usable microphone was detected.",
-      noSpeech: "No speech was detected. Try again.",
-      secureContextRequired: "Voice input requires a secure HTTPS connection.",
-      speechLocale: "en-GB",
-    };
-  }
+function speechLocaleForKlyxLocale(locale: KlyxLocale) {
+  return (
+    KLYX_VOICE_SPEECH_LOCALE_OVERRIDES[locale] ??
+    getKlyxLocaleMetadata(locale).htmlLang
+  );
+}
 
-  if (locale === "nl") {
-    return {
-      voice: "Spraak",
-      stop: "Spraakinvoer stoppen",
-      unavailable: "Spraakinvoer wordt niet ondersteund door deze browser.",
-      failed: "Spraakinvoer is momenteel niet beschikbaar.",
-      permissionDenied: "Sta microfoontoegang toe om spraakinvoer te gebruiken.",
-      noMicrophone: "Er is geen bruikbare microfoon gedetecteerd.",
-      noSpeech: "Er werd geen spraak gedetecteerd. Probeer opnieuw.",
-      secureContextRequired: "Spraakinvoer vereist een beveiligde HTTPS-verbinding.",
-      speechLocale: "nl-BE",
-    };
-  }
-
-  if (locale === "de") {
-    return {
-      voice: "Sprache",
-      stop: "Spracheingabe stoppen",
-      unavailable: "Spracheingabe wird von diesem Browser nicht unterstützt.",
-      failed: "Spracheingabe ist derzeit nicht verfügbar.",
-      permissionDenied: "Erlauben Sie den Mikrofonzugriff für die Spracheingabe.",
-      noMicrophone: "Es wurde kein nutzbares Mikrofon erkannt.",
-      noSpeech: "Es wurde keine Sprache erkannt. Versuchen Sie es erneut.",
-      secureContextRequired: "Spracheingabe erfordert eine sichere HTTPS-Verbindung.",
-      speechLocale: "de-DE",
-    };
-  }
-
+function voiceCopy(locale: KlyxLocale) {
   return {
-    voice: "Voix",
-    stop: "Arrêter la saisie vocale",
-    unavailable: "La saisie vocale n’est pas prise en charge par ce navigateur.",
-    failed: "Impossible d’utiliser la saisie vocale pour le moment.",
-    permissionDenied: "Autorisez l’accès au microphone pour utiliser la saisie vocale.",
-    noMicrophone: "Aucun microphone utilisable n’a été détecté.",
-    noSpeech: "Aucune parole n’a été détectée. Réessayez.",
-    secureContextRequired: "La saisie vocale nécessite une connexion HTTPS sécurisée.",
-    speechLocale: "fr-BE",
+    voice: translateKlyxTolgeeRuntimeUi(locale, "assistant.voice.label"),
+    stop: translateKlyxTolgeeRuntimeUi(locale, "assistant.voice.stop"),
+    unavailable: translateKlyxTolgeeRuntimeUi(
+      locale,
+      "assistant.voice.unavailable"
+    ),
+    failed: translateKlyxTolgeeRuntimeUi(locale, "assistant.voice.failed"),
+    permissionDenied: translateKlyxTolgeeRuntimeUi(
+      locale,
+      "assistant.voice.permissionDenied"
+    ),
+    noMicrophone: translateKlyxTolgeeRuntimeUi(
+      locale,
+      "assistant.voice.noMicrophone"
+    ),
+    noSpeech: translateKlyxTolgeeRuntimeUi(
+      locale,
+      "assistant.voice.noSpeech"
+    ),
+    secureContextRequired: translateKlyxTolgeeRuntimeUi(
+      locale,
+      "assistant.voice.secureContextRequired"
+    ),
+    speechLocale: speechLocaleForKlyxLocale(locale),
   };
 }
 
@@ -125,7 +119,7 @@ export default function AssistantComposer({
   textareaRef,
   formRef,
 }: {
-  locale: string;
+  locale: KlyxLocale;
   value: string;
   onChange: (value: string) => void;
   onSubmit: (message: string) => void;

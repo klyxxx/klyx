@@ -53,11 +53,36 @@ describe("KLYX assistant browser voice input", () => {
     expect(voiceBlock).not.toContain("fetch(");
   });
 
-  it("keeps the four published speech locales exact", () => {
-    expect(composer).toContain('speechLocale: "fr-BE"');
-    expect(composer).toContain('speechLocale: "en-GB"');
-    expect(composer).toContain('speechLocale: "nl-BE"');
-    expect(composer).toContain('speechLocale: "de-DE"');
+  it("routes voice UI copy through the static Tolgee bridge", () => {
+    expect(composer).toContain("translateKlyxTolgeeRuntimeUi");
+    for (const key of [
+      "assistant.voice.label",
+      "assistant.voice.stop",
+      "assistant.voice.unavailable",
+      "assistant.voice.failed",
+      "assistant.voice.permissionDenied",
+      "assistant.voice.noMicrophone",
+      "assistant.voice.noSpeech",
+      "assistant.voice.secureContextRequired",
+    ]) {
+      expect(composer).toContain(`\"${key}\"`);
+    }
+
+    expect(composer).not.toContain(
+      'unavailable: "Voice input is not supported by this browser."'
+    );
+    expect(composer).not.toContain(
+      'unavailable: "La saisie vocale n’est pas prise en charge par ce navigateur."'
+    );
+  });
+
+  it("keeps the four published speech locales exact and future-proofs registered locales", () => {
+    expect(composer).toContain('fr: "fr-BE"');
+    expect(composer).toContain('en: "en-GB"');
+    expect(composer).toContain('nl: "nl-BE"');
+    expect(composer).toContain('de: "de-DE"');
+    expect(composer).toContain("getKlyxLocaleMetadata(locale).htmlLang");
+    expect(composer).toContain("speechLocaleForKlyxLocale(locale)");
   });
 
   it("keeps unsupported browsers explicit instead of simulating voice support", () => {
