@@ -24,6 +24,11 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Use stable npm 11 resolver
+        run: |
+          npm install --global npm@11.19.1 --ignore-scripts
+          npm --version
+
       - name: Raise direct vulnerable floors
         run: |
           node <<'NODE'
