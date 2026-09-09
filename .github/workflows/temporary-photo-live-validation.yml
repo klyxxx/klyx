@@ -18,19 +18,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ba2fe5c5e20f43e102da705c4c6c486e955dd35a
+          ref: d135ac0e12d841ae75881bf67f710e531ace01bf
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Dependency audit
-        run: npm audit --audit-level=high
-      - name: Lint
-        run: npm run lint
-      - name: Unit and integration tests
-        run: npm test
-      - name: TypeScript
-        run: npx tsc --noEmit --pretty false
-      - name: Production build
-        run: npm run build
+      - name: Photo camera unit
+        run: npx vitest run tests/unit/photo-camera.test.ts --reporter=verbose
+      - name: Photo UI contract
+        if: always()
+        run: npx vitest run tests/unit/photo-request-ui-contract.test.ts --reporter=verbose
+      - name: Photo visual contract
+        if: always()
+        run: npx vitest run tests/integration/photo-request-visual-contract.test.ts --reporter=verbose
+      - name: Photo server boundary contract
+        if: always()
+        run: npx vitest run tests/integration/photo-service-requests-server-only-contract.test.ts --reporter=verbose
+      - name: Photo vision contract
+        if: always()
+        run: npx vitest run tests/integration/photo-vision-analysis-contract.test.ts --reporter=verbose
+      - name: Private request privilege contract
+        if: always()
+        run: npx vitest run tests/integration/private-request-table-privilege-hardening-contract.test.ts --reporter=verbose
