@@ -62,6 +62,14 @@ jobs:
           tail -n 8 head-lint.txt
           exit 0
 
+      - name: Show exact lint delta
+        shell: bash
+        run: |
+          sed "s#${GITHUB_WORKSPACE}/base#WORKTREE#g" base-lint.txt > base-lint-normalized.txt
+          sed "s#${GITHUB_WORKSPACE}/head#WORKTREE#g" head-lint.txt > head-lint-normalized.txt
+          echo '--- exact normalized ESLint delta ---'
+          diff -u base-lint-normalized.txt head-lint-normalized.txt || true
+
       - name: Assert lint non-regression
         run: |
           node <<'NODE'
