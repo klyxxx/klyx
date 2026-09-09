@@ -2,8 +2,16 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-const commandBar = readFileSync(
-  "app/components/AssistantCommandBar.tsx",
+const composer = readFileSync(
+  "app/components/assistant/AssistantComposer.tsx",
+  "utf8"
+);
+const limits = readFileSync(
+  "lib/klyx-assistant-message-limits.ts",
+  "utf8"
+);
+const boundary = readFileSync(
+  "lib/brain/respond-http-boundary.ts",
   "utf8"
 );
 const commandRoute = readFileSync(
@@ -16,14 +24,12 @@ const converseRoute = readFileSync(
 );
 
 describe("assistant message capacity contract", () => {
-  it("uses one shared capacity in the client composer and first-message router", () => {
-    expect(commandBar).toContain("KLYX_ASSISTANT_MESSAGE_MAX_LENGTH");
-    expect(commandBar).toContain(
-      "maxLength={KLYX_ASSISTANT_MESSAGE_MAX_LENGTH}"
-    );
+  it("aligns the shared visible capacity to the hardened 4,000-character Brain boundary", () => {
+    expect(limits).toContain("KLYX_ASSISTANT_MESSAGE_MAX_LENGTH = 4000");
+    expect(boundary).toContain("BRAIN_RESPOND_MAX_MESSAGE_CHARACTERS = 4000");
+    expect(composer).toContain("KLYX_ASSISTANT_MESSAGE_MAX_LENGTH");
+    expect(composer).toContain("maxLength={KLYX_ASSISTANT_MESSAGE_MAX_LENGTH}");
     expect(commandRoute).toContain("isKlyxAssistantMessageTooLong");
-    expect(commandRoute).not.toContain("rawMessage.length > 700");
-    expect(commandBar).not.toContain("maxLength={700}");
   });
 
   it("rejects oversized follow-ups before deterministic or visible AI processing", () => {
@@ -43,7 +49,7 @@ describe("assistant message capacity contract", () => {
   });
 
   it("caps speech input with the same shared capacity", () => {
-    expect(commandBar).toContain(
+    expect(composer).toContain(
       "nextValue.slice(0, KLYX_ASSISTANT_MESSAGE_MAX_LENGTH)"
     );
   });

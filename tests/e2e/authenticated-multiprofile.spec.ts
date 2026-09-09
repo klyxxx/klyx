@@ -71,7 +71,7 @@ test.describe("KLYX authenticated multi-profile", () => {
     await page.goto("/dashboard");
     await page.waitForURL((url) => url.pathname === "/assistant");
     await expect(
-      page.getByRole("heading", { name: "Que dois-je organiser pour vous ?" })
+      page.getByRole("heading", { name: "Que puis-je organiser pour vous ?" })
     ).toBeVisible();
     await expectAssistantFirstDesktopShell(page, "/assistant");
 
@@ -96,7 +96,7 @@ test.describe("KLYX authenticated multi-profile", () => {
     await switchThroughUi(page, provider!, client!);
     await page.waitForURL((url) => url.pathname === "/assistant");
     await expect(
-      page.getByRole("heading", { name: "Que dois-je organiser pour vous ?" })
+      page.getByRole("heading", { name: "Que puis-je organiser pour vous ?" })
     ).toBeVisible();
     await expectAssistantFirstDesktopShell(page, "/assistant");
 
