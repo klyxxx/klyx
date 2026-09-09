@@ -61,7 +61,15 @@ function getStripeWebhookConfig() {
   };
 }
 
-async function updateConnectedAccount(account: Stripe.Account) {
+async function updateConnectedAccount(
+  stripe: Stripe,
+  signedAccount: Stripe.Account
+) {
+  // The signed event authenticates the account identity, but its mutable
+  // readiness flags can be stale if account.updated is replayed or delivered
+  // out of order. Re-read Stripe's current account state before mutating KLYX.
+  const account = await stripe.accounts.retrieve(signedAccount.id);
+
   const { error } = await supabaseAdmin
     .from("profiles")
     .update({
@@ -405,7 +413,7 @@ export async function POST(request: Request) {
 
       case "account.updated": {
         const account = event.data.object as Stripe.Account;
-        await updateConnectedAccount(account);
+        await updateConnectedAccount(stripe, account);
         break;
       }
 
