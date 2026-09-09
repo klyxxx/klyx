@@ -1,0 +1,82 @@
+name: KLYX temporary Next ESLint lint evidence
+
+on:
+  push:
+    branches:
+      - validation/next-eslint-lint-20260909
+
+permissions:
+  contents: read
+
+jobs:
+  compare-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout workflow branch
+        uses: actions/checkout@v4
+        with:
+          path: workflow
+
+      - name: Checkout exact base
+        uses: actions/checkout@v4
+        with:
+          ref: 7a8b905df847084a2eeeb00885ca13f2d1af747d
+          path: base
+
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: aebb11ff64978d2e8697500122477e1223ee6849
+          path: head
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install base dependencies
+        working-directory: base
+        run: npm ci --ignore-scripts
+
+      - name: Run base lint
+        shell: bash
+        run: |
+          set +e
+          (cd base && npm run lint) > base-lint.txt 2>&1
+          status=$?
+          echo "BASE_LINT_EXIT=$status" >> "$GITHUB_ENV"
+          tail -n 8 base-lint.txt
+          exit 0
+
+      - name: Install head dependencies
+        working-directory: head
+        run: npm ci --ignore-scripts
+
+      - name: Run head lint
+        shell: bash
+        run: |
+          set +e
+          (cd head && npm run lint) > head-lint.txt 2>&1
+          status=$?
+          echo "HEAD_LINT_EXIT=$status" >> "$GITHUB_ENV"
+          tail -n 8 head-lint.txt
+          exit 0
+
+      - name: Assert lint non-regression
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          function parse(path) {
+            const text = fs.readFileSync(path, 'utf8');
+            const m = text.match(/(\d+) problems? \((\d+) errors?, (\d+) warnings?\)/);
+            if (!m) throw new Error(`Unable to parse ESLint summary from ${path}`);
+            return { problems: Number(m[1]), errors: Number(m[2]), warnings: Number(m[3]) };
+          }
+          const base = parse('base-lint.txt');
+          const head = parse('head-lint.txt');
+          console.log(`BASE lint: ${base.problems} problems (${base.errors} errors, ${base.warnings} warnings), exit=${process.env.BASE_LINT_EXIT}`);
+          console.log(`HEAD lint: ${head.problems} problems (${head.errors} errors, ${head.warnings} warnings), exit=${process.env.HEAD_LINT_EXIT}`);
+          if (head.errors > base.errors || head.warnings > base.warnings || head.problems > base.problems) {
+            throw new Error(`ESLint regression: base=${JSON.stringify(base)} head=${JSON.stringify(head)}`);
+          }
+          NODE
