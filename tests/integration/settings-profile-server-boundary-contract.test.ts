@@ -38,7 +38,8 @@ describe("KLYX settings/profile server boundary", () => {
 
     expect(settings).toContain("supabase.auth.updateUser({");
     expect(settings).toContain("email: newEmail.trim().toLowerCase()");
-    expect(settings).toContain("password: newPassword");
+    expect(settings).toContain("supabase.auth.resetPasswordForEmail(");
+    expect(settings).not.toContain("password: newPassword");
     expect(settings).toMatch(
       /fetch\(\s*["']\/api\/account\/delete["'][\s\S]*?method:\s*["']DELETE["']/
     );
