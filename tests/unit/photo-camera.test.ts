@@ -4,6 +4,7 @@ import {
   CameraUnavailableError,
   captureVideoFrame,
   disposeCameraSession,
+  isCameraPermissionDenied,
   requestEnvironmentCamera,
   stopMediaStream,
 } from "@/lib/photo-camera";
@@ -15,14 +16,18 @@ describe("photo camera lifecycle", () => {
     );
   });
 
-  it("surfaces a denied camera permission without retaining a stream", async () => {
-    const denied = new DOMException("Permission denied", "NotAllowedError");
+  it("surfaces and classifies a denied camera permission without retaining a stream", async () => {
+    const denied = Object.assign(new Error("Permission denied"), {
+      name: "NotAllowedError",
+    });
     const getUserMedia = vi.fn().mockRejectedValue(denied);
 
     await expect(
       requestEnvironmentCamera({ getUserMedia } as Pick<MediaDevices, "getUserMedia">)
     ).rejects.toBe(denied);
 
+    expect(isCameraPermissionDenied(denied)).toBe(true);
+    expect(isCameraPermissionDenied(new Error("Other failure"))).toBe(false);
     expect(getUserMedia).toHaveBeenCalledWith({
       audio: false,
       video: { facingMode: { ideal: "environment" } },
