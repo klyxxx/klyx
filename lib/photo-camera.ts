@@ -38,7 +38,8 @@ export function disposeCameraSession(
 
 export function captureVideoFrame(
   video: HTMLVideoElement,
-  canvas: HTMLCanvasElement
+  canvas: HTMLCanvasElement,
+  afterFrameCaptured?: () => void
 ): Promise<Blob> {
   if (!video.videoWidth || !video.videoHeight) {
     return Promise.reject(new Error("Camera frame unavailable"));
@@ -54,6 +55,7 @@ export function captureVideoFrame(
   }
 
   context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  afterFrameCaptured?.();
 
   return new Promise((resolve, reject) => {
     canvas.toBlob(
