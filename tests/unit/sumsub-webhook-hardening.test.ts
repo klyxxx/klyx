@@ -12,62 +12,166 @@ const route = fs.readFileSync(
   "utf8"
 );
 
+const events = fs.readFileSync(
+  path.join(
+    process.cwd(),
+    "lib/sumsub-webhook-events.ts"
+  ),
+  "utf8"
+);
+
+const leaseMigration = fs.readFileSync(
+  path.join(
+    process.cwd(),
+    "supabase/migrations/20260909161000_klyx_sumsub_webhook_retry_lease.sql"
+  ),
+  "utf8"
+);
+
 describe("Sumsub webhook hardening", () => {
-  it("retries duplicate events that were not fully processed", () => {
-    const duplicateIndex = route.indexOf(
-      "const duplicateEvent ="
+  it("verifies the signature before claiming and claims before KYC mutation", () => {
+    const postIndex = route.indexOf(
+      "export async function POST"
     );
-    const processedLookupIndex = route.indexOf(
-      '.select("processed")',
-      duplicateIndex
+    const signatureIndex = route.indexOf(
+      "verifySumsubWebhook({",
+      postIndex
     );
-    const processedGuardIndex = route.indexOf(
-      "if (existingEvent?.processed)",
-      processedLookupIndex
+    const claimIndex = route.indexOf(
+      "claim = await claimSumsubWebhookEvent({",
+      signatureIndex
     );
-    const processingIndex = route.indexOf(
-      "if (payload.testMode === true)",
-      processedGuardIndex
+    const profileMutationIndex = route.indexOf(
+      '.from("provider_verifications")',
+      claimIndex
     );
 
-    expect(duplicateIndex).toBeGreaterThanOrEqual(0);
-    expect(processedLookupIndex).toBeGreaterThan(
-      duplicateIndex
+    expect(postIndex).toBeGreaterThanOrEqual(0);
+    expect(signatureIndex).toBeGreaterThan(postIndex);
+    expect(claimIndex).toBeGreaterThan(signatureIndex);
+    expect(profileMutationIndex).toBeGreaterThan(claimIndex);
+  });
+
+  it("acknowledges a fresh concurrent delivery without a second worker", () => {
+    const processingIndex = events.indexOf(
+      'stored.status === "processing"'
     );
-    expect(processedGuardIndex).toBeGreaterThan(
-      processedLookupIndex
+    const alreadyProcessingIndex = events.indexOf(
+      'reason: "already_processing"',
+      processingIndex
     );
-    expect(processingIndex).toBeGreaterThan(
-      processedGuardIndex
+    const reclaimIndex = events.indexOf(
+      "const currentAttemptCount =",
+      alreadyProcessingIndex
+    );
+
+    expect(processingIndex).toBeGreaterThanOrEqual(0);
+    expect(alreadyProcessingIndex).toBeGreaterThan(
+      processingIndex
+    );
+    expect(reclaimIndex).toBeGreaterThan(
+      alreadyProcessingIndex
+    );
+    expect(events.slice(processingIndex, reclaimIndex)).toContain(
+      "Date.now() - updatedAt > STALE_PROCESSING_MS"
     );
   });
 
-  it("does not let a failing concurrent replay reopen an event already processed", () => {
-    const failurePathIndex = route.lastIndexOf(
-      "} catch (error) {"
+  it("reclaims failed or stale processing with an atomic CAS lease", () => {
+    const reclaimIndex = events.indexOf(
+      ".update({\n      processed: false,\n      status: \"processing\""
     );
-    const failureUpdateIndex = route.indexOf(
-      '.from("sumsub_webhook_events")',
-      failurePathIndex
+    const reclaimEndIndex = events.indexOf(
+      '.maybeSingle();',
+      reclaimIndex
     );
-    const responseIndex = route.indexOf(
-      "return secureApiErrorResponse",
-      failureUpdateIndex
-    );
-    const failureUpdate = route.slice(
-      failureUpdateIndex,
-      responseIndex
+    const reclaim = events.slice(
+      reclaimIndex,
+      reclaimEndIndex
     );
 
-    expect(failurePathIndex).toBeGreaterThanOrEqual(0);
-    expect(failureUpdateIndex).toBeGreaterThan(
-      failurePathIndex
+    expect(reclaimIndex).toBeGreaterThanOrEqual(0);
+    expect(reclaim).toMatch(
+      /\.eq\("event_hash", params\.eventHash\)/
     );
-    expect(failureUpdate).toContain(
-      "processed: false"
+    expect(reclaim).toMatch(
+      /\.eq\("status", stored\.status\)/
     );
-    expect(failureUpdate).toMatch(
-      /\.eq\(\s*"event_hash",\s*eventHash\s*\)[\s\S]*\.eq\(\s*"processed",\s*false\s*\)/
+    expect(reclaim).toMatch(
+      /\.eq\("attempt_count", stored\.attempt_count\)/
+    );
+    expect(reclaim).toMatch(
+      /\.eq\("updated_at", stored\.updated_at\)/
+    );
+    expect(reclaim).toContain(
+      "attempt_count: nextAttemptCount"
+    );
+  });
+
+  it("fences successful finalization by the winning attempt", () => {
+    const start = events.indexOf(
+      "export async function markSumsubWebhookProcessed"
+    );
+    const end = events.indexOf(
+      "export async function markSumsubWebhookFailed",
+      start
+    );
+    const finalization = events.slice(start, end);
+
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(finalization).toContain(
+      'status: "processed"'
+    );
+    expect(finalization).toMatch(
+      /\.eq\("status", "processing"\)/
+    );
+    expect(finalization).toMatch(
+      /\.eq\("attempt_count", attemptCount\)/
+    );
+  });
+
+  it("fences failure finalization so an old worker cannot overwrite a newer lease", () => {
+    const start = events.indexOf(
+      "export async function markSumsubWebhookFailed"
+    );
+    const failure = events.slice(start);
+
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(failure).toContain(
+      'status: "failed"'
+    );
+    expect(failure).toMatch(
+      /\.eq\("status", "processing"\)/
+    );
+    expect(failure).toMatch(
+      /\.eq\("attempt_count", attemptCount\)/
+    );
+    expect(failure).toContain(
+      'return data ? "recorded" : "superseded"'
+    );
+  });
+
+  it("migrates the legacy journal into a durable lease without inventing active workers", () => {
+    expect(leaseMigration).toContain(
+      "add column if not exists status text"
+    );
+    expect(leaseMigration).toContain(
+      "add column if not exists attempt_count integer"
+    );
+    expect(leaseMigration).toContain(
+      "add column if not exists updated_at timestamptz"
+    );
+    expect(leaseMigration).toMatch(
+      /when processed then 'processed'[\s\S]*else 'failed'/
+    );
+    expect(leaseMigration).toContain(
+      "check (status in ('processing', 'processed', 'failed'))"
+    );
+    expect(leaseMigration).toContain(
+      "check (attempt_count >= 1)"
+    );
+    expect(leaseMigration).toContain(
+      "check (processed = (status = 'processed'))"
     );
   });
 
