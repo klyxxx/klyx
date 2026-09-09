@@ -1,12 +1,14 @@
 "use client";
 
 import { RefreshCw, Wifi } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import { translateKlyxOfflinePage } from "@/lib/klyx-offline-page-i18n";
 
 export default function OfflineRetryButton() {
+  const router = useRouter();
   const { locale } = useKlyxLocale();
   const [online, setOnline] = useState(
     typeof navigator !== "undefined"
@@ -33,7 +35,7 @@ export default function OfflineRetryButton() {
   }, []);
 
   function retry() {
-    window.location.href = "/";
+    router.push("/");
   }
 
   return (
