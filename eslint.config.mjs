@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Repository payload snapshots mirror source files and are not runtime source.
+    "payload/**",
   ]),
 ]);
 
