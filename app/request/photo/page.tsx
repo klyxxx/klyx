@@ -571,6 +571,7 @@ export default function PhotoRequestPage() {
                       type="button"
                       onClick={() => void deletePhoto()}
                       disabled={deleting || uploading}
+                      aria-label="Supprimer la photo"
                       className="inline-flex h-9 items-center gap-1.5 rounded-xl px-3 text-xs font-bold text-rose-600 transition hover:bg-rose-500/8 disabled:opacity-50"
                     >
                       {deleting ? (
