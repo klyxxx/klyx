@@ -20,13 +20,13 @@ jobs:
       - name: Checkout exact base
         uses: actions/checkout@v4
         with:
-          ref: 7a8b905df847084a2eeeb00885ca13f2d1af747d
+          ref: c4afe8d0263d72c426ed9b30fbe76d83e30777bf
           path: base
 
       - name: Checkout exact PR head
         uses: actions/checkout@v4
         with:
-          ref: aebb11ff64978d2e8697500122477e1223ee6849
+          ref: 8d1fda0af1fe38fca02634755dbfa6f1eb6c16d0
           path: head
 
       - name: Setup Node.js
