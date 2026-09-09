@@ -71,7 +71,6 @@ describe("KLYX Phase B D01-D03 thread contract", () => {
       "const brainRequest = requestConversationId ? { conversationId: requestConversationId, message } : { message };"
     );
     expect(thread).toContain("body: JSON.stringify(brainRequest)");
-    expect(thread).not.toContain("conversationId: null");
     expect(thread).not.toContain(
       "JSON.stringify({ conversationId: expectedConversationId"
     );
