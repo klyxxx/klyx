@@ -10,19 +10,11 @@ import KlyxLogo from "@/app/ui/KlyxLogo";
 import MissionRail from "@/app/ui/MissionRail";
 import { getKlyxAccountHome } from "@/lib/account-home";
 import { KLYX_ACTIVE_PROFILE_CHANGED } from "@/lib/account-switcher";
+import {
+  resolveAssistantShellProfileContext,
+  type AssistantShellProfileContext,
+} from "@/lib/assistant-shell-profile-context";
 import { trapDialogTabKey } from "@/lib/mobile-dialog-focus";
-
-type AccountType = "client" | "provider";
-
-type ActiveProfile = {
-  id: string;
-  accountType: AccountType;
-};
-
-type ProfilesResponse = {
-  profiles?: ActiveProfile[];
-  activeProfileId?: string | null;
-};
 
 const routesWithoutShell = [
   "/",
@@ -70,11 +62,13 @@ function closeMenuLabel(locale: string) {
 export default function AssistantShell() {
   const pathname = usePathname();
   const { locale } = useKlyxLocale();
-  const [accountType, setAccountType] = useState<AccountType | null>(null);
-  const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
+  const [profileContext, setProfileContext] =
+    useState<AssistantShellProfileContext | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const mobileMenuTriggerRef = useRef<HTMLButtonElement>(null);
   const mobileDrawerRef = useRef<HTMLElement>(null);
+  const profileRequestGenerationRef = useRef(0);
+  const profileRequestAbortRef = useRef<AbortController | null>(null);
 
   const hideShell = routesWithoutShell.some((route) => matchesRoute(pathname, route));
   const preserveLegacyShell = routesWithLegacyShell.some((route) =>
@@ -84,28 +78,54 @@ export default function AssistantShell() {
   useEffect(() => {
     if (hideShell || preserveLegacyShell) return;
 
-    let cancelled = false;
+    let mounted = true;
 
     async function loadProfileContext() {
+      const generation = ++profileRequestGenerationRef.current;
+      profileRequestAbortRef.current?.abort();
+
+      const controller = new AbortController();
+      profileRequestAbortRef.current = controller;
+
+      // Fail closed while authority is unresolved. This also removes the
+      // previous profile immediately during an explicit profile switch.
+      setProfileContext(null);
+
       try {
         const response = await fetch("/api/profiles/active", {
           method: "GET",
           cache: "no-store",
+          signal: controller.signal,
         });
 
         if (!response.ok) return;
 
-        const data = (await response.json()) as ProfilesResponse;
-        const activeProfile =
-          data.profiles?.find((profile) => profile.id === data.activeProfileId) ??
-          data.profiles?.[0];
+        const data = (await response.json()) as unknown;
+        const nextContext = resolveAssistantShellProfileContext(data);
 
-        if (!cancelled && activeProfile) {
-          setAccountType(activeProfile.accountType);
-          setActiveProfileId(activeProfile.id);
+        if (
+          !mounted ||
+          controller.signal.aborted ||
+          generation !== profileRequestGenerationRef.current
+        ) {
+          return;
         }
+
+        setProfileContext(nextContext);
       } catch {
-        // Keep the current page usable if profile context is temporarily unavailable.
+        if (
+          !mounted ||
+          controller.signal.aborted ||
+          generation !== profileRequestGenerationRef.current
+        ) {
+          return;
+        }
+
+        setProfileContext(null);
+      } finally {
+        if (profileRequestAbortRef.current === controller) {
+          profileRequestAbortRef.current = null;
+        }
       }
     }
 
@@ -117,7 +137,10 @@ export default function AssistantShell() {
     window.addEventListener(KLYX_ACTIVE_PROFILE_CHANGED, onProfileChanged);
 
     return () => {
-      cancelled = true;
+      mounted = false;
+      profileRequestGenerationRef.current += 1;
+      profileRequestAbortRef.current?.abort();
+      profileRequestAbortRef.current = null;
       window.removeEventListener(KLYX_ACTIVE_PROFILE_CHANGED, onProfileChanged);
     };
   }, [hideShell, pathname, preserveLegacyShell]);
@@ -163,11 +186,17 @@ export default function AssistantShell() {
     return <AppSidebar />;
   }
 
+  const accountType = profileContext?.accountType ?? null;
+  const activeProfileId = profileContext?.activeProfileId ?? null;
   const homeHref = accountType ? getKlyxAccountHome(accountType) : "/dashboard";
+  const missionRailKey = profileContext
+    ? `${profileContext.activeProfileId}:${profileContext.accountType}`
+    : "neutral";
 
   return (
     <>
       <MissionRail
+        key={`desktop:${missionRailKey}`}
         accountType={accountType}
         activeProfileId={activeProfileId}
         homeHref={homeHref}
@@ -222,6 +251,7 @@ export default function AssistantShell() {
             </button>
 
             <MissionRail
+              key={`mobile:${missionRailKey}`}
               accountType={accountType}
               activeProfileId={activeProfileId}
               homeHref={homeHref}

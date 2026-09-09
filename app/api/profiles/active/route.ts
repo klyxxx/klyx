@@ -1,8 +1,8 @@
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import {
   ACTIVE_PROFILE_COOKIE,
-  getActiveProfile,
   getOwnedProfiles,
 } from "@/lib/active-profile";
 import { secureApiErrorResponse } from "@/lib/api-error";
@@ -60,7 +60,14 @@ export async function GET() {
       );
     }
 
-    const activeProfile = await getActiveProfile();
+    const cookieStore = await cookies();
+    const selectedProfileId =
+      cookieStore.get(ACTIVE_PROFILE_COOKIE)?.value?.trim() ?? "";
+    const activeProfileId =
+      selectedProfileId &&
+      profiles.some((profile) => profile.id === selectedProfileId)
+        ? selectedProfileId
+        : null;
 
     /*
      * KLYX_ACTIVE_PROFILE_READ_ONLY_12B_10L
@@ -69,10 +76,14 @@ export async function GET() {
      * Un GET démarré avant un changement de profil ne doit jamais
      * pouvoir terminer après le POST et réécrire l'ancien cookie.
      * Seul POST modifie ACTIVE_PROFILE_COOKIE.
+     *
+     * Le shell ne reçoit un profil actif que si le cookie explicitement
+     * sélectionné appartient à la même liste de profils retournée.
+     * Aucun premier profil n'est choisi implicitement ici.
      */
     return NextResponse.json({
       profiles,
-      activeProfileId: activeProfile?.id ?? profiles[0].id,
+      activeProfileId,
     });
   } catch (error) {
     return secureApiErrorResponse({
