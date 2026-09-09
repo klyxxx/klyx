@@ -1,0 +1,50 @@
+name: KLYX Temporary Dependency Lock Refresh
+
+on:
+  push:
+    branches:
+      - security/dependency-audit-remediation-20260909
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-lockfile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: security/dependency-audit-remediation-20260909
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Raise direct vulnerable floors
+        run: |
+          npm install --package-lock-only --ignore-scripts --save-prod 'next@^16.3.3'
+          npm install --package-lock-only --ignore-scripts --save-dev 'vitest@^4.1.11'
+
+      - name: Apply compatible transitive security fixes
+        run: npm audit fix --package-lock-only --ignore-scripts
+
+      - name: Verify clean locked install and dependency audit
+        run: |
+          npm ci --ignore-scripts
+          npm audit --audit-level=high
+          node scripts/security/security-audit.mjs
+          npm ls next vitest sharp js-yaml hono --all
+
+      - name: Commit final dependency-only diff and remove temporary workflow
+        run: |
+          git config user.name 'klyxxx'
+          git config user.email 'yeswork2711@gmail.com'
+          git add package.json package-lock.json
+          git rm .github/workflows/klyx-dependency-lock-refresh-temp.yml
+          git diff --cached --quiet && exit 0
+          git commit -m 'security(deps): remediate npm audit findings'
+          git push origin HEAD:security/dependency-audit-remediation-20260909
