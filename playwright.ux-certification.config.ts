@@ -48,7 +48,6 @@ export default defineConfig({
     baseURL,
     locale: "fr-BE",
     colorScheme: "light",
-    reducedMotion: "reduce",
     trace: "off",
     screenshot: "only-on-failure",
     video: "off",
