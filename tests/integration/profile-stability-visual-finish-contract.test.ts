@@ -20,6 +20,11 @@ describe("KLYX profile stability and visual finish", () => {
     expect(layout).toContain("overflow-y-auto");
 
     expect(layoutStyles).toContain("height: calc(100dvh - 3.5rem)");
+    expect(layoutStyles).toContain("@media (max-width: 63.999rem)");
+    expect(layoutStyles).toContain(
+      ":global(.klyx-app-content):has(.scrollRegion)"
+    );
+    expect(layoutStyles).toContain("min-height: calc(100dvh - 3.5rem)");
     expect(layoutStyles).toContain("@media (min-width: 64rem)");
     expect(layoutStyles).toContain("height: 100dvh");
     expect(layoutStyles).toContain("scrollbar-gutter: stable");
