@@ -7,20 +7,22 @@ function read(relativePath: string) {
   return fs.readFileSync(path.join(process.cwd(), relativePath), "utf8");
 }
 
-const workflow = read(".github/workflows/klyx-e2e.yml");
+const workflow = read(".github/workflows/klyx-ux-visual.yml");
+const existingE2E = read(".github/workflows/klyx-e2e.yml");
 const config = read("playwright.ux-visual.config.ts");
 const spec = read("tests/ux-visual/klyx-ux-visual.spec.ts");
 
 describe("KLYX UX / Visual Certification contract", () => {
-  it("adds a dedicated additive check after the existing Playwright browser verification", () => {
-    expect(workflow).toContain("name: KLYX E2E");
-    expect(workflow).toContain("name: Playwright browser verification");
+  it("adds a dedicated additive workflow without replacing Playwright browser verification", () => {
+    expect(workflow).toContain("name: KLYX UX / Visual Certification");
     expect(workflow).toContain("ux-visual-certification:");
     expect(workflow).toContain("name: KLYX UX / Visual Certification");
-    expect(workflow).toContain("needs: browser-tests");
     expect(workflow).toContain("npx playwright test");
     expect(workflow).toContain("--config=playwright.ux-visual.config.ts");
-    expect(workflow).toContain("klyx-e2e-${{ github.repository }}");
+    expect(workflow).toContain("group: klyx-ux-visual-${{ github.ref }}");
+    expect(workflow).toContain("cancel-in-progress: true");
+    expect(existingE2E).toContain("name: Playwright browser verification");
+    expect(existingE2E).toContain("npm run test:e2e");
     expect(workflow).not.toContain("enable-auto-merge");
   });
 
@@ -32,7 +34,7 @@ describe("KLYX UX / Visual Certification contract", () => {
     expect(config).toContain('testDir: "./tests/ux-visual"');
   });
 
-  it("covers every required critical surface including a real active mission", () => {
+  it("covers every required critical surface including a real active mission from the rendered rail", () => {
     for (const route of [
       '"/assistant"',
       '"/profile"',
@@ -43,11 +45,15 @@ describe("KLYX UX / Visual Certification contract", () => {
     }
 
     expect(spec).toContain("findActiveMission");
-    expect(spec).toContain('fetch("/api/bookings/overview"');
-    expect(spec).toContain('fetch("/api/provider/jobs"');
+    expect(spec).toContain("visibleMissionHref");
+    expect(spec).toContain('section[aria-label="En cours"] a[href]');
+    expect(spec).toContain('href.startsWith("/bookings/")');
+    expect(spec).toContain('href.startsWith("/booking-groups/")');
     expect(spec).toContain(
       "Dedicated E2E account must expose at least one active mission"
     );
+    expect(spec).not.toContain('fetch("/api/bookings/overview"');
+    expect(spec).not.toContain('fetch("/api/provider/jobs"');
   });
 
   it("measures objective layout, interaction and browser-error invariants", () => {
@@ -58,11 +64,13 @@ describe("KLYX UX / Visual Certification contract", () => {
       "blockedControls",
       "overlaps",
       "mainVisible",
+      "isInsideIntentionalHorizontalScroller",
       'getByTestId("desktop-mission-rail")',
       'getByTestId("assistant-shell-mobile-header")',
       'getByTestId("assistant-shell-mobile-menu")',
       'locator("details")',
       'locator(\'[data-testid="account-switcher"]\')',
+      'getByText("Compte", { exact: true })',
       "CERTIFIED_LANGUAGE_LABELS",
       "voiceSmoke",
       "photoLiveSmoke",
@@ -77,7 +85,7 @@ describe("KLYX UX / Visual Certification contract", () => {
     expect(config).toContain("snapshotPathTemplate");
     expect(spec).toContain("toHaveScreenshot");
     expect(workflow).toContain("Load latest certified main visual baseline");
-    expect(workflow).toContain("actions/workflows/klyx-e2e.yml/runs");
+    expect(workflow).toContain("actions/workflows/klyx-ux-visual.yml/runs");
     expect(workflow).toContain("--update-snapshots");
     expect(workflow).toContain("klyx-ux-visual-baseline");
     expect(workflow).toContain("klyx-ux-visual-report-${{ github.run_id }}");

@@ -126,7 +126,9 @@ function collectConsoleFailures(page: Page) {
 
 async function settlePage(page: Page) {
   await page.waitForLoadState("domcontentloaded");
-  await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => undefined);
+  await page
+    .waitForLoadState("networkidle", { timeout: 5_000 })
+    .catch(() => undefined);
   await page.evaluate(async () => {
     await document.fonts.ready;
   });
@@ -156,16 +158,37 @@ async function assertObjectiveLayout(page: Page, label: string) {
       );
     });
 
+    function isInsideIntentionalHorizontalScroller(element: HTMLElement) {
+      let ancestor = element.parentElement;
+      while (ancestor && ancestor !== document.body) {
+        const style = getComputedStyle(ancestor);
+        const scrollable =
+          (style.overflowX === "auto" || style.overflowX === "scroll") &&
+          ancestor.scrollWidth > ancestor.clientWidth + 1;
+        if (scrollable) return true;
+        ancestor = ancestor.parentElement;
+      }
+      return false;
+    }
+
     const horizontallyClipped = candidates
       .filter((element) => {
+        if (isInsideIntentionalHorizontalScroller(element)) return false;
         const rect = element.getBoundingClientRect();
         const intersectsVertically = rect.bottom > 0 && rect.top < viewportHeight;
-        return intersectsVertically && (rect.left < -1 || rect.right > viewportWidth + 1);
+        return (
+          intersectsVertically &&
+          (rect.left < -1 || rect.right > viewportWidth + 1)
+        );
       })
       .slice(0, 12)
       .map((element) => {
         const rect = element.getBoundingClientRect();
-        return `${element.tagName.toLowerCase()} ${element.getAttribute("aria-label") ?? element.textContent?.trim().slice(0, 60) ?? ""} [${Math.round(rect.left)},${Math.round(rect.right)}]`;
+        return `${element.tagName.toLowerCase()} ${
+          element.getAttribute("aria-label") ??
+          element.textContent?.trim().slice(0, 60) ??
+          ""
+        } [${Math.round(rect.left)},${Math.round(rect.right)}]`;
       });
 
     const fixedOutsideViewport = Array.from(
@@ -188,7 +211,11 @@ async function assertObjectiveLayout(page: Page, label: string) {
       .slice(0, 12)
       .map((element) => {
         const rect = element.getBoundingClientRect();
-        return `${element.tagName.toLowerCase()} [${Math.round(rect.left)},${Math.round(rect.top)},${Math.round(rect.right)},${Math.round(rect.bottom)}]`;
+        return `${element.tagName.toLowerCase()} [${Math.round(
+          rect.left
+        )},${Math.round(rect.top)},${Math.round(rect.right)},${Math.round(
+          rect.bottom
+        )}]`;
       });
 
     const enabled = candidates.filter((element) => {
@@ -206,14 +233,20 @@ async function assertObjectiveLayout(page: Page, label: string) {
         const rect = element.getBoundingClientRect();
         const x = rect.left + rect.width / 2;
         const y = rect.top + rect.height / 2;
-        if (x < 0 || x > viewportWidth || y < 0 || y > viewportHeight) return false;
+        if (x < 0 || x > viewportWidth || y < 0 || y > viewportHeight) {
+          return false;
+        }
         const hit = document.elementFromPoint(x, y);
         return Boolean(hit && hit !== element && !element.contains(hit));
       })
       .slice(0, 12)
       .map(
         (element) =>
-          `${element.tagName.toLowerCase()} ${element.getAttribute("aria-label") ?? element.textContent?.trim().slice(0, 60) ?? ""}`
+          `${element.tagName.toLowerCase()} ${
+            element.getAttribute("aria-label") ??
+            element.textContent?.trim().slice(0, 60) ??
+            ""
+          }`
       );
 
     const visibleEnabled = enabled.filter((element) => {
@@ -243,19 +276,27 @@ async function assertObjectiveLayout(page: Page, label: string) {
         const rightRect = right.getBoundingClientRect();
         const intersectionWidth = Math.max(
           0,
-          Math.min(leftRect.right, rightRect.right) - Math.max(leftRect.left, rightRect.left)
+          Math.min(leftRect.right, rightRect.right) -
+            Math.max(leftRect.left, rightRect.left)
         );
         const intersectionHeight = Math.max(
           0,
-          Math.min(leftRect.bottom, rightRect.bottom) - Math.max(leftRect.top, rightRect.top)
+          Math.min(leftRect.bottom, rightRect.bottom) -
+            Math.max(leftRect.top, rightRect.top)
         );
         const intersectionArea = intersectionWidth * intersectionHeight;
         const rightArea = rightRect.width * rightRect.height;
         const smallerArea = Math.min(leftArea, rightArea);
 
-        if (intersectionArea > 64 && smallerArea > 0 && intersectionArea / smallerArea > 0.25) {
+        if (
+          intersectionArea > 64 &&
+          smallerArea > 0 &&
+          intersectionArea / smallerArea > 0.25
+        ) {
           overlaps.push(
-            `${left.tagName.toLowerCase()}↔${right.tagName.toLowerCase()} overlap=${Math.round(intersectionArea / smallerArea * 100)}%`
+            `${left.tagName.toLowerCase()}↔${right.tagName.toLowerCase()} overlap=${Math.round(
+              (intersectionArea / smallerArea) * 100
+            )}%`
           );
           if (overlaps.length >= 12) break;
         }
@@ -280,14 +321,39 @@ async function assertObjectiveLayout(page: Page, label: string) {
     };
   });
 
-  expect.soft(metrics.horizontalOverflow, `${label}: html horizontal overflow`).toBeLessThanOrEqual(1);
-  expect.soft(metrics.bodyHorizontalOverflow, `${label}: body horizontal overflow`).toBeLessThanOrEqual(1);
-  expect.soft(metrics.mainVisible, `${label}: main content must remain accessible`).toBe(true);
-  expect.soft(metrics.bodyTextLength, `${label}: page content unexpectedly empty`).toBeGreaterThan(40);
-  expect.soft(metrics.horizontallyClipped, `${label}: interactive elements outside viewport`).toEqual([]);
-  expect.soft(metrics.fixedOutsideViewport, `${label}: fixed/sticky element outside viewport`).toEqual([]);
-  expect.soft(metrics.blockedControls, `${label}: visible enabled controls blocked by another layer`).toEqual([]);
-  expect.soft(metrics.overlaps, `${label}: overlapping interactive components`).toEqual([]);
+  expect
+    .soft(metrics.horizontalOverflow, `${label}: html horizontal overflow`)
+    .toBeLessThanOrEqual(1);
+  expect
+    .soft(metrics.bodyHorizontalOverflow, `${label}: body horizontal overflow`)
+    .toBeLessThanOrEqual(1);
+  expect
+    .soft(metrics.mainVisible, `${label}: main content must remain accessible`)
+    .toBe(true);
+  expect
+    .soft(metrics.bodyTextLength, `${label}: page content unexpectedly empty`)
+    .toBeGreaterThan(40);
+  expect
+    .soft(
+      metrics.horizontallyClipped,
+      `${label}: interactive elements outside viewport`
+    )
+    .toEqual([]);
+  expect
+    .soft(
+      metrics.fixedOutsideViewport,
+      `${label}: fixed/sticky element outside viewport`
+    )
+    .toEqual([]);
+  expect
+    .soft(
+      metrics.blockedControls,
+      `${label}: visible enabled controls blocked by another layer`
+    )
+    .toEqual([]);
+  expect
+    .soft(metrics.overlaps, `${label}: overlapping interactive components`)
+    .toEqual([]);
 }
 
 async function assertShell(page: Page, projectName: string, label: string) {
@@ -301,15 +367,30 @@ async function assertShell(page: Page, projectName: string, label: string) {
     const box = await rail.boundingBox();
     expect.soft(box, `${label}: desktop rail box`).not.toBeNull();
     if (box) {
-      expect.soft(box.x, `${label}: desktop rail shifted horizontally`).toBeLessThanOrEqual(2);
-      expect.soft(box.y, `${label}: desktop rail shifted vertically`).toBeLessThanOrEqual(2);
-      expect.soft(box.width, `${label}: desktop rail width`).toBeGreaterThanOrEqual(240);
-      expect.soft(box.width, `${label}: desktop rail width`).toBeLessThanOrEqual(264);
+      expect
+        .soft(box.x, `${label}: desktop rail shifted horizontally`)
+        .toBeLessThanOrEqual(2);
+      expect
+        .soft(box.y, `${label}: desktop rail shifted vertically`)
+        .toBeLessThanOrEqual(2);
+      expect
+        .soft(box.width, `${label}: desktop rail width`)
+        .toBeGreaterThanOrEqual(240);
+      expect
+        .soft(box.width, `${label}: desktop rail width`)
+        .toBeLessThanOrEqual(264);
     }
 
-    const visibleRail = page.locator('[data-testid="desktop-mission-rail"]:visible');
-    await expect.soft(visibleRail.locator('[data-testid="account-switcher"]')).toHaveCount(1);
+    const visibleRail = page.locator(
+      '[data-testid="desktop-mission-rail"]:visible'
+    );
+    await expect
+      .soft(visibleRail.locator('[data-testid="account-switcher"]'))
+      .toHaveCount(1);
     await expect.soft(visibleRail.locator("details")).toHaveCount(1);
+    await expect
+      .soft(visibleRail.getByText("Compte", { exact: true }))
+      .toHaveCount(1);
     return;
   }
 
@@ -321,15 +402,21 @@ async function assertShell(page: Page, projectName: string, label: string) {
   const drawer = page.getByRole("dialog", { name: "KLYX" });
   await expect.soft(drawer).toBeVisible();
   await expect.soft(drawer.getByTestId("mobile-mission-rail")).toBeVisible();
-  await expect.soft(drawer.locator('[data-testid="account-switcher"]')).toHaveCount(1);
+  await expect
+    .soft(drawer.locator('[data-testid="account-switcher"]'))
+    .toHaveCount(1);
   await expect.soft(drawer.locator("details")).toHaveCount(1);
+  await expect.soft(drawer.getByText("Compte", { exact: true })).toHaveCount(1);
   await assertObjectiveLayout(page, `${label} mobile drawer`);
   await page.keyboard.press("Escape");
   await expect.soft(drawer).toHaveCount(0);
 }
 
 async function captureReference(page: Page, testInfo: TestInfo, name: string) {
-  const sanitized = name.replace(/[^a-z0-9-]+/gi, "-").replace(/^-|-$/g, "").toLowerCase();
+  const sanitized = name
+    .replace(/[^a-z0-9-]+/gi, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase();
 
   if (HAS_REFERENCE_SCREENSHOTS) {
     await expect.soft(page).toHaveScreenshot(`${sanitized}.png`, {
@@ -359,16 +446,29 @@ async function assertCertifiedLanguages(page: Page) {
     if (labels.some((label) => label.includes("Français"))) {
       found = true;
       for (const language of CERTIFIED_LANGUAGE_LABELS) {
-        expect.soft(labels, `Settings selector is missing certified language ${language}`).toContain(language);
+        expect.soft(
+          labels,
+          `Settings selector is missing certified language ${language}`
+        ).toContain(language);
       }
-      expect.soft(labels.filter((label) => CERTIFIED_LANGUAGE_LABELS.includes(label.trim() as (typeof CERTIFIED_LANGUAGE_LABELS)[number]))).toHaveLength(CERTIFIED_LANGUAGE_LABELS.length);
+      expect
+        .soft(
+          labels.filter((label) =>
+            CERTIFIED_LANGUAGE_LABELS.includes(
+              label.trim() as (typeof CERTIFIED_LANGUAGE_LABELS)[number]
+            )
+          )
+        )
+        .toHaveLength(CERTIFIED_LANGUAGE_LABELS.length);
       await page.keyboard.press("Escape");
       break;
     }
     await page.keyboard.press("Escape");
   }
 
-  expect.soft(found, "Settings must expose the certified language selector").toBe(true);
+  expect
+    .soft(found, "Settings must expose the certified language selector")
+    .toBe(true);
 }
 
 async function voiceSmoke(page: Page) {
@@ -381,19 +481,34 @@ async function voiceSmoke(page: Page) {
   await textarea.fill("KLYX");
   await voiceButton.click();
 
-  await expect.poll(() =>
-    page.evaluate(() =>
-      (window as typeof window & { __klyxUxVoice?: { starts: () => number } }).__klyxUxVoice?.starts() ?? 0
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (
+            window as typeof window & {
+              __klyxUxVoice?: { starts: () => number };
+            }
+          ).__klyxUxVoice?.starts() ?? 0
+      )
     )
-  ).toBe(1);
+    .toBe(1);
 
   await page.evaluate(() =>
-    (window as typeof window & { __klyxUxVoice?: { fireStart: () => void } }).__klyxUxVoice?.fireStart()
+    (
+      window as typeof window & {
+        __klyxUxVoice?: { fireStart: () => void };
+      }
+    ).__klyxUxVoice?.fireStart()
   );
   await expect.soft(voiceButton).toHaveAttribute("aria-pressed", "true");
 
   await page.evaluate(() =>
-    (window as typeof window & { __klyxUxVoice?: { emitResult: (value: string) => void } }).__klyxUxVoice?.emitResult(" test voix")
+    (
+      window as typeof window & {
+        __klyxUxVoice?: { emitResult: (value: string) => void };
+      }
+    ).__klyxUxVoice?.emitResult(" test voix")
   );
   await expect.soft(textarea).toHaveValue(/KLYX.*test voix/);
 
@@ -407,52 +522,56 @@ async function photoLiveSmoke(page: Page) {
   await expect.soft(cameraButton).toBeEnabled();
   await cameraButton.click();
 
-  await expect.poll(() =>
-    page.evaluate(() =>
-      (window as typeof window & { __klyxUxCameraStarts?: number }).__klyxUxCameraStarts ?? 0
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (
+            window as typeof window & { __klyxUxCameraStarts?: number }
+          ).__klyxUxCameraStarts ?? 0
+      )
     )
-  ).toBe(1);
+    .toBe(1);
   await expect.soft(page.getByText(/Accès caméra refusé/)).toBeVisible();
+}
+
+async function visibleMissionHref(page: Page) {
+  const rail = page.getByTestId("desktop-mission-rail");
+  await expect
+    .poll(
+      async () =>
+        rail.getByText("KLYX…", { exact: true }).count(),
+      { timeout: 15_000 }
+    )
+    .toBe(0);
+
+  const hrefs = await rail
+    .locator('section[aria-label="En cours"] a[href]')
+    .evaluateAll((links) =>
+      links
+        .map((link) => link.getAttribute("href"))
+        .filter((href): href is string => Boolean(href && href.startsWith("/")))
+    );
+
+  return (
+    hrefs.find(
+      (href) =>
+        href.startsWith("/bookings/") || href.startsWith("/booking-groups/")
+    ) ?? hrefs[0] ?? null
+  );
 }
 
 async function findActiveMission(page: Page): Promise<MissionTarget | null> {
   await activateKlyxE2EProfile(page, "client");
-  const clientHref = await page.evaluate(async () => {
-    const response = await fetch("/api/bookings/overview", { cache: "no-store" });
-    if (!response.ok) return null;
-    const body = (await response.json()) as {
-      cards?: Array<{ id?: string; entityType?: string; href?: string; history?: boolean }>;
-    };
-    const mission = (body.cards ?? []).find((card) => card.history === false && card.id);
-    if (!mission) return null;
-    if (mission.href?.startsWith("/")) return mission.href;
-    return mission.entityType === "group"
-      ? `/booking-groups/${mission.id}`
-      : `/bookings/${mission.id}`;
-  });
+  await page.goto("/assistant", { waitUntil: "domcontentloaded" });
+  await settlePage(page);
+  const clientHref = await visibleMissionHref(page);
   if (clientHref) return { profile: "client", href: clientHref };
 
   await activateKlyxE2EProfile(page, "provider");
-  const providerHref = await page.evaluate(async () => {
-    const response = await fetch("/api/provider/jobs", { cache: "no-store" });
-    if (!response.ok) return null;
-    const body = (await response.json()) as {
-      confirmedMissions?: Array<{
-        id?: string;
-        entityType?: string;
-        href?: string;
-        history?: boolean;
-      }>;
-    };
-    const mission = (body.confirmedMissions ?? []).find(
-      (card) => card.history === false && card.id
-    );
-    if (!mission) return null;
-    if (mission.href?.startsWith("/")) return mission.href;
-    return mission.entityType === "group"
-      ? `/booking-groups/${mission.id}`
-      : `/bookings/${mission.id}`;
-  });
+  await page.goto("/provider/assistant", { waitUntil: "domcontentloaded" });
+  await settlePage(page);
+  const providerHref = await visibleMissionHref(page);
 
   return providerHref ? { profile: "provider", href: providerHref } : null;
 }
@@ -467,15 +586,24 @@ async function visitCriticalSurface(
   const consoleStart = consoleRecords.length;
   const response = await page.goto(route, { waitUntil: "domcontentloaded" });
   expect.soft(response, `${label}: document response`).toBeTruthy();
-  expect.soft(response?.status() ?? 599, `${label}: document HTTP status`).toBeLessThan(400);
-  expect.soft(new URL(page.url()).pathname, `${label}: must not bounce to login`).not.toBe("/login");
+  expect
+    .soft(response?.status() ?? 599, `${label}: document HTTP status`)
+    .toBeLessThan(400);
+  expect
+    .soft(
+      new URL(page.url()).pathname,
+      `${label}: must not bounce to login`
+    )
+    .not.toBe("/login");
   await settlePage(page);
 
   await assertShell(page, testInfo.project.name, label);
   await assertObjectiveLayout(page, label);
 
   const newConsoleFailures = consoleRecords.slice(consoleStart);
-  expect.soft(newConsoleFailures, `${label}: browser console/page errors`).toEqual([]);
+  expect
+    .soft(newConsoleFailures, `${label}: browser console/page errors`)
+    .toEqual([]);
   await captureReference(page, testInfo, label);
 }
 
@@ -499,18 +627,45 @@ test.describe("KLYX UX / Visual Certification", () => {
     await loginKlyxE2E(page);
     await activateKlyxE2EProfile(page, "client");
 
-    await visitCriticalSurface(page, testInfo, "/assistant", "assistant", consoleRecords);
+    await visitCriticalSurface(
+      page,
+      testInfo,
+      "/assistant",
+      "assistant",
+      consoleRecords
+    );
     await voiceSmoke(page);
 
-    await visitCriticalSurface(page, testInfo, "/profile", "profile", consoleRecords);
-    await visitCriticalSurface(page, testInfo, "/settings", "settings", consoleRecords);
+    await visitCriticalSurface(
+      page,
+      testInfo,
+      "/profile",
+      "profile",
+      consoleRecords
+    );
+    await visitCriticalSurface(
+      page,
+      testInfo,
+      "/settings",
+      "settings",
+      consoleRecords
+    );
     await assertCertifiedLanguages(page);
 
-    await visitCriticalSurface(page, testInfo, "/request/photo", "request-photo", consoleRecords);
+    await visitCriticalSurface(
+      page,
+      testInfo,
+      "/request/photo",
+      "request-photo",
+      consoleRecords
+    );
     await photoLiveSmoke(page);
 
     const mission = await findActiveMission(page);
-    expect(mission, "Dedicated E2E account must expose at least one active mission").not.toBeNull();
+    expect(
+      mission,
+      "Dedicated E2E account must expose at least one active mission"
+    ).not.toBeNull();
     if (!mission) return;
 
     await activateKlyxE2EProfile(page, mission.profile);
