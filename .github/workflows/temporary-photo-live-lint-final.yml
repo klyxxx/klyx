@@ -1,0 +1,27 @@
+name: Temporary Photo Live Final Lint
+
+on:
+  pull_request:
+    branches:
+      - feat/photo-live-camera-20260909
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Photo Live final lint
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint
