@@ -2,7 +2,12 @@ import { expect, type Locator, type Page, type TestInfo } from "@playwright/test
 
 export type UxDiagnostics = {
   route: string;
-  viewport: { width: number; height: number };
+  viewport: {
+    width: number;
+    height: number;
+    windowInnerWidth: number;
+    windowInnerHeight: number;
+  };
   document: {
     clientWidth: number;
     scrollWidth: number;
@@ -36,9 +41,9 @@ export async function settleVisualPage(page: Page) {
   await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => undefined);
   await page.evaluate(async () => {
     await document.fonts.ready;
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-    });
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+    );
     window.scrollTo(0, 0);
   });
 }
@@ -48,12 +53,12 @@ export async function collectUxDiagnostics(
   route: string
 ): Promise<UxDiagnostics> {
   const metrics = await page.evaluate(() => {
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
     const root = document.documentElement;
+    const viewportWidth = root.clientWidth;
+    const viewportHeight = root.clientHeight;
 
-    function describe(element: HTMLElement, includeBox = false) {
-      const label = (
+    function labelFor(element: HTMLElement) {
+      return (
         element.getAttribute("aria-label") ||
         element.getAttribute("title") ||
         element.textContent ||
@@ -63,11 +68,15 @@ export async function collectUxDiagnostics(
         .replace(/\s+/g, " ")
         .trim()
         .slice(0, 100);
+    }
+
+    function describe(element: HTMLElement, includeBox = false) {
+      const label = labelFor(element);
       const id = element.id ? `#${element.id}` : "";
       const base = `${element.tagName.toLowerCase()}${id}${label ? ` \"${label}\"` : ""}`;
       if (!includeBox) return base;
       const rect = element.getBoundingClientRect();
-      return `${base} [x=${Math.round(rect.x)}, width=${Math.round(rect.width)}, right=${Math.round(rect.right)}]`;
+      return `${base} [x=${Math.round(rect.x)}, width=${Math.round(rect.width)}, right=${Math.round(rect.right)}, clientWidth=${element.clientWidth}, scrollWidth=${element.scrollWidth}]`;
     }
 
     function isInsideClosedDetails(element: HTMLElement) {
@@ -119,20 +128,34 @@ export async function collectUxDiagnostics(
       document.querySelectorAll<HTMLElement>(interactiveSelector)
     ).filter(isVisible);
 
-    const overflowingElements = Array.from(
-      document.querySelectorAll<HTMLElement>("body *")
-    )
+    const overflowCandidates = [
+      ...(document.body ? [document.body] : []),
+      ...Array.from(document.querySelectorAll<HTMLElement>("body *")),
+    ];
+
+    const overflowingElements = overflowCandidates
       .filter((element) => {
-        if (!isVisible(element) || isFocusRevealSkipLink(element)) return false;
+        if (isFocusRevealSkipLink(element)) return false;
         const rect = element.getBoundingClientRect();
-        return rect.left < -2 || rect.right > viewportWidth + 2;
+        const rectOverflow =
+          isVisible(element) &&
+          (rect.left < -2 || rect.right > viewportWidth + 2);
+        const internalOverflow =
+          element.scrollWidth > element.clientWidth + 2 &&
+          element.scrollWidth > viewportWidth + 2;
+        return rectOverflow || internalOverflow;
       })
       .sort((left, right) => {
-        const leftRect = left.getBoundingClientRect();
-        const rightRect = right.getBoundingClientRect();
-        const leftOverflow = Math.max(0, -leftRect.left, leftRect.right - viewportWidth);
-        const rightOverflow = Math.max(0, -rightRect.left, rightRect.right - viewportWidth);
-        return rightOverflow - leftOverflow;
+        const severity = (element: HTMLElement) => {
+          const rect = element.getBoundingClientRect();
+          return Math.max(
+            0,
+            -rect.left,
+            rect.right - viewportWidth,
+            element.scrollWidth - Math.max(element.clientWidth, viewportWidth)
+          );
+        };
+        return severity(right) - severity(left);
       })
       .slice(0, 30)
       .map((element) => describe(element, true));
@@ -197,24 +220,18 @@ export async function collectUxDiagnostics(
       const left = overlapCandidates[leftIndex];
       const leftRect = left.getBoundingClientRect();
 
-      for (
-        let rightIndex = leftIndex + 1;
-        rightIndex < overlapCandidates.length;
-        rightIndex += 1
-      ) {
+      for (let rightIndex = leftIndex + 1; rightIndex < overlapCandidates.length; rightIndex += 1) {
         const right = overlapCandidates[rightIndex];
         if (left.contains(right) || right.contains(left)) continue;
 
         const rightRect = right.getBoundingClientRect();
         const width = Math.max(
           0,
-          Math.min(leftRect.right, rightRect.right) -
-            Math.max(leftRect.left, rightRect.left)
+          Math.min(leftRect.right, rightRect.right) - Math.max(leftRect.left, rightRect.left)
         );
         const height = Math.max(
           0,
-          Math.min(leftRect.bottom, rightRect.bottom) -
-            Math.max(leftRect.top, rightRect.top)
+          Math.min(leftRect.bottom, rightRect.bottom) - Math.max(leftRect.top, rightRect.top)
         );
         if (width <= 4 || height <= 4) continue;
 
@@ -228,7 +245,6 @@ export async function collectUxDiagnostics(
         overlappingInteractives.push(`${describe(left)} <> ${describe(right)}`);
         if (overlappingInteractives.length >= 30) break;
       }
-
       if (overlappingInteractives.length >= 30) break;
     }
 
@@ -240,11 +256,18 @@ export async function collectUxDiagnostics(
         mainRect.width > 1 &&
         mainRect.height > 1 &&
         mainRect.right > 0 &&
-        mainRect.left < viewportWidth
+        mainRect.left < viewportWidth &&
+        mainRect.bottom > 0 &&
+        mainRect.top < viewportHeight
     );
 
     return {
-      viewport: { width: viewportWidth, height: viewportHeight },
+      viewport: {
+        width: viewportWidth,
+        height: viewportHeight,
+        windowInnerWidth: window.innerWidth,
+        windowInnerHeight: window.innerHeight,
+      },
       document: {
         clientWidth: root.clientWidth,
         scrollWidth: root.scrollWidth,
@@ -262,24 +285,25 @@ export async function collectUxDiagnostics(
   });
 
   const longContentScrollable = await page.evaluate(async () => {
-    const root = document.scrollingElement;
-    if (!root) return true;
-    const maxScroll = Math.max(0, root.scrollHeight - root.clientHeight);
-    if (maxScroll <= 2) return true;
+    const scrollingElement = document.scrollingElement;
+    if (!scrollingElement) return true;
 
-    const before = root.scrollTop;
-    root.scrollTop = maxScroll;
+    const visibleHeight = Math.max(
+      document.documentElement.clientHeight,
+      window.innerHeight
+    );
+    if (scrollingElement.scrollHeight <= visibleHeight + 2) return true;
+
+    const before = scrollingElement.scrollTop;
+    scrollingElement.scrollTop = scrollingElement.scrollHeight;
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-    const reachedBottom = Math.abs(root.scrollTop - maxScroll) <= 3;
-    root.scrollTop = before;
+    const reachedBottom =
+      scrollingElement.scrollTop + visibleHeight >= scrollingElement.scrollHeight - 3;
+    scrollingElement.scrollTop = before;
     return reachedBottom;
   });
 
-  return {
-    route,
-    ...metrics,
-    longContentScrollable,
-  };
+  return { route, ...metrics, longContentScrollable };
 }
 
 export async function attachUxDiagnostics(
@@ -289,16 +313,7 @@ export async function attachUxDiagnostics(
   consoleErrors: readonly string[]
 ) {
   await testInfo.attach(`${name}-diagnostics.json`, {
-    body: Buffer.from(
-      JSON.stringify(
-        {
-          ...diagnostics,
-          consoleErrors,
-        },
-        null,
-        2
-      )
-    ),
+    body: Buffer.from(JSON.stringify({ ...diagnostics, consoleErrors }, null, 2)),
     contentType: "application/json",
   });
 }
@@ -309,7 +324,7 @@ export function expectHealthyUxDiagnostics(
 ) {
   expect.soft(
     diagnostics.horizontalOverflow,
-    `${diagnostics.route}: horizontal overflow; offenders: ${diagnostics.overflowingElements.join(" | ") || "none found"}`
+    `${diagnostics.route}: horizontal overflow; offenders: ${diagnostics.overflowingElements.join(" | ") || "root overflow without a visible offender"}`
   ).toBe(false);
   expect.soft(
     diagnostics.outOfViewport,
@@ -327,18 +342,12 @@ export function expectHealthyUxDiagnostics(
     diagnostics.overlappingInteractives,
     `${diagnostics.route}: interactive components overlap`
   ).toEqual([]);
-  expect.soft(
-    diagnostics.mainVisible,
-    `${diagnostics.route}: main content is inaccessible`
-  ).toBe(true);
+  expect.soft(diagnostics.mainVisible, `${diagnostics.route}: main content is inaccessible`).toBe(true);
   expect.soft(
     diagnostics.longContentScrollable,
     `${diagnostics.route}: long content cannot be scrolled to the end`
   ).toBe(true);
-  expect.soft(
-    consoleErrors,
-    `${diagnostics.route}: console/page errors`
-  ).toEqual([]);
+  expect.soft(consoleErrors, `${diagnostics.route}: console/page errors`).toEqual([]);
 }
 
 export async function certifyMissionRail(page: Page, mobile: boolean) {
@@ -393,8 +402,12 @@ export async function certifyMissionRail(page: Page, mobile: boolean) {
   expect.soft(railBox!.y, "Desktop rail moved vertically").toBeCloseTo(0, 0);
   expect.soft(railBox!.width, "Desktop rail became too narrow").toBeGreaterThanOrEqual(240);
   expect.soft(railBox!.width, "Desktop rail became too wide").toBeLessThanOrEqual(264);
-  expect.soft(railBox!.height, "Desktop rail is shorter than viewport").toBeGreaterThanOrEqual(viewport!.height - 2);
-  expect.soft(railBox!.height, "Desktop rail is taller than viewport").toBeLessThanOrEqual(viewport!.height + 2);
+  expect
+    .soft(railBox!.height, "Desktop rail is shorter than viewport")
+    .toBeGreaterThanOrEqual(viewport!.height - 2);
+  expect
+    .soft(railBox!.height, "Desktop rail is taller than viewport")
+    .toBeLessThanOrEqual(viewport!.height + 2);
 
   const appContent = page.locator(".klyx-app-content");
   await expect(appContent).toBeVisible();
