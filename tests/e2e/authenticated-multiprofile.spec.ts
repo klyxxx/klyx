@@ -25,17 +25,32 @@ function escapeRegExp(value: string) {
 
 async function openAccountSwitcher(page: Page) {
   const rail = page.getByTestId("desktop-mission-rail");
-  const persistedCollapsed = await page.evaluate(
-    () => window.localStorage.getItem("klyx:mission-rail:collapsed") === "true"
+  const compactEntry = rail.locator('button[data-testid="account-entry"]');
+  const expandedEntry = rail.locator('summary[data-testid="account-entry"]');
+  const accountDetails = rail.locator(
+    'details:has(summary[data-testid="account-entry"])'
   );
-  const accountEntry = persistedCollapsed
-    ? rail.locator('button[data-testid="account-entry"]')
-    : rail.locator('summary[data-testid="account-entry"]');
-
-  await expect(accountEntry).toBeVisible();
-  await accountEntry.click();
-
   const switcher = rail.getByTestId("account-switcher");
+
+  await expect(rail).toBeVisible();
+
+  if (await compactEntry.isVisible()) {
+    await compactEntry.click();
+    await expect(expandedEntry).toBeVisible();
+  }
+
+  await expect(expandedEntry).toBeVisible();
+  await expect(accountDetails).toBeVisible();
+
+  if (!(await accountDetails.evaluate((node) => (node as HTMLDetailsElement).open))) {
+    await expandedEntry.click();
+  }
+
+  await expect
+    .poll(() =>
+      accountDetails.evaluate((node) => (node as HTMLDetailsElement).open)
+    )
+    .toBe(true);
   await expect(switcher).toBeVisible();
   return switcher;
 }
