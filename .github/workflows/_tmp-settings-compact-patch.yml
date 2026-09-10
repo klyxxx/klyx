@@ -1,0 +1,169 @@
+name: Temporary settings compact patch
+
+on:
+  push:
+    branches:
+      - ux/settings-compact-language-phone-20260910
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Apply scoped UI patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected 1 match, found {count}")
+              return text.replace(old, new, 1)
+
+          settings_path = Path("app/settings/page.tsx")
+          settings = settings_path.read_text()
+
+          settings = replace_once(
+              settings,
+              'import KlyxSelect from "@/app/components/KlyxSelect";\n',
+              '',
+              'remove KlyxSelect import',
+          )
+
+          settings = replace_once(
+              settings,
+              '  // KLYX_SETTINGS_PROFILE_DELETE_ISOLATION_16_07\n',
+              '  // KLYX_SETTINGS_PROFILE_DELETE_ISOLATION_16_07\n  // KLYX_SETTINGS_COMPACT_LANGUAGE_PHONE_20260910\n',
+              'settings compact marker',
+          )
+
+          settings = replace_once(
+              settings,
+              '''  const phoneLabel =\n    locale === "fr"\n      ? "Téléphone"\n      : locale === "nl"\n        ? "Telefoon"\n        : locale === "de"\n          ? "Telefon"\n          : "Phone";\n''',
+              '''  const phoneLabel =\n    locale === "fr"\n      ? "Téléphone"\n      : locale === "nl"\n        ? "Telefoon"\n        : locale === "de"\n          ? "Telefon"\n          : "Phone";\n  const selectedLanguage =\n    KLYX_LANGUAGE_OPTIONS.find((option) => option.value === locale) ??\n    KLYX_LANGUAGE_OPTIONS[0];\n  const languageLabel = selectedLanguage?.label ?? locale;\n''',
+              'selected language label',
+          )
+
+          settings = replace_once(
+              settings,
+              '''          <SettingsDisclosure\n            icon={<Phone size={20} />}\n            title={phoneLabel}\n            open={openPanel === "phone"}\n            onToggle={() => togglePanel("phone")}\n          >\n            <div className="space-y-4">\n''',
+              '''          <SettingsDisclosure\n            icon={<Phone size={20} />}\n            title={phoneLabel}\n            open={openPanel === "phone"}\n            onToggle={() => togglePanel("phone")}\n            compactContent\n          >\n            <div className="space-y-3">\n''',
+              'compact phone disclosure',
+          )
+
+          settings = replace_once(
+              settings,
+              '''          <SettingsDisclosure\n            icon={<Languages size={20} />}\n            title={t("language")}\n            open={openPanel === "language"}\n            onToggle={() => togglePanel("language")}\n          >\n            <KlyxSelect\n              value={locale}\n              onChange={setLocale}\n              options={KLYX_LANGUAGE_OPTIONS.map(({ value, label }) => ({\n                value,\n                label,\n              }))}\n              ariaLabel={t("language")}\n            />\n          </SettingsDisclosure>\n''',
+              '''          <SettingsDisclosure\n            icon={<Languages size={20} />}\n            title={`${t("language")} — ${languageLabel}`}\n            open={openPanel === "language"}\n            onToggle={() => togglePanel("language")}\n            compactContent\n          >\n            <LanguagePicker\n              value={locale}\n              onChange={setLocale}\n              options={KLYX_LANGUAGE_OPTIONS.map(({ value, label }) => ({\n                value,\n                label,\n              }))}\n              ariaLabel={t("language")}\n            />\n          </SettingsDisclosure>\n''',
+              'compact language picker',
+          )
+
+          settings = replace_once(
+              settings,
+              '''function SettingsDisclosure({\n  icon,\n  title,\n  open,\n  onToggle,\n  children,\n  danger = false,\n}: {\n  icon: React.ReactNode;\n  title: string;\n  open: boolean;\n  onToggle: () => void;\n  children: React.ReactNode;\n  danger?: boolean;\n}) {\n''',
+              '''function SettingsDisclosure({\n  icon,\n  title,\n  open,\n  onToggle,\n  children,\n  danger = false,\n  compactContent = false,\n}: {\n  icon: React.ReactNode;\n  title: string;\n  open: boolean;\n  onToggle: () => void;\n  children: React.ReactNode;\n  danger?: boolean;\n  compactContent?: boolean;\n}) {\n''',
+              'settings disclosure compact prop',
+          )
+
+          settings = replace_once(
+              settings,
+              '''      {open && (\n        <div className="border-t border-border bg-muted/20 px-5 py-5 sm:px-6 sm:py-6">\n          {children}\n        </div>\n      )}\n''',
+              '''      {open && (\n        <div\n          className={`border-t border-border bg-muted/20 ${\n            compactContent\n              ? "px-3 py-3 sm:px-4 sm:py-4"\n              : "px-5 py-5 sm:px-6 sm:py-6"\n          }`}\n        >\n          {children}\n        </div>\n      )}\n''',
+              'settings disclosure compact content',
+          )
+
+          settings = replace_once(
+              settings,
+              '''function SettingsLink({ href, label }: { href: string; label: string }) {\n''',
+              '''function LanguagePicker({\n  value,\n  options,\n  onChange,\n  ariaLabel,\n}: {\n  value: string;\n  options: ReadonlyArray<{ value: string; label: string }>;\n  onChange: (value: string) => void;\n  ariaLabel: string;\n}) {\n  return (\n    <div\n      role="radiogroup"\n      aria-label={ariaLabel}\n      className="ml-auto w-full max-w-xs rounded-xl border border-border bg-background p-1.5 shadow-sm"\n    >\n      {options.map((option) => {\n        const selected = option.value === value;\n\n        return (\n          <button\n            key={option.value}\n            type="button"\n            role="radio"\n            aria-checked={selected}\n            onClick={() => onChange(option.value)}\n            className={`flex min-h-10 w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm font-semibold transition ${\n              selected\n                ? "bg-blue-600 text-white"\n                : "text-foreground hover:bg-muted"\n            }`}\n          >\n            <span className="truncate">{option.label}</span>\n            <span\n              aria-hidden="true"\n              className="w-4 shrink-0 text-center text-xs font-black"\n            >\n              {selected ? "✓" : ""}\n            </span>\n          </button>\n        );\n      })}\n    </div>\n  );\n}\n\nfunction SettingsLink({ href, label }: { href: string; label: string }) {\n''',
+              'language picker helper',
+          )
+
+          settings_path.write_text(settings)
+
+          phone_path = Path("app/settings/PhoneSettingsInline.tsx")
+          phone = phone_path.read_text()
+          phone = replace_once(
+              phone,
+              '''  CheckCircle2,\n  LoaderCircle,\n  MessageSquareText,\n  Phone,\n  Save,\n  Send,\n  ShieldCheck,\n''',
+              '''  CheckCircle2,\n  LoaderCircle,\n  Phone,\n  Save,\n  Send,\n''',
+              'compact phone imports',
+          )
+          phone = replace_once(
+              phone,
+              '// KLYX_PHONE_SETTINGS_SINGLE_BLUE\n',
+              '// KLYX_PHONE_SETTINGS_SINGLE_BLUE\n// KLYX_PHONE_COMPACT_UI_20260910\n',
+              'phone compact marker',
+          )
+
+          render_start = phone.rfind('  return (\n')
+          if render_start < 0:
+              raise SystemExit('phone render start not found')
+          phone_render = '''  return (\n    <section className="mb-0 rounded-xl border border-border bg-background p-3 sm:p-4">\n      <div className="flex flex-wrap items-center justify-between gap-2">\n        <div className="flex min-w-0 items-center gap-2">\n          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-blue-600/10 text-blue-600">\n            <Phone size={16} />\n          </span>\n          <h2 className="truncate text-sm font-semibold">{t("title")}</h2>\n        </div>\n\n        <span\n          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${\n            verified\n              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"\n              : "bg-amber-500/10 text-amber-600 dark:text-amber-400"\n          }`}\n        >\n          {verified && <CheckCircle2 size={13} />}\n          {verified ? t("verified") : t("needsVerification")}\n        </span>\n      </div>\n\n      {loading ? (\n        <div className="mt-3 flex items-center gap-2 text-xs font-medium text-muted-foreground">\n          <LoaderCircle size={16} className="animate-spin text-blue-600" />\n          {t("loadingPhone")}\n        </div>\n      ) : (\n        <div className="mt-3 space-y-3">\n          <div className="flex flex-col gap-2 sm:flex-row">\n            <input\n              type="tel"\n              inputMode="tel"\n              autoComplete="tel"\n              value={phoneNumber}\n              onChange={(event) => {\n                setPhoneNumber(event.target.value);\n                setMessage(null);\n                setErrorKey(null);\n              }}\n              placeholder="+32471503513"\n              aria-label={t("title")}\n              className="h-10 min-w-0 flex-1 rounded-lg border border-border bg-background px-3 text-sm font-semibold outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-600/8"\n            />\n            <button\n              type="button"\n              disabled={saving}\n              onClick={() => void savePhone()}\n              className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:opacity-60"\n            >\n              {saving ? (\n                <LoaderCircle size={16} className="animate-spin" />\n              ) : (\n                <Save size={16} />\n              )}\n              {t("save")}\n            </button>\n          </div>\n\n          <p className="text-[11px] font-medium leading-4 text-muted-foreground">\n            {t("internationalFormat")}\n          </p>\n\n          {!verified && savedPhone && !unsaved && (\n            <div className="rounded-xl border border-border bg-card p-3">\n              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">\n                <div className="min-w-0">\n                  <p className="text-sm font-semibold">{t("smsTitle")}</p>\n                  <p className="mt-0.5 text-xs leading-5 text-muted-foreground">\n                    {t("smsDescription")}\n                  </p>\n                </div>\n                <button\n                  type="button"\n                  disabled={sendingOtp || cooldown > 0}\n                  onClick={() => void sendOtp()}\n                  className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white transition hover:bg-blue-500 disabled:opacity-50"\n                >\n                  {sendingOtp ? (\n                    <LoaderCircle size={15} className="animate-spin" />\n                  ) : (\n                    <Send size={15} />\n                  )}\n                  {cooldown > 0\n                    ? t("resendIn", { seconds: cooldown })\n                    : t("sendCode")}\n                </button>\n              </div>\n\n              {otpSent && (\n                <div className="mt-3 flex flex-col gap-2 sm:flex-row">\n                  <input\n                    value={otpCode}\n                    onChange={(event) =>\n                      setOtpCode(\n                        event.target.value.replace(/\\D/g, "").slice(0, 10)\n                      )\n                    }\n                    inputMode="numeric"\n                    autoComplete="one-time-code"\n                    placeholder={t("codePlaceholder")}\n                    className="h-10 min-w-0 flex-1 rounded-lg border border-border bg-background px-3 text-center text-sm font-semibold tracking-[0.2em] outline-none transition focus:border-blue-600 focus:ring-4 focus:ring-blue-600/8"\n                  />\n                  <button\n                    type="button"\n                    disabled={verifyingOtp}\n                    onClick={() => void verifyOtp()}\n                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-50"\n                  >\n                    {verifyingOtp ? (\n                      <LoaderCircle size={15} className="animate-spin" />\n                    ) : (\n                      <CheckCircle2 size={15} />\n                    )}\n                    {t("verify")}\n                  </button>\n                </div>\n              )}\n            </div>\n          )}\n\n          {message && (\n            <div className="rounded-lg bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">\n              {t(message.key, message.variables)}\n            </div>\n          )}\n\n          {errorKey && (\n            <div className="rounded-lg bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-500">\n              {t(errorKey)}\n            </div>\n          )}\n        </div>\n      )}\n    </section>\n  );\n}\n'''
+          phone = phone[:render_start] + phone_render
+          phone_path.write_text(phone)
+
+          privacy_path = Path("app/settings/PhonePrivacyControls.tsx")
+          privacy = privacy_path.read_text()
+          privacy = replace_once(
+              privacy,
+              '// KLYX_PHONE_PRIVACY_SINGLE_BLUE\n',
+              '// KLYX_PHONE_PRIVACY_SINGLE_BLUE\n// KLYX_PHONE_PRIVACY_COMPACT_UI_20260910\n',
+              'privacy compact marker',
+          )
+          privacy = replace_once(
+              privacy,
+              '''      <section className="mb-7 rounded-2xl border border-border bg-card p-6">\n        <div className="flex items-center gap-3 text-sm font-medium text-muted-foreground">\n          <LoaderCircle size={19} className="animate-spin text-blue-600" />\n''',
+              '''      <section className="mb-0 rounded-xl border border-border bg-card p-3 sm:p-4">\n        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">\n          <LoaderCircle size={16} className="animate-spin text-blue-600" />\n''',
+              'privacy loading compact',
+          )
+
+          privacy_render_start = privacy.rfind('  return (\n')
+          if privacy_render_start < 0:
+              raise SystemExit('privacy render start not found')
+          privacy_render = '''  return (\n    <section className="mb-0 rounded-xl border border-border bg-card p-3 sm:p-4">\n      <div className="flex items-start gap-3">\n        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-blue-600/8 text-blue-600">\n          <ShieldCheck size={18} />\n        </div>\n        <div className="min-w-0 flex-1">\n          <h2 className="text-sm font-semibold">{t("title")}</h2>\n          <p className="mt-0.5 text-xs leading-5 text-muted-foreground">\n            {t("description")}\n          </p>\n        </div>\n      </div>\n\n      {!hasPhone && (\n        <div className="mt-3 rounded-lg bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-600 dark:text-amber-400">\n          {t("phoneRequired")}\n        </div>\n      )}\n\n      {hasPhone && !verified && (\n        <div className="mt-3 rounded-lg bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-600 dark:text-amber-400">\n          {t("verificationRequired")}\n        </div>\n      )}\n\n      <div className="mt-3 grid gap-2 sm:grid-cols-2">\n        <button\n          type="button"\n          disabled={saving !== null}\n          onClick={() => void changeVisibility("transaction_participants")}\n          className={\n            "flex min-h-0 items-start gap-2 rounded-xl border px-3 py-2.5 text-left transition " +\n            (visibility === "transaction_participants"\n              ? "border-blue-600 bg-blue-600/[0.07]"\n              : "border-border bg-background hover:border-blue-600/40")\n          }\n        >\n          <Users size={17} className="mt-0.5 shrink-0 text-blue-600" />\n          <span className="min-w-0">\n            <span className="block text-sm font-semibold">\n              {t("participantsTitle")}\n            </span>\n            <span className="mt-0.5 block text-xs leading-4 text-muted-foreground">\n              {t("participantsDescription")}\n            </span>\n          </span>\n        </button>\n\n        <button\n          type="button"\n          disabled={saving !== null}\n          onClick={() => void changeVisibility("private")}\n          className={\n            "flex min-h-0 items-start gap-2 rounded-xl border px-3 py-2.5 text-left transition " +\n            (visibility === "private"\n              ? "border-blue-600 bg-blue-600/[0.07]"\n              : "border-border bg-background hover:border-blue-600/40")\n          }\n        >\n          <EyeOff size={17} className="mt-0.5 shrink-0 text-blue-600" />\n          <span className="min-w-0">\n            <span className="block text-sm font-semibold">\n              {t("privateTitle")}\n            </span>\n            <span className="mt-0.5 block text-xs leading-4 text-muted-foreground">\n              {t("privateDescription")}\n            </span>\n          </span>\n        </button>\n      </div>\n\n      {saving && (\n        <div className="mt-3 flex items-center gap-2 text-xs font-medium text-muted-foreground">\n          <LoaderCircle size={14} className="animate-spin" />\n          {t("saving")}\n        </div>\n      )}\n\n      {messageKey && (\n        <div className="mt-3 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">\n          {t(messageKey)}\n        </div>\n      )}\n\n      {errorKey && (\n        <div className="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-500">\n          {t(errorKey)}\n        </div>\n      )}\n    </section>\n  );\n}\n'''
+          privacy = privacy[:privacy_render_start] + privacy_render
+          privacy_path.write_text(privacy)
+
+          test_path = Path("tests/integration/settings-compact-language-phone-contract.test.ts")
+          test_path.write_text('''import fs from "node:fs";\nimport path from "node:path";\n\nimport { describe, expect, it } from "vitest";\n\nconst root = process.cwd();\nconst read = (relativePath: string) =>\n  fs.readFileSync(path.join(root, relativePath), "utf8");\n\ndescribe("KLYX compact language and phone settings contract", () => {\n  it("uses only the canonical selectable language catalog in a compact blue picker", () => {\n    const settings = read("app/settings/page.tsx");\n\n    expect(settings).toContain("KLYX_SETTINGS_COMPACT_LANGUAGE_PHONE_20260910");\n    expect(settings).toContain("KLYX_LANGUAGE_OPTIONS.find");\n    expect(settings).toContain("KLYX_LANGUAGE_OPTIONS.map");\n    expect(settings).toContain("onChange={setLocale}");\n    expect(settings).toContain('role="radiogroup"');\n    expect(settings).toContain('role="radio"');\n    expect(settings).not.toContain("KlyxSelect");\n    expect(settings).not.toContain("KLYX_REGISTERED_LANGUAGE_OPTIONS");\n    expect(settings).not.toMatch(/violet/i);\n  });\n\n  it("keeps phone save and OTP authorization boundaries while compacting presentation", () => {\n    const phone = read("app/settings/PhoneSettingsInline.tsx");\n\n    expect(phone).toContain("KLYX_PHONE_COMPACT_UI_20260910");\n    expect(phone).toContain('fetch("/api/profile/phone"');\n    expect(phone).toContain('method: "PUT"');\n    expect(phone).toContain('fetch("/api/profile/phone/otp/send"');\n    expect(phone).toContain('fetch("/api/profile/phone/otp/verify"');\n    expect(phone).toContain('Authorization: "Bearer " + token');\n    expect(phone).toMatch(/JSON\\.stringify\\(\\{\\s*phoneNumber\\s*\\}\\)/);\n    expect(phone).toMatch(/JSON\\.stringify\\(\\{\\s*code:\\s*cleanCode\\s*\\}\\)/);\n    expect(phone).toContain('className="mb-0 rounded-xl');\n    expect(phone).not.toMatch(/violet/i);\n  });\n\n  it("keeps phone privacy semantics exact while rendering a shorter control", () => {\n    const privacy = read("app/settings/PhonePrivacyControls.tsx");\n\n    expect(privacy).toContain("KLYX_PHONE_PRIVACY_COMPACT_UI_20260910");\n    expect(privacy).toContain('fetch("/api/profile/phone/privacy"');\n    expect(privacy).toContain('method: "PUT"');\n    expect(privacy).toContain('"private" | "transaction_participants"');\n    expect(privacy).toMatch(/JSON\\.stringify\\(\\{\\s*visibility:\\s*nextVisibility\\s*\\}\\)/);\n    expect(privacy).toContain("min-h-0");\n    expect(privacy).not.toContain("min-h-28");\n    expect(privacy).not.toMatch(/violet/i);\n  });\n\n  it("preserves the secure password recovery merged in #698", () => {\n    const settings = read("app/settings/page.tsx");\n\n    expect(settings).toContain("KLYX_SETTINGS_PASSWORD_RECOVERY_20260909");\n    expect(settings).toContain("supabase.auth.resetPasswordForEmail(");\n    expect(settings).toContain('action="password-reset"');\n    expect(settings).toContain("AUTH_TURNSTILE_ENABLED");\n    expect(settings).not.toContain("password: newPassword");\n    expect(settings).not.toContain("const [newPassword");\n    expect(settings).not.toContain("const [confirmPassword");\n  });\n});\n''')
+          PY
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run direct settings contracts
+        run: >-
+          npx vitest run
+          tests/integration/settings-compact-language-phone-contract.test.ts
+          tests/integration/i18n-settings-page-contract.test.ts
+          tests/integration/i18n-phone-settings-contract.test.ts
+          tests/integration/i18n-phone-privacy-contract.test.ts
+          tests/integration/settings-password-reset-security-contract.test.ts
+
+      - name: TypeScript
+        run: npx tsc --noEmit --pretty false
+
+      - name: Commit scoped patch and remove runner
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/settings/page.tsx app/settings/PhoneSettingsInline.tsx app/settings/PhonePrivacyControls.tsx tests/integration/settings-compact-language-phone-contract.test.ts
+          git rm .github/workflows/_tmp-settings-compact-patch.yml
+          git commit -m "fix(settings): compact language and phone controls"
+          git push origin HEAD:ux/settings-compact-language-phone-20260910
