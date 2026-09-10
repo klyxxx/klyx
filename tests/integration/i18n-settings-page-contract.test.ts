@@ -58,7 +58,7 @@ describe("KLYX settings container i18n contract", () => {
     const api = read("app/api/account/delete/route.ts");
 
     expect(source).toContain('const DELETE_CONFIRMATION = "SUPPRIMER"');
-    expect(source).toContain("deleteConfirmation !== DELETE_CONFIRMIRMATION");
+    expect(source).toContain("deleteConfirmation !== DELETE_CONFIRMATION");
     expect(source).toMatch(/fetch\(\s*["']\/api\/account\/delete["'][\s\S]*?method:\s*["']DELETE["']/);
     expect(source).toContain("resolveKlyxSettingsDeleteErrorKey(result.error)");
     expect(source).toContain('result.deletedScope === "profile"');
