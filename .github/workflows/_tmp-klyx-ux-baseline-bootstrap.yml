@@ -1,0 +1,82 @@
+name: KLYX UX Baseline Bootstrap TEMP
+
+on:
+  push:
+    branches:
+      - test/ux-visual-certification-20260910
+
+permissions:
+  contents: write
+
+concurrency:
+  group: klyx-ux-baseline-bootstrap-temp
+  cancel-in-progress: true
+
+jobs:
+  bootstrap:
+    name: Bootstrap real Playwright reference screenshots
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      KLYX_E2E_EMAIL: ${{ secrets.KLYX_E2E_EMAIL }}
+      KLYX_E2E_SESSION_BOOTSTRAP: "1"
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install pinned Playwright Chromium
+        env:
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "120000"
+        run: npx playwright install --with-deps chromium
+
+      - name: Production build
+        run: npm run build
+
+      - name: Generate real Playwright baselines
+        continue-on-error: true
+        run: npm run test:e2e:ux-certification -- --update-snapshots
+
+      - name: Require exactly ten reference screenshots
+        shell: bash
+        run: |
+          count="$(find tests/e2e/ux-visual-certification-snapshots -type f -name '*.png' | wc -l | tr -d ' ')"
+          echo "Reference screenshots: $count"
+          test "$count" = "10"
+
+      - name: Refuse unexpected generated changes
+        shell: bash
+        run: |
+          unexpected="$(git status --porcelain --untracked-files=all | grep -v '^?? tests/e2e/ux-visual-certification-snapshots/' || true)"
+          if [ -n "$unexpected" ]; then
+            echo "Unexpected files changed during baseline bootstrap:"
+            echo "$unexpected"
+            exit 1
+          fi
+
+      - name: Commit reference screenshots only
+        shell: bash
+        run: |
+          git add tests/e2e/ux-visual-certification-snapshots
+          if git diff --cached --quiet; then
+            echo "Reference screenshots already present."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "test(ux): add real Playwright visual baselines"
+          git push origin HEAD:test/ux-visual-certification-20260910
