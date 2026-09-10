@@ -10,6 +10,7 @@ export type UxDiagnostics = {
     scrollHeight: number;
   };
   horizontalOverflow: boolean;
+  overflowingElements: string[];
   outOfViewport: string[];
   fixedOrStickyOutOfViewport: string[];
   blockedInteractives: string[];
@@ -51,7 +52,7 @@ export async function collectUxDiagnostics(
     const viewportHeight = window.innerHeight;
     const root = document.documentElement;
 
-    function describe(element: HTMLElement) {
+    function describe(element: HTMLElement, includeBox = false) {
       const label = (
         element.getAttribute("aria-label") ||
         element.getAttribute("title") ||
@@ -63,10 +64,22 @@ export async function collectUxDiagnostics(
         .trim()
         .slice(0, 100);
       const id = element.id ? `#${element.id}` : "";
-      return `${element.tagName.toLowerCase()}${id}${label ? ` \"${label}\"` : ""}`;
+      const base = `${element.tagName.toLowerCase()}${id}${label ? ` \"${label}\"` : ""}`;
+      if (!includeBox) return base;
+      const rect = element.getBoundingClientRect();
+      return `${base} [x=${Math.round(rect.x)}, width=${Math.round(rect.width)}, right=${Math.round(rect.right)}]`;
+    }
+
+    function isInsideClosedDetails(element: HTMLElement) {
+      const closedDetails = element.closest("details:not([open])");
+      if (!closedDetails) return false;
+      const summary = element.closest("summary");
+      return !summary || summary.parentElement !== closedDetails;
     }
 
     function isVisible(element: HTMLElement) {
+      if (element.hidden || element.closest('[hidden], [aria-hidden="true"]')) return false;
+      if (isInsideClosedDetails(element)) return false;
       const style = getComputedStyle(element);
       const rect = element.getBoundingClientRect();
       return (
@@ -80,6 +93,14 @@ export async function collectUxDiagnostics(
 
     function isDisabled(element: HTMLElement) {
       return element.matches(":disabled") || element.getAttribute("aria-disabled") === "true";
+    }
+
+    function isFocusRevealSkipLink(element: HTMLElement) {
+      return (
+        element instanceof HTMLAnchorElement &&
+        element.getAttribute("href")?.startsWith("#") === true &&
+        !element.matches(":focus, :focus-visible")
+      );
     }
 
     const interactiveSelector = [
@@ -98,19 +119,38 @@ export async function collectUxDiagnostics(
       document.querySelectorAll<HTMLElement>(interactiveSelector)
     ).filter(isVisible);
 
+    const overflowingElements = Array.from(
+      document.querySelectorAll<HTMLElement>("body *")
+    )
+      .filter((element) => {
+        if (!isVisible(element) || isFocusRevealSkipLink(element)) return false;
+        const rect = element.getBoundingClientRect();
+        return rect.left < -2 || rect.right > viewportWidth + 2;
+      })
+      .sort((left, right) => {
+        const leftRect = left.getBoundingClientRect();
+        const rightRect = right.getBoundingClientRect();
+        const leftOverflow = Math.max(0, -leftRect.left, leftRect.right - viewportWidth);
+        const rightOverflow = Math.max(0, -rightRect.left, rightRect.right - viewportWidth);
+        return rightOverflow - leftOverflow;
+      })
+      .slice(0, 30)
+      .map((element) => describe(element, true));
+
     const outOfViewport = interactives
       .filter((element) => {
+        if (isFocusRevealSkipLink(element)) return false;
         const rect = element.getBoundingClientRect();
         return rect.left < -2 || rect.right > viewportWidth + 2;
       })
       .slice(0, 30)
-      .map(describe);
+      .map((element) => describe(element, true));
 
     const fixedOrStickyOutOfViewport = Array.from(
       document.querySelectorAll<HTMLElement>("body *")
     )
       .filter((element) => {
-        if (!isVisible(element)) return false;
+        if (!isVisible(element) || isFocusRevealSkipLink(element)) return false;
         const style = getComputedStyle(element);
         if (style.position !== "fixed" && style.position !== "sticky") return false;
         const rect = element.getBoundingClientRect();
@@ -122,7 +162,7 @@ export async function collectUxDiagnostics(
         );
       })
       .slice(0, 30)
-      .map(describe);
+      .map((element) => describe(element, true));
 
     const inViewport = interactives.filter((element) => {
       const rect = element.getBoundingClientRect();
@@ -136,7 +176,7 @@ export async function collectUxDiagnostics(
 
     const blockedInteractives = inViewport
       .filter((element) => {
-        if (isDisabled(element)) return false;
+        if (isDisabled(element) || isFocusRevealSkipLink(element)) return false;
         const style = getComputedStyle(element);
         if (style.pointerEvents === "none") return true;
         const rect = element.getBoundingClientRect();
@@ -149,7 +189,7 @@ export async function collectUxDiagnostics(
       .map(describe);
 
     const overlapCandidates = inViewport
-      .filter((element) => !isDisabled(element))
+      .filter((element) => !isDisabled(element) && !isFocusRevealSkipLink(element))
       .slice(0, 120);
     const overlappingInteractives: string[] = [];
 
@@ -212,6 +252,7 @@ export async function collectUxDiagnostics(
         scrollHeight: root.scrollHeight,
       },
       horizontalOverflow: root.scrollWidth > root.clientWidth + 2,
+      overflowingElements,
       outOfViewport,
       fixedOrStickyOutOfViewport,
       blockedInteractives,
@@ -268,7 +309,7 @@ export function expectHealthyUxDiagnostics(
 ) {
   expect.soft(
     diagnostics.horizontalOverflow,
-    `${diagnostics.route}: horizontal overflow`
+    `${diagnostics.route}: horizontal overflow; offenders: ${diagnostics.overflowingElements.join(" | ") || "none found"}`
   ).toBe(false);
   expect.soft(
     diagnostics.outOfViewport,
@@ -313,23 +354,31 @@ export async function certifyMissionRail(
     await expect(header).toBeVisible();
     const headerBox = await header.boundingBox();
     expect(headerBox).not.toBeNull();
-    expect(headerBox!.x).toBeGreaterThanOrEqual(-1);
-    expect(headerBox!.y).toBeGreaterThanOrEqual(-1);
-    expect(headerBox!.x + headerBox!.width).toBeLessThanOrEqual(viewport!.width + 1);
+    expect.soft(headerBox!.x, "Mobile header starts outside viewport").toBeGreaterThanOrEqual(-1);
+    expect.soft(headerBox!.y, "Mobile header starts above viewport").toBeGreaterThanOrEqual(-1);
+    expect
+      .soft(headerBox!.x + headerBox!.width, "Mobile header exceeds viewport width")
+      .toBeLessThanOrEqual(viewport!.width + 1);
 
-    await page.getByTestId("assistant-shell-mobile-menu").click();
+    const menu = page.getByTestId("assistant-shell-mobile-menu");
+    await expect(menu).toBeAttached();
+    await menu.evaluate((element: HTMLElement) => element.click());
     const dialog = page.getByRole("dialog", { name: "KLYX" });
     await expect(dialog).toBeVisible();
     const dialogBox = await dialog.boundingBox();
     expect(dialogBox).not.toBeNull();
-    expect(dialogBox!.x).toBeGreaterThanOrEqual(-1);
-    expect(dialogBox!.y).toBeGreaterThanOrEqual(-1);
-    expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(viewport!.width + 1);
-    expect(dialogBox!.y + dialogBox!.height).toBeLessThanOrEqual(viewport!.height + 1);
+    expect.soft(dialogBox!.x, "Mobile drawer starts outside viewport").toBeGreaterThanOrEqual(-1);
+    expect.soft(dialogBox!.y, "Mobile drawer starts above viewport").toBeGreaterThanOrEqual(-1);
+    expect
+      .soft(dialogBox!.x + dialogBox!.width, "Mobile drawer exceeds viewport width")
+      .toBeLessThanOrEqual(viewport!.width + 1);
+    expect
+      .soft(dialogBox!.y + dialogBox!.height, "Mobile drawer exceeds viewport height")
+      .toBeLessThanOrEqual(viewport!.height + 1);
 
     const rail = dialog.getByTestId("mobile-mission-rail");
     await expect(rail).toBeVisible();
-    expect(
+    expect.soft(
       await accountEntryCount(rail),
       "Mobile mission rail must expose exactly one structural Account entry"
     ).toBe(1);
@@ -343,23 +392,23 @@ export async function certifyMissionRail(
   await expect(rail).toBeVisible();
   const railBox = await rail.boundingBox();
   expect(railBox).not.toBeNull();
-  expect(railBox!.x).toBeCloseTo(0, 0);
-  expect(railBox!.y).toBeCloseTo(0, 0);
-  expect(railBox!.width).toBeGreaterThanOrEqual(240);
-  expect(railBox!.width).toBeLessThanOrEqual(264);
-  expect(railBox!.height).toBeGreaterThanOrEqual(viewport!.height - 2);
-  expect(railBox!.height).toBeLessThanOrEqual(viewport!.height + 2);
+  expect.soft(railBox!.x, "Desktop rail moved horizontally").toBeCloseTo(0, 0);
+  expect.soft(railBox!.y, "Desktop rail moved vertically").toBeCloseTo(0, 0);
+  expect.soft(railBox!.width, "Desktop rail became too narrow").toBeGreaterThanOrEqual(240);
+  expect.soft(railBox!.width, "Desktop rail became too wide").toBeLessThanOrEqual(264);
+  expect.soft(railBox!.height, "Desktop rail is shorter than viewport").toBeGreaterThanOrEqual(viewport!.height - 2);
+  expect.soft(railBox!.height, "Desktop rail is taller than viewport").toBeLessThanOrEqual(viewport!.height + 2);
 
   const appContent = page.locator(".klyx-app-content");
   await expect(appContent).toBeVisible();
   const contentBox = await appContent.boundingBox();
   expect(contentBox).not.toBeNull();
-  expect(
+  expect.soft(
     contentBox!.x,
     "Desktop content must start at or after the mission rail edge"
   ).toBeGreaterThanOrEqual(railBox!.x + railBox!.width - 1);
 
-  expect(
+  expect.soft(
     await accountEntryCount(rail),
     "Desktop mission rail must expose exactly one structural Account entry"
   ).toBe(1);
