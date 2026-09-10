@@ -7,16 +7,22 @@ function read(relativePath: string): string {
 }
 
 const layout = read("app/profile/layout.tsx");
+const layoutStyles = read("app/profile/profile-layout.module.css");
 const profile = read("app/profile/page.tsx");
 
 describe("KLYX profile stability and visual finish", () => {
   it("owns scrolling inside the profile content viewport without horizontal overflow", () => {
     expect(layout).toContain('data-testid="profile-scroll-region"');
-    expect(layout).toContain("h-[calc(100dvh_-_3.5rem)]");
+    expect(layout).toContain('import styles from "./profile-layout.module.css"');
+    expect(layout).toContain("styles.scrollRegion");
     expect(layout).toContain("min-h-0");
     expect(layout).toContain("overflow-x-hidden");
     expect(layout).toContain("overflow-y-auto");
-    expect(layout).toContain("lg:h-dvh");
+
+    expect(layoutStyles).toContain("height: calc(100dvh - 3.5rem)");
+    expect(layoutStyles).toContain("@media (min-width: 64rem)");
+    expect(layoutStyles).toContain("height: 100dvh");
+    expect(layoutStyles).toContain("scrollbar-gutter: stable");
 
     expect(profile).toContain("KLYX_PROFILE_STABLE_SCROLL_2026_09_10");
     expect(profile).not.toContain("min-h-screen");
