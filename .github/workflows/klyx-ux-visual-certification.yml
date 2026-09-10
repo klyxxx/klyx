@@ -15,11 +15,13 @@ permissions:
   contents: read
   pull-requests: read
 
-# The certification is read-only against product state: browser API fixtures make
-# mutable Activity data deterministic, so superseded PR runs can be cancelled.
+# The UX suite and the general E2E suite share one dedicated KLYX account.
+# Serialize both workflows so concurrent one-time auth links and profile changes
+# cannot invalidate each other. This keeps the dedicated UX check additive while
+# preserving the existing Playwright browser verification unchanged.
 concurrency:
-  group: klyx-ux-visual-certification-${{ github.repository }}
-  cancel-in-progress: true
+  group: klyx-e2e-${{ github.repository }}
+  cancel-in-progress: false
 
 jobs:
   ux-visual-certification:
