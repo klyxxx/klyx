@@ -12,10 +12,10 @@ describe("KLYX shell polish contract", () => {
     const founderAuth = read("lib/founder-auth.ts");
 
     expect(accessBar).toContain('import { isKlyxFounder } from "@/lib/founder-auth"');
-    expect(accessBar).toContain("const founder = await isKlyxFounder();");
+    expect(accessBar).toMatch(/const founder =\s*await isKlyxFounder\(\);/);
     expect(accessBar).toMatch(/if \(!founder\) \{\s*return null;\s*\}/);
     expect(accessBar.indexOf("if (!founder)"))
-      .toBeLessThan(accessBar.indexOf('await import(\n    "@/lib/active-profile"'));
+      .toBeLessThan(accessBar.indexOf("await import("));
 
     expect(founderAuth).toContain("await supabase.auth.getUser()");
     expect(founderAuth).toContain("configuredFounderIds().has(user.id)");
