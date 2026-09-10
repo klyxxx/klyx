@@ -32,10 +32,12 @@ describe("KLYX shell polish contract", () => {
     expect(destinationCss).toContain("height: 2rem !important;");
   });
 
-  it("tightens only the empty assistant vertical rhythm across breakpoints", () => {
+  it("keeps the welcome rhythm stable from empty state through typing", () => {
     const destinationCss = read("app/klyx-destination-system.css");
 
-    expect(destinationCss).toContain('[data-testid="assistant-thread"][data-state="empty"]');
+    expect(destinationCss).toContain(
+      '[data-testid="assistant-thread"]:is([data-state="empty"], [data-state="typing"])'
+    );
     expect(destinationCss).toContain("@media (min-width: 640px)");
     expect(destinationCss).toContain("@media (min-width: 1024px)");
     expect(destinationCss).toContain("max-height: 60rem;");
