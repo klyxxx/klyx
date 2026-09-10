@@ -1,0 +1,10 @@
+.scrollRegion {
+  height: calc(100dvh - 3.5rem);
+}
+
+@media (min-width: 64rem) {
+  .scrollRegion {
+    height: 100dvh;
+    scrollbar-gutter: stable;
+  }
+}
