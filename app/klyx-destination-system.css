@@ -170,13 +170,13 @@
  */
 @media (min-width: 640px) {
   .klyx-app-content
-    [data-testid="assistant-thread"][data-state="empty"]
+    [data-testid="assistant-thread"]:is([data-state="empty"], [data-state="typing"])
     > div:first-of-type {
     padding-top: 2rem;
   }
 
   .klyx-app-content
-    [data-testid="assistant-thread"][data-state="empty"]
+    [data-testid="assistant-thread"]:is([data-state="empty"], [data-state="typing"])
     > div:first-of-type
     > div:first-child {
     padding-bottom: 2.5rem;
@@ -185,13 +185,13 @@
 
 @media (min-width: 1024px) {
   .klyx-app-content
-    [data-testid="assistant-thread"][data-state="empty"]
+    [data-testid="assistant-thread"]:is([data-state="empty"], [data-state="typing"])
     > div:first-of-type {
     padding-top: 2rem;
   }
 
   .klyx-app-content
-    [data-testid="assistant-thread"][data-state="empty"]
+    [data-testid="assistant-thread"]:is([data-state="empty"], [data-state="typing"])
     > div:first-of-type
     > div:first-child {
     height: 100%;
