@@ -195,31 +195,43 @@ async function certifyLanguageSelector(page: Page) {
   await settleVisualPage(page);
 
   const languageLabel = translateKlyxSettingsPage("fr", "language");
+  const selectedLanguage = KLYX_LANGUAGE_OPTIONS.find(
+    (option) => option.value === "fr"
+  );
+  expect(selectedLanguage, "French must remain a certified KLYX language").toBeTruthy();
+
   const disclosure = page.getByRole("button", {
-    name: languageLabel,
+    name: `${languageLabel} — ${selectedLanguage!.label}`,
     exact: true,
   });
   await expect(disclosure).toBeVisible();
   await expect(disclosure).toBeEnabled();
   await disclosure.click();
 
-  const combobox = page.getByRole("combobox", {
+  const languageGroup = page.getByRole("radiogroup", {
     name: languageLabel,
     exact: true,
   });
-  await expect(combobox).toBeVisible();
-  await expect(combobox).toBeEnabled();
-  await combobox.click();
+  await expect(languageGroup).toBeVisible();
 
-  await expect(page.getByRole("option")).toHaveCount(KLYX_LANGUAGE_OPTIONS.length);
+  const languageChoices = languageGroup.getByRole("radio");
+  await expect(languageChoices).toHaveCount(KLYX_LANGUAGE_OPTIONS.length);
   for (const { label } of KLYX_LANGUAGE_OPTIONS) {
     await expect(
-      page.getByRole("option", { name: label, exact: true }),
+      languageGroup.getByRole("radio", { name: label, exact: true }),
       `Certified language missing from selector: ${label}`
     ).toBeVisible();
   }
 
-  await page.keyboard.press("Escape");
+  await expect(
+    languageGroup.getByRole("radio", {
+      name: selectedLanguage!.label,
+      exact: true,
+    })
+  ).toHaveAttribute("aria-checked", "true");
+
+  await disclosure.click();
+  await expect(languageGroup).toBeHidden();
 }
 
 async function installVoiceSmokeMock(page: Page) {
