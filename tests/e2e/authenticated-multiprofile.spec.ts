@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
   activateKlyxE2EProfile,
   clearSensitivePassword,
@@ -23,20 +23,40 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-async function switchThroughUi(
+async function openAccountSwitcher(
   page: Page,
+  homeHref: "/assistant" | "/provider/assistant"
+) {
+  await expectAssistantFirstDesktopShell(page, homeHref);
+
+  const rail = page.getByTestId("desktop-mission-rail");
+  const accountEntry = rail.getByTestId("account-entry");
+  await expect(accountEntry).toBeVisible();
+  await accountEntry.click();
+
+  const switcher = rail.getByTestId("account-switcher");
+  const trigger = switcher
+    .locator('button[aria-haspopup="menu"]:not([disabled])')
+    .last();
+
+  await expect(trigger).toBeVisible();
+  await expect(trigger).toBeEnabled();
+  return switcher;
+}
+
+async function switchThroughUi(
+  switcher: Locator,
   current: KlyxE2EProfile,
   target: KlyxE2EProfile
 ) {
   const currentPattern = new RegExp(escapeRegExp(fullName(current)), "i");
   const targetPattern = new RegExp(escapeRegExp(fullName(target)), "i");
 
-  await page
+  await switcher
     .getByRole("button", { name: currentPattern })
-    .first()
     .click();
 
-  await page
+  await switcher
     .getByRole("menuitem", { name: targetPattern })
     .click();
 }
@@ -76,8 +96,8 @@ test.describe("KLYX authenticated multi-profile", () => {
     await expectAssistantFirstDesktopShell(page, "/assistant");
 
     await page.goto("/profile");
-    await expect(page.getByTestId("account-switcher")).toBeVisible();
-    await switchThroughUi(page, client!, provider!);
+    const clientSwitcher = await openAccountSwitcher(page, "/assistant");
+    await switchThroughUi(clientSwitcher, client!, provider!);
     await page.waitForURL((url) => url.pathname === "/provider/assistant");
     await expectAssistantFirstDesktopShell(page, "/provider/assistant");
     await expect(
@@ -92,8 +112,11 @@ test.describe("KLYX authenticated multi-profile", () => {
     await expectAssistantFirstDesktopShell(page, "/provider/assistant");
 
     await page.goto("/profile");
-    await expect(page.getByTestId("account-switcher")).toBeVisible();
-    await switchThroughUi(page, provider!, client!);
+    const providerSwitcher = await openAccountSwitcher(
+      page,
+      "/provider/assistant"
+    );
+    await switchThroughUi(providerSwitcher, provider!, client!);
     await page.waitForURL((url) => url.pathname === "/assistant");
     await expect(
       page.getByRole("heading", { name: "Que puis-je organiser pour vous ?" })
