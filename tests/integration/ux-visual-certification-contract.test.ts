@@ -7,14 +7,17 @@ function read(relativePath: string) {
   return fs.readFileSync(path.join(process.cwd(), relativePath), "utf8");
 }
 
-const workflow = read(".github/workflows/klyx-ux-visual.yml");
+const workflow = read(".github/workflows/klyx-e2e.yml");
 const config = read("playwright.ux-visual.config.ts");
 const spec = read("tests/ux-visual/klyx-ux-visual.spec.ts");
 
 describe("KLYX UX / Visual Certification contract", () => {
-  it("adds a dedicated additive GitHub check without replacing the existing E2E gate", () => {
+  it("adds a dedicated additive check after the existing Playwright browser verification", () => {
+    expect(workflow).toContain("name: KLYX E2E");
+    expect(workflow).toContain("name: Playwright browser verification");
+    expect(workflow).toContain("ux-visual-certification:");
     expect(workflow).toContain("name: KLYX UX / Visual Certification");
-    expect(workflow).toContain("name: KLYX UX / Visual Certification");
+    expect(workflow).toContain("needs: browser-tests");
     expect(workflow).toContain("npx playwright test");
     expect(workflow).toContain("--config=playwright.ux-visual.config.ts");
     expect(workflow).toContain("klyx-e2e-${{ github.repository }}");
@@ -74,6 +77,7 @@ describe("KLYX UX / Visual Certification contract", () => {
     expect(config).toContain("snapshotPathTemplate");
     expect(spec).toContain("toHaveScreenshot");
     expect(workflow).toContain("Load latest certified main visual baseline");
+    expect(workflow).toContain("actions/workflows/klyx-e2e.yml/runs");
     expect(workflow).toContain("--update-snapshots");
     expect(workflow).toContain("klyx-ux-visual-baseline");
     expect(workflow).toContain("klyx-ux-visual-report-${{ github.run_id }}");
@@ -86,7 +90,9 @@ describe("KLYX UX / Visual Certification contract", () => {
   it("uses browser-local mocks for Voice and Photo smoke coverage without paid visual services", () => {
     expect(spec).toContain("MockSpeechRecognition");
     expect(spec).toContain('Object.defineProperty(mediaDevices, "getUserMedia"');
-    expect(spec).toContain('new DOMException("UX certification denied camera", "NotAllowedError")');
+    expect(spec).toContain(
+      'new DOMException("UX certification denied camera", "NotAllowedError")'
+    );
     expect(workflow).not.toMatch(/figma|chromatic|percy|applitools|browserstack/i);
   });
 });
