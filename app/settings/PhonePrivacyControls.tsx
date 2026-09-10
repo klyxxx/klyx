@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { EyeOff, LoaderCircle, ShieldCheck, Users } from "lucide-react";
+import { EyeOff, LoaderCircle, Users } from "lucide-react";
 
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import {
@@ -14,6 +14,7 @@ import { supabase } from "@/lib/supabase";
 // KLYX_PHONE_PRIVACY_UI_12_75
 // KLYX_PHONE_PRIVACY_I18N_16_07
 // KLYX_PHONE_PRIVACY_SINGLE_BLUE
+// KLYX_PHONE_PRIVACY_COMPACT_20260910
 
 type Visibility = "private" | "transaction_participants";
 
@@ -129,9 +130,9 @@ export default function PhonePrivacyControls() {
 
   if (loading) {
     return (
-      <section className="mb-7 rounded-2xl border border-border bg-card p-6">
-        <div className="flex items-center gap-3 text-sm font-medium text-muted-foreground">
-          <LoaderCircle size={19} className="animate-spin text-blue-600" />
+      <section className="rounded-xl border border-border bg-background px-4 py-3">
+        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <LoaderCircle size={17} className="animate-spin text-blue-600" />
           {t("loading")}
         </div>
       </section>
@@ -139,47 +140,57 @@ export default function PhonePrivacyControls() {
   }
 
   return (
-    <section className="mb-7 rounded-2xl border border-border bg-card p-6 sm:p-7">
-      <div className="flex items-start gap-4">
-        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-blue-600/8 text-blue-600">
-          <ShieldCheck size={22} />
-        </div>
-        <div>
-          <h2 className="text-xl font-semibold">{t("title")}</h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+    <section className="rounded-xl border border-border bg-background p-4">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold text-foreground">{t("title")}</h2>
+          <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
             {t("description")}
           </p>
         </div>
+        {saving && (
+          <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <LoaderCircle size={14} className="animate-spin" />
+            {t("saving")}
+          </span>
+        )}
       </div>
 
       {!hasPhone && (
-        <div className="mt-5 rounded-2xl bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-600 dark:text-amber-400">
+        <div className="mt-3 rounded-xl bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-600 dark:text-amber-400">
           {t("phoneRequired")}
         </div>
       )}
 
       {hasPhone && !verified && (
-        <div className="mt-5 rounded-2xl bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-600 dark:text-amber-400">
+        <div className="mt-3 rounded-xl bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-600 dark:text-amber-400">
           {t("verificationRequired")}
         </div>
       )}
 
-      <div className="mt-6 grid gap-3 lg:grid-cols-2">
+      <div
+        className="mt-3 grid gap-2 sm:grid-cols-2"
+        role="group"
+        aria-label={t("title")}
+      >
         <button
           type="button"
           disabled={saving !== null}
+          aria-pressed={visibility === "transaction_participants"}
           onClick={() => void changeVisibility("transaction_participants")}
           className={
-            "flex min-h-28 items-start gap-4 rounded-2xl border p-5 text-left transition " +
+            "flex min-h-12 items-center gap-3 rounded-xl border px-3 py-2 text-left transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-600/15 " +
             (visibility === "transaction_participants"
-              ? "border-blue-600 bg-blue-600/[0.07]"
-              : "border-border bg-background hover:border-blue-600/40")
+              ? "border-blue-600 bg-blue-600/[0.06]"
+              : "border-border bg-background hover:border-blue-600/35")
           }
         >
-          <Users size={21} className="mt-0.5 shrink-0 text-blue-600" />
-          <span>
-            <span className="block font-semibold">{t("participantsTitle")}</span>
-            <span className="mt-1 block text-sm leading-6 text-muted-foreground">
+          <Users size={18} className="shrink-0 text-blue-600" />
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold">
+              {t("participantsTitle")}
+            </span>
+            <span className="block text-xs leading-5 text-muted-foreground">
               {t("participantsDescription")}
             </span>
           </span>
@@ -188,39 +199,33 @@ export default function PhonePrivacyControls() {
         <button
           type="button"
           disabled={saving !== null}
+          aria-pressed={visibility === "private"}
           onClick={() => void changeVisibility("private")}
           className={
-            "flex min-h-28 items-start gap-4 rounded-2xl border p-5 text-left transition " +
+            "flex min-h-12 items-center gap-3 rounded-xl border px-3 py-2 text-left transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-600/15 " +
             (visibility === "private"
-              ? "border-blue-600 bg-blue-600/[0.07]"
-              : "border-border bg-background hover:border-blue-600/40")
+              ? "border-blue-600 bg-blue-600/[0.06]"
+              : "border-border bg-background hover:border-blue-600/35")
           }
         >
-          <EyeOff size={21} className="mt-0.5 shrink-0 text-blue-600" />
-          <span>
-            <span className="block font-semibold">{t("privateTitle")}</span>
-            <span className="mt-1 block text-sm leading-6 text-muted-foreground">
+          <EyeOff size={18} className="shrink-0 text-blue-600" />
+          <span className="min-w-0">
+            <span className="block text-sm font-semibold">{t("privateTitle")}</span>
+            <span className="block text-xs leading-5 text-muted-foreground">
               {t("privateDescription")}
             </span>
           </span>
         </button>
       </div>
 
-      {saving && (
-        <div className="mt-4 flex items-center gap-2 text-sm font-medium text-muted-foreground">
-          <LoaderCircle size={16} className="animate-spin" />
-          {t("saving")}
-        </div>
-      )}
-
       {messageKey && (
-        <div className="mt-4 rounded-2xl bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-500">
+        <div className="mt-3 rounded-xl bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
           {t(messageKey)}
         </div>
       )}
 
       {errorKey && (
-        <div className="mt-4 rounded-2xl bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-500">
+        <div className="mt-3 rounded-xl bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-600 dark:text-red-400">
           {t(errorKey)}
         </div>
       )}
