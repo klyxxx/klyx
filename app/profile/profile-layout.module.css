@@ -2,6 +2,12 @@
   height: calc(100dvh - 3.5rem);
 }
 
+@media (max-width: 63.999rem) {
+  :global(.klyx-app-content):has(.scrollRegion) {
+    min-height: calc(100dvh - 3.5rem);
+  }
+}
+
 @media (min-width: 64rem) {
   .scrollRegion {
     height: 100dvh;
