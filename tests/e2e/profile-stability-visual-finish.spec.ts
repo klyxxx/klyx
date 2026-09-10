@@ -100,20 +100,34 @@ test.describe("KLYX profile viewport stability", () => {
     await expectAssistantFirstMobileShell(page);
     await expect(page.getByTestId("profile-summary-card")).toBeVisible();
     await expandProfileEditor(page);
-    await expectDocumentLockedToViewport(page);
 
     const mobileScrollRegion = page.getByTestId("profile-scroll-region");
-    const mobileMetrics = await mobileScrollRegion.evaluate((element) => ({
-      clientHeight: element.clientHeight,
-      scrollHeight: element.scrollHeight,
-      overflowY: getComputedStyle(element).overflowY,
-      viewportHeight: window.innerHeight,
-    }));
+    const mobileMetrics = await mobileScrollRegion.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        clientHeight: element.clientHeight,
+        scrollHeight: element.scrollHeight,
+        overflowY: getComputedStyle(element).overflowY,
+        computedHeight: getComputedStyle(element).height,
+        top: rect.top,
+        bottom: rect.bottom,
+        viewportHeight: window.innerHeight,
+        bodyScrollHeight: document.body.scrollHeight,
+      };
+    });
+
     expect(mobileMetrics.overflowY).toBe("auto");
+    expect(Math.abs(mobileMetrics.top - 56)).toBeLessThanOrEqual(2);
+    expect(Math.abs(mobileMetrics.bottom - mobileMetrics.viewportHeight)).toBeLessThanOrEqual(2);
     expect(
       Math.abs(mobileMetrics.clientHeight - (mobileMetrics.viewportHeight - 56))
     ).toBeLessThanOrEqual(2);
+    expect(mobileMetrics.computedHeight).toBe(`${mobileMetrics.clientHeight}px`);
+    expect(mobileMetrics.bodyScrollHeight).toBeLessThanOrEqual(
+      mobileMetrics.viewportHeight + 2
+    );
     expect(mobileMetrics.scrollHeight).toBeGreaterThan(mobileMetrics.clientHeight);
+    await expectDocumentLockedToViewport(page);
 
     await mobileScrollRegion.evaluate((element) => {
       element.scrollTop = element.scrollHeight;
