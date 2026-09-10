@@ -16,12 +16,14 @@ describe("KLYX photo request visual contract", () => {
     expect(page).toContain(
       'className="max-h-[420px] max-w-full rounded-[18px] object-contain"'
     );
+    expect(page).toContain(
+      'className="overflow-hidden rounded-[22px] border border-border bg-muted/20 dark:border-white/10 dark:bg-white/[0.025]"'
+    );
     expect(page).toContain('alt="Photo envoyée à KLYX"');
     expect(page).toContain('aria-label="Supprimer la photo"');
     expect(page).toContain("client-service-photos");
     expect(page).toContain("Autoriser l’analyse visuelle IA de cette photo");
     expect(page).not.toContain('className="h-44 w-full object-contain"');
-    expect(page).not.toContain('rounded-[22px] border border-border bg-black');
   });
 
   it("uses the single KLYX blue instead of legacy purple accents", () => {

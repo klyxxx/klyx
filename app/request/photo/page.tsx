@@ -3,7 +3,9 @@
 import {
   ChangeEvent,
   FormEvent,
+  useCallback,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import Link from "next/link";
@@ -11,23 +13,32 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
+  Camera,
   CheckCircle2,
   Eye,
   ImageIcon,
   LoaderCircle,
   LockKeyhole,
+  RotateCcw,
   Search,
   ShieldCheck,
   Sparkles,
   Trash2,
-  Upload,
+  X,
 } from "lucide-react";
 
 import { getActiveClientProfile } from "@/lib/account-switcher";
+import {
+  CameraUnavailableError,
+  captureVideoFrame,
+  disposeCameraSession,
+  requestEnvironmentCamera,
+} from "@/lib/photo-camera";
 import { supabase } from "@/lib/supabase";
 
 // KLYX_PREMIUM_PHOTO_ASSISTANT_16_01
 // KLYX_ASSISTANT_PHOTO_ATTACHMENT_RENDER_16_07
+// KLYX_PHOTO_LIVE_CAMERA_17_01
 
 type Candidate = {
   slug: string;
@@ -46,6 +57,9 @@ type Analysis = {
   visionConfidence: number | null;
   visionContributed: boolean;
 };
+
+const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 function safeFileName(name: string): string {
   const extension = name.split(".").pop()?.toLowerCase() || "jpg";
@@ -79,6 +93,10 @@ async function imageDimensions(
 
 export default function PhotoRequestPage() {
   const router = useRouter();
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const galleryInputRef = useRef<HTMLInputElement | null>(null);
+  const captureInputRef = useRef<HTMLInputElement | null>(null);
 
   const [profileId, setProfileId] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -89,6 +107,9 @@ export default function PhotoRequestPage() {
   const [requestId, setRequestId] = useState("");
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraStarting, setCameraStarting] = useState(false);
+  const [cameraMessage, setCameraMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
@@ -110,6 +131,31 @@ export default function PhotoRequestPage() {
     };
   }, [previewUrl]);
 
+  const closeCamera = useCallback(() => {
+    disposeCameraSession(streamRef.current, videoRef.current);
+    streamRef.current = null;
+    setCameraOpen(false);
+    setCameraStarting(false);
+  }, []);
+
+  useEffect(() => {
+    if (!cameraOpen || !videoRef.current || !streamRef.current) return;
+
+    const video = videoRef.current;
+    video.srcObject = streamRef.current;
+    void video.play().catch(() => {
+      closeCamera();
+      setCameraMessage("La caméra ne peut pas démarrer sur cet appareil.");
+    });
+  }, [cameraOpen, closeCamera]);
+
+  useEffect(() => {
+    return () => {
+      disposeCameraSession(streamRef.current, videoRef.current);
+      streamRef.current = null;
+    };
+  }, []);
+
   async function token(): Promise<string> {
     const {
       data: { session },
@@ -122,22 +168,18 @@ export default function PhotoRequestPage() {
     return session.access_token;
   }
 
-  function chooseFile(event: ChangeEvent<HTMLInputElement>) {
-    const selected = event.target.files?.[0];
-    event.target.value = "";
-
-    if (!selected) return;
-
+  function applySelectedFile(selected: File) {
     setErrorMessage("");
+    setCameraMessage("");
     setAnalysis(null);
     setRequestId("");
 
-    if (!["image/jpeg", "image/png", "image/webp"].includes(selected.type)) {
+    if (!ACCEPTED_IMAGE_TYPES.includes(selected.type)) {
       setErrorMessage("Utilise une image JPG, PNG ou WEBP.");
       return;
     }
 
-    if (selected.size > 10 * 1024 * 1024) {
+    if (selected.size > MAX_IMAGE_BYTES) {
       setErrorMessage("La photo dépasse la limite de 10 Mo.");
       return;
     }
@@ -148,11 +190,78 @@ export default function PhotoRequestPage() {
     setPreviewUrl(URL.createObjectURL(selected));
   }
 
+  function chooseFile(event: ChangeEvent<HTMLInputElement>) {
+    const selected = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!selected) return;
+    applySelectedFile(selected);
+  }
+
+  async function startCamera() {
+    if (cameraOpen || cameraStarting || uploading || deleting) return;
+
+    setCameraMessage("");
+    setErrorMessage("");
+    setCameraStarting(true);
+
+    try {
+      const stream = await requestEnvironmentCamera(navigator.mediaDevices);
+      streamRef.current = stream;
+      setCameraOpen(true);
+    } catch (error) {
+      closeCamera();
+
+      if (error instanceof CameraUnavailableError) {
+        captureInputRef.current?.click();
+        return;
+      }
+
+      if (error instanceof DOMException && error.name === "NotAllowedError") {
+        setCameraMessage(
+          "Accès caméra refusé. Tu peux l’autoriser dans le navigateur ou utiliser la caméra du téléphone."
+        );
+        return;
+      }
+
+      setCameraMessage(
+        "La caméra directe n’est pas disponible. Tu peux utiliser la caméra du téléphone ou choisir une photo."
+      );
+    } finally {
+      setCameraStarting(false);
+    }
+  }
+
+  async function capturePhoto() {
+    const video = videoRef.current;
+
+    if (!video) return;
+
+    try {
+      const blob = await captureVideoFrame(
+        video,
+        document.createElement("canvas"),
+        closeCamera
+      );
+      const captured = new File(
+        [blob],
+        `klyx-photo-${Date.now()}.jpg`,
+        { type: "image/jpeg" }
+      );
+
+      applySelectedFile(captured);
+    } catch {
+      closeCamera();
+      setCameraMessage("KLYX n’a pas pu capturer cette image. Réessaie.");
+    }
+  }
+
   async function analyze(event: FormEvent) {
     event.preventDefault();
 
     if (!file || !profileId || description.trim().length < 10) return;
 
+    closeCamera();
     setUploading(true);
     setErrorMessage("");
     setAnalysis(null);
@@ -204,7 +313,6 @@ export default function PhotoRequestPage() {
         await supabase.storage
           .from("client-service-photos")
           .remove([uploadedPath]);
-
         throw new Error("Photo analysis unavailable");
       }
 
@@ -235,10 +343,13 @@ export default function PhotoRequestPage() {
   }
 
   async function deletePhoto() {
+    closeCamera();
+
     if (!requestId) {
       setFile(null);
       setAnalysis(null);
       setDescription("");
+      setUseVision(false);
 
       if (previewUrl) {
         URL.revokeObjectURL(previewUrl);
@@ -252,17 +363,14 @@ export default function PhotoRequestPage() {
 
     try {
       const accessToken = await token();
-      const response = await fetch(
-        "/api/requests/photo",
-        {
-          method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({ requestId }),
-        }
-      );
+      const response = await fetch("/api/requests/photo", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ requestId }),
+      });
 
       if (!response.ok) {
         throw new Error("Photo deletion unavailable");
@@ -272,6 +380,7 @@ export default function PhotoRequestPage() {
       setAnalysis(null);
       setRequestId("");
       setDescription("");
+      setUseVision(false);
 
       if (previewUrl) {
         URL.revokeObjectURL(previewUrl);
@@ -282,6 +391,21 @@ export default function PhotoRequestPage() {
     } finally {
       setDeleting(false);
     }
+  }
+
+  async function retakePhoto() {
+    if (requestId) {
+      await deletePhoto();
+    } else {
+      setFile(null);
+      setAnalysis(null);
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+        setPreviewUrl("");
+      }
+    }
+
+    await startCamera();
   }
 
   const ready = Boolean(
@@ -307,7 +431,7 @@ export default function PhotoRequestPage() {
             Montre-moi ce qu’il faut faire.
           </h1>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">
-            Ajoute une photo et quelques mots. KLYX garde l’image entière visible et t’aide à identifier le bon métier.
+            Prends une photo maintenant ou choisis-en une. Rien n’est envoyé avant ta confirmation.
           </p>
         </header>
 
@@ -316,24 +440,99 @@ export default function PhotoRequestPage() {
           className="overflow-hidden rounded-[26px] border border-border bg-background shadow-sm dark:border-white/10 dark:bg-zinc-950"
         >
           <div className="border-b border-border p-4 dark:border-white/10 sm:p-5">
-            {!previewUrl ? (
-              <label className="group grid min-h-52 cursor-pointer place-items-center rounded-[22px] border border-dashed border-border bg-muted/20 p-6 text-center transition hover:border-[#2563EB]/35 hover:bg-[#2563EB]/[0.035] dark:border-white/10">
-                <div>
-                  <span className="mx-auto grid h-11 w-11 place-items-center rounded-2xl bg-[#2563EB]/10 text-[#2563EB] transition group-hover:scale-105">
-                    <Upload size={20} />
+            {!previewUrl && !cameraOpen ? (
+              <div className="rounded-[22px] border border-border bg-muted/20 p-4 dark:border-white/10 sm:p-5">
+                <div className="flex items-start gap-3">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[#2563EB]/10 text-[#2563EB]">
+                    <Camera size={19} />
                   </span>
-                  <p className="mt-3 text-sm font-bold">Ajouter une photo</p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    JPG, PNG ou WEBP · 10 Mo max
-                  </p>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold">Ajouter une photo</p>
+                    <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                      La caméra s’ouvre uniquement après ton action.
+                    </p>
+                  </div>
                 </div>
-                <input
-                  type="file"
-                  hidden
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={chooseFile}
-                />
-              </label>
+
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => void startCamera()}
+                    disabled={cameraStarting}
+                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-[#2563EB] px-4 text-sm font-bold text-white transition hover:bg-[#1D4ED8] disabled:opacity-50"
+                  >
+                    {cameraStarting ? (
+                      <LoaderCircle className="animate-spin" size={17} />
+                    ) : (
+                      <Camera size={17} />
+                    )}
+                    Prendre une photo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => galleryInputRef.current?.click()}
+                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl border border-border bg-background px-4 text-sm font-bold transition hover:bg-muted dark:border-white/10"
+                  >
+                    <ImageIcon size={17} />
+                    Choisir une photo
+                  </button>
+                </div>
+
+                <p className="mt-3 text-[11px] leading-5 text-muted-foreground">
+                  JPG, PNG ou WEBP · 10 Mo max · aucun upload avant “Analyser la demande”.
+                </p>
+
+                {cameraMessage && (
+                  <div className="mt-3 rounded-2xl border border-amber-500/20 bg-amber-500/8 p-3 text-xs leading-5 text-amber-800 dark:text-amber-200">
+                    <p>{cameraMessage}</p>
+                    <button
+                      type="button"
+                      onClick={() => captureInputRef.current?.click()}
+                      className="mt-2 font-bold underline underline-offset-4"
+                    >
+                      Utiliser la caméra du téléphone
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : cameraOpen ? (
+              <div className="overflow-hidden rounded-[22px] border border-border bg-black dark:border-white/10">
+                <div className="relative aspect-[4/3] w-full bg-black">
+                  <video
+                    ref={videoRef}
+                    playsInline
+                    muted
+                    autoPlay
+                    className="h-full w-full object-cover"
+                    aria-label="Aperçu caméra KLYX"
+                  />
+                  <button
+                    type="button"
+                    onClick={closeCamera}
+                    className="absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-full bg-black/60 text-white backdrop-blur"
+                    aria-label="Fermer la caméra"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+                <div className="flex flex-col gap-2 bg-background p-3 sm:flex-row sm:justify-end dark:bg-zinc-950">
+                  <button
+                    type="button"
+                    onClick={closeCamera}
+                    className="inline-flex h-11 items-center justify-center rounded-full border border-border px-4 text-sm font-bold dark:border-white/10"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void capturePhoto()}
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#2563EB] px-5 text-sm font-bold text-white"
+                  >
+                    <Camera size={17} />
+                    Capturer
+                  </button>
+                </div>
+              </div>
             ) : (
               <div className="overflow-hidden rounded-[22px] border border-border bg-muted/20 dark:border-white/10 dark:bg-white/[0.025]">
                 <div className="relative flex min-h-56 items-center justify-center p-3 sm:min-h-72 sm:p-4">
@@ -343,41 +542,75 @@ export default function PhotoRequestPage() {
                     alt="Aperçu du problème"
                     className="max-h-[420px] max-w-full rounded-[18px] object-contain"
                   />
-                  <button
-                    type="button"
-                    onClick={() => void deletePhoto()}
-                    disabled={deleting || uploading}
-                    className="absolute right-3 top-3 grid h-9 w-9 place-items-center rounded-xl border border-border bg-background/90 text-foreground shadow-sm backdrop-blur transition hover:bg-muted disabled:opacity-50 dark:border-white/10 dark:bg-zinc-950/90"
-                    aria-label="Supprimer la photo"
-                  >
-                    {deleting ? (
-                      <LoaderCircle className="animate-spin" size={16} />
-                    ) : (
-                      <Trash2 size={16} />
-                    )}
-                  </button>
+                  <span className="absolute left-3 top-3 rounded-full bg-emerald-600 px-3 py-1 text-[10px] font-bold text-white shadow-sm">
+                    Photo prête · non envoyée
+                  </span>
                 </div>
 
-                <div className="flex min-w-0 items-center justify-between gap-3 border-t border-border px-3 py-2.5 dark:border-white/10 sm:px-4">
+                <div className="flex flex-col gap-2 border-t border-border p-3 dark:border-white/10 sm:flex-row sm:items-center sm:justify-between">
                   <span className="min-w-0 truncate text-xs font-medium text-muted-foreground">
                     {file?.name}
                   </span>
-                  <label className="shrink-0 cursor-pointer rounded-lg px-2.5 py-1.5 text-xs font-semibold text-[#2563EB] transition hover:bg-[#2563EB]/[0.06]">
-                    Remplacer
-                    <input
-                      type="file"
-                      hidden
-                      accept="image/jpeg,image/png,image/webp"
-                      onChange={chooseFile}
-                    />
-                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void retakePhoto()}
+                      disabled={deleting || uploading}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border px-3 text-xs font-bold transition hover:bg-muted disabled:opacity-50 dark:border-white/10"
+                    >
+                      <RotateCcw size={14} />
+                      Recommencer
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => galleryInputRef.current?.click()}
+                      disabled={deleting || uploading}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border px-3 text-xs font-bold transition hover:bg-muted disabled:opacity-50 dark:border-white/10"
+                    >
+                      <ImageIcon size={14} />
+                      Remplacer
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void deletePhoto()}
+                      disabled={deleting || uploading}
+                      aria-label="Supprimer la photo"
+                      className="inline-flex h-9 items-center gap-1.5 rounded-xl px-3 text-xs font-bold text-rose-600 transition hover:bg-rose-500/8 disabled:opacity-50"
+                    >
+                      {deleting ? (
+                        <LoaderCircle className="animate-spin" size={14} />
+                      ) : (
+                        <Trash2 size={14} />
+                      )}
+                      Supprimer
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
+
+            <input
+              ref={galleryInputRef}
+              type="file"
+              hidden
+              accept="image/jpeg,image/png,image/webp"
+              onChange={chooseFile}
+            />
+            <input
+              ref={captureInputRef}
+              type="file"
+              hidden
+              accept="image/*"
+              capture="environment"
+              onChange={chooseFile}
+            />
           </div>
 
           <div className="p-4 sm:p-5">
-            <label htmlFor="klyx-photo-description" className="text-xs font-bold text-muted-foreground">
+            <label
+              htmlFor="klyx-photo-description"
+              className="text-xs font-bold text-muted-foreground"
+            >
               Explique le besoin
             </label>
             <textarea
@@ -418,7 +651,7 @@ export default function PhotoRequestPage() {
                     Autoriser l’analyse visuelle IA de cette photo
                   </span>
                   <span className="mt-0.5 block text-[10px] leading-4 text-muted-foreground">
-                    Autorisation valable uniquement pour cette photo. Sans accord, KLYX utilise uniquement ta description.
+                    Autorisation séparée, valable uniquement pour cette photo. Sans accord, KLYX utilise uniquement ta description.
                   </span>
                 </span>
               </label>
@@ -438,7 +671,7 @@ export default function PhotoRequestPage() {
                 {uploading
                   ? "Analyse en cours…"
                   : useVision
-                    ? "Analyser avec KLYX"
+                    ? "Utiliser et analyser avec KLYX"
                     : "Analyser la demande"}
               </button>
             </div>
@@ -526,7 +759,6 @@ export default function PhotoRequestPage() {
                     </p>
                     <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <p className="font-bold">{analysis.serviceLabel}</p>
-
                       {analysis.serviceSlug && (
                         <button
                           type="button"
@@ -574,7 +806,10 @@ export default function PhotoRequestPage() {
                 )}
 
                 <div className="mt-5 flex items-start gap-2 text-xs leading-5 text-muted-foreground">
-                  <ShieldCheck size={14} className="mt-0.5 shrink-0 text-emerald-600" />
+                  <ShieldCheck
+                    size={14}
+                    className="mt-0.5 shrink-0 text-emerald-600"
+                  />
                   <p>{analysis.limitations}</p>
                 </div>
               </div>
