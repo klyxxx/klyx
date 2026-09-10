@@ -16,7 +16,6 @@ describe("KLYX UX / Visual Certification contract", () => {
   it("adds a dedicated additive workflow without replacing Playwright browser verification", () => {
     expect(workflow).toContain("name: KLYX UX / Visual Certification");
     expect(workflow).toContain("ux-visual-certification:");
-    expect(workflow).toContain("name: KLYX UX / Visual Certification");
     expect(workflow).toContain("npx playwright test");
     expect(workflow).toContain("--config=playwright.ux-visual.config.ts");
     expect(workflow).toContain("group: klyx-ux-visual-${{ github.ref }}");
@@ -34,7 +33,7 @@ describe("KLYX UX / Visual Certification contract", () => {
     expect(config).toContain('testDir: "./tests/ux-visual"');
   });
 
-  it("covers every required critical surface including a real active mission from the rendered rail", () => {
+  it("covers all required surfaces and a deterministic read-only active mission", () => {
     for (const route of [
       '"/assistant"',
       '"/profile"',
@@ -44,19 +43,21 @@ describe("KLYX UX / Visual Certification contract", () => {
       expect(spec).toContain(route);
     }
 
-    expect(spec).toContain("findActiveMission");
-    expect(spec).toContain("visibleMissionHref");
-    expect(spec).toContain('section[aria-label="En cours"] a[href]');
-    expect(spec).toContain('href.startsWith("/bookings/")');
-    expect(spec).toContain('href.startsWith("/booking-groups/")');
-    expect(spec).toContain(
-      "Dedicated E2E account must expose at least one active mission"
-    );
-    expect(spec).not.toContain('fetch("/api/bookings/overview"');
-    expect(spec).not.toContain('fetch("/api/provider/jobs"');
+    expect(spec).toContain("installActiveMissionFixture");
+    expect(spec).toContain("FIXTURE_MISSION_HREF");
+    expect(spec).toContain('section[aria-label="En cours"] a[href=');
+    expect(spec).toContain('page.route("**/api/bookings/overview"');
+    expect(spec).toContain('page.route("**/api/bookings/activity-hidden"');
+    expect(spec).toContain('page.route("**/api/bookings/split-missions"');
+    expect(spec).toContain('page.route("**/rest/v1/bookings**"');
+    expect(spec).toContain('page.route("**/rest/v1/booking_status_events**"');
+    expect(spec).toContain('page.route("**/rest/v1/profiles**"');
+    expect(spec).toContain('page.route("**/rest/v1/services**"');
+    expect(spec).toContain('route.request().method() !== "GET"');
+    expect(spec).not.toContain("SUPABASE_SERVICE_ROLE_KEY");
   });
 
-  it("measures objective layout, interaction and browser-error invariants", () => {
+  it("measures objective layout and interaction invariants without modal false positives", () => {
     for (const contract of [
       "horizontalOverflow",
       "horizontallyClipped",
@@ -65,6 +66,9 @@ describe("KLYX UX / Visual Certification contract", () => {
       "overlaps",
       "mainVisible",
       "isInsideIntentionalHorizontalScroller",
+      "scopeSelector",
+      "window.scrollTo",
+      "window.scrollX",
       'getByTestId("desktop-mission-rail")',
       'getByTestId("assistant-shell-mobile-header")',
       'getByTestId("assistant-shell-mobile-menu")',
@@ -78,6 +82,20 @@ describe("KLYX UX / Visual Certification contract", () => {
       'page.on("pageerror"',
     ]) {
       expect(spec).toContain(contract);
+    }
+
+    expect(spec).toContain("user-reachable horizontal page scroll");
+    expect(spec).toContain("rawRootOverflow");
+    expect(spec).toContain("'[role=\"dialog\"][aria-modal=\"true\"]'");
+  });
+
+  it("opens the settings language disclosure before certifying its options", () => {
+    expect(spec).toContain('/^(Langue|Language|Taal|Sprache)$/');
+    expect(spec).toContain('getAttribute("aria-expanded")');
+    expect(spec).toContain('getByRole("combobox"');
+    expect(spec).toContain('getByRole("option")');
+    for (const language of ["Français", "English", "Nederlands", "Deutsch"]) {
+      expect(spec).toContain(`"${language}"`);
     }
   });
 
@@ -95,7 +113,7 @@ describe("KLYX UX / Visual Certification contract", () => {
     expect(workflow).toContain("Guard UX / Visual artifacts against secrets");
   });
 
-  it("uses browser-local mocks for Voice and Photo smoke coverage without paid visual services", () => {
+  it("uses browser-local mocks for Voice and Photo without paid visual services", () => {
     expect(spec).toContain("MockSpeechRecognition");
     expect(spec).toContain('Object.defineProperty(mediaDevices, "getUserMedia"');
     expect(spec).toContain(
