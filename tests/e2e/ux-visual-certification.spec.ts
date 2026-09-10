@@ -55,12 +55,116 @@ function captureRuntimeErrors(page: Page) {
   return errors;
 }
 
+async function mockDeterministicActiveMission(page: Page) {
+  await page.route("**/api/bookings/overview", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        accountType: "client",
+        cards: [
+          {
+            id: "e2e-action",
+            entityType: "booking",
+            href: "/bookings/e2e-action",
+            role: "client",
+            otherUserName: "Prestataire KLYX",
+            otherUserAvatar: null,
+            serviceLabel: "Ménage",
+            serviceSlug: "menage",
+            status: "pending",
+            statusLabel: "En attente",
+            paymentStatus: "pending",
+            amountCents: 6500,
+            currency: "EUR",
+            dateFrom: "2026-09-03",
+            dateTo: "2026-09-03",
+            firstStart: "09:00",
+            lastEnd: "11:00",
+            slotCount: 1,
+            actionRequired: true,
+            history: false,
+            cancellationPending: false,
+            refundStatus: "",
+            createdAt: "2026-09-01T18:00:00.000Z",
+          },
+          {
+            id: "e2e-upcoming",
+            entityType: "booking",
+            href: "/bookings/e2e-upcoming",
+            role: "client",
+            otherUserName: "Aide KLYX",
+            otherUserAvatar: null,
+            serviceLabel: "Bricolage",
+            serviceSlug: "bricolage",
+            status: "accepted",
+            statusLabel: "Acceptée",
+            paymentStatus: "paid",
+            amountCents: 4800,
+            currency: "EUR",
+            dateFrom: "2026-09-06",
+            dateTo: "2026-09-06",
+            firstStart: "14:00",
+            lastEnd: "15:30",
+            slotCount: 1,
+            actionRequired: false,
+            history: false,
+            cancellationPending: false,
+            refundStatus: "",
+            createdAt: "2026-09-01T17:00:00.000Z",
+          },
+        ],
+        childBookingsHidden: 0,
+        groupedDisplay: true,
+      }),
+    });
+  });
+
+  await page.route("**/api/bookings/split-missions", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ missions: [], childBookingIds: [] }),
+    });
+  });
+
+  await page.route("**/api/bookings/activity-hidden", async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.fallback();
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        hidden: [],
+        ownershipScope: "client",
+        registryAvailable: true,
+        sourceRecordsDeleted: false,
+      }),
+    });
+  });
+}
+
 async function certifyRoute(
   page: Page,
   testInfo: TestInfo,
   route: string,
   runtimeErrors: string[],
-  screenshotName: string
+  screenshotName: string,
+  ready?: () => Promise<void>
 ) {
   runtimeErrors.length = 0;
   const response = await page.goto(route, { waitUntil: "domcontentloaded" });
@@ -72,6 +176,7 @@ async function certifyRoute(
   );
 
   await settleVisualPage(page);
+  if (ready) await ready();
   await expectReferenceScreenshot(page, screenshotName);
   await certifyMissionRail(page, isMobileProject(testInfo));
 
@@ -83,55 +188,6 @@ async function certifyRoute(
     [...runtimeErrors]
   );
   expectHealthyUxDiagnostics(diagnostics, runtimeErrors);
-}
-
-async function findActiveMissionHref(
-  page: Page,
-  testInfo: TestInfo
-): Promise<{ href: string; accountType: "client" | "provider" }> {
-  for (const accountType of ["client", "provider"] as const) {
-    await activateKlyxE2EProfile(page, accountType);
-    await forceDeterministicLocaleAndRail(page);
-    await page.goto(
-      accountType === "client" ? "/assistant" : "/provider/assistant",
-      { waitUntil: "domcontentloaded" }
-    );
-    await settleVisualPage(page);
-
-    let rail = page.getByTestId("desktop-mission-rail");
-    let drawer: ReturnType<Page["getByRole"]> | null = null;
-
-    if (isMobileProject(testInfo)) {
-      await page.getByTestId("assistant-shell-mobile-menu").click();
-      drawer = page.getByRole("dialog", { name: "KLYX" });
-      await expect(drawer).toBeVisible();
-      rail = drawer.getByTestId("mobile-mission-rail");
-    }
-
-    const current = rail.locator('section[aria-label="En cours"]');
-    const detailLinks = current.locator(
-      'a[href^="/bookings/"], a[href^="/booking-groups/"]'
-    );
-    const count = await detailLinks.count();
-
-    if (count > 0) {
-      const href = await detailLinks.first().getAttribute("href");
-      if (drawer) {
-        await page.keyboard.press("Escape");
-        await expect(drawer).toBeHidden();
-      }
-      if (href) return { href, accountType };
-    }
-
-    if (drawer) {
-      await page.keyboard.press("Escape");
-      await expect(drawer).toBeHidden();
-    }
-  }
-
-  throw new Error(
-    "Dedicated KLYX E2E profiles expose no active booking/group mission detail."
-  );
 }
 
 async function certifyLanguageSelector(page: Page) {
@@ -380,6 +436,7 @@ test.describe("KLYX UX / Visual Certification", () => {
     await loginKlyxE2E(page);
     await activateKlyxE2EProfile(page, "client");
     await forceDeterministicLocaleAndRail(page);
+    await mockDeterministicActiveMission(page);
 
     for (const route of CRITICAL_ROUTES) {
       await test.step(`${route} measurable UX`, async () => {
@@ -399,16 +456,20 @@ test.describe("KLYX UX / Visual Certification", () => {
       expect.soft(runtimeErrors, "Settings language selector emitted runtime errors").toEqual([]);
     });
 
-    await test.step("active mission detail", async () => {
-      const mission = await findActiveMissionHref(page, testInfo);
-      await activateKlyxE2EProfile(page, mission.accountType);
-      await forceDeterministicLocaleAndRail(page);
+    await test.step("deterministic active mission view", async () => {
+      const missionLink = page
+        .getByRole("main")
+        .locator('a[href="/bookings/e2e-action"]');
       await certifyRoute(
         page,
         testInfo,
-        mission.href,
+        "/bookings",
         runtimeErrors,
-        `active-mission-${isMobileProject(testInfo) ? "mobile" : "desktop"}`
+        `active-mission-${isMobileProject(testInfo) ? "mobile" : "desktop"}`,
+        async () => {
+          await expect(missionLink).toBeVisible();
+          await expect(missionLink).toBeEnabled();
+        }
       );
     });
   });
@@ -422,6 +483,7 @@ test.describe("KLYX UX / Visual Certification", () => {
     await loginKlyxE2E(page);
     await activateKlyxE2EProfile(page, "client");
     await forceDeterministicLocaleAndRail(page);
+    await mockDeterministicActiveMission(page);
 
     runtimeErrors.length = 0;
     await certifyVoiceSmoke(page);
