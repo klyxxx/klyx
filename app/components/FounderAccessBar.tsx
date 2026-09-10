@@ -58,28 +58,23 @@ export default async function FounderAccessBar() {
     ) ?? null;
 
   return (
-    <aside
-      className="klyx-founder-access-utility"
-      aria-label="Outils internes Founder"
-    >
-      <FounderCompactMenu
-        currentProfileId={
-          activeProfile?.id ??
-          null
-        }
-        currentMode={
-          activeProfile?.accountType ??
-          null
-        }
-        clientProfileId={
-          clientProfile?.id ??
-          null
-        }
-        providerProfileId={
-          providerProfile?.id ??
-          null
-        }
-      />
-    </aside>
+    <FounderCompactMenu
+      currentProfileId={
+        activeProfile?.id ??
+        null
+      }
+      currentMode={
+        activeProfile?.accountType ??
+        null
+      }
+      clientProfileId={
+        clientProfile?.id ??
+        null
+      }
+      providerProfileId={
+        providerProfile?.id ??
+        null
+      }
+    />
   );
 }
