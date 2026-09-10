@@ -1,0 +1,183 @@
+name: KLYX UX / Visual Certification
+
+on:
+  workflow_dispatch:
+
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: read
+
+# The certification reuses the dedicated mutable E2E profiles.
+# Serialize runs so profile switching cannot race across PRs.
+concurrency:
+  group: klyx-ux-visual-certification-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  ux-visual-certification:
+    name: KLYX UX / Visual Certification
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      KLYX_E2E_EMAIL: ${{ secrets.KLYX_E2E_EMAIL }}
+      KLYX_E2E_SESSION_BOOTSTRAP: "1"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Scan current repository for secrets
+        shell: pwsh
+        run: ./scripts/check-klyx-public-repo-secrets.ps1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Validate required environment
+        shell: bash
+        run: |
+          for variable in \
+            NEXT_PUBLIC_SUPABASE_URL \
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY \
+            SUPABASE_SERVICE_ROLE_KEY \
+            KLYX_E2E_EMAIL
+          do
+            if [ -z "${!variable}" ]; then
+              echo "$variable is missing"
+              exit 1
+            fi
+          done
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Visual baselines must use the Chromium revision pinned by Playwright,
+      # not the auto-updated system Chrome used by the general E2E suite.
+      - name: Install pinned Playwright Chromium
+        env:
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "120000"
+        run: npx playwright install --with-deps chromium
+
+      - name: Production build
+        run: npm run build
+
+      - name: Run UX visual certification
+        id: certification
+        run: npm run test:e2e:ux-certification
+
+      - name: Publish certification summary
+        if: always()
+        env:
+          CERTIFICATION_OUTCOME: ${{ steps.certification.outcome }}
+        shell: bash
+        run: |
+          python <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          summary = Path(os.environ["GITHUB_STEP_SUMMARY"])
+          report = Path("ux-certification-report.json")
+          outcome = os.environ.get("CERTIFICATION_OUTCOME", "not-run")
+
+          lines = [
+              "## KLYX UX / Visual Certification",
+              "",
+              f"**Outcome:** `{outcome}`",
+              "",
+              "The downloadable artifact contains the Playwright HTML report, machine-readable JSON report, and failure/reference screenshot evidence.",
+          ]
+
+          if report.exists():
+              try:
+                  payload = json.loads(report.read_text(encoding="utf-8"))
+                  counters = payload.get("stats", {})
+                  lines.extend(
+                      [
+                          "",
+                          f"- Expected: {counters.get('expected', 0)}",
+                          f"- Unexpected: {counters.get('unexpected', 0)}",
+                          f"- Flaky: {counters.get('flaky', 0)}",
+                          f"- Skipped: {counters.get('skipped', 0)}",
+                      ]
+                  )
+              except Exception as error:
+                  lines.extend(["", f"JSON summary unreadable: `{error}`"])
+
+          summary.write_text("\n".join(lines) + "\n", encoding="utf-8")
+          PY
+
+      - name: Guard UX artifacts against service-role leakage
+        id: artifact_guard
+        if: always()
+        shell: bash
+        run: |
+          python <<'PY'
+          import os
+          import shutil
+          import sys
+          from pathlib import Path
+
+          secret = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").encode("utf-8")
+          roots = [
+              Path("ux-playwright-report"),
+              Path("ux-test-results"),
+              Path("ux-certification-report.json"),
+          ]
+
+          if not secret:
+              for root in roots:
+                  if root.is_dir():
+                      shutil.rmtree(root, ignore_errors=True)
+                  elif root.exists():
+                      root.unlink(missing_ok=True)
+              print("Service-role credential unavailable; refusing UX artifact upload.")
+              sys.exit(1)
+
+          for root in roots:
+              paths = [root] if root.is_file() else list(root.rglob("*")) if root.exists() else []
+              for path in paths:
+                  if not path.is_file():
+                      continue
+                  try:
+                      data = path.read_bytes()
+                  except Exception:
+                      continue
+                  if secret and secret in data:
+                      for target in roots:
+                          if target.is_dir():
+                              shutil.rmtree(target, ignore_errors=True)
+                          elif target.exists():
+                              target.unlink(missing_ok=True)
+                      print(f"Sensitive credential detected in {path}; UX artifacts deleted.")
+                      sys.exit(1)
+
+          print("UX artifact secret scan: PASS")
+          PY
+
+      - name: Upload UX certification report and screenshots
+        if: ${{ always() && steps.artifact_guard.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: klyx-ux-visual-certification-${{ github.run_id }}
+          path: |
+            ux-playwright-report/
+            ux-test-results/
+            ux-certification-report.json
+          if-no-files-found: warn
+          retention-days: 14
