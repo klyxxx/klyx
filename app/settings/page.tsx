@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Bell,
+  Check,
   ChevronRight,
   CreditCard,
   Languages,
@@ -23,7 +24,6 @@ import AuthTurnstile, {
   type AuthTurnstileHandle,
 } from "@/app/components/AuthTurnstile";
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
-import KlyxSelect from "@/app/components/KlyxSelect";
 import { useTheme } from "@/app/components/ThemeProvider";
 import PhoneAccessHistory from "./PhoneAccessHistory";
 import PhonePrivacyControls from "./PhonePrivacyControls";
@@ -97,6 +97,7 @@ export default function SettingsPage() {
   // KLYX_SETTINGS_PHONE_HISTORY_VISIBLE
   // KLYX_SETTINGS_PROGRESSIVE_DISCLOSURE
   // KLYX_SETTINGS_PROFILE_DELETE_ISOLATION_16_07
+  // KLYX_SETTINGS_COMPACT_LANGUAGE_PHONE_20260910
 
   useEffect(() => {
     let active = true;
@@ -330,6 +331,9 @@ export default function SettingsPage() {
         : locale === "de"
           ? "Telefon"
           : "Phone";
+  const selectedLanguage =
+    KLYX_LANGUAGE_OPTIONS.find((option) => option.value === locale) ??
+    KLYX_LANGUAGE_OPTIONS[0];
   const hasOtherProfiles = profileCount > 1;
   const deleteTitleKey: KlyxSettingsPageMessageKey = hasOtherProfiles
     ? "deleteProfileTitle"
@@ -381,7 +385,7 @@ export default function SettingsPage() {
             open={openPanel === "phone"}
             onToggle={() => togglePanel("phone")}
           >
-            <div className="space-y-4">
+            <div className="space-y-3">
               {/* KLYX_REAL_SIDEBAR_PHONE_REPAIR_12_67F */}
               <PhoneSettingsInline />
               {/* KLYX_PHONE_PRIVACY_SETTINGS_12_75 */}
@@ -527,18 +531,37 @@ export default function SettingsPage() {
           <SettingsDisclosure
             icon={<Languages size={20} />}
             title={t("language")}
+            value={selectedLanguage?.label ?? locale}
             open={openPanel === "language"}
             onToggle={() => togglePanel("language")}
           >
-            <KlyxSelect
-              value={locale}
-              onChange={setLocale}
-              options={KLYX_LANGUAGE_OPTIONS.map(({ value, label }) => ({
-                value,
-                label,
-              }))}
-              ariaLabel={t("language")}
-            />
+            <div
+              role="radiogroup"
+              aria-label={t("language")}
+              className="overflow-hidden rounded-xl border border-border bg-background"
+            >
+              {KLYX_LANGUAGE_OPTIONS.map(({ value, label }) => {
+                const selected = value === locale;
+
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => setLocale(value)}
+                    className={`flex min-h-11 w-full items-center justify-between gap-3 border-b border-border px-3 py-2.5 text-left text-sm transition last:border-b-0 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-inset focus-visible:ring-blue-600/15 ${
+                      selected
+                        ? "bg-blue-600/[0.06] font-semibold text-blue-700 dark:text-blue-300"
+                        : "font-medium text-foreground hover:bg-muted/60"
+                    }`}
+                  >
+                    <span>{label}</span>
+                    {selected && <Check size={16} className="shrink-0 text-blue-600" />}
+                  </button>
+                );
+              })}
+            </div>
           </SettingsDisclosure>
 
           <SettingsDisclosure
@@ -617,6 +640,7 @@ export default function SettingsPage() {
 function SettingsDisclosure({
   icon,
   title,
+  value,
   open,
   onToggle,
   children,
@@ -624,6 +648,7 @@ function SettingsDisclosure({
 }: {
   icon: React.ReactNode;
   title: string;
+  value?: string;
   open: boolean;
   onToggle: () => void;
   children: React.ReactNode;
@@ -648,9 +673,12 @@ function SettingsDisclosure({
             {icon}
           </span>
           <span
-            className={`truncate font-semibold ${danger ? "text-red-600" : ""}`}
+            className={`min-w-0 truncate font-semibold ${danger ? "text-red-600" : ""}`}
           >
             {title}
+            {value ? (
+              <span className="font-normal text-muted-foreground"> — {value}</span>
+            ) : null}
           </span>
         </div>
 
@@ -663,7 +691,7 @@ function SettingsDisclosure({
       </button>
 
       {open && (
-        <div className="border-t border-border bg-muted/20 px-5 py-5 sm:px-6 sm:py-6">
+        <div className="border-t border-border bg-muted/20 px-5 py-4 sm:px-6 sm:py-5">
           {children}
         </div>
       )}
