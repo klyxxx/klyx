@@ -202,19 +202,19 @@
 }
 
 /* Founder access is an internal utility, not part of the product hierarchy. */
-.klyx-founder-access-utility > div {
+.klyx-founder-access-utility {
   right: 0.75rem !important;
   bottom: 0.75rem !important;
   opacity: 0.7;
   transition: opacity 150ms ease;
 }
 
-.klyx-founder-access-utility > div:hover,
-.klyx-founder-access-utility > div:focus-within {
+.klyx-founder-access-utility:hover,
+.klyx-founder-access-utility:focus-within {
   opacity: 1;
 }
 
-.klyx-founder-access-utility > div > button[aria-expanded] {
+.klyx-founder-access-utility > button[aria-expanded] {
   height: 2rem !important;
   gap: 0.375rem !important;
   padding-inline: 0.625rem !important;
@@ -229,14 +229,14 @@
   backdrop-filter: blur(8px);
 }
 
-.klyx-founder-access-utility > div > button[aria-expanded] img {
+.klyx-founder-access-utility > button[aria-expanded] img {
   width: 0.875rem !important;
   height: 0.875rem !important;
   border-radius: 0.25rem !important;
   opacity: 0.65;
 }
 
-.klyx-founder-access-utility > div > div {
+.klyx-founder-access-utility > div {
   width: min(90vw, 19rem) !important;
   margin-bottom: 0.5rem !important;
   border-radius: 0.75rem !important;
@@ -248,7 +248,7 @@
     padding: 1.25rem 1rem 7rem;
   }
 
-  .klyx-founder-access-utility > div {
+  .klyx-founder-access-utility {
     right: 0.5rem !important;
     bottom: calc(0.5rem + env(safe-area-inset-bottom)) !important;
   }
