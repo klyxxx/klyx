@@ -7,12 +7,11 @@ function read(relativePath: string) {
 }
 
 describe("KLYX private consoles Aura Noir contract", () => {
-  it("uses the same theme-aware KLYX mark for Founder and Admin", () => {
+  it("uses the same theme-aware KLYX mark inside Founder and Admin consoles", () => {
     const adminLayout = read("app/admin/layout.tsx");
     const founderLayout = read("app/founder/layout.tsx");
-    const founderMenu = read("app/components/FounderCompactMenu.tsx");
 
-    for (const source of [adminLayout, founderLayout, founderMenu]) {
+    for (const source of [adminLayout, founderLayout]) {
       expect(source).toContain("KlyxThemeImage");
       expect(source).toContain('srcLight="/icon.svg"');
       expect(source).toContain('srcDark="/apple-icon.svg"');
@@ -34,7 +33,7 @@ describe("KLYX private consoles Aura Noir contract", () => {
     expect(founderStyles).toContain("background: var(--card) !important");
   });
 
-  it("maps legacy Founder identity colors to KLYX blue but preserves statuses", () => {
+  it("keeps Founder console identity blue while the global Founder utility stays neutral", () => {
     const founderStyles = read("app/founder/founder-refresh.css");
     const founderMenu = read("app/components/FounderCompactMenu.tsx");
 
@@ -43,8 +42,10 @@ describe("KLYX private consoles Aura Noir contract", () => {
     expect(founderStyles).toContain('[class*="bg-violet-600"]');
     expect(founderStyles).not.toContain('[class*="text-emerald-"]');
     expect(founderStyles).not.toContain('[class*="text-rose-"]');
-    expect(founderMenu).toContain("#2563EB");
+    expect(founderMenu).not.toContain("#2563EB");
     expect(founderMenu).not.toMatch(/violet|indigo|fuchsia|amber-400/i);
+    expect(founderMenu).toContain("border-dashed");
+    expect(founderMenu).toContain("text-muted-foreground");
   });
 
   it("keeps Admin on the exact same Aura Noir brand language", () => {
