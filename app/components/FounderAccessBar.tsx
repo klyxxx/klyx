@@ -19,26 +19,43 @@ import { isKlyxFounder } from "@/lib/founder-auth";
  * confirmé que l'utilisateur courant est réellement fondateur.
  */
 export default async function FounderAccessBar() {
-  const founder = await isKlyxFounder();
+  const founder =
+    await isKlyxFounder();
 
   if (!founder) {
     return null;
   }
 
-  const { getActiveProfile, getOwnedProfiles } = await import(
-    "@/lib/active-profile"
-  );
+  const {
+    getActiveProfile,
+    getOwnedProfiles,
+  } =
+    await import(
+      "@/lib/active-profile"
+    );
 
-  const [activeProfile, profiles] = await Promise.all([
-    getActiveProfile(),
-    getOwnedProfiles(),
-  ]);
+  const [
+    activeProfile,
+    profiles,
+  ] =
+    await Promise.all([
+      getActiveProfile(),
+      getOwnedProfiles(),
+    ]);
 
   const clientProfile =
-    profiles.find((profile) => profile.accountType === "client") ?? null;
+    profiles.find(
+      (profile) =>
+        profile.accountType ===
+        "client"
+    ) ?? null;
 
   const providerProfile =
-    profiles.find((profile) => profile.accountType === "provider") ?? null;
+    profiles.find(
+      (profile) =>
+        profile.accountType ===
+        "provider"
+    ) ?? null;
 
   return (
     <aside
@@ -46,10 +63,22 @@ export default async function FounderAccessBar() {
       aria-label="Outils internes Founder"
     >
       <FounderCompactMenu
-        currentProfileId={activeProfile?.id ?? null}
-        currentMode={activeProfile?.accountType ?? null}
-        clientProfileId={clientProfile?.id ?? null}
-        providerProfileId={providerProfile?.id ?? null}
+        currentProfileId={
+          activeProfile?.id ??
+          null
+        }
+        currentMode={
+          activeProfile?.accountType ??
+          null
+        }
+        clientProfileId={
+          clientProfile?.id ??
+          null
+        }
+        providerProfileId={
+          providerProfile?.id ??
+          null
+        }
       />
     </aside>
   );
