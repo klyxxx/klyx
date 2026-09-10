@@ -22,12 +22,11 @@ describe("KLYX shell polish contract", () => {
   });
 
   it("presents authorized Founder access as a low-hierarchy internal utility", () => {
-    const accessBar = read("app/components/FounderAccessBar.tsx");
+    const compactMenu = read("app/components/FounderCompactMenu.tsx");
     const destinationCss = read("app/klyx-destination-system.css");
 
-    expect(accessBar).toContain('className="klyx-founder-access-utility"');
-    expect(accessBar).toContain('aria-label="Outils internes Founder"');
-    expect(destinationCss).toContain(".klyx-founder-access-utility > div");
+    expect(compactMenu).toContain("klyx-founder-access-utility fixed bottom-5 right-5");
+    expect(destinationCss).toContain(".klyx-founder-access-utility {");
     expect(destinationCss).toContain("opacity: 0.7;");
     expect(destinationCss).toContain("border-style: dashed;");
     expect(destinationCss).toContain("height: 2rem !important;");
