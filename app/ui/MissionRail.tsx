@@ -12,7 +12,6 @@ import {
   LogOut,
   Plus,
   Settings,
-  SlidersHorizontal,
   WalletCards,
   Wrench,
 } from "lucide-react";
@@ -23,12 +22,13 @@ import KlyxLogo from "@/app/ui/KlyxLogo";
 import { createClient } from "@/lib/supabase/client";
 
 type AccountType = "client" | "provider";
+type MissionRole = "client" | "provider";
 
 type MissionCard = {
   id: string;
   entityType: "booking" | "group";
   href: string;
-  role?: "client" | "provider";
+  role?: MissionRole;
   otherUserName: string;
   serviceLabel: string;
   statusLabel: string;
@@ -51,7 +51,10 @@ type RailMission = {
   key: string;
   href: string;
   title: string;
-  meta: string;
+  statusLabel: string;
+  when: string;
+  roleLabel: string;
+  otherUserName: string;
   createdAt: string;
   actionRequired: boolean;
   history: boolean;
@@ -79,6 +82,8 @@ type Copy = {
   loggingOut: string;
   collapse: string;
   expand: string;
+  clientRole: string;
+  providerRole: string;
 };
 
 const RAIL_COLLAPSED_STORAGE_KEY = "klyx:mission-rail:collapsed";
@@ -101,6 +106,8 @@ const COPY: Record<string, Copy> = {
     loggingOut: "Déconnexion…",
     collapse: "Replier le rail",
     expand: "Déplier le rail",
+    clientRole: "Client",
+    providerRole: "Prestataire",
   },
   en: {
     newMission: "New mission",
@@ -119,6 +126,8 @@ const COPY: Record<string, Copy> = {
     loggingOut: "Logging out…",
     collapse: "Collapse rail",
     expand: "Expand rail",
+    clientRole: "Client",
+    providerRole: "Provider",
   },
   nl: {
     newMission: "Nieuwe missie",
@@ -137,6 +146,8 @@ const COPY: Record<string, Copy> = {
     loggingOut: "Uitloggen…",
     collapse: "Rail inklappen",
     expand: "Rail uitklappen",
+    clientRole: "Klant",
+    providerRole: "Aanbieder",
   },
   de: {
     newMission: "Neue Mission",
@@ -155,6 +166,8 @@ const COPY: Record<string, Copy> = {
     loggingOut: "Abmeldung…",
     collapse: "Leiste einklappen",
     expand: "Leiste ausklappen",
+    clientRole: "Kunde",
+    providerRole: "Anbieter",
   },
   es: {
     newMission: "Nueva misión",
@@ -173,6 +186,56 @@ const COPY: Record<string, Copy> = {
     loggingOut: "Cerrando sesión…",
     collapse: "Contraer panel",
     expand: "Expandir panel",
+    clientRole: "Cliente",
+    providerRole: "Proveedor",
+  },
+};
+
+const SPLIT_STATUS: Record<string, Record<string, string>> = {
+  fr: {
+    requested: "Demandée",
+    pending: "En attente",
+    accepted: "Acceptée",
+    confirmed: "Confirmée",
+    rejected: "Refusée",
+    cancelled: "Annulée",
+    completed: "Terminée",
+  },
+  en: {
+    requested: "Requested",
+    pending: "Pending",
+    accepted: "Accepted",
+    confirmed: "Confirmed",
+    rejected: "Rejected",
+    cancelled: "Cancelled",
+    completed: "Completed",
+  },
+  nl: {
+    requested: "Aangevraagd",
+    pending: "In afwachting",
+    accepted: "Geaccepteerd",
+    confirmed: "Bevestigd",
+    rejected: "Geweigerd",
+    cancelled: "Geannuleerd",
+    completed: "Voltooid",
+  },
+  de: {
+    requested: "Angefragt",
+    pending: "Ausstehend",
+    accepted: "Akzeptiert",
+    confirmed: "Bestätigt",
+    rejected: "Abgelehnt",
+    cancelled: "Storniert",
+    completed: "Abgeschlossen",
+  },
+  es: {
+    requested: "Solicitada",
+    pending: "Pendiente",
+    accepted: "Aceptada",
+    confirmed: "Confirmada",
+    rejected: "Rechazada",
+    cancelled: "Cancelada",
+    completed: "Completada",
   },
 };
 
@@ -184,16 +247,36 @@ function hiddenKey(entityType: HiddenEntity["entityType"], entityId: string) {
   return `${entityType}:${entityId}`;
 }
 
-function dateLabel(locale: string, value: string | null | undefined) {
+function dateTimeLabel(locale: string, value: string | null | undefined) {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
 
+  const hasExplicitTime = /T\d{2}:\d{2}|\s\d{1,2}:\d{2}/.test(value);
+
   try {
-    return new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" }).format(date);
+    return new Intl.DateTimeFormat(locale, {
+      day: "numeric",
+      month: "short",
+      ...(hasExplicitTime
+        ? { hour: "2-digit", minute: "2-digit" }
+        : {}),
+    }).format(date);
   } catch {
     return value;
   }
+}
+
+function missionRoleLabel(locale: string, role: MissionRole | undefined) {
+  if (!role) return "";
+  const copy = copyFor(locale);
+  return role === "provider" ? copy.providerRole : copy.clientRole;
+}
+
+function splitStatusLabel(locale: string, status: string) {
+  const normalized = status.trim().toLowerCase();
+  if (!normalized) return "";
+  return SPLIT_STATUS[locale]?.[normalized] ?? SPLIT_STATUS.en[normalized] ?? status;
 }
 
 function compareMissions(left: RailMission, right: RailMission) {
@@ -221,14 +304,41 @@ function railMissionFromCard(locale: string, mission: MissionCard): RailMission 
     key: `${mission.entityType}:${mission.id}`,
     href: hrefForMission(mission),
     title: mission.serviceLabel || mission.otherUserName || "KLYX",
-    meta:
-      mission.otherUserName ||
-      dateLabel(locale, mission.dateFrom) ||
-      mission.statusLabel,
+    statusLabel: mission.statusLabel.trim(),
+    when: dateTimeLabel(locale, mission.dateFrom),
+    roleLabel: missionRoleLabel(locale, mission.role),
+    otherUserName: mission.otherUserName.trim(),
     createdAt: mission.createdAt,
     actionRequired: mission.actionRequired,
     history: mission.history,
   };
+}
+
+function missionMeta(mission: RailMission, siblings: RailMission[]) {
+  const sameFingerprint = siblings.filter(
+    (candidate) =>
+      candidate.key !== mission.key &&
+      candidate.title === mission.title &&
+      candidate.statusLabel === mission.statusLabel &&
+      candidate.when === mission.when &&
+      candidate.roleLabel === mission.roleLabel
+  );
+  const nameDistinguishes =
+    Boolean(mission.otherUserName) &&
+    sameFingerprint.some(
+      (candidate) =>
+        Boolean(candidate.otherUserName) &&
+        candidate.otherUserName !== mission.otherUserName
+    );
+
+  return [
+    mission.statusLabel,
+    mission.when,
+    mission.roleLabel,
+    nameDistinguishes ? mission.otherUserName : "",
+  ]
+    .filter((part, index, parts) => Boolean(part) && parts.indexOf(part) === index)
+    .join(" · ");
 }
 
 async function bearerToken() {
@@ -258,6 +368,7 @@ export default function MissionRail({
   const pathname = usePathname();
   const copy = copyFor(locale);
   const [collapsed, setCollapsed] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [missions, setMissions] = useState<RailMission[]>([]);
   const [loading, setLoading] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -357,7 +468,10 @@ export default function MissionRail({
             key: `split:${mission.id}`,
             href: "/bookings",
             title: mission.serviceName || "KLYX",
-            meta: dateLabel(locale, mission.firstDate),
+            statusLabel: splitStatusLabel(locale, mission.status),
+            when: dateTimeLabel(locale, mission.firstDate),
+            roleLabel: missionRoleLabel(locale, "client"),
+            otherUserName: "",
             createdAt: mission.createdAt,
             actionRequired: mission.actionRequired,
             history: mission.status === "completed" || mission.status === "cancelled",
@@ -397,6 +511,11 @@ export default function MissionRail({
     }
   }
 
+  function openAccountFromCompactRail() {
+    setCollapsedPreference(false);
+    setAccountOpen(true);
+  }
+
   function isMissionActive(mission: RailMission) {
     return normalizePath(mission.href) === currentPath;
   }
@@ -420,7 +539,7 @@ export default function MissionRail({
 
     if (compact) {
       return (
-        <div className="space-y-1.5" aria-label={label}>
+        <div className="space-y-1" aria-label={label}>
           {rows.slice(0, 3).map((mission) => {
             const active = isMissionActive(mission);
             return (
@@ -430,9 +549,9 @@ export default function MissionRail({
                 onClick={onNavigate}
                 title={mission.title}
                 aria-current={active ? "page" : undefined}
-                className={`relative grid h-10 w-10 place-items-center rounded-xl transition ${
+                className={`relative grid h-10 w-10 place-items-center rounded-lg transition ${
                   active
-                    ? "text-[#2563EB]"
+                    ? "bg-[#2563EB]/10 text-[#2563EB]"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
@@ -452,51 +571,55 @@ export default function MissionRail({
 
     return (
       <section aria-label={label}>
-        <div className="mb-2 flex items-center gap-2 px-2 text-[11px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
-          <Icon size={13} />
+        <div className="mb-1 px-2 text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
           {label}
         </div>
         {rows.length === 0 ? (
-          <p className="px-2 py-2 text-xs leading-5 text-muted-foreground">
+          <p className="px-2 py-1.5 text-xs leading-5 text-muted-foreground">
             {loading ? "KLYX…" : empty}
           </p>
         ) : (
-          <div className="space-y-1">
+          <div className="space-y-0.5">
             {rows.map((mission) => {
               const active = isMissionActive(mission);
+              const meta = missionMeta(mission, rows);
               return (
                 <Link
                   key={mission.key}
                   href={mission.href}
                   onClick={onNavigate}
                   aria-current={active ? "page" : undefined}
-                  className={`relative block rounded-xl px-2.5 py-2.5 transition ${
-                    active ? "bg-muted/50" : "hover:bg-muted"
+                  title={meta ? `${mission.title} — ${meta}` : mission.title}
+                  className={`relative block rounded-lg px-2 py-1.5 transition ${
+                    active ? "bg-[#2563EB]/10" : "hover:bg-muted"
                   }`}
                 >
                   {active && (
                     <span
                       aria-hidden="true"
-                      className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-[#2563EB]"
+                      className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-[#2563EB]"
                     />
                   )}
                   <div className="flex min-w-0 items-center gap-2">
                     {mission.actionRequired && (
-                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#2563EB]" />
+                      <span
+                        aria-label={copy.newMission}
+                        className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#2563EB]"
+                      />
                     )}
                     <span
-                      className={`truncate text-sm font-semibold ${
-                        active ? "text-[#2563EB]" : ""
+                      className={`max-w-[42%] shrink-0 truncate text-[13px] font-medium leading-5 ${
+                        active ? "text-[#2563EB]" : "text-foreground"
                       }`}
                     >
                       {mission.title}
                     </span>
+                    {meta && (
+                      <span className="min-w-0 flex-1 truncate text-right text-[11px] leading-5 text-muted-foreground">
+                        {meta}
+                      </span>
+                    )}
                   </div>
-                  {mission.meta && (
-                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                      {mission.meta}
-                    </p>
-                  )}
                 </Link>
               );
             })}
@@ -526,7 +649,7 @@ export default function MissionRail({
               onClick={() => setCollapsedPreference(!collapsed)}
               aria-label={compact ? copy.expand : copy.collapse}
               title={compact ? copy.expand : copy.collapse}
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
             >
               {compact ? <ChevronRight size={17} /> : <ChevronLeft size={17} />}
             </button>
@@ -541,8 +664,8 @@ export default function MissionRail({
           data-testid="new-mission-action"
           className={
             compact
-              ? "mt-6 grid h-11 w-11 place-items-center rounded-xl bg-[#2563EB] text-white transition hover:opacity-90"
-              : "mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#2563EB] px-4 text-sm font-semibold text-white transition hover:opacity-90"
+              ? "mt-6 grid h-11 w-11 place-items-center rounded-lg bg-[#2563EB] text-white transition hover:opacity-90"
+              : "mt-6 flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#2563EB] px-4 text-sm font-semibold text-white transition hover:opacity-90"
           }
         >
           <Plus size={18} />
@@ -554,7 +677,7 @@ export default function MissionRail({
         className={
           compact
             ? "min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-2"
-            : "min-h-0 flex-1 space-y-6 overflow-y-auto px-3 py-2"
+            : "min-h-0 flex-1 space-y-5 overflow-y-auto px-3 py-2"
         }
       >
         {section(copy.current, copy.emptyCurrent, currentMissions, false)}
@@ -571,93 +694,107 @@ export default function MissionRail({
         {compact ? (
           <button
             type="button"
-            onClick={() => setCollapsedPreference(false)}
+            onClick={openAccountFromCompactRail}
             aria-label={copy.account}
             title={copy.account}
-            className="grid h-11 w-11 place-items-center rounded-xl text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            data-testid="account-entry"
+            className="grid h-11 w-11 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
           >
             <CircleUserRound size={20} />
           </button>
         ) : (
-          <div className="space-y-2">
-            {activeProfileId && (
-              <div className="[&>div>button]:w-full">
-                <AccountSwitcher currentProfileId={activeProfileId} />
-              </div>
-            )}
+          <details
+            open={accountOpen}
+            onToggle={(event) => setAccountOpen(event.currentTarget.open)}
+            className="group"
+          >
+            <summary
+              data-testid="account-entry"
+              className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-lg px-2.5 text-sm font-semibold text-foreground transition hover:bg-muted"
+            >
+              <CircleUserRound size={17} className="text-muted-foreground" />
+              <span className="min-w-0 flex-1 truncate">{copy.account}</span>
+              <ChevronRight
+                size={15}
+                className="shrink-0 text-muted-foreground transition group-open:rotate-90"
+              />
+            </summary>
 
-            <details className="group">
-              <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-xl px-2.5 text-sm font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground">
-                <SlidersHorizontal size={16} />
-                {copy.account}
-              </summary>
-              <div className="mt-1 space-y-1 pl-1">
-                <Link
-                  href="/profile"
-                  onClick={onNavigate}
-                  className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            <div className="mt-1 space-y-1 pl-1">
+              {activeProfileId && (
+                <div
+                  data-testid="account-profile-switcher"
+                  className="pb-1 [&>div>button]:min-h-12 [&>div>button]:rounded-lg [&>div>button]:bg-background"
                 >
-                  <CircleUserRound size={15} />
-                  {copy.profile}
-                </Link>
+                  <AccountSwitcher currentProfileId={activeProfileId} />
+                </div>
+              )}
 
-                {accountType === "provider" && (
-                  <>
-                    <Link
-                      href="/provider"
-                      onClick={onNavigate}
-                      className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                    >
-                      <BriefcaseBusiness size={15} />
-                      {copy.commercialProfile}
-                    </Link>
-                    <Link
-                      href="/provider/studio"
-                      onClick={onNavigate}
-                      className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                    >
-                      <Wrench size={15} />
-                      {copy.services}
-                    </Link>
-                    <Link
-                      href="/provider/payments"
-                      onClick={onNavigate}
-                      className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                    >
-                      <WalletCards size={15} />
-                      {copy.finances}
-                    </Link>
-                  </>
-                )}
+              <Link
+                href="/profile"
+                onClick={onNavigate}
+                className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              >
+                <CircleUserRound size={15} />
+                {copy.profile}
+              </Link>
 
-                <Link
-                  href="/settings"
-                  onClick={onNavigate}
-                  className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                >
-                  <Settings size={15} />
-                  {copy.settings}
-                </Link>
-                <Link
-                  href="/accounts"
-                  onClick={onNavigate}
-                  className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                >
-                  <CircleUserRound size={15} />
-                  {copy.manageProfiles}
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => void logout()}
-                  disabled={loggingOut}
-                  className="flex min-h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:cursor-wait disabled:opacity-50"
-                >
-                  <LogOut size={15} />
-                  {loggingOut ? copy.loggingOut : copy.logout}
-                </button>
-              </div>
-            </details>
-          </div>
+              {accountType === "provider" && (
+                <>
+                  <Link
+                    href="/provider"
+                    onClick={onNavigate}
+                    className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                  >
+                    <BriefcaseBusiness size={15} />
+                    {copy.commercialProfile}
+                  </Link>
+                  <Link
+                    href="/provider/studio"
+                    onClick={onNavigate}
+                    className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                  >
+                    <Wrench size={15} />
+                    {copy.services}
+                  </Link>
+                  <Link
+                    href="/provider/payments"
+                    onClick={onNavigate}
+                    className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                  >
+                    <WalletCards size={15} />
+                    {copy.finances}
+                  </Link>
+                </>
+              )}
+
+              <Link
+                href="/settings"
+                onClick={onNavigate}
+                className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              >
+                <Settings size={15} />
+                {copy.settings}
+              </Link>
+              <Link
+                href="/accounts"
+                onClick={onNavigate}
+                className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              >
+                <CircleUserRound size={15} />
+                {copy.manageProfiles}
+              </Link>
+              <button
+                type="button"
+                onClick={() => void logout()}
+                disabled={loggingOut}
+                className="flex min-h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:cursor-wait disabled:opacity-50"
+              >
+                <LogOut size={15} />
+                {loggingOut ? copy.loggingOut : copy.logout}
+              </button>
+            </div>
+          </details>
         )}
       </div>
     </aside>
