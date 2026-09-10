@@ -63,6 +63,10 @@ test.describe("KLYX profile switcher stable layout", () => {
     await expectAssistantFirstDesktopShell(page, "/provider/assistant");
 
     const desktopRail = page.getByTestId("desktop-mission-rail");
+    const accountEntry = desktopRail.getByTestId("account-entry");
+    await expect(accountEntry).toBeVisible();
+    await accountEntry.click();
+
     const trigger = desktopRail
       .locator(
         '[data-testid="account-switcher"] button[aria-haspopup="menu"]:not([disabled])'
