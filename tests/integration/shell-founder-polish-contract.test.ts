@@ -45,6 +45,7 @@ describe("KLYX shell polish contract", () => {
     expect(destinationCss).toContain("padding-bottom: 2rem;");
   });
 
+  // Keep this contract independent from MissionRail implementation details.
   it("does not pull MissionRail into the polish layer", () => {
     const destinationCss = read("app/klyx-destination-system.css");
 
