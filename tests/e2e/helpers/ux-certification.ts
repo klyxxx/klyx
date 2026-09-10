@@ -30,6 +30,7 @@ function accountEntryCount(rail: Locator) {
 }
 
 export async function settleVisualPage(page: Page) {
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
   await expect(page.locator("main").first()).toBeVisible();
   await page.waitForLoadState("networkidle", { timeout: 5_000 }).catch(() => undefined);
   await page.evaluate(async () => {
