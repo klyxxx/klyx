@@ -12,7 +12,7 @@ const profile = read("app/profile/page.tsx");
 describe("KLYX profile stability and visual finish", () => {
   it("owns scrolling inside the profile content viewport without horizontal overflow", () => {
     expect(layout).toContain('data-testid="profile-scroll-region"');
-    expect(layout).toContain("h-[calc(100dvh-3.5rem)]");
+    expect(layout).toContain("h-[calc(100dvh_-_3.5rem)]");
     expect(layout).toContain("min-h-0");
     expect(layout).toContain("overflow-x-hidden");
     expect(layout).toContain("overflow-y-auto");
