@@ -16,8 +16,6 @@ import {
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import KlyxThemeImage from "@/app/components/KlyxThemeImage";
-
 type FounderCompactMenuProps = {
   currentProfileId: string | null;
   currentMode: "client" | "provider" | null;
@@ -91,29 +89,25 @@ export default function FounderCompactMenu({
   }
 
   return (
-    <div className="fixed bottom-5 right-5 z-[80]">
+    <div className="fixed bottom-3 right-3 z-[80] opacity-70 transition-opacity hover:opacity-100 focus-within:opacity-100">
       {open && (
-        <div className="mb-3 w-[min(92vw,320px)] overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-2xl">
-          <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div
+          id="klyx-founder-internal-tools"
+          className="mb-2 w-[min(90vw,300px)] overflow-hidden rounded-xl border border-dashed border-border/80 bg-background/96 text-foreground shadow-lg backdrop-blur-xl"
+        >
+          <div className="flex items-start justify-between border-b border-border/70 px-3 py-2.5">
             <div>
               <div className="flex items-center gap-2">
-                <KlyxThemeImage
-                  srcLight="/icon.svg"
-                  srcDark="/apple-icon.svg"
-                  alt=""
-                  width={24}
-                  height={24}
-                  className="h-6 w-6 rounded-lg border border-border"
-                />
-
-                <p className="font-black">Founder</p>
-
-                <span className="rounded-full bg-[#2563EB]/10 px-2 py-1 text-[10px] font-black text-[#2563EB]">
-                  ADMIN
+                <Crown size={14} className="text-muted-foreground" />
+                <p className="text-xs font-semibold text-muted-foreground">
+                  Outils Founder
+                </p>
+                <span className="rounded border border-border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                  Interne
                 </span>
               </div>
 
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-1 text-[11px] text-muted-foreground/80">
                 Mode actif:{" "}
                 {currentMode === "provider"
                   ? "Prestataire"
@@ -126,28 +120,28 @@ export default function FounderCompactMenu({
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="grid h-9 w-9 place-items-center rounded-xl hover:bg-muted"
+              className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
               aria-label="Fermer"
             >
-              <X size={17} />
+              <X size={15} />
             </button>
           </div>
 
-          <div className="p-2">
+          <div className="p-1.5">
             <button
               type="button"
               disabled={!clientProfileId || switching !== null}
               onClick={() => void switchMode("client", clientProfileId)}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-bold transition disabled:opacity-40 ${
+              className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-left text-xs font-semibold transition disabled:opacity-40 ${
                 currentMode === "client"
-                  ? "bg-[#2563EB]/10 text-[#2563EB]"
-                  : "hover:bg-muted"
+                  ? "bg-muted text-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >
               {switching === "client" ? (
-                <LoaderCircle size={18} className="animate-spin" />
+                <LoaderCircle size={16} className="animate-spin" />
               ) : (
-                <UserRound size={18} />
+                <UserRound size={16} />
               )}
 
               <span className="flex-1">Client</span>
@@ -157,71 +151,71 @@ export default function FounderCompactMenu({
               type="button"
               disabled={!providerProfileId || switching !== null}
               onClick={() => void switchMode("provider", providerProfileId)}
-              className={`mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-bold transition disabled:opacity-40 ${
+              className={`mt-0.5 flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-left text-xs font-semibold transition disabled:opacity-40 ${
                 currentMode === "provider"
-                  ? "bg-[#2563EB]/10 text-[#2563EB]"
-                  : "hover:bg-muted"
+                  ? "bg-muted text-foreground"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
               }`}
             >
               {switching === "provider" ? (
-                <LoaderCircle size={18} className="animate-spin" />
+                <LoaderCircle size={16} className="animate-spin" />
               ) : (
-                <BriefcaseBusiness size={18} />
+                <BriefcaseBusiness size={16} />
               )}
 
               <span className="flex-1">Prestataire</span>
             </button>
           </div>
 
-          <div className="border-t border-border p-2">
+          <div className="border-t border-border/70 p-1.5">
             <Link
               href="/founder"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold transition hover:bg-muted"
+              className="flex items-center gap-3 rounded-lg px-2.5 py-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
             >
-              <Crown size={18} className="text-[#2563EB]" />
+              <Crown size={16} />
               Console Founder
             </Link>
 
             <Link
               href="/admin"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold transition hover:bg-muted"
+              className="flex items-center gap-3 rounded-lg px-2.5 py-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
             >
-              <ShieldCheck size={18} className="text-[#2563EB]" />
+              <ShieldCheck size={16} />
               Centre Admin
             </Link>
 
             <Link
               href="/founder/test"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold transition hover:bg-muted"
+              className="flex items-center gap-3 rounded-lg px-2.5 py-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
             >
-              <TestTube2 size={18} className="text-[#2563EB]" />
+              <TestTube2 size={16} />
               Tests Founder
             </Link>
 
             <Link
               href="/founder/cleanup"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold transition hover:bg-muted"
+              className="flex items-center gap-3 rounded-lg px-2.5 py-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
             >
-              <UsersRound size={18} className="text-[#2563EB]" />
+              <UsersRound size={16} />
               Comptes de test
             </Link>
 
             <Link
               href="/founder/final-check"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold transition hover:bg-muted"
+              className="flex items-center gap-3 rounded-lg px-2.5 py-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
             >
-              <CheckCircle2 size={18} className="text-[#2563EB]" />
+              <CheckCircle2 size={16} />
               Validation finale
             </Link>
           </div>
 
           {error && (
-            <p className="border-t border-border px-4 py-3 text-xs font-bold text-rose-600">
+            <p className="border-t border-border/70 px-3 py-2.5 text-xs font-semibold text-rose-600">
               {error}
             </p>
           )}
@@ -231,22 +225,15 @@ export default function FounderCompactMenu({
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
-        className="inline-flex h-11 items-center gap-2 rounded-full border border-border bg-background px-3.5 text-sm font-black text-foreground shadow-xl transition hover:bg-card dark:bg-zinc-950 dark:text-white dark:hover:bg-zinc-900"
+        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-dashed border-border/70 bg-background/80 px-2.5 text-[11px] font-semibold text-muted-foreground shadow-sm backdrop-blur-sm transition hover:border-border hover:bg-background hover:text-foreground"
+        aria-label="Ouvrir les outils internes Founder"
         aria-expanded={open}
+        aria-controls="klyx-founder-internal-tools"
       >
-        <KlyxThemeImage
-          srcLight="/icon.svg"
-          srcDark="/apple-icon.svg"
-          alt=""
-          width={22}
-          height={22}
-          className="h-[22px] w-[22px] rounded-md border border-border"
-        />
-
-        Founder
-
+        <Crown size={13} />
+        <span>Founder</span>
         <ChevronDown
-          size={15}
+          size={12}
           className={`transition ${open ? "rotate-180" : ""}`}
         />
       </button>

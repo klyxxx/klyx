@@ -131,6 +131,30 @@
   object-fit: cover;
 }
 
+/*
+ * Empty assistant shell polish: keep the current centered concept, but prevent
+ * very tall desktop viewports from pushing the primary action too far down.
+ * Laptop-sized desktop viewports remain effectively full-height; mobile keeps
+ * the existing Tailwind rhythm unchanged.
+ */
+@media (min-width: 64rem) {
+  #klyx-main-content
+    [data-testid="assistant-thread"][data-state="empty"]
+    > div:first-child {
+    padding-top: clamp(2rem, 4vh, 2.75rem);
+  }
+
+  #klyx-main-content
+    [data-testid="assistant-thread"][data-state="empty"]
+    > div:first-child
+    > div:first-child {
+    min-height: 0;
+    height: 100%;
+    max-height: 64rem;
+    padding-bottom: clamp(3rem, 7vh, 5.5rem);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .klyx-app-content *,
   .klyx-app-content *::before,
