@@ -5,5 +5,12 @@ export default function ProfileLayout({
 }: Readonly<{
   children: ReactNode;
 }>) {
-  return children;
+  return (
+    <div
+      data-testid="profile-scroll-region"
+      className="h-[calc(100dvh-3.5rem)] min-h-0 w-full max-w-full overflow-x-hidden overflow-y-auto overscroll-y-contain lg:h-dvh lg:[scrollbar-gutter:stable]"
+    >
+      {children}
+    </div>
+  );
 }
