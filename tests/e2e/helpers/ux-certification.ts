@@ -186,7 +186,7 @@ export async function collectUxDiagnostics(
         return !hit || !(hit === element || element.contains(hit));
       })
       .slice(0, 30)
-      .map(describe);
+      .map((element) => describe(element));
 
     const overlapCandidates = inViewport
       .filter((element) => !isDisabled(element) && !isFocusRevealSkipLink(element))
@@ -341,10 +341,7 @@ export function expectHealthyUxDiagnostics(
   ).toEqual([]);
 }
 
-export async function certifyMissionRail(
-  page: Page,
-  mobile: boolean
-) {
+export async function certifyMissionRail(page: Page, mobile: boolean) {
   const viewport = page.viewportSize();
   expect(viewport, "Viewport must be measurable").not.toBeNull();
 
@@ -414,10 +411,7 @@ export async function certifyMissionRail(
   ).toBe(1);
 }
 
-export async function expectReferenceScreenshot(
-  page: Page,
-  name: string
-) {
+export async function expectReferenceScreenshot(page: Page, name: string) {
   const masks = [
     page.locator('[data-testid="account-switcher"]'),
     page.locator('[data-testid="desktop-mission-rail"] section'),
