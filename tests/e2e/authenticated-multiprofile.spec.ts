@@ -25,7 +25,13 @@ function escapeRegExp(value: string) {
 
 async function openAccountSwitcher(page: Page) {
   const rail = page.getByTestId("desktop-mission-rail");
-  const accountEntry = rail.getByTestId("account-entry");
+  const persistedCollapsed = await page.evaluate(
+    () => window.localStorage.getItem("klyx:mission-rail:collapsed") === "true"
+  );
+  const accountEntry = persistedCollapsed
+    ? rail.locator('button[data-testid="account-entry"]')
+    : rail.locator('summary[data-testid="account-entry"]');
+
   await expect(accountEntry).toBeVisible();
   await accountEntry.click();
 
