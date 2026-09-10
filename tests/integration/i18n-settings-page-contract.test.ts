@@ -49,7 +49,8 @@ describe("KLYX settings container i18n contract", () => {
     expect(source).toContain("await supabase.auth.signOut()");
     expect(source).toContain("setTheme(value)");
     expect(source).toContain("KLYX_LANGUAGE_OPTIONS");
-    expect(source).toContain("onChange={setLocale}");
+    expect(source).toContain("onClick={() => setLocale(value)}");
+    expect(source).toContain('role="radiogroup"');
   });
 
   it("keeps profile deletion explicit, server-side and isolated from auth identity deletion", () => {
@@ -57,7 +58,7 @@ describe("KLYX settings container i18n contract", () => {
     const api = read("app/api/account/delete/route.ts");
 
     expect(source).toContain('const DELETE_CONFIRMATION = "SUPPRIMER"');
-    expect(source).toContain("deleteConfirmation !== DELETE_CONFIRMATION");
+    expect(source).toContain("deleteConfirmation !== DELETE_CONFIRMIRMATION");
     expect(source).toMatch(/fetch\(\s*["']\/api\/account\/delete["'][\s\S]*?method:\s*["']DELETE["']/);
     expect(source).toContain("resolveKlyxSettingsDeleteErrorKey(result.error)");
     expect(source).toContain('result.deletedScope === "profile"');
