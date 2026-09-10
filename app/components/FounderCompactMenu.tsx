@@ -91,7 +91,7 @@ export default function FounderCompactMenu({
   }
 
   return (
-    <div className="fixed bottom-5 right-5 z-[80]">
+    <div className="klyx-founder-access-utility fixed bottom-5 right-5 z-[80]">
       {open && (
         <div className="mb-3 w-[min(92vw,320px)] overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-2xl">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
