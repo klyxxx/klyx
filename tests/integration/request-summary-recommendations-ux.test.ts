@@ -26,7 +26,9 @@ describe("KLYX request summary and recommendations UX", () => {
     expect(page).toContain("const alternativeProviders = topProviders.slice(1, 3);");
     expect(page).toContain("provider={primaryProvider}");
     expect(page).toContain("alternativeProviders.map");
-    expect(page).toContain("featured");
+    expect(page).toContain('data-testid="klyx-primary-recommendation"');
+    expect(page).toContain('data-testid="klyx-secondary-options"');
+    expect(page).toContain("<details");
   });
 
   it("keeps recommendations read-only and uses the single KLYX blue", () => {
