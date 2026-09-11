@@ -30,12 +30,11 @@ const routesWithoutShell = [
   "/offline",
 ];
 
-// These surfaces intentionally retain their existing shell for this mission.
-// Founder/Admin and recommendations/providers are explicitly out of scope.
+// These surfaces intentionally retain their existing legacy shell.
+// User-facing recommendation results belong to the assistant-first shell.
 const routesWithLegacyShell = [
   "/founder",
   "/admin",
-  "/recommendations",
   "/providers",
 ];
 
