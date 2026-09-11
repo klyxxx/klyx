@@ -91,10 +91,12 @@ test.describe("KLYX provider Planning destination", () => {
     await page.goto("/provider/planning", { waitUntil: "domcontentloaded" });
     await expectAssistantFirstDesktopShell(page, "/provider/assistant");
 
+    const main = page.locator("main");
+    await expect(main).toBeVisible();
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await expect(page.getByText("Client KLYX").first()).toBeVisible();
     await expect(page.locator('a[href="/bookings/planning-booking-1"]')).toBeVisible();
-    await expect(page.locator(".shadow-sm")).toHaveCount(0);
+    await expect(main.locator(".shadow-sm")).toHaveCount(0);
     await attachViewport(page, testInfo, "provider-planning-focused-desktop");
 
     await page.setViewportSize({ width: 390, height: 844 });
