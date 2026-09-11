@@ -8,31 +8,23 @@ function read(relativePath: string) {
 }
 
 const rail = read("app/ui/MissionRail.tsx");
+const shell = read("app/ui/AssistantShell.tsx");
+const accountMenu = read("app/components/AccountSwitcher.tsx");
 
 describe("KLYX MissionRail simplification contract", () => {
-  it("keeps one account entry and nests profile switching with secondary account tools", () => {
-    expect(rail.match(/<AccountSwitcher/g) ?? []).toHaveLength(1);
-    expect(rail).toContain('data-testid="account-entry"');
-    expect(rail).toContain('data-testid="account-profile-switcher"');
+  it("keeps the rail mission-only and exposes one primary account entry from the shell", () => {
+    expect(rail).not.toContain("<AccountSwitcher");
+    expect(rail).not.toContain('data-testid="account-entry"');
+    expect(rail).not.toContain('data-testid="account-profile-switcher"');
+    expect(rail).not.toContain('href="/profile"');
+    expect(rail).not.toContain('href="/settings"');
+    expect(rail).not.toContain('href="/accounts"');
 
-    const detailsIndex = rail.indexOf("<details");
-    const switcherIndex = rail.indexOf("<AccountSwitcher");
-    expect(detailsIndex).toBeGreaterThan(-1);
-    expect(switcherIndex).toBeGreaterThan(detailsIndex);
-
-    for (const href of [
-      "/profile",
-      "/provider",
-      "/provider/studio",
-      "/provider/payments",
-      "/settings",
-      "/accounts",
-    ]) {
-      expect(rail).toContain(`href="${href}"`);
-    }
-
-    expect(rail).not.toContain("password");
-    expect(rail).not.toContain("Password");
+    expect(shell.match(/<AccountSwitcher/g) ?? []).toHaveLength(1);
+    expect(shell).toContain('mode="account-menu"');
+    expect(accountMenu).toContain('data-testid="account-entry"');
+    expect(accountMenu).not.toContain("password");
+    expect(accountMenu).not.toContain("Password");
   });
 
   it("keeps every mission source while making repeated rows distinguishable from real metadata", () => {
