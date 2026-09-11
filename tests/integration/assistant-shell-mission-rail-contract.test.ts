@@ -60,7 +60,7 @@ describe("KLYX assistant-first shell and mission rail", () => {
     expect(rail).toContain("normalizePath(mission.href) === currentPath");
     expect(rail).toContain('aria-current={active ? "page" : undefined}');
     expect(rail).toContain('bg-[#2563EB]');
-    expect(rail).toContain('title={mission.title}');
+    expect(rail).toContain('title={meta ? `${mission.title} — ${meta}` : mission.title}');
   });
 
   it("removes permanent SaaS destinations while keeping provider tools secondary", () => {

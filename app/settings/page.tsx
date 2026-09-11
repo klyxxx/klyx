@@ -23,7 +23,6 @@ import AuthTurnstile, {
   type AuthTurnstileHandle,
 } from "@/app/components/AuthTurnstile";
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
-import KlyxSelect from "@/app/components/KlyxSelect";
 import { useTheme } from "@/app/components/ThemeProvider";
 import PhoneAccessHistory from "./PhoneAccessHistory";
 import PhonePrivacyControls from "./PhonePrivacyControls";
@@ -97,6 +96,7 @@ export default function SettingsPage() {
   // KLYX_SETTINGS_PHONE_HISTORY_VISIBLE
   // KLYX_SETTINGS_PROGRESSIVE_DISCLOSURE
   // KLYX_SETTINGS_PROFILE_DELETE_ISOLATION_16_07
+  // KLYX_SETTINGS_COMPACT_LANGUAGE_PHONE_20260910
 
   useEffect(() => {
     let active = true;
@@ -330,6 +330,10 @@ export default function SettingsPage() {
         : locale === "de"
           ? "Telefon"
           : "Phone";
+  const selectedLanguage =
+    KLYX_LANGUAGE_OPTIONS.find((option) => option.value === locale) ??
+    KLYX_LANGUAGE_OPTIONS[0];
+  const languageLabel = selectedLanguage?.label ?? locale;
   const hasOtherProfiles = profileCount > 1;
   const deleteTitleKey: KlyxSettingsPageMessageKey = hasOtherProfiles
     ? "deleteProfileTitle"
@@ -380,8 +384,9 @@ export default function SettingsPage() {
             title={phoneLabel}
             open={openPanel === "phone"}
             onToggle={() => togglePanel("phone")}
+            compactContent
           >
-            <div className="space-y-4">
+            <div className="space-y-3">
               {/* KLYX_REAL_SIDEBAR_PHONE_REPAIR_12_67F */}
               <PhoneSettingsInline />
               {/* KLYX_PHONE_PRIVACY_SETTINGS_12_75 */}
@@ -526,11 +531,12 @@ export default function SettingsPage() {
 
           <SettingsDisclosure
             icon={<Languages size={20} />}
-            title={t("language")}
+            title={`${t("language")} — ${languageLabel}`}
             open={openPanel === "language"}
             onToggle={() => togglePanel("language")}
+            compactContent
           >
-            <KlyxSelect
+            <LanguagePicker
               value={locale}
               onChange={setLocale}
               options={KLYX_LANGUAGE_OPTIONS.map(({ value, label }) => ({
@@ -621,6 +627,7 @@ function SettingsDisclosure({
   onToggle,
   children,
   danger = false,
+  compactContent = false,
 }: {
   icon: React.ReactNode;
   title: string;
@@ -628,6 +635,7 @@ function SettingsDisclosure({
   onToggle: () => void;
   children: React.ReactNode;
   danger?: boolean;
+  compactContent?: boolean;
 }) {
   return (
     <div className="border-b border-border last:border-b-0">
@@ -663,10 +671,63 @@ function SettingsDisclosure({
       </button>
 
       {open && (
-        <div className="border-t border-border bg-muted/20 px-5 py-5 sm:px-6 sm:py-6">
+        <div
+          className={`border-t border-border bg-muted/20 ${
+            compactContent
+              ? "px-3 py-3 sm:px-4 sm:py-4"
+              : "px-5 py-5 sm:px-6 sm:py-6"
+          }`}
+        >
           {children}
         </div>
       )}
+    </div>
+  );
+}
+
+function LanguagePicker({
+  value,
+  options,
+  onChange,
+  ariaLabel,
+}: {
+  value: string;
+  options: ReadonlyArray<{ value: string; label: string }>;
+  onChange: (value: string) => void;
+  ariaLabel: string;
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={ariaLabel}
+      className="ml-auto w-full max-w-xs rounded-xl border border-border bg-background p-1.5 shadow-sm"
+    >
+      {options.map((option) => {
+        const selected = option.value === value;
+
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            onClick={() => onChange(option.value)}
+            className={`flex min-h-10 w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm font-semibold transition ${
+              selected
+                ? "bg-blue-600 text-white"
+                : "text-foreground hover:bg-muted"
+            }`}
+          >
+            <span className="truncate">{option.label}</span>
+            <span
+              aria-hidden="true"
+              className="w-4 shrink-0 text-center text-xs font-black"
+            >
+              {selected ? "✓" : ""}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }

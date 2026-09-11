@@ -42,7 +42,7 @@ type ProfilePayload = {
 };
 
 function inputClassName(): string {
-  return "w-full rounded-xl border border-border bg-background px-4 py-3 text-foreground outline-none transition placeholder:text-muted-foreground focus:border-blue-600/45 focus:ring-4 focus:ring-blue-600/8";
+  return "w-full min-w-0 rounded-xl border border-border bg-background px-4 py-3 text-foreground outline-none transition placeholder:text-muted-foreground focus:border-blue-600/45 focus:ring-4 focus:ring-blue-600/8";
 }
 
 export default function ProfilePage() {
@@ -210,7 +210,7 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background px-4 text-foreground">
+      <main className="flex min-h-full w-full max-w-full items-center justify-center overflow-x-hidden bg-background px-4 text-foreground">
         <div className="text-center">
           <LoaderCircle
             className="mx-auto animate-spin text-blue-600"
@@ -228,8 +228,8 @@ export default function ProfilePage() {
     accountType === "provider" ? t("providerProfile") : t("clientProfile");
 
   return (
-    <main className="min-h-screen bg-background px-4 pb-28 pt-7 text-foreground sm:px-6 sm:pt-10 lg:pb-10">
-      <div className="mx-auto max-w-3xl">
+    <main className="min-h-full w-full max-w-full overflow-x-hidden bg-background px-4 pb-28 pt-7 text-foreground sm:px-6 sm:pt-10 lg:pb-10">
+      <div className="mx-auto w-full min-w-0 max-w-3xl">
         <Link
           href={homeHref}
           className="inline-flex min-h-10 items-center gap-2 rounded-xl px-1 text-sm font-medium text-muted-foreground transition hover:text-foreground"
@@ -238,37 +238,44 @@ export default function ProfilePage() {
           {t("home")}
         </Link>
 
-        <header className="mt-6">
+        <header className="mt-6 min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">
             {roleLabel}
           </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-[-0.04em] sm:text-5xl">
+          <h1 className="mt-2 break-words text-3xl font-bold tracking-[-0.04em] [overflow-wrap:anywhere] sm:text-5xl">
             {fullName || roleLabel}
           </h1>
           {city && (
-            <p className="mt-2 text-sm text-muted-foreground">{city}</p>
+            <p className="mt-2 break-words text-sm text-muted-foreground [overflow-wrap:anywhere]">
+              {city}
+            </p>
           )}
           {/* KLYX_AI_FIRST_PROFILE_15_03 */}
           {/* KLYX_PROFILE_PAGE_I18N_16_03 */}
           {/* KLYX_PROFILE_SETTINGS_ENTRY */}
           {/* KLYX_PROFILE_PROGRESSIVE_DISCLOSURE */}
+          {/* KLYX_PROFILE_STABLE_SCROLL_2026_09_10 */}
         </header>
 
         {errorKey && (
-          <div className="mt-6 rounded-2xl border border-red-500/30 bg-red-500/8 p-4 text-red-700 dark:text-red-300">
+          <div className="mt-6 break-words rounded-2xl border border-red-500/30 bg-red-500/8 p-4 text-red-700 [overflow-wrap:anywhere] dark:text-red-300">
             {t(errorKey)}
           </div>
         )}
 
         {messageKey && (
-          <div className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-500/8 p-4 text-emerald-700 dark:text-emerald-300">
+          <div className="mt-6 break-words rounded-2xl border border-emerald-500/30 bg-emerald-500/8 p-4 text-emerald-700 [overflow-wrap:anywhere] dark:text-emerald-300">
             {t(messageKey)}
           </div>
         )}
 
-        <section className="mt-8 rounded-2xl border border-border bg-card">
-          <div className="flex items-center gap-4 p-5 sm:p-6">
-            <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted sm:h-24 sm:w-24">
+        {/* KLYX_PROFILE_COMPACT_CARD_2026_09_10 */}
+        <section
+          data-testid="profile-summary-card"
+          className="mt-7 min-w-0 overflow-hidden rounded-2xl border border-border/80 bg-card/70"
+        >
+          <div className="flex min-w-0 items-center gap-3.5 px-4 py-4 sm:gap-4 sm:px-5">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-muted sm:h-20 sm:w-20">
               {avatarUrl ? (
                 <img
                   key={avatarUrl}
@@ -278,50 +285,59 @@ export default function ProfilePage() {
                   onError={() => setErrorKey("avatarUnavailable")}
                 />
               ) : (
-                <UserRound size={38} className="text-muted-foreground" />
+                <UserRound size={30} className="text-muted-foreground sm:size-9" />
               )}
             </div>
 
             <div className="min-w-0 flex-1">
-              <p className="truncate text-lg font-semibold">
+              <p className="break-words text-base font-semibold tracking-[-0.015em] [overflow-wrap:anywhere] sm:text-lg">
                 {fullName || roleLabel}
               </p>
-              <p className="mt-1 text-sm text-muted-foreground">{roleLabel}</p>
-              {city && (
-                <p className="mt-1 text-sm text-muted-foreground">{city}</p>
-              )}
+              <p className="mt-1 text-xs font-medium text-muted-foreground sm:text-sm">
+                {roleLabel}
+              </p>
             </div>
           </div>
 
-          <button
-            type="button"
-            aria-expanded={editingProfile}
-            onClick={() => setEditingProfile((value) => !value)}
-            className="flex min-h-14 w-full items-center justify-between gap-4 border-t border-border px-5 py-4 text-left transition hover:bg-muted/55 sm:px-6"
-          >
-            <div>
-              <p className="font-semibold">{t("title")}</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {t("firstName")} · {t("lastName")} · {t("city")}
-              </p>
-            </div>
-            <ChevronRight
-              size={20}
-              className={`shrink-0 text-blue-600 transition-transform ${
-                editingProfile ? "rotate-90" : ""
-              }`}
-            />
-          </button>
+          <div className="border-t border-border/70">
+            <button
+              type="button"
+              aria-expanded={editingProfile}
+              aria-label={t("title")}
+              onClick={() => setEditingProfile((value) => !value)}
+              className="flex min-h-11 w-full items-center justify-between gap-4 px-4 pb-2 pt-3.5 text-left transition hover:bg-muted/40 sm:px-5"
+            >
+              <span className="text-sm font-semibold">{t("title")}</span>
+              <ChevronRight
+                size={18}
+                className={`shrink-0 text-blue-600 transition-transform ${
+                  editingProfile ? "rotate-90" : ""
+                }`}
+              />
+            </button>
+
+            <dl
+              data-testid="profile-persisted-facts"
+              className="grid min-w-0 grid-cols-2 gap-x-5 gap-y-3 px-4 pb-4 sm:grid-cols-4 sm:px-5 sm:pb-5"
+            >
+              <ProfileFact label={t("firstName")} value={firstName} />
+              <ProfileFact label={t("lastName")} value={lastName} />
+              <ProfileFact label={t("city")} value={city} />
+              {age && <ProfileFact label={t("age")} value={age} />}
+            </dl>
+          </div>
         </section>
 
         {editingProfile && (
           <form
             onSubmit={saveProfile}
-            className="mt-4 rounded-2xl border border-border bg-card p-5 sm:p-6"
+            className="mt-4 min-w-0 rounded-2xl border border-border bg-card p-5 sm:p-6"
           >
-            <div className="flex flex-col gap-4 border-b border-border pb-6 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold">{t("profilePhoto")}</h2>
+            <div className="flex min-w-0 flex-col gap-4 border-b border-border pb-6 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <h2 className="break-words text-lg font-semibold [overflow-wrap:anywhere]">
+                  {t("profilePhoto")}
+                </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
                   JPG · PNG · WEBP
                 </p>
@@ -344,7 +360,7 @@ export default function ProfilePage() {
               </label>
             </div>
 
-            <div className="mt-6 grid gap-5 sm:grid-cols-2">
+            <div className="mt-6 grid min-w-0 gap-5 sm:grid-cols-2">
               <Field
                 id="firstName"
                 label={t("firstName")}
@@ -395,6 +411,19 @@ export default function ProfilePage() {
   );
 }
 
+function ProfileFact({ label, value }: { label: string; value: string }) {
+  if (!value.trim()) return null;
+
+  return (
+    <div className="min-w-0">
+      <dt className="text-[11px] font-medium text-muted-foreground">{label}</dt>
+      <dd className="mt-1 break-words text-sm font-medium text-foreground [overflow-wrap:anywhere]">
+        {value}
+      </dd>
+    </div>
+  );
+}
+
 function Field({
   id,
   label,
@@ -415,7 +444,7 @@ function Field({
   max?: string;
 }) {
   return (
-    <div>
+    <div className="min-w-0">
       <label
         htmlFor={id}
         className="mb-2 block text-sm font-medium text-foreground/80"
