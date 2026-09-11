@@ -21,7 +21,7 @@ describe("KLYX recommendations i18n contract", () => {
     expect(page).not.toContain('method: "DELETE"');
   });
 
-  it("preserves profile and booking navigation semantics", () => {
+  it("preserves booking navigation without a provider-profile detour", () => {
     const page = read("app/recommendations/page.tsx");
 
     expect(page).toContain("service: provider.serviceSlug");
@@ -31,22 +31,22 @@ describe("KLYX recommendations i18n contract", () => {
     expect(page).toContain('bookingParams.set("end", end)');
     expect(page).toContain('bookingParams.set("duration", duration)');
     expect(page).toContain("return `/providers/${provider.profileId}/book?${bookingParams.toString()}`");
-    expect(page).toContain("return `/providers/${provider.profileId}`");
+    expect(page).not.toContain("return `/providers/${provider.profileId}`");
     expect(page).toContain("href={`/request/confirm?${queryString}`}");
     expect(page).not.toContain("href={`/search?${queryString}`}");
   });
 
-  it("keeps provider-authored data verbatim", () => {
+  it("keeps displayed provider-authored identity and availability verbatim", () => {
     const page = read("app/recommendations/page.tsx");
 
     expect(page).toContain("provider.businessName");
     expect(page).toContain("provider.firstName");
     expect(page).toContain("provider.lastName");
-    expect(page).toContain("provider.title ||");
-    expect(page).toContain("provider.serviceLabel");
-    expect(page).toContain("provider.headline ||");
-    expect(page).toContain("provider.city ||");
     expect(page).toContain("provider.availabilitySummary ||");
+    expect(page).not.toContain("provider.title ||");
+    expect(page).not.toContain("provider.serviceLabel");
+    expect(page).not.toContain("provider.headline ||");
+    expect(page).not.toContain("provider.city ||");
   });
 
   it("does not reflect raw backend or network errors", () => {
