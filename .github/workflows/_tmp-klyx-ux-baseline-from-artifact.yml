@@ -1,0 +1,84 @@
+name: KLYX UX Baseline From Artifact TEMP
+
+on:
+  push:
+    branches:
+      - test/ux-visual-certification-20260910
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: klyx-ux-baseline-from-artifact-temp
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    name: Refresh stale active-mission reference from certified artifact
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Download current-head UX evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          rm -rf /tmp/klyx-ux-artifact
+          mkdir -p /tmp/klyx-ux-artifact
+          gh run download 34529226031 \
+            --repo "${{ github.repository }}" \
+            --name "klyx-ux-visual-certification-34529226031" \
+            --dir /tmp/klyx-ux-artifact
+
+      - name: Replace stale desktop active-mission baseline only
+        shell: bash
+        run: |
+          mapfile -t matches < <(find /tmp/klyx-ux-artifact -type f -name 'active-mission-desktop-actual.png' -print)
+          if [ "${#matches[@]}" -ne 1 ]; then
+            echo "Expected exactly one active-mission-desktop-actual.png, found ${#matches[@]}"
+            printf '%s\n' "${matches[@]}"
+            exit 1
+          fi
+
+          target="tests/e2e/ux-visual-certification-snapshots/desktop-chromium/active-mission-desktop.png"
+          cp "${matches[0]}" "$target"
+
+          python - <<'PY'
+          from pathlib import Path
+          target = Path("tests/e2e/ux-visual-certification-snapshots/desktop-chromium/active-mission-desktop.png")
+          data = target.read_bytes()
+          if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+              raise SystemExit("Refreshed baseline is not a PNG")
+          print(f"Refreshed baseline bytes: {len(data)}")
+          PY
+
+      - name: Stage the one reference screenshot only
+        shell: bash
+        run: |
+          target="tests/e2e/ux-visual-certification-snapshots/desktop-chromium/active-mission-desktop.png"
+          git add "$target"
+          unexpected="$(git diff --cached --name-only | grep -v '^tests/e2e/ux-visual-certification-snapshots/desktop-chromium/active-mission-desktop.png$' || true)"
+          if [ -n "$unexpected" ]; then
+            echo "Unexpected staged path:"
+            echo "$unexpected"
+            exit 1
+          fi
+
+      - name: Commit refreshed screenshot only
+        shell: bash
+        run: |
+          if git diff --cached --quiet; then
+            echo "Reference screenshot already current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "test(ux): refresh active mission visual baseline"
+          git push origin HEAD:test/ux-visual-certification-20260910
