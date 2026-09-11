@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page, type TestInfo } from "@playwright/test";
+import { expect, type Page, type TestInfo } from "@playwright/test";
 
 export type UxDiagnostics = {
   route: string;
@@ -23,17 +23,6 @@ export type UxDiagnostics = {
   mainVisible: boolean;
   longContentScrollable: boolean;
 };
-
-function accountEntryCount(rail: Locator) {
-  return rail.locator("details").evaluateAll((details) =>
-    details.filter((detailsElement) => {
-      const profile = detailsElement.querySelector('a[href="/profile"]');
-      const settings = detailsElement.querySelector('a[href="/settings"]');
-      const accounts = detailsElement.querySelector('a[href="/accounts"]');
-      return Boolean(profile && settings && accounts);
-    }).length
-  );
-}
 
 export async function settleVisualPage(page: Page) {
   await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
@@ -354,6 +343,13 @@ export async function certifyMissionRail(page: Page, mobile: boolean) {
   const viewport = page.viewportSize();
   expect(viewport, "Viewport must be measurable").not.toBeNull();
 
+  const accountEntry = page.getByTestId("account-entry");
+  expect.soft(
+    await accountEntry.count(),
+    `${mobile ? "Mobile" : "Desktop"} shell must expose exactly one structural Account entry`
+  ).toBe(1);
+  await expect(accountEntry).toBeVisible();
+
   if (mobile) {
     await expect(page.getByTestId("desktop-mission-rail")).toBeHidden();
     const header = page.getByTestId("assistant-shell-mobile-header");
@@ -385,9 +381,9 @@ export async function certifyMissionRail(page: Page, mobile: boolean) {
     const rail = dialog.getByTestId("mobile-mission-rail");
     await expect(rail).toBeVisible();
     expect.soft(
-      await accountEntryCount(rail),
-      "Mobile mission rail must expose exactly one structural Account entry"
-    ).toBe(1);
+      await rail.getByTestId("account-entry").count(),
+      "Mobile mission rail must not duplicate the Account entry"
+    ).toBe(0);
 
     await page.keyboard.press("Escape");
     await expect(dialog).toBeHidden();
@@ -419,9 +415,9 @@ export async function certifyMissionRail(page: Page, mobile: boolean) {
   ).toBeGreaterThanOrEqual(railBox!.x + railBox!.width - 1);
 
   expect.soft(
-    await accountEntryCount(rail),
-    "Desktop mission rail must expose exactly one structural Account entry"
-  ).toBe(1);
+    await rail.getByTestId("account-entry").count(),
+    "Desktop mission rail must not duplicate the Account entry"
+  ).toBe(0);
 }
 
 export async function expectReferenceScreenshot(page: Page, name: string) {
