@@ -25,6 +25,30 @@ async function attachViewport(
   });
 }
 
+async function expectFilterTabsContained(page: Page) {
+  const historyTab = page.getByRole("button", { name: /Historique\s+·\s+0/ });
+  const filters = historyTab.locator("xpath=parent::nav");
+
+  await expect(historyTab).toBeVisible();
+  await expect(filters).toBeVisible();
+
+  const metrics = await filters.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+  }));
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth + 1);
+
+  const [filtersBox, historyBox] = await Promise.all([
+    filters.boundingBox(),
+    historyTab.boundingBox(),
+  ]);
+  expect(filtersBox).not.toBeNull();
+  expect(historyBox).not.toBeNull();
+  expect(historyBox!.x + historyBox!.width).toBeLessThanOrEqual(
+    filtersBox!.x + filtersBox!.width + 1
+  );
+}
+
 async function mockActivity(page: Page) {
   await page.route("**/api/bookings/overview", async (route) => {
     if (route.request().method() !== "GET") {
@@ -141,12 +165,14 @@ test.describe("KLYX Activity destination visual evidence", () => {
         .getByRole("main")
         .locator('[class*="violet"], [class*="indigo"], [class*="gradient"]')
     ).toHaveCount(0);
+    await expectFilterTabsContained(page);
 
     await attachViewport(page, testInfo, "client-activity-calm-desktop");
 
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(nextAction).toBeVisible();
     await expectAssistantFirstMobileShell(page);
+    await expectFilterTabsContained(page);
     await attachViewport(page, testInfo, "client-activity-calm-mobile");
   });
 });
