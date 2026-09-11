@@ -1,0 +1,125 @@
+name: Temporary provider tools preservation
+
+on:
+  push:
+    branches:
+      - ui/account-compact-menu-20260911
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ui/account-compact-menu-20260911
+          fetch-depth: 0
+
+      - name: Keep provider tools secondary and account-free
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("app/ui/MissionRail.tsx")
+          source = path.read_text(encoding="utf-8")
+
+          old_import = '''import {
+            ChevronLeft,
+            ChevronRight,
+            Clock3,
+            History,
+            Plus,
+          } from "lucide-react";'''
+          new_import = '''import {
+            BriefcaseBusiness,
+            ChevronLeft,
+            ChevronRight,
+            Clock3,
+            History,
+            Plus,
+            WalletCards,
+            Wrench,
+          } from "lucide-react";'''
+          if source.count(old_import) != 1:
+              raise SystemExit("Unexpected MissionRail icon import")
+          source = source.replace(old_import, new_import, 1)
+
+          marker = '''      </div>
+            </aside>
+          );
+          }'''
+          if source.count(marker) != 1:
+              raise SystemExit("Unexpected MissionRail closing structure")
+
+          provider_tools = '''      </div>
+
+            {accountType === "provider" && !compact && (
+              <div
+                data-testid="provider-secondary-tools"
+                className="border-t border-border px-3 py-3 dark:border-white/8"
+              >
+                <Link
+                  href="/provider"
+                  onClick={onNavigate}
+                  className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                >
+                  <BriefcaseBusiness size={15} />
+                  {copy.commercialProfile}
+                </Link>
+                <Link
+                  href="/provider/studio"
+                  onClick={onNavigate}
+                  className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                >
+                  <Wrench size={15} />
+                  {copy.services}
+                </Link>
+                <Link
+                  href="/provider/payments"
+                  onClick={onNavigate}
+                  className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                >
+                  <WalletCards size={15} />
+                  {copy.finances}
+                </Link>
+              </div>
+            )}
+          </aside>
+          );
+          }'''
+          source = source.replace(marker, provider_tools, 1)
+
+          for forbidden in [
+              'data-testid="account-entry"',
+              'data-testid="account-profile-switcher"',
+              '<AccountSwitcher',
+              'href="/settings"',
+              'href="/accounts"',
+          ]:
+              if forbidden in source:
+                  raise SystemExit(f"Account duplicate remains in MissionRail: {forbidden}")
+
+          for required in [
+              'href="/provider"',
+              'href="/provider/studio"',
+              'href="/provider/payments"',
+          ]:
+              if source.count(required) != 1:
+                  raise SystemExit(f"Provider shortcut count invalid: {required}")
+
+          path.write_text(source, encoding="utf-8")
+          PY
+
+      - name: Commit and self-delete
+        shell: bash
+        run: |
+          rm .github/workflows/tmp-provider-tools-preserve.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/ui/MissionRail.tsx .github/workflows/tmp-provider-tools-preserve.yml
+          git commit -m "ui(account): keep provider tools outside compact account menu"
+          git push origin HEAD:ui/account-compact-menu-20260911
