@@ -634,7 +634,7 @@ export default function PhotoRequestPage() {
 
           <div className="border-t border-border px-4 py-3 dark:border-white/10 sm:px-5">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <label className="flex cursor-pointer items-center gap-3 rounded-2xl px-1 py-1">
+              <label className="relative flex cursor-pointer items-center gap-3 rounded-2xl px-1 py-1">
                 <input
                   type="checkbox"
                   checked={useVision}
@@ -642,7 +642,7 @@ export default function PhotoRequestPage() {
                     setUseVision(event.target.checked);
                     setAnalysis(null);
                   }}
-                  className="peer sr-only"
+                  className="peer sr-only left-0 top-0"
                 />
                 <span className="relative h-6 w-11 shrink-0 rounded-full bg-muted transition peer-checked:bg-[#2563EB] after:absolute after:left-1 after:top-1 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition peer-checked:after:translate-x-5 dark:bg-white/[0.10]" />
                 <span className="min-w-0">
