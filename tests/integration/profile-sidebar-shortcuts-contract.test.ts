@@ -9,6 +9,7 @@ function read(relativePath: string) {
 
 const profilePage = read("app/profile/page.tsx");
 const rail = read("app/ui/MissionRail.tsx");
+const accountMenu = read("app/components/AccountSwitcher.tsx");
 
 describe("KLYX profile shortcuts", () => {
   it("removes provider-management and settings cards from the profile page", () => {
@@ -17,15 +18,18 @@ describe("KLYX profile shortcuts", () => {
     expect(profilePage).not.toContain("manageProviderProfile");
   });
 
-  it("keeps settings once in the rail and adds one provider commercial-profile entry", () => {
-    expect(rail.match(/href="\/settings"/g) ?? []).toHaveLength(1);
-    expect(rail.match(/href="\/provider"/g) ?? []).toHaveLength(1);
-    expect(rail).toContain('commercialProfile: "Fiche commerciale"');
-    expect(rail).toContain("{copy.commercialProfile}");
+  it("keeps profile and settings once in the compact account menu", () => {
+    expect(accountMenu.match(/href="\/profile"/g) ?? []).toHaveLength(1);
+    expect(accountMenu.match(/href="\/settings"/g) ?? []).toHaveLength(1);
+    expect(accountMenu).toContain('{t("myProfile")}');
+    expect(accountMenu).toContain('{t("settings")}');
   });
 
-  it("does not duplicate the existing provider services and finances shortcuts", () => {
-    expect(rail.match(/href="\/provider\/studio"/g) ?? []).toHaveLength(1);
-    expect(rail.match(/href="\/provider\/payments"/g) ?? []).toHaveLength(1);
+  it("does not duplicate account or provider-management shortcuts in the mission rail", () => {
+    expect(rail).not.toContain('href="/profile"');
+    expect(rail).not.toContain('href="/settings"');
+    expect(rail).not.toContain('href="/provider"');
+    expect(rail).not.toContain('href="/provider/studio"');
+    expect(rail).not.toContain('href="/provider/payments"');
   });
 });
