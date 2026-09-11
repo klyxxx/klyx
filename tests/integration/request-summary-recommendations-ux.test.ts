@@ -18,17 +18,16 @@ describe("KLYX request summary and recommendations UX", () => {
     expect(page).not.toContain("linear-gradient");
   });
 
-  it("renders one primary recommendation and at most two alternatives", () => {
+  it("renders at most three conversational recommendations without marketplace disclosure", () => {
     const page = read("app/recommendations/page.tsx");
 
     expect(page).toContain("const topProviders = result.providers.slice(0, 3);");
-    expect(page).toContain("const primaryProvider = topProviders[0] ?? null;");
-    expect(page).toContain("const alternativeProviders = topProviders.slice(1, 3);");
-    expect(page).toContain("provider={primaryProvider}");
-    expect(page).toContain("alternativeProviders.map");
-    expect(page).toContain('data-testid="klyx-primary-recommendation"');
+    expect(page).toContain("provider={topProviders[0]}");
+    expect(page).toContain("topProviders.slice(1).map");
+    expect(page).toContain("klyx-primary-recommendation");
     expect(page).toContain('data-testid="klyx-secondary-options"');
-    expect(page).toContain("<details");
+    expect(page).not.toContain("<details");
+    expect(page).not.toContain('t("viewProfile")');
   });
 
   it("keeps recommendations read-only and uses the single KLYX blue", () => {
