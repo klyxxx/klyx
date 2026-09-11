@@ -81,6 +81,15 @@ function disclosureButtons(page: Page) {
   return page.getByRole("main").locator('button[aria-expanded]');
 }
 
+async function openOtherSettings(page: Page) {
+  const toggle = page.getByTestId("settings-other-toggle");
+  await expect(toggle).toBeVisible();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByTestId("settings-other-content")).toBeVisible();
+}
+
 test.describe("KLYX Profile and Settings destination visual evidence", () => {
   test.skip(
     !hasE2ECredentials,
@@ -137,13 +146,33 @@ test.describe("KLYX Profile and Settings destination visual evidence", () => {
     await expect(page.getByRole("switch")).toHaveCount(0);
 
     const clientPanels = disclosureButtons(page);
-    await expect(clientPanels.first()).toHaveAttribute("aria-expanded", "false");
+    await expect(clientPanels).toHaveCount(3);
+    await expect(clientPanels.nth(0)).toHaveAttribute("aria-expanded", "false");
+    await expect(clientPanels.nth(1)).toHaveAttribute("aria-expanded", "false");
+    await expect(page.getByTestId("settings-other-toggle")).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
     await attachViewport(page, testInfo, "client-settings-calm-mobile");
 
-    await clientPanels.nth(1).click();
-    await expect(clientPanels.nth(1)).toHaveAttribute("aria-expanded", "true");
-    await attachViewport(page, testInfo, "client-settings-appearance-expanded-mobile");
-    await clientPanels.nth(1).click();
+    await openOtherSettings(page);
+    const clientSecondaryPanels = page
+      .getByTestId("settings-other-content")
+      .locator('button[aria-expanded]');
+    await clientSecondaryPanels.first().click();
+    await expect(clientSecondaryPanels.first()).toHaveAttribute(
+      "aria-expanded",
+      "true"
+    );
+    await attachViewport(
+      page,
+      testInfo,
+      "client-settings-appearance-expanded-mobile"
+    );
+    await clientSecondaryPanels.first().click();
+
+    await page.getByTestId("settings-other-toggle").click();
+    await expect(page.getByTestId("settings-other-content")).toHaveCount(0);
 
     await page.setViewportSize({ width: 1440, height: 1000 });
     await expectAssistantFirstDesktopShell(page, "/assistant");
@@ -164,10 +193,17 @@ test.describe("KLYX Profile and Settings destination visual evidence", () => {
       .locator('a[href="/provider/payments"]');
     await expect(providerPaymentLink).toHaveCount(0);
 
-    const providerPanels = disclosureButtons(page);
-    await providerPanels.nth(2).click();
+    await openOtherSettings(page);
+    const providerSecondaryPanels = page
+      .getByTestId("settings-other-content")
+      .locator('button[aria-expanded]');
+    await providerSecondaryPanels.nth(1).click();
     await expect(providerPaymentLink).toBeVisible();
-    await attachViewport(page, testInfo, "provider-settings-payments-expanded-desktop");
+    await attachViewport(
+      page,
+      testInfo,
+      "provider-settings-payments-expanded-desktop"
+    );
 
     await activateKlyxE2EProfile(page, "client");
   });
