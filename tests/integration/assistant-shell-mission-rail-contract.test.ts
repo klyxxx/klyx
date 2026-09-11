@@ -10,6 +10,7 @@ function read(relativePath: string) {
 const layout = read("app/layout.tsx");
 const shell = read("app/ui/AssistantShell.tsx");
 const rail = read("app/ui/MissionRail.tsx");
+const accountMenu = read("app/components/AccountSwitcher.tsx");
 
 describe("KLYX assistant-first shell and mission rail", () => {
   it("mounts AssistantShell globally instead of the SaaS sidebar", () => {
@@ -63,18 +64,21 @@ describe("KLYX assistant-first shell and mission rail", () => {
     expect(rail).toContain('title={meta ? `${mission.title} — ${meta}` : mission.title}');
   });
 
-  it("removes permanent SaaS destinations while keeping provider tools secondary", () => {
-    expect(shell).not.toContain('href="/messages"');
-    expect(shell).not.toContain('href="/bookings"');
-    expect(shell).not.toContain('href="/provider/jobs"');
-    expect(shell).not.toContain('href="/profile"');
+  it("moves account navigation out of the rail into one primary top-right menu", () => {
+    expect(shell).toContain('data-testid="assistant-shell-account-slot"');
+    expect(shell).toContain('<AccountSwitcher');
+    expect(shell).toContain('mode="account-menu"');
 
-    expect(rail).not.toContain('href="/messages"');
-    expect(rail).toContain('href="/profile"');
-    expect(rail).toContain('href="/provider/studio"');
-    expect(rail).toContain('href="/provider/payments"');
-    expect(rail).toContain('href="/settings"');
-    expect(rail).toContain('href="/accounts"');
+    expect(rail).not.toContain('data-testid="account-entry"');
+    expect(rail).not.toContain('<AccountSwitcher');
+    expect(rail).not.toContain('href="/profile"');
+    expect(rail).not.toContain('href="/settings"');
+    expect(rail).not.toContain('href="/accounts"');
+
+    expect(accountMenu).toContain('data-testid="account-entry"');
+    expect(accountMenu).toContain('href="/profile"');
+    expect(accountMenu).toContain('href="/settings"');
+    expect(accountMenu).toContain('href="/support"');
   });
 
   it("replaces the mobile four-tab bar with an accessible drawer", () => {
