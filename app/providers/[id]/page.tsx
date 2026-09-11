@@ -8,9 +8,9 @@ import {
   BadgeCheck,
   BriefcaseBusiness,
   CheckCircle2,
+  ChevronDown,
   Clock3,
   MapPin,
-  ShieldCheck,
   UserRound,
 } from "lucide-react";
 
@@ -32,6 +32,7 @@ import PublicReviews from "./PublicReviews";
 // KLYX_PUBLIC_PROVIDER_I18N
 // KLYX_PUBLIC_PROVIDER_READ_ONLY
 // KLYX_PUBLIC_PROVIDER_VISUAL_SIMPLIFICATION
+// KLYX_PROVIDER_PROPOSAL_ASSISTANT_FIRST_20260911
 
 type ProfileRow = {
   id: string;
@@ -293,19 +294,26 @@ export default function ProviderProfilePage() {
         : Math.max(...services.map((service) => service.klyxScore)),
     [services]
   );
+  const completedJobs = useMemo(
+    () =>
+      services.length === 0
+        ? 0
+        : Math.max(...services.map((service) => service.completedJobs)),
+    [services]
+  );
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-background text-foreground dark:bg-zinc-950 dark:text-white">
-        {t("loading")}
+      <main className="klyx-page grid min-h-screen place-items-center">
+        <p className="text-sm text-muted-foreground">{t("loading")}</p>
       </main>
     );
   }
 
   if (loadError) {
     return (
-      <main className="min-h-screen bg-background px-5 py-10 text-foreground dark:bg-zinc-950 dark:text-white">
-        <div className="mx-auto max-w-3xl rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-red-700 dark:text-red-300">
+      <main className="klyx-page">
+        <div className="mx-auto max-w-3xl border-y border-red-500/30 py-6 text-sm text-red-700 dark:text-red-300">
           {t("loadError")}
         </div>
       </main>
@@ -314,15 +322,13 @@ export default function ProviderProfilePage() {
 
   if (!profile || !providerProfile) {
     return (
-      <main className="min-h-screen bg-background px-5 py-10 text-foreground dark:bg-zinc-950 dark:text-white">
-        <div className="mx-auto max-w-3xl rounded-2xl border border-border bg-card p-8 text-center dark:border-zinc-800 dark:bg-zinc-900">
-          <h1 className="text-2xl font-bold">{t("notFoundTitle")}</h1>
-          <p className="mt-3 text-muted-foreground dark:text-zinc-400">
-            {t("notFoundText")}
-          </p>
+      <main className="klyx-page">
+        <div className="mx-auto max-w-3xl py-12 text-center">
+          <h1 className="text-2xl font-semibold">{t("notFoundTitle")}</h1>
+          <p className="mt-3 text-muted-foreground">{t("notFoundText")}</p>
           <Link
             href="/search"
-            className="mt-6 inline-flex rounded-xl bg-violet-600 px-6 py-3 font-semibold hover:bg-violet-700"
+            className="mt-6 inline-flex min-h-11 items-center rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
           >
             {t("backToSearch")}
           </Link>
@@ -334,21 +340,110 @@ export default function ProviderProfilePage() {
   const fullName =
     [profile.first_name, profile.last_name].filter(Boolean).join(" ") ||
     t("providerEyebrow");
+  const primaryService = services[0] ?? null;
+  const otherServices = services.slice(1);
+
+  const serviceView = (service: ProviderService, primary = false) => {
+    const serviceName = formatKlyxPublicProviderServiceLabel(
+      locale,
+      service.slug,
+      service.serviceName
+    );
+
+    return (
+      <article
+        key={service.userServiceId}
+        data-testid={primary ? "klyx-primary-provider-service" : undefined}
+        className="py-6 first:pt-0 last:pb-0"
+      >
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 max-w-2xl">
+            <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+              {serviceName}
+            </p>
+            <h3 className="mt-1 text-xl font-semibold">
+              {service.title ?? serviceName}
+            </h3>
+            {service.description && (
+              <p className="mt-3 line-clamp-3 text-sm leading-6 text-muted-foreground">
+                {service.description}
+              </p>
+            )}
+
+            <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5">
+                <MapPin size={15} />
+                {service.serviceArea.length > 0
+                  ? service.serviceArea.join(", ")
+                  : service.city || t("cityMissing")}
+                {service.travelRadiusKm > 0 ? ` · ${service.travelRadiusKm} km` : ""}
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Clock3 size={15} />
+                {formatKlyxPublicProviderAvailability(
+                  locale,
+                  service.availabilityCount
+                )}
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <CheckCircle2 size={15} />
+                {formatKlyxPublicProviderCompletedJobs(
+                  locale,
+                  service.completedJobs
+                )}
+              </span>
+              <span>
+                {t("cancellationRate")}: {service.cancellationRate.toFixed(1)} %
+              </span>
+            </div>
+          </div>
+
+          <div className="shrink-0 sm:text-right">
+            <p className="text-lg font-semibold">
+              {formatKlyxPublicProviderPrice(
+                locale,
+                service.price,
+                service.pricingType
+              )}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2 sm:justify-end">
+              <Link
+                href={`/providers/${profile.id}/quote?service=${encodeURIComponent(
+                  service.slug
+                )}`}
+                className="inline-flex min-h-10 items-center rounded-xl border border-border px-4 py-2 text-sm font-semibold transition hover:border-blue-600/50 hover:text-blue-600"
+              >
+                {t("quote")}
+              </Link>
+              <Link
+                href={`/providers/${profile.id}/book?service=${encodeURIComponent(
+                  service.slug
+                )}`}
+                className="inline-flex min-h-10 items-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700"
+              >
+                {t("book")}
+              </Link>
+            </div>
+          </div>
+        </div>
+      </article>
+    );
+  };
 
   return (
-    <main className="min-h-screen bg-background px-5 py-10 text-foreground dark:bg-zinc-950 dark:text-white">
-      <div className="mx-auto max-w-5xl">
+    <main className="klyx-page">
+      <div className="mx-auto max-w-4xl">
         <Link
           href="/search"
-          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground dark:text-zinc-400 dark:hover:text-white"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition hover:text-foreground"
         >
           <ArrowLeft size={17} />
           {t("backToSearch")}
         </Link>
 
-        <section className="mt-8 rounded-3xl border border-border bg-card/70 p-6 dark:border-zinc-800 dark:bg-zinc-900/70 sm:p-8">
-          <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
-            <div className="grid h-24 w-24 shrink-0 place-items-center overflow-hidden rounded-3xl border border-border bg-muted dark:border-zinc-700 dark:bg-zinc-800">
+        <section className="mt-8" data-testid="klyx-provider-proposal">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+            <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-2xl border border-border bg-muted">
               {profile.avatar_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -357,43 +452,40 @@ export default function ProviderProfilePage() {
                   className="h-full w-full object-cover"
                 />
               ) : (
-                <UserRound
-                  size={40}
-                  className="text-muted-foreground dark:text-zinc-500"
-                />
+                <UserRound size={34} className="text-muted-foreground" />
               )}
             </div>
 
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-3">
-                <p className="text-sm font-semibold uppercase tracking-[0.2em] text-violet-400">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
                   {t("providerEyebrow")}
                 </p>
                 {providerProfile.verification_status === "verified" && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-                    <BadgeCheck size={15} /> {t("identityVerified")}
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                    <BadgeCheck size={14} /> {t("identityVerified")}
                   </span>
                 )}
               </div>
 
-              <h1 className="mt-3 text-3xl font-bold sm:text-4xl">{fullName}</h1>
-
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
+                {fullName}
+              </h1>
               {providerProfile.business_name && (
-                <p className="mt-2 text-base text-muted-foreground dark:text-zinc-400">
+                <p className="mt-1 text-sm text-muted-foreground">
                   {providerProfile.business_name}
                 </p>
               )}
-
-              <p className="mt-4 text-lg font-semibold text-foreground dark:text-white">
+              <p className="mt-3 text-lg font-medium">
                 {providerProfile.headline || t("headlineFallback")}
               </p>
 
-              <div className="mt-5 flex flex-wrap gap-4 text-sm text-muted-foreground dark:text-zinc-400">
-                <span className="inline-flex items-center gap-2">
-                  <MapPin size={17} /> {profile.city || "Bruxelles"}
+              <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5">
+                  <MapPin size={16} /> {profile.city || "Bruxelles"}
                 </span>
-                <span className="inline-flex items-center gap-2">
-                  <BriefcaseBusiness size={17} />
+                <span className="inline-flex items-center gap-1.5">
+                  <BriefcaseBusiness size={16} />
                   {formatKlyxPublicProviderExperience(
                     locale,
                     Number(providerProfile.years_experience ?? 0)
@@ -401,150 +493,87 @@ export default function ProviderProfilePage() {
                 </span>
               </div>
             </div>
-
-            <div className="w-full rounded-2xl border border-violet-500/25 bg-violet-500/[0.07] px-4 py-3 sm:w-auto sm:min-w-36">
-              <div className="flex items-center gap-2 text-violet-700 dark:text-violet-300">
-                <ShieldCheck size={18} />
-                <span className="text-xs font-semibold uppercase tracking-wide">
-                  {t("score")}
-                </span>
-              </div>
-              <div className="mt-2 flex items-end gap-2">
-                <p className="text-3xl font-bold text-violet-700 dark:text-violet-300">
-                  {bestScore.toFixed(0)}
-                </p>
-                <p className="pb-1 text-sm text-muted-foreground dark:text-zinc-400">
-                  /100
-                </p>
-              </div>
-              <p className="mt-1 text-xs font-semibold text-violet-700 dark:text-violet-200">
-                {formatKlyxPublicProviderScoreLabel(locale, bestScore)}
-              </p>
-            </div>
           </div>
 
+          <section
+            data-testid="klyx-provider-assistant-summary"
+            className="mt-7 border-y border-border py-5"
+          >
+            <p className="text-sm font-semibold">{t("assistantChoice")}</p>
+            <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">
+                {formatKlyxPublicProviderScoreLabel(locale, bestScore)}
+              </span>
+              {providerProfile.verification_status === "verified" && (
+                <span>{t("identityVerified")}</span>
+              )}
+              <span>
+                {formatKlyxPublicProviderCompletedJobs(locale, completedJobs)}
+              </span>
+              <span>
+                {formatKlyxPublicProviderExperience(
+                  locale,
+                  Number(providerProfile.years_experience ?? 0)
+                )}
+              </span>
+            </div>
+          </section>
+
           {providerProfile.bio && (
-            <p className="mt-6 max-w-3xl whitespace-pre-line border-t border-border pt-6 leading-7 text-foreground/80 dark:border-zinc-800 dark:text-zinc-300">
+            <p className="mt-6 max-w-3xl whitespace-pre-line text-sm leading-7 text-foreground/80">
               {providerProfile.bio}
             </p>
           )}
         </section>
 
-        <section className="mt-8">
-          <h2 className="text-2xl font-bold">{t("servicesTitle")}</h2>
-          {services.length === 0 ? (
-            <div className="mt-5 rounded-2xl border border-border bg-card p-6 text-muted-foreground dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
-              {t("noServices")}
+        <section className="mt-10" aria-labelledby="provider-services-title">
+          <h2 id="provider-services-title" className="text-2xl font-semibold">
+            {t("servicesTitle")}
+          </h2>
+
+          {primaryService ? (
+            <div className="mt-5 border-y border-border py-6">
+              {serviceView(primaryService, true)}
             </div>
           ) : (
-            <div className="mt-5 grid gap-5 lg:grid-cols-2">
-              {services.map((service) => {
-                const serviceLabel = formatKlyxPublicProviderServiceLabel(
-                  locale,
-                  service.slug,
-                  service.serviceName
-                );
+            <p className="mt-5 border-y border-border py-6 text-sm text-muted-foreground">
+              {t("noServices")}
+            </p>
+          )}
 
-                return (
-                  <article
-                    key={service.userServiceId}
-                    className="rounded-2xl border border-border bg-card p-6 dark:border-zinc-800 dark:bg-zinc-900"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-violet-400">
-                          {serviceLabel}
-                        </p>
-                        <h3 className="mt-2 text-xl font-bold">
-                          {service.title ?? serviceLabel}
-                        </h3>
-                      </div>
-                      <div className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-center">
-                        <p className="text-2xl font-bold text-violet-700 dark:text-violet-300">
-                          {service.klyxScore.toFixed(0)}
-                        </p>
-                        <p className="text-xs text-muted-foreground dark:text-zinc-400">/100</p>
-                      </div>
-                    </div>
-
-                    {service.description && (
-                      <p className="mt-4 line-clamp-4 leading-6 text-foreground/80 dark:text-zinc-300">
-                        {service.description}
-                      </p>
-                    )}
-
-                    <div className="mt-5 space-y-2 text-sm text-muted-foreground dark:text-zinc-400">
-                      <p className="flex items-center gap-2">
-                        <MapPin size={16} />
-                        {service.serviceArea.length > 0
-                          ? service.serviceArea.join(", ")
-                          : service.city || t("cityMissing")}
-                        {service.travelRadiusKm > 0
-                          ? ` · ${service.travelRadiusKm} km`
-                          : ""}
-                      </p>
-                      <p className="flex items-center gap-2">
-                        <Clock3 size={16} />
-                        {formatKlyxPublicProviderAvailability(
-                          locale,
-                          service.availabilityCount
-                        )}
-                      </p>
-                      <p className="flex items-center gap-2">
-                        <CheckCircle2 size={16} />
-                        {formatKlyxPublicProviderCompletedJobs(
-                          locale,
-                          service.completedJobs
-                        )}
-                      </p>
-                      <p>
-                        {t("cancellationRate")}: {service.cancellationRate.toFixed(1)} %
-                      </p>
-                    </div>
-
-                    <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
-                      <p className="text-xl font-bold text-violet-600 dark:text-violet-400">
-                        {formatKlyxPublicProviderPrice(
-                          locale,
-                          service.price,
-                          service.pricingType
-                        )}
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        <Link
-                          href={`/providers/${profile.id}/quote?service=${encodeURIComponent(
-                            service.slug
-                          )}`}
-                          className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-5 py-3 font-semibold text-violet-700 transition hover:bg-violet-500/15 dark:text-violet-200"
-                        >
-                          {t("quote")}
-                        </Link>
-
-                        <Link
-                          href={`/providers/${profile.id}/book?service=${encodeURIComponent(
-                            service.slug
-                          )}`}
-                          className="rounded-xl bg-violet-600 px-5 py-3 font-semibold text-white transition hover:bg-violet-700"
-                        >
-                          {t("book")}
-                        </Link>
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
+          {otherServices.length > 0 && (
+            <details
+              data-testid="klyx-other-provider-services"
+              className="group border-b border-border"
+            >
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-sm font-semibold marker:content-none">
+                {t("otherServices")}
+                <ChevronDown
+                  size={17}
+                  className="transition group-open:rotate-180"
+                />
+              </summary>
+              <div className="divide-y divide-border border-t border-border">
+                {otherServices.map((service) => serviceView(service))}
+              </div>
+            </details>
           )}
         </section>
 
         {gallery.length > 0 && (
-          <section className="mt-8">
-            <h2 className="text-2xl font-bold">{t("galleryTitle")}</h2>
-            <div className="mt-5 grid gap-4 sm:grid-cols-3">
+          <details className="group mt-8 border-y border-border">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-sm font-semibold marker:content-none">
+              {t("galleryTitle")}
+              <ChevronDown
+                size={17}
+                className="transition group-open:rotate-180"
+              />
+            </summary>
+            <div className="grid gap-3 border-t border-border py-5 sm:grid-cols-3">
               {gallery.map((item) => (
                 <figure
                   key={item.id}
-                  className="aspect-[4/3] overflow-hidden rounded-2xl border border-border bg-card dark:border-zinc-800 dark:bg-zinc-900"
+                  className="aspect-[4/3] overflow-hidden rounded-xl bg-muted"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -555,15 +584,29 @@ export default function ProviderProfilePage() {
                 </figure>
               ))}
             </div>
-          </section>
+          </details>
         )}
 
-        <PublicReviews
-          providerId={profile.id}
-          klyxScore={bestScore}
-          verified={providerProfile.verification_status === "verified"}
-          yearsExperience={Number(providerProfile.years_experience ?? 0)}
-        />
+        <details
+          data-testid="klyx-provider-trust-details"
+          className="group mt-8 border-y border-border"
+        >
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-sm font-semibold marker:content-none">
+            {t("trustDetails")}
+            <ChevronDown
+              size={17}
+              className="transition group-open:rotate-180"
+            />
+          </summary>
+          <div className="border-t border-border pb-8">
+            <PublicReviews
+              providerId={profile.id}
+              klyxScore={bestScore}
+              verified={providerProfile.verification_status === "verified"}
+              yearsExperience={Number(providerProfile.years_experience ?? 0)}
+            />
+          </div>
+        </details>
       </div>
     </main>
   );
