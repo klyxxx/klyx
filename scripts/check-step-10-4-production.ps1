@@ -133,7 +133,7 @@ if (-not $BaseUrl) {
   Write-Host "URL de production manquante." -ForegroundColor Yellow
   Write-Host ""
   Write-Host "Exemple :" -ForegroundColor Yellow
-  Write-Host 'powershell -ExecutionPolicy Bypass -File .\scripts\check-step-10-4-production.ps1 -BaseUrl "https://klyx-ten.vercel.app"'
+  Write-Host 'powershell -ExecutionPolicy Bypass -File .\scripts\check-step-10-4-production.ps1 -BaseUrl "https://klyx.be"'
   Write-Host ""
   exit 2
 }
