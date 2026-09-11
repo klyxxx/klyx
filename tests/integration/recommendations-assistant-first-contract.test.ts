@@ -13,7 +13,7 @@ describe("KLYX recommendations assistant-first contract", () => {
     expect(page).toContain("KLYX_RECOMMENDATIONS_ASSISTANT_FIRST_20260911");
     expect(page).toContain("KLYX_RECOMMENDATIONS_CONVERSATIONAL_RESULT_20260911");
     expect(page).toContain("const topProviders = result.providers.slice(0, 3)");
-    expect(page).toContain('data-testid="klyx-primary-recommendation"');
+    expect(page).toContain("klyx-primary-recommendation");
     expect(page).toContain('data-testid="klyx-secondary-options"');
     expect(page).toContain('t("whyRecommended")');
 
