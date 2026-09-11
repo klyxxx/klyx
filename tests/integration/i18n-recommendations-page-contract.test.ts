@@ -12,6 +12,7 @@ describe("KLYX recommendations i18n contract", () => {
 
     expect(page).toContain("KLYX_RECOMMENDATIONS_PAGE_I18N");
     expect(page).toContain("KLYX_RECOMMENDATIONS_READ_ONLY");
+    expect(page).toContain("KLYX_RECOMMENDATIONS_CONVERSATIONAL_RESULT_20260911");
     expect(page).toContain('requestParams.set("sort", "recommended")');
     expect(page).toContain('fetch(\n          `/api/search/providers?${requestParams.toString()}`');
     expect(page).toContain('cache: "no-store"');
