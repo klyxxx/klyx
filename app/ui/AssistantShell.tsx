@@ -4,6 +4,7 @@ import { Menu, X } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import AccountSwitcher from "@/app/components/AccountSwitcher";
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import AppSidebar from "@/app/ui/AppSidebar";
 import KlyxLogo from "@/app/ui/KlyxLogo";
@@ -202,6 +203,18 @@ export default function AssistantShell() {
         homeHref={homeHref}
         locale={locale}
       />
+
+      {activeProfileId && (
+        <div
+          data-testid="assistant-shell-account-slot"
+          className="fixed right-[4.25rem] top-2 z-[65] max-w-[calc(100vw-8rem)] lg:right-6 lg:top-4 lg:max-w-[14rem]"
+        >
+          <AccountSwitcher
+            currentProfileId={activeProfileId}
+            mode="account-menu"
+          />
+        </div>
+      )}
 
       <header
         data-testid="assistant-shell-mobile-header"
