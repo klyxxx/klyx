@@ -47,6 +47,11 @@ begin
 end;
 $$;
 
+revoke all on function public.klyx_guard_group_refund_claim_2026()
+  from public, anon, authenticated;
+grant execute on function public.klyx_guard_group_refund_claim_2026()
+  to service_role;
+
 drop trigger if exists klyx_group_refund_claim_2026
   on public.booking_groups;
 
@@ -106,6 +111,11 @@ begin
   return new;
 end;
 $$;
+
+revoke all on function public.klyx_guard_group_refund_booking_transition_2026()
+  from public, anon, authenticated;
+grant execute on function public.klyx_guard_group_refund_booking_transition_2026()
+  to service_role;
 
 drop trigger if exists klyx_group_refund_booking_transition_2026
   on public.bookings;
@@ -196,6 +206,11 @@ begin
   return new;
 end;
 $$;
+
+revoke all on function public.klyx_finalize_group_refund_terminal_2026()
+  from public, anon, authenticated;
+grant execute on function public.klyx_finalize_group_refund_terminal_2026()
+  to service_role;
 
 drop trigger if exists klyx_finalize_group_refund_terminal_2026
   on public.booking_groups;
