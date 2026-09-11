@@ -25,11 +25,12 @@ describe("KLYX profile shortcuts", () => {
     expect(accountMenu).toContain('{t("settings")}');
   });
 
-  it("does not duplicate account or provider-management shortcuts in the mission rail", () => {
+  it("keeps provider management secondary in the rail without duplicating account actions", () => {
     expect(rail).not.toContain('href="/profile"');
     expect(rail).not.toContain('href="/settings"');
-    expect(rail).not.toContain('href="/provider"');
-    expect(rail).not.toContain('href="/provider/studio"');
-    expect(rail).not.toContain('href="/provider/payments"');
+    expect(rail).not.toContain('href="/accounts"');
+    expect(rail.match(/href="\/provider"/g) ?? []).toHaveLength(1);
+    expect(rail.match(/href="\/provider\/studio"/g) ?? []).toHaveLength(1);
+    expect(rail.match(/href="\/provider\/payments"/g) ?? []).toHaveLength(1);
   });
 });
