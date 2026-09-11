@@ -36,7 +36,7 @@ describe("KLYX request summary and recommendations UX", () => {
 
     expect(page).toContain("KLYX_RECOMMENDATIONS_READ_ONLY");
     expect(page).toContain('requestParams.set("sort", "recommended")');
-    expect(page).toContain("bg-blue-600");
+    expect(page).toContain("klyx-button");
     expect(page).toContain("text-blue-600");
     expect(page).not.toContain("violet");
     expect(page).not.toContain("indigo");
