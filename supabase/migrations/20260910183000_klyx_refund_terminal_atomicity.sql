@@ -151,15 +151,13 @@ begin
     end if;
   end if;
 
+  -- refund_status is the financial serialization fact. A lifecycle writer may
+  -- not complete the group after the refund claim has won the parent-row lock.
   if new.status = 'completed'
      and new.status is distinct from old.status
      and (
        coalesce(old.refund_status, '') in ('processing', 'refunded')
        or coalesce(new.refund_status, '') in ('processing', 'refunded')
-       or (
-         old.cancellation_resolution = 'approved'
-         and old.payment_status = 'paid'
-       )
      ) then
     raise exception 'KLYX_GROUP_REFUND_STATUS_CONFLICT';
   end if;
@@ -207,8 +205,6 @@ set search_path = public, pg_temp
 as $$
 declare
   group_refund_status text;
-  group_payment_status text;
-  group_cancellation_resolution text;
   progression boolean;
 begin
   if new.booking_group_id is null then
@@ -237,25 +233,14 @@ begin
     return new;
   end if;
 
-  select
-    parent.refund_status,
-    parent.payment_status,
-    parent.cancellation_resolution
-  into
-    group_refund_status,
-    group_payment_status,
-    group_cancellation_resolution
+  select parent.refund_status
+  into group_refund_status
   from public.booking_groups parent
   where parent.id = new.booking_group_id
   for update;
 
-  if found and (
-    coalesce(group_refund_status, '') in ('processing', 'refunded')
-    or (
-      group_cancellation_resolution = 'approved'
-      and group_payment_status = 'paid'
-    )
-  ) then
+  if found
+     and coalesce(group_refund_status, '') in ('processing', 'refunded') then
     raise exception 'KLYX_GROUP_REFUND_CHILD_PROGRESS_CONFLICT';
   end if;
 
@@ -292,7 +277,9 @@ as $$
 declare
   actor_id uuid;
 begin
-  actor_id := coalesce(new.cancellation_resolved_by, new.client_profile_id);
+  -- The financial trigger does not depend on cancellation metadata. The client
+  -- profile is sufficient attribution for the immutable system refund fact.
+  actor_id := new.client_profile_id;
 
   insert into public.booking_status_events (
     booking_id,
@@ -376,7 +363,7 @@ insert into public.booking_status_events (
 )
 select
   child.id,
-  coalesce(parent.cancellation_resolved_by, parent.client_profile_id),
+  parent.client_profile_id,
   child.status,
   'cancelled',
   'Mission groupee annulee apres remboursement Stripe cumule confirme.'
@@ -413,7 +400,7 @@ insert into public.booking_group_cancellation_events (
 )
 select
   parent.id,
-  coalesce(parent.cancellation_resolved_by, parent.client_profile_id),
+  parent.client_profile_id,
   'system',
   'refund_succeeded',
   'Remboursement Stripe groupe cumule confirme.',
@@ -428,7 +415,7 @@ do nothing;
 comment on function public.klyx_guard_booking_group_refund_17_02() is
   'KLYX 17.02: serializes grouped cancellation/refund with mission completion and preserves terminal Stripe refund facts.';
 comment on function public.klyx_guard_group_child_refund_progress_17_02() is
-  'KLYX 17.02: locks the parent group before grouped child mission progress so an approved paid refund and completion cannot race.';
+  'KLYX 17.02: locks the parent group before grouped child mission progress so a paid refund and completion cannot race.';
 comment on function public.klyx_finalize_group_refund_17_02() is
   'KLYX 17.02: atomically finalizes grouped child refund snapshots and immutable audit when the group reaches refunded.';
 
