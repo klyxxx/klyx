@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BriefcaseBusiness,
   ChevronLeft,
   ChevronRight,
   Clock3,
   History,
   Plus,
+  WalletCards,
+  Wrench,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -654,6 +657,38 @@ export default function MissionRail({
         {section(copy.current, copy.emptyCurrent, currentMissions, false)}
         {section(copy.recent, copy.emptyRecent, recentMissions, true)}
       </div>
+
+      {accountType === "provider" && !compact && (
+        <div
+          data-testid="provider-secondary-tools"
+          className="border-t border-border px-3 py-3 dark:border-white/8"
+        >
+          <Link
+            href="/provider"
+            onClick={onNavigate}
+            className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+          >
+            <BriefcaseBusiness size={15} />
+            {copy.commercialProfile}
+          </Link>
+          <Link
+            href="/provider/studio"
+            onClick={onNavigate}
+            className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+          >
+            <Wrench size={15} />
+            {copy.services}
+          </Link>
+          <Link
+            href="/provider/payments"
+            onClick={onNavigate}
+            className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+          >
+            <WalletCards size={15} />
+            {copy.finances}
+          </Link>
+        </div>
+      )}
     </aside>
   );
 }
