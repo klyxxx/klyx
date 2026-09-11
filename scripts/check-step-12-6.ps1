@@ -94,5 +94,5 @@ Write-Host "KLYX 12.6 BUILD VALIDE." -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "Apres deploiement :" -ForegroundColor Cyan
-Write-Host "https://klyx-ten.vercel.app/founder/test" -ForegroundColor White
+Write-Host "https://klyx.be/founder/test" -ForegroundColor White
 Write-Host "Puis clique : Relancer les tests" -ForegroundColor White
