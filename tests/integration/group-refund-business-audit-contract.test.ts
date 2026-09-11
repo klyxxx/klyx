@@ -12,10 +12,13 @@ describe("KLYX grouped refund business invariants", () => {
       "supabase/migrations/20260911151000_klyx_group_refund_transaction_guard.sql"
     );
 
-    expect(migration).toContain("public.klyx_resolve_group_cancellation");
+    expect(migration).toContain("public.klyx_guard_group_refund_claim_2026");
     expect(migration).toMatch(/from public\.bookings[\s\S]*for update;/);
     expect(migration).toContain("KLYX_GROUP_CANCEL_ALREADY_STARTED");
     expect(migration).toContain("KLYX_GROUP_REFUND_TRACKING_CONFLICT");
+    expect(migration).toContain(
+      "before update of status,\n                 service_status,\n                 provider_finished_at,\n                 client_confirmed_at"
+    );
   });
 
   it("keeps a terminal grouped refund monotone and crash-safe at the DB boundary", () => {
@@ -31,5 +34,21 @@ describe("KLYX grouped refund business invariants", () => {
     expect(migration).toContain(
       "on conflict (booking_group_id, action, stripe_refund_id)"
     );
+  });
+
+  it("keeps every new financial trigger function server-only", () => {
+    const migration = source(
+      "supabase/migrations/20260911151000_klyx_group_refund_transaction_guard.sql"
+    );
+
+    for (const name of [
+      "klyx_guard_group_refund_claim_2026",
+      "klyx_guard_group_refund_booking_transition_2026",
+      "klyx_finalize_group_refund_terminal_2026",
+    ]) {
+      expect(migration).toContain(`revoke all on function public.${name}()`);
+      expect(migration).toContain("from public, anon, authenticated;");
+      expect(migration).toContain(`grant execute on function public.${name}()`);
+    }
   });
 });
