@@ -15,10 +15,6 @@ test.use({
   video: "off",
 });
 
-function fullName(profile: KlyxE2EProfile) {
-  return `${profile.firstName} ${profile.lastName}`.trim();
-}
-
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -29,36 +25,31 @@ async function openAccountSwitcher(
 ) {
   await expectAssistantFirstDesktopShell(page, homeHref);
 
-  const rail = page.getByTestId("desktop-mission-rail");
-  const accountEntry = rail.getByTestId("account-entry");
+  const slot = page.getByTestId("assistant-shell-account-slot");
+  await expect(slot).toBeVisible();
+
+  const switcher = slot.getByTestId("account-switcher");
+  const accountEntry = switcher.getByTestId("account-entry");
   await expect(accountEntry).toBeVisible();
+  await expect(accountEntry).toBeEnabled();
   await accountEntry.click();
 
-  const switcher = rail.getByTestId("account-switcher");
-  const trigger = switcher
-    .locator('button[aria-haspopup="menu"]:not([disabled])')
-    .last();
-
-  await expect(trigger).toBeVisible();
-  await expect(trigger).toBeEnabled();
+  const panel = switcher.getByTestId("account-menu-panel");
+  await expect(panel).toBeVisible();
   return switcher;
 }
 
 async function switchThroughUi(
   switcher: Locator,
-  current: KlyxE2EProfile,
   target: KlyxE2EProfile
 ) {
-  const currentPattern = new RegExp(escapeRegExp(fullName(current)), "i");
-  const targetPattern = new RegExp(escapeRegExp(fullName(target)), "i");
+  const targetPattern = new RegExp(escapeRegExp(target.firstName), "i");
 
-  await switcher
-    .getByRole("button", { name: currentPattern })
-    .click();
-
-  await switcher
-    .getByRole("menuitem", { name: targetPattern })
-    .click();
+  const targetProfile = switcher.getByRole("menuitemradio", {
+    name: targetPattern,
+  });
+  await expect(targetProfile).toBeVisible();
+  await targetProfile.click();
 }
 
 test.describe("KLYX authenticated multi-profile", () => {
@@ -97,7 +88,7 @@ test.describe("KLYX authenticated multi-profile", () => {
 
     await page.goto("/profile");
     const clientSwitcher = await openAccountSwitcher(page, "/assistant");
-    await switchThroughUi(clientSwitcher, client!, provider!);
+    await switchThroughUi(clientSwitcher, provider!);
     await page.waitForURL((url) => url.pathname === "/provider/assistant");
     await expectAssistantFirstDesktopShell(page, "/provider/assistant");
     await expect(
@@ -116,7 +107,7 @@ test.describe("KLYX authenticated multi-profile", () => {
       page,
       "/provider/assistant"
     );
-    await switchThroughUi(providerSwitcher, provider!, client!);
+    await switchThroughUi(providerSwitcher, client!);
     await page.waitForURL((url) => url.pathname === "/assistant");
     await expect(
       page.getByRole("heading", { name: "Que puis-je organiser pour vous ?" })
