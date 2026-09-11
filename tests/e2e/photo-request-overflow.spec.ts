@@ -122,8 +122,12 @@ async function collectOverflowReport(page: Page): Promise<OverflowReport> {
       const id = element.id ? `#${element.id}` : "";
       const testId = element.getAttribute("data-testid");
       const testSuffix = testId ? `[data-testid=\"${testId}\"]` : "";
+      const type =
+        element instanceof HTMLInputElement && element.type
+          ? `[type=\"${element.type}\"]`
+          : "";
       const label = labelFor(element);
-      return `${element.tagName.toLowerCase()}${id}${testSuffix}${label ? ` \"${label}\"` : ""}`;
+      return `${element.tagName.toLowerCase()}${id}${testSuffix}${type}${label ? ` \"${label}\"` : ""}`;
     }
 
     function visible(element: HTMLElement) {
@@ -255,7 +259,7 @@ async function collectOverflowReport(page: Page): Promise<OverflowReport> {
     let currentParent: HTMLElement = document.body;
     let baselineWidth = root.scrollWidth;
 
-    for (let depth = 0; depth < 6 && baselineWidth > root.clientWidth + 2; depth += 1) {
+    for (let depth = 0; depth < 14 && baselineWidth > root.clientWidth + 2; depth += 1) {
       const children = Array.from(currentParent.children).filter(
         (child): child is HTMLElement => child instanceof HTMLElement
       );
