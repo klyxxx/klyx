@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   BriefcaseBusiness,
   Check,
   ChevronDown,
+  CircleHelp,
   LoaderCircle,
+  LogOut,
   Settings,
   UserRound,
 } from "lucide-react";
@@ -22,9 +25,12 @@ import {
   translateKlyxAccountSwitcher,
   type KlyxAccountSwitcherMessageKey,
 } from "@/lib/klyx-account-switcher-i18n";
+import { createClient } from "@/lib/supabase/client";
 
 type AccountSwitcherProps = {
   currentProfileId: string;
+  mode?: "switcher" | "account-menu";
+  onNavigate?: () => void;
 };
 
 function profileName(
@@ -33,6 +39,14 @@ function profileName(
 ) {
   if (!profile) return fallbackLabel;
   return `${profile.firstName} ${profile.lastName}`.trim() || fallbackLabel;
+}
+
+function profileFirstName(
+  profile: SavedAccount | undefined,
+  fallbackLabel: string
+) {
+  if (!profile) return fallbackLabel;
+  return profile.firstName.trim() || profileName(profile, fallbackLabel);
 }
 
 function roleLabel(
@@ -68,7 +82,10 @@ function ProfileAvatar({ profile }: { profile: SavedAccount | undefined }) {
 
 export default function AccountSwitcher({
   currentProfileId,
+  mode = "switcher",
+  onNavigate,
 }: AccountSwitcherProps) {
+  const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const switchLockRef = useRef(false);
   const { locale } = useKlyxLocale();
@@ -79,6 +96,7 @@ export default function AccountSwitcher({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [switchingId, setSwitchingId] = useState<string | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -161,13 +179,196 @@ export default function AccountSwitcher({
     }
   }
 
+  async function logout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
+
+    try {
+      const supabase = createClient();
+      const { error: logoutError } = await supabase.auth.signOut({ scope: "local" });
+      if (logoutError) throw logoutError;
+
+      setOpen(false);
+      router.replace("/login");
+      router.refresh();
+    } catch {
+      setLoggingOut(false);
+    }
+  }
+
+  function closeForNavigation() {
+    setOpen(false);
+    onNavigate?.();
+  }
+
   const currentProfile = profiles.find(
     (profile) => profile.id === activeProfileId
   );
   const currentName = profileName(currentProfile, t("profileFallback"));
+  const currentFirstName = profileFirstName(currentProfile, t("profileFallback"));
   const providerRoleLabel = t("providerRole");
   const clientRoleLabel = t("clientRole");
   const loadingRoleLabel = t("loadingRole");
+
+  if (mode === "account-menu") {
+    return (
+      <div
+        ref={containerRef}
+        data-testid="account-switcher"
+        className="relative isolate inline-block max-w-full"
+      >
+        <button
+          type="button"
+          data-testid="account-entry"
+          onClick={() => setOpen((value) => !value)}
+          disabled={loading || switchingId !== null || loggingOut}
+          className="flex h-10 max-w-[9.5rem] items-center gap-2 rounded-full border border-border bg-background/94 pl-1.5 pr-2.5 text-left text-sm font-semibold text-foreground shadow-sm backdrop-blur-xl transition hover:bg-muted disabled:cursor-wait disabled:opacity-60 sm:max-w-[14rem] dark:border-white/10"
+          aria-expanded={open}
+          aria-haspopup="menu"
+          aria-label={t("accountMenuAria")}
+        >
+          <span className="grid h-7 w-7 shrink-0 place-items-center overflow-hidden rounded-full bg-[#2563EB]/10 text-[#2563EB]">
+            {loading || switchingId ? (
+              <LoaderCircle size={15} className="animate-spin" />
+            ) : (
+              <ProfileAvatar profile={currentProfile} />
+            )}
+          </span>
+          <span className="min-w-0 flex-1 truncate">{currentFirstName}</span>
+          <ChevronDown
+            size={14}
+            className={`shrink-0 text-muted-foreground transition ${
+              open ? "rotate-180" : ""
+            }`}
+          />
+        </button>
+
+        {open && (
+          <div
+            role="menu"
+            aria-label={t("accountMenuAria")}
+            data-testid="account-menu-panel"
+            className="absolute right-0 top-full z-[90] mt-2 w-[min(19rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-border bg-card p-2 shadow-2xl dark:border-white/10"
+          >
+            <div
+              data-testid="account-menu-identity"
+              className="flex items-center gap-3 rounded-xl px-2.5 py-2.5"
+            >
+              <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full bg-[#2563EB]/10 text-[#2563EB]">
+                <ProfileAvatar profile={currentProfile} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-foreground">
+                  {currentName}
+                </span>
+                <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                  {roleLabel(
+                    currentProfile,
+                    providerRoleLabel,
+                    clientRoleLabel,
+                    loadingRoleLabel
+                  )}
+                </span>
+              </span>
+            </div>
+
+            {profiles.length > 1 && (
+              <div className="mt-1 border-t border-border pt-2 dark:border-white/8">
+                <p className="px-2.5 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                  {t("menuTitle")}
+                </p>
+                <div className="space-y-0.5">
+                  {profiles.map((profile) => {
+                    const active = profile.id === activeProfileId;
+                    const switching = profile.id === switchingId;
+
+                    return (
+                      <button
+                        key={profile.id}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={active}
+                        onClick={() => void handleSwitch(profile.id)}
+                        disabled={switchingId !== null}
+                        className={`flex min-h-10 w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left transition disabled:cursor-wait disabled:opacity-60 ${
+                          active ? "bg-[#2563EB]/8" : "hover:bg-muted"
+                        }`}
+                      >
+                        <span className="grid h-7 w-7 shrink-0 place-items-center overflow-hidden rounded-full bg-muted text-muted-foreground">
+                          {switching ? (
+                            <LoaderCircle size={14} className="animate-spin" />
+                          ) : (
+                            <ProfileAvatar profile={profile} />
+                          )}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                          {profileFirstName(profile, t("profileFallback"))}
+                        </span>
+                        {active && <Check size={15} className="shrink-0 text-[#2563EB]" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <p
+                role="alert"
+                className="mx-1 mt-2 rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium text-foreground"
+              >
+                {error}
+              </p>
+            )}
+
+            <div className="mt-2 border-t border-border pt-2 dark:border-white/8">
+              <Link
+                href="/profile"
+                role="menuitem"
+                onClick={closeForNavigation}
+                className="flex min-h-10 items-center gap-3 rounded-xl px-2.5 text-sm font-medium text-foreground transition hover:bg-muted"
+              >
+                <UserRound size={16} className="text-muted-foreground" />
+                {t("myProfile")}
+              </Link>
+              <Link
+                href="/settings"
+                role="menuitem"
+                onClick={closeForNavigation}
+                className="flex min-h-10 items-center gap-3 rounded-xl px-2.5 text-sm font-medium text-foreground transition hover:bg-muted"
+              >
+                <Settings size={16} className="text-muted-foreground" />
+                {t("settings")}
+              </Link>
+              <Link
+                href="/support"
+                role="menuitem"
+                onClick={closeForNavigation}
+                className="flex min-h-10 items-center gap-3 rounded-xl px-2.5 text-sm font-medium text-foreground transition hover:bg-muted"
+              >
+                <CircleHelp size={16} className="text-muted-foreground" />
+                {t("support")}
+              </Link>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => void logout()}
+                disabled={loggingOut}
+                className="flex min-h-10 w-full items-center gap-3 rounded-xl px-2.5 text-left text-sm font-medium text-foreground transition hover:bg-muted disabled:cursor-wait disabled:opacity-60"
+              >
+                {loggingOut ? (
+                  <LoaderCircle size={16} className="animate-spin text-muted-foreground" />
+                ) : (
+                  <LogOut size={16} className="text-muted-foreground" />
+                )}
+                {loggingOut ? t("loggingOut") : t("logout")}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div
