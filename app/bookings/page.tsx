@@ -481,7 +481,7 @@ export default function BookingsPage() {
           <>
             <nav
               aria-label={t("title")}
-              className="mt-6 flex gap-4 overflow-x-auto border-b border-border sm:gap-6"
+              className="mt-6 flex gap-3 overflow-x-auto border-b border-border sm:gap-6"
             >
               {filterOptions.map((option) => {
                 const active = filter === option.value;
