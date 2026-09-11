@@ -13,6 +13,7 @@
     "test:ci": "vitest run --reporter=verbose",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ux-certification": "playwright test --config=playwright.ux-certification.config.ts",
     "i18n:tolgee:seed": "node scripts/i18n/export-tolgee-seed.mjs",
     "i18n:tolgee:seed:check": "node scripts/i18n/export-tolgee-seed.mjs --check",
     "i18n:tolgee:catalogs:check": "node scripts/i18n/check-tolgee-catalogs.mjs",

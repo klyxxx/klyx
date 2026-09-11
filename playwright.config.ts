@@ -22,6 +22,12 @@ const localServerCommand = process.env.CI
 export default defineConfig({
   testDir: "./tests/e2e",
 
+  // The dedicated UX/visual suite has its own viewport matrix, pinned
+  // Chromium revision, snapshots and artifact contract. Keep the historical
+  // Playwright verification additive by not collecting that spec here.
+  testIgnore:
+    "**/ux-visual-certification.spec.ts",
+
   fullyParallel: false,
 
   forbidOnly:
