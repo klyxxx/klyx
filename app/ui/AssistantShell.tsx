@@ -207,7 +207,7 @@ export default function AssistantShell() {
       {activeProfileId && (
         <div
           data-testid="assistant-shell-account-slot"
-          className="fixed right-[4.25rem] top-2 z-[65] max-w-[calc(100vw-8rem)] lg:right-6 lg:top-4 lg:max-w-[14rem]"
+          className="fixed right-[4.25rem] top-2 z-[65] max-w-[calc(100vw-8rem)] lg:right-[4.5rem] lg:top-4 lg:max-w-[9.5rem]"
         >
           <AccountSwitcher
             currentProfileId={activeProfileId}
