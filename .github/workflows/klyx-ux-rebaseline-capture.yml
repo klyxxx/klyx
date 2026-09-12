@@ -1,0 +1,88 @@
+name: KLYX UX Rebaseline Capture
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    if: ${{ github.head_ref == 'ci/ux-visual-rebaseline-20260912' }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      KLYX_E2E_EMAIL: ${{ secrets.KLYX_E2E_EMAIL }}
+      KLYX_E2E_SESSION_BOOTSTRAP: "1"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Validate required environment
+        shell: bash
+        run: |
+          for variable in \
+            NEXT_PUBLIC_SUPABASE_URL \
+            NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY \
+            SUPABASE_SERVICE_ROLE_KEY \
+            KLYX_E2E_EMAIL
+          do
+            if [ -z "${!variable}" ]; then
+              echo "$variable is missing"
+              exit 1
+            fi
+          done
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install pinned Playwright Chromium
+        env:
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "120000"
+        run: npx playwright install --with-deps chromium
+
+      - name: Production build
+        run: npm run build
+
+      - name: Capture current assistant references
+        run: npx playwright test --config=playwright.ux-rebaseline.config.ts
+
+      - name: Guard screenshots against service-role leakage
+        shell: bash
+        run: |
+          python <<'PY'
+          import os
+          import sys
+          from pathlib import Path
+
+          secret = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").encode("utf-8")
+          root = Path("ux-rebaseline-results")
+          if not secret or not root.exists():
+              sys.exit(1)
+          for path in root.rglob("*"):
+              if path.is_file() and secret in path.read_bytes():
+                  print(f"Sensitive credential detected in {path}")
+                  sys.exit(1)
+          print("UX rebaseline screenshot secret scan: PASS")
+          PY
+
+      - name: Upload assistant references
+        uses: actions/upload-artifact@v4
+        with:
+          name: klyx-ux-rebaseline-${{ github.run_id }}
+          path: ux-rebaseline-results/
+          if-no-files-found: error
+          retention-days: 2
