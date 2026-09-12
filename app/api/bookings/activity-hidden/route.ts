@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import {
   apiErrorStatus,
   getAuthenticatedProfile,
-  requireAccountType,
 } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -70,7 +69,6 @@ export async function GET(request: Request) {
 
   try {
     const { profile } = await getAuthenticatedProfile(request);
-    requireAccountType(profile, "client");
 
     const { data, error } = await supabaseAdmin
       .from("activity_hidden_missions")
@@ -149,7 +147,6 @@ export async function POST(request: Request) {
 
   try {
     const { profile } = await getAuthenticatedProfile(request);
-    requireAccountType(profile, "client");
 
     const body = (await request.json().catch(() => null)) as
       | { entityType?: unknown; entityId?: unknown }

@@ -4,7 +4,6 @@ import {
 
 import {
   getAuthenticatedProfile,
-  requireAccountType,
 } from "@/lib/api-auth";
 
 import {
@@ -576,11 +575,6 @@ export async function GET(
       await getAuthenticatedProfile(
         request
       );
-
-    requireAccountType(
-      profile,
-      "client"
-    );
 
     const url =
       new URL(

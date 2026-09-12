@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import {
   apiErrorStatus,
   getAuthenticatedProfile,
-  requireAccountType,
 } from "@/lib/api-auth";
 import {
   API_RATE_LIMIT_POLICIES,
@@ -791,7 +790,6 @@ export async function POST(request: Request) {
 
   try {
     const { profile } = await getAuthenticatedProfile(request);
-    requireAccountType(profile, "client");
 
     const policy = API_RATE_LIMIT_POLICIES.brainRespond;
     const rateLimit = await consumeApiRateLimit(

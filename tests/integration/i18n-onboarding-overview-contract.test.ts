@@ -33,7 +33,7 @@ describe("KLYX onboarding overview page-i18n integration", () => {
     expect(overview).toContain("<ProviderOnboardingProgress />");
   });
 
-  it("preserves the role-specific destinations and product-boundary markers", () => {
+  it("preserves provider management destinations while converging assistant entry", () => {
     for (const marker of [
       "KLYX_ONBOARDING_REAL_WORKFLOWS_13_86",
       "KLYX_ROLE_NEXT_ACTION_14_03",
@@ -48,10 +48,11 @@ describe("KLYX onboarding overview page-i18n integration", () => {
       "/dashboard",
       "/provider",
       "/provider/jobs",
-      "/provider/assistant",
+      "/assistant",
     ]) {
       expect(overview).toContain(`href="${href}"`);
     }
+    expect(overview).not.toContain('href="/provider/assistant"');
 
     for (const href of ["/assistant/market", "/profile", "/search"]) {
       expect(overview).toContain(`href: "${href}"`);

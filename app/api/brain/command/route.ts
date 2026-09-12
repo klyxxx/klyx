@@ -5,205 +5,53 @@ import {
   getAuthenticatedProfile,
 } from "@/lib/api-auth";
 import {
-  getBrainActions,
-} from "@/lib/brain-actions";
-import {
-  bestBrainCommandAction,
-  bestSpecificBrainCommandAction,
-  hasGeneralBrainCommandIntent,
-  hasNewNeedBrainCommandIntent,
-  hasSpecificBrainCommandIntent,
-  normalizeBrainCommandMessage,
-} from "@/lib/brain-command-intent";
-import {
-  normalizeKlyxAssistantActionHref,
-} from "@/lib/klyx-assistant-action-href";
+  classifyKlyxAssistantIntent,
+} from "@/lib/klyx-assistant-intent";
 import {
   isKlyxAssistantMessageTooLong,
 } from "@/lib/klyx-assistant-message-limits";
-import {
-  localizeKlyxGroundedAction,
-} from "@/lib/klyx-grounded-action-i18n";
-import {
-  getServerKlyxLocale,
-} from "@/lib/klyx-server-i18n";
 
-// KLYX_TRUSTED_COMMAND_ROUTER_12_81
+// KLYX_UNIFIED_ASSISTANT_INTENT_PREFLIGHT_2026_09_12
 
 type CommandBody = {
   message?: string;
 };
 
-export async function POST(
-  request: Request
-) {
+export async function POST(request: Request) {
   try {
-    const { profile } =
-      await getAuthenticatedProfile(
-        request
-      );
+    await getAuthenticatedProfile(request);
 
-    const body =
-      (await request.json()) as CommandBody;
-
-    const rawMessage =
-      body.message?.trim() ?? "";
+    const body = (await request.json()) as CommandBody;
+    const rawMessage = body.message?.trim() ?? "";
 
     if (!rawMessage) {
       return NextResponse.json(
-        {
-          error:
-            "Message manquant.",
-        },
-        {
-          status: 400,
-        }
+        { error: "Message manquant." },
+        { status: 400 }
       );
     }
 
-    if (
-      isKlyxAssistantMessageTooLong(rawMessage)
-    ) {
+    if (isKlyxAssistantMessageTooLong(rawMessage)) {
       return NextResponse.json(
-        {
-          error:
-            "Message trop long.",
-        },
-        {
-          status: 400,
-        }
+        { error: "Message trop long." },
+        { status: 400 }
       );
     }
 
-    const message =
-      normalizeBrainCommandMessage(
-        rawMessage
-      );
+    const intent = classifyKlyxAssistantIntent(rawMessage);
 
-    const locale =
-      await getServerKlyxLocale();
-
-    // IMPORTANT 12.81:
-    // actions recalculated from DB server-side.
-    const actions =
-      (
-        await getBrainActions(
-          profile
-        )
-      ).slice(0, 20);
-
-    const specificExistingIntent =
-      hasSpecificBrainCommandIntent(
-        message
-      );
-
-    const generalActionIntent =
-      hasGeneralBrainCommandIntent(
-        message
-      );
-
-    const newNeedIntent =
-      hasNewNeedBrainCommandIntent(
-        message
-      );
-
-    if (
-      actions.length > 0 &&
-      (
-        specificExistingIntent ||
-        generalActionIntent
-      )
-    ) {
-      const action =
-        specificExistingIntent
-          ? bestSpecificBrainCommandAction(
-              actions,
-              message
-            )
-          : bestBrainCommandAction(
-              actions,
-              message
-            );
-
-      if (action) {
-        const localizedAction =
-          localizeKlyxGroundedAction(
-            action,
-            locale
-          );
-
-        const safeHref =
-          normalizeKlyxAssistantActionHref(
-            localizedAction.href
-          );
-
-        if (!safeHref) {
-          return NextResponse.json({
-            mode:
-              "no_action",
-            automaticExecutionAllowed:
-              false,
-            href:
-              "/assistant/actions",
-          });
-        }
-
-        return NextResponse.json({
-          mode:
-            "existing_action",
-          automaticExecutionAllowed:
-            false,
-          action:
-            action.kind === "compare_offers"
-              ? {
-                  ...localizedAction,
-                  description:
-                    action.description,
-                  href: safeHref,
-                }
-              : {
-                  ...localizedAction,
-                  href: safeHref,
-                },
-        });
-      }
-    }
-
-    if (
-      newNeedIntent ||
-      (
-        !generalActionIntent &&
-        !specificExistingIntent
-      )
-    ) {
-      const params =
-        new URLSearchParams();
-
-      params.set(
-        "request",
-        rawMessage
-      );
-
-      return NextResponse.json({
-        mode:
-          "new_request",
-        requiresConfirmation:
-          true,
-        automaticExecutionAllowed:
-          false,
-        href:
-          "/assistant/market?" +
-          params.toString(),
-      });
-    }
-
+    // The command endpoint is now only a deterministic preflight. Every
+    // supported intent continues through /api/brain/converse so service needs,
+    // income searches, mission management, information and clarifications all
+    // share the same thread and conversation history.
     return NextResponse.json({
-      mode:
-        "no_action",
-      automaticExecutionAllowed:
-        false,
-      href:
-        "/assistant/actions",
+      mode: "new_request",
+      assistantIntent: intent.intent,
+      intentConfidence: intent.confidence,
+      clarificationQuestion: intent.clarificationQuestion,
+      requiresConfirmation: false,
+      automaticExecutionAllowed: false,
+      href: "/assistant",
     });
   } catch (error) {
     const message =
@@ -212,13 +60,8 @@ export async function POST(
         : "Commande KLYX indisponible.";
 
     return NextResponse.json(
-      {
-        error: message,
-      },
-      {
-        status:
-          apiErrorStatus(message),
-      }
+      { error: message },
+      { status: apiErrorStatus(message) }
     );
   }
 }

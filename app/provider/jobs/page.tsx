@@ -644,7 +644,7 @@ function MissionCard({
 
             <a
               href={
-                "/provider/assistant?prompt=" +
+                "/assistant?prompt=" +
                 encodeURIComponent(
                   buildKlyxProviderAssistantMissionPrompt(locale, {
                     title: item.title,

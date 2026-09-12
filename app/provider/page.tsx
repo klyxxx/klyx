@@ -25,7 +25,7 @@ const SECONDARY_LINKS: SecondaryLink[] = [
   { labelKey: "capabilities", href: "/provider/capabilities" },
   { labelKey: "trust", href: "/provider/trust" },
   { labelKey: "verification", href: "/provider/verification" },
-  { labelKey: "providerAssistant", href: "/provider/assistant" },
+  { labelKey: "providerAssistant", href: "/assistant" },
   { labelKey: "settings", href: "/settings" },
 ];
 

@@ -132,7 +132,7 @@ export const KLYX_NAV_ITEMS: KlyxNavItem[] = [
   },
   {
     title: "Assistant professionnel",
-    href: "/provider/assistant",
+    href: "/assistant",
     role: "provider",
     group: "Prestataire",
     keywords: ["assistant", "professionnel", "ia"],

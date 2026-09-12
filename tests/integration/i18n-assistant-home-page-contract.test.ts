@@ -12,9 +12,9 @@ const copy = fs.readFileSync(
 );
 
 describe("KLYX Assistant-first home contract", () => {
-  it("renders only the protected central thread inside the merged shell", () => {
-    expect(source).toContain("<ClientRouteGuard>");
+  it("renders only the shared central thread inside the merged shell", () => {
     expect(source).toContain("<AssistantThread />");
+    expect(source).not.toContain("ClientRouteGuard");
     expect(source).not.toContain("AssistantHomeResume");
     expect(source).not.toContain("Bell");
     expect(source).not.toContain('href="/notifications"');

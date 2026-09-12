@@ -29,9 +29,9 @@ function post(body: string, headers?: HeadersInit) {
 }
 
 describe("KLYX Brain respond HTTP boundary", () => {
-  it("keeps authentication, client role and profile-scoped conversation ownership", () => {
+  it("keeps authentication and profile-scoped conversation ownership without a permanent role gate", () => {
     expect(route).toContain("getAuthenticatedProfile(request)");
-    expect(route).toContain('requireAccountType(profile, "client")');
+    expect(route).not.toContain("requireAccountType");
     expect(route).toContain('.from("brain_conversations")');
     expect(route).toContain('.eq("id", conversationId)');
     expect(route).toContain('.eq("user_id", userId)');
