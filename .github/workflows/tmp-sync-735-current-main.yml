@@ -24,8 +24,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git fetch origin main
-          actual_main="$(git rev-parse origin/main)"
-          test "$actual_main" = "$EXPECTED_MAIN"
+          test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN"
 
           git merge --no-ff --no-commit origin/main || true
           test -f .git/MERGE_HEAD
@@ -44,223 +43,244 @@ jobs:
           from pathlib import Path
           import re
 
-          rail_path = Path('app/ui/MissionRail.tsx')
+          rail_path = Path("app/ui/MissionRail.tsx")
           rail = rail_path.read_text()
           rail = rail.replace('import { usePathname, useRouter } from "next/navigation";', 'import { usePathname } from "next/navigation";')
-          rail = rail.replace('  CircleUserRound,\n', '')
-          rail = rail.replace('  LogOut,\n', '')
-          rail = rail.replace('  Settings,\n', '')
+          for line in ['  CircleUserRound,\n', '  LogOut,\n', '  Settings,\n']:
+              rail = rail.replace(line, '')
           rail = rail.replace('import AccountSwitcher from "@/app/components/AccountSwitcher";\n', '')
-          rail = rail.replace('  const router = useRouter();\n', '')
-          rail = rail.replace('  const [accountOpen, setAccountOpen] = useState(false);\n', '')
-          rail = rail.replace('  const [loggingOut, setLoggingOut] = useState(false);\n', '')
-          rail = rail.replace('''  function openAccountFromCompactRail() {
-            setCollapsedPreference(false);
-            setAccountOpen(true);
-          }
-
-          ''', '')
+          for line in [
+              '  const router = useRouter();\n',
+              '  const [accountOpen, setAccountOpen] = useState(false);\n',
+              '  const [loggingOut, setLoggingOut] = useState(false);\n',
+          ]:
+              rail = rail.replace(line, '')
           rail = re.sub(
-              r'  async function logout\(\) \{.*?\n  \}\n\n  function missionRow',
-              '  function missionRow',
+              r'\n  function openAccountFromCompactRail\(\) \{.*?\n  \}\n',
+              '\n',
               rail,
+              count=1,
               flags=re.S,
           )
-          account_block_start = '''      <div
-                className={
-                  compact
-                    ? "border-t border-border px-4 py-4 dark:border-white/8"
-                    : "border-t border-border px-3 py-4 dark:border-white/8"
-                }
-              >'''
-          provider_block = '''      {accountType === "provider" && !compact && (
-                <div
-                  data-testid="provider-secondary-tools"
-                  className="border-t border-border px-3 py-3 dark:border-white/8"
-                >
-                  <Link
-                    href="/provider"
-                    onClick={onNavigate}
-                    className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                  >
-                    <BriefcaseBusiness size={15} />
-                    {copy.commercialProfile}
-                  </Link>
-                  <Link
-                    href="/provider/studio"
-                    onClick={onNavigate}
-                    className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                  >
-                    <Wrench size={15} />
-                    {copy.services}
-                  </Link>
-                  <Link
-                    href="/provider/payments"
-                    onClick={onNavigate}
-                    className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                  >
-                    <WalletCards size={15} />
-                    {copy.finances}
-                  </Link>
-                </div>
-              )}
-          '''
-          start = rail.find(account_block_start)
-          assert start >= 0, 'main account block start not found'
-          end = rail.find('    </aside>', start)
-          assert end >= 0, 'rail closing aside not found'
-          rail = rail[:start] + provider_block + rail[end:]
+          rail = re.sub(
+              r'\n  async function logout\(\) \{.*?\n  \}\n\n  function missionRow',
+              '\n  function missionRow',
+              rail,
+              count=1,
+              flags=re.S,
+          )
+
+          account_marker = 'data-testid="account-entry"'
+          marker_index = rail.find(account_marker)
+          assert marker_index >= 0, 'main account entry not found'
+          footer_start = rail.rfind('\n      <div\n', 0, marker_index)
+          aside_end = rail.rfind('\n    </aside>')
+          assert footer_start >= 0 and aside_end > footer_start, 'account footer bounds not found'
+          provider_block = '''
+      {accountType === "provider" && !compact && (
+        <div
+          data-testid="provider-secondary-tools"
+          className="border-t border-border px-3 py-3 dark:border-white/8"
+        >
+          <Link
+            href="/provider"
+            onClick={onNavigate}
+            className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+          >
+            <BriefcaseBusiness size={15} />
+            {copy.commercialProfile}
+          </Link>
+          <Link
+            href="/provider/studio"
+            onClick={onNavigate}
+            className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+          >
+            <Wrench size={15} />
+            {copy.services}
+          </Link>
+          <Link
+            href="/provider/payments"
+            onClick={onNavigate}
+            className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+          >
+            <WalletCards size={15} />
+            {copy.finances}
+          </Link>
+        </div>
+      )}
+'''
+          rail = rail[:footer_start] + provider_block + rail[aside_end:]
+          for forbidden in [
+              'data-testid="account-entry"',
+              '<AccountSwitcher',
+              'href="/profile"',
+              'href="/settings"',
+              'href="/accounts"',
+              'useRouter',
+              'accountOpen',
+              'loggingOut',
+          ]:
+              assert forbidden not in rail, forbidden
           assert 'data-testid="mission-history"' in rail
-          assert 'data-testid="account-entry"' not in rail
-          assert '<AccountSwitcher' not in rail
-          assert 'href="/profile"' not in rail
-          assert 'href="/settings"' not in rail
           assert 'data-testid="provider-secondary-tools"' in rail
+          assert 'fetch("/api/provider/jobs"' in rail
           rail_path.write_text(rail)
 
-          role_path = Path('tests/e2e/authenticated-role-navigation.spec.ts')
+          role_path = Path("tests/e2e/authenticated-role-navigation.spec.ts")
           role = role_path.read_text()
-          role = role.replace('''    const account = rail.locator("details").filter({ hasText: "Compte" });
-              await account.locator("summary").click();
-              await expect(account.locator('a[href="/profile"]')).toBeVisible();
-              await expect(account.locator('a[href="/settings"]')).toBeVisible();
-              await expect(account.locator('a[href="/messages"]')).toHaveCount(0);
-          ''', '''    await expect(rail.getByTestId("account-entry")).toHaveCount(0);
+          client_re = re.compile(
+              r'    const account = rail\.locator\("details"\)\.filter\(\{ hasText: "Compte" \}\);\n'
+              r'    await account\.locator\("summary"\)\.click\(\);\n'
+              r'    await expect\(account\.locator\(\'a\[href="/profile"\]\'\)\)\.toBeVisible\(\);\n'
+              r'    await expect\(account\.locator\(\'a\[href="/settings"\]\'\)\)\.toBeVisible\(\);\n'
+              r'    await expect\(account\.locator\(\'a\[href="/messages"\]\'\)\)\.toHaveCount\(0\);'
+          )
+          client_replacement = '''    await expect(rail.getByTestId("account-entry")).toHaveCount(0);
 
-              const accountSlot = page.getByTestId("assistant-shell-account-slot");
-              const accountEntry = accountSlot.getByTestId("account-entry");
-              await expect(accountEntry).toBeVisible();
-              await accountEntry.click();
+    const accountSlot = page.getByTestId("assistant-shell-account-slot");
+    const accountEntry = accountSlot.getByTestId("account-entry");
+    await expect(accountEntry).toBeVisible();
+    await accountEntry.click();
 
-              const accountMenu = accountSlot.getByTestId("account-menu-panel");
-              await expect(accountMenu).toBeVisible();
-              await expect(accountMenu.locator('a[href="/profile"]')).toBeVisible();
-              await expect(accountMenu.locator('a[href="/settings"]')).toBeVisible();
-              await expect(accountMenu.locator('a[href="/support"]')).toBeVisible();
-              await expect(accountMenu.locator('a[href="/messages"]')).toHaveCount(0);
-          ''')
-          role = role.replace('''    const account = rail.locator("details").filter({ hasText: "Compte" });
-              await expect(account.locator('a[href="/provider/studio"]')).toBeHidden();
-              await expect(account.locator('a[href="/provider/payments"]')).toBeHidden();
-              await account.locator("summary").click();
-              await expect(account.locator('a[href="/provider/studio"]')).toBeVisible();
-              await expect(account.locator('a[href="/provider/payments"]')).toBeVisible();
-              await expect(account.locator('a[href="/profile"]')).toBeVisible();
-              await expect(account.locator('a[href="/messages"]')).toHaveCount(0);
-          ''', '''    await expect(rail.getByTestId("account-entry")).toHaveCount(0);
+    const accountMenu = accountSlot.getByTestId("account-menu-panel");
+    await expect(accountMenu).toBeVisible();
+    await expect(accountMenu.locator('a[href="/profile"]')).toBeVisible();
+    await expect(accountMenu.locator('a[href="/settings"]')).toBeVisible();
+    await expect(accountMenu.locator('a[href="/support"]')).toBeVisible();
+    await expect(accountMenu.locator('a[href="/messages"]')).toHaveCount(0);'''
+          role, client_count = client_re.subn(client_replacement, role, count=1)
+          assert client_count == 1, f'client account block replacements={client_count}'
 
-              const providerTools = rail.getByTestId("provider-secondary-tools");
-              await expect(providerTools).toBeVisible();
-              await expect(providerTools.locator('a[href="/provider"]')).toBeVisible();
-              await expect(providerTools.locator('a[href="/provider/studio"]')).toBeVisible();
-              await expect(providerTools.locator('a[href="/provider/payments"]')).toBeVisible();
+          provider_re = re.compile(
+              r'    const account = rail\.locator\("details"\)\.filter\(\{ hasText: "Compte" \}\);\n'
+              r'    await expect\(account\.locator\(\'a\[href="/provider/studio"\]\'\)\)\.toBeHidden\(\);\n'
+              r'    await expect\(account\.locator\(\'a\[href="/provider/payments"\]\'\)\)\.toBeHidden\(\);\n'
+              r'    await account\.locator\("summary"\)\.click\(\);\n'
+              r'    await expect\(account\.locator\(\'a\[href="/provider/studio"\]\'\)\)\.toBeVisible\(\);\n'
+              r'    await expect\(account\.locator\(\'a\[href="/provider/payments"\]\'\)\)\.toBeVisible\(\);\n'
+              r'    await expect\(account\.locator\(\'a\[href="/profile"\]\'\)\)\.toBeVisible\(\);\n'
+              r'    await expect\(account\.locator\(\'a\[href="/messages"\]\'\)\)\.toHaveCount\(0\);'
+          )
+          provider_replacement = '''    await expect(rail.getByTestId("account-entry")).toHaveCount(0);
 
-              const accountSlot = page.getByTestId("assistant-shell-account-slot");
-              const accountEntry = accountSlot.getByTestId("account-entry");
-              await expect(accountEntry).toBeVisible();
-              await accountEntry.click();
+    const providerTools = rail.getByTestId("provider-secondary-tools");
+    await expect(providerTools).toBeVisible();
+    await expect(providerTools.locator('a[href="/provider"]')).toBeVisible();
+    await expect(providerTools.locator('a[href="/provider/studio"]')).toBeVisible();
+    await expect(providerTools.locator('a[href="/provider/payments"]')).toBeVisible();
 
-              const accountMenu = accountSlot.getByTestId("account-menu-panel");
-              await expect(accountMenu).toBeVisible();
-              await expect(accountMenu.locator('a[href="/profile"]')).toBeVisible();
-              await expect(accountMenu.locator('a[href="/settings"]')).toBeVisible();
-              await expect(accountMenu.locator('a[href="/support"]')).toBeVisible();
-              await expect(accountMenu.locator('a[href="/provider/studio"]')).toHaveCount(0);
-              await expect(accountMenu.locator('a[href="/provider/payments"]')).toHaveCount(0);
-              await expect(accountMenu.locator('a[href="/messages"]')).toHaveCount(0);
-          ''')
-          assert 'rail.locator("details").filter({ hasText: "Compte" })' not in role
-          assert 'provider-secondary-tools' in role
+    const accountSlot = page.getByTestId("assistant-shell-account-slot");
+    const accountEntry = accountSlot.getByTestId("account-entry");
+    await expect(accountEntry).toBeVisible();
+    await accountEntry.click();
+
+    const accountMenu = accountSlot.getByTestId("account-menu-panel");
+    await expect(accountMenu).toBeVisible();
+    await expect(accountMenu.locator('a[href="/profile"]')).toBeVisible();
+    await expect(accountMenu.locator('a[href="/settings"]')).toBeVisible();
+    await expect(accountMenu.locator('a[href="/support"]')).toBeVisible();
+    await expect(accountMenu.locator('a[href="/provider/studio"]')).toHaveCount(0);
+    await expect(accountMenu.locator('a[href="/provider/payments"]')).toHaveCount(0);
+    await expect(accountMenu.locator('a[href="/messages"]')).toHaveCount(0);'''
+          role, provider_count = provider_re.subn(provider_replacement, role, count=1)
+          assert provider_count == 1, f'provider account block replacements={provider_count}'
           assert 'mission-history-detail' in role
+          assert 'provider-secondary-tools' in role
           role_path.write_text(role)
 
-          compact_path = Path('tests/e2e/mission-rail-compact.spec.ts')
+          compact_path = Path("tests/e2e/mission-rail-compact.spec.ts")
           compact = compact_path.read_text()
-          compact = compact.replace('await expect(rail.getByTestId("account-entry")).toHaveCount(1);', 'await expect(rail.getByTestId("account-entry")).toHaveCount(0);')
+          old_count = 'await expect(rail.getByTestId("account-entry")).toHaveCount(1);'
+          assert old_count in compact
+          compact = compact.replace(old_count, 'await expect(rail.getByTestId("account-entry")).toHaveCount(0);', 1)
           desktop_anchor = '    await expectCompactRail(desktopRail);\n'
-          compact = compact.replace(desktop_anchor, desktop_anchor + '    await expect(page.getByTestId("assistant-shell-account-slot").getByTestId("account-entry")).toBeVisible();\n', 1)
           mobile_anchor = '    await expectCompactRail(mobileRail);\n'
-          compact = compact.replace(mobile_anchor, mobile_anchor + '    await expect(page.getByTestId("assistant-shell-account-slot").getByTestId("account-entry")).toBeVisible();\n', 1)
-          assert 'toHaveCount(1)' not in compact.split('account-entry')[1][:80]
-          compact_path.write_text(compact)
-
-          shell_contract_path = Path('tests/integration/assistant-shell-mission-rail-contract.test.ts')
-          shell_contract = shell_contract_path.read_text()
-          if 'const accountMenu = read("app/components/AccountSwitcher.tsx");' not in shell_contract:
-              shell_contract = shell_contract.replace(
-                  'const rail = read("app/ui/MissionRail.tsx");\n',
-                  'const rail = read("app/ui/MissionRail.tsx");\nconst accountMenu = read("app/components/AccountSwitcher.tsx");\n',
-              )
-          account_test = '''  it("moves account navigation out of the rail into one primary top-right menu", () => {
-              expect(shell).toContain('data-testid="assistant-shell-account-slot"');
-              expect(shell).toContain('<AccountSwitcher');
-              expect(shell).toContain('mode="account-menu"');
-
-              expect(rail).not.toContain('data-testid="account-entry"');
-              expect(rail).not.toContain('<AccountSwitcher');
-              expect(rail).not.toContain('href="/profile"');
-              expect(rail).not.toContain('href="/settings"');
-              expect(rail).not.toContain('href="/accounts"');
-              expect(rail).toContain('data-testid="provider-secondary-tools"');
-
-              expect(accountMenu).toContain('data-testid="account-entry"');
-              expect(accountMenu).toContain('href="/profile"');
-              expect(accountMenu).toContain('href="/settings"');
-              expect(accountMenu).toContain('href="/support"');
-            });
-          '''
-          shell_contract = re.sub(
-              r'  it\("removes permanent SaaS destinations while keeping provider tools secondary under Account", \(\) => \{.*?\n  \}\);\n',
-              account_test,
-              shell_contract,
-              count=1,
-              flags=re.S,
-          )
-          assert 'history: "Historique"' in shell_contract
-          assert 'moves account navigation out of the rail' in shell_contract
-          shell_contract_path.write_text(shell_contract)
-
-          simp_path = Path('tests/integration/mission-rail-simplification-contract.test.ts')
-          simp = simp_path.read_text()
-          simp = simp.replace(
-              'const rail = read("app/ui/MissionRail.tsx");\n',
-              'const rail = read("app/ui/MissionRail.tsx");\nconst shell = read("app/ui/AssistantShell.tsx");\nconst accountMenu = read("app/components/AccountSwitcher.tsx");\n',
+          assert desktop_anchor in compact and mobile_anchor in compact
+          compact = compact.replace(
+              desktop_anchor,
+              desktop_anchor + '    await expect(page.getByTestId("assistant-shell-account-slot").getByTestId("account-entry")).toBeVisible();\n',
               1,
           )
-          first_test = '''  it("keeps the rail mission-only and exposes one primary account entry from the shell", () => {
-              expect(rail).not.toContain("<AccountSwitcher");
-              expect(rail).not.toContain('data-testid="account-entry"');
-              expect(rail).not.toContain('data-testid="account-profile-switcher"');
-              expect(rail).not.toContain('href="/profile"');
-              expect(rail).not.toContain('href="/settings"');
-              expect(rail).not.toContain('href="/accounts"');
-
-              expect(shell.match(/<AccountSwitcher/g) ?? []).toHaveLength(1);
-              expect(shell).toContain('mode="account-menu"');
-              expect(accountMenu).toContain('data-testid="account-entry"');
-              expect(accountMenu).not.toContain("password");
-              expect(accountMenu).not.toContain("Password");
-            });
-          '''
-          simp = re.sub(
-              r'  it\("keeps one account entry and nests profile switching with secondary account tools", \(\) => \{.*?\n  \}\);\n',
-              first_test,
-              simp,
-              count=1,
-              flags=re.S,
+          compact = compact.replace(
+              mobile_anchor,
+              mobile_anchor + '    await expect(page.getByTestId("assistant-shell-account-slot").getByTestId("account-entry")).toBeVisible();\n',
+              1,
           )
+          compact_path.write_text(compact)
+
+          shell_path = Path("tests/integration/assistant-shell-mission-rail-contract.test.ts")
+          shell_test = shell_path.read_text()
+          if 'const accountMenu = read("app/components/AccountSwitcher.tsx");' not in shell_test:
+              shell_test = shell_test.replace(
+                  'const rail = read("app/ui/MissionRail.tsx");\n',
+                  'const rail = read("app/ui/MissionRail.tsx");\nconst accountMenu = read("app/components/AccountSwitcher.tsx");\n',
+                  1,
+              )
+          shell_re = re.compile(
+              r'  it\("removes permanent SaaS destinations while keeping provider tools secondary under Account", \(\) => \{.*?\n  \}\);',
+              re.S,
+          )
+          shell_replacement = '''  it("moves account navigation out of the rail into one primary top-right menu", () => {
+    expect(shell).toContain('data-testid="assistant-shell-account-slot"');
+    expect(shell).toContain('<AccountSwitcher');
+    expect(shell).toContain('mode="account-menu"');
+
+    expect(rail).not.toContain('data-testid="account-entry"');
+    expect(rail).not.toContain('<AccountSwitcher');
+    expect(rail).not.toContain('href="/profile"');
+    expect(rail).not.toContain('href="/settings"');
+    expect(rail).not.toContain('href="/accounts"');
+    expect(rail).toContain('data-testid="provider-secondary-tools"');
+
+    expect(accountMenu).toContain('data-testid="account-entry"');
+    expect(accountMenu).toContain('href="/profile"');
+    expect(accountMenu).toContain('href="/settings"');
+    expect(accountMenu).toContain('href="/support"');
+  });'''
+          shell_test, shell_count = shell_re.subn(shell_replacement, shell_test, count=1)
+          assert shell_count == 1, f'shell contract replacements={shell_count}'
+          assert 'history: "Historique"' in shell_test
+          shell_path.write_text(shell_test)
+
+          simp_path = Path("tests/integration/mission-rail-simplification-contract.test.ts")
+          simp = simp_path.read_text()
+          if 'const shell = read("app/ui/AssistantShell.tsx");' not in simp:
+              simp = simp.replace(
+                  'const rail = read("app/ui/MissionRail.tsx");\n',
+                  'const rail = read("app/ui/MissionRail.tsx");\nconst shell = read("app/ui/AssistantShell.tsx");\nconst accountMenu = read("app/components/AccountSwitcher.tsx");\n',
+                  1,
+              )
+          simp_re = re.compile(
+              r'  it\("keeps one account entry and nests profile switching with secondary account tools", \(\) => \{.*?\n  \}\);',
+              re.S,
+          )
+          simp_replacement = '''  it("keeps the rail mission-only and exposes one primary account entry from the shell", () => {
+    expect(rail).not.toContain("<AccountSwitcher");
+    expect(rail).not.toContain('data-testid="account-entry"');
+    expect(rail).not.toContain('data-testid="account-profile-switcher"');
+    expect(rail).not.toContain('href="/profile"');
+    expect(rail).not.toContain('href="/settings"');
+    expect(rail).not.toContain('href="/accounts"');
+
+    expect(shell.match(/<AccountSwitcher/g) ?? []).toHaveLength(1);
+    expect(shell).toContain('mode="account-menu"');
+    expect(accountMenu).toContain('data-testid="account-entry"');
+    expect(accountMenu).not.toContain("password");
+    expect(accountMenu).not.toContain("Password");
+  });'''
+          simp, simp_count = simp_re.subn(simp_replacement, simp, count=1)
+          assert simp_count == 1, f'simplification replacements={simp_count}'
           assert 'const [historyOpen, setHistoryOpen] = useState(false)' in simp
-          assert 'keeps the rail mission-only' in simp
+          assert 'data-testid="mission-history"' in simp
           simp_path.write_text(simp)
           PY
 
           git rm .github/workflows/tmp-sync-735-current-main.yml
           git add "${files[@]}"
           test -z "$(git ls-files -u)"
+          git diff --cached --check
           git commit -m 'merge(main): resync #735 with compact MissionRail'
 
-          parent_count="$(git cat-file -p HEAD | grep -c '^parent ')"
-          test "$parent_count" = "2"
-          second_parent="$(git rev-parse HEAD^2)"
-          test "$second_parent" = "$EXPECTED_MAIN"
+          test "$(git cat-file -p HEAD | grep -c '^parent ')" = "2"
+          test "$(git rev-parse HEAD^2)" = "$EXPECTED_MAIN"
           git push origin HEAD:ui/account-compact-menu-20260911
