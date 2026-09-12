@@ -10,9 +10,10 @@ const read = (relativePath: string) =>
 describe("KLYX assistant-first settings security contract", () => {
   it("keeps only phone and canonical language as primary settings", () => {
     const settings = read("app/settings/page.tsx");
+    const otherToggle = settings.indexOf('data-testid="settings-other-toggle"');
 
-    expect(settings).toContain("KLYX_SETTINGS_ASSISTANT_FIRST_20260911");
-    expect(settings).toContain('data-testid="settings-other-toggle"');
+    expect(settings).toContain("KLYX_SETTINGS_ASSISTANT_FIRST_20260912");
+    expect(otherToggle).toBeGreaterThan(0);
     expect(settings).toContain('"Autres paramètres"');
     expect(settings).toContain("<PhoneSettingsInline />");
     expect(settings).toContain("KLYX_LANGUAGE_OPTIONS.find");
@@ -20,6 +21,9 @@ describe("KLYX assistant-first settings security contract", () => {
     expect(settings).toContain("onChange={setLocale}");
     expect(settings).toContain('role="radiogroup"');
     expect(settings).toContain('role="radio"');
+    expect(settings.indexOf('panelKey="phone"')).toBeLessThan(otherToggle);
+    expect(settings.indexOf('panelKey="language"')).toBeLessThan(otherToggle);
+    expect(settings.indexOf('panelKey="auth"')).toBeGreaterThan(otherToggle);
     expect(settings).not.toMatch(/violet/i);
   });
 
@@ -37,7 +41,7 @@ describe("KLYX assistant-first settings security contract", () => {
     expect(history).toContain('fetch("/api/profile/phone/access-history"');
   });
 
-  it("preserves #698 secure password recovery, Turnstile and session logout", () => {
+  it("preserves #698 secure password recovery, Turnstile and sessions", () => {
     const settings = read("app/settings/page.tsx");
 
     expect(settings).toContain("KLYX_SETTINGS_PASSWORD_RECOVERY_20260909");
@@ -53,6 +57,7 @@ describe("KLYX assistant-first settings security contract", () => {
     expect(settings).toContain("AUTH_TURNSTILE_ENABLED");
     expect(settings).toContain("captchaToken: AUTH_TURNSTILE_ENABLED");
     expect(settings).toContain("await supabase.auth.signOut()");
+    expect(settings).toContain("supabase.auth.getUser()");
     expect(settings).not.toContain("password: newPassword");
     expect(settings).not.toContain("const [newPassword");
     expect(settings).not.toContain("const [confirmPassword");
@@ -61,17 +66,21 @@ describe("KLYX assistant-first settings security contract", () => {
     );
   });
 
-  it("keeps secondary settings present but hidden behind one compact entry", () => {
+  it("keeps every secondary setting behind the single compact entry", () => {
     const settings = read("app/settings/page.tsx");
+    const otherContent = settings.indexOf('data-testid="settings-other-content"');
 
-    expect(settings).toContain("otherSettingsOpen");
-    expect(settings).toContain('data-testid="settings-other-content"');
-    expect(settings).toContain('title={t("appearance")}');
-    expect(settings).toContain('title={t("auth")}');
-    expect(settings).toContain('title={t("notifications")}');
-    expect(settings).toContain('title={t("privacySupport")}');
-    expect(settings).toContain('title={t(deleteTitleKey)}');
-    expect(settings).toContain('href="/provider/payments"');
-    expect(settings).toContain('{t("logout")}');
+    expect(otherContent).toBeGreaterThan(0);
+    for (const token of [
+      'panelKey="appearance"',
+      'panelKey="auth"',
+      'panelKey="notifications"',
+      'panelKey="privacy"',
+      'panelKey="delete"',
+      'href="/provider/payments"',
+      '{t("logout")}',
+    ]) {
+      expect(settings.indexOf(token)).toBeGreaterThan(otherContent);
+    }
   });
 });

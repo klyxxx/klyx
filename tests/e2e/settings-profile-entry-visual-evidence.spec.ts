@@ -81,13 +81,10 @@ function disclosureButtons(page: Page) {
   return page.getByRole("main").locator('button[aria-expanded]');
 }
 
-async function openOtherSettings(page: Page) {
-  const toggle = page.getByTestId("settings-other-toggle");
-  await expect(toggle).toBeVisible();
-  await expect(toggle).toHaveAttribute("aria-expanded", "false");
-  await toggle.click();
-  await expect(toggle).toHaveAttribute("aria-expanded", "true");
-  await expect(page.getByTestId("settings-other-content")).toBeVisible();
+function settingsPanel(page: Page, key: string) {
+  return page
+    .getByRole("main")
+    .locator(`button[data-settings-panel="${key}"]`);
 }
 
 test.describe("KLYX Profile and Settings destination visual evidence", () => {
@@ -145,34 +142,56 @@ test.describe("KLYX Profile and Settings destination visual evidence", () => {
     await expect(settingsBackLink).toBeVisible();
     await expect(page.getByRole("switch")).toHaveCount(0);
 
-    const clientPanels = disclosureButtons(page);
-    await expect(clientPanels).toHaveCount(3);
-    await expect(clientPanels.nth(0)).toHaveAttribute("aria-expanded", "false");
-    await expect(clientPanels.nth(1)).toHaveAttribute("aria-expanded", "false");
-    await expect(page.getByTestId("settings-other-toggle")).toHaveAttribute(
-      "aria-expanded",
-      "false"
-    );
+    const phonePanel = settingsPanel(page, "phone");
+    const languagePanel = settingsPanel(page, "language");
+    const otherPanel = settingsPanel(page, "other");
+
+    await expect(phonePanel).toBeVisible();
+    await expect(languagePanel).toBeVisible();
+    await expect(otherPanel).toBeVisible();
+    await expect(phonePanel).toHaveAttribute("aria-expanded", "false");
+    await expect(languagePanel).toHaveAttribute("aria-expanded", "false");
+    await expect(otherPanel).toHaveAttribute("aria-expanded", "false");
+
+    await expect(settingsPanel(page, "appearance")).toHaveCount(0);
+    await expect(settingsPanel(page, "auth")).toHaveCount(0);
+    await expect(settingsPanel(page, "notifications")).toHaveCount(0);
+    await expect(settingsPanel(page, "privacy")).toHaveCount(0);
+    await expect(settingsPanel(page, "delete")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /déconnecter|sign out/i })).toHaveCount(0);
+
     await attachViewport(page, testInfo, "client-settings-calm-mobile");
 
-    await openOtherSettings(page);
-    const clientSecondaryPanels = page
-      .getByTestId("settings-other-content")
-      .locator('button[aria-expanded]');
-    await clientSecondaryPanels.first().click();
-    await expect(clientSecondaryPanels.first()).toHaveAttribute(
-      "aria-expanded",
-      "true"
-    );
-    await attachViewport(
-      page,
-      testInfo,
-      "client-settings-appearance-expanded-mobile"
-    );
-    await clientSecondaryPanels.first().click();
+    await otherPanel.click();
+    await expect(otherPanel).toHaveAttribute("aria-expanded", "true");
 
-    await page.getByTestId("settings-other-toggle").click();
-    await expect(page.getByTestId("settings-other-content")).toHaveCount(0);
+    const appearancePanel = settingsPanel(page, "appearance");
+    const authPanel = settingsPanel(page, "auth");
+    await expect(appearancePanel).toBeVisible();
+    await expect(authPanel).toBeVisible();
+    await expect(settingsPanel(page, "notifications")).toBeVisible();
+    await expect(settingsPanel(page, "privacy")).toBeVisible();
+    await expect(settingsPanel(page, "delete")).toBeVisible();
+    await expect(page.getByRole("button", { name: /déconnecter|sign out/i })).toBeVisible();
+
+    await authPanel.click();
+    await expect(authPanel).toHaveAttribute("aria-expanded", "true");
+    await expect(
+      page.getByRole("button", {
+        name: /changer mon mot de passe|change my password/i,
+      })
+    ).toBeVisible();
+    await authPanel.click();
+
+    await appearancePanel.click();
+    await expect(appearancePanel).toHaveAttribute("aria-expanded", "true");
+    await attachViewport(page, testInfo, "client-settings-appearance-expanded-mobile");
+    await appearancePanel.click();
+
+    await otherPanel.click();
+    await expect(otherPanel).toHaveAttribute("aria-expanded", "false");
+    await expect(settingsPanel(page, "appearance")).toHaveCount(0);
+    await expect(settingsPanel(page, "auth")).toHaveCount(0);
 
     await page.setViewportSize({ width: 1440, height: 1000 });
     await expectAssistantFirstDesktopShell(page, "/assistant");
@@ -192,18 +211,17 @@ test.describe("KLYX Profile and Settings destination visual evidence", () => {
       .getByRole("main")
       .locator('a[href="/provider/payments"]');
     await expect(providerPaymentLink).toHaveCount(0);
+    await expect(settingsPanel(page, "payments")).toHaveCount(0);
 
-    await openOtherSettings(page);
-    const providerSecondaryPanels = page
-      .getByTestId("settings-other-content")
-      .locator('button[aria-expanded]');
-    await providerSecondaryPanels.nth(1).click();
+    const providerOtherPanel = settingsPanel(page, "other");
+    await providerOtherPanel.click();
+    await expect(providerOtherPanel).toHaveAttribute("aria-expanded", "true");
+
+    const providerPaymentsPanel = settingsPanel(page, "payments");
+    await expect(providerPaymentsPanel).toBeVisible();
+    await providerPaymentsPanel.click();
     await expect(providerPaymentLink).toBeVisible();
-    await attachViewport(
-      page,
-      testInfo,
-      "provider-settings-payments-expanded-desktop"
-    );
+    await attachViewport(page, testInfo, "provider-settings-payments-expanded-desktop");
 
     await activateKlyxE2EProfile(page, "client");
   });
