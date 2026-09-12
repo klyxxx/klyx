@@ -22,9 +22,7 @@ function cleanText(value: unknown, maximum: number): string {
 async function createUniqueService(name: string) {
   const baseSlug = createServiceSlug(name);
 
-  if (!baseSlug) {
-    throw new Error("Impossible de créer le lien de ce métier.");
-  }
+  if (!baseSlug) throw new Error("Impossible de créer le lien de ce métier.");
 
   const { data: existingByName, error: nameError } = await supabaseAdmin
     .from("services")
@@ -32,13 +30,8 @@ async function createUniqueService(name: string) {
     .ilike("name", name)
     .maybeSingle();
 
-  if (nameError) {
-    throw new Error(nameError.message);
-  }
-
-  if (existingByName) {
-    return existingByName;
-  }
+  if (nameError) throw new Error(nameError.message);
+  if (existingByName) return existingByName;
 
   let slug = baseSlug;
   let suffix = 2;
@@ -50,10 +43,7 @@ async function createUniqueService(name: string) {
       .eq("slug", slug)
       .maybeSingle();
 
-    if (slugError) {
-      throw new Error(slugError.message);
-    }
-
+    if (slugError) throw new Error(slugError.message);
     if (!existingSlug) break;
 
     slug = `${baseSlug}-${suffix}`;
@@ -66,16 +56,12 @@ async function createUniqueService(name: string) {
     .select("id, name, slug")
     .single();
 
-  if (error) {
-    throw new Error(error.message);
-  }
-
+  if (error) throw new Error(error.message);
   return data;
 }
 
 export async function GET() {
   const supabase = await createClient();
-
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -86,9 +72,9 @@ export async function GET() {
 
   const profile = await getActiveProfile();
 
-  if (!profile || profile.accountType !== "provider") {
+  if (!profile || !profile.canOfferServices) {
     return NextResponse.json(
-      { error: "Un profil prestataire actif est obligatoire." },
+      { error: "La capacité de proposer des services est obligatoire." },
       { status: 403 }
     );
   }
@@ -125,7 +111,6 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const supabase = await createClient();
-
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -136,9 +121,9 @@ export async function POST(request: Request) {
 
   const profile = await getActiveProfile();
 
-  if (!profile || profile.accountType !== "provider") {
+  if (!profile || !profile.canOfferServices) {
     return NextResponse.json(
-      { error: "Un profil prestataire actif est obligatoire." },
+      { error: "La capacité de proposer des services est obligatoire." },
       { status: 403 }
     );
   }
@@ -164,10 +149,7 @@ export async function POST(request: Request) {
   }
 
   if (category.length < 2) {
-    return NextResponse.json(
-      { error: "Choisis une catégorie." },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Choisis une catégorie." }, { status: 400 });
   }
 
   if (description.length < 30) {
