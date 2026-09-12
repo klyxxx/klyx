@@ -46,13 +46,18 @@ describe("KLYX unique account foundation schema contract", () => {
       /alter table public\.profiles\s+add column if not exists account_id uuid;/
     );
     expect(migration).toMatch(
-      /foreign key \(account_id\)\s+references public\.accounts\(id\)\s+on delete set null;/
+      /foreign key \(account_id\)\s+references public\.accounts\(id\)\s+on delete no action;/
     );
     expect(migration).toContain("profile.owner_user_id = account.auth_user_id");
     expect(migration).toContain(
       "profile.account_id is distinct from account.id"
     );
     expect(migration).toContain("profiles_account_id_idx");
+  });
+
+  it("does not let canonical account deletion silently detach legacy profiles", () => {
+    expect(migration).toContain("on delete no action");
+    expect(migration).not.toContain("on delete set null");
   });
 
   it("keeps new and updated profiles bound to the account for their Auth owner", () => {
