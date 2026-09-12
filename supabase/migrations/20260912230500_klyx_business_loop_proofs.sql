@@ -23,6 +23,9 @@ create table if not exists public.business_pilot_income_attempts (
   enrolled_by uuid null references auth.users(id) on delete set null,
   constraint business_pilot_income_attempts_offer_unique unique (pilot_key, market_offer_id),
   constraint business_pilot_income_attempts_note_length check (note is null or char_length(note) <= 1000),
+  constraint business_pilot_income_attempts_verified_date_check check (
+    not availability_verified or availability_date is not null
+  ),
   constraint business_pilot_income_attempts_window_check check (
     availability_start is null
     or availability_end is null
@@ -36,7 +39,7 @@ create index if not exists business_pilot_income_attempts_provider_idx
   on public.business_pilot_income_attempts(provider_profile_id, enrolled_at desc);
 
 comment on table public.business_pilot_income_attempts is
-  'Verified real provider income-intent cohort. The linked offer must already exist; downstream outcomes are derived from canonical KLYX transaction tables.';
+  'Verified real provider income-intent cohort. The linked offer must already exist; verified availability requires a real availability date. Downstream outcomes are derived from canonical KLYX transaction tables.';
 
 alter table public.business_pilot_income_attempts enable row level security;
 revoke all privileges on table public.business_pilot_income_attempts
