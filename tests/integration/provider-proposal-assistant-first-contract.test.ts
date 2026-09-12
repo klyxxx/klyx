@@ -18,11 +18,11 @@ describe("KLYX selected provider assistant-first contract", () => {
     expect(page).toContain('t("availabilityLabel")');
     expect(page).toContain('data-testid="klyx-provider-assistant-summary"');
     expect(page).toContain('t("assistantChoice")');
-    expect(page).toContain('data-testid="klyx-provider-primary-action"');
 
-    const bookingActions =
-      page.match(/\/book\?service=\$\{encodeURIComponent\(/g) ?? [];
-    expect(bookingActions).toHaveLength(1);
+    const primaryActions =
+      page.match(/data-testid="klyx-provider-primary-action"/g) ?? [];
+    expect(primaryActions).toHaveLength(1);
+    expect(page).toContain("/book?service=${encodeURIComponent(");
     expect(page).not.toContain("/quote?service=${encodeURIComponent(");
   });
 
