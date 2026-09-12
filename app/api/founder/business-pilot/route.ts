@@ -26,6 +26,18 @@ function isBrussels(value: string | null | undefined): boolean {
   return city === "bruxelles" || city === "brussels";
 }
 
+function validDate(value: string | null): value is string {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
 function validTime(value: string | null): boolean {
   return value === null || /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 }
@@ -183,6 +195,16 @@ async function enrollIncomeAttempt(
       {
         error:
           "Une vraie offre, une disponibilité vérifiée et un objectif de revenu réel sont obligatoires.",
+      },
+      { status: 400 }
+    );
+  }
+
+  if (!validDate(availabilityDate)) {
+    return NextResponse.json(
+      {
+        error:
+          "Une date de disponibilité réelle au format AAAA-MM-JJ est obligatoire.",
       },
       { status: 400 }
     );
