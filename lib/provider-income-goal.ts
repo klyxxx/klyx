@@ -5,7 +5,7 @@ export type ProviderIncomeGoalLocale = "fr" | "en" | "nl" | "de";
 export type ParsedProviderIncomeGoal = Omit<KlyxIncomeGoal, "currency"> & {
   locale: ProviderIncomeGoalLocale;
   dayLabel: string;
-  targetCurrency: string | null;
+  currency: string | null;
 };
 
 const DAYS = [
@@ -137,7 +137,7 @@ export function parseProviderIncomeGoal(message: string): ParsedProviderIncomeGo
     locale,
     dayLabel: day.labels[locale],
     targetAmount: parsedAmount.amount,
-    targetCurrency: parsedAmount.currency,
+    currency: parsedAmount.currency,
     dayOfWeek: day.dayOfWeek,
     date: null,
     startTime: window?.startTime ?? null,
