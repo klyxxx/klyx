@@ -27,79 +27,29 @@ jobs:
           git config user.email "yeswork2711@gmail.com"
           git fetch origin main
           git merge --no-edit origin/main
+          git merge-base --is-ancestor origin/main HEAD
 
-      - name: Align obsolete provider assistant UI contract
+      - name: Verify current contracts and self-delete
         shell: bash
         run: |
           set -euo pipefail
-          test_file="tests/integration/klyx-ai-first-client-provider-contract.test.ts"
-          if [[ ! -f "$test_file" ]]; then
-            echo "Expected contract not found. Matching files:"
-            find tests -type f -iname '*ai-first*provider*' -print || true
-            grep -R -n 'KLYX_PROVIDER_ASSISTANT_AI_UI_12_81' tests || true
+          if grep -R -n 'KLYX_PROVIDER_ASSISTANT_AI_UI_12_81' tests; then
+            echo "Obsolete provider-assistant UI contract is still present."
             exit 1
           fi
-
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path("tests/integration/klyx-ai-first-client-provider-contract.test.ts")
-          text = path.read_text()
-
-          old = '''    expect(providerAssistant).toContain("KLYX_PROVIDER_ASSISTANT_AI_UI_12_81");
-              expect(providerAssistant).toContain('fetch("/api/provider/assistant"');'''
-          if old not in text:
-              # Handle ordinary two-line indentation without relying on formatter spacing.
-              lines = text.splitlines()
-              marker = 'expect(providerAssistant).toContain("KLYX_PROVIDER_ASSISTANT_AI_UI_12_81");'
-              fetch = 'expect(providerAssistant).toContain(\'fetch("/api/provider/assistant"\');'
-              marker_indexes = [i for i, line in enumerate(lines) if marker in line]
-              fetch_indexes = [i for i, line in enumerate(lines) if fetch in line]
-              if len(marker_indexes) != 1 or len(fetch_indexes) != 1:
-                  raise SystemExit(
-                      f"obsolete UI assertions not uniquely found: marker={marker_indexes}, fetch={fetch_indexes}"
-                  )
-              mi, fi = marker_indexes[0], fetch_indexes[0]
-              indent = lines[mi][: len(lines[mi]) - len(lines[mi].lstrip())]
-              lines[mi] = indent + 'expect(providerAssistant).toContain(\'redirect("/assistant")\');'
-              lines[fi] = indent + 'expect(providerAssistant).not.toContain(\'fetch("/api/provider/assistant"\');'
-              text = "\n".join(lines) + ("\n" if path.read_text().endswith("\n") else "")
-          else:
-              text = text.replace(
-                  old,
-                  '''    expect(providerAssistant).toContain('redirect("/assistant")');
-              expect(providerAssistant).not.toContain('fetch("/api/provider/assistant"');''',
-                  1,
-              )
-
-          # Preserve the API-side provider safety boundary.
-          required = [
-              'requireAccountType(profile, "provider")',
-              'automaticExecutionAllowed',
-          ]
-          for token in required:
-              if token not in text:
-                  raise SystemExit(f"provider API safety assertion missing after patch: {token}")
-
-          path.write_text(text)
-          PY
-
-      - name: Verify and self-delete
-        shell: bash
-        run: |
-          set -euo pipefail
+          test -f app/provider/assistant/page.tsx
+          grep -q 'redirect("/assistant")' app/provider/assistant/page.tsx
+          grep -q 'requireAccountType(profile, "provider")' app/api/provider/assistant/assistant-route-core.ts
           git diff --check
-          grep -n 'redirect("/assistant")' tests/integration/klyx-ai-first-client-provider-contract.test.ts
-          grep -n 'requireAccountType(profile, "provider")' tests/integration/klyx-ai-first-client-provider-contract.test.ts
           rm .github/workflows/klyx-unified-assistant-main-sync.yml
           git status --short
 
-      - name: Commit and push
+      - name: Commit cleanup and push
         shell: bash
         run: |
           set -euo pipefail
-          git add tests/integration/klyx-ai-first-client-provider-contract.test.ts .github/workflows/klyx-unified-assistant-main-sync.yml
+          git add -A .github/workflows/klyx-unified-assistant-main-sync.yml
           if ! git diff --cached --quiet; then
-            git commit -m "test: align provider assistant contract with unified shell"
+            git commit -m "ci: remove unified assistant sync helper"
           fi
           git push origin HEAD:feat/unified-assistant-obtain-earn-20260912
