@@ -183,22 +183,28 @@ function serviceConstraintMatches(
   if (!constraints) return true;
 
   if (constraints.requireVerified === true && !candidate.isVerified) return false;
-
   if (
     typeof constraints.minimumTrustScore === "number" &&
     candidate.klyxScore < constraints.minimumTrustScore
   ) {
     return false;
   }
-
   if (
     typeof constraints.maximumCancellationRate === "number" &&
     candidate.cancellationRate > constraints.maximumCancellationRate
   ) {
     return false;
   }
-
   return true;
+}
+
+function serviceBudgetIsProven(
+  request: KlyxServiceRequest,
+  candidate: KlyxServiceCandidate
+): boolean {
+  return request.budgetMax === null
+    ? candidate.budgetMatch !== false
+    : candidate.budgetMatch === true;
 }
 
 function scoreServiceCandidate(candidate: KlyxServiceCandidate): number {
@@ -230,7 +236,7 @@ function serviceEvidence(candidate: KlyxServiceCandidate): {
   if (candidate.budgetMatch === true && candidate.estimatedPrice !== null) {
     reasons.push({
       code: "BUDGET_MATCH",
-      label: `Coût estimé ${candidate.estimatedPrice.toFixed(2)} € dans le budget`,
+      label: `Coût estimé ${candidate.estimatedPrice.toFixed(2)} dans le budget`,
       source: "derived",
     });
   } else if (candidate.budgetMatch === null) {
@@ -248,7 +254,6 @@ function serviceEvidence(candidate: KlyxServiceCandidate): {
       source: "klyx_live",
     });
   }
-
   if (candidate.isVerified) {
     reasons.push({
       code: "VERIFIED_PROVIDER",
@@ -265,19 +270,18 @@ export function orchestrateServiceRequest(
   candidates: readonly KlyxServiceCandidate[],
   limit = 3
 ): KlyxServiceOrchestrationResult {
-  const eligible = candidates
-    .filter((candidate) =>
+  const eligible = candidates.filter(
+    (candidate) =>
       candidate.skillMatch &&
       candidate.zoneMatch &&
       candidate.availabilityMatch &&
       candidate.pricingMatch &&
-      candidate.budgetMatch !== false &&
+      serviceBudgetIsProven(request, candidate) &&
       serviceConstraintMatches(request, candidate)
-    )
-    .map((candidate) => ({
-      candidate,
-      score: scoreServiceCandidate(candidate),
-    }))
+  );
+
+  const ranked = eligible
+    .map((candidate) => ({ candidate, score: scoreServiceCandidate(candidate) }))
     .sort((left, right) => {
       if (left.score !== right.score) return right.score - left.score;
       if (left.candidate.klyxScore !== right.candidate.klyxScore) {
@@ -289,7 +293,7 @@ export function orchestrateServiceRequest(
     })
     .slice(0, clamp(limit, 1, 3));
 
-  const solutions = eligible.map(({ candidate, score }, index): KlyxServiceSolution => {
+  const solutions = ranked.map(({ candidate, score }, index): KlyxServiceSolution => {
     const evidence = serviceEvidence(candidate);
     return {
       id: `service:${candidate.id}`,
@@ -346,20 +350,29 @@ function configuredMissionAmount(candidate: KlyxIncomeMissionCandidate): number 
   return round2(candidate.providerRate * (candidate.durationMinutes / 60));
 }
 
-function goalContainsCandidate(goal: KlyxIncomeGoal, candidate: KlyxIncomeMissionCandidate): boolean {
+function goalContainsCandidate(
+  goal: KlyxIncomeGoal,
+  candidate: KlyxIncomeMissionCandidate
+): boolean {
   if (candidate.currency.toUpperCase() !== goal.currency.toUpperCase()) return false;
   if (!candidate.skillMatch || !candidate.zoneMatch || !candidate.availabilityMatch) return false;
   if (candidate.conflictsWithConfirmedMission) return false;
-  if (goal.maximumDistanceKm != null && candidate.distanceKm != null) {
+
+  if (goal.maximumDistanceKm != null) {
+    if (candidate.distanceKm === null) return false;
     if (candidate.distanceKm > goal.maximumDistanceKm) return false;
   }
+
   const configured = configuredMissionAmount(candidate);
   if (configured === null) return false;
   if (candidate.clientBudgetMax !== null && configured > candidate.clientBudgetMax) return false;
   return true;
 }
 
-function candidateWindowMatches(goal: KlyxIncomeGoal, candidate: KlyxIncomeMissionCandidate): boolean {
+function candidateWindowMatches(
+  goal: KlyxIncomeGoal,
+  candidate: KlyxIncomeMissionCandidate
+): boolean {
   if (goal.date && !candidate.intervals.every((interval) => interval.date === goal.date)) {
     return false;
   }
@@ -383,9 +396,16 @@ function candidateWindowMatches(goal: KlyxIncomeGoal, candidate: KlyxIncomeMissi
   return true;
 }
 
-function canCombineIncomeMissions(missions: readonly KlyxIncomeMissionCandidate[]): boolean {
+function canCombineIncomeMissions(
+  missions: readonly KlyxIncomeMissionCandidate[]
+): boolean {
   if (missions.length <= 1) return true;
   if (missions.some((mission) => !mission.scheduleComplete)) return false;
+
+  const dates = new Set(
+    missions.flatMap((mission) => mission.intervals.map((interval) => interval.date))
+  );
+  if (dates.size !== 1) return false;
 
   for (let first = 0; first < missions.length; first += 1) {
     for (let second = first + 1; second < missions.length; second += 1) {
@@ -395,11 +415,13 @@ function canCombineIncomeMissions(missions: readonly KlyxIncomeMissionCandidate[
         }
       }
 
-      const differentCities = missions[first].city.trim().toLowerCase() !== missions[second].city.trim().toLowerCase();
-      if (differentCities) {
-        const firstDistance = missions[first].distanceKm;
-        const secondDistance = missions[second].distanceKm;
-        if (firstDistance === null || secondDistance === null) return false;
+      // KLYX does not invent road travel time. Until routing data is available,
+      // multi-mission plans stay inside one declared locality.
+      if (
+        missions[first].city.trim().toLowerCase() !==
+        missions[second].city.trim().toLowerCase()
+      ) {
+        return false;
       }
     }
   }
@@ -407,12 +429,19 @@ function canCombineIncomeMissions(missions: readonly KlyxIncomeMissionCandidate[
   return true;
 }
 
-function incomeMissionEvidence(candidate: KlyxIncomeMissionCandidate, amount: number): KlyxOrchestrationEvidence[] {
+function incomeMissionEvidence(
+  candidate: KlyxIncomeMissionCandidate,
+  amount: number
+): KlyxOrchestrationEvidence[] {
   const evidence: KlyxOrchestrationEvidence[] = [
     { code: "SKILL_MATCH", label: "Compétence active compatible", source: "klyx_live" },
     { code: "ZONE_MATCH", label: "Mission dans la zone configurée", source: "klyx_live" },
     { code: "AVAILABILITY_MATCH", label: "Créneau compatible avec les disponibilités", source: "klyx_live" },
-    { code: "PROVIDER_RATE", label: `${amount.toFixed(2)} € calculés depuis le tarif configuré`, source: "provider_config" },
+    {
+      code: "PROVIDER_RATE",
+      label: `${amount.toFixed(2)} ${candidate.currency} calculés depuis le tarif configuré`,
+      source: "provider_config",
+    },
   ];
 
   if (candidate.distanceKm !== null) {
@@ -426,12 +455,21 @@ function incomeMissionEvidence(candidate: KlyxIncomeMissionCandidate, amount: nu
   return evidence.slice(0, 5);
 }
 
-function incomeCombinationScore(total: number, target: number, missions: readonly KlyxIncomeMissionCandidate[]): number {
+function incomeCombinationScore(
+  total: number,
+  target: number,
+  missions: readonly KlyxIncomeMissionCandidate[]
+): number {
   const gapRatio = target > 0 ? Math.abs(total - target) / target : 1;
   let score = 100 - clamp(gapRatio * 80, 0, 80);
-  const knownDistances = missions.map((mission) => mission.distanceKm).filter((value): value is number => value !== null);
+  const knownDistances = missions
+    .map((mission) => mission.distanceKm)
+    .filter((value): value is number => value !== null);
+
   if (knownDistances.length > 0) {
-    const averageDistance = knownDistances.reduce((sum, value) => sum + value, 0) / knownDistances.length;
+    const averageDistance =
+      knownDistances.reduce((sum, value) => sum + value, 0) /
+      knownDistances.length;
     score -= clamp(averageDistance / 5, 0, 12);
   }
   if (missions.length > 1) score -= (missions.length - 1) * 2;
@@ -444,7 +482,11 @@ export function orchestrateIncomeGoal(
   limit = 3
 ): KlyxIncomeOrchestrationResult {
   const eligible = candidates
-    .filter((candidate) => goalContainsCandidate(goal, candidate) && candidateWindowMatches(goal, candidate))
+    .filter(
+      (candidate) =>
+        goalContainsCandidate(goal, candidate) &&
+        candidateWindowMatches(goal, candidate)
+    )
     .slice(0, 12);
 
   const sets: KlyxIncomeMissionCandidate[][] = [];
@@ -464,7 +506,9 @@ export function orchestrateIncomeGoal(
     .map((missions) => {
       const amounts = missions.map(configuredMissionAmount);
       if (amounts.some((amount) => amount === null)) return null;
-      const configuredAmount = round2((amounts as number[]).reduce((sum, amount) => sum + amount, 0));
+      const configuredAmount = round2(
+        (amounts as number[]).reduce((sum, amount) => sum + amount, 0)
+      );
       const differenceToTarget = round2(configuredAmount - goal.targetAmount);
       return {
         missions,
@@ -479,7 +523,9 @@ export function orchestrateIncomeGoal(
       const rightGap = Math.abs(right.differenceToTarget);
       if (leftGap !== rightGap) return leftGap - rightGap;
       if (left.score !== right.score) return right.score - left.score;
-      if (left.missions.length !== right.missions.length) return left.missions.length - right.missions.length;
+      if (left.missions.length !== right.missions.length) {
+        return left.missions.length - right.missions.length;
+      }
       return right.configuredAmount - left.configuredAmount;
     })
     .slice(0, clamp(limit, 1, 3));
@@ -493,6 +539,14 @@ export function orchestrateIncomeGoal(
         source: "klyx_live",
       });
     }
+    if (item.missions.length > 1) {
+      warnings.push({
+        code: "TRAVEL_TIME_NOT_VERIFIED",
+        label: "Les créneaux ne se chevauchent pas, mais le temps de déplacement exact entre missions reste à confirmer",
+        source: "klyx_live",
+      });
+    }
+
     return {
       id: `income:${item.missions.map((mission) => mission.id).join("+")}`,
       rank: index + 1,
@@ -516,8 +570,8 @@ export function orchestrateIncomeGoal(
         Math.abs(item.differenceToTarget) <= Math.max(10, goal.targetAmount * 0.15)
           ? `Option la plus proche de l’objectif de ${goal.targetAmount.toFixed(2)} ${goal.currency}.`
           : item.differenceToTarget < 0
-            ? `Sous l’objectif de ${goal.targetAmount.toFixed(2)} ${goal.currency}, mais parmi les combinaisons compatibles vérifiables les plus proches.`
-            : `Au-dessus de l’objectif de ${goal.targetAmount.toFixed(2)} ${goal.currency}, avec des créneaux compatibles vérifiables.`,
+            ? `Sous l’objectif de ${goal.targetAmount.toFixed(2)} ${goal.currency}, mais parmi les solutions vérifiables les plus proches.`
+            : `Au-dessus de l’objectif de ${goal.targetAmount.toFixed(2)} ${goal.currency}, avec des créneaux non chevauchants.`,
       warnings,
       requiresConfirmation: true,
     };
