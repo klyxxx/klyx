@@ -31,9 +31,14 @@ describe("KLYX AccountSwitcher branding contract", () => {
     expect(source).not.toContain("window.location");
   });
 
-  it("keeps profile management in its existing location", () => {
-    expect(source).toContain('href="/accounts"');
-    expect(source).toContain('t("manageProfiles")');
+  it("keeps the account trigger calm, bottom-oriented and free of password/profile-management duplicates", () => {
+    expect(source).toContain('data-testid="account-entry"');
+    expect(source).toContain('data-testid="account-menu"');
+    expect(source).toContain("bottom-full");
+    expect(source).toContain('href="/profile"');
+    expect(source).toContain('href="/settings"');
+    expect(source).toContain('href="/support"');
+    expect(source).not.toContain('href="/accounts"');
     expect(source).not.toContain("localStorage");
     expect(source).not.toContain("password");
   });
