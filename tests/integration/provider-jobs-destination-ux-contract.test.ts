@@ -19,7 +19,8 @@ describe("KLYX provider Missions destination UX contract", () => {
     expect(source).toContain("const [openOfferId, setOpenOfferId] = useState<string | null>(null)");
     expect(source).toContain("aria-expanded={offerOpen}");
     expect(source).toContain("{offerOpen && (");
-    expect(source).toContain("/provider/assistant?prompt=");
+    expect(source).toContain("/assistant?prompt=");
+    expect(source).not.toContain("/provider/assistant?prompt=");
     expect(source).toContain("automaticExecutionAllowed");
   });
 
