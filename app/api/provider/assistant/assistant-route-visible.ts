@@ -57,10 +57,13 @@ export async function POST(request: Request): Promise<Response> {
     return response;
   }
 
-  // Unknown/unstructured provider conversation is finalized in the core after
-  // its single shared-LLM attempt and deterministic safety validation. Never
-  // send that result through a second model call, including on safe fallback.
-  if (responseBody.intent === "unknown") {
+  // Unknown conversation is finalized in the core after its single shared-LLM
+  // attempt. Live orchestration is also final here: missions, amounts, scores,
+  // compatibility and confirmation boundaries must never be rewritten by a model.
+  if (
+    responseBody.intent === "unknown" ||
+    responseBody.intent === "mission_plan"
+  ) {
     return response;
   }
 
