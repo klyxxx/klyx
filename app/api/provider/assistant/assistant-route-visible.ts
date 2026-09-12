@@ -57,10 +57,14 @@ export async function POST(request: Request): Promise<Response> {
     return response;
   }
 
-  // Unknown/unstructured provider conversation is finalized in the core after
-  // its single shared-LLM attempt and deterministic safety validation. Never
-  // send that result through a second model call, including on safe fallback.
-  if (responseBody.intent === "unknown") {
+  // Unknown conversation is finalized in the core after its single shared-LLM
+  // attempt. Live mission plans are also finalized there because their exact
+  // jobs, amounts and safety facts come from KLYX data and must never be
+  // rewritten by a model. Neither result goes through a second model call.
+  if (
+    responseBody.intent === "unknown" ||
+    responseBody.intent === "mission_plan"
+  ) {
     return response;
   }
 
