@@ -190,7 +190,10 @@ describe(
           'result.intent === "unknown"'
         );
         expect(route).toContain(
-          'if (result.intent !== "unknown")'
+          'result.intent !== "unknown"'
+        );
+        expect(route).toContain(
+          'result.intent !== "mission_plan"'
         );
         expect(route).toContain(
           "Structured provider actions stay deterministic"

@@ -144,15 +144,17 @@ describe("Provider Assistant security boundary", () => {
     const role = core.indexOf('requireAccountType(profile, "provider")', auth);
     const quota = core.indexOf("await consumeApiRateLimit(", role);
     const parse = core.indexOf("await parseProviderAssistantPostRequest(request)", quota);
-    const hourlyRate = core.indexOf("await getHourlyRate(profile.id)", parse);
-    const analysis = core.indexOf("analyzeProviderAssistantMessage(", hourlyRate);
+    const missionPlan = core.indexOf("await buildProviderIncomePlanResult(", parse);
+    const analysis = core.indexOf("analyzeProviderAssistantMessage(", parse);
+    const hourlyRate = core.indexOf("await getHourlyRate(profile.id)", analysis);
 
     expect(auth).toBeGreaterThan(-1);
     expect(role).toBeGreaterThan(auth);
     expect(quota).toBeGreaterThan(role);
     expect(parse).toBeGreaterThan(quota);
-    expect(hourlyRate).toBeGreaterThan(parse);
-    expect(analysis).toBeGreaterThan(hourlyRate);
+    expect(missionPlan).toBeGreaterThan(parse);
+    expect(analysis).toBeGreaterThan(parse);
+    expect(hourlyRate).toBeGreaterThan(analysis);
   });
 
   it("never performs an unbounded JSON parse in the exposed provider wrapper", () => {
