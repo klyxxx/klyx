@@ -14,9 +14,12 @@ const migration = read(
 );
 const activeProfile = read("lib/active-profile.ts");
 const apiAuth = read("lib/api-auth.ts");
+const accountSwitcher = read("lib/account-switcher.ts");
 const capabilityRoute = read("app/api/profiles/capabilities/route.ts");
 const assistantLayout = read("app/assistant/layout.tsx");
 const providerLayout = read("app/provider/layout.tsx");
+const riskRoute = read("app/api/security/risk/risk-route-core.ts");
+const quotePreflight = read("lib/quote-transaction-qualification-preflight.ts");
 const rollback = read("docs/migrations/profile-actor-capabilities-rollback.md");
 
 describe("KLYX progressive profile actor capabilities", () => {
@@ -82,9 +85,12 @@ describe("KLYX progressive profile actor capabilities", () => {
     expect(activeProfile).toContain("loadProfileCapabilityStates");
   });
 
-  it("backfills existing permissions without widening them", () => {
-    expect(migration).toContain("profile.account_type <> 'provider'");
-    expect(migration).toContain("profile.account_type = 'provider'");
+  it("backfills legacy permissions with the same null-safe discriminator as runtime fallback", () => {
+    expect(migration).toContain("nullif(profile.account_type, '')");
+    expect(migration).toContain("nullif(profile.current_mode, '')");
+    expect(migration).toContain("nullif(profile.role, '')");
+    expect(migration).toContain("'client'\n  ) <> 'provider'");
+    expect(migration).toContain("'client'\n  ) = 'provider'");
     expect(migration).toContain("'legacy_backfill'");
     expect(migration).toContain("on conflict (profile_id, capability) do nothing");
   });
@@ -120,17 +126,35 @@ describe("KLYX progressive profile actor capabilities", () => {
     expect(migration).toContain("service_profile.available = true");
   });
 
-  it("keeps accountType as a readable legacy field while migrated authorization uses independent capabilities", () => {
+  it("keeps the stored legacy discriminator readable while compatibility shims route dual profiles by capability", () => {
     expect(activeProfile).toContain("legacyAccountType: AccountType");
-    expect(activeProfile).toContain("accountType: legacyAccountType");
-    expect(activeProfile).toContain("canRequestServices: boolean");
-    expect(activeProfile).toContain("canOfferServices: boolean");
-    expect(apiAuth).toContain("accountType: legacyAccountType");
-    expect(apiAuth).toContain("profile.canOfferServices");
-    expect(apiAuth).toContain("profile.canRequestServices");
-    expect(apiAuth).toContain("export function requireAccountType");
+    expect(activeProfile).toContain("capabilityState.canOfferServices");
+    expect(activeProfile).toContain("capabilityState.canRequestServices");
+    expect(apiAuth).toContain("compatibilityAccountTypeForRequest");
+    expect(apiAuth).toContain('pathname.startsWith("/api/provider/")');
+    expect(apiAuth).toContain("canOfferServices");
+    expect(apiAuth).toContain("canRequestServices");
+    expect(accountSwitcher).toContain("projectAccountTypeForCurrentSurface");
+    expect(accountSwitcher).toContain('window.location.pathname.startsWith("/provider")');
     expect(assistantLayout).toContain("!profile.canRequestServices");
     expect(providerLayout).toContain("!profile.canOfferServices");
+  });
+
+  it("keeps dual profiles under provider risk and payment qualification controls", () => {
+    expect(riskRoute).toContain(
+      "profile.canRequestServices && profile.canOfferServices"
+    );
+    expect(riskRoute).toContain("isProvider: profile.canOfferServices");
+    expect(riskRoute).toContain("!profile.canOfferServices ||");
+    expect(quotePreflight).toContain("!profile.canOfferServices");
+    expect(quotePreflight).toContain("!profile.canRequestServices");
+    expect(quotePreflight).toContain(
+      "lifecycleQuote.provider_profile_id !== profile.id"
+    );
+    expect(quotePreflight).toContain(
+      "lifecycleQuote.client_profile_id !== profile.id"
+    );
+    expect(quotePreflight).toContain("isUserServiceTransactionEligible");
   });
 
   it("does not destructively modify legacy roles, bookings or payment identity", () => {
