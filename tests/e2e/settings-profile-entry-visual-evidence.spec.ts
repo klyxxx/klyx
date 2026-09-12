@@ -176,7 +176,11 @@ test.describe("KLYX Profile and Settings destination visual evidence", () => {
 
     await authPanel.click();
     await expect(authPanel).toHaveAttribute("aria-expanded", "true");
-    await expect(page.getByRole("button", { name: /mot de passe|password/i })).toBeVisible();
+    await expect(
+      page.getByRole("button", {
+        name: /changer mon mot de passe|change my password/i,
+      })
+    ).toBeVisible();
     await authPanel.click();
 
     await appearancePanel.click();
