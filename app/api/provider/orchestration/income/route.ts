@@ -34,6 +34,15 @@ function numberInRange(
     : null;
 }
 
+function integerInRange(
+  value: unknown,
+  minimum: number,
+  maximum: number
+): number | null {
+  const parsed = numberInRange(value, minimum, maximum);
+  return parsed !== null && Number.isInteger(parsed) ? parsed : null;
+}
+
 function dateValue(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const clean = value.trim();
@@ -72,7 +81,7 @@ export async function POST(request: Request) {
     const dayOfWeek =
       body.dayOfWeek === null || body.dayOfWeek === undefined
         ? null
-        : numberInRange(body.dayOfWeek, 0, 6);
+        : integerInRange(body.dayOfWeek, 0, 6);
     const date =
       body.date === null || body.date === undefined
         ? null
