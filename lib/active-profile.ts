@@ -14,8 +14,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const ACTIVE_PROFILE_COOKIE = "klyx_active_profile";
 
-// Backward-compatible discriminator. New authorization must prefer the
-// independent capability booleans below.
+// Compatibility discriminator for consumers not migrated to capabilities yet.
 export type AccountType = LegacyAccountType;
 
 export type ActiveProfile = {
@@ -27,6 +26,7 @@ export type ActiveProfile = {
   countryCode: string | null;
   currencyCode: string | null;
   accountType: AccountType;
+  legacyAccountType: AccountType;
   canRequestServices: boolean;
   canOfferServices: boolean;
   capabilitySource: ProfileCapabilitySource;
@@ -53,6 +53,13 @@ function normalizeProfile(
     []
   )
 ): ActiveProfile {
+  const legacyAccountType = normalizeLegacyAccountType(profile.account_type);
+  const accountType = capabilityState.canOfferServices
+    ? "provider"
+    : capabilityState.canRequestServices
+      ? "client"
+      : legacyAccountType;
+
   return {
     id: profile.id,
     ownerUserId: profile.owner_user_id ?? fallbackOwnerUserId,
@@ -61,7 +68,8 @@ function normalizeProfile(
     city: profile.city ?? "",
     countryCode: profile.country_code ?? null,
     currencyCode: profile.currency_code ?? null,
-    accountType: normalizeLegacyAccountType(profile.account_type),
+    accountType,
+    legacyAccountType,
     canRequestServices: capabilityState.canRequestServices,
     canOfferServices: capabilityState.canOfferServices,
     capabilitySource: capabilityState.capabilitySource,
@@ -90,29 +98,15 @@ async function normalizeOwnedProfiles(
   );
 
   return profiles.map((profile) =>
-    normalizeProfile(
-      profile,
-      ownerUserId,
-      capabilityStates.get(profile.id)
-    )
+    normalizeProfile(profile, ownerUserId, capabilityStates.get(profile.id))
   );
 }
 
 export async function getOwnedProfiles(): Promise<ActiveProfile[]> {
   const user = await authenticatedUser();
 
-  if (!user) {
-    return [];
-  }
+  if (!user) return [];
 
-  /*
-   * KLYX_AUTHENTICATED_PROFILE_PRIVACY_12B_12E
-   *
-   * La session Supabase sert uniquement à authentifier l'utilisateur.
-   * Les colonnes internes nécessaires au sélecteur multi-profils
-   * sont ensuite lues côté serveur avec service_role et toujours filtrées
-   * par owner_user_id = user.id.
-   */
   const { data: ownedData, error: ownedError } = await supabaseAdmin
     .from("profiles")
     .select(
@@ -131,21 +125,13 @@ export async function getOwnedProfiles(): Promise<ActiveProfile[]> {
     .eq("owner_user_id", user.id)
     .order("created_at", { ascending: true });
 
-  if (ownedError) {
-    throw new Error(ownedError.message);
-  }
+  if (ownedError) throw new Error(ownedError.message);
 
   const ownedProfiles = (ownedData ?? []) as ProfileRow[];
-
   if (ownedProfiles.length > 0) {
     return normalizeOwnedProfiles(ownedProfiles, user.id);
   }
 
-  /*
-   * Compatibilité uniquement pour les anciens profils KLYX.
-   * La réparation legacy reste côté serveur et ne donne aucun droit
-   * d'écriture direct à la session authentifiée.
-   */
   const { data: legacyProfile, error: legacyError } = await supabaseAdmin
     .from("profiles")
     .select(
@@ -164,15 +150,9 @@ export async function getOwnedProfiles(): Promise<ActiveProfile[]> {
     .eq("id", user.id)
     .maybeSingle();
 
-  if (legacyError) {
-    throw new Error(legacyError.message);
-  }
+  if (legacyError) throw new Error(legacyError.message);
+  if (!legacyProfile) return [];
 
-  if (!legacyProfile) {
-    return [];
-  }
-
-  /* KLYX_LEGACY_PROFILE_OWNER_FAIL_CLOSED_20260905 */
   if (
     legacyProfile.owner_user_id &&
     legacyProfile.owner_user_id !== user.id
@@ -183,7 +163,6 @@ export async function getOwnedProfiles(): Promise<ActiveProfile[]> {
   let profileToReturn = legacyProfile as ProfileRow;
 
   if (!legacyProfile.owner_user_id) {
-    /* KLYX_LEGACY_PROFILE_OWNER_ATOMIC_REPAIR_20260905 */
     const { data: repairedProfile, error: repairError } = await supabaseAdmin
       .from("profiles")
       .update({
@@ -207,14 +186,8 @@ export async function getOwnedProfiles(): Promise<ActiveProfile[]> {
       )
       .maybeSingle();
 
-    if (repairError) {
-      throw new Error(repairError.message);
-    }
-
-    if (!repairedProfile) {
-      return [];
-    }
-
+    if (repairError) throw new Error(repairError.message);
+    if (!repairedProfile) return [];
     profileToReturn = repairedProfile as ProfileRow;
   }
 
@@ -223,22 +196,14 @@ export async function getOwnedProfiles(): Promise<ActiveProfile[]> {
 
 export async function getActiveProfile(): Promise<ActiveProfile | null> {
   const profiles = await getOwnedProfiles();
-
-  if (profiles.length === 0) {
-    return null;
-  }
+  if (profiles.length === 0) return null;
 
   const cookieStore = await cookies();
   const selectedId = cookieStore.get(ACTIVE_PROFILE_COOKIE)?.value?.trim();
 
   if (selectedId) {
-    const selectedProfile = profiles.find(
-      (profile) => profile.id === selectedId
-    );
-
-    if (selectedProfile) {
-      return selectedProfile;
-    }
+    const selectedProfile = profiles.find((profile) => profile.id === selectedId);
+    if (selectedProfile) return selectedProfile;
   }
 
   return profiles[0];
