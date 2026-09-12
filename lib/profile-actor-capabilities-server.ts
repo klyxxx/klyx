@@ -97,6 +97,24 @@ export async function writeProfileCapabilityState(
     throw new Error("KLYX_PROFILE_CAPABILITY_REQUIRED");
   }
 
+  if (state.canOfferServices) {
+    const { error: providerProfileError } = await supabaseAdmin
+      .from("provider_profiles")
+      .upsert(
+        {
+          profile_id: profileId,
+        },
+        {
+          onConflict: "profile_id",
+          ignoreDuplicates: true,
+        }
+      );
+
+    if (providerProfileError) {
+      throw new Error(providerProfileError.message);
+    }
+  }
+
   const now = new Date().toISOString();
   const source = options.source ?? "user";
   const { error } = await supabaseAdmin
@@ -129,23 +147,5 @@ export async function writeProfileCapabilityState(
     }
 
     throw new Error(error.message);
-  }
-
-  if (state.canOfferServices) {
-    const { error: providerProfileError } = await supabaseAdmin
-      .from("provider_profiles")
-      .upsert(
-        {
-          profile_id: profileId,
-        },
-        {
-          onConflict: "profile_id",
-          ignoreDuplicates: true,
-        }
-      );
-
-    if (providerProfileError) {
-      throw new Error(providerProfileError.message);
-    }
   }
 }
