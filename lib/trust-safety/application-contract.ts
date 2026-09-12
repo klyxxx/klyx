@@ -85,9 +85,14 @@ export function canRequestTrustReview(
   >,
   reviewKind: TrustReviewKind
 ): boolean {
-  if (decision.review_status === "pending") return false;
-
   if (reviewKind === "human_review") {
+    if (
+      decision.review_status === "approved" ||
+      decision.review_status === "rejected"
+    ) {
+      return false;
+    }
+
     return (
       decision.human_review_required ||
       decision.decision === "human_review_required"
