@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { apiErrorStatus, getAuthenticatedProfile } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
 import {
+  API_RATE_LIMIT_POLICIES,
+  apiRateLimitExceededResponse,
+  consumeApiRateLimit,
+  rateLimitResponseHeaders,
+} from "@/lib/api-rate-limit";
+import {
   TRUST_SAFETY_ACTIVITY_FREQUENCIES,
   TRUST_SAFETY_LEGAL_PATHS,
   type TrustSafetyActivityFrequency,
@@ -33,7 +39,9 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Unable to load Trust & Safety authority.";
+      error instanceof Error
+        ? error.message
+        : "Unable to load Trust & Safety authority.";
     const status = apiErrorStatus(message);
     return secureApiErrorResponse({
       error,
@@ -52,6 +60,12 @@ export async function PATCH(request: Request) {
   const startedAt = Date.now();
   try {
     const { profile } = await getAuthenticatedProfile(request);
+    const ratePolicy = API_RATE_LIMIT_POLICIES.trustSafetyDeclarationMutation;
+    const rateLimit = await consumeApiRateLimit(profile.id, ratePolicy);
+    if (!rateLimit.allowed) {
+      return apiRateLimitExceededResponse(ratePolicy, rateLimit);
+    }
+
     const body = (await request.json()) as {
       legalPath?: unknown;
       activityFrequency?: unknown;
@@ -59,7 +73,9 @@ export async function PATCH(request: Request) {
     };
 
     const legalPath =
-      typeof body.legalPath === "string" ? body.legalPath.trim() : undefined;
+      typeof body.legalPath === "string"
+        ? body.legalPath.trim()
+        : undefined;
     const activityFrequency =
       typeof body.activityFrequency === "string"
         ? body.activityFrequency.trim()
@@ -72,7 +88,10 @@ export async function PATCH(request: Request) {
       legalPath !== undefined &&
       !TRUST_SAFETY_LEGAL_PATHS.includes(legalPath as TrustSafetyLegalPath)
     ) {
-      return NextResponse.json({ error: "Invalid legal pathway." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid legal pathway." },
+        { status: 400, headers: rateLimitResponseHeaders(ratePolicy, rateLimit) }
+      );
     }
 
     if (
@@ -81,13 +100,16 @@ export async function PATCH(request: Request) {
         activityFrequency as TrustSafetyActivityFrequency
       )
     ) {
-      return NextResponse.json({ error: "Invalid activity frequency." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid activity frequency." },
+        { status: 400, headers: rateLimitResponseHeaders(ratePolicy, rateLimit) }
+      );
     }
 
     if (legalPath === undefined && activityFrequency === undefined) {
       return NextResponse.json(
         { error: "No declaration field was provided." },
-        { status: 400 }
+        { status: 400, headers: rateLimitResponseHeaders(ratePolicy, rateLimit) }
       );
     }
 
@@ -98,14 +120,19 @@ export async function PATCH(request: Request) {
     });
 
     const authority = await getTrustSafetyAuthority(profile, categoryKey);
-    return NextResponse.json({
-      authority,
-      message:
-        "Declarations saved. Any prior human conclusion attached to changed facts was invalidated.",
-    });
+    return NextResponse.json(
+      {
+        authority,
+        message:
+          "Declarations saved. Any prior human conclusion attached to changed facts was invalidated.",
+      },
+      { headers: rateLimitResponseHeaders(ratePolicy, rateLimit) }
+    );
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Unable to update Trust & Safety declarations.";
+      error instanceof Error
+        ? error.message
+        : "Unable to update Trust & Safety declarations.";
     const status = apiErrorStatus(message);
     return secureApiErrorResponse({
       error,
