@@ -11,6 +11,7 @@ import {
   LoaderCircle,
   MapPinned,
   RefreshCw,
+  Scale,
   ShieldCheck,
   UserRoundCheck,
   WalletCards,
@@ -20,6 +21,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import {
+  translateProviderLegalOnboarding,
+  type ProviderLegalOnboardingMessageKey,
+} from "@/lib/klyx-provider-legal-onboarding-i18n";
+import {
   translateKlyxProviderPaymentReadiness,
 } from "@/lib/klyx-provider-payment-readiness-i18n";
 import type { KlyxProviderPaymentBlockReason } from "@/lib/klyx-provider-payment-readiness";
@@ -28,10 +33,12 @@ import {
   translateKlyxProviderProgress,
   type KlyxProviderProgressMessageKey,
 } from "@/lib/klyx-provider-progress-i18n";
+import type { ProviderLegalAuthority } from "@/lib/provider-legal-authority";
 import { supabase } from "@/lib/supabase";
 
 // KLYX_PROVIDER_PROGRESS_I18N_16_03
 // KLYX_PROVIDER_LIVE_PAYMENT_PROGRESS_16_04
+// KLYX_PROVIDER_LEGAL_ONBOARDING_AUTHORITY_20260912
 
 type ProgressState = "loading" | "todo" | "progress" | "done";
 
@@ -97,11 +104,18 @@ export default function ProviderOnboardingProgress() {
       translateKlyxProviderProgress(locale, key),
     [locale]
   );
+  const legalT = useCallback(
+    (key: ProviderLegalOnboardingMessageKey) =>
+      translateProviderLegalOnboarding(locale, key),
+    [locale]
+  );
 
   const [studio, setStudio] = useState<StudioData | null>(null);
   const [zones, setZones] = useState<ProviderZone[]>([]);
   const [verification, setVerification] = useState<Verification | null>(null);
   const [documents, setDocuments] = useState<VerificationDocument[]>([]);
+  const [legalAuthority, setLegalAuthority] =
+    useState<ProviderLegalAuthority | null>(null);
   const [stripe, setStripe] = useState<StripeState | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -120,17 +134,24 @@ export default function ProviderOnboardingProgress() {
       }
 
       const headers = { Authorization: `Bearer ${token}` };
-      const [studioResponse, zonesResponse, verificationResponse, stripeResponse] =
-        await Promise.all([
-          fetch("/api/provider/studio", { cache: "no-store", headers }),
-          fetch("/api/provider/zones", { cache: "no-store", headers }),
-          fetch("/api/provider/verification", { cache: "no-store", headers }),
-          fetch("/api/stripe/connect/status", { cache: "no-store", headers }),
-        ]);
+      const [
+        studioResponse,
+        zonesResponse,
+        verificationResponse,
+        legalResponse,
+        stripeResponse,
+      ] = await Promise.all([
+        fetch("/api/provider/studio", { cache: "no-store", headers }),
+        fetch("/api/provider/zones", { cache: "no-store", headers }),
+        fetch("/api/provider/verification", { cache: "no-store", headers }),
+        fetch("/api/provider/legal-authority", { cache: "no-store", headers }),
+        fetch("/api/stripe/connect/status", { cache: "no-store", headers }),
+      ]);
 
       const studioBody = await studioResponse.json();
       const zonesBody = await zonesResponse.json();
       const verificationBody = await verificationResponse.json();
+      const legalBody = await legalResponse.json();
       const stripeBody = await stripeResponse.json();
 
       if (!studioResponse.ok) {
@@ -145,6 +166,10 @@ export default function ProviderOnboardingProgress() {
         setErrorKey("verificationFailed");
         return;
       }
+      if (!legalResponse.ok || !legalBody.authority) {
+        setErrorKey("refreshFailed");
+        return;
+      }
 
       setStudio(studioBody.data ?? studioBody);
       setZones(Array.isArray(zonesBody.zones) ? zonesBody.zones : []);
@@ -152,6 +177,7 @@ export default function ProviderOnboardingProgress() {
       setDocuments(
         Array.isArray(verificationBody.documents) ? verificationBody.documents : []
       );
+      setLegalAuthority(legalBody.authority as ProviderLegalAuthority);
 
       if (stripeResponse.ok && "connected" in stripeBody) {
         setStripe(stripeBody as StripeState);
@@ -197,6 +223,25 @@ export default function ProviderOnboardingProgress() {
         service.availability.some((day) => day.enabled === true)
     );
     const hasZone = zones.some((zone) => zone.is_active !== false);
+
+    const legalEligibility = legalAuthority?.assessment.eligibility ?? "unknown";
+    const legalPath = legalAuthority?.declarations.path ?? "unknown";
+    const legalDone = legalEligibility === "eligible";
+    const legalStarted = legalPath !== "unknown";
+    const legalState: ProgressState = loading
+      ? "loading"
+      : legalDone
+        ? "done"
+        : legalStarted
+          ? "progress"
+          : "todo";
+    const legalStateLabel = loading
+      ? t("checking")
+      : legalDone
+        ? legalT("progressDone")
+        : legalStarted
+          ? legalT("progressReview")
+          : legalT("progressBlocked");
 
     const verificationStatus =
       verification?.status ?? provider?.verificationStatus ?? "not_started";
@@ -291,8 +336,20 @@ export default function ProviderOnboardingProgress() {
         required: true,
       },
       {
-        id: "verification",
+        id: "legal",
         number: 6,
+        title: legalT("progressTitle"),
+        description: legalT("progressDescription"),
+        href: "/provider/legal",
+        button: legalT("progressButton"),
+        icon: Scale,
+        state: legalState,
+        stateLabel: legalStateLabel,
+        required: true,
+      },
+      {
+        id: "verification",
+        number: 7,
         title: t("verificationTitle"),
         description: verificationDone
           ? t("verificationDoneDescription")
@@ -324,7 +381,7 @@ export default function ProviderOnboardingProgress() {
       },
       {
         id: "payments",
-        number: 7,
+        number: 8,
         title: t("paymentsTitle"),
         description: stripeDone
           ? t("paymentsDoneDescription")
@@ -357,7 +414,7 @@ export default function ProviderOnboardingProgress() {
       },
       {
         id: "publish",
-        number: 8,
+        number: 9,
         title: t("publishTitle"),
         description: published
           ? t("publishDoneDescription")
@@ -370,7 +427,18 @@ export default function ProviderOnboardingProgress() {
         required: true,
       },
     ];
-  }, [documents, loading, locale, studio, stripe, t, verification, zones]);
+  }, [
+    documents,
+    legalAuthority,
+    legalT,
+    loading,
+    locale,
+    studio,
+    stripe,
+    t,
+    verification,
+    zones,
+  ]);
 
   const requiredSteps = steps.filter((step) => step.required);
   const completedRequired = requiredSteps.filter((step) => step.state === "done").length;

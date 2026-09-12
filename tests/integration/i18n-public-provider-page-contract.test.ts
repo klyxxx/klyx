@@ -37,24 +37,31 @@ describe("KLYX public provider page i18n contract", () => {
     expect(page).toContain(".sort((a, b) => b.klyxScore - a.klyxScore)");
   });
 
-  it("keeps provider-authored and gallery data verbatim", () => {
+  it("keeps provider-authored, service and gallery data loaded without restoring a catalogue", () => {
     const page = read("app/providers/[id]/page.tsx");
 
-    expect(page).toContain("providerProfile.business_name");
-    expect(page).toContain("providerProfile.headline ||");
+    expect(page).toContain("business_name, headline, bio, years_experience");
+    expect(page).toContain("title: serviceProfile.title");
+    expect(page).toContain('description: serviceProfile.description ?? ""');
+    expect(page).toContain("serviceArea: serviceProfile.service_area ?? []");
+    expect(page).toContain("travelRadiusKm: Number(serviceProfile.travel_radius_km ?? 10)");
     expect(page).toContain("providerProfile.bio");
-    expect(page).toContain("service.title ?? serviceLabel");
-    expect(page).toContain("service.description");
-    expect(page).toContain('service.serviceArea.join(", ")');
+    expect(page).toContain("primaryService.description");
     expect(page).toContain("item.caption || t(\"galleryAlt\")");
+    expect(page).toContain('data-testid="klyx-other-provider-services"');
   });
 
-  it("preserves quote and booking navigation without creating either action", () => {
+  it("exposes one booking action while keeping the existing quote route intact", () => {
     const page = read("app/providers/[id]/page.tsx");
+    const quotePage = read("app/providers/[id]/quote/page.tsx");
+    const primaryActions =
+      page.match(/data-testid="klyx-provider-primary-action"/g) ?? [];
 
-    expect(page).toContain('href={`/providers/${profile.id}/quote?service=${encodeURIComponent(');
-    expect(page).toContain('href={`/providers/${profile.id}/book?service=${encodeURIComponent(');
-    expect(page).toContain("service.slug");
+    expect(primaryActions).toHaveLength(1);
+    expect(page).toContain("/book?service=${encodeURIComponent(");
+    expect(page).not.toContain("/quote?service=${encodeURIComponent(");
+    expect(page).toContain("primaryService.slug");
+    expect(quotePage.trim().length).toBeGreaterThan(0);
   });
 
   it("does not reflect raw Supabase or API errors and does not refetch on locale change", () => {
