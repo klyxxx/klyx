@@ -1,0 +1,119 @@
+.shell {
+  --klyx-assistant-black: #050505;
+  --klyx-assistant-surface: #171717;
+  --klyx-assistant-surface-hover: #202020;
+  --klyx-assistant-line: #2b2b2b;
+  --klyx-assistant-white: #f7f7f8;
+  --klyx-assistant-muted: #a1a1aa;
+  --klyx-assistant-blue: #2563eb;
+
+  min-height: 100%;
+  background: var(--klyx-assistant-black);
+  color: var(--klyx-assistant-white);
+}
+
+.shell :global([data-testid="assistant-thread"]) {
+  max-width: 54rem;
+  color: var(--klyx-assistant-white);
+}
+
+.shell :global([data-testid="assistant-thread"] h1:not(.sr-only)) {
+  color: var(--klyx-assistant-white);
+  font-weight: 500;
+  letter-spacing: -0.035em;
+}
+
+.shell :global([data-testid="assistant-composer"]) {
+  min-height: 4rem;
+  border-color: var(--klyx-assistant-line) !important;
+  border-radius: 1.75rem !important;
+  background: var(--klyx-assistant-surface) !important;
+  box-shadow: none !important;
+}
+
+.shell :global([data-testid="assistant-composer"]:focus-within) {
+  border-color: rgba(37, 99, 235, 0.65) !important;
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.22) !important;
+}
+
+.shell :global([data-testid="assistant-composer"] textarea) {
+  color: var(--klyx-assistant-white) !important;
+  font-size: 1rem;
+}
+
+.shell :global([data-testid="assistant-composer"] textarea::placeholder) {
+  color: var(--klyx-assistant-muted) !important;
+}
+
+.shell :global([data-testid="assistant-composer"] button[type="button"]) {
+  color: var(--klyx-assistant-muted) !important;
+  background: transparent !important;
+}
+
+.shell :global([data-testid="assistant-composer"] button[type="button"]:hover) {
+  color: var(--klyx-assistant-white) !important;
+  background: var(--klyx-assistant-surface-hover) !important;
+}
+
+.shell :global([data-testid="assistant-composer"] button[aria-pressed="true"]) {
+  color: var(--klyx-assistant-blue) !important;
+  background: rgba(37, 99, 235, 0.12) !important;
+}
+
+.shell :global([data-testid="assistant-composer"] button[type="submit"]) {
+  background: var(--klyx-assistant-blue) !important;
+  color: #ffffff !important;
+}
+
+.shell :global([data-testid="assistant-thread"] div[aria-label] > button) {
+  min-height: 2.5rem;
+  border-color: var(--klyx-assistant-line) !important;
+  background: transparent !important;
+  color: #d4d4d8 !important;
+  font-weight: 450;
+}
+
+.shell :global([data-testid="assistant-thread"] div[aria-label] > button:hover) {
+  border-color: #3f3f46 !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  color: var(--klyx-assistant-white) !important;
+}
+
+.shell :global([data-testid="assistant-thread"] .text-foreground) {
+  color: var(--klyx-assistant-white) !important;
+}
+
+.shell :global([data-testid="assistant-thread"] .text-muted-foreground) {
+  color: var(--klyx-assistant-muted) !important;
+}
+
+.shell :global([data-testid="assistant-thread"] [role="alert"]) {
+  color: var(--klyx-assistant-white) !important;
+}
+
+.shell :global([data-testid="assistant-thread"] > .shrink-0) {
+  border-top-color: transparent !important;
+  background: linear-gradient(
+    to bottom,
+    rgba(5, 5, 5, 0),
+    var(--klyx-assistant-black) 28%
+  ) !important;
+  backdrop-filter: none !important;
+  padding-top: 1.25rem;
+}
+
+@media (max-width: 639px) {
+  .shell :global([data-testid="assistant-thread"]) {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .shell :global([data-testid="assistant-thread"] h1:not(.sr-only)) {
+    font-size: 2rem;
+    line-height: 1.08;
+  }
+
+  .shell :global([data-testid="assistant-composer"]) {
+    border-radius: 1.5rem !important;
+  }
+}
