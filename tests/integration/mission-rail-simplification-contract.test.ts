@@ -11,11 +11,12 @@ const rail = read("app/ui/MissionRail.tsx");
 const accountMenu = read("app/components/AccountSwitcher.tsx");
 
 describe("KLYX MissionRail compact ChatGPT-style contract", () => {
-  it("keeps one account entry and delegates account actions to the canonical switcher", () => {
+  it("keeps one runtime account entry and delegates account actions to the canonical switcher", () => {
     expect(rail.match(/<AccountSwitcher/g) ?? []).toHaveLength(1);
     expect(rail).toContain('mode="account-menu"');
     expect(rail).toContain("compact={compact}");
-    expect(rail).not.toContain('data-testid="account-entry"');
+    expect(rail).toContain("activeProfileId ? (");
+    expect(rail).toContain('data-testid="account-entry"');
 
     expect(accountMenu).toContain('data-testid="account-entry"');
     expect(accountMenu).toContain('data-testid="account-menu-panel"');
