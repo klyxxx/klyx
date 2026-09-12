@@ -84,7 +84,10 @@ describe("KLYX business value proof contract", () => {
     const costs = read("app/api/founder/business-costs/route.ts");
 
     expect(costs).toContain("const MANUAL_COST_TYPES");
-    expect(costs).not.toContain('"stripe_fee",\n]);');
+    expect(costs).toContain('  "support",');
+    expect(costs).toContain('  "fraud_dispute",');
+    expect(costs).toContain('  "acquisition",');
+    expect(costs).toContain('Exclude<KlyxBusinessCostType, "stripe_fee">');
     expect(costs).toContain("Les frais Stripe doivent être synchronisés depuis Stripe");
   });
 
@@ -106,7 +109,7 @@ describe("KLYX business value proof contract", () => {
     expect(pilot).toContain("availability_date: availabilityDate");
   });
 
-  it("requires real positive idempotent attribution for manually recorded costs", () => {
+  it("requires real positive idempotent and unambiguous attribution for manual costs", () => {
     const costs = read("app/api/founder/business-costs/route.ts");
     const page = read("app/founder/business/page.tsx");
 
@@ -114,6 +117,8 @@ describe("KLYX business value proof contract", () => {
     expect(costs).toContain("strictement positif");
     expect(costs).toContain("if (!manualReference)");
     expect(costs).toContain("Une référence unique est obligatoire");
+    expect(costs).toContain("if (bookingId && marketRequestId)");
+    expect(costs).toContain("pas aux deux à la fois");
     expect(costs).toContain("!serviceId && !bookingId && !marketRequestId");
     expect(costs).toContain("Impossible d'attribuer ce coût à une catégorie");
     expect(costs).toContain("const sourceKey = `manual:${manualCostType}:${manualReference}`");
@@ -134,5 +139,7 @@ describe("KLYX business value proof contract", () => {
     expect(doc).toContain("La marge nette estimée");
     expect(doc).toContain("pas un bénéfice comptable complet");
     expect(doc).toContain("Une absence de donnée ne devient jamais artificiellement `0 €`");
+    expect(doc).toContain("remboursement apparaît sans le paiement d'origine");
+    expect(doc).toContain("référence unique");
   });
 });
