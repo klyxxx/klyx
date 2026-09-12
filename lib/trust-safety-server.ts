@@ -1,6 +1,5 @@
 import "server-only";
 
-import type { ActiveProfile } from "@/lib/active-profile";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   evaluateTrustSafetyAuthority,
@@ -21,6 +20,11 @@ import {
   type TrustSafetyTrustLevel,
   type TrustSafetyVerificationState,
 } from "@/lib/trust-safety-authority";
+
+type TrustSafetyProfileContext = {
+  id: string;
+  countryCode: string | null;
+};
 
 type TrustProfileRow = {
   profile_id: string;
@@ -186,8 +190,6 @@ function policyFromRow(
 ): TrustSafetyCategoryPolicy {
   return {
     jurisdictionCountryCode: row.jurisdiction_country_code,
-    // A wildcard row supplies defaults but the decision remains scoped to the
-    // actual requested category so category restrictions cannot be bypassed.
     categoryKey: requestedCategoryKey,
     riskTier: enumValue(
       row.risk_tier,
@@ -243,8 +245,6 @@ async function readPolicy(
     return policyFromRow(exact ?? fallback!, categoryKey);
   }
 
-  // Unknown jurisdictions/categories fail safely to human review instead of
-  // inventing local legal or qualification requirements.
   return {
     jurisdictionCountryCode: jurisdiction,
     categoryKey,
@@ -300,8 +300,6 @@ async function readVerificationStates(
 ): Promise<Record<string, TrustSafetyVerificationState>> {
   const result: Record<string, TrustSafetyVerificationState> = {};
 
-  // Existing provider evidence is migration compatibility only. New generic
-  // verification rows overwrite it key-by-key when present.
   if (legacy) {
     result.enterprise_registration = enumValue(
       legacy.enterprise_registration_verification,
@@ -390,13 +388,17 @@ async function readSignalCounts(profileId: string) {
       .in("status", ["open", "under_review", "waiting_user"]),
   ]);
   if (reportsResult.error) {
-    throw new Error(`Unable to load safety reports: ${reportsResult.error.message}`);
+    throw new Error(
+      `Unable to load safety reports: ${reportsResult.error.message}`
+    );
   }
   if (disputesResult.error) {
     throw new Error(`Unable to load disputes: ${disputesResult.error.message}`);
   }
 
-  const reports = (reportsResult.data ?? []) as Array<{ report_type: string }>;
+  const reports = (reportsResult.data ?? []) as Array<{
+    report_type: string;
+  }>;
   return {
     unresolvedSafetyReports: reports.filter(
       (row) => row.report_type === "safety"
@@ -412,7 +414,7 @@ async function readSignalCounts(profileId: string) {
 }
 
 export async function getTrustSafetyAuthority(
-  profile: ActiveProfile,
+  profile: TrustSafetyProfileContext,
   requestedCategoryKey: string
 ): Promise<
   TrustSafetyAuthority & {
@@ -528,7 +530,7 @@ export async function getTrustSafetyAuthority(
 }
 
 export async function updateTrustSafetyDeclarations(
-  profile: ActiveProfile,
+  profile: TrustSafetyProfileContext,
   patch: TrustSafetyDeclarationPatch
 ) {
   const current = await readTrustProfile(profile.id);
@@ -563,8 +565,6 @@ export async function updateTrustSafetyDeclarations(
   };
 
   if (changed) {
-    // Changed declarations invalidate stale human conclusions but never approve
-    // the new facts automatically.
     payload.legal_path_review_status = "not_reviewed";
     payload.legal_path_reviewed_path = null;
     payload.legal_path_reviewed_by = null;
