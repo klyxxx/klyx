@@ -115,7 +115,7 @@ https://socialsecurity.belgium.be/fr/elaboration-de-la-politique-sociale/indepen
 
 ### Regulated professions / competencies
 
-Professional-access requirements remain category- and region-dependent, including requirements that still exist in Brussels-Capital and Wallonia. Requirements therefore belong in versioned category/jurisdiction policies, not in a global account role.
+Professional-access requirements are category- and region-dependent and evolve over time. The SPF Economie currently states that Wallonia removed the specific professional-competence requirements listed in its summary as of 1 October 2025, while other regional regimes differ. Requirements must therefore remain versioned by category/jurisdiction and be re-verified before activation rather than hard-coded into a global account role.
 
 Official source: SPF Economie — Conditions d'accès à la profession
 https://economie.fgov.be/fr/themes/entreprises/creer-une-entreprise/les-conditions-dacces-la
