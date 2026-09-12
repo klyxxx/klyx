@@ -504,6 +504,7 @@ function Submit({ disabled, children }: { disabled: boolean; children: React.Rea
 function CostForm({ disabled, onSubmit }: { disabled: boolean; onSubmit: (body: Record<string, unknown>) => void }) {
   const [costType, setCostType] = useState("support");
   const [amount, setAmount] = useState("");
+  const [reference, setReference] = useState("");
   const [bookingId, setBookingId] = useState("");
   const [marketRequestId, setMarketRequestId] = useState("");
   const [note, setNote] = useState("");
@@ -512,15 +513,15 @@ function CostForm({ disabled, onSubmit }: { disabled: boolean; onSubmit: (body: 
     <form className="space-y-3" onSubmit={(event) => {
       event.preventDefault();
       const euros = Number(amount);
-      if (!Number.isFinite(euros) || euros < 0) return;
+      if (!Number.isFinite(euros) || euros <= 0 || !reference.trim()) return;
       onSubmit({
         costType,
         amountCents: Math.round(euros * 100),
         currency: "EUR",
         bookingId: bookingId || undefined,
         marketRequestId: marketRequestId || undefined,
+        sourceKey: reference.trim(),
         note: note || undefined,
-        source: costType === "fraud_dispute" ? "fraud" : costType === "acquisition" ? "acquisition" : "support",
       });
     }}>
       <select value={costType} onChange={(event) => setCostType(event.target.value)} className="min-h-11 w-full rounded-xl border border-border bg-background px-3 text-sm">
@@ -528,7 +529,8 @@ function CostForm({ disabled, onSubmit }: { disabled: boolean; onSubmit: (body: 
         <option value="fraud_dispute">Fraude / litige</option>
         <option value="acquisition">Acquisition réelle</option>
       </select>
-      <Input required inputMode="decimal" placeholder="Montant réel en €" value={amount} onChange={(event) => setAmount(event.target.value)} />
+      <Input required type="number" min="0.01" step="0.01" inputMode="decimal" placeholder="Montant réel en €" value={amount} onChange={(event) => setAmount(event.target.value)} />
+      <Input required placeholder="Référence unique (ticket, facture, litige…)" value={reference} onChange={(event) => setReference(event.target.value)} />
       <Input placeholder="Booking ID (ou demande ci-dessous)" value={bookingId} onChange={(event) => setBookingId(event.target.value)} />
       <Input placeholder="Market request ID" value={marketRequestId} onChange={(event) => setMarketRequestId(event.target.value)} />
       <Input placeholder="Note / justification" value={note} onChange={(event) => setNote(event.target.value)} />
@@ -583,13 +585,13 @@ function IncomeAttemptForm({ disabled, onSubmit }: { disabled: boolean; onSubmit
     <form className="space-y-3" onSubmit={(event) => {
       event.preventDefault();
       const euros = Number(goal);
-      if (!Number.isFinite(euros) || euros <= 0) return;
+      if (!Number.isFinite(euros) || euros <= 0 || !date) return;
       onSubmit({
         action: "enroll_income_attempt",
         marketOfferId: offerId.trim(),
         incomeGoalCents: Math.round(euros * 100),
         currency: "EUR",
-        availabilityDate: date || undefined,
+        availabilityDate: date,
         availabilityStart: start || undefined,
         availabilityEnd: end || undefined,
         confirmedAvailability: availability,
@@ -599,13 +601,13 @@ function IncomeAttemptForm({ disabled, onSubmit }: { disabled: boolean; onSubmit
       <Input required placeholder="Market offer ID réel" value={offerId} onChange={(event) => setOfferId(event.target.value)} />
       <Input required inputMode="decimal" placeholder="Objectif de revenu en €" value={goal} onChange={(event) => setGoal(event.target.value)} />
       <div className="grid grid-cols-3 gap-2">
-        <Input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+        <Input required type="date" value={date} onChange={(event) => setDate(event.target.value)} />
         <Input type="time" value={start} onChange={(event) => setStart(event.target.value)} />
         <Input type="time" value={end} onChange={(event) => setEnd(event.target.value)} />
       </div>
       <label className="flex gap-2 text-sm"><input type="checkbox" checked={availability} onChange={(event) => setAvailability(event.target.checked)} /> Disponibilité réellement déclarée et vérifiée.</label>
       <label className="flex gap-2 text-sm"><input type="checkbox" checked={incomeGoal} onChange={(event) => setIncomeGoal(event.target.checked)} /> Objectif de revenu réellement exprimé.</label>
-      <Submit disabled={disabled || !availability || !incomeGoal}>Relier l'objectif à cette vraie offre</Submit>
+      <Submit disabled={disabled || !availability || !incomeGoal || !date}>Relier l'objectif à cette vraie offre</Submit>
     </form>
   );
 }
