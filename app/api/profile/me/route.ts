@@ -83,7 +83,10 @@ export async function GET() {
         age: typeof data.age === "number" ? data.age : null,
         city: data.city ?? "",
         avatarUrl: data.avatar_url ?? null,
-        accountType: data.account_type === "provider" ? "provider" : "client",
+        accountType: activeProfile.accountType,
+        canRequestServices: activeProfile.canRequestServices,
+        canOfferServices: activeProfile.canOfferServices,
+        capabilitySource: activeProfile.capabilitySource,
       },
     });
   } catch (error) {
