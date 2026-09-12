@@ -73,6 +73,16 @@ describe("KLYX Trust & Safety application contract", () => {
     ).toBe(false);
   });
 
+  it("does not allow an appeal to run in parallel with a mandatory human review", () => {
+    expect(canRequestTrustReview(row, "appeal")).toBe(false);
+    expect(
+      canRequestTrustReview(
+        { ...row, review_status: "rejected" },
+        "appeal"
+      )
+    ).toBe(true);
+  });
+
   it("allows an appeal for adverse outcomes but not a clean eligible decision", () => {
     expect(
       canRequestTrustReview(
