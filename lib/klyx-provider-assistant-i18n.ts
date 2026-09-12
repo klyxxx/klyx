@@ -51,7 +51,7 @@ const DICTIONARIES: Record<KlyxProviderAssistantLocale, Dictionary> = {
     title: "Assistant prestataire",
     prepareQuestion: "Que dois-je préparer pour ton activité ?",
     surfaceDescription:
-      "Réponse client, devis, disponibilité ou recherche de missions compatibles. Rien n’est appliqué, envoyé ou accepté sans ta confirmation.",
+      "Réponse client, devis, disponibilité ou recherche de missions compatibles. Rien n’est appliqué ni envoyé sans ta confirmation. Aucune mission n’est acceptée automatiquement.",
     conversationLabel: "Conversation avec KLYX",
     conversationIntro:
       "Dis-moi simplement ce que tu veux préparer ou l’objectif que tu veux viser. Je vérifie les données KLYX avant ta décision.",
