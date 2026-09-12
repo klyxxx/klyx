@@ -433,6 +433,13 @@ export function buildKlyxBusinessMetrics(input: {
       const stripeCoverageComplete = [...money.paymentBookingIds].every(
         (bookingId) => stripeFeeBookingIds.has(bookingId)
       );
+      const categoryHasAcquisitionCost = money.costs.some(
+        (cost) =>
+          cost.cost_type === "acquisition" && cost.currency === currency
+      );
+      const acquisitionCoverageAvailable =
+        tracking.acquisition === "automated" ||
+        (tracking.acquisition === "manual" && categoryHasAcquisitionCost);
 
       stripeFees =
         tracking.stripe_fee === "unavailable" || !stripeCoverageComplete
@@ -446,10 +453,9 @@ export function buildKlyxBusinessMetrics(input: {
         tracking.fraud_dispute === "unavailable"
           ? null
           : sumCost(money.costs, "fraud_dispute", currency);
-      acquisitionCost =
-        tracking.acquisition === "unavailable"
-          ? null
-          : sumCost(money.costs, "acquisition", currency);
+      acquisitionCost = acquisitionCoverageAvailable
+        ? sumCost(money.costs, "acquisition", currency)
+        : null;
 
       if (
         stripeFees !== null &&
