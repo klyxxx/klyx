@@ -25,6 +25,16 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 
 const ALLOWED_WINDOWS = new Set([7, 30, 90]);
 
+type PilotCostDbRow = {
+  id: string;
+  cost_type: KlyxBusinessCostRow["cost_type"];
+  amount_cents: number;
+  currency: string;
+  service_id: string | null;
+  booking_id: string | null;
+  market_request_id: string | null;
+};
+
 function requestedWindow(request: Request): number {
   const value = Number(new URL(request.url).searchParams.get("days"));
   return ALLOWED_WINDOWS.has(value) ? value : 30;
@@ -106,6 +116,43 @@ async function loadLedgerByBookingIds(bookingIds: string[]) {
     .in("booking_id", bookingIds);
   if (error) throw new Error(error.message);
   return data ?? [];
+}
+
+async function loadCumulativePilotCosts(
+  requestIds: string[],
+  bookingIds: string[],
+  pilotServiceId: string | null
+): Promise<KlyxBusinessCostRow[]> {
+  const rows: PilotCostDbRow[] = [];
+  const selection =
+    "id, cost_type, amount_cents, currency, service_id, booking_id, market_request_id";
+
+  if (requestIds.length > 0) {
+    const { data, error } = await supabaseAdmin
+      .from("business_cost_events")
+      .select(selection)
+      .in("market_request_id", requestIds);
+    if (error) throw new Error(error.message);
+    rows.push(...((data ?? []) as PilotCostDbRow[]));
+  }
+
+  if (bookingIds.length > 0) {
+    const { data, error } = await supabaseAdmin
+      .from("business_cost_events")
+      .select(selection)
+      .in("booking_id", bookingIds);
+    if (error) throw new Error(error.message);
+    rows.push(...((data ?? []) as PilotCostDbRow[]));
+  }
+
+  const deduplicated = new Map(rows.map((row) => [row.id, row] as const));
+  return [...deduplicated.values()].map((row) => ({
+    cost_type: row.cost_type,
+    amount_cents: row.amount_cents,
+    currency: row.currency,
+    service_id: row.service_id ?? pilotServiceId,
+    booking_id: row.booking_id,
+  }));
 }
 
 export async function GET(request: Request) {
@@ -279,20 +326,11 @@ export async function GET(request: Request) {
     })) as KlyxBusinessLedgerRow[];
 
     const pilotRequestSet = new Set(verifiedPilotRequestIds);
-    const pilotBookingSet = new Set(pilotBookingIds);
-    const pilotCosts = (costsResult.data ?? [])
-      .filter(
-        (row) =>
-          (row.market_request_id && pilotRequestSet.has(row.market_request_id)) ||
-          (row.booking_id && pilotBookingSet.has(row.booking_id))
-      )
-      .map((row) => ({
-        cost_type: row.cost_type,
-        amount_cents: row.amount_cents,
-        currency: row.currency,
-        service_id: row.service_id ?? pilotService?.id ?? null,
-        booking_id: row.booking_id,
-      })) as KlyxBusinessCostRow[];
+    const pilotCosts = await loadCumulativePilotCosts(
+      verifiedPilotRequestIds,
+      pilotBookingIds,
+      pilotService?.id ?? null
+    );
 
     const pilotMetricResult = buildKlyxBusinessMetrics({
       services,
@@ -437,7 +475,7 @@ export async function GET(request: Request) {
           repeatRate:
             "Clients avec au moins deux missions completed dans la catégorie sur la fenêtre, divisés par les clients avec au moins une mission completed.",
           margin:
-            "La marge contributive retranche commission remboursée estimée, frais Stripe, support et fraude/litiges. La marge nette reste inconnue tant que le coût d'acquisition est indisponible.",
+            "La marge contributive retranche commission remboursée estimée, frais Stripe, support et fraude/litiges. Les frais Stripe et les marges restent inconnus tant que chaque réservation payée n'a pas son vrai frais Stripe attribué; la marge nette reste inconnue tant que le coût d'acquisition est indisponible.",
           currency:
             "Aucune agrégation monétaire n'est publiée lorsqu'une catégorie mélange plusieurs devises.",
         },
