@@ -20,6 +20,8 @@ import {
 import {
   finalizeProviderUnknownAiReply,
 } from "@/lib/provider-assistant-visible-ai";
+import { parseProviderIncomeGoal } from "@/lib/provider-income-goal";
+import { buildProviderIncomeOrchestration } from "@/lib/klyx-orchestration-server";
 import {
   parseProviderAssistantPatchRequest,
   parseProviderAssistantPostRequest,
@@ -70,7 +72,7 @@ async function improveUnknownProviderReply(
   const ai = await generateKlyxAiReply({
     message: [
       "Tu réponds à un prestataire KLYX dans son assistant professionnel.",
-      "La demande ne correspond pas encore à une disponibilité, un devis ou une réponse client structurée.",
+      "La demande ne correspond pas encore à une disponibilité, un devis, une réponse client ou un objectif de revenu structuré.",
       "Réponds utilement et brièvement sans prétendre avoir exécuté une action.",
       "Si une précision est nécessaire, pose une seule question.",
       "",
@@ -87,11 +89,43 @@ async function improveUnknownProviderReply(
   });
 }
 
+function incomeReply(
+  locale: "fr" | "en" | "nl" | "de",
+  count: number,
+  dayLabel: string
+): { title: string; reply: string } {
+  const text = {
+    fr: {
+      title: "Missions compatibles avec ton objectif",
+      ready: `J’ai trouvé ${count} solution${count > 1 ? "s" : ""} vérifiable${count > 1 ? "s" : ""} pour ${dayLabel}. Les montants utilisent uniquement tes tarifs configurés et des durées connues. Je n’ai accepté aucune mission, envoyé aucune offre ni modifié aucun tarif. Tu peux ignorer ou refuser chaque proposition sans pénalité.`,
+      empty: `Je n’ai trouvé aucune solution financière vérifiable pour ${dayLabel} avec tes compétences, zones, disponibilités, tarifs et missions déjà confirmées. Je n’ai rien accepté ni envoyé.`,
+    },
+    en: {
+      title: "Jobs compatible with your income target",
+      ready: `I found ${count} verifiable solution${count > 1 ? "s" : ""} for ${dayLabel}. Amounts use only your configured rates and known durations. I did not accept any job, send any offer, or change any rate. You can ignore or decline every option without penalty.`,
+      empty: `I found no verifiable financial solution for ${dayLabel} matching your skills, areas, availability, rates and already confirmed jobs. I accepted and sent nothing.`,
+    },
+    nl: {
+      title: "Opdrachten passend bij je inkomensdoel",
+      ready: `Ik vond ${count} verifieerbare oplossing${count > 1 ? "en" : ""} voor ${dayLabel}. Bedragen gebruiken alleen je ingestelde tarieven en bekende duur. Ik heb geen opdracht geaccepteerd, geen aanbod verzonden en geen tarief gewijzigd. Je kunt elke optie zonder straf negeren of weigeren.`,
+      empty: `Ik vond voor ${dayLabel} geen verifieerbare financiële oplossing die past bij je vaardigheden, zones, beschikbaarheid, tarieven en bevestigde opdrachten. Ik heb niets geaccepteerd of verzonden.`,
+    },
+    de: {
+      title: "Aufträge passend zu deinem Einkommensziel",
+      ready: `Ich habe ${count} überprüfbare Lösung${count > 1 ? "en" : ""} für ${dayLabel} gefunden. Beträge basieren nur auf deinen eingestellten Tarifen und bekannten Dauern. Ich habe keinen Auftrag angenommen, kein Angebot gesendet und keinen Tarif geändert. Jede Option kann ohne Nachteil ignoriert oder abgelehnt werden.`,
+      empty: `Ich habe für ${dayLabel} keine überprüfbare finanzielle Lösung gefunden, die zu Fähigkeiten, Gebieten, Verfügbarkeit, Tarifen und bestätigten Aufträgen passt. Ich habe nichts angenommen oder gesendet.`,
+    },
+  }[locale];
+
+  return {
+    title: text.title,
+    reply: count > 0 ? text.ready : text.empty,
+  };
+}
+
 export async function GET(request: Request) {
   try {
-    const { profile } =
-      await getAuthenticatedProfile(request);
-
+    const { profile } = await getAuthenticatedProfile(request);
     requireAccountType(profile, "provider");
 
     const { data, error } = await supabaseAdmin
@@ -105,9 +139,7 @@ export async function GET(request: Request) {
 
     if (error) throw new Error(error.message);
 
-    return NextResponse.json({
-      drafts: data ?? [],
-    });
+    return NextResponse.json({ drafts: data ?? [] });
   } catch (error) {
     const message =
       error instanceof Error
@@ -123,28 +155,18 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { profile } =
-      await getAuthenticatedProfile(request);
-
+    const { profile } = await getAuthenticatedProfile(request);
     requireAccountType(profile, "provider");
 
-    // Every successful Provider Assistant POST can reach at most one shared
-    // LLM pass (unknown in this core, structured intent in the Visible AI
-    // wrapper). Reuse the durable shared AI quota before parsing, DB reads or
-    // any model work so `/api/provider/assistant` cannot bypass AI spend limits.
     const policy = API_RATE_LIMIT_POLICIES.aiRespond;
-    const rateLimit = await consumeApiRateLimit(
-      profile.id,
-      policy
-    );
+    const rateLimit = await consumeApiRateLimit(profile.id, policy);
 
     if (!rateLimit.allowed) {
       return apiRateLimitExceededResponse(policy, rateLimit);
     }
 
     const headers = rateLimitResponseHeaders(policy, rateLimit);
-    const parsedRequest =
-      await parseProviderAssistantPostRequest(request);
+    const parsedRequest = await parseProviderAssistantPostRequest(request);
 
     if (!parsedRequest.ok) {
       return NextResponse.json(
@@ -160,32 +182,66 @@ export async function POST(request: Request) {
     }
 
     const message = parsedRequest.value.message;
-    const hourlyRate = await getHourlyRate(profile.id);
-    const result = analyzeProviderAssistantMessage(
-      message,
-      hourlyRate
-    );
+    const incomeGoal = parseProviderIncomeGoal(message);
+
+    const result = incomeGoal
+      ? await (async () => {
+          const { orchestration } = await buildProviderIncomeOrchestration(
+            request,
+            {
+              id: profile.id,
+              currencyCode: profile.currencyCode,
+            },
+            {
+              targetAmount: incomeGoal.targetAmount,
+              currency: incomeGoal.currency || profile.currencyCode,
+              dayOfWeek: incomeGoal.dayOfWeek,
+              date: incomeGoal.date,
+              startTime: incomeGoal.startTime,
+              endTime: incomeGoal.endTime,
+              maximumDistanceKm: incomeGoal.maximumDistanceKm,
+            }
+          );
+          const visible = incomeReply(
+            incomeGoal.locale,
+            orchestration.solutions.length,
+            incomeGoal.dayLabel
+          );
+          return {
+            intent: "mission_plan" as const,
+            title: visible.title,
+            reply: visible.reply,
+            payload: {
+              goal: incomeGoal,
+              orchestration,
+            },
+            requiresConfirmation: true as const,
+          };
+        })()
+      : analyzeProviderAssistantMessage(
+          message,
+          await getHourlyRate(profile.id)
+        );
 
     let reply = result.reply;
     let aiMode: "openai" | "fallback" = "fallback";
 
     /*
      * KLYX_SINGLE_AI_GATEWAY
-     * Structured provider actions stay deterministic. The shared LLM is
-     * used only for non-transactional conversation, so it can never change
-     * a draft payload, a quote amount or an availability before confirmation.
+     * Structured actions and live orchestration remain deterministic. The LLM
+     * may never rewrite live jobs, configured amounts, booking facts or a
+     * confirmation boundary.
      */
     if (result.intent === "unknown") {
-      const improved =
-        await improveUnknownProviderReply(
-          message,
-          result.reply,
-          {
-            intent: result.intent,
-            title: result.title,
-            payload: result.payload,
-          }
-        );
+      const improved = await improveUnknownProviderReply(
+        message,
+        result.reply,
+        {
+          intent: result.intent,
+          title: result.title,
+          payload: result.payload,
+        }
+      );
 
       reply = improved.reply;
       aiMode = improved.aiMode;
@@ -193,7 +249,7 @@ export async function POST(request: Request) {
 
     let draftId: string | null = null;
 
-    if (result.intent !== "unknown") {
+    if (result.intent !== "unknown" && result.intent !== "mission_plan") {
       const { data, error } = await supabaseAdmin
         .from("provider_assistant_drafts")
         .insert({
@@ -207,7 +263,6 @@ export async function POST(request: Request) {
         .single();
 
       if (error) throw new Error(error.message);
-
       draftId = data.id;
     }
 
@@ -235,13 +290,10 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const { profile } =
-      await getAuthenticatedProfile(request);
-
+    const { profile } = await getAuthenticatedProfile(request);
     requireAccountType(profile, "provider");
 
-    const parsedRequest =
-      await parseProviderAssistantPatchRequest(request);
+    const parsedRequest = await parseProviderAssistantPatchRequest(request);
 
     if (!parsedRequest.ok) {
       return NextResponse.json(
@@ -255,13 +307,12 @@ export async function PATCH(request: Request) {
 
     const { draftId, action } = parsedRequest.value;
 
-    const { data: draft, error: draftError } =
-      await supabaseAdmin
-        .from("provider_assistant_drafts")
-        .select("id, draft_type, payload, status")
-        .eq("id", draftId)
-        .eq("profile_id", profile.id)
-        .maybeSingle();
+    const { data: draft, error: draftError } = await supabaseAdmin
+      .from("provider_assistant_drafts")
+      .select("id, draft_type, payload, status")
+      .eq("id", draftId)
+      .eq("profile_id", profile.id)
+      .maybeSingle();
 
     if (draftError) throw new Error(draftError.message);
 
@@ -291,9 +342,7 @@ export async function PATCH(request: Request) {
 
       if (error) throw new Error(error.message);
 
-      return NextResponse.json({
-        message: "Brouillon supprimé.",
-      });
+      return NextResponse.json({ message: "Brouillon supprimé." });
     }
 
     if (draft.draft_type !== "availability") {
@@ -314,13 +363,9 @@ export async function PATCH(request: Request) {
 
     const dayOfWeek = Number(payload.dayOfWeek);
     const startTime =
-      typeof payload.startTime === "string"
-        ? payload.startTime
-        : "";
+      typeof payload.startTime === "string" ? payload.startTime : "";
     const endTime =
-      typeof payload.endTime === "string"
-        ? payload.endTime
-        : "";
+      typeof payload.endTime === "string" ? payload.endTime : "";
 
     if (
       !Number.isInteger(dayOfWeek) ||
@@ -336,20 +381,15 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const { data: userServices, error: serviceError } =
-      await supabaseAdmin
-        .from("user_services")
-        .select("id")
-        .eq("user_id", profile.id)
-        .eq("provider_enabled", true);
+    const { data: userServices, error: serviceError } = await supabaseAdmin
+      .from("user_services")
+      .select("id")
+      .eq("user_id", profile.id)
+      .eq("provider_enabled", true);
 
-    if (serviceError) {
-      throw new Error(serviceError.message);
-    }
+    if (serviceError) throw new Error(serviceError.message);
 
-    const serviceIds = (userServices ?? []).map(
-      (item) => item.id
-    );
+    const serviceIds = (userServices ?? []).map((item) => item.id);
 
     if (serviceIds.length === 0) {
       return NextResponse.json(
