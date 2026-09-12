@@ -173,11 +173,11 @@ async function enrollIncomeAttempt(
       : null;
   const availabilityStart =
     typeof body.availabilityStart === "string" && body.availabilityStart.trim()
-      ? body.availabilityStart.trim().slice(0, 5)
+      ? body.availabilityStart.trim()
       : null;
   const availabilityEnd =
     typeof body.availabilityEnd === "string" && body.availabilityEnd.trim()
-      ? body.availabilityEnd.trim().slice(0, 5)
+      ? body.availabilityEnd.trim()
       : null;
   const note =
     typeof body.note === "string" && body.note.trim()
