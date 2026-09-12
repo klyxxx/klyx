@@ -15,7 +15,7 @@ const orphanPath =
 const accountFoundationPath =
   "supabase/migrations/20260912190000_klyx_unique_account_foundation.sql";
 const reconciliationPath =
-  "supabase/migrations/20260912234000_klyx_profiles_stripe_unique_index_reconciliation.sql";
+  "supabase/migrations/20260913001700_klyx_profiles_stripe_unique_index_reconciliation.sql";
 const workflowPath =
   ".github/workflows/klyx-supabase-production-migrations.yml";
 
@@ -140,7 +140,7 @@ describe("Supabase production migration-history reconciliation contract", () => 
       "20260911160000_klyx_individual_refund_route_webhook_guard.sql",
       "20260912133000_klyx_provider_legal_authority.sql",
       "20260912190000_klyx_unique_account_foundation.sql",
-      "20260912234000_klyx_profiles_stripe_unique_index_reconciliation.sql",
+      "20260913001700_klyx_profiles_stripe_unique_index_reconciliation.sql",
     ]);
 
     expect(approvedBatch).not.toContain(
