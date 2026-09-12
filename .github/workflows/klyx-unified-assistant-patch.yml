@@ -31,12 +31,9 @@ jobs:
               text = p.read_text()
               count = text.count(old)
               if count != 1:
-                  raise SystemExit(f"{path}: expected exactly one occurrence, got {count}: {old!r}")
+                  raise SystemExit(f"{path}: expected one occurrence, got {count}: {old!r}")
               p.write_text(text.replace(old, new, 1))
 
-          # The unified assistant must be able to obtain a service regardless
-          # of the active profile's historical account_type label. Keep auth,
-          # ownership, explicit confirmation and transaction gates unchanged.
           for path in [
               "app/api/brain/respond/route.ts",
               "app/api/brain/confirm-request/route.ts",
@@ -64,7 +61,6 @@ jobs:
               "",
           )
 
-          # Mission management is relationship-based, not permanent-role-based.
           p = Path("lib/brain-actions.ts")
           text = p.read_text()
 
@@ -104,12 +100,10 @@ jobs:
           if count != 1:
               raise SystemExit(f"brain-actions loadBookings patch count={count}")
 
-          old_client_sig = '''function addClientBookingActions(
-            bookings: BookingRow[],
-            actions: Map<string, BrainActionItem>
-          ) {
-            for (const booking of bookings) {'''
-          new_client_sig = '''function addClientBookingActions(
+          client_pattern = re.compile(
+              r"function addClientBookingActions\(\n  bookings: BookingRow\[],\n  actions: Map<string, BrainActionItem>\n\) \{\n  for \(const booking of bookings\) \{",
+          )
+          client_replacement = '''function addClientBookingActions(
             profile: AuthenticatedProfile,
             bookings: BookingRow[],
             actions: Map<string, BrainActionItem>
@@ -118,9 +112,9 @@ jobs:
               if (booking.parent_id !== profile.id) {
                 continue;
               }'''
-          if text.count(old_client_sig) != 1:
-              raise SystemExit("brain-actions client booking signature not found exactly once")
-          text = text.replace(old_client_sig, new_client_sig, 1)
+          text, count = client_pattern.subn(client_replacement, text, count=1)
+          if count != 1:
+              raise SystemExit(f"brain-actions client booking patch count={count}")
 
           provider_marker = "async function addProviderActions("
           provider_index = text.find(provider_marker)
@@ -128,9 +122,8 @@ jobs:
               raise SystemExit("brain-actions provider function missing")
           before = text[:provider_index]
           provider = text[provider_index:]
-          old_provider_loop = '''  for (const booking of bookings) {
-                if ('''
-          new_provider_loop = '''  for (const booking of bookings) {
+          provider_pattern = re.compile(r"  for \(const booking of bookings\) \{\n")
+          provider_replacement = '''  for (const booking of bookings) {
             if (
               booking.provider_id !== profile.id &&
               booking.babysitter_id !== profile.id
@@ -138,12 +131,10 @@ jobs:
               continue;
             }
 
-                if ('''
-          if provider.count(old_provider_loop) != 1:
-              raise SystemExit(
-                  f"brain-actions provider booking loop count={provider.count(old_provider_loop)}"
-              )
-          provider = provider.replace(old_provider_loop, new_provider_loop, 1)
+          '''
+          provider, count = provider_pattern.subn(provider_replacement, provider, count=1)
+          if count != 1:
+              raise SystemExit(f"brain-actions provider booking patch count={count}")
           text = before + provider
 
           function_pattern = re.compile(
@@ -172,15 +163,12 @@ jobs:
 
           p.write_text(text)
 
-          # Hard guard: these three unified purchase surfaces must no longer
-          # contain a permanent role requirement.
           for path in [
               "app/api/brain/respond/route.ts",
               "app/api/brain/confirm-request/route.ts",
               "app/api/brain/market-publish/route.ts",
           ]:
-              text = Path(path).read_text()
-              if "requireAccountType" in text:
+              if "requireAccountType" in Path(path).read_text():
                   raise SystemExit(f"{path}: role guard still present")
           PY
 
