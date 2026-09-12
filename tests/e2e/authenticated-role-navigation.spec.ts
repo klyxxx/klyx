@@ -41,11 +41,16 @@ test.describe("KLYX strict role navigation", () => {
     await expect(rail.getByText("Messages", { exact: true })).toHaveCount(0);
     await expect(rail.getByRole("navigation")).toHaveCount(0);
 
-    const account = rail.locator("details").filter({ hasText: "Compte" });
-    await account.locator("summary").click();
-    await expect(account.locator('a[href="/profile"]')).toBeVisible();
-    await expect(account.locator('a[href="/settings"]')).toBeVisible();
-    await expect(account.locator('a[href="/messages"]')).toHaveCount(0);
+    const accountEntry = rail.getByTestId("account-entry");
+    await expect(accountEntry).toBeVisible();
+    await expect(accountEntry).toBeEnabled();
+    await accountEntry.click();
+
+    const accountMenu = rail.getByTestId("account-menu-panel");
+    await expect(accountMenu).toBeVisible();
+    await expect(accountMenu.locator('a[href="/profile"]')).toBeVisible();
+    await expect(accountMenu.locator('a[href="/settings"]')).toBeVisible();
+    await expect(accountMenu.locator('a[href="/messages"]')).toHaveCount(0);
   });
 
   test("provider desktop keeps Services and Finances secondary to the Assistant", async ({
@@ -60,14 +65,23 @@ test.describe("KLYX strict role navigation", () => {
     const rail = page.getByTestId("desktop-mission-rail");
     await expect(rail.getByRole("navigation")).toHaveCount(0);
 
-    const account = rail.locator("details").filter({ hasText: "Compte" });
-    await expect(account.locator('a[href="/provider/studio"]')).toBeHidden();
-    await expect(account.locator('a[href="/provider/payments"]')).toBeHidden();
-    await account.locator("summary").click();
-    await expect(account.locator('a[href="/provider/studio"]')).toBeVisible();
-    await expect(account.locator('a[href="/provider/payments"]')).toBeVisible();
-    await expect(account.locator('a[href="/profile"]')).toBeVisible();
-    await expect(account.locator('a[href="/messages"]')).toHaveCount(0);
+    const providerTools = rail.getByTestId("provider-secondary-tools");
+    await expect(providerTools).toBeVisible();
+    await expect(providerTools.locator('a[href="/provider/studio"]')).toBeVisible();
+    await expect(providerTools.locator('a[href="/provider/payments"]')).toBeVisible();
+
+    const accountEntry = rail.getByTestId("account-entry");
+    await expect(accountEntry).toBeVisible();
+    await expect(accountEntry).toBeEnabled();
+    await accountEntry.click();
+
+    const accountMenu = rail.getByTestId("account-menu-panel");
+    await expect(accountMenu).toBeVisible();
+    await expect(accountMenu.locator('a[href="/profile"]')).toBeVisible();
+    await expect(accountMenu.locator('a[href="/settings"]')).toBeVisible();
+    await expect(accountMenu.locator('a[href="/provider/studio"]')).toHaveCount(0);
+    await expect(accountMenu.locator('a[href="/provider/payments"]')).toHaveCount(0);
+    await expect(accountMenu.locator('a[href="/messages"]')).toHaveCount(0);
   });
 
   test("mobile uses a header and drawer with no four-entry bottom bar", async ({
