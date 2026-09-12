@@ -25,7 +25,7 @@ create table if not exists public.business_cost_events (
   id uuid primary key default gen_random_uuid(),
   cost_type text not null
     references public.business_cost_tracking_state(cost_type) on delete restrict,
-  amount_cents integer not null check (amount_cents >= 0),
+  amount_cents integer not null,
   currency text not null default 'EUR'
     check (currency ~ '^[A-Z]{3}$'),
   service_id uuid null references public.services(id) on delete set null,
@@ -39,6 +39,10 @@ create table if not exists public.business_cost_events (
   created_at timestamptz not null default now(),
   created_by uuid null references auth.users(id) on delete set null,
   constraint business_cost_events_source_key_unique unique (source_key),
+  constraint business_cost_events_amount_check check (
+    amount_cents > 0
+    or (amount_cents = 0 and cost_type = 'stripe_fee' and source = 'stripe')
+  ),
   constraint business_cost_events_note_length check (note is null or char_length(note) <= 1000)
 );
 
@@ -69,7 +73,7 @@ create index if not exists business_pilot_requests_key_idx
   on public.business_pilot_requests(pilot_key, enrolled_at desc);
 
 comment on table public.business_cost_events is
-  'Server-only realized cost ledger used to estimate KLYX unit economics without inventing missing costs.';
+  'Server-only realized cost ledger used to estimate KLYX unit economics without inventing missing costs. Zero is allowed only for an actual Stripe fee synchronized from Stripe.';
 comment on table public.business_cost_tracking_state is
   'Declares whether each cost family is unavailable, manually tracked or automated so zero is never confused with missing data.';
 comment on table public.business_pilot_requests is
