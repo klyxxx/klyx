@@ -21,6 +21,12 @@ export const KLYX_ACCOUNT_SWITCHER_MESSAGE_KEYS = [
   "menuAria",
   "menuTitle",
   "manageProfiles",
+  "accountMenuAria",
+  "myProfile",
+  "settings",
+  "support",
+  "logout",
+  "loggingOut",
 ] as const;
 
 export type KlyxAccountSwitcherMessageKey =
@@ -40,6 +46,12 @@ const DICTIONARIES: Record<KlyxAccountSwitcherLocale, Dictionary> = {
     menuAria: "Changer de profil KLYX",
     menuTitle: "Profils KLYX",
     manageProfiles: "Gérer les profils",
+    accountMenuAria: "Compte KLYX",
+    myProfile: "Mon profil",
+    settings: "Paramètres",
+    support: "Aide & support",
+    logout: "Se déconnecter",
+    loggingOut: "Déconnexion…",
   },
   en: {
     profileFallback: "My profile",
@@ -52,6 +64,12 @@ const DICTIONARIES: Record<KlyxAccountSwitcherLocale, Dictionary> = {
     menuAria: "Switch KLYX profile",
     menuTitle: "KLYX profiles",
     manageProfiles: "Manage profiles",
+    accountMenuAria: "KLYX account",
+    myProfile: "My profile",
+    settings: "Settings",
+    support: "Help & support",
+    logout: "Log out",
+    loggingOut: "Logging out…",
   },
   nl: {
     profileFallback: "Mijn profiel",
@@ -64,6 +82,12 @@ const DICTIONARIES: Record<KlyxAccountSwitcherLocale, Dictionary> = {
     menuAria: "Van KLYX-profiel wisselen",
     menuTitle: "KLYX-profielen",
     manageProfiles: "Profielen beheren",
+    accountMenuAria: "KLYX-account",
+    myProfile: "Mijn profiel",
+    settings: "Instellingen",
+    support: "Hulp & support",
+    logout: "Uitloggen",
+    loggingOut: "Uitloggen…",
   },
   de: {
     profileFallback: "Mein Profil",
@@ -76,6 +100,12 @@ const DICTIONARIES: Record<KlyxAccountSwitcherLocale, Dictionary> = {
     menuAria: "KLYX-Profil wechseln",
     menuTitle: "KLYX-Profile",
     manageProfiles: "Profile verwalten",
+    accountMenuAria: "KLYX-Konto",
+    myProfile: "Mein Profil",
+    settings: "Einstellungen",
+    support: "Hilfe & Support",
+    logout: "Abmelden",
+    loggingOut: "Abmeldung…",
   },
 };
 

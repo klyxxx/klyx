@@ -8,31 +8,31 @@ function read(relativePath: string) {
 }
 
 const rail = read("app/ui/MissionRail.tsx");
+const accountMenu = read("app/components/AccountSwitcher.tsx");
 
 describe("KLYX MissionRail compact ChatGPT-style contract", () => {
-  it("keeps one account entry and nests profile switching with secondary account tools", () => {
+  it("keeps one runtime account entry and delegates account actions to the canonical switcher", () => {
     expect(rail.match(/<AccountSwitcher/g) ?? []).toHaveLength(1);
+    expect(rail).toContain('mode="account-menu"');
+    expect(rail).toContain("compact={compact}");
+    expect(rail).toContain("activeProfileId ? (");
     expect(rail).toContain('data-testid="account-entry"');
-    expect(rail).toContain('data-testid="account-profile-switcher"');
 
-    const accountDetailsIndex = rail.lastIndexOf("<details");
-    const switcherIndex = rail.indexOf("<AccountSwitcher");
-    expect(accountDetailsIndex).toBeGreaterThan(-1);
-    expect(switcherIndex).toBeGreaterThan(accountDetailsIndex);
+    expect(accountMenu).toContain('data-testid="account-entry"');
+    expect(accountMenu).toContain('data-testid="account-menu-panel"');
+    expect(accountMenu).toContain('role="menuitemradio"');
 
-    for (const href of [
-      "/profile",
-      "/provider",
-      "/provider/studio",
-      "/provider/payments",
-      "/settings",
-      "/accounts",
-    ]) {
+    for (const href of ["/profile", "/settings", "/support"]) {
+      expect(accountMenu).toContain(`href="${href}"`);
+    }
+
+    for (const href of ["/provider", "/provider/studio", "/provider/payments"]) {
       expect(rail).toContain(`href="${href}"`);
     }
 
     expect(rail).not.toContain("password");
     expect(rail).not.toContain("Password");
+    expect(accountMenu).not.toMatch(/password/i);
   });
 
   it("keeps every mission source and all mission metadata intact", () => {
