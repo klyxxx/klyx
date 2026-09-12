@@ -69,7 +69,26 @@ describe("KLYX business value proof contract", () => {
     expect(stripe).toContain("balance.fee");
     expect(stripe).toContain('source: "stripe"');
     expect(stripe).toContain('estimated: false');
+    expect(stripe).not.toContain("charge.refunded && charge.amount === 0");
     expect(stripe).not.toMatch(/0\.0?29|2\.9\s*%|stripe.*percent/i);
+  });
+
+  it("keeps pilot costs cumulative instead of truncating them to the dashboard window", () => {
+    const metrics = read("app/api/founder/business-metrics/route.ts");
+
+    expect(metrics).toContain("async function loadCumulativePilotCosts");
+    expect(metrics).toContain('.in("market_request_id", requestIds)');
+    expect(metrics).toContain('.in("booking_id", bookingIds)');
+    expect(metrics).toContain("const pilotCosts = await loadCumulativePilotCosts(");
+  });
+
+  it("requires a real dated provider availability before proving the income loop", () => {
+    const pilot = read("app/api/founder/business-pilot/route.ts");
+
+    expect(pilot).toContain("function validDate");
+    expect(pilot).toContain("if (!validDate(availabilityDate))");
+    expect(pilot).toContain("Une date de disponibilité réelle");
+    expect(pilot).toContain("availability_date: availabilityDate");
   });
 
   it("requires real attribution for manually recorded costs", () => {
@@ -81,7 +100,7 @@ describe("KLYX business value proof contract", () => {
     expect(costs).toContain('tracking_mode: "manual"');
   });
 
-  it("documents non-launch, stop rules and conservative expansion", () => {
+  it("documents non-launch, fail-closed economics, stop rules and conservative expansion", () => {
     const doc = read("docs/KLYX_LOCAL_VALUE_PILOT.md");
 
     expect(doc).toContain("n'est **pas un lancement général**");
@@ -89,6 +108,8 @@ describe("KLYX business value proof contract", () => {
     expect(doc).toContain("10 missions réellement terminées et payées");
     expect(doc).toContain("Conditions d'arrêt");
     expect(doc).toContain("un seul élargissement à la fois");
-    expect(doc).toContain("marge nette");
+    expect(doc).toContain("La marge nette estimée");
+    expect(doc).toContain("pas un bénéfice comptable complet");
+    expect(doc).toContain("Une absence de donnée ne devient jamais artificiellement `0 €`");
   });
 });
