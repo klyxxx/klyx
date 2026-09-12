@@ -14,7 +14,7 @@ const CLIENT_ROUTES = [
 
 const PROVIDER_ROUTES = [
   "/provider", "/provider/services/new", "/provider/zones",
-  "/provider/planning", "/provider/assistant", "/provider/quotes",
+  "/provider/planning", "/assistant", "/provider/quotes",
   "/provider/payments", "/provider/trust", "/provider/verification",
   "/bookings", "/scores",
 ];

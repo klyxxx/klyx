@@ -100,6 +100,16 @@ function initialConversationFromLocation() {
   return value && UUID_PATTERN.test(value) ? value : null;
 }
 
+function initialPromptFromLocation() {
+  if (typeof window === "undefined") return "";
+  return (
+    new URLSearchParams(window.location.search)
+      .get("prompt")
+      ?.trim()
+      .slice(0, KLYX_ASSISTANT_MESSAGE_MAX_LENGTH) ?? ""
+  );
+}
+
 function presentationReply(
   rawReply: string,
   payload: BrainPayload | null,
@@ -233,7 +243,7 @@ export default function AssistantThread() {
     [locale]
   );
 
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState(() => initialPromptFromLocation());
   const [turns, setTurns] = useState<AssistantTurnModel[]>([]);
   const [payload, setPayload] = useState<BrainPayload | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -299,7 +309,7 @@ export default function AssistantThread() {
         if (mountedRef.current) activeProfileIdRef.current = profile.id;
       })
       .catch(() => {
-        // ClientRouteGuard owns access. This profile lookup only protects async
+        // The server assistant layout owns access. This lookup only protects async
         // responses from being applied after a profile switch.
       });
 
@@ -617,10 +627,20 @@ export default function AssistantThread() {
         const additions: AssistantTurnModel[] = [];
 
         if (visibleReply) {
+          const groundedAction: AssistantAction | undefined =
+            nextPayload?.action?.href && nextPayload.action.label
+              ? {
+                  href: nextPayload.action.href,
+                  label: nextPayload.action.label,
+                }
+              : undefined;
+
           additions.push({
             id: nextTurnId("assistant"),
             role: "assistant",
             content: visibleReply,
+            variant: groundedAction ? "groundedAction" : undefined,
+            action: groundedAction,
           });
         }
 

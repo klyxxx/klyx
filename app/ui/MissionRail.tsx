@@ -405,7 +405,7 @@ export default function MissionRail({
     let cancelled = false;
 
     async function loadMissions() {
-      if (!accountType) {
+      if (!activeProfileId) {
         setMissions([]);
         return;
       }
@@ -416,25 +416,6 @@ export default function MissionRail({
         const token = await bearerToken();
         if (!token) throw new Error("session unavailable");
         const headers = { Authorization: `Bearer ${token}` };
-
-        if (accountType === "provider") {
-          const response = await fetch("/api/provider/jobs", {
-            cache: "no-store",
-            headers,
-          });
-          if (!response.ok) throw new Error("provider missions unavailable");
-
-          const body = (await response.json()) as {
-            confirmedMissions?: MissionCard[];
-          };
-          const next = (body.confirmedMissions ?? [])
-            .filter((mission) => mission.role !== "client")
-            .map((mission) => railMissionFromCard(locale, mission))
-            .sort(compareMissions);
-
-          if (!cancelled) setMissions(next);
-          return;
-        }
 
         const [overviewResponse, hiddenResponse, splitResponse] = await Promise.all([
           fetch("/api/bookings/overview", { cache: "no-store", headers }),

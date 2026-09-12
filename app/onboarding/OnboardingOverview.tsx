@@ -219,7 +219,7 @@ export default function OnboardingOverview({ provider, firstName }: Props) {
                 </Link>
 
                 <Link
-                  href="/provider/assistant"
+                  href="/assistant"
                   prefetch
                   className="klyx-card klyx-card-hover flex items-start gap-4 p-5"
                 >
