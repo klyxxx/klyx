@@ -32,6 +32,7 @@ describe("KLYX business value proof contract", () => {
     );
     expect(migration).toContain("availability_verified boolean not null default false");
     expect(migration).toContain("income_goal_verified boolean not null default false");
+    expect(migration).toContain("not availability_verified or availability_date is not null");
     expect(migration).toContain("from public, anon, authenticated");
   });
 
