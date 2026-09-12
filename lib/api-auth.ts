@@ -109,16 +109,11 @@ export async function getAuthenticatedProfile(
       capabilities?.canRequestServices ?? legacyAccountType === "client";
     const canOfferServices =
       capabilities?.canOfferServices ?? legacyAccountType === "provider";
-    const accountType: AccountType = canOfferServices
-      ? "provider"
-      : canRequestServices
-        ? "client"
-        : legacyAccountType;
 
     return {
       id: profile.id,
       ownerUserId: profile.owner_user_id,
-      accountType,
+      accountType: legacyAccountType,
       legacyAccountType,
       canRequestServices,
       canOfferServices,
