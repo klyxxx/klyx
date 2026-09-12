@@ -33,8 +33,11 @@ test.describe("KLYX strict role navigation", () => {
     await expectAssistantFirstDesktopShell(page, "/assistant");
 
     const rail = page.getByTestId("desktop-mission-rail");
-    await expect(rail.getByRole("region", { name: "En cours" })).toBeVisible();
-    await expect(rail.getByRole("region", { name: "Récentes" })).toBeVisible();
+    await expect(rail.getByTestId("new-mission-action")).toBeVisible();
+    const history = rail.getByTestId("mission-history");
+    await expect(history).toBeVisible();
+    await expect(history).not.toHaveAttribute("open", "");
+    await expect(rail.getByTestId("mission-history-detail")).toBeHidden();
     await expect(rail.getByText("Messages", { exact: true })).toHaveCount(0);
     await expect(rail.getByRole("navigation")).toHaveCount(0);
 
@@ -84,8 +87,12 @@ test.describe("KLYX strict role navigation", () => {
     expect(triggerBox!.width).toBeGreaterThanOrEqual(40);
 
     const drawer = await openAssistantFirstMobileDrawer(page, "/assistant");
-    await expect(drawer.getByText("En cours", { exact: true })).toBeVisible();
-    await expect(drawer.getByText("Récentes", { exact: true })).toBeVisible();
+    const rail = drawer.getByTestId("mobile-mission-rail");
+    await expect(rail.getByTestId("new-mission-action")).toBeVisible();
+    const history = rail.getByTestId("mission-history");
+    await expect(history).toBeVisible();
+    await expect(history).not.toHaveAttribute("open", "");
+    await expect(rail.getByTestId("mission-history-detail")).toBeHidden();
     await page.keyboard.press("Escape");
     await expect(drawer).toHaveCount(0);
   });

@@ -37,11 +37,12 @@ describe("KLYX assistant-first shell and mission rail", () => {
     expect(rail).toContain('newMission: "Nouvelle mission"');
   });
 
-  it("renders a collapsible 256px desktop mission rail with current and recent missions", () => {
+  it("keeps the collapsible desktop rail but makes history opt-in and compact", () => {
     expect(rail).toContain('data-testid={mobile ? "mobile-mission-rail" : "desktop-mission-rail"}');
     expect(rail).toContain('compact ? "w-[76px]" : "w-[256px]"');
-    expect(rail).toContain('current: "En cours"');
-    expect(rail).toContain('recent: "Récentes"');
+    expect(rail).toContain('history: "Historique"');
+    expect(rail).toContain('data-testid="mission-history"');
+    expect(rail).toContain("const [historyOpen, setHistoryOpen] = useState(false)");
     expect(rail).toContain("setCollapsedPreference(!collapsed)");
     expect(rail).toContain('fetch("/api/bookings/overview"');
     expect(rail).toContain('fetch("/api/bookings/split-missions"');
@@ -63,13 +64,14 @@ describe("KLYX assistant-first shell and mission rail", () => {
     expect(rail).toContain('title={meta ? `${mission.title} — ${meta}` : mission.title}');
   });
 
-  it("removes permanent SaaS destinations while keeping provider tools secondary", () => {
+  it("removes permanent SaaS destinations while keeping provider tools secondary under Account", () => {
     expect(shell).not.toContain('href="/messages"');
     expect(shell).not.toContain('href="/bookings"');
     expect(shell).not.toContain('href="/provider/jobs"');
     expect(shell).not.toContain('href="/profile"');
 
     expect(rail).not.toContain('href="/messages"');
+    expect(rail).toContain('data-testid="account-entry"');
     expect(rail).toContain('href="/profile"');
     expect(rail).toContain('href="/provider/studio"');
     expect(rail).toContain('href="/provider/payments"');

@@ -9,16 +9,16 @@ function read(relativePath: string) {
 
 const rail = read("app/ui/MissionRail.tsx");
 
-describe("KLYX MissionRail simplification contract", () => {
+describe("KLYX MissionRail compact ChatGPT-style contract", () => {
   it("keeps one account entry and nests profile switching with secondary account tools", () => {
     expect(rail.match(/<AccountSwitcher/g) ?? []).toHaveLength(1);
     expect(rail).toContain('data-testid="account-entry"');
     expect(rail).toContain('data-testid="account-profile-switcher"');
 
-    const detailsIndex = rail.indexOf("<details");
+    const accountDetailsIndex = rail.lastIndexOf("<details");
     const switcherIndex = rail.indexOf("<AccountSwitcher");
-    expect(detailsIndex).toBeGreaterThan(-1);
-    expect(switcherIndex).toBeGreaterThan(detailsIndex);
+    expect(accountDetailsIndex).toBeGreaterThan(-1);
+    expect(switcherIndex).toBeGreaterThan(accountDetailsIndex);
 
     for (const href of [
       "/profile",
@@ -35,8 +35,9 @@ describe("KLYX MissionRail simplification contract", () => {
     expect(rail).not.toContain("Password");
   });
 
-  it("keeps every mission source while making repeated rows distinguishable from real metadata", () => {
+  it("keeps every mission source and all mission metadata intact", () => {
     expect(rail).toContain('fetch("/api/bookings/overview"');
+    expect(rail).toContain('fetch("/api/bookings/activity-hidden"');
     expect(rail).toContain('fetch("/api/bookings/split-missions"');
     expect(rail).toContain('fetch("/api/provider/jobs"');
     expect(rail).toContain("mission.statusLabel.trim()");
@@ -45,9 +46,23 @@ describe("KLYX MissionRail simplification contract", () => {
     expect(rail).toContain("sameFingerprint");
     expect(rail).toContain("nameDistinguishes");
     expect(rail).toContain('join(" · ")');
+    expect(rail).not.toContain("slice(0, 5)");
   });
 
-  it("renders mission history as a compact ChatGPT-style list instead of repeated cards", () => {
+  it("shows only a discreet pinned mission until the user opens detailed history", () => {
+    expect(rail).toContain("const [historyOpen, setHistoryOpen] = useState(false)");
+    expect(rail).toContain('data-testid="mission-history"');
+    expect(rail).toContain('data-testid="mission-history-entry"');
+    expect(rail).toContain('data-testid="mission-history-detail"');
+    expect(rail).toContain('history: "Historique"');
+    expect(rail).toContain("return actionRequired ? [actionRequired] : []");
+    expect(rail).toContain("pinnedMissions.map((mission) => missionRow(mission, pinnedMissions))");
+    expect(rail).toContain("historySection(copy.current, copy.emptyCurrent, currentMissions)");
+    expect(rail).toContain("historySection(copy.recent, copy.emptyRecent, recentMissions)");
+  });
+
+  it("uses compact icon/line affordances instead of permanent mission cards", () => {
+    expect(rail).toContain("inline-grid h-10 w-10 place-items-center rounded-full");
     expect(rail).toContain('className="space-y-0.5"');
     expect(rail).toContain("rounded-lg px-2 py-1.5");
     expect(rail).toContain('text-[13px] font-medium leading-5');
