@@ -392,10 +392,7 @@ export default function SettingsPage() {
           </div>
         )}
 
-        <section
-          aria-label="Réglages essentiels"
-          className="mt-8 border-y border-border"
-        >
+        <section aria-label={t("title")} className="mt-8 border-y border-border">
           <SettingsDisclosure
             panelKey="phone"
             icon={<Phone size={19} />}
@@ -432,51 +429,12 @@ export default function SettingsPage() {
               ariaLabel={t("language")}
             />
           </SettingsDisclosure>
-
-          <SettingsDisclosure
-            panelKey="auth"
-            icon={<LockKeyhole size={19} />}
-            title={t("auth")}
-            open={openPanel === "auth"}
-            onToggle={() => togglePanel("auth")}
-          >
-            <div className="space-y-7">
-              <form onSubmit={updateEmail} className="space-y-4">
-                <Input
-                  label={t("newEmail")}
-                  type="email"
-                  value={newEmail}
-                  onChange={setNewEmail}
-                />
-                <Button loading={savingEmail}>{t("updateEmail")}</Button>
-              </form>
-
-              {/* KLYX_SETTINGS_PASSWORD_RECOVERY_20260909 */}
-              <div className="space-y-4 border-t border-border pt-6">
-                <AuthTurnstile
-                  ref={passwordCaptchaRef}
-                  action="password-reset"
-                  onTokenChange={setPasswordCaptchaToken}
-                />
-                <button
-                  type="button"
-                  onClick={() => void requestPasswordReset()}
-                  disabled={savingPassword}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:opacity-60"
-                >
-                  {savingPassword && (
-                    <LoaderCircle className="animate-spin" size={17} />
-                  )}
-                  {t("updatePassword")}
-                </button>
-              </div>
-            </div>
-          </SettingsDisclosure>
         </section>
 
         <section className="mt-5">
           <button
             type="button"
+            data-testid="settings-other-toggle"
             data-settings-panel="other"
             aria-expanded={otherSettingsOpen}
             onClick={() => setOtherSettingsOpen((current) => !current)}
@@ -495,7 +453,10 @@ export default function SettingsPage() {
           </button>
 
           {otherSettingsOpen && (
-            <div className="border-y border-border">
+            <div
+              data-testid="settings-other-content"
+              className="border-y border-border"
+            >
               <SettingsDisclosure
                 panelKey="appearance"
                 icon={<Sun size={19} />}
@@ -535,12 +496,52 @@ export default function SettingsPage() {
                 >
                   <Link
                     href="/provider/payments"
-                    className="inline-flex min-h-11 items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500"
+                    className="inline-flex min-h-11 items-center rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-600/90"
                   >
                     {t("configurePayments")}
                   </Link>
                 </SettingsDisclosure>
               )}
+
+              <SettingsDisclosure
+                panelKey="auth"
+                icon={<LockKeyhole size={19} />}
+                title={t("auth")}
+                open={openPanel === "auth"}
+                onToggle={() => togglePanel("auth")}
+              >
+                <div className="space-y-7">
+                  <form onSubmit={updateEmail} className="space-y-4">
+                    <Input
+                      label={t("newEmail")}
+                      type="email"
+                      value={newEmail}
+                      onChange={setNewEmail}
+                    />
+                    <Button loading={savingEmail}>{t("updateEmail")}</Button>
+                  </form>
+
+                  {/* KLYX_SETTINGS_PASSWORD_RECOVERY_20260909 */}
+                  <div className="space-y-4 border-t border-border pt-6">
+                    <AuthTurnstile
+                      ref={passwordCaptchaRef}
+                      action="password-reset"
+                      onTokenChange={setPasswordCaptchaToken}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void requestPasswordReset()}
+                      disabled={savingPassword}
+                      className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-600/90 disabled:opacity-60"
+                    >
+                      {savingPassword && (
+                        <LoaderCircle className="animate-spin" size={17} />
+                      )}
+                      {t("updatePassword")}
+                    </button>
+                  </div>
+                </div>
+              </SettingsDisclosure>
 
               <SettingsDisclosure
                 panelKey="notifications"
@@ -645,7 +646,7 @@ export default function SettingsPage() {
                       deletingAccount ||
                       deleteConfirmation !== DELETE_CONFIRMATION
                     }
-                    className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-foreground px-4 py-2.5 text-sm font-semibold text-background transition hover:opacity-85 disabled:opacity-40"
+                    className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-foreground px-4 py-2.5 text-sm font-semibold text-background transition hover:opacity-80 disabled:opacity-40"
                   >
                     {deletingAccount ? (
                       <LoaderCircle className="animate-spin" size={18} />
@@ -656,23 +657,25 @@ export default function SettingsPage() {
                   </button>
                 </div>
               </SettingsDisclosure>
+
+              <div className="border-t border-border py-3">
+                <button
+                  type="button"
+                  onClick={() => void logout()}
+                  disabled={loggingOut}
+                  className="inline-flex min-h-11 items-center gap-2 px-1 py-2.5 text-sm font-medium text-muted-foreground transition hover:text-foreground disabled:opacity-50"
+                >
+                  {loggingOut ? (
+                    <LoaderCircle className="animate-spin" size={18} />
+                  ) : (
+                    <LogOut size={18} />
+                  )}
+                  {t("logout")}
+                </button>
+              </div>
             </div>
           )}
         </section>
-
-        <button
-          type="button"
-          onClick={() => void logout()}
-          disabled={loggingOut}
-          className="mt-5 inline-flex min-h-11 items-center gap-2 px-1 py-2.5 text-sm font-medium text-muted-foreground transition hover:text-foreground disabled:opacity-50"
-        >
-          {loggingOut ? (
-            <LoaderCircle className="animate-spin" size={18} />
-          ) : (
-            <LogOut size={18} />
-          )}
-          {t("logout")}
-        </button>
       </div>
     </main>
   );
@@ -824,7 +827,7 @@ function Button({
     <button
       type="submit"
       disabled={loading}
-      className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:opacity-60"
+      className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-600/90 disabled:opacity-60"
     >
       {loading && <LoaderCircle className="animate-spin" size={17} />}
       {children}
