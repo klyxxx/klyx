@@ -145,7 +145,7 @@ describe(
     );
 
     it(
-      "keeps one canonical client assistant surface while retiring duplicate UI shortcuts",
+      "keeps one canonical role-neutral assistant surface while retiring duplicate UI shortcuts",
       () => {
         const brain =
           read("app/brain/page.tsx");
@@ -155,8 +155,8 @@ describe(
         expect(brain).toContain(
           'redirect("/assistant")'
         );
-        expect(assistant).toContain(
-          "<ClientRouteGuard>"
+        expect(assistant).not.toContain(
+          "ClientRouteGuard"
         );
         expect(assistant).toContain(
           "<AssistantThread />"
