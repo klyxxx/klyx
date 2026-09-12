@@ -179,7 +179,7 @@ function intervalsFromJob(job: JsonRecord): {
   durationMinutes: number | null;
   scheduleComplete: boolean;
 } | null {
-  const mode = asText(job.requestMode || job.request_mode);
+  const mode = asText(job.requestMode) || asText(job.request_mode);
   if (mode === "multi_slot") {
     const rawSlots = Array.isArray(job.slots) ? job.slots : [];
     const intervals: KlyxIncomeInterval[] = [];
@@ -188,10 +188,10 @@ function intervalsFromJob(job: JsonRecord): {
     for (const rawSlot of rawSlots) {
       const slot = asRecord(rawSlot);
       if (!slot) return null;
-      const date = asText(slot.date || slot.requested_date);
-      const startTime = asText(slot.startTime || slot.start_time).slice(0, 5);
-      const endTime = asText(slot.endTime || slot.end_time).slice(0, 5);
-      const duration = asNumber(slot.durationMinutes || slot.duration_minutes);
+      const date = asText(slot.date) || asText(slot.requested_date);
+      const startTime = (asText(slot.startTime) || asText(slot.start_time)).slice(0, 5);
+      const endTime = (asText(slot.endTime) || asText(slot.end_time)).slice(0, 5);
+      const duration = asNumber(slot.durationMinutes) ?? asNumber(slot.duration_minutes);
       if (!date || !startTime || !endTime || timeToMinutes(endTime) === null) {
         return null;
       }
@@ -206,16 +206,15 @@ function intervalsFromJob(job: JsonRecord): {
     return { intervals, durationMinutes: totalDuration, scheduleComplete: true };
   }
 
-  const date = asText(job.requested_date || job.requestedDate);
-  const startTime = asText(job.requested_time || job.requestedTime).slice(0, 5);
+  const date = asText(job.requested_date) || asText(job.requestedDate);
+  const startTime = (asText(job.requested_time) || asText(job.requestedTime)).slice(0, 5);
   if (!date || !startTime || timeToMinutes(startTime) === null) return null;
 
+  const durationHours = asNumber(job.duration_hours);
   const durationMinutes =
     asNumber(job.totalDurationMinutes) ??
     asNumber(job.duration_minutes) ??
-    (asNumber(job.duration_hours) !== null
-      ? (asNumber(job.duration_hours) as number) * 60
-      : null);
+    (durationHours !== null ? durationHours * 60 : null);
   const derivedEnd = durationMinutes !== null
     ? addMinutes(startTime, durationMinutes)
     : null;
@@ -331,25 +330,32 @@ export async function buildProviderIncomeOrchestration(
   }
 
   const expectedCurrency = goal.currency.toUpperCase();
+  const today = new Date().toISOString().slice(0, 10);
   const candidates: KlyxIncomeMissionCandidate[] = [];
 
   for (const job of jobs) {
     if (job.myOffer) continue;
-    const serviceId = asText(job.service_id || job.serviceId);
+    const serviceId = asText(job.service_id) || asText(job.serviceId);
     const userServiceId = userServiceByServiceId.get(serviceId);
     if (!userServiceId) continue;
     const service = serviceById.get(serviceId);
     const serviceProfile = profileByUserService.get(userServiceId);
     if (!service || !serviceProfile || serviceProfile.available === false) continue;
 
-    const id = asText(job.id || job.requestId || job.request_id);
+    const id = asText(job.id) || asText(job.requestId) || asText(job.request_id);
     const title = asText(job.title);
     const city = asText(job.city);
     const currency = asText(job.currency).toUpperCase();
     if (!id || !title || !city || currency !== expectedCurrency) continue;
 
     const schedule = intervalsFromJob(job);
-    if (!schedule || !goalDateMatches(goal, schedule.intervals)) continue;
+    if (
+      !schedule ||
+      schedule.intervals.some((interval) => interval.date < today) ||
+      !goalDateMatches(goal, schedule.intervals)
+    ) {
+      continue;
+    }
 
     const zonesForService = zonesByUserService.get(userServiceId) ?? [];
     const zoneMatch = providerZonesCoverBelgianLocality(zonesForService, city);
@@ -388,8 +394,27 @@ export async function buildProviderIncomeOrchestration(
     });
   }
 
+  const availableDates = Array.from(
+    new Set(
+      candidates.flatMap((candidate) =>
+        candidate.intervals.map((interval) => interval.date)
+      )
+    )
+  ).sort();
+  const selectedDate = goal.date ?? availableDates[0] ?? null;
+  const scopedCandidates = selectedDate
+    ? candidates.filter((candidate) =>
+        candidate.intervals.every((interval) => interval.date === selectedDate)
+      )
+    : candidates;
+  const scopedGoal: KlyxIncomeGoal = {
+    ...goal,
+    date: selectedDate,
+  };
+
   return {
-    orchestration: orchestrateIncomeGoal(goal, candidates, 3),
-    candidates,
+    orchestration: orchestrateIncomeGoal(scopedGoal, scopedCandidates, 3),
+    candidates: scopedCandidates,
+    selectedDate,
   };
 }
