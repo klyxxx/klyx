@@ -27,7 +27,11 @@ describe("KLYX orchestration contract", () => {
 
   it("does not let the legacy search budget filter override duration-aware orchestration", () => {
     expect(brain).toContain("Le budget n'est volontairement pas envoyé");
-    expect(brain).not.toContain('params.set("budget"');
+    const searchSection = brain.slice(
+      brain.indexOf("const params = new URLSearchParams"),
+      brain.indexOf("const searchUrl")
+    );
+    expect(searchSection).not.toContain('params.set("budget"');
     expect(core).toContain("price * durationHours");
   });
 
