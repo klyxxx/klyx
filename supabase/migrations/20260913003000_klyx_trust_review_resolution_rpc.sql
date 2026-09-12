@@ -26,7 +26,7 @@ as $$
 declare
   review_row public.trust_decision_reviews%rowtype;
   decision_row public.trust_eligibility_decisions%rowtype;
-  outcome_decision_id uuid;
+  v_outcome_decision_id uuid;
   replacement_human_review_required boolean;
   replacement_review_status text;
 begin
@@ -86,7 +86,7 @@ begin
   end if;
 
   if p_action = 'uphold' then
-    outcome_decision_id := decision_row.id;
+    v_outcome_decision_id := decision_row.id;
 
     update public.trust_eligibility_decisions
     set review_status = case
@@ -100,21 +100,22 @@ begin
       status = 'upheld',
       reviewer_auth_user_id = p_reviewer_auth_user_id,
       rationale = trim(p_rationale),
-      outcome_decision_id = outcome_decision_id,
+      outcome_decision_id = v_outcome_decision_id,
       started_at = coalesce(started_at, now()),
       completed_at = now()
     where id = review_row.id;
 
-    return outcome_decision_id;
+    return v_outcome_decision_id;
   end if;
 
-  if p_replacement_decision not in (
-    'eligible',
-    'eligible_with_conditions',
-    'requirements_missing',
-    'human_review_required',
-    'ineligible'
-  ) then
+  if p_replacement_decision is null
+     or p_replacement_decision not in (
+       'eligible',
+       'eligible_with_conditions',
+       'requirements_missing',
+       'human_review_required',
+       'ineligible'
+     ) then
     raise exception using
       errcode = '22023',
       message = 'KLYX_TRUST_REPLACEMENT_DECISION_INVALID';
@@ -126,6 +127,13 @@ begin
     raise exception using
       errcode = '22023',
       message = 'KLYX_TRUST_REPLACEMENT_EXPLANATION_REQUIRED';
+  end if;
+
+  if decision_row.expires_at is not null
+     and decision_row.expires_at <= now() then
+    raise exception using
+      errcode = '23514',
+      message = 'KLYX_TRUST_DECISION_EXPIRED';
   end if;
 
   replacement_human_review_required :=
@@ -176,13 +184,9 @@ begin
       'review_id', review_row.id
     ),
     decision_row.id,
-    case
-      when decision_row.expires_at is null then null
-      when decision_row.expires_at > now() then decision_row.expires_at
-      else null
-    end
+    decision_row.expires_at
   )
-  returning id into outcome_decision_id;
+  returning id into v_outcome_decision_id;
 
   update public.trust_eligibility_decisions
   set review_status = 'approved'
@@ -197,12 +201,12 @@ begin
     end,
     reviewer_auth_user_id = p_reviewer_auth_user_id,
     rationale = trim(p_rationale),
-    outcome_decision_id = outcome_decision_id,
+    outcome_decision_id = v_outcome_decision_id,
     started_at = coalesce(started_at, now()),
     completed_at = now()
   where id = review_row.id;
 
-  return outcome_decision_id;
+  return v_outcome_decision_id;
 end;
 $$;
 
