@@ -55,6 +55,10 @@ Les résultats aval sont dérivés des tables métier existantes :
 - **Marge contributive estimée** : commission conservée − frais Stripe − support − fraude/litiges.
 - **Marge nette estimée** : marge contributive − coût acquisition. Elle reste `inconnue` si le CAC est indisponible.
 
+La marge nette estimée est une lecture économique unitaire/contributive du flux KLYX, **pas un bénéfice comptable complet**. Les impôts, la TVA, les frais fixes, la paie, l'infrastructure et tout autre coût non attribué ne sont jamais supposés égaux à zéro : ils restent simplement hors de cette mesure tant qu'ils ne sont pas suivis de façon fiable.
+
+La couverture des frais Stripe est également fail-closed : tant qu'au moins une réservation payée de la catégorie n'a pas son vrai frais Stripe synchronisé et attribué à cette réservation, les **frais Stripe**, la **marge contributive** et la **marge nette estimée** restent `inconnus`. Une absence de donnée ne devient jamais artificiellement `0 €`.
+
 Aucune valeur monétaire n'est agrégée entre devises différentes.
 
 ### Funnel par cohorte
