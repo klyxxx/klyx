@@ -221,6 +221,60 @@ as $$
   );
 $$;
 
+-- Keep the Founder security audit authoritative for the new RLS table.
+create or replace function public.klyx_security_audit()
+returns table(
+  table_name text,
+  rls_enabled boolean,
+  policy_count bigint
+)
+language sql
+security definer
+set search_path = public, pg_catalog
+as $$
+  select
+    c.relname::text as table_name,
+    c.relrowsecurity as rls_enabled,
+    count(p.policyname)::bigint as policy_count
+  from pg_catalog.pg_class c
+  join pg_catalog.pg_namespace n
+    on n.oid = c.relnamespace
+  left join pg_catalog.pg_policies p
+    on p.schemaname = n.nspname
+   and p.tablename = c.relname
+  where
+    n.nspname = 'public'
+    and c.relkind = 'r'
+    and c.relname in (
+      'profiles',
+      'profile_actor_capabilities',
+      'user_services',
+      'service_profiles',
+      'provider_profiles',
+      'provider_legal_profiles',
+      'provider_service_zones',
+      'availability_slots',
+      'favorites',
+      'bookings',
+      'service_quotes',
+      'messages',
+      'reviews',
+      'disputes',
+      'notifications',
+      'user_notifications'
+    )
+  group by
+    c.relname,
+    c.relrowsecurity
+  order by c.relname;
+$$;
+
+alter function public.klyx_security_audit() owner to postgres;
+revoke all on function public.klyx_security_audit()
+  from public, anon, authenticated;
+grant execute on function public.klyx_security_audit()
+  to service_role;
+
 comment on column public.profiles.role is
   'LEGACY compatibility column. Do not drop while consumers remain; actor capabilities are the progressive source of truth.';
 comment on column public.profiles.current_mode is
