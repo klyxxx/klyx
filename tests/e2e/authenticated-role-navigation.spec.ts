@@ -50,13 +50,15 @@ test.describe("KLYX strict role navigation", () => {
     await expect(accountMenu.locator('a[href="/settings"]')).toBeVisible();
     await expect(accountMenu.locator('a[href="/support"]')).toBeVisible();
     await expect(accountMenu.locator('a[href="/messages"]')).toHaveCount(0);
-    expect(await accountMenu.getByTestId("account-profile-option").count()).toBeGreaterThanOrEqual(2);
+    expect(
+      await accountMenu.getByTestId("account-profile-option").count()
+    ).toBeGreaterThanOrEqual(2);
 
     const entryBox = await accountEntry.boundingBox();
     const menuBox = await accountMenu.boundingBox();
     expect(entryBox).not.toBeNull();
     expect(menuBox).not.toBeNull();
-    expect(menuBox!.bottom).toBeLessThanOrEqual(entryBox!.top + 2);
+    expect(menuBox!.y + menuBox!.height).toBeLessThanOrEqual(entryBox!.y + 2);
   });
 
   test("provider desktop keeps service navigation outside the account menu", async ({
