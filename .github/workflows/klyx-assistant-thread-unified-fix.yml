@@ -1,0 +1,37 @@
+name: KLYX Assistant Thread Unified Fix
+
+on:
+  push:
+    branches:
+      - feat/unified-assistant-obtain-earn-20260912
+    paths:
+      - .github/workflows/klyx-assistant-thread-unified-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/unified-assistant-obtain-earn-20260912
+          fetch-depth: 0
+
+      - name: Apply patch
+        run: python scripts/fix-assistant-thread-unified.py
+
+      - name: Verify and self-delete
+        run: |
+          git diff --check
+          rm scripts/fix-assistant-thread-unified.py
+          rm .github/workflows/klyx-assistant-thread-unified-fix.yml
+
+      - name: Commit patch
+        run: |
+          git config user.name "klyxxx"
+          git config user.email "yeswork2711@gmail.com"
+          git add app/components/assistant/AssistantThread.tsx scripts .github/workflows/klyx-assistant-thread-unified-fix.yml
+          git commit -m "fix: complete unified assistant composer contract"
+          git push origin HEAD:feat/unified-assistant-obtain-earn-20260912
