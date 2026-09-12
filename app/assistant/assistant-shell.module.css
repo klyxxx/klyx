@@ -1,8 +1,8 @@
 .shell {
   --klyx-assistant-black: #050505;
   --klyx-assistant-surface: #171717;
-  --klyx-assistant-surface-hover: #202020;
-  --klyx-assistant-line: #2b2b2b;
+  --klyx-assistant-surface-hover: #222222;
+  --klyx-assistant-line: #2a2a2a;
   --klyx-assistant-white: #f7f7f8;
   --klyx-assistant-muted: #a1a1aa;
   --klyx-assistant-blue: #2563eb;
@@ -10,6 +10,7 @@
   min-height: 100%;
   background: var(--klyx-assistant-black);
   color: var(--klyx-assistant-white);
+  color-scheme: dark;
 }
 
 .shell :global([data-testid="assistant-thread"]) {
@@ -17,32 +18,51 @@
   color: var(--klyx-assistant-white);
 }
 
+.shell :global([data-testid="assistant-thread"][data-state="empty"] > div:first-child) {
+  padding-top: clamp(1.5rem, 3.5vh, 2.5rem) !important;
+  padding-bottom: clamp(1.5rem, 3vh, 2.25rem);
+}
+
+.shell :global([data-testid="assistant-thread"][data-state="empty"] > div:first-child > div:first-child) {
+  min-height: 0;
+  justify-content: center;
+  padding-bottom: clamp(4rem, 10vh, 7rem) !important;
+}
+
 .shell :global([data-testid="assistant-thread"] h1:not(.sr-only)) {
   color: var(--klyx-assistant-white);
+  font-size: clamp(2.1rem, 4vw, 2.85rem);
+  line-height: 1.08;
   font-weight: 500;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.045em;
 }
 
 .shell :global([data-testid="assistant-composer"]) {
   min-height: 4rem;
-  border-color: var(--klyx-assistant-line) !important;
+  border: 1px solid var(--klyx-assistant-line) !important;
   border-radius: 1.75rem !important;
   background: var(--klyx-assistant-surface) !important;
   box-shadow: none !important;
 }
 
 .shell :global([data-testid="assistant-composer"]:focus-within) {
-  border-color: rgba(37, 99, 235, 0.65) !important;
-  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.22) !important;
+  border-color: rgba(37, 99, 235, 0.72) !important;
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.14) !important;
 }
 
 .shell :global([data-testid="assistant-composer"] textarea) {
   color: var(--klyx-assistant-white) !important;
   font-size: 1rem;
+  line-height: 1.5rem;
 }
 
 .shell :global([data-testid="assistant-composer"] textarea::placeholder) {
-  color: var(--klyx-assistant-muted) !important;
+  color: #8b8b94 !important;
+}
+
+.shell :global([data-testid="assistant-composer"] button) {
+  border-radius: 9999px !important;
+  box-shadow: none !important;
 }
 
 .shell :global([data-testid="assistant-composer"] button[type="button"]) {
@@ -57,7 +77,7 @@
 
 .shell :global([data-testid="assistant-composer"] button[aria-pressed="true"]) {
   color: var(--klyx-assistant-blue) !important;
-  background: rgba(37, 99, 235, 0.12) !important;
+  background: rgba(37, 99, 235, 0.14) !important;
 }
 
 .shell :global([data-testid="assistant-composer"] button[type="submit"]) {
@@ -65,17 +85,26 @@
   color: #ffffff !important;
 }
 
+.shell :global([data-testid="assistant-thread"] div[aria-label]) {
+  gap: 0.5rem;
+}
+
 .shell :global([data-testid="assistant-thread"] div[aria-label] > button) {
   min-height: 2.5rem;
-  border-color: var(--klyx-assistant-line) !important;
-  background: transparent !important;
-  color: #d4d4d8 !important;
+  border: 1px solid var(--klyx-assistant-line) !important;
+  border-radius: 9999px !important;
+  background: #111111 !important;
+  color: #c7c7cc !important;
+  padding-left: 0.95rem;
+  padding-right: 0.95rem;
+  font-size: 0.875rem;
   font-weight: 450;
+  box-shadow: none !important;
 }
 
 .shell :global([data-testid="assistant-thread"] div[aria-label] > button:hover) {
-  border-color: #3f3f46 !important;
-  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: #3a3a3d !important;
+  background: #181818 !important;
   color: var(--klyx-assistant-white) !important;
 }
 
@@ -96,16 +125,31 @@
   background: linear-gradient(
     to bottom,
     rgba(5, 5, 5, 0),
-    var(--klyx-assistant-black) 28%
+    var(--klyx-assistant-black) 36%
   ) !important;
   backdrop-filter: none !important;
-  padding-top: 1.25rem;
+  padding-top: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  .shell :global([data-testid="assistant-thread"][data-state="empty"] [data-testid="assistant-composer"]) {
+    min-height: 4.25rem;
+  }
 }
 
 @media (max-width: 639px) {
   .shell :global([data-testid="assistant-thread"]) {
     padding-left: 1rem;
     padding-right: 1rem;
+  }
+
+  .shell :global([data-testid="assistant-thread"][data-state="empty"] > div:first-child) {
+    padding-top: 1rem !important;
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .shell :global([data-testid="assistant-thread"][data-state="empty"] > div:first-child > div:first-child) {
+    padding-bottom: clamp(2.5rem, 8vh, 4.5rem) !important;
   }
 
   .shell :global([data-testid="assistant-thread"] h1:not(.sr-only)) {
@@ -115,5 +159,9 @@
 
   .shell :global([data-testid="assistant-composer"]) {
     border-radius: 1.5rem !important;
+  }
+
+  .shell :global([data-testid="assistant-thread"] div[aria-label]) {
+    row-gap: 0.5rem;
   }
 }
