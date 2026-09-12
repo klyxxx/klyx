@@ -96,7 +96,9 @@ function enumValue<T extends string>(
   return value && allowed.includes(value as T) ? (value as T) : fallback;
 }
 
-export function sanitizeTrustSafetyCategoryKey(value: string | null | undefined): string {
+export function sanitizeTrustSafetyCategoryKey(
+  value: string | null | undefined
+): string {
   const category = (value ?? "*").trim().toLowerCase();
   if (category === "*") return category;
   if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(category)) {
@@ -112,7 +114,9 @@ function legacyPath(value: string | null | undefined): TrustSafetyLegalPath {
   return "unknown";
 }
 
-function legacyIdentity(value: string | null | undefined): TrustSafetyIdentityLevel {
+function legacyIdentity(
+  value: string | null | undefined
+): TrustSafetyIdentityLevel {
   if (value === "approved" || value === "verified") return "verified";
   if (value && !["missing", "rejected"].includes(value)) return "basic";
   return "unknown";
@@ -126,7 +130,9 @@ function legacyTrust(value: string | null | undefined): TrustSafetyTrustLevel {
   return "unknown";
 }
 
-async function readTrustProfile(profileId: string): Promise<TrustProfileRow | null> {
+async function readTrustProfile(
+  profileId: string
+): Promise<TrustProfileRow | null> {
   const { data, error } = await supabaseAdmin
     .from("trust_safety_profiles")
     .select(
@@ -134,7 +140,9 @@ async function readTrustProfile(profileId: string): Promise<TrustProfileRow | nu
     )
     .eq("profile_id", profileId)
     .maybeSingle();
-  if (error) throw new Error(`Unable to load Trust & Safety profile: ${error.message}`);
+  if (error) {
+    throw new Error(`Unable to load Trust & Safety profile: ${error.message}`);
+  }
   return (data as TrustProfileRow | null) ?? null;
 }
 
@@ -155,10 +163,14 @@ async function readLegacyProviderState(profileId: string) {
   ]);
 
   if (legalResult.error) {
-    throw new Error(`Unable to load legacy legal authority: ${legalResult.error.message}`);
+    throw new Error(
+      `Unable to load legacy legal authority: ${legalResult.error.message}`
+    );
   }
   if (verificationResult.error) {
-    throw new Error(`Unable to load legacy verification: ${verificationResult.error.message}`);
+    throw new Error(
+      `Unable to load legacy verification: ${verificationResult.error.message}`
+    );
   }
 
   return {
@@ -168,11 +180,20 @@ async function readLegacyProviderState(profileId: string) {
   };
 }
 
-function policyFromRow(row: PolicyRow): TrustSafetyCategoryPolicy {
+function policyFromRow(
+  row: PolicyRow,
+  requestedCategoryKey: string
+): TrustSafetyCategoryPolicy {
   return {
     jurisdictionCountryCode: row.jurisdiction_country_code,
-    categoryKey: row.category_key,
-    riskTier: enumValue(row.risk_tier, ["standard", "elevated", "sensitive"] as const, "standard"),
+    // A wildcard row supplies defaults but the decision remains scoped to the
+    // actual requested category so category restrictions cannot be bypassed.
+    categoryKey: requestedCategoryKey,
+    riskTier: enumValue(
+      row.risk_tier,
+      ["standard", "elevated", "sensitive"] as const,
+      "standard"
+    ),
     requiredIdentityLevel: enumValue(
       row.required_identity_level,
       TRUST_SAFETY_IDENTITY_LEVELS,
@@ -186,7 +207,9 @@ function policyFromRow(row: PolicyRow): TrustSafetyCategoryPolicy {
     requiredQualifications: row.required_qualifications ?? [],
     requiredVerifications: row.required_verifications ?? [],
     allowedLegalPaths: (row.allowed_legal_paths ?? [])
-      .map((value) => enumValue(value, TRUST_SAFETY_LEGAL_PATHS, "unknown"))
+      .map((value) =>
+        enumValue(value, TRUST_SAFETY_LEGAL_PATHS, "unknown")
+      )
       .filter((value) => value !== "unknown"),
     humanReviewMode: enumValue(
       row.human_review_mode,
@@ -209,13 +232,19 @@ async function readPolicy(
     .eq("jurisdiction_country_code", jurisdiction)
     .eq("is_active", true)
     .in("category_key", [categoryKey, "*"]);
-  if (error) throw new Error(`Unable to load Trust & Safety policy: ${error.message}`);
+  if (error) {
+    throw new Error(`Unable to load Trust & Safety policy: ${error.message}`);
+  }
 
   const rows = (data ?? []) as PolicyRow[];
   const exact = rows.find((row) => row.category_key === categoryKey);
   const fallback = rows.find((row) => row.category_key === "*");
-  if (exact || fallback) return policyFromRow(exact ?? fallback!);
+  if (exact || fallback) {
+    return policyFromRow(exact ?? fallback!, categoryKey);
+  }
 
+  // Unknown jurisdictions/categories fail safely to human review instead of
+  // inventing local legal or qualification requirements.
   return {
     jurisdictionCountryCode: jurisdiction,
     categoryKey,
@@ -242,7 +271,9 @@ async function readQualificationStates(
     .select("category_key, qualification_key, status")
     .eq("profile_id", profileId)
     .in("category_key", [categoryKey, "*"]);
-  if (error) throw new Error(`Unable to load qualifications: ${error.message}`);
+  if (error) {
+    throw new Error(`Unable to load qualifications: ${error.message}`);
+  }
 
   const result: Record<string, TrustSafetyVerificationState> = {};
   const rows = (data ?? []) as QualificationRow[];
@@ -268,6 +299,9 @@ async function readVerificationStates(
   legacy: LegacyProviderLegalRow | null
 ): Promise<Record<string, TrustSafetyVerificationState>> {
   const result: Record<string, TrustSafetyVerificationState> = {};
+
+  // Existing provider evidence is migration compatibility only. New generic
+  // verification rows overwrite it key-by-key when present.
   if (legacy) {
     result.enterprise_registration = enumValue(
       legacy.enterprise_registration_verification,
@@ -290,7 +324,9 @@ async function readVerificationStates(
     .from("trust_safety_verifications")
     .select("verification_key, status")
     .eq("profile_id", profileId);
-  if (error) throw new Error(`Unable to load verifications: ${error.message}`);
+  if (error) {
+    throw new Error(`Unable to load verifications: ${error.message}`);
+  }
   for (const row of (data ?? []) as VerificationRow[]) {
     result[row.verification_key] = enumValue(
       row.status,
@@ -301,7 +337,9 @@ async function readVerificationStates(
   return result;
 }
 
-async function readRestrictions(profileId: string): Promise<TrustSafetyRestriction[]> {
+async function readRestrictions(
+  profileId: string
+): Promise<TrustSafetyRestriction[]> {
   const { data, error } = await supabaseAdmin
     .from("trust_safety_restrictions")
     .select(
@@ -309,7 +347,9 @@ async function readRestrictions(profileId: string): Promise<TrustSafetyRestricti
     )
     .eq("profile_id", profileId)
     .in("status", ["active", "under_review"]);
-  if (error) throw new Error(`Unable to load restrictions: ${error.message}`);
+  if (error) {
+    throw new Error(`Unable to load restrictions: ${error.message}`);
+  }
 
   return ((data ?? []) as RestrictionRow[]).map((row) => ({
     id: row.id,
@@ -349,14 +389,24 @@ async function readSignalCounts(profileId: string) {
       .eq("against_profile_id", profileId)
       .in("status", ["open", "under_review", "waiting_user"]),
   ]);
-  if (reportsResult.error) throw new Error(`Unable to load safety reports: ${reportsResult.error.message}`);
-  if (disputesResult.error) throw new Error(`Unable to load disputes: ${disputesResult.error.message}`);
+  if (reportsResult.error) {
+    throw new Error(`Unable to load safety reports: ${reportsResult.error.message}`);
+  }
+  if (disputesResult.error) {
+    throw new Error(`Unable to load disputes: ${disputesResult.error.message}`);
+  }
 
   const reports = (reportsResult.data ?? []) as Array<{ report_type: string }>;
   return {
-    unresolvedSafetyReports: reports.filter((row) => row.report_type === "safety").length,
-    unresolvedFraudReports: reports.filter((row) => row.report_type === "fraud").length,
-    unresolvedNoShows: reports.filter((row) => row.report_type === "no_show").length,
+    unresolvedSafetyReports: reports.filter(
+      (row) => row.report_type === "safety"
+    ).length,
+    unresolvedFraudReports: reports.filter(
+      (row) => row.report_type === "fraud"
+    ).length,
+    unresolvedNoShows: reports.filter(
+      (row) => row.report_type === "no_show"
+    ).length,
     unresolvedDisputes: disputesResult.count ?? 0,
   };
 }
@@ -364,7 +414,12 @@ async function readSignalCounts(profileId: string) {
 export async function getTrustSafetyAuthority(
   profile: ActiveProfile,
   requestedCategoryKey: string
-): Promise<TrustSafetyAuthority & { facts: TrustSafetyFacts; policy: TrustSafetyCategoryPolicy }> {
+): Promise<
+  TrustSafetyAuthority & {
+    facts: TrustSafetyFacts;
+    policy: TrustSafetyCategoryPolicy;
+  }
+> {
   const categoryKey = sanitizeTrustSafetyCategoryKey(requestedCategoryKey);
   const [trustProfile, legacy, policy, qualifications, restrictions, signals] =
     await Promise.all([
@@ -377,31 +432,76 @@ export async function getTrustSafetyAuthority(
     ]);
 
   const verifications = await readVerificationStates(profile.id, legacy.legal);
-  const declaredLegalPath = trustProfile
-    ? enumValue(trustProfile.declared_legal_path, TRUST_SAFETY_LEGAL_PATHS, "unknown")
-    : legacyPath(legacy.legal?.declared_path);
-  const activityFrequency = trustProfile
+
+  const genericPath = trustProfile
+    ? enumValue(
+        trustProfile.declared_legal_path,
+        TRUST_SAFETY_LEGAL_PATHS,
+        "unknown"
+      )
+    : "unknown";
+  const declaredLegalPath =
+    genericPath !== "unknown"
+      ? genericPath
+      : legacyPath(legacy.legal?.declared_path);
+
+  const genericFrequency = trustProfile
     ? enumValue(
         trustProfile.declared_activity_frequency,
         TRUST_SAFETY_ACTIVITY_FREQUENCIES,
         "unknown"
       )
-    : enumValue(
-        legacy.legal?.declared_activity_frequency,
-        TRUST_SAFETY_ACTIVITY_FREQUENCIES,
+    : "unknown";
+  const legacyFrequency = enumValue(
+    legacy.legal?.declared_activity_frequency,
+    TRUST_SAFETY_ACTIVITY_FREQUENCIES,
+    "unknown"
+  );
+  const activityFrequency =
+    genericFrequency !== "unknown" ? genericFrequency : legacyFrequency;
+
+  const genericIdentity = trustProfile
+    ? enumValue(
+        trustProfile.identity_level,
+        TRUST_SAFETY_IDENTITY_LEVELS,
         "unknown"
+      )
+    : "unknown";
+  const identityLevel =
+    genericIdentity !== "unknown"
+      ? genericIdentity
+      : legacyIdentity(legacy.verification?.identity_status);
+
+  const genericTrust = trustProfile
+    ? enumValue(
+        trustProfile.trust_level,
+        TRUST_SAFETY_TRUST_LEVELS,
+        "unknown"
+      )
+    : "unknown";
+  const trustLevel =
+    genericTrust !== "unknown"
+      ? genericTrust
+      : legacyTrust(legacy.verification?.trust_level);
+
+  const useGenericLegalReview = genericPath !== "unknown";
+  const legalPathReview: TrustSafetyReviewState = useGenericLegalReview
+    ? enumValue(
+        trustProfile?.legal_path_review_status,
+        TRUST_SAFETY_REVIEW_STATES,
+        "not_reviewed"
+      )
+    : enumValue(
+        legacy.legal?.human_review_status,
+        TRUST_SAFETY_REVIEW_STATES,
+        "not_reviewed"
       );
-  const identityLevel = trustProfile
-    ? enumValue(trustProfile.identity_level, TRUST_SAFETY_IDENTITY_LEVELS, "unknown")
-    : legacyIdentity(legacy.verification?.identity_status);
-  const trustLevel = trustProfile
-    ? enumValue(trustProfile.trust_level, TRUST_SAFETY_TRUST_LEVELS, "unknown")
-    : legacyTrust(legacy.verification?.trust_level);
-  const legalPathReview: TrustSafetyReviewState = trustProfile
-    ? enumValue(trustProfile.legal_path_review_status, TRUST_SAFETY_REVIEW_STATES, "not_reviewed")
-    : enumValue(legacy.legal?.human_review_status, TRUST_SAFETY_REVIEW_STATES, "not_reviewed");
-  const reviewedLegalPath = trustProfile?.legal_path_reviewed_path
-    ? enumValue(trustProfile.legal_path_reviewed_path, TRUST_SAFETY_LEGAL_PATHS, "unknown")
+  const reviewedLegalPath = useGenericLegalReview
+    ? enumValue(
+        trustProfile?.legal_path_reviewed_path,
+        TRUST_SAFETY_LEGAL_PATHS,
+        "unknown"
+      )
     : legacyPath(legacy.legal?.human_reviewed_path);
 
   const facts: TrustSafetyFacts = {
@@ -412,7 +512,8 @@ export async function getTrustSafetyAuthority(
     declaredLegalPath,
     activityFrequency,
     legalPathReview,
-    reviewedLegalPath: reviewedLegalPath === "unknown" ? null : reviewedLegalPath,
+    reviewedLegalPath:
+      reviewedLegalPath === "unknown" ? null : reviewedLegalPath,
     qualifications,
     verifications,
     restrictions,
@@ -432,7 +533,11 @@ export async function updateTrustSafetyDeclarations(
 ) {
   const current = await readTrustProfile(profile.id);
   const currentPath = current
-    ? enumValue(current.declared_legal_path, TRUST_SAFETY_LEGAL_PATHS, "unknown")
+    ? enumValue(
+        current.declared_legal_path,
+        TRUST_SAFETY_LEGAL_PATHS,
+        "unknown"
+      )
     : "unknown";
   const currentFrequency = current
     ? enumValue(
@@ -444,18 +549,22 @@ export async function updateTrustSafetyDeclarations(
 
   const legalPath = patch.legalPath ?? currentPath;
   const activityFrequency = patch.activityFrequency ?? currentFrequency;
-  const changed = legalPath !== currentPath || activityFrequency !== currentFrequency;
+  const changed =
+    legalPath !== currentPath || activityFrequency !== currentFrequency;
   const now = new Date().toISOString();
 
   const payload: Record<string, unknown> = {
     profile_id: profile.id,
-    jurisdiction_country_code: profile.countryCode?.trim().toUpperCase() ?? null,
+    jurisdiction_country_code:
+      profile.countryCode?.trim().toUpperCase() ?? null,
     declared_legal_path: legalPath,
     declared_activity_frequency: activityFrequency,
     updated_at: now,
   };
 
   if (changed) {
+    // Changed declarations invalidate stale human conclusions but never approve
+    // the new facts automatically.
     payload.legal_path_review_status = "not_reviewed";
     payload.legal_path_reviewed_path = null;
     payload.legal_path_reviewed_by = null;
@@ -466,7 +575,11 @@ export async function updateTrustSafetyDeclarations(
   const { error } = await supabaseAdmin
     .from("trust_safety_profiles")
     .upsert(payload, { onConflict: "profile_id" });
-  if (error) throw new Error(`Unable to save Trust & Safety declarations: ${error.message}`);
+  if (error) {
+    throw new Error(
+      `Unable to save Trust & Safety declarations: ${error.message}`
+    );
+  }
 
   const { error: auditError } = await supabaseAdmin
     .from("trust_safety_audit_events")
@@ -476,10 +589,20 @@ export async function updateTrustSafetyDeclarations(
       event_type: "declarations_updated",
       object_type: "trust_safety_profile",
       object_id: profile.id,
-      reason_codes: changed ? ["HUMAN_REVIEW_INVALIDATED_BY_CHANGED_FACTS"] : [],
+      reason_codes: changed
+        ? ["HUMAN_REVIEW_INVALIDATED_BY_CHANGED_FACTS"]
+        : [],
       detail: { legalPath, activityFrequency },
     });
-  if (auditError) throw new Error(`Unable to write Trust & Safety audit event: ${auditError.message}`);
+  if (auditError) {
+    throw new Error(
+      `Unable to write Trust & Safety audit event: ${auditError.message}`
+    );
+  }
 
-  return { legalPath, activityFrequency, humanReviewInvalidated: changed };
+  return {
+    legalPath,
+    activityFrequency,
+    humanReviewInvalidated: changed,
+  };
 }
