@@ -135,28 +135,37 @@ function detectLocale(value: string): ProviderIncomePlanLocale {
   );
 }
 
+function currencyFromMarker(marker: string): string {
+  const normalized = marker.toLowerCase();
+  if (normalized === "€" || normalized.startsWith("eur")) return "EUR";
+  if (normalized === "$" || normalized === "usd") return "USD";
+  return "GBP";
+}
+
 function parseAmount(value: string): {
   amount: number;
   currency: string | null;
 } | null {
-  const explicit = value.match(
-    /(\d{1,6}(?:[.,]\d{1,2})?)\s*(€|eur|euros?|\$|usd|£|gbp)\b/i
+  const suffix = value.match(
+    /(\d{1,6}(?:[.,]\d{1,2})?)\s*(€|eur|euros?|\$|usd|£|gbp)(?=\s|[.,!?;:]|$)/i
+  );
+  const prefix = value.match(
+    /(€|\$|£)\s*(\d{1,6}(?:[.,]\d{1,2})?)/i
   );
 
-  if (explicit) {
-    const amount = Number(explicit[1].replace(",", "."));
+  const amountText = suffix?.[1] ?? prefix?.[2];
+  const marker = suffix?.[2] ?? prefix?.[1];
+
+  if (amountText && marker) {
+    const amount = Number(amountText.replace(",", "."));
     if (!Number.isFinite(amount) || amount <= 0 || amount > 1_000_000) {
       return null;
     }
 
-    const marker = explicit[2].toLowerCase();
-    const currency = marker === "€" || marker.startsWith("eur")
-      ? "EUR"
-      : marker === "$" || marker === "usd"
-        ? "USD"
-        : "GBP";
-
-    return { amount, currency };
+    return {
+      amount,
+      currency: currencyFromMarker(marker),
+    };
   }
 
   const contextual = value.match(
