@@ -40,6 +40,8 @@ Les résultats aval sont dérivés des tables métier existantes :
 
 `business_pilot_requests` et `business_pilot_income_attempts` ne remplacent pas ces sources : elles servent seulement à définir une cohorte réelle vérifiée lorsque la donnée de départ n'est pas inférable de façon fiable.
 
+Chaque coût manuel doit avoir une **référence unique** afin qu'un double envoi ne puisse pas compter deux fois le même coût. Les frais Stripe ne peuvent pas être saisis manuellement : ils viennent uniquement de la synchronisation d'une vraie `Stripe BalanceTransaction`.
+
 ## Définitions des métriques
 
 ### Finance par catégorie
@@ -51,13 +53,15 @@ Les résultats aval sont dérivés des tables métier existantes :
 - **Frais Stripe** : frais réels issus de `Stripe BalanceTransaction.fee`, pas un pourcentage estimé.
 - **Coût support** : coût réellement engagé ou temps support explicitement valorisé et saisi.
 - **Coût fraude/litiges** : perte ou coût effectivement constaté ; un simple signalement ne crée aucun coût fictif.
-- **Coût acquisition** : `indisponible` tant qu'aucune acquisition payante attribuable n'existe.
+- **Coût acquisition** : `indisponible` tant qu'aucune acquisition payante attribuable n'existe pour la catégorie considérée.
 - **Marge contributive estimée** : commission conservée − frais Stripe − support − fraude/litiges.
-- **Marge nette estimée** : marge contributive − coût acquisition. Elle reste `inconnue` si le CAC est indisponible.
+- **Marge nette estimée** : marge contributive − coût acquisition. Elle reste `inconnue` si le CAC de la catégorie est indisponible.
 
 La marge nette estimée est une lecture économique unitaire/contributive du flux KLYX, **pas un bénéfice comptable complet**. Les impôts, la TVA, les frais fixes, la paie, l'infrastructure et tout autre coût non attribué ne sont jamais supposés égaux à zéro : ils restent simplement hors de cette mesure tant qu'ils ne sont pas suivis de façon fiable.
 
 La couverture des frais Stripe est également fail-closed : tant qu'au moins une réservation payée de la catégorie n'a pas son vrai frais Stripe synchronisé et attribué à cette réservation, les **frais Stripe**, la **marge contributive** et la **marge nette estimée** restent `inconnus`. Une absence de donnée ne devient jamais artificiellement `0 €`.
+
+La lecture des remboursements est elle aussi fail-closed. Si, dans une fenêtre temporelle, un **remboursement apparaît sans le paiement d'origine** de la même réservation, KLYX publie le remboursement mais garde la commission conservée et les marges `inconnues` au lieu de fabriquer un résultat à partir d'un contexte financier incomplet.
 
 Aucune valeur monétaire n'est agrégée entre devises différentes.
 
