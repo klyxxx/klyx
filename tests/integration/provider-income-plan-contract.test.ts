@@ -75,6 +75,7 @@ describe("KLYX provider income-plan contract", () => {
     expect(i18n).toContain(
       "Je suis libre samedi, je veux gagner environ 100 €, trouve-moi des missions près de chez moi."
     );
-    expect(i18n).toContain("Rien n’est appliqué, envoyé ou accepté sans ta confirmation.");
+    expect(i18n).toContain("Rien n’est appliqué ni envoyé sans ta confirmation.");
+    expect(i18n).toContain("Aucune mission n’est acceptée automatiquement.");
   });
 });
