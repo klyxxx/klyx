@@ -18,16 +18,16 @@ describe("KLYX assistant-first shell and mission rail", () => {
     expect(layout).not.toContain("<AppSidebar />");
   });
 
-  it("preserves explicitly out-of-scope surfaces on the legacy shell", () => {
+  it("preserves only explicitly out-of-scope surfaces on the legacy shell", () => {
     for (const route of [
       '"/founder"',
       '"/admin"',
-      '"/recommendations"',
       '"/providers"',
     ]) {
       expect(shell).toContain(route);
     }
 
+    expect(shell).not.toContain('"/recommendations"');
     expect(shell).toContain("return <AppSidebar />;");
   });
 

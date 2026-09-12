@@ -10,7 +10,7 @@ const localServerCommand = process.env.CI
 
 export default defineConfig({
   testDir: "./tests/e2e",
-  testMatch: "**/ux-visual-certification.spec.ts",
+  testMatch: "**/ux-assistant-first-certification.spec.ts",
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: 0,
@@ -47,7 +47,7 @@ export default defineConfig({
   use: {
     baseURL,
     locale: "fr-BE",
-    colorScheme: "light",
+    colorScheme: "dark",
     trace: "off",
     screenshot: "only-on-failure",
     video: "off",
