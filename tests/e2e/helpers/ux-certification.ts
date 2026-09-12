@@ -418,8 +418,16 @@ export async function certifyMissionRail(page: Page, mobile: boolean) {
 }
 
 export async function expectReferenceScreenshot(page: Page, name: string) {
+  const desktopRail = page.getByTestId("desktop-mission-rail");
+  const accountIdentityMasks = (await desktopRail.isVisible())
+    ? [
+        desktopRail.getByTestId("account-entry").locator(":scope > span").nth(0),
+        desktopRail.getByTestId("account-entry").locator(":scope > span").nth(1),
+      ]
+    : [];
+
   const masks = [
-    page.locator('[data-testid="account-switcher"]'),
+    ...accountIdentityMasks,
     page.locator('[data-testid="desktop-mission-rail"] section'),
     page.locator('[data-testid="mobile-mission-rail"] section'),
     page.locator("main time"),
