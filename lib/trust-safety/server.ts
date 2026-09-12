@@ -82,11 +82,18 @@ export async function requestTrustDecisionReview(params: {
     .select("id, decision_id, review_kind, status, requested_at")
     .eq("decision_id", params.decisionId)
     .eq("review_kind", params.reviewKind)
-    .in("status", ["requested", "in_progress"])
+    .order("requested_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (existingError) throw new Error(existingError.message);
-  if (existing) return { review: existing, created: false };
+  if (existing) {
+    if (existing.status === "requested" || existing.status === "in_progress") {
+      return { review: existing, created: false };
+    }
+
+    throw new Error("KLYX_TRUST_REVIEW_ALREADY_COMPLETED");
+  }
 
   const { data: review, error: createError } = await supabaseAdmin
     .from("trust_decision_reviews")
