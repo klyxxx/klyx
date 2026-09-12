@@ -70,7 +70,7 @@ begin
       add constraint profiles_account_id_fkey
       foreign key (account_id)
       references public.accounts(id)
-      on delete set null;
+      on delete no action;
   end if;
 end
 $$;
