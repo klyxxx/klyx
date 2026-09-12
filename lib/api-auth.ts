@@ -20,6 +20,7 @@ export type AuthenticatedProfile = {
   id: string;
   ownerUserId: string;
   accountType: AccountType;
+  legacyAccountType: AccountType;
   canRequestServices: boolean;
   canOfferServices: boolean;
   firstName: string;
@@ -40,11 +41,7 @@ type ProfileRow = {
 
 function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();
-
-  if (!value) {
-    throw new Error(`Variable manquante : ${name}`);
-  }
-
+  if (!value) throw new Error(`Variable manquante : ${name}`);
   return value;
 }
 
@@ -53,10 +50,7 @@ function supabasePublicKey(): string {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() ??
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
 
-  if (!value) {
-    throw new Error("Clé publique Supabase manquante.");
-  }
-
+  if (!value) throw new Error("Clé publique Supabase manquante.");
   return value;
 }
 
@@ -70,23 +64,14 @@ export async function getAuthenticatedProfile(
     .get("authorization")
     ?.replace(/^Bearer\s+/i, "");
 
-  if (!token) {
-    throw new Error("Session manquante.");
-  }
+  if (!token) throw new Error("Session manquante.");
 
   const authClient = createClient(
     requiredEnv("NEXT_PUBLIC_SUPABASE_URL"),
     supabasePublicKey(),
     {
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      },
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
+      global: { headers: { Authorization: `Bearer ${token}` } },
+      auth: { autoRefreshToken: false, persistSession: false },
     }
   );
 
@@ -95,9 +80,7 @@ export async function getAuthenticatedProfile(
     error,
   } = await authClient.auth.getUser(token);
 
-  if (error || !user) {
-    throw new Error("Session invalide.");
-  }
+  if (error || !user) throw new Error("Session invalide.");
 
   const { data, error: profilesError } = await supabaseAdmin
     .from("profiles")
@@ -107,15 +90,10 @@ export async function getAuthenticatedProfile(
     .eq("owner_user_id", user.id)
     .order("created_at", { ascending: true });
 
-  if (profilesError) {
-    throw new Error(profilesError.message);
-  }
+  if (profilesError) throw new Error(profilesError.message);
 
   const profileRows = (data ?? []) as ProfileRow[];
-
-  if (profileRows.length === 0) {
-    throw new Error("Profil KLYX introuvable.");
-  }
+  if (profileRows.length === 0) throw new Error("Profil KLYX introuvable.");
 
   const capabilityStates = await loadProfileCapabilityStates(
     profileRows.map((profile) => ({
@@ -125,17 +103,25 @@ export async function getAuthenticatedProfile(
   );
 
   const profiles: AuthenticatedProfile[] = profileRows.map((profile) => {
-    const accountType = normalizeLegacyAccountType(profile.account_type);
+    const legacyAccountType = normalizeLegacyAccountType(profile.account_type);
     const capabilities = capabilityStates.get(profile.id);
+    const canRequestServices =
+      capabilities?.canRequestServices ?? legacyAccountType === "client";
+    const canOfferServices =
+      capabilities?.canOfferServices ?? legacyAccountType === "provider";
+    const accountType: AccountType = canOfferServices
+      ? "provider"
+      : canRequestServices
+        ? "client"
+        : legacyAccountType;
 
     return {
       id: profile.id,
       ownerUserId: profile.owner_user_id,
       accountType,
-      canRequestServices:
-        capabilities?.canRequestServices ?? accountType === "client",
-      canOfferServices:
-        capabilities?.canOfferServices ?? accountType === "provider",
+      legacyAccountType,
+      canRequestServices,
+      canOfferServices,
       firstName: profile.first_name ?? "",
       lastName: profile.last_name ?? "",
       countryCode: profile.country_code ?? "",
@@ -151,10 +137,7 @@ export async function getAuthenticatedProfile(
     profiles.find((item) => item.id === selectedProfileId) ?? profiles[0];
 
   return {
-    user: {
-      id: user.id,
-      email: user.email,
-    },
+    user: { id: user.id, email: user.email },
     profile,
   };
 }
@@ -180,10 +163,7 @@ export function requireAccountType(
 }
 
 export function apiErrorStatus(message: string): number {
-  if (
-    message === "Session manquante." ||
-    message === "Session invalide."
-  ) {
+  if (message === "Session manquante." || message === "Session invalide.") {
     return 401;
   }
 
