@@ -322,27 +322,34 @@ export function buildKlyxBusinessMetrics(input: {
     commission: number;
     refunds: number;
     retainedCommission: number;
+    paymentBookingIds: Set<string>;
     costs: KlyxBusinessCostRow[];
   };
   const moneyByCategory = new Map<string, MoneyAccumulator>();
 
-  for (const [bookingId, money] of bookingMoney) {
-    const booking = financialBookingById.get(bookingId);
-    if (!booking) continue;
-    const category = categoryForService(booking.service_id);
-    const current = moneyByCategory.get(category.slug) ?? {
+  function emptyMoney(): MoneyAccumulator {
+    return {
       currencies: new Set<string>(),
       gross: 0,
       commission: 0,
       refunds: 0,
       retainedCommission: 0,
+      paymentBookingIds: new Set<string>(),
       costs: [],
     };
+  }
+
+  for (const [bookingId, money] of bookingMoney) {
+    const booking = financialBookingById.get(bookingId);
+    if (!booking) continue;
+    const category = categoryForService(booking.service_id);
+    const current = moneyByCategory.get(category.slug) ?? emptyMoney();
 
     current.currencies.add(money.currency);
     current.gross += money.gross;
     current.commission += money.commission;
     current.refunds += money.refund;
+    if (money.gross > 0) current.paymentBookingIds.add(bookingId);
 
     const refundedShare =
       money.gross > 0 ? Math.min(1, money.refund / money.gross) : 0;
@@ -371,14 +378,7 @@ export function buildKlyxBusinessMetrics(input: {
     }
 
     const category = categoryForService(serviceId);
-    const current = moneyByCategory.get(category.slug) ?? {
-      currencies: new Set<string>(),
-      gross: 0,
-      commission: 0,
-      refunds: 0,
-      retainedCommission: 0,
-      costs: [],
-    };
+    const current = moneyByCategory.get(category.slug) ?? emptyMoney();
     current.currencies.add(cost.currency);
     current.costs.push(cost);
     moneyByCategory.set(category.slug, current);
@@ -405,14 +405,7 @@ export function buildKlyxBusinessMetrics(input: {
     const repeatClients = [...clients.values()].filter(
       (count) => count >= 2
     ).length;
-    const money = moneyByCategory.get(categorySlug) ?? {
-      currencies: new Set<string>(),
-      gross: 0,
-      commission: 0,
-      refunds: 0,
-      retainedCommission: 0,
-      costs: [],
-    };
+    const money = moneyByCategory.get(categorySlug) ?? emptyMoney();
     const currencies = [...money.currencies].filter(Boolean);
     const mixedCurrency =
       currencies.length > 1 || currencies.includes("MIXED");
@@ -427,8 +420,22 @@ export function buildKlyxBusinessMetrics(input: {
     let netMargin: number | null = null;
 
     if (currency) {
+      const stripeFeeBookingIds = new Set(
+        money.costs
+          .filter(
+            (cost) =>
+              cost.cost_type === "stripe_fee" &&
+              cost.currency === currency &&
+              Boolean(cost.booking_id)
+          )
+          .map((cost) => cost.booking_id as string)
+      );
+      const stripeCoverageComplete = [...money.paymentBookingIds].every(
+        (bookingId) => stripeFeeBookingIds.has(bookingId)
+      );
+
       stripeFees =
-        tracking.stripe_fee === "unavailable"
+        tracking.stripe_fee === "unavailable" || !stripeCoverageComplete
           ? null
           : sumCost(money.costs, "stripe_fee", currency);
       supportCost =
