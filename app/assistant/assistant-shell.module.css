@@ -14,7 +14,7 @@
 }
 
 .shell :global([data-testid="assistant-thread"]) {
-  max-width: 50rem;
+  max-width: 54rem;
   color: var(--klyx-assistant-white);
 }
 
