@@ -63,6 +63,10 @@ type BrainPayload = {
     nextMissing?: string | null;
     summary?: BrainSummary | null;
   };
+  action?: {
+    href?: string;
+    label?: string;
+  } | null;
 };
 
 type BrainResponse = {
@@ -171,7 +175,7 @@ function starterSuggestions(locale: string): readonly AssistantSuggestion[] {
   if (locale === "en") {
     return [
       { id: "tomorrow", label: "Find someone for tomorrow", value: "Find someone for tomorrow" },
-      { id: "move", label: "Organize a move", value: "I need to organize a move" },
+      { id: "earn", label: "Earn about €100 Saturday", value: "I am free Saturday and want to earn about €100 near me" },
       { id: "photo", label: "Analyze a photo", value: "I need help analyzing a photo" },
     ];
   }
@@ -179,7 +183,7 @@ function starterSuggestions(locale: string): readonly AssistantSuggestion[] {
   if (locale === "nl") {
     return [
       { id: "tomorrow", label: "Iemand vinden voor morgen", value: "Ik zoek iemand voor morgen" },
-      { id: "move", label: "Een verhuizing organiseren", value: "Ik wil een verhuizing organiseren" },
+      { id: "earn", label: "Zaterdag ongeveer €100 verdienen", value: "Ik ben zaterdag vrij en wil ongeveer €100 in mijn buurt verdienen" },
       { id: "photo", label: "Een foto analyseren", value: "Ik wil een foto analyseren" },
     ];
   }
@@ -187,14 +191,14 @@ function starterSuggestions(locale: string): readonly AssistantSuggestion[] {
   if (locale === "de") {
     return [
       { id: "tomorrow", label: "Jemanden für morgen finden", value: "Ich suche jemanden für morgen" },
-      { id: "move", label: "Einen Umzug organisieren", value: "Ich möchte einen Umzug organisieren" },
+      { id: "earn", label: "Samstag etwa 100 € verdienen", value: "Ich bin Samstag frei und möchte ungefähr 100 € in meiner Nähe verdienen" },
       { id: "photo", label: "Ein Foto analysieren", value: "Ich möchte ein Foto analysieren" },
     ];
   }
 
   return [
     { id: "tomorrow", label: "Trouver quelqu’un pour demain", value: "Trouver quelqu’un pour demain" },
-    { id: "move", label: "Organiser un déménagement", value: "Je dois organiser un déménagement" },
+    { id: "earn", label: "Gagner environ 100 € samedi", value: "Je suis libre samedi, je veux gagner environ 100 € près de chez moi" },
     { id: "photo", label: "Analyser une photo", value: "J’ai besoin d’aide pour analyser une photo" },
   ];
 }
