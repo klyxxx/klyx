@@ -12,7 +12,7 @@ describe("KLYX public provider visual simplification contract", () => {
     const page = read("app/providers/[id]/page.tsx");
 
     expect(page).toContain("KLYX_PUBLIC_PROVIDER_VISUAL_SIMPLIFICATION");
-    expect(page).toContain('className="grid h-24 w-24');
+    expect(page).toContain('className="grid h-16 w-16');
     expect(page).not.toContain("min-h-96");
     expect(page).not.toContain("md:grid-cols-[340px_1fr]");
   });
@@ -25,13 +25,13 @@ describe("KLYX public provider visual simplification contract", () => {
     expect(page).not.toContain("aspect-square");
   });
 
-  it("prioritizes services before the public gallery", () => {
+  it("prioritizes the selected service proposal before the public gallery", () => {
     const page = read("app/providers/[id]/page.tsx");
-    const services = page.indexOf('t("servicesTitle")');
+    const proposal = page.indexOf('data-testid="klyx-provider-thread-continuation"');
     const gallery = page.indexOf('t("galleryTitle")');
 
-    expect(services).toBeGreaterThan(-1);
+    expect(proposal).toBeGreaterThan(-1);
     expect(gallery).toBeGreaterThan(-1);
-    expect(services).toBeLessThan(gallery);
+    expect(proposal).toBeLessThan(gallery);
   });
 });

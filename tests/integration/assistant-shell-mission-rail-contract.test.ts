@@ -18,17 +18,18 @@ describe("KLYX assistant-first shell and mission rail", () => {
     expect(layout).not.toContain("<AppSidebar />");
   });
 
-  it("preserves explicitly out-of-scope surfaces on the legacy shell", () => {
+  it("keeps Founder/Admin isolated while public provider routes use the assistant shell", () => {
     for (const route of [
       '"/founder"',
       '"/admin"',
       '"/recommendations"',
-      '"/providers"',
     ]) {
       expect(shell).toContain(route);
     }
 
+    expect(shell).not.toContain('  "/providers",');
     expect(shell).toContain("return <AppSidebar />;");
+    expect(shell).toContain("<MissionRail");
   });
 
   it("uses the conversational role homes for both account types", () => {
