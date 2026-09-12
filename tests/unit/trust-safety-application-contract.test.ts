@@ -15,7 +15,7 @@ const row: TrustDecisionRow = {
   decision: "human_review_required",
   legal_pathway: "multiple_possible",
   human_review_required: true,
-  review_status: "not_required",
+  review_status: "pending",
   reason_codes: ["LEGAL_PATHWAY_UNDETERMINED", 42],
   required_actions: [
     { code: "REQUEST_LEGAL_REVIEW", detail: "Belgium" },
@@ -39,7 +39,7 @@ describe("KLYX Trust & Safety application contract", () => {
       decision: "human_review_required",
       legalPathway: "multiple_possible",
       humanReviewRequired: true,
-      reviewStatus: "not_required",
+      reviewStatus: "pending",
       reasonCodes: ["LEGAL_PATHWAY_UNDETERMINED"],
       requiredActions: [
         { code: "REQUEST_LEGAL_REVIEW", detail: "Belgium" },
@@ -54,14 +54,20 @@ describe("KLYX Trust & Safety application contract", () => {
     expect(redacted).not.toHaveProperty("legal_assessment_id");
   });
 
-  it("allows a required human review when no review is already pending", () => {
+  it("allows a pending policy decision to create its actual review record", () => {
     expect(canRequestTrustReview(row, "human_review")).toBe(true);
   });
 
-  it("does not duplicate a pending review", () => {
+  it("does not reopen a completed human review through the same review path", () => {
     expect(
       canRequestTrustReview(
-        { ...row, review_status: "pending" },
+        { ...row, review_status: "approved" },
+        "human_review"
+      )
+    ).toBe(false);
+    expect(
+      canRequestTrustReview(
+        { ...row, review_status: "rejected" },
         "human_review"
       )
     ).toBe(false);
