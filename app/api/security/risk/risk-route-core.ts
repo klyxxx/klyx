@@ -28,15 +28,19 @@ function assertCount(
 async function calculateForProfile(
   profile: {
     id: string;
-    accountType: "client" | "provider";
+    canRequestServices: boolean;
+    canOfferServices: boolean;
   }
 ) {
   const providerFilter =
     `provider_id.eq.${profile.id},babysitter_id.eq.${profile.id}`;
+  const clientFilter = `parent_id.eq.${profile.id}`;
   const bookingParticipantFilter =
-    profile.accountType === "provider"
-      ? providerFilter
-      : `parent_id.eq.${profile.id}`;
+    profile.canRequestServices && profile.canOfferServices
+      ? `${clientFilter},${providerFilter}`
+      : profile.canOfferServices
+        ? providerFilter
+        : clientFilter;
 
   const [
     totalResult,
@@ -97,7 +101,7 @@ async function calculateForProfile(
         "under_review",
         "waiting_user",
       ]),
-    profile.accountType === "provider"
+    profile.canOfferServices
       ? supabaseAdmin
           .from("service_profiles")
           .select("id, stripe_onboarding_complete")
@@ -147,9 +151,9 @@ async function calculateForProfile(
       urgentReportsResult,
       "Signalements prioritaires"
     ),
-    isProvider: profile.accountType === "provider",
+    isProvider: profile.canOfferServices,
     identityComplete:
-      profile.accountType !== "provider" ||
+      !profile.canOfferServices ||
       Boolean(
         serviceProfileResult.data
           ?.stripe_onboarding_complete
