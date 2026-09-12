@@ -38,7 +38,7 @@ function read(relativePath: string) {
 }
 
 describe("sidebar navigation accessibility i18n contract", () => {
-  it("uses Tolgee-backed aria labels without changing navigation structure", () => {
+  it("uses Tolgee-backed aria labels with the three-item work navigation", () => {
     const sidebar = read("app/ui/AppSidebar.tsx");
 
     expect(sidebar).toContain(
@@ -56,7 +56,7 @@ describe("sidebar navigation accessibility i18n contract", () => {
 
     expect(sidebar).toContain('data-testid="desktop-navigation"');
     expect(sidebar).toContain('data-testid="mobile-navigation"');
-    expect(sidebar).toContain("grid-cols-4");
+    expect(sidebar).toContain("grid-cols-3");
   });
 
   it("preserves the certified labels exactly in every published Tolgee catalog", () => {
