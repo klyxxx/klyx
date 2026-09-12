@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { apiErrorStatus, getAuthenticatedProfile } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import {
+  API_RATE_LIMIT_POLICIES,
+  apiRateLimitExceededResponse,
+  consumeApiRateLimit,
+  rateLimitResponseHeaders,
+} from "@/lib/api-rate-limit";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { sanitizeTrustSafetyCategoryKey } from "@/lib/trust-safety-server";
 
@@ -25,7 +31,9 @@ type BookingRow = {
 
 function severityFor(type: ReportType): "normal" | "high" | "urgent" {
   if (type === "safety" || type === "harassment") return "urgent";
-  if (type === "fraud" || type === "no_show" || type === "identity") return "high";
+  if (type === "fraud" || type === "no_show" || type === "identity") {
+    return "high";
+  }
   return "normal";
 }
 
@@ -44,7 +52,9 @@ async function verifyBookingRelationship(input: {
 
   const booking = data as BookingRow;
   const providerId = booking.provider_id ?? booking.babysitter_id;
-  const participants = [booking.parent_id, providerId].filter(Boolean) as string[];
+  const participants = [booking.parent_id, providerId].filter(
+    Boolean
+  ) as string[];
   if (
     !participants.includes(input.reporterProfileId) ||
     !participants.includes(input.subjectProfileId) ||
@@ -69,7 +79,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ reports: data ?? [] });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to load reports.";
+    const message =
+      error instanceof Error ? error.message : "Unable to load reports.";
     const status = apiErrorStatus(message);
     return secureApiErrorResponse({
       error,
@@ -88,6 +99,13 @@ export async function POST(request: Request) {
   const startedAt = Date.now();
   try {
     const { profile } = await getAuthenticatedProfile(request);
+    const ratePolicy = API_RATE_LIMIT_POLICIES.trustSafetyReportCreate;
+    const rateLimit = await consumeApiRateLimit(profile.id, ratePolicy);
+    if (!rateLimit.allowed) {
+      return apiRateLimitExceededResponse(ratePolicy, rateLimit);
+    }
+    const headers = rateLimitResponseHeaders(ratePolicy, rateLimit);
+
     const body = (await request.json()) as {
       subjectProfileId?: unknown;
       bookingId?: unknown;
@@ -97,7 +115,9 @@ export async function POST(request: Request) {
     };
 
     const subjectProfileId =
-      typeof body.subjectProfileId === "string" ? body.subjectProfileId.trim() : "";
+      typeof body.subjectProfileId === "string"
+        ? body.subjectProfileId.trim()
+        : "";
     const bookingId =
       typeof body.bookingId === "string" && body.bookingId.trim()
         ? body.bookingId.trim()
@@ -108,18 +128,26 @@ export async function POST(request: Request) {
         : null;
     const type = typeof body.type === "string" ? body.type.trim() : "";
     const description =
-      typeof body.description === "string" ? body.description.trim().slice(0, 4000) : "";
+      typeof body.description === "string"
+        ? body.description.trim().slice(0, 4000)
+        : "";
 
     if (!subjectProfileId || subjectProfileId === profile.id) {
-      return NextResponse.json({ error: "Invalid report subject." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid report subject." },
+        { status: 400, headers }
+      );
     }
     if (!REPORT_TYPES.includes(type as ReportType)) {
-      return NextResponse.json({ error: "Invalid report type." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid report type." },
+        { status: 400, headers }
+      );
     }
     if (description.length < 20) {
       return NextResponse.json(
         { error: "Describe the issue with at least 20 characters." },
-        { status: 400 }
+        { status: 400, headers }
       );
     }
 
@@ -127,7 +155,7 @@ export async function POST(request: Request) {
     if (selectedType === "no_show" && !bookingId) {
       return NextResponse.json(
         { error: "A no-show report must reference a booking." },
-        { status: 400 }
+        { status: 400, headers }
       );
     }
     if (bookingId) {
@@ -145,7 +173,10 @@ export async function POST(request: Request) {
       .maybeSingle();
     if (subjectError) throw new Error(subjectError.message);
     if (!subject) {
-      return NextResponse.json({ error: "Profile not found." }, { status: 404 });
+      return NextResponse.json(
+        { error: "Profile not found." },
+        { status: 404, headers }
+      );
     }
 
     let duplicateQuery = supabaseAdmin
@@ -158,12 +189,16 @@ export async function POST(request: Request) {
     duplicateQuery = bookingId
       ? duplicateQuery.eq("booking_id", bookingId)
       : duplicateQuery.is("booking_id", null);
-    const { data: duplicate, error: duplicateError } = await duplicateQuery.maybeSingle();
+    const { data: duplicate, error: duplicateError } =
+      await duplicateQuery.maybeSingle();
     if (duplicateError) throw new Error(duplicateError.message);
     if (duplicate) {
       return NextResponse.json(
-        { error: "An active report already exists for this issue.", reportId: duplicate.id },
-        { status: 409 }
+        {
+          error: "An active report already exists for this issue.",
+          reportId: duplicate.id,
+        },
+        { status: 409, headers }
       );
     }
 
@@ -198,16 +233,20 @@ export async function POST(request: Request) {
       });
     if (auditError) throw new Error(auditError.message);
 
-    return NextResponse.json({
-      reportId: report.id,
-      status: "open",
-      humanReviewRequired: true,
-      automaticSuspension: false,
-      message:
-        "Report recorded for review. A report alone never creates an automatic suspension.",
-    });
+    return NextResponse.json(
+      {
+        reportId: report.id,
+        status: "open",
+        humanReviewRequired: true,
+        automaticSuspension: false,
+        message:
+          "Report recorded for review. A report alone never creates an automatic suspension.",
+      },
+      { headers }
+    );
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to create report.";
+    const message =
+      error instanceof Error ? error.message : "Unable to create report.";
     const status = apiErrorStatus(message);
     return secureApiErrorResponse({
       error,
