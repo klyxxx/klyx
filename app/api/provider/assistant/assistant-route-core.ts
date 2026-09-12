@@ -15,11 +15,17 @@ import {
   analyzeProviderAssistantMessage,
 } from "@/lib/provider-assistant";
 import {
+  parseProviderIncomePlanRequest,
+} from "@/lib/provider-income-plan";
+import {
   generateKlyxAiReply,
 } from "@/lib/klyx-ai";
 import {
   finalizeProviderUnknownAiReply,
 } from "@/lib/provider-assistant-visible-ai";
+import {
+  buildProviderIncomePlanResult,
+} from "./provider-income-plan-data";
 import {
   parseProviderAssistantPatchRequest,
   parseProviderAssistantPostRequest,
@@ -70,7 +76,7 @@ async function improveUnknownProviderReply(
   const ai = await generateKlyxAiReply({
     message: [
       "Tu réponds à un prestataire KLYX dans son assistant professionnel.",
-      "La demande ne correspond pas encore à une disponibilité, un devis ou une réponse client structurée.",
+      "La demande ne correspond pas encore à une disponibilité, un devis, une réponse client ou une recherche de missions structurée.",
       "Réponds utilement et brièvement sans prétendre avoir exécuté une action.",
       "Si une précision est nécessaire, pose une seule question.",
       "",
@@ -160,11 +166,23 @@ export async function POST(request: Request) {
     }
 
     const message = parsedRequest.value.message;
-    const hourlyRate = await getHourlyRate(profile.id);
-    const result = analyzeProviderAssistantMessage(
-      message,
-      hourlyRate
-    );
+    const incomePlanRequest = parseProviderIncomePlanRequest(message);
+    const result = incomePlanRequest
+      ? await buildProviderIncomePlanResult(
+          new Request(request.url, {
+            method: "GET",
+            headers: request.headers,
+          }),
+          {
+            id: profile.id,
+            currencyCode: profile.currencyCode,
+          },
+          incomePlanRequest
+        )
+      : analyzeProviderAssistantMessage(
+          message,
+          await getHourlyRate(profile.id)
+        );
 
     let reply = result.reply;
     let aiMode: "openai" | "fallback" = "fallback";
@@ -173,7 +191,8 @@ export async function POST(request: Request) {
      * KLYX_SINGLE_AI_GATEWAY
      * Structured provider actions stay deterministic. The shared LLM is
      * used only for non-transactional conversation, so it can never change
-     * a draft payload, a quote amount or an availability before confirmation.
+     * a draft payload, a quote amount, an availability or a live mission plan
+     * before provider confirmation.
      */
     if (result.intent === "unknown") {
       const improved =
@@ -193,7 +212,10 @@ export async function POST(request: Request) {
 
     let draftId: string | null = null;
 
-    if (result.intent !== "unknown") {
+    if (
+      result.intent !== "unknown" &&
+      result.intent !== "mission_plan"
+    ) {
       const { data, error } = await supabaseAdmin
         .from("provider_assistant_drafts")
         .insert({
