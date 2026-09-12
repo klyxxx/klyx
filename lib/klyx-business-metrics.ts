@@ -322,6 +322,7 @@ export function buildKlyxBusinessMetrics(input: {
     commission: number;
     refunds: number;
     retainedCommission: number;
+    retainedCommissionContextComplete: boolean;
     paymentBookingIds: Set<string>;
     costs: KlyxBusinessCostRow[];
   };
@@ -334,6 +335,7 @@ export function buildKlyxBusinessMetrics(input: {
       commission: 0,
       refunds: 0,
       retainedCommission: 0,
+      retainedCommissionContextComplete: true,
       paymentBookingIds: new Set<string>(),
       costs: [],
     };
@@ -350,6 +352,9 @@ export function buildKlyxBusinessMetrics(input: {
     current.commission += money.commission;
     current.refunds += money.refund;
     if (money.gross > 0) current.paymentBookingIds.add(bookingId);
+    if (money.refund > 0 && money.gross <= 0) {
+      current.retainedCommissionContextComplete = false;
+    }
 
     const refundedShare =
       money.gross > 0 ? Math.min(1, money.refund / money.gross) : 0;
@@ -458,6 +463,7 @@ export function buildKlyxBusinessMetrics(input: {
         : null;
 
       if (
+        money.retainedCommissionContextComplete &&
         stripeFees !== null &&
         supportCost !== null &&
         fraudDisputeCost !== null
@@ -503,9 +509,10 @@ export function buildKlyxBusinessMetrics(input: {
         grossMissionValueCents: currency ? money.gross : null,
         klyxCommissionCents: currency ? money.commission : null,
         refundsCents: currency ? money.refunds : null,
-        retainedCommissionAfterRefundsCents: currency
-          ? money.retainedCommission
-          : null,
+        retainedCommissionAfterRefundsCents:
+          currency && money.retainedCommissionContextComplete
+            ? money.retainedCommission
+            : null,
         stripeFeesCents: stripeFees,
         supportCostCents: supportCost,
         fraudDisputeCostCents: fraudDisputeCost,
