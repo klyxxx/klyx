@@ -38,25 +38,28 @@ export function asRequiredActions(
 ): Array<{ code: string; detail?: string }> {
   if (!Array.isArray(value)) return [];
 
-  return value
-    .map((item) => {
-      if (!item || typeof item !== "object") return null;
-      const candidate = item as Record<string, unknown>;
-      if (typeof candidate.code !== "string" || !candidate.code.trim()) {
-        return null;
-      }
+  const actions: Array<{ code: string; detail?: string }> = [];
 
-      const detail =
-        typeof candidate.detail === "string" && candidate.detail.trim()
-          ? candidate.detail.trim().slice(0, 240)
-          : undefined;
+  for (const item of value) {
+    if (!item || typeof item !== "object") continue;
 
-      return { code: candidate.code.trim().slice(0, 120), detail };
-    })
-    .filter(
-      (item): item is { code: string; detail?: string } => item !== null
-    )
-    .slice(0, 50);
+    const candidate = item as Record<string, unknown>;
+    if (typeof candidate.code !== "string" || !candidate.code.trim()) {
+      continue;
+    }
+
+    const code = candidate.code.trim().slice(0, 120);
+    const detail =
+      typeof candidate.detail === "string" && candidate.detail.trim()
+        ? candidate.detail.trim().slice(0, 240)
+        : undefined;
+
+    actions.push(detail ? { code, detail } : { code });
+
+    if (actions.length === 50) break;
+  }
+
+  return actions;
 }
 
 export function redactTrustDecision(row: TrustDecisionRow) {
