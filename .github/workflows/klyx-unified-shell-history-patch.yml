@@ -1,0 +1,206 @@
+name: KLYX Unified Shell History Patch
+
+on:
+  push:
+    branches:
+      - feat/unified-assistant-obtain-earn-20260912
+    paths:
+      - .github/workflows/klyx-unified-shell-history-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/unified-assistant-obtain-earn-20260912
+          fetch-depth: 0
+
+      - name: Apply unified shell and history patches
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          def replace_exact(path, old, new, count=1):
+              p = Path(path)
+              text = p.read_text()
+              found = text.count(old)
+              if found != count:
+                  raise SystemExit(f"{path}: expected {count} occurrence(s), got {found}: {old!r}")
+              p.write_text(text.replace(old, new, count))
+
+          # Hidden/history presentation is secured by mission ownership, not by
+          # the historical account_type label.
+          activity = Path("app/api/bookings/activity-hidden/route.ts")
+          text = activity.read_text()
+          text, import_count = re.subn(r"\n  requireAccountType,", "", text, count=1)
+          if import_count != 1:
+              raise SystemExit(f"activity-hidden import patch count={import_count}")
+          call_count = text.count('    requireAccountType(profile, "client");\n')
+          if call_count != 2:
+              raise SystemExit(f"activity-hidden role call count={call_count}")
+          text = text.replace('    requireAccountType(profile, "client");\n', "")
+          activity.write_text(text)
+
+          split = Path("app/api/bookings/split-missions/route.ts")
+          text = split.read_text()
+          text, import_count = re.subn(r"\n  requireAccountType,", "", text, count=1)
+          if import_count != 1:
+              raise SystemExit(f"split-missions import patch count={import_count}")
+          text, call_count = re.subn(
+              r"\n\s*requireAccountType\(\s*profile,\s*\"client\"\s*\);\n",
+              "\n",
+              text,
+              count=1,
+          )
+          if call_count != 1:
+              raise SystemExit(f"split-missions role call patch count={call_count}")
+          split.write_text(text)
+
+          # One MissionRail history: always use the relationship-aware overview.
+          rail = Path("app/ui/MissionRail.tsx")
+          text = rail.read_text()
+          if text.count("      if (!accountType) {") != 1:
+              raise SystemExit("MissionRail active-profile guard not found")
+          text = text.replace("      if (!accountType) {", "      if (!activeProfileId) {", 1)
+          provider_branch = re.compile(
+              r"\n        if \(accountType === \"provider\"\) \{.*?\n          return;\n        \}\n\n(?=        const \[overviewResponse, hiddenResponse, splitResponse\])",
+              re.S,
+          )
+          text, branch_count = provider_branch.subn("\n", text, count=1)
+          if branch_count != 1:
+              raise SystemExit(f"MissionRail provider history branch count={branch_count}")
+          rail.write_text(text)
+
+          # The same central composer visibly communicates both directions.
+          thread = Path("app/components/assistant/AssistantThread.tsx")
+          text = thread.read_text()
+          suggestions = {
+              '{ id: "move", label: "Organize a move", value: "I need to organize a move" },':
+                  '{ id: "earn", label: "Earn about €100 Saturday", value: "I am free Saturday and want to earn about €100 near me" },',
+              '{ id: "move", label: "Een verhuizing organiseren", value: "Ik wil een verhuizing organiseren" },':
+                  '{ id: "earn", label: "Zaterdag ongeveer €100 verdienen", value: "Ik ben zaterdag vrij en wil ongeveer €100 in mijn buurt verdienen" },',
+              '{ id: "move", label: "Einen Umzug organisieren", value: "Ich möchte einen Umzug organisieren" },':
+                  '{ id: "earn", label: "Samstag etwa 100 € verdienen", value: "Ich bin Samstag frei und möchte ungefähr 100 € in meiner Nähe verdienen" },',
+              '{ id: "move", label: "Organiser un déménagement", value: "Je dois organiser un déménagement" },':
+                  '{ id: "earn", label: "Gagner environ 100 € samedi", value: "Je suis libre samedi, je veux gagner environ 100 € près de chez moi" },',
+          }
+          for old, new in suggestions.items():
+              if text.count(old) != 1:
+                  raise SystemExit(f"AssistantThread suggestion missing: {old}")
+              text = text.replace(old, new, 1)
+
+          old_payload = '''  readiness?: {
+            nextMissing?: string | null;
+            summary?: BrainSummary | null;
+          };
+          };'''
+          new_payload = '''  readiness?: {
+            nextMissing?: string | null;
+            summary?: BrainSummary | null;
+          };
+            action?: {
+              href?: string;
+              label?: string;
+            } | null;
+          };'''
+          if text.count(old_payload) != 1:
+              raise SystemExit("AssistantThread BrainPayload shape not found")
+          text = text.replace(old_payload, new_payload, 1)
+
+          old_initial = '  const [value, setValue] = useState("");'
+          new_initial = '  const [value, setValue] = useState(() => initialPromptFromLocation());'
+          if text.count(old_initial) != 1:
+              raise SystemExit("AssistantThread value state not found")
+          text = text.replace(old_initial, new_initial, 1)
+
+          anchor = '''function initialConversationFromLocation() {
+            if (typeof window === "undefined") return null;
+            const value = new URLSearchParams(window.location.search).get("conversation")?.trim();
+            return value && UUID_PATTERN.test(value) ? value : null;
+          }
+          '''
+          prompt_helper = anchor + '''
+          function initialPromptFromLocation() {
+            if (typeof window === "undefined") return "";
+            return new URLSearchParams(window.location.search).get("prompt")?.trim().slice(0, KLYX_ASSISTANT_MESSAGE_MAX_LENGTH) ?? "";
+          }
+          '''
+          if text.count(anchor) != 1:
+              raise SystemExit("AssistantThread conversation helper not found")
+          text = text.replace(anchor, prompt_helper, 1)
+
+          text = text.replace(
+              "        // ClientRouteGuard owns access. This profile lookup only protects async\n",
+              "        // The server assistant layout owns access. This lookup only protects async\n",
+              1,
+          )
+
+          old_turn = '''        if (visibleReply) {
+            additions.push({
+              id: nextTurnId("assistant"),
+              role: "assistant",
+              content: visibleReply,
+            });
+          }'''
+          new_turn = '''        if (visibleReply) {
+            const groundedAction: AssistantAction | undefined =
+              nextPayload?.action?.href && nextPayload.action.label
+                ? {
+                    href: nextPayload.action.href,
+                    label: nextPayload.action.label,
+                  }
+                : undefined;
+
+            additions.push({
+              id: nextTurnId("assistant"),
+              role: "assistant",
+              content: visibleReply,
+              variant: groundedAction ? "groundedAction" : undefined,
+              action: groundedAction,
+            });
+          }'''
+          if text.count(old_turn) != 1:
+              raise SystemExit("AssistantThread reply turn block not found")
+          text = text.replace(old_turn, new_turn, 1)
+          thread.write_text(text)
+
+          # Product links converge on the canonical shell. Keep the legacy route
+          # file itself as a compatibility redirect.
+          for root in [Path("app"), Path("lib")]:
+              for p in root.rglob("*.ts*"):
+                  if p.as_posix() == "app/provider/assistant/page.tsx":
+                      continue
+                  source = p.read_text()
+                  if "/provider/assistant" in source:
+                      p.write_text(source.replace("/provider/assistant", "/assistant"))
+
+          # No permanent-role guard may remain on the unified history GETs.
+          if "requireAccountType" in activity.read_text():
+              raise SystemExit("activity-hidden still has role guard")
+          if "requireAccountType" in split.read_text():
+              raise SystemExit("split-missions still has role guard")
+          if 'fetch("/api/provider/jobs"' in rail.read_text():
+              raise SystemExit("MissionRail still branches to provider history")
+          PY
+
+      - name: Verify diff and self-delete
+        shell: bash
+        run: |
+          git diff --check
+          rm .github/workflows/klyx-unified-shell-history-patch.yml
+          git status --short
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name "klyxxx"
+          git config user.email "yeswork2711@gmail.com"
+          git add app lib .github/workflows/klyx-unified-shell-history-patch.yml
+          git commit -m "refactor: unify assistant shell links and mission history"
+          git push origin HEAD:feat/unified-assistant-obtain-earn-20260912
