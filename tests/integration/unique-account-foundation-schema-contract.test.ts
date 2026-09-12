@@ -10,6 +10,14 @@ const migration = readFileSync(
   "utf8"
 );
 
+const legacyActiveProfileMigration = readFileSync(
+  join(
+    process.cwd(),
+    "supabase/migrations_legacy_20260812-161308/20260805_active_profile_phase_2.sql"
+  ),
+  "utf8"
+);
+
 function executableSql() {
   return migration
     .split("\n")
@@ -57,6 +65,22 @@ describe("KLYX unique account foundation schema contract", () => {
     expect(migration).toMatch(
       /before insert or update of owner_user_id, account_id\s+on public\.profiles/
     );
+  });
+
+  it("preserves legacy profile preparation before canonical account binding", () => {
+    const legacyTrigger = "klyx_prepare_profile_before_insert";
+    const accountTrigger = "klyx_profiles_bind_canonical_account";
+
+    expect(legacyActiveProfileMigration).toContain(
+      `create trigger ${legacyTrigger}`
+    );
+    expect(legacyActiveProfileMigration).toContain(
+      "new.owner_user_id := coalesce(new.owner_user_id, new.id)"
+    );
+
+    // PostgreSQL fires same-kind triggers in name order. The historical trigger
+    // must prepare owner_user_id before the new account-binding trigger reads it.
+    expect(legacyTrigger.localeCompare(accountTrigger)).toBeLessThan(0);
   });
 
   it("creates the canonical account automatically for future Auth users", () => {
