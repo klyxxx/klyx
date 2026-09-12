@@ -61,6 +61,13 @@ export async function POST(request: Request) {
       );
     }
 
+    if (message === "KLYX_TRUST_REVIEW_ALREADY_COMPLETED") {
+      return NextResponse.json(
+        { error: "Cette décision a déjà fait l’objet de cette revue." },
+        { status: 409 }
+      );
+    }
+
     const status =
       message === "KLYX_TRUST_ACCOUNT_REQUIRED"
         ? 403
