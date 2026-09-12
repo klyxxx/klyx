@@ -43,4 +43,14 @@ describe("KLYX official assistant-first black shell", () => {
     expect(composer).toContain('type="submit"');
     expect(composer).toContain('data-testid="assistant-composer"');
   });
+
+  it("keeps the calm black shell responsive on mobile", () => {
+    const styles = read("app/assistant/assistant-shell.module.css");
+
+    expect(styles).toContain("@media (max-width: 639px)");
+    expect(styles).toContain("padding-left: 1rem");
+    expect(styles).toContain("padding-right: 1rem");
+    expect(styles).toContain("font-size: 2rem");
+    expect(styles).toContain("border-radius: 1.5rem !important");
+  });
 });
