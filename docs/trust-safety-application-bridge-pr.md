@@ -1,0 +1,1 @@
+Application bridge scope: redacted account-level eligibility reads, user review requests, authorized human review operations, and atomic append-only outcome resolution. No enforcement activation is included.
