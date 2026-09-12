@@ -55,7 +55,7 @@ describe("KLYX Stripe fee completeness", () => {
     expect(finance.estimatedNetMarginCents).toBeNull();
   });
 
-  it("publishes margins after the paid booking has an attributed Stripe fee", () => {
+  it("publishes Stripe fees and contribution margin while net margin stays unknown without CAC", () => {
     const result = buildKlyxBusinessMetrics({
       services: [service],
       requests: [],
@@ -98,6 +98,6 @@ describe("KLYX Stripe fee completeness", () => {
     const finance = result.categories[0].finance;
     expect(finance.stripeFeesCents).toBe(320);
     expect(finance.estimatedContributionMarginCents).toBe(1_180);
-    expect(finance.estimatedNetMarginCents).toBe(1_180);
+    expect(finance.estimatedNetMarginCents).toBeNull();
   });
 });
