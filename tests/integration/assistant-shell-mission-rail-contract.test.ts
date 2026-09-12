@@ -7,9 +7,19 @@ function read(relativePath: string) {
   return fs.readFileSync(path.join(process.cwd(), relativePath), "utf8");
 }
 
+function accountMenuMode(source: string) {
+  const start = source.indexOf('if (mode === "account-menu")');
+  const end = source.indexOf("\n  return (", start);
+
+  if (start < 0 || end < 0) return "";
+  return source.slice(start, end);
+}
+
 const layout = read("app/layout.tsx");
 const shell = read("app/ui/AssistantShell.tsx");
 const rail = read("app/ui/MissionRail.tsx");
+const accountSwitcher = read("app/components/AccountSwitcher.tsx");
+const accountMenu = accountMenuMode(accountSwitcher);
 
 describe("KLYX assistant-first shell and mission rail", () => {
   it("mounts AssistantShell globally instead of the SaaS sidebar", () => {
@@ -65,19 +75,26 @@ describe("KLYX assistant-first shell and mission rail", () => {
     expect(rail).toContain('title={meta ? `${mission.title} — ${meta}` : mission.title}');
   });
 
-  it("removes permanent SaaS destinations while keeping provider tools secondary under Account", () => {
+  it("keeps provider tools secondary while delegating account actions to the canonical menu", () => {
     expect(shell).not.toContain('href="/messages"');
     expect(shell).not.toContain('href="/bookings"');
     expect(shell).not.toContain('href="/provider/jobs"');
     expect(shell).not.toContain('href="/profile"');
 
     expect(rail).not.toContain('href="/messages"');
-    expect(rail).toContain('data-testid="account-entry"');
-    expect(rail).toContain('href="/profile"');
+    expect(rail).toContain("<AccountSwitcher");
+    expect(rail).toContain('mode="account-menu"');
+    expect(rail).toContain('data-testid="provider-secondary-tools"');
+    expect(rail).toContain('href="/provider"');
     expect(rail).toContain('href="/provider/studio"');
     expect(rail).toContain('href="/provider/payments"');
-    expect(rail).toContain('href="/settings"');
-    expect(rail).toContain('href="/accounts"');
+
+    expect(accountMenu).toContain('data-testid="account-entry"');
+    expect(accountMenu).toContain('role="menuitemradio"');
+    expect(accountMenu).toContain('href="/profile"');
+    expect(accountMenu).toContain('href="/settings"');
+    expect(accountMenu).toContain('href="/support"');
+    expect(accountMenu).not.toContain('href="/accounts"');
   });
 
   it("replaces the mobile four-tab bar with an accessible drawer", () => {
