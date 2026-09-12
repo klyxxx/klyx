@@ -35,14 +35,7 @@ export async function GET() {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json(
-        {
-          error: "Non connecté.",
-        },
-        {
-          status: 401,
-        }
-      );
+      return NextResponse.json({ error: "Non connecté." }, { status: 401 });
     }
 
     const profiles = await getOwnedProfiles();
@@ -54,9 +47,7 @@ export async function GET() {
           activeProfileId: null,
           error: "Aucun profil KLYX associé à ce compte.",
         },
-        {
-          status: 404,
-        }
+        { status: 404 }
       );
     }
 
@@ -69,22 +60,8 @@ export async function GET() {
         ? selectedProfileId
         : null;
 
-    /*
-     * KLYX_ACTIVE_PROFILE_READ_ONLY_12B_10L
-     *
-     * GET reste strictement en lecture seule.
-     * Un GET démarré avant un changement de profil ne doit jamais
-     * pouvoir terminer après le POST et réécrire l'ancien cookie.
-     * Seul POST modifie ACTIVE_PROFILE_COOKIE.
-     *
-     * Le shell ne reçoit un profil actif que si le cookie explicitement
-     * sélectionné appartient à la même liste de profils retournée.
-     * Aucun premier profil n'est choisi implicitement ici.
-     */
-    return NextResponse.json({
-      profiles,
-      activeProfileId,
-    });
+    /* KLYX_ACTIVE_PROFILE_READ_ONLY_12B_10L */
+    return NextResponse.json({ profiles, activeProfileId });
   } catch (error) {
     return secureApiErrorResponse({
       error,
@@ -108,14 +85,7 @@ export async function POST(request: Request) {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json(
-        {
-          error: "Non connecté.",
-        },
-        {
-          status: 401,
-        }
-      );
+      return NextResponse.json({ error: "Non connecté." }, { status: 401 });
     }
 
     let body: SelectProfileBody;
@@ -123,14 +93,7 @@ export async function POST(request: Request) {
     try {
       body = (await request.json()) as SelectProfileBody;
     } catch {
-      return NextResponse.json(
-        {
-          error: "Requête invalide.",
-        },
-        {
-          status: 400,
-        }
-      );
+      return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
     }
 
     const profileId =
@@ -138,12 +101,8 @@ export async function POST(request: Request) {
 
     if (!profileId) {
       return NextResponse.json(
-        {
-          error: "Identifiant de profil invalide.",
-        },
-        {
-          status: 400,
-        }
+        { error: "Identifiant de profil invalide." },
+        { status: 400 }
       );
     }
 
@@ -152,23 +111,22 @@ export async function POST(request: Request) {
 
     if (!profile) {
       return NextResponse.json(
-        {
-          error: "Ce profil ne t’appartient pas.",
-        },
-        {
-          status: 403,
-        }
+        { error: "Ce profil ne t’appartient pas." },
+        { status: 403 }
       );
     }
 
     const response = NextResponse.json({
       success: true,
       profileId: profile.id,
+      // Legacy field remains for old consumers during the migration.
       accountType: profile.accountType,
+      canRequestServices: profile.canRequestServices,
+      canOfferServices: profile.canOfferServices,
+      capabilitySource: profile.capabilitySource,
     });
 
     setActiveProfileCookie(response, profile.id);
-
     return response;
   } catch (error) {
     return secureApiErrorResponse({
