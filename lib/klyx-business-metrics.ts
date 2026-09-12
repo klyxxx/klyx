@@ -120,10 +120,13 @@ function normalize(value: string | null | undefined): string {
 
 const CATEGORY_BY_SERVICE_NAME = new Map(
   KLYX_SERVICE_CATALOG.flatMap((category) =>
-    category.services.map((serviceName) => [
-      normalize(serviceName),
-      { slug: category.slug, name: category.name },
-    ] as const)
+    category.services.map(
+      (serviceName) =>
+        [
+          normalize(serviceName),
+          { slug: category.slug, name: category.name },
+        ] as const
+    )
   )
 );
 
@@ -241,7 +244,8 @@ export function buildKlyxBusinessMetrics(input: {
   const funnels = new Map<string, MutableFunnel>();
 
   for (const request of input.requests) {
-    const categorySlug = requestCategory.get(request.id) ?? FALLBACK_CATEGORY.slug;
+    const categorySlug =
+      requestCategory.get(request.id) ?? FALLBACK_CATEGORY.slug;
     const current = funnels.get(categorySlug) ?? {
       demands: 0,
       demandsWithProposal: 0,
@@ -266,13 +270,19 @@ export function buildKlyxBusinessMetrics(input: {
   for (const booking of input.completedBookings) {
     if (booking.status !== "completed" || !booking.parent_id) continue;
     const category = categoryForService(booking.service_id);
-    const clients = repeatCounts.get(category.slug) ?? new Map<string, number>();
-    clients.set(booking.parent_id, (clients.get(booking.parent_id) ?? 0) + 1);
+    const clients =
+      repeatCounts.get(category.slug) ?? new Map<string, number>();
+    clients.set(
+      booking.parent_id,
+      (clients.get(booking.parent_id) ?? 0) + 1
+    );
     repeatCounts.set(category.slug, clients);
   }
 
   const financialBookingById = new Map(
-    input.financialBookings.map((booking) => [booking.id, booking] as const)
+    input.financialBookings.map(
+      (booking) => [booking.id, booking] as const
+    )
   );
 
   type BookingMoney = {
@@ -333,6 +343,7 @@ export function buildKlyxBusinessMetrics(input: {
     current.gross += money.gross;
     current.commission += money.commission;
     current.refunds += money.refund;
+
     const refundedShare =
       money.gross > 0 ? Math.min(1, money.refund / money.gross) : 0;
     current.retainedCommission += Math.max(
@@ -346,12 +357,16 @@ export function buildKlyxBusinessMetrics(input: {
   for (const cost of input.costs) {
     let serviceId = cost.service_id;
     if (!serviceId && cost.booking_id) {
-      serviceId = financialBookingById.get(cost.booking_id)?.service_id ?? null;
+      serviceId =
+        financialBookingById.get(cost.booking_id)?.service_id ?? null;
     }
 
     if (!serviceId) {
       const key = `${cost.cost_type}:${cost.currency}`;
-      unattributed.set(key, (unattributed.get(key) ?? 0) + safeCents(cost.amount_cents));
+      unattributed.set(
+        key,
+        (unattributed.get(key) ?? 0) + safeCents(cost.amount_cents)
+      );
       continue;
     }
 
@@ -376,7 +391,8 @@ export function buildKlyxBusinessMetrics(input: {
   ]);
 
   const categories = [...categorySlugs].map((categorySlug) => {
-    const categoryName = categoryMeta.get(categorySlug)?.name ?? categorySlug;
+    const categoryName =
+      categoryMeta.get(categorySlug)?.name ?? categorySlug;
     const funnel = funnels.get(categorySlug) ?? {
       demands: 0,
       demandsWithProposal: 0,
@@ -384,8 +400,11 @@ export function buildKlyxBusinessMetrics(input: {
       bookings: 0,
       completedMissions: 0,
     };
-    const clients = repeatCounts.get(categorySlug) ?? new Map<string, number>();
-    const repeatClients = [...clients.values()].filter((count) => count >= 2).length;
+    const clients =
+      repeatCounts.get(categorySlug) ?? new Map<string, number>();
+    const repeatClients = [...clients.values()].filter(
+      (count) => count >= 2
+    ).length;
     const money = moneyByCategory.get(categorySlug) ?? {
       currencies: new Set<string>(),
       gross: 0,
@@ -395,8 +414,10 @@ export function buildKlyxBusinessMetrics(input: {
       costs: [],
     };
     const currencies = [...money.currencies].filter(Boolean);
-    const mixedCurrency = currencies.length > 1 || currencies.includes("MIXED");
-    const currency = currencies.length === 1 && !mixedCurrency ? currencies[0] : null;
+    const mixedCurrency =
+      currencies.length > 1 || currencies.includes("MIXED");
+    const currency =
+      currencies.length === 1 && !mixedCurrency ? currencies[0] : null;
 
     let stripeFees: number | null = null;
     let supportCost: number | null = null;
@@ -423,10 +444,18 @@ export function buildKlyxBusinessMetrics(input: {
           ? null
           : sumCost(money.costs, "acquisition", currency);
 
-      if (stripeFees !== null && supportCost !== null && fraudDisputeCost !== null) {
+      if (
+        stripeFees !== null &&
+        supportCost !== null &&
+        fraudDisputeCost !== null
+      ) {
         contributionMargin =
-          money.retainedCommission - stripeFees - supportCost - fraudDisputeCost;
+          money.retainedCommission -
+          stripeFees -
+          supportCost -
+          fraudDisputeCost;
       }
+
       if (contributionMargin !== null && acquisitionCost !== null) {
         netMargin = contributionMargin - acquisitionCost;
       }
@@ -437,9 +466,18 @@ export function buildKlyxBusinessMetrics(input: {
       categoryName,
       funnel: {
         ...funnel,
-        demandToProposalRate: percent(funnel.demandsWithProposal, funnel.demands),
-        proposalToBookingRate: percent(funnel.bookings, funnel.demandsWithProposal),
-        bookingToCompletedRate: percent(funnel.completedMissions, funnel.bookings),
+        demandToProposalRate: percent(
+          funnel.demandsWithProposal,
+          funnel.demands
+        ),
+        proposalToBookingRate: percent(
+          funnel.bookings,
+          funnel.proposals
+        ),
+        bookingToCompletedRate: percent(
+          funnel.completedMissions,
+          funnel.bookings
+        ),
       },
       repeat: {
         clientsWithCompletedMission: clients.size,
@@ -452,7 +490,9 @@ export function buildKlyxBusinessMetrics(input: {
         grossMissionValueCents: currency ? money.gross : null,
         klyxCommissionCents: currency ? money.commission : null,
         refundsCents: currency ? money.refunds : null,
-        retainedCommissionAfterRefundsCents: currency ? money.retainedCommission : null,
+        retainedCommissionAfterRefundsCents: currency
+          ? money.retainedCommission
+          : null,
         stripeFeesCents: stripeFees,
         supportCostCents: supportCost,
         fraudDisputeCostCents: fraudDisputeCost,
@@ -472,10 +512,15 @@ export function buildKlyxBusinessMetrics(input: {
 
   return {
     categories,
-    unattributedCosts: [...unattributed.entries()].map(([key, amountCents]) => {
-      const [costType, currency] = key.split(":") as [KlyxBusinessCostType, string];
-      return { costType, currency, amountCents };
-    }),
+    unattributedCosts: [...unattributed.entries()].map(
+      ([key, amountCents]) => {
+        const [costType, currency] = key.split(":") as [
+          KlyxBusinessCostType,
+          string,
+        ];
+        return { costType, currency, amountCents };
+      }
+    ),
     tracking,
   };
 }
