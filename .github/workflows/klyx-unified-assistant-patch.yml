@@ -1,0 +1,205 @@
+name: KLYX Unified Assistant Patch
+
+on:
+  push:
+    branches:
+      - feat/unified-assistant-obtain-earn-20260912
+    paths:
+      - .github/workflows/klyx-unified-assistant-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/unified-assistant-obtain-earn-20260912
+          fetch-depth: 0
+
+      - name: Apply exact role-neutral patches
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          def replace_once(path: str, old: str, new: str):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected exactly one occurrence, got {count}: {old!r}")
+              p.write_text(text.replace(old, new, 1))
+
+          # The unified assistant must be able to obtain a service regardless
+          # of the active profile's historical account_type label. Keep auth,
+          # ownership, explicit confirmation and transaction gates unchanged.
+          for path in [
+              "app/api/brain/respond/route.ts",
+              "app/api/brain/confirm-request/route.ts",
+              "app/api/brain/market-publish/route.ts",
+          ]:
+              replace_once(
+                  path,
+                  "  getAuthenticatedProfile,\n  requireAccountType,\n",
+                  "  getAuthenticatedProfile,\n",
+              )
+
+          replace_once(
+              "app/api/brain/respond/route.ts",
+              '    requireAccountType(profile, "client");\n',
+              "",
+          )
+          replace_once(
+              "app/api/brain/confirm-request/route.ts",
+              '    requireAccountType(\n      profile,\n      "client"\n    );\n\n',
+              "",
+          )
+          replace_once(
+              "app/api/brain/market-publish/route.ts",
+              '    requireAccountType(profile, "client");\n',
+              "",
+          )
+
+          # Mission management is relationship-based, not permanent-role-based.
+          p = Path("lib/brain-actions.ts")
+          text = p.read_text()
+
+          load_pattern = re.compile(
+              r"async function loadBookings\(\n  profile: AuthenticatedProfile\n\): Promise<BookingRow\[]> \{.*?\n\}\n\nasync function addClientMarketActions\(",
+              re.S,
+          )
+          load_replacement = '''async function loadBookings(
+            profile: AuthenticatedProfile
+          ): Promise<BookingRow[]> {
+            const { data, error } = await supabaseAdmin
+              .from("bookings")
+              .select(
+                "id, parent_id, provider_id, babysitter_id, quote_id, booking_group_id, status, payment_status, service_status, provider_finished_at, client_confirmed_at, booking_date, start_time, created_at"
+              )
+              .or(
+                "parent_id.eq." +
+                  profile.id +
+                  ",provider_id.eq." +
+                  profile.id +
+                  ",babysitter_id.eq." +
+                  profile.id
+              )
+              .in("status", ["pending", "accepted", "completed"])
+              .order("created_at", { ascending: false })
+              .limit(80);
+
+            if (error) {
+              throw new Error(error.message);
+            }
+
+            return (data ?? []) as BookingRow[];
+          }
+
+          async function addClientMarketActions('''
+          text, count = load_pattern.subn(load_replacement, text, count=1)
+          if count != 1:
+              raise SystemExit(f"brain-actions loadBookings patch count={count}")
+
+          old_client_sig = '''function addClientBookingActions(
+            bookings: BookingRow[],
+            actions: Map<string, BrainActionItem>
+          ) {
+            for (const booking of bookings) {'''
+          new_client_sig = '''function addClientBookingActions(
+            profile: AuthenticatedProfile,
+            bookings: BookingRow[],
+            actions: Map<string, BrainActionItem>
+          ) {
+            for (const booking of bookings) {
+              if (booking.parent_id !== profile.id) {
+                continue;
+              }'''
+          if text.count(old_client_sig) != 1:
+              raise SystemExit("brain-actions client booking signature not found exactly once")
+          text = text.replace(old_client_sig, new_client_sig, 1)
+
+          provider_marker = "async function addProviderActions("
+          provider_index = text.find(provider_marker)
+          if provider_index < 0:
+              raise SystemExit("brain-actions provider function missing")
+          before = text[:provider_index]
+          provider = text[provider_index:]
+          old_provider_loop = '''  for (const booking of bookings) {
+                if ('''
+          new_provider_loop = '''  for (const booking of bookings) {
+            if (
+              booking.provider_id !== profile.id &&
+              booking.babysitter_id !== profile.id
+            ) {
+              continue;
+            }
+
+                if ('''
+          if provider.count(old_provider_loop) != 1:
+              raise SystemExit(
+                  f"brain-actions provider booking loop count={provider.count(old_provider_loop)}"
+              )
+          provider = provider.replace(old_provider_loop, new_provider_loop, 1)
+          text = before + provider
+
+          function_pattern = re.compile(
+              r"export async function getBrainActions\(\n  profile: AuthenticatedProfile\n\): Promise<BrainActionItem\[]> \{.*?\n\}\s*$",
+              re.S,
+          )
+          function_replacement = '''export async function getBrainActions(
+            profile: AuthenticatedProfile
+          ): Promise<BrainActionItem[]> {
+            const actionMap = new Map<string, BrainActionItem>();
+            const bookings = await loadBookings(profile);
+
+            await addClientMarketActions(profile, bookings, actionMap);
+            addClientBookingActions(profile, bookings, actionMap);
+            await addClientGroupReviewActions(profile, actionMap);
+            await addProviderActions(profile, bookings, actionMap);
+
+            return Array.from(actionMap.values()).sort(
+              (first, second) => second.priority - first.priority
+            );
+          }
+          '''
+          text, count = function_pattern.subn(function_replacement, text, count=1)
+          if count != 1:
+              raise SystemExit(f"brain-actions getBrainActions patch count={count}")
+
+          p.write_text(text)
+
+          # Hard guard: these three unified purchase surfaces must no longer
+          # contain a permanent role requirement.
+          for path in [
+              "app/api/brain/respond/route.ts",
+              "app/api/brain/confirm-request/route.ts",
+              "app/api/brain/market-publish/route.ts",
+          ]:
+              text = Path(path).read_text()
+              if "requireAccountType" in text:
+                  raise SystemExit(f"{path}: role guard still present")
+          PY
+
+      - name: Verify diff scope and self-delete
+        shell: bash
+        run: |
+          git diff --check
+          rm .github/workflows/klyx-unified-assistant-patch.yml
+          git status --short
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name "klyxxx"
+          git config user.email "yeswork2711@gmail.com"
+          git add app/api/brain/respond/route.ts \
+                  app/api/brain/confirm-request/route.ts \
+                  app/api/brain/market-publish/route.ts \
+                  lib/brain-actions.ts \
+                  .github/workflows/klyx-unified-assistant-patch.yml
+          git commit -m "refactor: make assistant capabilities relationship-based"
+          git push origin HEAD:feat/unified-assistant-obtain-earn-20260912
