@@ -9,6 +9,7 @@ function read(relativePath: string) {
 
 const profilePage = read("app/profile/page.tsx");
 const rail = read("app/ui/MissionRail.tsx");
+const accountMenu = read("app/components/AccountSwitcher.tsx");
 
 describe("KLYX profile shortcuts", () => {
   it("removes provider-management and settings cards from the profile page", () => {
@@ -17,8 +18,9 @@ describe("KLYX profile shortcuts", () => {
     expect(profilePage).not.toContain("manageProviderProfile");
   });
 
-  it("keeps settings once in the rail and adds one provider commercial-profile entry", () => {
-    expect(rail.match(/href="\/settings"/g) ?? []).toHaveLength(1);
+  it("keeps settings once in the canonical account menu and one provider commercial-profile entry", () => {
+    expect(rail).not.toContain('href="/settings"');
+    expect(accountMenu.match(/href="\/settings"/g) ?? []).toHaveLength(1);
     expect(rail.match(/href="\/provider"/g) ?? []).toHaveLength(1);
     expect(rail).toContain('commercialProfile: "Fiche commerciale"');
     expect(rail).toContain("{copy.commercialProfile}");
