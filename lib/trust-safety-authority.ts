@@ -173,7 +173,10 @@ function activeForCategory(
   restriction: TrustSafetyRestriction,
   categoryKey: string
 ): boolean {
-  if (restriction.status !== "active" && restriction.status !== "under_review") {
+  if (
+    restriction.status !== "active" &&
+    restriction.status !== "under_review"
+  ) {
     return false;
   }
   if (restriction.endsAt && Date.parse(restriction.endsAt) <= Date.now()) {
@@ -188,9 +191,9 @@ function activeForCategory(
 /**
  * Role-independent mission readiness authority.
  *
- * It does not decide whether somebody is legally an employee, an independent
- * professional or eligible for an occasional-work regime. The selected path is
- * only an operational KLYX pathway and remains reviewable by a human.
+ * This is an operational KLYX decision, not a legal determination of employee,
+ * independent-professional or occasional-work status. Sensitive conclusions
+ * remain explainable, auditable and human-reviewable.
  */
 export function evaluateTrustSafetyAuthority(input: {
   facts: TrustSafetyFacts;
@@ -206,8 +209,13 @@ export function evaluateTrustSafetyAuthority(input: {
   let manualReview = false;
   let conditional = false;
 
-  const countryCode = facts.jurisdictionCountryCode?.trim().toUpperCase() ?? null;
-  if (!countryCode || countryCode !== policy.jurisdictionCountryCode.toUpperCase()) {
+  const countryCode =
+    facts.jurisdictionCountryCode?.trim().toUpperCase() ?? null;
+
+  if (
+    !countryCode ||
+    countryCode !== policy.jurisdictionCountryCode.toUpperCase()
+  ) {
     requirements.push({
       kind: "human_review",
       key: "jurisdiction",
@@ -313,7 +321,9 @@ export function evaluateTrustSafetyAuthority(input: {
     reasons.push("LEGAL_PATH_NOT_DECLARED");
     manualReview = true;
   } else {
-    const allowed = policy.allowedLegalPaths.includes(facts.declaredLegalPath);
+    const allowed = policy.allowedLegalPaths.includes(
+      facts.declaredLegalPath
+    );
     requirements.push({
       kind: "legal_path",
       key: facts.declaredLegalPath,
@@ -332,12 +342,15 @@ export function evaluateTrustSafetyAuthority(input: {
       facts.declaredLegalPath === "occasional_compatible" &&
       facts.activityFrequency === "recurring"
     ) {
-      reasons.push("OCCASIONAL_PATH_CONFLICTS_WITH_RECURRING_ACTIVITY");
+      reasons.push(
+        "OCCASIONAL_PATH_CONFLICTS_WITH_RECURRING_ACTIVITY"
+      );
       manualReview = true;
     }
 
     if (facts.declaredLegalPath === "employment_via_structure") {
-      const state = facts.verifications.employment_arrangement ?? "unknown";
+      const state =
+        facts.verifications.employment_arrangement ?? "unknown";
       const status = requirementStatus(state);
       requirements.push({
         kind: "verification",
@@ -351,7 +364,10 @@ export function evaluateTrustSafetyAuthority(input: {
     }
 
     if (facts.declaredLegalPath === "professional_independent") {
-      for (const key of ["enterprise_registration", "social_insurance_fund"]) {
+      for (const key of [
+        "enterprise_registration",
+        "social_insurance_fund",
+      ]) {
         const state = facts.verifications[key] ?? "unknown";
         const status = requirementStatus(state);
         requirements.push({
@@ -366,8 +382,10 @@ export function evaluateTrustSafetyAuthority(input: {
       }
     }
 
-    const reviewMatches = facts.reviewedLegalPath === facts.declaredLegalPath;
-    const reviewApproved = facts.legalPathReview === "approved" && reviewMatches;
+    const reviewMatches =
+      facts.reviewedLegalPath === facts.declaredLegalPath;
+    const reviewApproved =
+      facts.legalPathReview === "approved" && reviewMatches;
     requirements.push({
       kind: "human_review",
       key: "legal_path_review",
@@ -418,19 +436,40 @@ export function evaluateTrustSafetyAuthority(input: {
     reasons.push("DISPUTE_HISTORY_IS_SIGNAL_NOT_AUTOMATIC_PENALTY");
   }
 
-  if (
+  const categoryReviewRequired =
     policy.humanReviewMode === "always" ||
-    (policy.humanReviewMode === "if_sensitive" && policy.riskTier === "sensitive")
-  ) {
+    (policy.humanReviewMode === "if_sensitive" &&
+      policy.riskTier === "sensitive");
+
+  if (categoryReviewRequired) {
+    // Category review is represented as a normal server-controlled verification
+    // so the state can be approved/rejected by an admin and later re-evaluated.
+    const categoryReviewKey = `category_review:${policy.categoryKey}`;
+    const state = facts.verifications[categoryReviewKey] ?? "unknown";
+    const status = requirementStatus(state);
     requirements.push({
       kind: "human_review",
-      key: "category_policy_review",
-      status: "pending",
-      reasonCode: "CATEGORY_POLICY_REQUIRES_HUMAN_REVIEW",
-      humanReviewRequired: true,
+      key: categoryReviewKey,
+      status,
+      reasonCode:
+        status === "satisfied"
+          ? "CATEGORY_POLICY_HUMAN_REVIEW_APPROVED"
+          : status === "rejected"
+            ? "CATEGORY_POLICY_HUMAN_REVIEW_REJECTED"
+            : "CATEGORY_POLICY_REQUIRES_HUMAN_REVIEW",
+      humanReviewRequired: status !== "satisfied",
     });
-    reasons.push("CATEGORY_POLICY_REQUIRES_HUMAN_REVIEW");
-    manualReview = true;
+
+    if (status === "satisfied") {
+      reasons.push("CATEGORY_POLICY_HUMAN_REVIEW_APPROVED");
+    } else {
+      reasons.push(
+        status === "rejected"
+          ? "CATEGORY_POLICY_HUMAN_REVIEW_REJECTED"
+          : "CATEGORY_POLICY_REQUIRES_HUMAN_REVIEW"
+      );
+      manualReview = true;
+    }
   }
 
   const decision: TrustSafetyDecision = hardBlocked
@@ -450,7 +489,8 @@ export function evaluateTrustSafetyAuthority(input: {
     requirements,
     reasons: unique(reasons),
     humanReviewRequired: manualReview || hardBlocked,
-    sensitiveDecision: decision === "manual_review" || decision === "blocked",
+    sensitiveDecision:
+      decision === "manual_review" || decision === "blocked",
     reversible: true,
     legalClassificationAutomatic: false,
   };
