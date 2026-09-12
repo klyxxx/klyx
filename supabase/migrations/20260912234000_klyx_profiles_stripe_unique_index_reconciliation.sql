@@ -38,7 +38,7 @@ begin
       and canonical.indisvalid
       and canonical.indisready
       and canonical.indnkeyatts = 1
-      and canonical.indkey::smallint[] = array[stripe_attnum]::smallint[]
+      and canonical.indkey::text = stripe_attnum::text
       and pg_get_expr(canonical.indexprs, canonical.indrelid) is null
       and pg_get_expr(canonical.indpred, canonical.indrelid)
           = '(stripe_account_id IS NOT NULL)'
