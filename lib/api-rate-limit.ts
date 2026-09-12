@@ -57,6 +57,21 @@ export const API_RATE_LIMIT_POLICIES = {
     limit: 20,
     windowSeconds: 60,
   },
+  trustSafetyDeclarationMutation: {
+    action: "trust_safety_declaration_mutation",
+    limit: 12,
+    windowSeconds: 300,
+  },
+  trustSafetyReportCreate: {
+    action: "trust_safety_report_create",
+    limit: 6,
+    windowSeconds: 300,
+  },
+  trustSafetyReviewRequest: {
+    action: "trust_safety_review_request",
+    limit: 5,
+    windowSeconds: 300,
+  },
   stripeCheckoutCreate: {
     action: "stripe_checkout_create",
     limit: 8,
