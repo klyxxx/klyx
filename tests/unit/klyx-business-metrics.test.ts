@@ -139,6 +139,38 @@ describe("KLYX real business metrics", () => {
     expect(finance.estimatedContributionMarginCents).toBe(300);
   });
 
+  it("keeps retained commission and margins unknown when a refund lacks its payment context", () => {
+    const refundedBooking = booking("booking-refund-only");
+    const result = buildKlyxBusinessMetrics({
+      services,
+      requests: [],
+      offers: [],
+      quotes: [],
+      funnelBookings: [],
+      financialBookings: [refundedBooking],
+      completedBookings: [],
+      ledger: [
+        {
+          booking_id: "booking-refund-only",
+          entry_type: "refund_succeeded",
+          status: "succeeded",
+          currency: "EUR",
+          gross_amount_cents: 0,
+          platform_fee_cents: 0,
+          refund_amount_cents: 2_500,
+        },
+      ],
+      costs: [],
+      tracking: baseTracking,
+    });
+
+    const finance = result.categories[0].finance;
+    expect(finance.refundsCents).toBe(2_500);
+    expect(finance.retainedCommissionAfterRefundsCents).toBeNull();
+    expect(finance.estimatedContributionMarginCents).toBeNull();
+    expect(finance.estimatedNetMarginCents).toBeNull();
+  });
+
   it("keeps estimated net margin unknown while acquisition cost is unavailable", () => {
     const paidBooking = booking("booking-1");
     const result = buildKlyxBusinessMetrics({
