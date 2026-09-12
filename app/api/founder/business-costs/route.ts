@@ -71,9 +71,9 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!Number.isInteger(amountCents) || amountCents < 0) {
+    if (!Number.isInteger(amountCents) || amountCents <= 0) {
       return NextResponse.json(
-        { error: "Le coût doit être un entier positif en centimes." },
+        { error: "Le coût doit être un entier strictement positif en centimes." },
         { status: 400 }
       );
     }
