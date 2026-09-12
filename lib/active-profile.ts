@@ -58,12 +58,6 @@ function normalizeProfile(
     normalizeLegacyAccountType(
       profile.account_type
     );
-  const accountType: AccountType =
-    capabilityState.canOfferServices
-      ? "provider"
-      : capabilityState.canRequestServices
-        ? "client"
-        : legacyAccountType;
 
   return {
     id: profile.id,
@@ -87,7 +81,8 @@ function normalizeProfile(
     currencyCode:
       profile.currency_code ?? null,
 
-    accountType,
+    accountType:
+      legacyAccountType,
 
     legacyAccountType,
 
