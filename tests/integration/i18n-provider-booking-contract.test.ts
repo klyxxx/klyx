@@ -11,6 +11,7 @@ describe("KLYX provider booking i18n contract", () => {
     const page = read("app/providers/[id]/book/page.tsx");
 
     expect(page).toContain("KLYX_PROVIDER_BOOKING_I18N_16_07");
+    expect(page).toContain("KLYX_PROVIDER_BOOKING_CONVERSATIONAL_20260911");
     expect(page).toContain("useKlyxLocale");
     expect(page).toContain("translateKlyxProviderBooking");
     expect(page).toContain('fetch("/api/bookings/create"');
@@ -42,10 +43,21 @@ describe("KLYX provider booking i18n contract", () => {
   it("uses only the KLYX blue for the booking brand accent", () => {
     const page = read("app/providers/[id]/book/page.tsx");
 
-    expect(page).toContain("#2563eb");
+    expect(page).toContain("blue-600");
     expect(page).not.toContain("violet");
     expect(page).not.toContain("purple");
     expect(page).not.toContain("gradient");
+  });
+
+  it("renders booking as a single conversational flow rather than a dashboard grid", () => {
+    const page = read("app/providers/[id]/book/page.tsx");
+
+    expect(page).toContain('data-klyx-ui="KLYX_PROVIDER_BOOKING_CONVERSATIONAL_20260911"');
+    expect(page).toContain("max-w-3xl");
+    expect(page).toContain("flex justify-end");
+    expect(page).toContain("rounded-3xl bg-muted");
+    expect(page).not.toContain("lg:grid-cols-[1fr_320px]");
+    expect(page).not.toContain("lg:sticky");
   });
 
   it("does not reflect raw Supabase or booking API errors", () => {
