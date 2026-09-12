@@ -92,4 +92,11 @@ describe("KLYX provider legal authority security contract", () => {
       'PROVIDER_LEGAL_RULESET_VERSION = "be-provider-legal-v1"'
     );
   });
+
+  it("keeps the legal authority independent from real Stripe flows", () => {
+    expect(route).not.toMatch(/stripe/i);
+    expect(serverAuthority).not.toMatch(/stripe/i);
+    expect(evaluator).not.toMatch(/stripe/i);
+    expect(migration).not.toMatch(/stripe/i);
+  });
 });
