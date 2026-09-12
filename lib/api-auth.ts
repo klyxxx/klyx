@@ -54,6 +54,35 @@ function supabasePublicKey(): string {
   return value;
 }
 
+function compatibilityAccountTypeForRequest(
+  request: Request,
+  legacyAccountType: AccountType,
+  canRequestServices: boolean,
+  canOfferServices: boolean
+): AccountType {
+  let pathname = "";
+
+  try {
+    pathname = new URL(request.url).pathname;
+  } catch {
+    return legacyAccountType;
+  }
+
+  if (pathname.startsWith("/api/provider/") && canOfferServices) {
+    return "provider";
+  }
+
+  if (canRequestServices) {
+    return "client";
+  }
+
+  if (canOfferServices) {
+    return "provider";
+  }
+
+  return legacyAccountType;
+}
+
 export async function getAuthenticatedProfile(
   request: Request
 ): Promise<{
@@ -109,11 +138,17 @@ export async function getAuthenticatedProfile(
       capabilities?.canRequestServices ?? legacyAccountType === "client";
     const canOfferServices =
       capabilities?.canOfferServices ?? legacyAccountType === "provider";
+    const accountType = compatibilityAccountTypeForRequest(
+      request,
+      legacyAccountType,
+      canRequestServices,
+      canOfferServices
+    );
 
     return {
       id: profile.id,
       ownerUserId: profile.owner_user_id,
-      accountType: legacyAccountType,
+      accountType,
       legacyAccountType,
       canRequestServices,
       canOfferServices,
