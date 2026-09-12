@@ -20,7 +20,7 @@ jobs:
           ref: feat/unified-assistant-obtain-earn-20260912
           fetch-depth: 0
 
-      - name: Merge current main and resolve unified MissionRail
+      - name: Merge current main and verify unified MissionRail
         shell: bash
         run: |
           set -euo pipefail
@@ -28,40 +28,12 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git fetch origin main
 
-          set +e
           git merge --no-commit --no-ff origin/main
-          merge_status=$?
-          set -e
-
-          if [ "$merge_status" -ne 0 ]; then
-            conflicts="$(git diff --name-only --diff-filter=U)"
-            printf 'Conflicts:\n%s\n' "$conflicts"
-            if [ "$conflicts" != "app/ui/MissionRail.tsx" ]; then
-              echo "Unexpected merge conflict set. Refusing automatic resolution."
-              exit 1
-            fi
-            git checkout --theirs -- app/ui/MissionRail.tsx
-          fi
 
           python - <<'PY'
           from pathlib import Path
-          import re
 
-          path = Path("app/ui/MissionRail.tsx")
-          source = path.read_text(encoding="utf-8")
-
-          old_guard = "      if (!accountType) {"
-          if source.count(old_guard) != 1:
-              raise SystemExit(f"Expected one accountType load guard, got {source.count(old_guard)}")
-          source = source.replace(old_guard, "      if (!activeProfileId) {", 1)
-
-          provider_branch = re.compile(
-              r'\n        if \(accountType === "provider"\) \{\n.*?\n          return;\n        \}\n',
-              re.S,
-          )
-          source, replacements = provider_branch.subn("\n", source, count=1)
-          if replacements != 1:
-              raise SystemExit(f"Expected one provider-only mission loader, got {replacements}")
+          source = Path("app/ui/MissionRail.tsx").read_text(encoding="utf-8")
 
           required = [
               'if (!activeProfileId)',
@@ -76,15 +48,13 @@ jobs:
 
           forbidden = [
               'fetch("/api/provider/jobs"',
+              'if (accountType === "provider")',
           ]
           for marker in forbidden:
               if marker in source:
-                  raise SystemExit(f"Legacy provider-only MissionRail loader remains: {marker}")
-
-          path.write_text(source, encoding="utf-8")
+                  raise SystemExit(f"Legacy role-split MissionRail marker remains: {marker}")
           PY
 
-          git add app/ui/MissionRail.tsx
           git rm .github/workflows/klyx-unified-assistant-main-sync.yml
           git status --short
           git commit -m "chore: sync unified assistant with main"
