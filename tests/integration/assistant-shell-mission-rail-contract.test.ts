@@ -10,6 +10,7 @@ function read(relativePath: string) {
 const layout = read("app/layout.tsx");
 const shell = read("app/ui/AssistantShell.tsx");
 const rail = read("app/ui/MissionRail.tsx");
+const account = read("app/components/AccountSwitcher.tsx");
 
 describe("KLYX assistant-first shell and mission rail", () => {
   it("mounts AssistantShell globally instead of the SaaS sidebar", () => {
@@ -64,19 +65,25 @@ describe("KLYX assistant-first shell and mission rail", () => {
     expect(rail).toContain('title={meta ? `${mission.title} — ${meta}` : mission.title}');
   });
 
-  it("removes permanent SaaS destinations while keeping provider tools secondary under Account", () => {
+  it("keeps one Account entry at rail bottom with only account actions in its upward menu", () => {
     expect(shell).not.toContain('href="/messages"');
     expect(shell).not.toContain('href="/bookings"');
     expect(shell).not.toContain('href="/provider/jobs"');
     expect(shell).not.toContain('href="/profile"');
 
     expect(rail).not.toContain('href="/messages"');
-    expect(rail).toContain('data-testid="account-entry"');
-    expect(rail).toContain('href="/profile"');
-    expect(rail).toContain('href="/provider/studio"');
-    expect(rail).toContain('href="/provider/payments"');
-    expect(rail).toContain('href="/settings"');
-    expect(rail).toContain('href="/accounts"');
+    expect(rail.match(/<AccountSwitcher/g) ?? []).toHaveLength(1);
+    expect(rail).toContain("compact={compact}");
+
+    expect(account).toContain('data-testid="account-entry"');
+    expect(account).toContain('data-testid="account-menu"');
+    expect(account).toContain("bottom-full");
+    expect(account).toContain('href="/profile"');
+    expect(account).toContain('href="/settings"');
+    expect(account).toContain('href="/support"');
+    expect(account).not.toContain('href="/accounts"');
+    expect(account).not.toContain('href="/provider/studio"');
+    expect(account).not.toContain('href="/provider/payments"');
   });
 
   it("replaces the mobile four-tab bar with an accessible drawer", () => {
