@@ -61,10 +61,43 @@ jobs:
       - name: Production build
         run: npm run build
 
+      - name: Preserve account trigger chrome while redacting identity
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path("tests/e2e/helpers/ux-certification.ts")
+          text = path.read_text(encoding="utf-8")
+          old = '''export async function expectReferenceScreenshot(page: Page, name: string) {
+            const masks = [
+              page.locator('[data-testid="account-switcher"]'),
+          '''
+          new = '''export async function expectReferenceScreenshot(page: Page, name: string) {
+            const desktopRail = page.getByTestId("desktop-mission-rail");
+            const accountIdentityMasks = (await desktopRail.isVisible())
+              ? [
+                  desktopRail.getByTestId("account-entry").locator(":scope > span").nth(0),
+                  desktopRail.getByTestId("account-entry").locator(":scope > span").nth(1),
+                ]
+              : [];
+
+            const masks = [
+              ...accountIdentityMasks,
+          '''
+          old = old.replace("          ", "")
+          new = new.replace("          ", "")
+          if old not in text:
+              raise SystemExit("expected account-switcher mask contract not found")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+
+          git diff -- tests/e2e/helpers/ux-certification.ts
+
       - name: Regenerate official UX references
         run: npx playwright test --config=playwright.ux-certification.config.ts --update-snapshots=all
 
-      - name: Keep only the five human-validated desktop references
+      - name: Keep only human-validated desktop references
         shell: bash
         run: |
           git restore -- tests/e2e/ux-visual-certification-snapshots/mobile-chromium
@@ -74,7 +107,7 @@ jobs:
           import struct
           import zlib
 
-          expected = {
+          references = {
               "tests/e2e/ux-visual-certification-snapshots/desktop-chromium/assistant-desktop.png",
               "tests/e2e/ux-visual-certification-snapshots/desktop-chromium/profile-desktop.png",
               "tests/e2e/ux-visual-certification-snapshots/desktop-chromium/settings-desktop.png",
@@ -110,7 +143,7 @@ jobs:
               if not saw_iend:
                   raise SystemExit(f"missing PNG IEND: {path}")
 
-          for item in sorted(expected):
+          for item in sorted(references):
               validate_png(Path(item))
               print(f"valid PNG: {item}")
           PY
@@ -119,6 +152,7 @@ jobs:
           python - "$changed" <<'PY'
           import sys
           expected = {
+              "tests/e2e/helpers/ux-certification.ts",
               "tests/e2e/ux-visual-certification-snapshots/desktop-chromium/assistant-desktop.png",
               "tests/e2e/ux-visual-certification-snapshots/desktop-chromium/profile-desktop.png",
               "tests/e2e/ux-visual-certification-snapshots/desktop-chromium/settings-desktop.png",
@@ -128,7 +162,7 @@ jobs:
           actual = {line for line in sys.argv[1].splitlines() if line}
           if actual != expected:
               raise SystemExit(f"unexpected rebaseline diff: {sorted(actual)}")
-          print("desktop-only rebaseline scope: PASS")
+          print("validated helper + five desktop references scope: PASS")
           PY
 
       - name: Guard regenerated references against service-role leakage
@@ -149,13 +183,15 @@ jobs:
           print("UX baseline secret scan: PASS")
           PY
 
-      - name: Commit clean baseline-only result
+      - name: Commit clean certified result
         shell: bash
         run: |
           git rm -f .github/workflows/klyx-ux-rebaseline-747.yml
-          git add tests/e2e/ux-visual-certification-snapshots/desktop-chromium/*.png
+          git add \
+            tests/e2e/helpers/ux-certification.ts \
+            tests/e2e/ux-visual-certification-snapshots/desktop-chromium/*.png
 
           git config user.name "klyxxx"
           git config user.email "yeswork2711@gmail.com"
-          git commit -m "test: refresh #747 certified desktop UX baselines"
+          git commit -m "test: expose #747 account trigger in certified UX references"
           git push origin "HEAD:${KLYX_BRANCH}"
