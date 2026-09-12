@@ -99,6 +99,13 @@ export function canRequestTrustReview(
     );
   }
 
+  if (
+    decision.human_review_required &&
+    decision.review_status !== "rejected"
+  ) {
+    return false;
+  }
+
   return (
     decision.decision === "ineligible" ||
     decision.decision === "requirements_missing" ||
