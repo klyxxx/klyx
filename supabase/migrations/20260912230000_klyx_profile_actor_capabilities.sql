@@ -48,9 +48,9 @@ create policy "klyx_profile_actor_capabilities_owner_select"
   to authenticated
   using (public.klyx_owns_profile(profile_id));
 
--- Preserve current permissions exactly for existing profiles.
--- account_type is the current application discriminator; the older columns stay
--- available as rollback/fallback inputs but do not widen the initial backfill.
+-- Preserve current permissions exactly for existing profiles. Older rows may
+-- not have account_type populated, so resolve the same legacy discriminator
+-- used by the runtime fallback and default safely to client.
 insert into public.profile_actor_capabilities (
   profile_id,
   capability,
@@ -60,7 +60,12 @@ insert into public.profile_actor_capabilities (
 select
   profile.id,
   'request_services',
-  profile.account_type <> 'provider',
+  coalesce(
+    nullif(profile.account_type, ''),
+    nullif(profile.current_mode, ''),
+    nullif(profile.role, ''),
+    'client'
+  ) <> 'provider',
   'legacy_backfill'
 from public.profiles as profile
 on conflict (profile_id, capability) do nothing;
@@ -74,7 +79,12 @@ insert into public.profile_actor_capabilities (
 select
   profile.id,
   'offer_services',
-  profile.account_type = 'provider',
+  coalesce(
+    nullif(profile.account_type, ''),
+    nullif(profile.current_mode, ''),
+    nullif(profile.role, ''),
+    'client'
+  ) = 'provider',
   'legacy_backfill'
 from public.profiles as profile
 on conflict (profile_id, capability) do nothing;
