@@ -8,30 +8,31 @@ function read(relativePath: string) {
 }
 
 describe("KLYX account switcher i18n contract", () => {
-  it("uses the locale-aware account switcher copy", () => {
+  it("uses locale-aware account copy for the bottom account menu", () => {
     const switcher = read("app/components/AccountSwitcher.tsx");
 
-    expect(switcher).toContain('useKlyxLocale');
-    expect(switcher).toContain('translateKlyxAccountSwitcher');
+    expect(switcher).toContain("useKlyxLocale");
+    expect(switcher).toContain("translateKlyxAccountSwitcher");
     expect(switcher).toContain('aria-label={t("menuAria")}');
-    expect(switcher).toContain('{t("menuTitle")}');
-    expect(switcher).toContain('{t("manageProfiles")}');
+    expect(switcher).toContain('profile: "Profil"');
+    expect(switcher).toContain('settings: "Paramètres"');
+    expect(switcher).toContain('help: "Aide"');
+    expect(switcher).toContain('logout: "Déconnexion"');
     expect(switcher).not.toContain('aria-label="Changer de profil KLYX"');
-    expect(switcher).not.toContain('>Gérer les profils<');
-    expect(switcher).not.toContain('>Profils KLYX<');
   });
 
-  it("preserves profile switching and profile management navigation", () => {
+  it("preserves one-click profile switching without exposing profile management as a second entry", () => {
     const switcher = read("app/components/AccountSwitcher.tsx");
 
     expect(switcher).toContain('data-testid="account-switcher"');
+    expect(switcher).toContain('data-testid="account-entry"');
     expect(switcher).toContain('await switchAccount(profileId);');
     expect(switcher).toContain('setActiveProfileId(profileId);');
     expect(switcher).toContain(
       'ActiveProfileSync owns the full-document role transition.'
     );
-    expect(switcher).toContain('href="/accounts"');
-    expect(switcher).not.toContain('window.location');
+    expect(switcher).not.toContain('href="/accounts"');
+    expect(switcher).not.toContain("window.location");
   });
 
   it("keeps component-facing failures localized instead of exposing raw helper errors", () => {

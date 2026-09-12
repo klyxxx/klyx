@@ -1,15 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   BriefcaseBusiness,
   CalendarDays,
   House,
-  LogOut,
   MessageCircle,
   Sparkles,
-  UserRound,
   WalletCards,
   Wrench,
 } from "lucide-react";
@@ -23,7 +21,6 @@ import { KLYX_ACTIVE_PROFILE_CHANGED } from "@/lib/account-switcher";
 import { type KlyxLocale } from "@/lib/klyx-i18n";
 import { translateKlyxProviderAssistant } from "@/lib/klyx-provider-assistant-i18n";
 import { translateKlyxTolgeeRuntimeNavigation } from "@/lib/klyx-tolgee-runtime";
-import { createClient } from "@/lib/supabase/client";
 
 type AccountType = "client" | "provider";
 
@@ -72,12 +69,6 @@ const clientItems: MenuItem[] = [
     href: "/messages",
     icon: MessageCircle,
   },
-  {
-    title: "Profil",
-    translationLabel: "Mon profil",
-    href: "/profile",
-    icon: UserRound,
-  },
 ];
 
 const providerItems: MenuItem[] = [
@@ -98,12 +89,6 @@ const providerItems: MenuItem[] = [
     translationLabel: "Finance",
     href: "/provider/payments",
     icon: WalletCards,
-  },
-  {
-    title: "Profil",
-    translationLabel: "Mon profil",
-    href: "/profile",
-    icon: UserRound,
   },
 ];
 
@@ -126,14 +111,12 @@ function translatedMenuTitle(locale: KlyxLocale, item: MenuItem) {
 
 export default function AppSidebar() {
   const pathname = usePathname();
-  const router = useRouter();
   const { locale, t } = useKlyxLocale();
   const providerAssistantLabel = translateKlyxProviderAssistant(locale, "badge");
   const desktopNavigationLabel = t("sidebar.desktopNavigation");
   const mobileNavigationLabel = t("sidebar.mobileNavigation");
   const [accountType, setAccountType] = useState<AccountType | null>(null);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
-  const [loggingOut, setLoggingOut] = useState(false);
 
   const hideNavigation = routesWithoutNavigation.some((route) =>
     matchesRoute(pathname, route)
@@ -197,22 +180,6 @@ export default function AppSidebar() {
 
   if (hideNavigation) return null;
 
-  async function logout() {
-    if (loggingOut) return;
-    setLoggingOut(true);
-
-    try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.signOut({ scope: "local" });
-      if (error) throw error;
-
-      router.replace("/login");
-      router.refresh();
-    } catch {
-      setLoggingOut(false);
-    }
-  }
-
   return (
     <>
       <div
@@ -227,12 +194,6 @@ export default function AppSidebar() {
       >
         <div className="relative z-30 shrink-0 px-7 pb-5 pt-8">
           <KlyxLogo href={homeHref} />
-
-          {activeProfileId && (
-            <div className="relative z-40 mt-8 [&>div>button]:w-full">
-              <AccountSwitcher currentProfileId={activeProfileId} />
-            </div>
-          )}
         </div>
 
         <nav
@@ -285,15 +246,11 @@ export default function AppSidebar() {
             </Link>
           )}
 
-          <button
-            type="button"
-            onClick={logout}
-            disabled={loggingOut}
-            className="flex min-h-11 w-full items-center gap-3 rounded-xl px-4 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:cursor-wait disabled:opacity-50"
-          >
-            <LogOut size={17} />
-            {loggingOut ? t("sidebar.loggingOut") : t("sidebar.logout")}
-          </button>
+          {activeProfileId && (
+            <div className="border-t border-border pt-2 dark:border-white/8">
+              <AccountSwitcher currentProfileId={activeProfileId} />
+            </div>
+          )}
         </div>
       </aside>
 
@@ -330,7 +287,7 @@ export default function AppSidebar() {
           aria-label={mobileNavigationLabel}
           className="fixed inset-x-0 bottom-0 z-50 transform-gpu border-t border-border bg-background/96 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur-2xl lg:hidden dark:border-white/10"
         >
-          <div className="mx-auto grid max-w-lg grid-cols-4 gap-1">
+          <div className="mx-auto grid max-w-lg grid-cols-3 gap-1">
             {items.map((item) => {
               const Icon = item.icon;
               const active = activeHref === item.href;

@@ -9,6 +9,8 @@ function read(relativePath: string) {
 
 const profilePage = read("app/profile/page.tsx");
 const rail = read("app/ui/MissionRail.tsx");
+const account = read("app/components/AccountSwitcher.tsx");
+const sidebar = read("app/ui/AppSidebar.tsx");
 
 describe("KLYX profile shortcuts", () => {
   it("removes provider-management and settings cards from the profile page", () => {
@@ -17,15 +19,19 @@ describe("KLYX profile shortcuts", () => {
     expect(profilePage).not.toContain("manageProviderProfile");
   });
 
-  it("keeps settings once in the rail and adds one provider commercial-profile entry", () => {
-    expect(rail.match(/href="\/settings"/g) ?? []).toHaveLength(1);
-    expect(rail.match(/href="\/provider"/g) ?? []).toHaveLength(1);
-    expect(rail).toContain('commercialProfile: "Fiche commerciale"');
-    expect(rail).toContain("{copy.commercialProfile}");
+  it("keeps Profile and Settings only in the single account menu", () => {
+    expect(rail.match(/<AccountSwitcher/g) ?? []).toHaveLength(1);
+    expect(account.match(/href="\/profile"/g) ?? []).toHaveLength(1);
+    expect(account.match(/href="\/settings"/g) ?? []).toHaveLength(1);
+    expect(account).toContain('href="/support"');
+    expect(account).not.toContain('href="/provider"');
+    expect(account).not.toContain('href="/accounts"');
   });
 
-  it("does not duplicate the existing provider services and finances shortcuts", () => {
-    expect(rail.match(/href="\/provider\/studio"/g) ?? []).toHaveLength(1);
-    expect(rail.match(/href="\/provider\/payments"/g) ?? []).toHaveLength(1);
+  it("keeps provider service and finance destinations outside the Account menu", () => {
+    expect(account).not.toContain('href="/provider/studio"');
+    expect(account).not.toContain('href="/provider/payments"');
+    expect(sidebar.match(/href: "\/provider\/studio"/g) ?? []).toHaveLength(1);
+    expect(sidebar.match(/href: "\/provider\/payments"/g) ?? []).toHaveLength(1);
   });
 });

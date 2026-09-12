@@ -21,9 +21,9 @@ describe("mobile navigation accessibility contract", () => {
     expect(helper).toContain("container.focus()");
   });
 
-  it("uses a fixed four-entry mobile navigation instead of a modal drawer", () => {
+  it("uses a fixed three-entry work navigation instead of a modal drawer", () => {
     expect(sidebar).toContain("aria-label={mobileNavigationLabel}");
-    expect(sidebar).toContain("grid-cols-4");
+    expect(sidebar).toContain("grid-cols-3");
     expect(sidebar).toContain("min-h-14");
     expect(sidebar).not.toContain('role="dialog"');
     expect(sidebar).not.toContain('aria-modal="true"');

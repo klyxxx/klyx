@@ -8,7 +8,7 @@ function read(relativePath: string) {
 }
 
 describe("provider assistant global access contract", () => {
-  it("keeps the fixed provider navigation unchanged while exposing KLYX assistant separately", () => {
+  it("keeps provider work navigation focused while exposing KLYX assistant separately", () => {
     const sidebar = read("app/ui/AppSidebar.tsx");
     const providerItemsBlock = sidebar.slice(
       sidebar.indexOf("const providerItems"),
@@ -18,7 +18,7 @@ describe("provider assistant global access contract", () => {
     expect(providerItemsBlock).toContain('title: "Missions"');
     expect(providerItemsBlock).toContain('title: "Services"');
     expect(providerItemsBlock).toContain('title: "Finances"');
-    expect(providerItemsBlock).toContain('title: "Profil"');
+    expect(providerItemsBlock).not.toContain('title: "Profil"');
     expect(providerItemsBlock).not.toContain("Assistant KLYX");
     expect(providerItemsBlock).not.toContain("/provider/assistant");
 
@@ -31,11 +31,11 @@ describe("provider assistant global access contract", () => {
     expect(sidebar).toContain("providerAssistantActive");
   });
 
-  it("keeps the assistant launcher available from provider screens without changing the four-tab mobile grid", () => {
+  it("keeps the assistant launcher available from provider screens with the compact three-item work grid", () => {
     const sidebar = read("app/ui/AppSidebar.tsx");
 
     expect(sidebar).toContain('data-testid="mobile-navigation"');
-    expect(sidebar).toContain("grid-cols-4");
+    expect(sidebar).toContain("grid-cols-3");
     expect(sidebar).toContain("bottom-[calc(5.25rem+env(safe-area-inset-bottom))]");
     expect(sidebar).toContain(
       'translateKlyxProviderAssistant(locale, "badge")'

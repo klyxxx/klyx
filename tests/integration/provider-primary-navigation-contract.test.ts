@@ -18,8 +18,9 @@ function blockBetween(source: string, start: string, end: string) {
 }
 
 describe("KLYX provider primary navigation", () => {
-  it("keeps the provider shell limited to Missions, Services, Finances and Profil", () => {
+  it("keeps the provider work shell limited to Missions, Services and Finances", () => {
     const sidebar = read("app/ui/AppSidebar.tsx");
+    const account = read("app/components/AccountSwitcher.tsx");
     const provider = blockBetween(
       sidebar,
       "const providerItems: MenuItem[] = [",
@@ -32,18 +33,18 @@ describe("KLYX provider primary navigation", () => {
     expect(provider).toContain('href: "/provider/studio"');
     expect(provider).toContain('title: "Finances"');
     expect(provider).toContain('href: "/provider/payments"');
-    expect(provider).toContain('title: "Profil"');
-    expect(provider).toContain('href: "/profile"');
+    expect(provider).not.toContain('title: "Profil"');
+    expect(provider).not.toContain('href: "/profile"');
 
     const missions = provider.indexOf('title: "Missions"');
     const services = provider.indexOf('title: "Services"');
     const finances = provider.indexOf('title: "Finances"');
-    const profile = provider.indexOf('title: "Profil"');
 
     expect(missions).toBeLessThan(services);
     expect(services).toBeLessThan(finances);
-    expect(finances).toBeLessThan(profile);
 
+    expect(account).toContain('href="/profile"');
+    expect(account).toContain('href="/settings"');
     expect(provider).not.toContain('title: "KLYX"');
     expect(provider).not.toContain('title: "Messages"');
     expect(provider).not.toContain('title: "Gestion"');
@@ -52,7 +53,7 @@ describe("KLYX provider primary navigation", () => {
     expect(provider).not.toContain('href: "/provider/services"');
   });
 
-  it("keeps the client primary navigation unchanged", () => {
+  it("keeps client work navigation separate from Profile", () => {
     const sidebar = read("app/ui/AppSidebar.tsx");
     const client = blockBetween(
       sidebar,
@@ -63,14 +64,12 @@ describe("KLYX provider primary navigation", () => {
     const klyx = client.indexOf('title: "KLYX"');
     const activity = client.indexOf('title: "Activité"');
     const messages = client.indexOf('title: "Messages"');
-    const profile = client.indexOf('title: "Profil"');
 
     expect(client).toContain('href: "/assistant"');
     expect(client).toContain('href: "/bookings"');
     expect(client).toContain('href: "/messages"');
-    expect(client).toContain('href: "/profile"');
+    expect(client).not.toContain('href: "/profile"');
     expect(klyx).toBeLessThan(activity);
     expect(activity).toBeLessThan(messages);
-    expect(messages).toBeLessThan(profile);
   });
 });

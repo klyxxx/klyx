@@ -25,14 +25,7 @@ export type UxDiagnostics = {
 };
 
 function accountEntryCount(rail: Locator) {
-  return rail.locator("details").evaluateAll((details) =>
-    details.filter((detailsElement) => {
-      const profile = detailsElement.querySelector('a[href="/profile"]');
-      const settings = detailsElement.querySelector('a[href="/settings"]');
-      const accounts = detailsElement.querySelector('a[href="/accounts"]');
-      return Boolean(profile && settings && accounts);
-    }).length
-  );
+  return rail.getByTestId("account-entry").count();
 }
 
 export async function settleVisualPage(page: Page) {

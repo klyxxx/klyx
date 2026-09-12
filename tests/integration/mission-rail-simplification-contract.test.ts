@@ -8,31 +8,30 @@ function read(relativePath: string) {
 }
 
 const rail = read("app/ui/MissionRail.tsx");
+const account = read("app/components/AccountSwitcher.tsx");
 
 describe("KLYX MissionRail compact ChatGPT-style contract", () => {
-  it("keeps one account entry and nests profile switching with secondary account tools", () => {
+  it("keeps exactly one bottom account entry with the full account menu above it", () => {
     expect(rail.match(/<AccountSwitcher/g) ?? []).toHaveLength(1);
-    expect(rail).toContain('data-testid="account-entry"');
-    expect(rail).toContain('data-testid="account-profile-switcher"');
+    expect(rail).toContain("currentProfileId={activeProfileId}");
+    expect(rail).toContain("compact={compact}");
+    expect(rail).toContain("onNavigate={onNavigate}");
+    expect(rail).not.toContain('data-testid="account-profile-switcher"');
+    expect(rail).not.toContain("const [accountOpen");
 
-    const accountDetailsIndex = rail.lastIndexOf("<details");
-    const switcherIndex = rail.indexOf("<AccountSwitcher");
-    expect(accountDetailsIndex).toBeGreaterThan(-1);
-    expect(switcherIndex).toBeGreaterThan(accountDetailsIndex);
+    expect(account).toContain('data-testid="account-entry"');
+    expect(account).toContain('data-testid="account-menu"');
+    expect(account).toContain("bottom-full");
+    expect(account).toContain('data-testid="account-identity"');
+    expect(account).toContain('data-testid="account-profile-option"');
 
-    for (const href of [
-      "/profile",
-      "/provider",
-      "/provider/studio",
-      "/provider/payments",
-      "/settings",
-      "/accounts",
-    ]) {
-      expect(rail).toContain(`href="${href}"`);
+    for (const href of ["/profile", "/settings", "/support"]) {
+      expect(account).toContain(`href="${href}"`);
     }
 
-    expect(rail).not.toContain("password");
-    expect(rail).not.toContain("Password");
+    expect(account).not.toContain('href="/accounts"');
+    expect(account).not.toContain("password");
+    expect(account).not.toContain("Password");
   });
 
   it("keeps every mission source and all mission metadata intact", () => {
