@@ -199,7 +199,43 @@ jobs:
         run: |
           set -euo pipefail
 
-          approved_historical_migration="supabase/migrations/20260904213000_klyx_profile_delete_execution_hardening.sql"
+          # This is a one-time, production-audited reconciliation allowlist.
+          # Any historical file outside this exact set keeps the deployment
+          # fail-closed instead of broadening --include-all implicitly.
+          approved_historical_migrations=(
+            "20260905235000_klyx_activity_hidden_missions.sql"
+            "20260905235500_klyx_core_payment_rpc_execution_sentinel.sql"
+            "20260906000500_klyx_handle_new_user_search_path.sql"
+            "20260906081500_klyx_remaining_rls_initplan_optimization.sql"
+            "20260906083000_klyx_public_availability_rpc_hardening.sql"
+            "20260906083500_klyx_profiles_stripe_index_history_preflight.sql"
+            "20260906084000_klyx_profiles_stripe_duplicate_index_cleanup.sql"
+            "20260906084500_klyx_message_notification_fk_indexes.sql"
+          )
+
+          approved_reconciliation_batch=(
+            "20260905235000_klyx_activity_hidden_missions.sql"
+            "20260905235500_klyx_core_payment_rpc_execution_sentinel.sql"
+            "20260906000500_klyx_handle_new_user_search_path.sql"
+            "20260906081500_klyx_remaining_rls_initplan_optimization.sql"
+            "20260906083000_klyx_public_availability_rpc_hardening.sql"
+            "20260906083500_klyx_profiles_stripe_index_history_preflight.sql"
+            "20260906084000_klyx_profiles_stripe_duplicate_index_cleanup.sql"
+            "20260906084500_klyx_message_notification_fk_indexes.sql"
+            "20260907232000_klyx_brain_multislot_atomic_publication.sql"
+            "20260909161000_klyx_sumsub_webhook_retry_lease.sql"
+            "20260909181000_klyx_booking_status_history_atomicity.sql"
+            "20260909214500_klyx_booking_payment_cancel_race_guard.sql"
+            "20260911151000_klyx_group_refund_transaction_guard.sql"
+            "20260911160000_klyx_individual_refund_route_webhook_guard.sql"
+            "20260912133000_klyx_provider_legal_authority.sql"
+            "20260912190000_klyx_unique_account_foundation.sql"
+            "20260912233000_klyx_trust_safety_legal_foundation.sql"
+            "20260912234000_klyx_trust_legal_assessments.sql"
+            "20260912235000_klyx_trust_mission_enforcement.sql"
+            "20260913001700_klyx_profiles_stripe_unique_index_reconciliation.sql"
+          )
+
           historical_gap_message="Found local migration files to be inserted before the last migration on remote database."
 
           set +e
@@ -220,23 +256,33 @@ jobs:
           fi
 
           if ! grep -Fq "$historical_gap_message" migration-proof/dry-run-before.txt; then
-            echo "::error::Supabase dry-run failed for a reason other than a historical migration gap."
+            echo "::error::Supabase dry-run failed for a reason other than the audited historical migration gap."
             exit "$preview_status"
           fi
 
           mapfile -t historical_migrations < <(
-            grep -Eo 'supabase/migrations/[0-9]{14}_[A-Za-z0-9_.-]+\.sql' migration-proof/dry-run-before.txt \
+            grep -Eo '[0-9]{14}_[A-Za-z0-9_.-]+\.sql' migration-proof/dry-run-before.txt \
               | sort -u
           )
+          mapfile -t approved_historical_sorted < <(
+            printf '%s\n' "${approved_historical_migrations[@]}" | sort -u
+          )
 
-          if [ "${#historical_migrations[@]}" -ne 1 ] \
-            || [ "${historical_migrations[0]:-}" != "$approved_historical_migration" ]; then
-            echo "::error::Refusing --include-all: the historical migration gap is not the single approved KLYX migration."
+          if [ "${#historical_migrations[@]}" -ne "${#approved_historical_sorted[@]}" ]; then
+            echo "::error::Refusing --include-all: historical migration count differs from the audited production gap."
             printf 'Detected historical migration: %s\n' "${historical_migrations[@]:-<none>}"
             exit 1
           fi
 
-          echo "Approved one-time historical migration gap detected: $approved_historical_migration"
+          for index in "${!approved_historical_sorted[@]}"; do
+            if [ "${historical_migrations[$index]}" != "${approved_historical_sorted[$index]}" ]; then
+              echo "::error::Refusing --include-all: historical migration set differs from the audited production gap."
+              printf 'Detected historical migration: %s\n' "${historical_migrations[@]:-<none>}"
+              exit 1
+            fi
+          done
+
+          echo "Exact audited historical migration gap detected."
           echo "Running a second dry-run with --include-all before any production write."
 
           if [ "$SUPABASE_DEPLOY_MODE" = "db_url" ]; then
@@ -246,6 +292,28 @@ jobs:
             supabase db push --linked --dry-run --include-all \
               | tee migration-proof/dry-run-include-all.txt
           fi
+
+          mapfile -t proposed_batch < <(
+            grep -Eo '[0-9]{14}_[A-Za-z0-9_.-]+\.sql' migration-proof/dry-run-include-all.txt \
+              | sort -u
+          )
+          mapfile -t approved_batch_sorted < <(
+            printf '%s\n' "${approved_reconciliation_batch[@]}" | sort -u
+          )
+
+          if [ "${#proposed_batch[@]}" -ne "${#approved_batch_sorted[@]}" ]; then
+            echo "::error::Refusing production write: second dry-run batch differs from the audited reconciliation batch."
+            printf 'Proposed migration: %s\n' "${proposed_batch[@]:-<none>}"
+            exit 1
+          fi
+
+          for index in "${!approved_batch_sorted[@]}"; do
+            if [ "${proposed_batch[$index]}" != "${approved_batch_sorted[$index]}" ]; then
+              echo "::error::Refusing production write: second dry-run batch differs from the audited reconciliation batch."
+              printf 'Proposed migration: %s\n' "${proposed_batch[@]:-<none>}"
+              exit 1
+            fi
+          done
 
           echo "SUPABASE_INCLUDE_ALL=true" >> "$GITHUB_ENV"
 
