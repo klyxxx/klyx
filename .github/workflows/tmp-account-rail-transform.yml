@@ -1,0 +1,143 @@
+name: Temporary account rail transform
+
+on:
+  push:
+    branches:
+      - ui/account-rail-compact-menu-20260912
+
+permissions:
+  contents: write
+
+jobs:
+  transform:
+    if: ${{ !contains(github.event.head_commit.message, 'ui(rail): wire compact account menu') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ui/account-rail-compact-menu-20260912
+          fetch-depth: 0
+
+      - name: Transform MissionRail
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('app/ui/MissionRail.tsx')
+          text = path.read_text()
+
+          text = text.replace(
+              'import { usePathname, useRouter } from "next/navigation";',
+              'import { usePathname } from "next/navigation";'
+          )
+          text = text.replace('  LogOut,\n', '')
+          text = text.replace('  Settings,\n', '')
+          text = text.replace('  const router = useRouter();\n', '')
+          text = text.replace('  const [accountOpen, setAccountOpen] = useState(false);\n', '')
+          text = text.replace('  const [loggingOut, setLoggingOut] = useState(false);\n', '')
+
+          old_open_account = '''  function openAccountFromCompactRail() {
+            setCollapsedPreference(false);
+            setAccountOpen(true);
+          }
+
+'''
+          if old_open_account not in text:
+              raise SystemExit('openAccountFromCompactRail anchor missing')
+          text = text.replace(old_open_account, '')
+
+          logout_start = text.index('  async function logout() {')
+          logout_end = text.index('  function missionRow(', logout_start)
+          text = text[:logout_start] + text[logout_end:]
+
+          footer_start_marker = '''
+      <div
+        className={
+          compact
+            ? "border-t border-border px-4 py-4 dark:border-white/8"
+            : "border-t border-border px-3 py-4 dark:border-white/8"
+        }
+      >'''
+          footer_start = text.index(footer_start_marker)
+          footer_end = text.index('\n    </aside>', footer_start)
+
+          replacement = '''
+      {accountType === "provider" && !compact && (
+        <div
+          data-testid="provider-secondary-tools"
+          className="space-y-0.5 border-t border-border px-3 py-2 dark:border-white/8"
+        >
+          <Link
+            href="/provider"
+            onClick={onNavigate}
+            className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+          >
+            <BriefcaseBusiness size={15} />
+            {copy.commercialProfile}
+          </Link>
+          <Link
+            href="/provider/studio"
+            onClick={onNavigate}
+            className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+          >
+            <Wrench size={15} />
+            {copy.services}
+          </Link>
+          <Link
+            href="/provider/payments"
+            onClick={onNavigate}
+            className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+          >
+            <WalletCards size={15} />
+            {copy.finances}
+          </Link>
+        </div>
+      )}
+
+      <div
+        className={
+          compact
+            ? "border-t border-border px-4 py-4 dark:border-white/8"
+            : "border-t border-border px-3 py-4 dark:border-white/8"
+        }
+      >
+        {activeProfileId ? (
+          <AccountSwitcher
+            currentProfileId={activeProfileId}
+            mode="account-menu"
+            compact={compact}
+            onNavigate={onNavigate}
+          />
+        ) : (
+          <button
+            type="button"
+            disabled
+            data-testid="account-entry"
+            aria-label={copy.account}
+            title={copy.account}
+            className={
+              compact
+                ? "grid h-11 w-11 place-items-center rounded-lg text-muted-foreground opacity-50"
+                : "flex min-h-11 w-full items-center gap-2.5 rounded-lg px-2 text-sm font-semibold text-muted-foreground opacity-50"
+            }
+          >
+            <CircleUserRound size={20} />
+            {!compact && <span className="truncate">{copy.account}</span>}
+          </button>
+        )}
+      </div>'''
+
+          text = text[:footer_start] + replacement + text[footer_end:]
+          path.write_text(text)
+          PY
+
+      - name: Commit transformed rail and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/tmp-account-rail-transform.yml
+          git add app/ui/MissionRail.tsx
+          git commit -m "ui(rail): wire compact account menu"
+          git push origin HEAD:ui/account-rail-compact-menu-20260912
