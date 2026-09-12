@@ -17,8 +17,11 @@ describe("KLYX business value proof contract", () => {
     expect(migration).toContain("create table if not exists public.business_pilot_requests");
     expect(migration).toContain("('acquisition', 'unavailable'");
     expect(migration).toContain("business_cost_events_amount_check");
+    expect(migration).toContain("business_cost_events_stripe_source_check");
+    expect(migration).toContain("source_key text not null");
     expect(migration).toContain("amount_cents > 0");
     expect(migration).toContain("amount_cents = 0 and cost_type = 'stripe_fee' and source = 'stripe'");
+    expect(migration).toContain("cost_type = 'stripe_fee' and source = 'stripe'");
     expect(migration).toContain("from public, anon, authenticated");
     expect(migration).toContain("to service_role");
     expect(migration).not.toContain("grant select on table public.business_cost_events to authenticated");
@@ -77,6 +80,14 @@ describe("KLYX business value proof contract", () => {
     expect(stripe).not.toMatch(/0\.0?29|2\.9\s*%|stripe.*percent/i);
   });
 
+  it("keeps Stripe fees out of manual cost entry", () => {
+    const costs = read("app/api/founder/business-costs/route.ts");
+
+    expect(costs).toContain("const MANUAL_COST_TYPES");
+    expect(costs).not.toContain('"stripe_fee",\n]);');
+    expect(costs).toContain("Les frais Stripe doivent être synchronisés depuis Stripe");
+  });
+
   it("keeps pilot costs cumulative instead of truncating them to the dashboard window", () => {
     const metrics = read("app/api/founder/business-metrics/route.ts");
 
@@ -95,15 +106,21 @@ describe("KLYX business value proof contract", () => {
     expect(pilot).toContain("availability_date: availabilityDate");
   });
 
-  it("requires real positive attribution for manually recorded costs", () => {
+  it("requires real positive idempotent attribution for manually recorded costs", () => {
     const costs = read("app/api/founder/business-costs/route.ts");
+    const page = read("app/founder/business/page.tsx");
 
     expect(costs).toContain("!Number.isInteger(amountCents) || amountCents <= 0");
     expect(costs).toContain("strictement positif");
+    expect(costs).toContain("if (!manualReference)");
+    expect(costs).toContain("Une référence unique est obligatoire");
     expect(costs).toContain("!serviceId && !bookingId && !marketRequestId");
     expect(costs).toContain("Impossible d'attribuer ce coût à une catégorie");
+    expect(costs).toContain("const sourceKey = `manual:${manualCostType}:${manualReference}`");
     expect(costs).toContain('source_key: sourceKey');
     expect(costs).toContain('tracking_mode: "manual"');
+    expect(page).toContain("Référence unique (ticket, facture, litige…)");
+    expect(page).toContain("sourceKey: reference.trim()");
   });
 
   it("documents non-launch, fail-closed economics, stop rules and conservative expansion", () => {
