@@ -174,6 +174,12 @@ export default function FounderPage() {
               >
                 <BarChart3 size={16} /> {t("analytics")}
               </Link>
+              <Link
+                href="/founder/business"
+                className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-border px-4 text-sm font-black"
+              >
+                <BriefcaseBusiness size={16} /> {t("businessValue")}
+              </Link>
             </div>
           </article>
         </section>
