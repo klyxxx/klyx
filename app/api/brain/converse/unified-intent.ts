@@ -220,7 +220,7 @@ export async function handleUnifiedAssistantIntent(
       };
     }
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       assistantIntent: intent.intent,
       intentConfidence: intent.confidence,
       ready: false,
