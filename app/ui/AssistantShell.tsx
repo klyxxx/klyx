@@ -30,13 +30,12 @@ const routesWithoutShell = [
   "/offline",
 ];
 
-// These surfaces intentionally retain their existing shell for this mission.
-// Founder/Admin and recommendations/providers are explicitly out of scope.
+// Founder/Admin remain explicitly isolated on the legacy shell.
+// Recommendations keeps its current shell until its own assistant-first migration.
 const routesWithLegacyShell = [
   "/founder",
   "/admin",
   "/recommendations",
-  "/providers",
 ];
 
 function matchesRoute(pathname: string, route: string) {
@@ -87,8 +86,6 @@ export default function AssistantShell() {
       const controller = new AbortController();
       profileRequestAbortRef.current = controller;
 
-      // Fail closed while authority is unresolved. This also removes the
-      // previous profile immediately during an explicit profile switch.
       setProfileContext(null);
 
       try {
