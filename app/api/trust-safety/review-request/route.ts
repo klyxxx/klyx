@@ -1,27 +1,48 @@
 import { NextResponse } from "next/server";
 import { apiErrorStatus, getAuthenticatedProfile } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import {
+  API_RATE_LIMIT_POLICIES,
+  apiRateLimitExceededResponse,
+  consumeApiRateLimit,
+  rateLimitResponseHeaders,
+} from "@/lib/api-rate-limit";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function POST(request: Request) {
   const startedAt = Date.now();
   try {
     const { profile } = await getAuthenticatedProfile(request);
+    const ratePolicy = API_RATE_LIMIT_POLICIES.trustSafetyReviewRequest;
+    const rateLimit = await consumeApiRateLimit(profile.id, ratePolicy);
+    if (!rateLimit.allowed) {
+      return apiRateLimitExceededResponse(ratePolicy, rateLimit);
+    }
+    const headers = rateLimitResponseHeaders(ratePolicy, rateLimit);
+
     const body = (await request.json()) as {
       restrictionId?: unknown;
       note?: unknown;
     };
     const restrictionId =
-      typeof body.restrictionId === "string" ? body.restrictionId.trim() : "";
-    const note = typeof body.note === "string" ? body.note.trim().slice(0, 4000) : "";
+      typeof body.restrictionId === "string"
+        ? body.restrictionId.trim()
+        : "";
+    const note =
+      typeof body.note === "string"
+        ? body.note.trim().slice(0, 4000)
+        : "";
 
     if (!restrictionId) {
-      return NextResponse.json({ error: "Restriction is required." }, { status: 400 });
+      return NextResponse.json(
+        { error: "Restriction is required." },
+        { status: 400, headers }
+      );
     }
     if (note.length < 20) {
       return NextResponse.json(
         { error: "Explain the review request with at least 20 characters." },
-        { status: 400 }
+        { status: 400, headers }
       );
     }
 
@@ -33,18 +54,21 @@ export async function POST(request: Request) {
       .maybeSingle();
     if (readError) throw new Error(readError.message);
     if (!restriction) {
-      return NextResponse.json({ error: "Restriction not found." }, { status: 404 });
+      return NextResponse.json(
+        { error: "Restriction not found." },
+        { status: 404, headers }
+      );
     }
     if (!["active", "under_review"].includes(restriction.status)) {
       return NextResponse.json(
         { error: "This restriction is no longer active." },
-        { status: 409 }
+        { status: 409, headers }
       );
     }
     if (restriction.review_status === "pending") {
       return NextResponse.json(
         { error: "A human review is already pending." },
-        { status: 409 }
+        { status: 409, headers }
       );
     }
 
@@ -75,14 +99,20 @@ export async function POST(request: Request) {
       });
     if (auditError) throw new Error(auditError.message);
 
-    return NextResponse.json({
-      restrictionId: restriction.id,
-      reviewStatus: "pending",
-      message: "Human review requested. The prior decision remains traceable and reviewable.",
-    });
+    return NextResponse.json(
+      {
+        restrictionId: restriction.id,
+        reviewStatus: "pending",
+        message:
+          "Human review requested. The prior decision remains traceable and reviewable.",
+      },
+      { headers }
+    );
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Unable to request human review.";
+      error instanceof Error
+        ? error.message
+        : "Unable to request human review.";
     const status = apiErrorStatus(message);
     return secureApiErrorResponse({
       error,
