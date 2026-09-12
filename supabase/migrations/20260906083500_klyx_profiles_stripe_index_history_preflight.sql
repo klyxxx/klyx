@@ -51,8 +51,12 @@ begin
     or canonical.indisready is distinct from true
     or legacy.indnkeyatts <> 1
     or canonical.indnkeyatts <> 1
-    or legacy.indkey::smallint[] <> array[stripe_attnum]::smallint[]
-    or canonical.indkey::smallint[] <> array[stripe_attnum]::smallint[]
+    -- pg_index.indkey is int2vector. Comparing its array cast to a normal
+    -- PostgreSQL array also compares array lower bounds (0 versus 1), which
+    -- creates a false drift signal. Native vector text is dimension-agnostic
+    -- and exact for this one-column index.
+    or legacy.indkey::text <> stripe_attnum::text
+    or canonical.indkey::text <> stripe_attnum::text
     or legacy.indclass::text <> canonical.indclass::text
     or legacy.indcollation::text <> canonical.indcollation::text
     or legacy.indoption::text <> canonical.indoption::text
