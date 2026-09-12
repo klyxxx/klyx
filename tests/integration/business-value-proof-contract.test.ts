@@ -16,6 +16,9 @@ describe("KLYX business value proof contract", () => {
     expect(migration).toContain("create table if not exists public.business_cost_events");
     expect(migration).toContain("create table if not exists public.business_pilot_requests");
     expect(migration).toContain("('acquisition', 'unavailable'");
+    expect(migration).toContain("business_cost_events_amount_check");
+    expect(migration).toContain("amount_cents > 0");
+    expect(migration).toContain("amount_cents = 0 and cost_type = 'stripe_fee' and source = 'stripe'");
     expect(migration).toContain("from public, anon, authenticated");
     expect(migration).toContain("to service_role");
     expect(migration).not.toContain("grant select on table public.business_cost_events to authenticated");
@@ -92,9 +95,11 @@ describe("KLYX business value proof contract", () => {
     expect(pilot).toContain("availability_date: availabilityDate");
   });
 
-  it("requires real attribution for manually recorded costs", () => {
+  it("requires real positive attribution for manually recorded costs", () => {
     const costs = read("app/api/founder/business-costs/route.ts");
 
+    expect(costs).toContain("!Number.isInteger(amountCents) || amountCents <= 0");
+    expect(costs).toContain("strictement positif");
     expect(costs).toContain("!serviceId && !bookingId && !marketRequestId");
     expect(costs).toContain("Impossible d'attribuer ce coût à une catégorie");
     expect(costs).toContain('source_key: sourceKey');
