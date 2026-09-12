@@ -64,6 +64,13 @@ describe("Supabase production migration-history reconciliation contract", () => 
     expect(preflight).toContain(
       "KLYX_PROFILES_STRIPE_HISTORY_PREFLIGHT_INDEX_DRIFT"
     );
+    expect(preflight).toContain(
+      "legacy.indkey::text <> stripe_attnum::text"
+    );
+    expect(preflight).toContain(
+      "canonical.indkey::text <> stripe_attnum::text"
+    );
+    expect(preflight).not.toContain("indkey::smallint[]");
     expect(executableSql(preflight)).not.toMatch(/drop\s+index/i);
 
     expect(cleanup).toContain(
@@ -77,6 +84,10 @@ describe("Supabase production migration-history reconciliation contract", () => 
     expect(reconciliation).toContain(
       "create unique index if not exists profiles_stripe_account_id_unique"
     );
+    expect(reconciliation).toContain(
+      "canonical.indkey::text = stripe_attnum::text"
+    );
+    expect(reconciliation).not.toContain("indkey::smallint[]");
     expect(reconciliation).toContain(
       "KLYX_PROFILES_STRIPE_RECONCILIATION_CANONICAL_DRIFT"
     );
