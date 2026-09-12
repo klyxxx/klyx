@@ -20,6 +20,7 @@ const profileLayout = read("app/profile/layout.tsx");
 const profilePage = read("app/profile/page.tsx");
 const profileI18n = read("lib/klyx-profile-page-i18n.ts");
 const sidebar = read("app/ui/AppSidebar.tsx");
+const account = read("app/components/AccountSwitcher.tsx");
 
 describe("KLYX canonical role home routing", () => {
   it("keeps one shared client/provider conversational home mapping", () => {
@@ -75,15 +76,13 @@ describe("KLYX canonical role home routing", () => {
     expect(profileI18n).not.toContain('"dashboard",');
   });
 
-  it("keeps the definitive four-item role navigation", () => {
+  it("keeps role work navigation separate from the single Account menu", () => {
     expect(sidebar).toContain('title: "KLYX"');
     expect(sidebar).toContain('title: "Activité"');
     expect(sidebar).toContain('title: "Messages"');
-    expect(sidebar).toContain('title: "Profil"');
     expect(sidebar).toContain('href: "/assistant"');
     expect(sidebar).toContain('href: "/bookings"');
     expect(sidebar).toContain('href: "/messages"');
-    expect(sidebar).toContain('href: "/profile"');
 
     expect(sidebar).toContain('title: "Missions"');
     expect(sidebar).toContain('title: "Services"');
@@ -91,6 +90,12 @@ describe("KLYX canonical role home routing", () => {
     expect(sidebar).toContain('href: "/provider/jobs"');
     expect(sidebar).toContain('href: "/provider/studio"');
     expect(sidebar).toContain('href: "/provider/payments"');
+
+    expect(sidebar).not.toContain('title: "Profil"');
+    expect(sidebar).not.toContain('href: "/profile"');
+    expect(sidebar.match(/<AccountSwitcher/g) ?? []).toHaveLength(1);
+    expect(account).toContain('href="/profile"');
+    expect(account).toContain('href="/settings"');
 
     expect(sidebar).not.toContain('title: "Gestion"');
     expect(sidebar).not.toContain('href: "/provider/assistant"');
