@@ -15,6 +15,8 @@ const migration = read(
 const activeProfile = read("lib/active-profile.ts");
 const apiAuth = read("lib/api-auth.ts");
 const capabilityRoute = read("app/api/profiles/capabilities/route.ts");
+const assistantLayout = read("app/assistant/layout.tsx");
+const providerLayout = read("app/provider/layout.tsx");
 const rollback = read("docs/migrations/profile-actor-capabilities-rollback.md");
 
 describe("KLYX progressive profile actor capabilities", () => {
@@ -71,7 +73,9 @@ describe("KLYX progressive profile actor capabilities", () => {
     });
 
     expect(migration).toContain("when exists (");
-    expect(migration).toContain("from public.profile_actor_capabilities as actor_capability");
+    expect(migration).toContain(
+      "from public.profile_actor_capabilities as actor_capability"
+    );
     expect(migration).toContain("else coalesce(");
     expect(migration).toContain("nullif(profile.account_type, '')");
     expect(activeProfile).toContain("capabilitySource");
@@ -85,7 +89,7 @@ describe("KLYX progressive profile actor capabilities", () => {
     expect(migration).toContain("on conflict (profile_id, capability) do nothing");
   });
 
-  it("keeps capability writes server-side and owner reads under RLS", () => {
+  it("keeps capability writes server-side, owner reads under RLS, and the security audit authoritative", () => {
     expect(migration).toContain(
       "alter table public.profile_actor_capabilities enable row level security;"
     );
@@ -98,6 +102,10 @@ describe("KLYX progressive profile actor capabilities", () => {
     expect(migration).toContain(
       "using (public.klyx_owns_profile(profile_id));"
     );
+    expect(migration).toContain(
+      "create or replace function public.klyx_security_audit()"
+    );
+    expect(migration).toContain("'profile_actor_capabilities'");
     expect(capabilityRoute).toContain('.eq("owner_user_id", user.id)');
     expect(capabilityRoute).toContain("writeProfileCapabilityState");
   });
@@ -112,29 +120,41 @@ describe("KLYX progressive profile actor capabilities", () => {
     expect(migration).toContain("service_profile.available = true");
   });
 
-  it("migrates central API authorization while retaining accountType compatibility", () => {
-    expect(activeProfile).toContain("accountType: AccountType");
+  it("keeps accountType as a readable legacy field while migrated authorization uses independent capabilities", () => {
+    expect(activeProfile).toContain("legacyAccountType: AccountType");
+    expect(activeProfile).toContain("accountType: legacyAccountType");
     expect(activeProfile).toContain("canRequestServices: boolean");
     expect(activeProfile).toContain("canOfferServices: boolean");
+    expect(apiAuth).toContain("accountType: legacyAccountType");
     expect(apiAuth).toContain("profile.canOfferServices");
     expect(apiAuth).toContain("profile.canRequestServices");
     expect(apiAuth).toContain("export function requireAccountType");
+    expect(assistantLayout).toContain("!profile.canRequestServices");
+    expect(providerLayout).toContain("!profile.canOfferServices");
   });
 
   it("does not destructively modify legacy roles, bookings or payment identity", () => {
     expect(migration).not.toMatch(/drop\s+table\s+public\.profiles/i);
-    expect(migration).not.toMatch(/drop\s+column\s+(role|current_mode|account_type)/i);
+    expect(migration).not.toMatch(
+      /drop\s+column\s+(role|current_mode|account_type)/i
+    );
     expect(migration).not.toMatch(/alter\s+table\s+public\.bookings/i);
     expect(migration).not.toMatch(/update\s+public\.bookings/i);
     expect(migration).not.toMatch(/delete\s+from\s+public\.bookings/i);
-    expect(migration).not.toMatch(/update\s+public\.profiles\s+set\s+stripe_/i);
+    expect(migration).not.toMatch(
+      /update\s+public\.profiles\s+set\s+stripe_/i
+    );
     expect(migration).toContain("Do not drop while consumers remain");
   });
 
   it("documents a non-destructive rollback before legacy columns can ever be removed", () => {
     expect(rollback).toContain("Do **not** drop `profiles.role`");
-    expect(rollback).toContain("Keep `profile_actor_capabilities` and its rows in place");
+    expect(rollback).toContain(
+      "Keep `profile_actor_capabilities` and its rows in place"
+    );
     expect(rollback).toContain("Do not alter any booking/payment table");
-    expect(rollback).toContain("The legacy discriminator cannot represent both");
+    expect(rollback).toContain(
+      "The legacy discriminator cannot represent both"
+    );
   });
 });
