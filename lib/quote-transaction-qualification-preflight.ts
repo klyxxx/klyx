@@ -118,11 +118,11 @@ export async function quoteLifecycleQualificationPreflight(
   if (action === "send") {
     const providerPrice = Number(body.providerPrice);
 
-    // Preserve the core route's role, ownership, state and price-validation
+    // Preserve the core route's capability, ownership, state and price-validation
     // responses. Revalidate qualification only immediately before a mutation
     // would otherwise be allowed.
     if (
-      profile.accountType !== "provider" ||
+      !profile.canOfferServices ||
       lifecycleQuote.provider_profile_id !== profile.id ||
       lifecycleQuote.status !== "requested" ||
       !Number.isFinite(providerPrice) ||
@@ -132,7 +132,7 @@ export async function quoteLifecycleQualificationPreflight(
       return null;
     }
   } else if (
-    profile.accountType !== "client" ||
+    !profile.canRequestServices ||
     lifecycleQuote.client_profile_id !== profile.id ||
     lifecycleQuote.status !== "sent"
   ) {
