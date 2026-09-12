@@ -169,6 +169,65 @@ describe("KLYX real business metrics", () => {
     expect(finance.estimatedNetMarginCents).toBeNull();
   });
 
+  it("keeps manual acquisition cost unknown in categories without an attributed CAC event", () => {
+    const furnitureBooking = booking("booking-furniture");
+    const cleaningBooking = booking("booking-cleaning", {
+      service_id: "service-cleaning",
+      quote_id: "quote-cleaning",
+    });
+    const result = buildKlyxBusinessMetrics({
+      services,
+      requests: [],
+      offers: [],
+      quotes: [],
+      funnelBookings: [],
+      financialBookings: [furnitureBooking, cleaningBooking],
+      completedBookings: [],
+      ledger: [
+        {
+          booking_id: "booking-furniture",
+          entry_type: "payment_succeeded",
+          status: "succeeded",
+          currency: "EUR",
+          gross_amount_cents: 10_000,
+          platform_fee_cents: 1_500,
+          refund_amount_cents: 0,
+        },
+        {
+          booking_id: "booking-cleaning",
+          entry_type: "payment_succeeded",
+          status: "succeeded",
+          currency: "EUR",
+          gross_amount_cents: 20_000,
+          platform_fee_cents: 3_000,
+          refund_amount_cents: 0,
+        },
+      ],
+      costs: [
+        { cost_type: "stripe_fee", amount_cents: 300, currency: "EUR", service_id: null, booking_id: "booking-furniture" },
+        { cost_type: "stripe_fee", amount_cents: 600, currency: "EUR", service_id: null, booking_id: "booking-cleaning" },
+        { cost_type: "acquisition", amount_cents: 500, currency: "EUR", service_id: "service-furniture", booking_id: null },
+      ],
+      tracking: baseTracking.map((row) =>
+        row.cost_type === "acquisition"
+          ? { ...row, tracking_mode: "manual" as const }
+          : row
+      ),
+    });
+
+    const furnitureFinance = result.categories.find(
+      (category) => category.finance.grossMissionValueCents === 10_000
+    )?.finance;
+    const cleaningFinance = result.categories.find(
+      (category) => category.finance.grossMissionValueCents === 20_000
+    )?.finance;
+
+    expect(furnitureFinance?.acquisitionCostCents).toBe(500);
+    expect(furnitureFinance?.estimatedNetMarginCents).toBe(700);
+    expect(cleaningFinance?.acquisitionCostCents).toBeNull();
+    expect(cleaningFinance?.estimatedNetMarginCents).toBeNull();
+  });
+
   it("refuses to aggregate money when a category contains mixed currencies", () => {
     const result = buildKlyxBusinessMetrics({
       services,
