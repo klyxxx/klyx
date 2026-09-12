@@ -8,13 +8,14 @@ function read(relativePath: string) {
 }
 
 describe("KLYX client route guard locale and brand contract", () => {
-  it("uses localized visible copy without changing redirect destinations", () => {
+  it("uses localized visible copy and the canonical assistant redirect", () => {
     const guard = read("app/components/ClientRouteGuard.tsx");
 
     expect(guard).toContain('useKlyxLocale');
     expect(guard).toContain('translateKlyxClientRouteGuard');
     expect(guard).toContain('router.replace("/login")');
-    expect(guard).toContain('router.replace("/provider/assistant")');
+    expect(guard).toContain('router.replace("/assistant")');
+    expect(guard).not.toContain('router.replace("/provider/assistant")');
     expect(guard).toContain('t("verificationErrorTitle")');
     expect(guard).toContain('t("retry")');
     expect(guard).toContain('t("redirecting")');
