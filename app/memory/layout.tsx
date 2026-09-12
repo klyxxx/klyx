@@ -23,7 +23,7 @@ export default async function ClientMemoryLayout({
     redirect("/profile");
   }
 
-  if (profile.accountType !== "client") {
+  if (!profile.canRequestServices) {
     redirect("/dashboard");
   }
 

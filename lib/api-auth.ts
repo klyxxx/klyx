@@ -7,6 +7,8 @@ import {
   ACTIVE_PROFILE_COOKIE,
   type AccountType,
 } from "@/lib/active-profile";
+import { normalizeLegacyAccountType } from "@/lib/profile-actor-capabilities";
+import { loadProfileCapabilityStates } from "@/lib/profile-actor-capabilities-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 type AuthenticatedUser = {
@@ -18,6 +20,9 @@ export type AuthenticatedProfile = {
   id: string;
   ownerUserId: string;
   accountType: AccountType;
+  legacyAccountType: AccountType;
+  canRequestServices: boolean;
+  canOfferServices: boolean;
   firstName: string;
   lastName: string;
   countryCode: string;
@@ -36,11 +41,7 @@ type ProfileRow = {
 
 function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();
-
-  if (!value) {
-    throw new Error(`Variable manquante : ${name}`);
-  }
-
+  if (!value) throw new Error(`Variable manquante : ${name}`);
   return value;
 }
 
@@ -49,30 +50,37 @@ function supabasePublicKey(): string {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() ??
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
 
-  if (!value) {
-    throw new Error("Clé publique Supabase manquante.");
-  }
-
+  if (!value) throw new Error("Clé publique Supabase manquante.");
   return value;
 }
 
-function normalizeProfile(
-  profile: ProfileRow
-): AuthenticatedProfile {
-  return {
-    id: profile.id,
-    ownerUserId: profile.owner_user_id,
-    accountType:
-      profile.account_type === "provider"
-        ? "provider"
-        : "client",
-    firstName: profile.first_name ?? "",
-    lastName: profile.last_name ?? "",
+function compatibilityAccountTypeForRequest(
+  request: Request,
+  legacyAccountType: AccountType,
+  canRequestServices: boolean,
+  canOfferServices: boolean
+): AccountType {
+  let pathname = "";
 
-    // KLYX_REAL_PROFILE_MARKET_14_24
-    countryCode: profile.country_code ?? "",
-    currencyCode: profile.currency_code ?? "",
-  };
+  try {
+    pathname = new URL(request.url).pathname;
+  } catch {
+    return legacyAccountType;
+  }
+
+  if (pathname.startsWith("/api/provider/") && canOfferServices) {
+    return "provider";
+  }
+
+  if (canRequestServices) {
+    return "client";
+  }
+
+  if (canOfferServices) {
+    return "provider";
+  }
+
+  return legacyAccountType;
 }
 
 export async function getAuthenticatedProfile(
@@ -85,23 +93,14 @@ export async function getAuthenticatedProfile(
     .get("authorization")
     ?.replace(/^Bearer\s+/i, "");
 
-  if (!token) {
-    throw new Error("Session manquante.");
-  }
+  if (!token) throw new Error("Session manquante.");
 
   const authClient = createClient(
     requiredEnv("NEXT_PUBLIC_SUPABASE_URL"),
     supabasePublicKey(),
     {
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      },
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
+      global: { headers: { Authorization: `Bearer ${token}` } },
+      auth: { autoRefreshToken: false, persistSession: false },
     }
   );
 
@@ -110,9 +109,7 @@ export async function getAuthenticatedProfile(
     error,
   } = await authClient.auth.getUser(token);
 
-  if (error || !user) {
-    throw new Error("Session invalide.");
-  }
+  if (error || !user) throw new Error("Session invalide.");
 
   const { data, error: profilesError } = await supabaseAdmin
     .from("profiles")
@@ -120,19 +117,47 @@ export async function getAuthenticatedProfile(
       "id, owner_user_id, account_type, first_name, last_name, country_code, currency_code"
     )
     .eq("owner_user_id", user.id)
-    .order("created_at", {
-      ascending: true,
-    });
+    .order("created_at", { ascending: true });
 
-  if (profilesError) {
-    throw new Error(profilesError.message);
-  }
+  if (profilesError) throw new Error(profilesError.message);
 
-  const profiles = ((data ?? []) as ProfileRow[]).map(normalizeProfile);
+  const profileRows = (data ?? []) as ProfileRow[];
+  if (profileRows.length === 0) throw new Error("Profil KLYX introuvable.");
 
-  if (profiles.length === 0) {
-    throw new Error("Profil KLYX introuvable.");
-  }
+  const capabilityStates = await loadProfileCapabilityStates(
+    profileRows.map((profile) => ({
+      id: profile.id,
+      accountType: normalizeLegacyAccountType(profile.account_type),
+    }))
+  );
+
+  const profiles: AuthenticatedProfile[] = profileRows.map((profile) => {
+    const legacyAccountType = normalizeLegacyAccountType(profile.account_type);
+    const capabilities = capabilityStates.get(profile.id);
+    const canRequestServices =
+      capabilities?.canRequestServices ?? legacyAccountType === "client";
+    const canOfferServices =
+      capabilities?.canOfferServices ?? legacyAccountType === "provider";
+    const accountType = compatibilityAccountTypeForRequest(
+      request,
+      legacyAccountType,
+      canRequestServices,
+      canOfferServices
+    );
+
+    return {
+      id: profile.id,
+      ownerUserId: profile.owner_user_id,
+      accountType,
+      legacyAccountType,
+      canRequestServices,
+      canOfferServices,
+      firstName: profile.first_name ?? "",
+      lastName: profile.last_name ?? "",
+      countryCode: profile.country_code ?? "",
+      currencyCode: profile.currency_code ?? "",
+    };
+  });
 
   const selectedProfileId = (
     await cookies()
@@ -142,32 +167,33 @@ export async function getAuthenticatedProfile(
     profiles.find((item) => item.id === selectedProfileId) ?? profiles[0];
 
   return {
-    user: {
-      id: user.id,
-      email: user.email,
-    },
+    user: { id: user.id, email: user.email },
     profile,
   };
 }
 
+// Compatibility API: call sites may keep their old role wording while the
+// authorization decision itself already comes from independent capabilities.
 export function requireAccountType(
   profile: AuthenticatedProfile,
   expected: AccountType
 ): void {
-  if (profile.accountType !== expected) {
+  const allowed =
+    expected === "provider"
+      ? profile.canOfferServices
+      : profile.canRequestServices;
+
+  if (!allowed) {
     throw new Error(
       expected === "provider"
-        ? "Cette action nécessite un profil prestataire."
-        : "Cette action nécessite un profil client."
+        ? "Cette action nécessite la capacité de proposer des services."
+        : "Cette action nécessite la capacité de demander des services."
     );
   }
 }
 
 export function apiErrorStatus(message: string): number {
-  if (
-    message === "Session manquante." ||
-    message === "Session invalide."
-  ) {
+  if (message === "Session manquante." || message === "Session invalide.") {
     return 401;
   }
 

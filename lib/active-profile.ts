@@ -2,6 +2,12 @@ import "server-only";
 
 import { cookies } from "next/headers";
 
+import {
+  normalizeLegacyAccountType,
+  resolveProfileCapabilityState,
+  type ProfileCapabilitySource,
+} from "@/lib/profile-actor-capabilities";
+import { loadProfileCapabilityStates } from "@/lib/profile-actor-capabilities-server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -21,6 +27,10 @@ export type ActiveProfile = {
   countryCode: string | null;
   currencyCode: string | null;
   accountType: AccountType;
+  legacyAccountType: AccountType;
+  canRequestServices: boolean;
+  canOfferServices: boolean;
+  capabilitySource: ProfileCapabilitySource;
   avatarUrl: string | null;
 };
 
@@ -38,8 +48,23 @@ type ProfileRow = {
 
 function normalizeProfile(
   profile: ProfileRow,
-  fallbackOwnerUserId: string
+  fallbackOwnerUserId: string,
+  capabilityState = resolveProfileCapabilityState(
+    normalizeLegacyAccountType(profile.account_type),
+    []
+  )
 ): ActiveProfile {
+  const legacyAccountType =
+    normalizeLegacyAccountType(
+      profile.account_type
+    );
+  const accountType: AccountType =
+    capabilityState.canOfferServices
+      ? "provider"
+      : capabilityState.canRequestServices
+        ? "client"
+        : legacyAccountType;
+
   return {
     id: profile.id,
 
@@ -62,11 +87,18 @@ function normalizeProfile(
     currencyCode:
       profile.currency_code ?? null,
 
-    accountType:
-      profile.account_type ===
-      "provider"
-        ? "provider"
-        : "client",
+    accountType,
+
+    legacyAccountType,
+
+    canRequestServices:
+      capabilityState.canRequestServices,
+
+    canOfferServices:
+      capabilityState.canOfferServices,
+
+    capabilitySource:
+      capabilityState.capabilitySource,
 
     avatarUrl:
       profile.avatar_url ?? null,
@@ -83,6 +115,35 @@ async function authenticatedUser() {
     await supabase.auth.getUser();
 
   return user;
+}
+
+async function normalizeOwnedProfiles(
+  profiles: ProfileRow[],
+  ownerUserId: string
+): Promise<ActiveProfile[]> {
+  const capabilityStates =
+    await loadProfileCapabilityStates(
+      profiles.map(
+        (profile) => ({
+          id: profile.id,
+          accountType:
+            normalizeLegacyAccountType(
+              profile.account_type
+            ),
+        })
+      )
+    );
+
+  return profiles.map(
+    (profile) =>
+      normalizeProfile(
+        profile,
+        ownerUserId,
+        capabilityStates.get(
+          profile.id
+        )
+      )
+  );
 }
 
 export async function getOwnedProfiles(): Promise<
@@ -149,12 +210,9 @@ export async function getOwnedProfiles(): Promise<
   if (
     ownedProfiles.length > 0
   ) {
-    return ownedProfiles.map(
-      (profile) =>
-        normalizeProfile(
-          profile,
-          user.id
-        )
+    return normalizeOwnedProfiles(
+      ownedProfiles,
+      user.id
     );
   }
 
@@ -279,12 +337,10 @@ export async function getOwnedProfiles(): Promise<
       repairedProfile as ProfileRow;
   }
 
-  return [
-    normalizeProfile(
-      profileToReturn,
-      user.id
-    ),
-  ];
+  return normalizeOwnedProfiles(
+    [profileToReturn],
+    user.id
+  );
 }
 
 export async function getActiveProfile(): Promise<
