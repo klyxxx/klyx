@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   BriefcaseBusiness,
   ChevronLeft,
@@ -9,9 +9,7 @@ import {
   CircleUserRound,
   Clock3,
   History,
-  LogOut,
   Plus,
-  Settings,
   WalletCards,
   Wrench,
 } from "lucide-react";
@@ -376,15 +374,12 @@ export default function MissionRail({
   mobile?: boolean;
   onNavigate?: () => void;
 }) {
-  const router = useRouter();
   const pathname = usePathname();
   const copy = copyFor(locale);
   const [collapsed, setCollapsed] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [accountOpen, setAccountOpen] = useState(false);
   const [missions, setMissions] = useState<RailMission[]>([]);
   const [loading, setLoading] = useState(false);
-  const [loggingOut, setLoggingOut] = useState(false);
   const compact = !mobile && collapsed;
   const currentPath = normalizePath(pathname || "/");
 
@@ -533,11 +528,6 @@ export default function MissionRail({
     }
   }
 
-  function openAccountFromCompactRail() {
-    setCollapsedPreference(false);
-    setAccountOpen(true);
-  }
-
   function openHistoryFromCompactRail() {
     setCollapsedPreference(false);
     setHistoryOpen(true);
@@ -545,20 +535,6 @@ export default function MissionRail({
 
   function isMissionActive(mission: RailMission) {
     return normalizePath(mission.href) === currentPath;
-  }
-
-  async function logout() {
-    if (loggingOut) return;
-    setLoggingOut(true);
-    try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.signOut({ scope: "local" });
-      if (error) throw error;
-      router.replace("/login");
-      router.refresh();
-    } catch {
-      setLoggingOut(false);
-    }
   }
 
   function missionRow(mission: RailMission, siblings: RailMission[]) {
@@ -738,6 +714,38 @@ export default function MissionRail({
         )}
       </div>
 
+      {accountType === "provider" && !compact && (
+        <div
+          data-testid="provider-secondary-tools"
+          className="space-y-0.5 border-t border-border px-3 py-2 dark:border-white/8"
+        >
+          <Link
+            href="/provider"
+            onClick={onNavigate}
+            className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+          >
+            <BriefcaseBusiness size={15} />
+            {copy.commercialProfile}
+          </Link>
+          <Link
+            href="/provider/studio"
+            onClick={onNavigate}
+            className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+          >
+            <Wrench size={15} />
+            {copy.services}
+          </Link>
+          <Link
+            href="/provider/payments"
+            onClick={onNavigate}
+            className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
+          >
+            <WalletCards size={15} />
+            {copy.finances}
+          </Link>
+        </div>
+      )}
+
       <div
         className={
           compact
@@ -745,110 +753,29 @@ export default function MissionRail({
             : "border-t border-border px-3 py-4 dark:border-white/8"
         }
       >
-        {compact ? (
+        {activeProfileId ? (
+          <AccountSwitcher
+            currentProfileId={activeProfileId}
+            mode="account-menu"
+            compact={compact}
+            onNavigate={onNavigate}
+          />
+        ) : (
           <button
             type="button"
-            onClick={openAccountFromCompactRail}
+            disabled
+            data-testid="account-entry"
             aria-label={copy.account}
             title={copy.account}
-            data-testid="account-entry"
-            className="grid h-11 w-11 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            className={
+              compact
+                ? "grid h-11 w-11 place-items-center rounded-lg text-muted-foreground opacity-50"
+                : "flex min-h-11 w-full items-center gap-2.5 rounded-lg px-2 text-sm font-semibold text-muted-foreground opacity-50"
+            }
           >
             <CircleUserRound size={20} />
+            {!compact && <span className="truncate">{copy.account}</span>}
           </button>
-        ) : (
-          <details
-            open={accountOpen}
-            onToggle={(event) => setAccountOpen(event.currentTarget.open)}
-            className="group"
-          >
-            <summary
-              data-testid="account-entry"
-              className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-lg px-2.5 text-sm font-semibold text-foreground transition hover:bg-muted"
-            >
-              <CircleUserRound size={17} className="text-muted-foreground" />
-              <span className="min-w-0 flex-1 truncate">{copy.account}</span>
-              <ChevronRight
-                size={15}
-                className="shrink-0 text-muted-foreground transition group-open:rotate-90"
-              />
-            </summary>
-
-            <div className="mt-1 space-y-1 pl-1">
-              {activeProfileId && (
-                <div
-                  data-testid="account-profile-switcher"
-                  className="pb-1 [&>div>button]:min-h-12 [&>div>button]:rounded-lg [&>div>button]:bg-background"
-                >
-                  <AccountSwitcher currentProfileId={activeProfileId} />
-                </div>
-              )}
-
-              <Link
-                href="/profile"
-                onClick={onNavigate}
-                className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
-              >
-                <CircleUserRound size={15} />
-                {copy.profile}
-              </Link>
-
-              {accountType === "provider" && (
-                <>
-                  <Link
-                    href="/provider"
-                    onClick={onNavigate}
-                    className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                  >
-                    <BriefcaseBusiness size={15} />
-                    {copy.commercialProfile}
-                  </Link>
-                  <Link
-                    href="/provider/studio"
-                    onClick={onNavigate}
-                    className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                  >
-                    <Wrench size={15} />
-                    {copy.services}
-                  </Link>
-                  <Link
-                    href="/provider/payments"
-                    onClick={onNavigate}
-                    className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                  >
-                    <WalletCards size={15} />
-                    {copy.finances}
-                  </Link>
-                </>
-              )}
-
-              <Link
-                href="/settings"
-                onClick={onNavigate}
-                className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
-              >
-                <Settings size={15} />
-                {copy.settings}
-              </Link>
-              <Link
-                href="/accounts"
-                onClick={onNavigate}
-                className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
-              >
-                <CircleUserRound size={15} />
-                {copy.manageProfiles}
-              </Link>
-              <button
-                type="button"
-                onClick={() => void logout()}
-                disabled={loggingOut}
-                className="flex min-h-9 w-full items-center gap-2 rounded-lg px-2.5 text-left text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:cursor-wait disabled:opacity-50"
-              >
-                <LogOut size={15} />
-                {loggingOut ? copy.loggingOut : copy.logout}
-              </button>
-            </div>
-          </details>
         )}
       </div>
     </aside>
