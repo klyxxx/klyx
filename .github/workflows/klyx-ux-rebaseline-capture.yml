@@ -74,7 +74,8 @@ jobs:
 
           python <<'PY'
           from pathlib import Path
-          from PIL import Image
+          import struct
+          import zlib
 
           paths = [
               Path("tests/e2e/ux-visual-certification-snapshots/desktop-chromium/assistant-desktop.png"),
@@ -86,10 +87,39 @@ jobs:
               Path("tests/e2e/ux-visual-certification-snapshots/mobile-chromium/settings-mobile.png"),
           ]
 
-          for path in paths:
-              with Image.open(path) as image:
-                  image.verify()
+          def validate_png(path: Path) -> None:
+              data = path.read_bytes()
+              if data[:8] != b"\x89PNG\r\n\x1a\n":
+                  raise SystemExit(f"invalid PNG signature: {path}")
+
+              offset = 8
+              saw_iend = False
+              while offset < len(data):
+                  if offset + 12 > len(data):
+                      raise SystemExit(f"truncated PNG chunk: {path}")
+                  length = struct.unpack(">I", data[offset:offset + 4])[0]
+                  chunk_type = data[offset + 4:offset + 8]
+                  end = offset + 12 + length
+                  if end > len(data):
+                      raise SystemExit(f"truncated PNG payload: {path}")
+                  payload = data[offset + 8:offset + 8 + length]
+                  expected_crc = struct.unpack(">I", data[offset + 8 + length:end])[0]
+                  actual_crc = zlib.crc32(chunk_type + payload) & 0xFFFFFFFF
+                  if actual_crc != expected_crc:
+                      raise SystemExit(f"PNG CRC mismatch: {path}")
+                  offset = end
+                  if chunk_type == b"IEND":
+                      if length != 0 or offset != len(data):
+                          raise SystemExit(f"invalid PNG IEND: {path}")
+                      saw_iend = True
+                      break
+
+              if not saw_iend:
+                  raise SystemExit(f"missing PNG IEND: {path}")
               print(f"valid PNG: {path}")
+
+          for path in paths:
+              validate_png(path)
           PY
 
       - name: Guard regenerated references against service-role leakage
