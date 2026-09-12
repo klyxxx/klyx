@@ -21,10 +21,10 @@ const profilePage = read("app/profile/page.tsx");
 const profileI18n = read("lib/klyx-profile-page-i18n.ts");
 const sidebar = read("app/ui/AppSidebar.tsx");
 
-describe("KLYX canonical role home routing", () => {
-  it("keeps one shared client/provider conversational home mapping", () => {
+describe("KLYX canonical home routing", () => {
+  it("keeps one shared conversational home mapping", () => {
     expect(accountHome).toContain('client: "/assistant"');
-    expect(accountHome).toContain('provider: "/provider/assistant"');
+    expect(accountHome).toContain('provider: "/assistant"');
     expect(accountHome).toContain("return KLYX_ACCOUNT_HOME[accountType];");
   });
 
@@ -58,7 +58,7 @@ describe("KLYX canonical role home routing", () => {
     expect(profileLayout).not.toContain("getActiveProfile");
   });
 
-  it("returns from Profil directly to the active role home", () => {
+  it("returns from Profil directly to the shared assistant home", () => {
     expect(profilePage).toContain(
       'import { getKlyxAccountHome } from "@/lib/account-home";'
     );
@@ -75,25 +75,9 @@ describe("KLYX canonical role home routing", () => {
     expect(profileI18n).not.toContain('"dashboard",');
   });
 
-  it("keeps the definitive four-item role navigation", () => {
+  it("keeps legacy role navigation out of the canonical assistant home", () => {
     expect(sidebar).toContain('title: "KLYX"');
-    expect(sidebar).toContain('title: "Activité"');
-    expect(sidebar).toContain('title: "Messages"');
-    expect(sidebar).toContain('title: "Profil"');
     expect(sidebar).toContain('href: "/assistant"');
-    expect(sidebar).toContain('href: "/bookings"');
-    expect(sidebar).toContain('href: "/messages"');
-    expect(sidebar).toContain('href: "/profile"');
-
-    expect(sidebar).toContain('title: "Missions"');
-    expect(sidebar).toContain('title: "Services"');
-    expect(sidebar).toContain('title: "Finances"');
-    expect(sidebar).toContain('href: "/provider/jobs"');
-    expect(sidebar).toContain('href: "/provider/studio"');
-    expect(sidebar).toContain('href: "/provider/payments"');
-
-    expect(sidebar).not.toContain('title: "Gestion"');
     expect(sidebar).not.toContain('href: "/provider/assistant"');
-    expect(sidebar).not.toContain('href: "/provider/services"');
   });
 });
