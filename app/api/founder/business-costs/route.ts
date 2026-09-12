@@ -98,6 +98,16 @@ export async function POST(request: Request) {
       );
     }
 
+    if (bookingId && marketRequestId) {
+      return NextResponse.json(
+        {
+          error:
+            "Attribuez le coût à une réservation ou à une demande, pas aux deux à la fois.",
+        },
+        { status: 400 }
+      );
+    }
+
     if (!serviceId && !bookingId && !marketRequestId) {
       return NextResponse.json(
         {
