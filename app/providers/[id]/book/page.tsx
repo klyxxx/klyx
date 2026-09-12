@@ -388,7 +388,7 @@ export default function ProviderBookingPage() {
   if (errorKey && !profile) {
     return (
       <main className="min-h-screen overflow-x-hidden bg-background px-3 py-5 text-foreground dark:bg-zinc-950 dark:text-white sm:px-5 sm:py-8">
-        <div className="mx-auto max-w-3xl rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-red-300">
+        <div className="mx-auto max-w-3xl border-l-2 border-red-500/50 py-2 pl-4 text-red-700 dark:text-red-300">
           {t(errorKey)}
         </div>
       </main>
@@ -407,221 +407,198 @@ export default function ProviderBookingPage() {
 
   return (
     <main
-      className="min-h-screen overflow-x-hidden bg-background px-3 py-5 text-foreground dark:bg-zinc-950 dark:text-white sm:px-5 sm:py-8"
+      className="min-h-screen overflow-x-hidden bg-background px-4 py-6 text-foreground dark:bg-zinc-950 dark:text-white sm:px-6 sm:py-10"
       data-klyx-contract="KLYX_PROVIDER_BOOKING_I18N_16_07"
+      data-klyx-ui="KLYX_PROVIDER_BOOKING_CONVERSATIONAL_20260911"
     >
-      <div className="mx-auto max-w-5xl">
+      <div className="mx-auto max-w-3xl">
         <Link
           href={`/providers/${providerId}`}
-          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground dark:text-zinc-400 dark:hover:text-white"
+          className="inline-flex items-center gap-2 text-sm text-muted-foreground transition hover:text-foreground dark:text-zinc-400 dark:hover:text-white"
         >
           <ArrowLeft size={17} />
           {t("backProfile")}
         </Link>
 
-        <section className="mt-8 grid overflow-hidden rounded-3xl border border-border bg-card/70 dark:border-zinc-800 dark:bg-zinc-900/70 md:grid-cols-[280px_1fr]">
-          <div className="flex min-h-52 items-center justify-center bg-muted dark:bg-zinc-800 sm:min-h-72">
-            {profile?.avatar_url ? (
-              <img
-                src={profile.avatar_url}
-                alt={fullName}
-                className="h-full min-h-52 w-full object-cover sm:min-h-72"
-              />
-            ) : (
-              <UserRound size={80} className="text-muted-foreground dark:text-zinc-500" />
-            )}
-          </div>
-
-          <div className="p-6 sm:p-8">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#2563eb]">
-              {serviceName}
-            </p>
-            <h1 className="mt-3 text-3xl font-bold">{fullName}</h1>
-            <p className="mt-3 text-muted-foreground dark:text-zinc-400">
-              {serviceProfile?.city || t("cityUnknown")}
-            </p>
-            <p className="mt-4 text-2xl font-bold text-[#2563eb]">
-              {formattedPrice}
-            </p>
-
-            <div className="mt-5 flex items-start gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-700 dark:text-emerald-200">
-              <CheckCircle2 className="mt-0.5 shrink-0" size={18} />
-              {t("priceSnapshotNotice")}
+        <div className="mt-8 space-y-8">
+          <section className="flex items-start gap-3">
+            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-foreground text-xs font-bold text-background">
+              K
             </div>
-          </div>
-        </section>
-
-        <form
-          onSubmit={handleSubmit}
-          className="mt-8 grid gap-8 lg:grid-cols-[1fr_320px]"
-        >
-          <section className="rounded-3xl border border-border bg-card/70 p-6 dark:border-zinc-800 dark:bg-zinc-900/70 sm:p-8">
-            <h2 className="text-2xl font-bold">{t("chooseSlot")}</h2>
-
-            <div className="mt-6 grid gap-5 sm:grid-cols-3">
-              <label>
-                <span className="mb-2 flex items-center gap-2 text-sm text-foreground/80 dark:text-zinc-300">
-                  <CalendarDays size={17} /> {t("date")}
-                </span>
-                <input
-                  type="date"
-                  min={minimumDate}
-                  required
-                  value={bookingDate}
-                  onChange={(event) => setBookingDate(event.target.value)}
-                  className="w-full rounded-xl border border-border bg-background p-4 outline-none focus:border-[#2563eb] dark:border-zinc-700 dark:bg-zinc-950"
-                />
-              </label>
-
-              <label>
-                <span className="mb-2 flex items-center gap-2 text-sm text-foreground/80 dark:text-zinc-300">
-                  <Clock3 size={17} /> {t("start")}
-                </span>
-                <input
-                  type="time"
-                  required
-                  value={startTime}
-                  onChange={(event) => setStartTime(event.target.value)}
-                  className="w-full rounded-xl border border-border bg-background p-4 outline-none focus:border-[#2563eb] dark:border-zinc-700 dark:bg-zinc-950"
-                />
-              </label>
-
-              <label>
-                <span className="mb-2 flex items-center gap-2 text-sm text-foreground/80 dark:text-zinc-300">
-                  <Clock3 size={17} /> {t("end")}
-                </span>
-                <input
-                  type="time"
-                  required
-                  value={endTime}
-                  onChange={(event) => setEndTime(event.target.value)}
-                  className="w-full rounded-xl border border-border bg-background p-4 outline-none focus:border-[#2563eb] dark:border-zinc-700 dark:bg-zinc-950"
-                />
-              </label>
-            </div>
-
-            {bookingDate && (
-              <div className="mt-4 rounded-xl border border-border bg-background p-4 text-sm text-muted-foreground dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400">
-                {selectedDayAvailability.length > 0
-                  ? t("available", {
-                      day: t(
-                        DAY_KEYS[
-                          new Date(`${bookingDate}T12:00:00Z`).getUTCDay()
-                        ] ?? "sunday"
-                      ),
-                      slots: selectedDayAvailability
-                        .map(
-                          (slot) =>
-                            `${slot.start_time.slice(0, 5)}–${slot.end_time.slice(0, 5)}`
-                        )
-                        .join(", "),
-                    })
-                  : t("noAvailabilityDay")}
-              </div>
-            )}
-
-            {isBabysitting && (
-              <label className="mt-5 block" htmlFor="children">
-                <span className="mb-2 block text-sm text-foreground/80 dark:text-zinc-300">
-                  {t("children")}
-                </span>
-                <input
-                  id="children"
-                  type="number"
-                  min="1"
-                  step="1"
-                  required
-                  value={children}
-                  onChange={(event) => setChildren(event.target.value)}
-                  className="w-full rounded-xl border border-border bg-background p-4 outline-none focus:border-[#2563eb] dark:border-zinc-700 dark:bg-zinc-950"
-                />
-              </label>
-            )}
-
-            <label className="mt-5 block">
-              <span className="mb-2 block text-sm text-foreground/80 dark:text-zinc-300">
-                {t("requestDetails")}
-              </span>
-              <textarea
-                rows={6}
-                maxLength={2000}
-                value={message}
-                onChange={(event) => setMessage(event.target.value)}
-                placeholder={t("requestPlaceholder")}
-                className="w-full resize-none rounded-xl border border-border bg-background p-4 outline-none focus:border-[#2563eb] dark:border-zinc-700 dark:bg-zinc-950"
-              />
-              <p className="mt-2 text-right text-xs text-muted-foreground dark:text-zinc-500">
-                {message.length}/2000
+            <div className="min-w-0 flex-1">
+              <p className="text-sm leading-7 text-muted-foreground">
+                {serviceName}
               </p>
-            </label>
-
-            {errorKey && (
-              <div className="mt-5 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-700 dark:text-red-300">
-                {t(errorKey)}
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                <h1 className="text-xl font-semibold sm:text-2xl">{fullName}</h1>
+                <span className="text-sm text-muted-foreground">
+                  · {serviceProfile?.city || t("cityUnknown")}
+                </span>
               </div>
-            )}
+              <p className="mt-2 text-base font-semibold text-blue-600 dark:text-blue-400">
+                {formattedPrice}
+              </p>
+              <p className="mt-3 inline-flex max-w-2xl items-start gap-2 text-xs leading-5 text-muted-foreground">
+                <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-blue-600 dark:text-blue-400" />
+                {t("priceSnapshotNotice")}
+              </p>
+            </div>
           </section>
 
-          <aside className="h-fit rounded-3xl border border-border bg-card/70 p-6 dark:border-zinc-800 dark:bg-zinc-900/70 lg:sticky lg:top-6">
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground dark:text-zinc-500">
-              {t("summary")}
-            </p>
-            <h2 className="mt-3 text-xl font-bold">{serviceName}</h2>
+          <form onSubmit={handleSubmit} className="space-y-7">
+            <section className="flex items-start gap-3">
+              <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-foreground text-xs font-bold text-background">
+                K
+              </div>
+              <div className="min-w-0 flex-1">
+                <h2 className="text-base font-semibold sm:text-lg">{t("chooseSlot")}</h2>
 
-            <div className="mt-5 space-y-3 border-y border-border py-5 text-sm dark:border-zinc-800">
-              <p className="flex justify-between gap-3">
-                <span className="text-muted-foreground dark:text-zinc-500">
-                  {t("provider")}
-                </span>
-                <span className="text-right font-semibold">{fullName}</span>
-              </p>
-              <p className="flex justify-between gap-3">
-                <span className="text-muted-foreground dark:text-zinc-500">
-                  {t("slot")}
-                </span>
-                <span className="text-right font-semibold">
-                  {startTime && endTime ? `${startTime}–${endTime}` : t("choose")}
-                </span>
-              </p>
-              {isBabysitting && (
-                <p className="flex justify-between gap-3">
-                  <span className="text-muted-foreground dark:text-zinc-500">
-                    {t("children")}
+                <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                  <label>
+                    <span className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                      <CalendarDays size={15} /> {t("date")}
+                    </span>
+                    <input
+                      type="date"
+                      min={minimumDate}
+                      required
+                      value={bookingDate}
+                      onChange={(event) => setBookingDate(event.target.value)}
+                      className="w-full rounded-xl border border-border bg-background px-3 py-3 text-sm outline-none transition focus:border-blue-600 dark:border-zinc-700 dark:bg-zinc-950"
+                    />
+                  </label>
+
+                  <label>
+                    <span className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                      <Clock3 size={15} /> {t("start")}
+                    </span>
+                    <input
+                      type="time"
+                      required
+                      value={startTime}
+                      onChange={(event) => setStartTime(event.target.value)}
+                      className="w-full rounded-xl border border-border bg-background px-3 py-3 text-sm outline-none transition focus:border-blue-600 dark:border-zinc-700 dark:bg-zinc-950"
+                    />
+                  </label>
+
+                  <label>
+                    <span className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                      <Clock3 size={15} /> {t("end")}
+                    </span>
+                    <input
+                      type="time"
+                      required
+                      value={endTime}
+                      onChange={(event) => setEndTime(event.target.value)}
+                      className="w-full rounded-xl border border-border bg-background px-3 py-3 text-sm outline-none transition focus:border-blue-600 dark:border-zinc-700 dark:bg-zinc-950"
+                    />
+                  </label>
+                </div>
+
+                {bookingDate && (
+                  <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                    {selectedDayAvailability.length > 0
+                      ? t("available", {
+                          day: t(
+                            DAY_KEYS[
+                              new Date(`${bookingDate}T12:00:00Z`).getUTCDay()
+                            ] ?? "sunday"
+                          ),
+                          slots: selectedDayAvailability
+                            .map(
+                              (slot) =>
+                                `${slot.start_time.slice(0, 5)}–${slot.end_time.slice(0, 5)}`
+                            )
+                            .join(", "),
+                        })
+                      : t("noAvailabilityDay")}
+                  </p>
+                )}
+
+                {isBabysitting && (
+                  <label className="mt-5 block" htmlFor="children">
+                    <span className="mb-2 block text-xs font-medium text-muted-foreground">
+                      {t("children")}
+                    </span>
+                    <input
+                      id="children"
+                      type="number"
+                      min="1"
+                      step="1"
+                      required
+                      value={children}
+                      onChange={(event) => setChildren(event.target.value)}
+                      className="w-full max-w-40 rounded-xl border border-border bg-background px-3 py-3 text-sm outline-none transition focus:border-blue-600 dark:border-zinc-700 dark:bg-zinc-950"
+                    />
+                  </label>
+                )}
+
+                <label className="mt-5 block">
+                  <span className="mb-2 block text-xs font-medium text-muted-foreground">
+                    {t("requestDetails")}
                   </span>
-                  <span className="text-right font-semibold">{children || "—"}</span>
-                </p>
-              )}
-              <p className="flex justify-between gap-3">
-                <span className="text-muted-foreground dark:text-zinc-500">
-                  {t("rate")}
-                </span>
-                <span className="text-right font-semibold">{formattedPrice}</span>
+                  <textarea
+                    rows={4}
+                    maxLength={2000}
+                    value={message}
+                    onChange={(event) => setMessage(event.target.value)}
+                    placeholder={t("requestPlaceholder")}
+                    className="w-full resize-none rounded-2xl border border-border bg-background px-4 py-3 text-sm leading-6 outline-none transition focus:border-blue-600 dark:border-zinc-700 dark:bg-zinc-950"
+                  />
+                  <p className="mt-1 text-right text-xs text-muted-foreground">
+                    {message.length}/2000
+                  </p>
+                </label>
+
+                {errorKey && (
+                  <div className="mt-4 border-l-2 border-red-500/50 py-1 pl-3 text-sm text-red-700 dark:text-red-300">
+                    {t(errorKey)}
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className="flex justify-end">
+              <div className="max-w-[88%] rounded-3xl bg-muted px-4 py-3 text-sm sm:max-w-[72%]">
+                <p className="font-semibold">{t("summary")}</p>
+                <div className="mt-2 space-y-1.5 text-muted-foreground">
+                  <p>
+                    {t("provider")}: <span className="text-foreground">{fullName}</span>
+                  </p>
+                  <p>
+                    {t("slot")}: <span className="text-foreground">{startTime && endTime ? `${startTime}–${endTime}` : t("choose")}</span>
+                  </p>
+                  {isBabysitting && (
+                    <p>
+                      {t("children")}: <span className="text-foreground">{children || "—"}</span>
+                    </p>
+                  )}
+                  <p>
+                    {t("rate")}: <span className="text-foreground">{formattedPrice}</span>
+                  </p>
+                  <p className="inline-flex items-center gap-2 pt-1 font-semibold text-foreground">
+                    <Euro size={16} />
+                    {t("estimatedTotal")}: {estimatedAmount == null ? "—" : `${estimatedAmount.toFixed(2)} €`}
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section className="pl-11">
+              <button
+                type="submit"
+                disabled={submitting || estimatedAmount == null}
+                className="klyx-button inline-flex min-h-11 items-center justify-center gap-2 px-5 text-sm font-semibold disabled:opacity-50"
+              >
+                <Send size={17} />
+                {submitting ? t("submitting") : t("sendRequest")}
+              </button>
+              <p className="mt-3 max-w-xl text-xs leading-5 text-muted-foreground">
+                {t("noChargeBeforeAcceptance")}
               </p>
-            </div>
-
-            <div className="mt-5 flex items-center justify-between gap-3">
-              <span className="flex items-center gap-2 text-muted-foreground dark:text-zinc-400">
-                <Euro size={18} /> {t("estimatedTotal")}
-              </span>
-              <strong className="text-2xl text-[#2563eb]">
-                {estimatedAmount == null ? "—" : `${estimatedAmount.toFixed(2)} €`}
-              </strong>
-            </div>
-
-            <button
-              type="submit"
-              disabled={submitting || estimatedAmount == null}
-              className="mt-6 flex w-full items-center justify-center gap-3 rounded-xl bg-[#2563eb] px-6 py-4 font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-            >
-              <Send size={20} />
-              {submitting ? t("submitting") : t("sendRequest")}
-            </button>
-
-            <p className="mt-4 text-center text-xs leading-5 text-muted-foreground dark:text-zinc-500">
-              {t("noChargeBeforeAcceptance")}
-            </p>
-          </aside>
-        </form>
+            </section>
+          </form>
+        </div>
       </div>
     </main>
   );
