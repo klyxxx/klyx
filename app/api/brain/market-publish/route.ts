@@ -4,7 +4,6 @@ import { notifyCompatibleProviders } from "@/lib/market-notifications";
 import {
   apiErrorStatus,
   getAuthenticatedProfile,
-  requireAccountType,
 } from "@/lib/api-auth";
 import { requireBrainMarketConfirmation } from "@/lib/brain-market-confirmation";
 
@@ -85,7 +84,6 @@ export async function POST(request: Request) {
     });
 
     const { profile } = await getAuthenticatedProfile(request);
-    requireAccountType(profile, "client");
 
     const body = (await request.json()) as {
       conversationId?: unknown;
