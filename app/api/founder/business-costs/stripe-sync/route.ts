@@ -103,7 +103,7 @@ export async function POST(request: Request) {
             })
           : intent.latest_charge;
 
-      if (!charge || charge.refunded && charge.amount === 0) continue;
+      if (!charge) continue;
       const balance = await balanceTransactionForCharge(stripe, charge);
       if (!balance) continue;
 
