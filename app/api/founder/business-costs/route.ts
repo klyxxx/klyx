@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { secureApiErrorResponse } from "@/lib/api-error";
-import type {
-  KlyxBusinessCostType,
-} from "@/lib/klyx-business-metrics";
+import type { KlyxBusinessCostType } from "@/lib/klyx-business-metrics";
 import {
   founderErrorPublicMessage,
   founderErrorStatus,
@@ -11,21 +9,20 @@ import {
 } from "@/lib/founder-auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
-const COST_TYPES = new Set<KlyxBusinessCostType>([
-  "stripe_fee",
+const MANUAL_COST_TYPES = new Set<KlyxBusinessCostType>([
   "support",
   "fraud_dispute",
   "acquisition",
 ]);
 
-const SOURCES = new Set([
-  "founder_manual",
-  "stripe",
-  "support",
-  "fraud",
-  "acquisition",
-  "import",
-]);
+const MANUAL_SOURCE_BY_COST_TYPE: Record<
+  Exclude<KlyxBusinessCostType, "stripe_fee">,
+  "support" | "fraud" | "acquisition"
+> = {
+  support: "support",
+  fraud_dispute: "fraud",
+  acquisition: "acquisition",
+};
 
 function cleanId(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -47,11 +44,7 @@ export async function POST(request: Request) {
     const bookingId = cleanId(body.bookingId);
     const marketRequestId = cleanId(body.marketRequestId);
     let serviceId = cleanId(body.serviceId);
-    const source =
-      typeof body.source === "string" && SOURCES.has(body.source)
-        ? body.source
-        : "founder_manual";
-    const sourceKey = cleanId(body.sourceKey);
+    const manualReference = cleanId(body.sourceKey)?.slice(0, 200) ?? null;
     const note =
       typeof body.note === "string" && body.note.trim()
         ? body.note.trim().slice(0, 1000)
@@ -63,10 +56,13 @@ export async function POST(request: Request) {
 
     if (
       typeof costType !== "string" ||
-      !COST_TYPES.has(costType as KlyxBusinessCostType)
+      !MANUAL_COST_TYPES.has(costType as KlyxBusinessCostType)
     ) {
       return NextResponse.json(
-        { error: "Type de coût KLYX invalide." },
+        {
+          error:
+            "Type de coût manuel invalide. Les frais Stripe doivent être synchronisés depuis Stripe.",
+        },
         { status: 400 }
       );
     }
@@ -74,6 +70,16 @@ export async function POST(request: Request) {
     if (!Number.isInteger(amountCents) || amountCents <= 0) {
       return NextResponse.json(
         { error: "Le coût doit être un entier strictement positif en centimes." },
+        { status: 400 }
+      );
+    }
+
+    if (!manualReference) {
+      return NextResponse.json(
+        {
+          error:
+            "Une référence unique est obligatoire pour empêcher de compter deux fois le même coût.",
+        },
         { status: 400 }
       );
     }
@@ -166,10 +172,17 @@ export async function POST(request: Request) {
       );
     }
 
+    const manualCostType = costType as Exclude<
+      KlyxBusinessCostType,
+      "stripe_fee"
+    >;
+    const source = MANUAL_SOURCE_BY_COST_TYPE[manualCostType];
+    const sourceKey = `manual:${manualCostType}:${manualReference}`;
+
     const { data: inserted, error: insertError } = await supabaseAdmin
       .from("business_cost_events")
       .insert({
-        cost_type: costType,
+        cost_type: manualCostType,
         amount_cents: amountCents,
         currency,
         service_id: serviceId,
@@ -187,9 +200,9 @@ export async function POST(request: Request) {
       .single();
 
     if (insertError) {
-      if (insertError.code === "23505" && sourceKey) {
+      if (insertError.code === "23505") {
         return NextResponse.json(
-          { error: "Ce coût a déjà été enregistré." },
+          { error: "Cette référence de coût a déjà été enregistrée." },
           { status: 409 }
         );
       }
@@ -202,7 +215,7 @@ export async function POST(request: Request) {
         tracking_mode: "manual",
         updated_at: new Date().toISOString(),
       })
-      .eq("cost_type", costType)
+      .eq("cost_type", manualCostType)
       .eq("tracking_mode", "unavailable");
     if (trackingError) throw new Error(trackingError.message);
 
