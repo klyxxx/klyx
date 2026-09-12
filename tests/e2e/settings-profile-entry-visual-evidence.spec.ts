@@ -144,22 +144,21 @@ test.describe("KLYX Profile and Settings destination visual evidence", () => {
 
     const phonePanel = settingsPanel(page, "phone");
     const languagePanel = settingsPanel(page, "language");
-    const authPanel = settingsPanel(page, "auth");
     const otherPanel = settingsPanel(page, "other");
 
     await expect(phonePanel).toBeVisible();
     await expect(languagePanel).toBeVisible();
-    await expect(authPanel).toBeVisible();
     await expect(otherPanel).toBeVisible();
     await expect(phonePanel).toHaveAttribute("aria-expanded", "false");
     await expect(languagePanel).toHaveAttribute("aria-expanded", "false");
-    await expect(authPanel).toHaveAttribute("aria-expanded", "false");
     await expect(otherPanel).toHaveAttribute("aria-expanded", "false");
 
     await expect(settingsPanel(page, "appearance")).toHaveCount(0);
+    await expect(settingsPanel(page, "auth")).toHaveCount(0);
     await expect(settingsPanel(page, "notifications")).toHaveCount(0);
     await expect(settingsPanel(page, "privacy")).toHaveCount(0);
     await expect(settingsPanel(page, "delete")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /déconnecter|sign out/i })).toHaveCount(0);
 
     await attachViewport(page, testInfo, "client-settings-calm-mobile");
 
@@ -167,10 +166,18 @@ test.describe("KLYX Profile and Settings destination visual evidence", () => {
     await expect(otherPanel).toHaveAttribute("aria-expanded", "true");
 
     const appearancePanel = settingsPanel(page, "appearance");
+    const authPanel = settingsPanel(page, "auth");
     await expect(appearancePanel).toBeVisible();
+    await expect(authPanel).toBeVisible();
     await expect(settingsPanel(page, "notifications")).toBeVisible();
     await expect(settingsPanel(page, "privacy")).toBeVisible();
     await expect(settingsPanel(page, "delete")).toBeVisible();
+    await expect(page.getByRole("button", { name: /déconnecter|sign out/i })).toBeVisible();
+
+    await authPanel.click();
+    await expect(authPanel).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByRole("button", { name: /mot de passe|password/i })).toBeVisible();
+    await authPanel.click();
 
     await appearancePanel.click();
     await expect(appearancePanel).toHaveAttribute("aria-expanded", "true");
@@ -180,6 +187,7 @@ test.describe("KLYX Profile and Settings destination visual evidence", () => {
     await otherPanel.click();
     await expect(otherPanel).toHaveAttribute("aria-expanded", "false");
     await expect(settingsPanel(page, "appearance")).toHaveCount(0);
+    await expect(settingsPanel(page, "auth")).toHaveCount(0);
 
     await page.setViewportSize({ width: 1440, height: 1000 });
     await expectAssistantFirstDesktopShell(page, "/assistant");
