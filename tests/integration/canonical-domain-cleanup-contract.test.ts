@@ -3,7 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const OLD_DOMAIN = "klyx-ten.vercel.app";
-const CANONICAL_DOMAIN = "https://klyx.be";
+const CANONICAL_DOMAIN = "https://www.klyx.be";
 
 const files = [
   "lib/klyx-public-config.ts",
