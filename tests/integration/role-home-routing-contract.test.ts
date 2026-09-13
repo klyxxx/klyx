@@ -33,7 +33,7 @@ describe("KLYX canonical role home routing", () => {
 
     expect(source).toContain('redirect("/login");');
     expect(source).toContain('redirect("/accounts");');
-    expect(source).toContain("redirect(getKlyxAccountHome(profile.accountType));");
+    expect(source).toContain("redirect(getKlyxAccountHome(profile));");
 
     for (const legacyImport of [
       "ClientDashboard",
