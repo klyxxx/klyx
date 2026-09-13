@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   canRequestTrustReview,
   redactTrustDecision,
+  toTrustAccessDecision,
   type TrustDecisionRow,
 } from "../../lib/trust-safety/application-contract";
 
@@ -36,6 +37,7 @@ describe("KLYX Trust & Safety application contract", () => {
       targetRef: "booking-1",
       categoryKey: "cleaning",
       jurisdictionCode: "BE-BRU",
+      accessDecision: "human_review",
       decision: "human_review_required",
       legalPathway: "multiple_possible",
       humanReviewRequired: true,
@@ -52,6 +54,58 @@ describe("KLYX Trust & Safety application contract", () => {
     expect(redacted).not.toHaveProperty("input_snapshot");
     expect(redacted).not.toHaveProperty("account_id");
     expect(redacted).not.toHaveProperty("legal_assessment_id");
+  });
+
+  it("keeps the public access contract to allowed, human_review or blocked", () => {
+    expect(
+      toTrustAccessDecision({
+        decision: "eligible",
+        human_review_required: false,
+        review_status: "not_required",
+      })
+    ).toBe("allowed");
+
+    expect(
+      toTrustAccessDecision({
+        decision: "eligible_with_conditions",
+        human_review_required: true,
+        review_status: "pending",
+      })
+    ).toBe("human_review");
+
+    expect(
+      toTrustAccessDecision({
+        decision: "human_review_required",
+        human_review_required: true,
+        review_status: "pending",
+      })
+    ).toBe("human_review");
+
+    expect(
+      toTrustAccessDecision({
+        decision: "requirements_missing",
+        human_review_required: false,
+        review_status: "not_required",
+      })
+    ).toBe("blocked");
+
+    expect(
+      toTrustAccessDecision({
+        decision: "ineligible",
+        human_review_required: false,
+        review_status: "not_required",
+      })
+    ).toBe("blocked");
+  });
+
+  it("allows an approved human decision to release an otherwise eligible conditional outcome", () => {
+    expect(
+      toTrustAccessDecision({
+        decision: "eligible_with_conditions",
+        human_review_required: true,
+        review_status: "approved",
+      })
+    ).toBe("allowed");
   });
 
   it("allows a pending policy decision to create its actual review record", () => {
