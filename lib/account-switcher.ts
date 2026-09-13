@@ -34,10 +34,6 @@ export type ProfileFormValues = {
   countryCode: string;
   accountType: AccountType;
   serviceId: string | null;
-  capabilities?: {
-    requestServices: boolean;
-    offerServices: boolean;
-  };
 };
 
 type ProfilesResponse = {
@@ -55,30 +51,6 @@ export type ActiveProfileChangedDetail = {
 };
 
 let activeProfileSwitchPromise: Promise<void> | null = null;
-
-function projectAccountTypeForCurrentSurface(
-  profile: SavedAccount
-): SavedAccount {
-  if (typeof window === "undefined") return profile;
-
-  const providerSurface = window.location.pathname.startsWith("/provider");
-
-  if (providerSurface && profile.canOfferServices) {
-    return {
-      ...profile,
-      accountType: "provider",
-    };
-  }
-
-  if (!providerSurface && profile.canRequestServices) {
-    return {
-      ...profile,
-      accountType: "client",
-    };
-  }
-
-  return profile;
-}
 
 function emitActiveProfileChanged(
   profileId: string,
@@ -167,7 +139,7 @@ export async function getActiveProfileAccount(): Promise<SavedAccount> {
     throw new Error("Profil KLYX actif introuvable.");
   }
 
-  return projectAccountTypeForCurrentSurface(profile);
+  return profile;
 }
 
 export async function getActiveClientProfile(): Promise<SavedAccount> {
@@ -191,8 +163,6 @@ async function performAccountSwitch(profileId: string): Promise<void> {
 
   const result = (await response.json()) as {
     accountType?: AccountType;
-    canRequestServices?: boolean;
-    canOfferServices?: boolean;
     error?: string;
   };
 
@@ -207,18 +177,8 @@ async function performAccountSwitch(profileId: string): Promise<void> {
     throw new Error("Rôle de compatibilité du profil KLYX introuvable.");
   }
 
-  const providerSurface =
-    typeof window !== "undefined" &&
-    window.location.pathname.startsWith("/provider");
-  const projectedAccountType: AccountType =
-    providerSurface && result.canOfferServices
-      ? "provider"
-      : !providerSurface && result.canRequestServices
-        ? "client"
-        : result.accountType;
-
   captureKlyxProductEvent("profile selected");
-  emitActiveProfileChanged(profileId, projectedAccountType);
+  emitActiveProfileChanged(profileId, result.accountType);
 }
 
 export async function switchAccount(profileId: string): Promise<void> {
