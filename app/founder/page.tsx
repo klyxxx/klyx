@@ -180,6 +180,12 @@ export default function FounderPage() {
               >
                 <BriefcaseBusiness size={16} /> {t("businessValue")}
               </Link>
+              <Link
+                href="/founder/business/pilot"
+                className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-blue-600/30 bg-blue-600/5 px-4 text-sm font-black text-blue-700"
+              >
+                <BriefcaseBusiness size={16} /> Pilote Anneessens
+              </Link>
             </div>
           </article>
         </section>
