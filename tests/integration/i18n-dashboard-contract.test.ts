@@ -14,7 +14,7 @@ describe("KLYX dashboard i18n and safe-error contract", () => {
     expect(page).toContain(
       'import { getKlyxAccountHome } from "@/lib/account-home";'
     );
-    expect(page).toContain("redirect(getKlyxAccountHome(profile.accountType));");
+    expect(page).toContain("redirect(getKlyxAccountHome(profile));");
     expect(page).not.toContain("DashboardResumeCenter");
     expect(page).not.toContain("KLYX_AI_FIRST_DASHBOARD_15_02");
     expect(page).not.toContain("<main");
