@@ -68,10 +68,15 @@ export async function GET() {
     if (firstError) throw new Error(firstError.message);
     if (!serviceResult.data) throw new Error("KLYX_LOCAL_PILOT_SERVICE_MISSING");
 
+    const pilotServiceId = serviceResult.data.id;
+    const enrollmentRows = enrollmentResult.data ?? [];
+    const verifiedEnrollmentRows = enrollmentRows.filter(
+      (row) => row.zone_verified && row.service_verified
+    );
+    const excludedByVerificationFlags =
+      enrollmentRows.length - verifiedEnrollmentRows.length;
     const enrolledIds = unique(
-      (enrollmentResult.data ?? [])
-        .filter((row) => row.zone_verified && row.service_verified)
-        .map((row) => row.market_request_id)
+      verifiedEnrollmentRows.map((row) => row.market_request_id)
     ).slice(0, KLYX_LOCAL_VALUE_PILOT.maxRealRequests);
 
     if (enrolledIds.length === 0) {
@@ -92,7 +97,7 @@ export async function GET() {
         {
           pilotKey: KLYX_LOCAL_VALUE_PILOT.key,
           generatedAt: new Date().toISOString(),
-          excludedEnrollmentCount: 0,
+          excludedEnrollmentCount: excludedByVerificationFlags,
           ...operations,
         },
         { headers: { "Cache-Control": "private, no-store, max-age=0" } }
@@ -106,8 +111,7 @@ export async function GET() {
     if (requestsError) throw new Error(requestsError.message);
 
     const verifiedRequests = (rawRequests ?? []).filter(
-      (row) =>
-        row.service_id === serviceResult.data.id && isPilotCity(row.city)
+      (row) => row.service_id === pilotServiceId && isPilotCity(row.city)
     );
     const verifiedRequestIds = verifiedRequests.map((row) => row.id);
 
@@ -172,7 +176,8 @@ export async function GET() {
         pilotKey: KLYX_LOCAL_VALUE_PILOT.key,
         generatedAt: new Date().toISOString(),
         excludedEnrollmentCount:
-          enrolledIds.length - verifiedRequests.length,
+          excludedByVerificationFlags +
+          (enrolledIds.length - verifiedRequests.length),
         ...operations,
       },
       { headers: { "Cache-Control": "private, no-store, max-age=0" } }
