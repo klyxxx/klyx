@@ -24,6 +24,11 @@ export type AuthenticatedProfile = {
   currencyCode: string;
 };
 
+export type AuthenticatedAccount = {
+  id: string;
+  authUserId: string;
+};
+
 type ProfileRow = {
   id: string;
   owner_user_id: string;
@@ -32,6 +37,11 @@ type ProfileRow = {
   last_name: string | null;
   country_code: string | null;
   currency_code: string | null;
+};
+
+type AccountRow = {
+  id: string;
+  auth_user_id: string;
 };
 
 function requiredEnv(name: string): string {
@@ -147,6 +157,40 @@ export async function getAuthenticatedProfile(
       email: user.email,
     },
     profile,
+  };
+}
+
+export async function getAuthenticatedAccount(
+  request: Request
+): Promise<{
+  user: AuthenticatedUser;
+  account: AuthenticatedAccount;
+  profile: AuthenticatedProfile;
+}> {
+  const authenticated = await getAuthenticatedProfile(request);
+
+  const { data, error: accountError } = await supabaseAdmin
+    .from("accounts")
+    .select("id, auth_user_id")
+    .eq("auth_user_id", authenticated.user.id)
+    .maybeSingle();
+
+  if (accountError) {
+    throw new Error(accountError.message);
+  }
+
+  const account = data as AccountRow | null;
+
+  if (!account || account.auth_user_id !== authenticated.user.id) {
+    throw new Error("Compte KLYX introuvable.");
+  }
+
+  return {
+    ...authenticated,
+    account: {
+      id: account.id,
+      authUserId: account.auth_user_id,
+    },
   };
 }
 
