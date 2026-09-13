@@ -64,6 +64,9 @@ describe("Supabase production migration historical-gap recovery", () => {
       "Refusing production write: second dry-run batch differs from the audited reconciliation batch."
     );
     expect(workflow).toContain(
+      '"20260913165000_klyx_business_pilot_request_cap.sql"'
+    );
+    expect(workflow).toContain(
       'echo "SUPABASE_INCLUDE_ALL=true" >> "$GITHUB_ENV"'
     );
   });
