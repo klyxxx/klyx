@@ -40,7 +40,10 @@ describe("KLYX unified Brain converse security boundary", () => {
   it("keeps the certified bounded parser as the only body inspection boundary", () => {
     expect(route).not.toContain("request.clone().json()");
     expect(route).not.toContain("await request.json()");
-    expect(route).toContain("await parseBrainRespondRequest(request.clone())");
+    expect(route).toContain("const boundedInspectionRequest = request.clone();");
+    expect(route).toContain(
+      "await parseBrainRespondRequest(boundedInspectionRequest)"
+    );
     expect(respondRoute).toContain("await parseBrainRespondRequest(request)");
   });
 
@@ -59,14 +62,16 @@ describe("KLYX unified Brain converse security boundary", () => {
   });
 
   it("limits capability projection to the unified Brain endpoint and never changes cookies", () => {
-    expect(apiAuth).toContain('const ASSISTANT_CAPABILITY_HEADER = "x-klyx-assistant-capability"');
+    expect(apiAuth).toContain(
+      'const ASSISTANT_CAPABILITY_HEADER = "x-klyx-assistant-capability"'
+    );
     expect(apiAuth).toContain('pathname !== "/api/brain/converse"');
     expect(apiAuth).toContain("projectCapability(");
     expect(apiAuth).toContain("canonicalProfile");
     expect(apiAuth).not.toContain("cookies().set");
-    expect(route).toContain("requestHeadersWithCapability");
+    expect(route).toContain("capabilityHeaders");
     expect(route).toContain('capability: "client"');
-    expect(route).toContain('getRequestWithCapability(request, "provider")');
+    expect(route).toContain("providerCapabilityRequest(request)");
   });
 
   it("applies the durable Brain rate limit to non-service intents as well", () => {
