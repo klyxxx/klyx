@@ -182,18 +182,26 @@ describe(
         const route = read(
           "app/api/provider/assistant/assistant-route-core.ts"
         );
+        const unknownGate = route.indexOf(
+          'if (result.intent === "unknown")'
+        );
+        const unknownModelPass = route.indexOf(
+          "await improveUnknownProviderReply",
+          unknownGate
+        );
+        const missionPlanDraftGuard = route.indexOf(
+          'result.intent !== "mission_plan"',
+          unknownModelPass
+        );
 
         expect(route).toContain(
           "generateKlyxAiReply"
         );
+        expect(unknownGate).toBeGreaterThan(-1);
+        expect(unknownModelPass).toBeGreaterThan(unknownGate);
+        expect(missionPlanDraftGuard).toBeGreaterThan(unknownModelPass);
         expect(route).toContain(
-          'result.intent === "unknown"'
-        );
-        expect(route).toContain(
-          'if (result.intent !== "unknown")'
-        );
-        expect(route).toContain(
-          "Structured provider actions stay deterministic"
+          "Structured actions and live orchestration remain deterministic"
         );
       }
     );
