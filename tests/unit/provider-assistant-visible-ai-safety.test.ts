@@ -69,7 +69,7 @@ describe("provider unknown visible AI safety", () => {
     });
   });
 
-  it("finalizes unknown provider replies before the visible AI wrapper can call a model", () => {
+  it("finalizes unknown and mission-plan replies before the visible AI wrapper can call a model", () => {
     const source = readFileSync(
       resolve(
         process.cwd(),
@@ -78,13 +78,21 @@ describe("provider unknown visible AI safety", () => {
       "utf8"
     );
     const unknownGuard = source.indexOf(
-      'if (responseBody.intent === "unknown")'
+      'responseBody.intent === "unknown"'
     );
+    const missionPlanGuard = source.indexOf(
+      'responseBody.intent === "mission_plan"',
+      unknownGuard
+    );
+    const finalReturn = source.indexOf("return response;", missionPlanGuard);
     const visibleAiCall = source.indexOf(
-      "await generateKlyxVisibleAiReply"
+      "await generateKlyxVisibleAiReply",
+      finalReturn
     );
 
     expect(unknownGuard).toBeGreaterThan(-1);
-    expect(visibleAiCall).toBeGreaterThan(unknownGuard);
+    expect(missionPlanGuard).toBeGreaterThan(unknownGuard);
+    expect(finalReturn).toBeGreaterThan(missionPlanGuard);
+    expect(visibleAiCall).toBeGreaterThan(finalReturn);
   });
 });
