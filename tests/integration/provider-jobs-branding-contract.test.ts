@@ -37,7 +37,8 @@ describe("KLYX provider jobs theme contract", () => {
     expect(jobs).toContain("!request.coverage?.fullCoverage");
     expect(jobs).toContain("providerMissionPriority(left) - providerMissionPriority(right)");
     expect(jobs).toContain("<ProviderConfirmedMissionsSection");
-    expect(jobs).toContain('"/provider/assistant?prompt=" +');
+    expect(jobs).toContain('"/assistant?prompt=" +');
+    expect(jobs).not.toContain('"/provider/assistant?prompt=" +');
     expect(jobs).toContain("buildKlyxProviderAssistantMissionPrompt(locale");
   });
 });

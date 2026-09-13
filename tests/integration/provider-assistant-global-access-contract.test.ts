@@ -8,7 +8,7 @@ function read(relativePath: string) {
 }
 
 describe("provider assistant global access contract", () => {
-  it("keeps the fixed provider navigation unchanged while exposing KLYX assistant separately", () => {
+  it("keeps the fixed provider navigation unchanged while exposing the canonical KLYX assistant separately", () => {
     const sidebar = read("app/ui/AppSidebar.tsx");
     const providerItemsBlock = sidebar.slice(
       sidebar.indexOf("const providerItems"),
@@ -23,6 +23,9 @@ describe("provider assistant global access contract", () => {
     expect(providerItemsBlock).not.toContain("/provider/assistant");
 
     expect(sidebar).toContain(
+      'const PROVIDER_ASSISTANT_HREF = "/assistant"'
+    );
+    expect(sidebar).not.toContain(
       'const PROVIDER_ASSISTANT_HREF = "/provider/assistant"'
     );
     expect(sidebar).toContain('data-testid="provider-assistant-launcher-desktop"');

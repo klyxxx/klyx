@@ -49,11 +49,13 @@ describe("KLYX Activity recent-first deletion contract", () => {
     expect(page).not.toContain("min-h-56");
   });
 
-  it("removes missions only from Activity and validates client ownership server-side", () => {
+  it("removes missions only from Activity and validates authenticated profile ownership server-side", () => {
     const route = read("app/api/bookings/activity-hidden/route.ts");
     const migration = read(`supabase/migrations/${ACTIVITY_MIGRATION}`);
 
-    expect(route).toContain('requireAccountType(profile, "client")');
+    expect(route).toContain("getAuthenticatedProfile(request)");
+    expect(route).toContain("clientOwnsMission(profile.id, entityType, entityId)");
+    expect(route).not.toContain("requireAccountType(");
     expect(route).toContain('.from("bookings")');
     expect(route).toContain('.eq("parent_id", clientProfileId)');
     expect(route).toContain('.from("booking_groups")');

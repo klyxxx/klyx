@@ -83,7 +83,8 @@ describe("KLYX provider jobs i18n safety contract", () => {
   });
 
   it("keeps assistant handoff non-executing and preserves its localized mission sentinel", () => {
-    expect(pageSource).toContain('"/provider/assistant?prompt="');
+    expect(pageSource).toContain('"/assistant?prompt="');
+    expect(pageSource).not.toContain('"/provider/assistant?prompt="');
     expect(pageSource).toContain("buildKlyxProviderAssistantMissionPrompt(locale, {");
     expect(assistantPromptSource).toContain("`${labels.mission}: ${context.title}`");
     expect(assistantPromptSource).toContain("labels.control");
