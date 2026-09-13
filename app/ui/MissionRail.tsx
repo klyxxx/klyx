@@ -1,32 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
-  BriefcaseBusiness,
   ChevronLeft,
   ChevronRight,
   CircleUserRound,
   Clock3,
   History,
+  LifeBuoy,
+  LogOut,
   Plus,
-  WalletCards,
-  Wrench,
+  Settings,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import AccountSwitcher from "@/app/components/AccountSwitcher";
 import KlyxLogo from "@/app/ui/KlyxLogo";
 import { createClient } from "@/lib/supabase/client";
-
-type AccountType = "client" | "provider";
-type MissionRole = "client" | "provider";
 
 type MissionCard = {
   id: string;
   entityType: "booking" | "group";
   href: string;
-  role?: MissionRole;
   otherUserName: string;
   serviceLabel: string;
   statusLabel: string;
@@ -51,7 +46,6 @@ type RailMission = {
   title: string;
   statusLabel: string;
   when: string;
-  roleLabel: string;
   otherUserName: string;
   createdAt: string;
   actionRequired: boolean;
@@ -74,16 +68,11 @@ type Copy = {
   account: string;
   profile: string;
   settings: string;
-  manageProfiles: string;
-  commercialProfile: string;
-  services: string;
-  finances: string;
+  support: string;
   logout: string;
   loggingOut: string;
   collapse: string;
   expand: string;
-  clientRole: string;
-  providerRole: string;
 };
 
 const RAIL_COLLAPSED_STORAGE_KEY = "klyx:mission-rail:collapsed";
@@ -100,16 +89,11 @@ const COPY: Record<string, Copy> = {
     account: "Compte",
     profile: "Profil",
     settings: "Paramètres",
-    manageProfiles: "Gérer les profils",
-    commercialProfile: "Fiche commerciale",
-    services: "Services",
-    finances: "Finances",
+    support: "Support",
     logout: "Déconnexion",
     loggingOut: "Déconnexion…",
     collapse: "Replier le rail",
     expand: "Déplier le rail",
-    clientRole: "Client",
-    providerRole: "Prestataire",
   },
   en: {
     newMission: "New mission",
@@ -122,16 +106,11 @@ const COPY: Record<string, Copy> = {
     account: "Account",
     profile: "Profile",
     settings: "Settings",
-    manageProfiles: "Manage profiles",
-    commercialProfile: "Business profile",
-    services: "Services",
-    finances: "Finances",
+    support: "Support",
     logout: "Log out",
     loggingOut: "Logging out…",
     collapse: "Collapse rail",
     expand: "Expand rail",
-    clientRole: "Client",
-    providerRole: "Provider",
   },
   nl: {
     newMission: "Nieuwe missie",
@@ -144,16 +123,11 @@ const COPY: Record<string, Copy> = {
     account: "Account",
     profile: "Profiel",
     settings: "Instellingen",
-    manageProfiles: "Profielen beheren",
-    commercialProfile: "Bedrijfsprofiel",
-    services: "Diensten",
-    finances: "Financiën",
+    support: "Support",
     logout: "Uitloggen",
     loggingOut: "Uitloggen…",
     collapse: "Rail inklappen",
     expand: "Rail uitklappen",
-    clientRole: "Klant",
-    providerRole: "Aanbieder",
   },
   de: {
     newMission: "Neue Mission",
@@ -166,16 +140,11 @@ const COPY: Record<string, Copy> = {
     account: "Konto",
     profile: "Profil",
     settings: "Einstellungen",
-    manageProfiles: "Profile verwalten",
-    commercialProfile: "Geschäftsprofil",
-    services: "Services",
-    finances: "Finanzen",
+    support: "Support",
     logout: "Abmelden",
     loggingOut: "Abmeldung…",
     collapse: "Leiste einklappen",
     expand: "Leiste ausklappen",
-    clientRole: "Kunde",
-    providerRole: "Anbieter",
   },
   es: {
     newMission: "Nueva misión",
@@ -188,16 +157,11 @@ const COPY: Record<string, Copy> = {
     account: "Cuenta",
     profile: "Perfil",
     settings: "Ajustes",
-    manageProfiles: "Gestionar perfiles",
-    commercialProfile: "Perfil comercial",
-    services: "Servicios",
-    finances: "Finanzas",
+    support: "Soporte",
     logout: "Cerrar sesión",
     loggingOut: "Cerrando sesión…",
     collapse: "Contraer panel",
     expand: "Expandir panel",
-    clientRole: "Cliente",
-    providerRole: "Proveedor",
   },
 };
 
@@ -268,19 +232,11 @@ function dateTimeLabel(locale: string, value: string | null | undefined) {
     return new Intl.DateTimeFormat(locale, {
       day: "numeric",
       month: "short",
-      ...(hasExplicitTime
-        ? { hour: "2-digit", minute: "2-digit" }
-        : {}),
+      ...(hasExplicitTime ? { hour: "2-digit", minute: "2-digit" } : {}),
     }).format(date);
   } catch {
     return value;
   }
-}
-
-function missionRoleLabel(locale: string, role: MissionRole | undefined) {
-  if (!role) return "";
-  const copy = copyFor(locale);
-  return role === "provider" ? copy.providerRole : copy.clientRole;
 }
 
 function splitStatusLabel(locale: string, status: string) {
@@ -302,21 +258,17 @@ function normalizePath(value: string) {
   return pathname.replace(/\/+$/, "") || "/";
 }
 
-function hrefForMission(mission: MissionCard) {
-  if (mission.href) return mission.href;
-  return mission.entityType === "booking"
-    ? `/bookings/${mission.id}`
-    : `/booking-groups/${mission.id}`;
-}
-
 function railMissionFromCard(locale: string, mission: MissionCard): RailMission {
   return {
     key: `${mission.entityType}:${mission.id}`,
-    href: hrefForMission(mission),
+    href:
+      mission.href ||
+      (mission.entityType === "booking"
+        ? `/bookings/${mission.id}`
+        : `/booking-groups/${mission.id}`),
     title: mission.serviceLabel || mission.otherUserName || "KLYX",
     statusLabel: mission.statusLabel.trim(),
     when: dateTimeLabel(locale, mission.dateFrom),
-    roleLabel: missionRoleLabel(locale, mission.role),
     otherUserName: mission.otherUserName.trim(),
     createdAt: mission.createdAt,
     actionRequired: mission.actionRequired,
@@ -330,8 +282,7 @@ function missionMeta(mission: RailMission, siblings: RailMission[]) {
       candidate.key !== mission.key &&
       candidate.title === mission.title &&
       candidate.statusLabel === mission.statusLabel &&
-      candidate.when === mission.when &&
-      candidate.roleLabel === mission.roleLabel
+      candidate.when === mission.when
   );
   const nameDistinguishes =
     Boolean(mission.otherUserName) &&
@@ -344,7 +295,6 @@ function missionMeta(mission: RailMission, siblings: RailMission[]) {
   return [
     mission.statusLabel,
     mission.when,
-    mission.roleLabel,
     nameDistinguishes ? mission.otherUserName : "",
   ]
     .filter((part, index, parts) => Boolean(part) && parts.indexOf(part) === index)
@@ -360,26 +310,24 @@ async function bearerToken() {
 }
 
 export default function MissionRail({
-  accountType,
-  activeProfileId,
   homeHref,
   locale,
   mobile = false,
   onNavigate,
 }: {
-  accountType: AccountType | null;
-  activeProfileId: string | null;
   homeHref: string;
   locale: string;
   mobile?: boolean;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const copy = copyFor(locale);
   const [collapsed, setCollapsed] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [missions, setMissions] = useState<RailMission[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const compact = !mobile && collapsed;
   const currentPath = normalizePath(pathname || "/");
 
@@ -400,11 +348,6 @@ export default function MissionRail({
     let cancelled = false;
 
     async function loadMissions() {
-      if (!accountType) {
-        setMissions([]);
-        return;
-      }
-
       setLoading(true);
 
       try {
@@ -412,55 +355,58 @@ export default function MissionRail({
         if (!token) throw new Error("session unavailable");
         const headers = { Authorization: `Bearer ${token}` };
 
-        if (accountType === "provider") {
-          const response = await fetch("/api/provider/jobs", {
-            cache: "no-store",
-            headers,
-          });
-          if (!response.ok) throw new Error("provider missions unavailable");
-
-          const body = (await response.json()) as {
-            confirmedMissions?: MissionCard[];
-          };
-          const next = (body.confirmedMissions ?? [])
-            .filter((mission) => mission.role !== "client")
-            .map((mission) => railMissionFromCard(locale, mission))
-            .sort(compareMissions);
-
-          if (!cancelled) setMissions(next);
-          return;
-        }
-
         const [overviewResponse, hiddenResponse, splitResponse] = await Promise.all([
           fetch("/api/bookings/overview", { cache: "no-store", headers }),
           fetch("/api/bookings/activity-hidden", { cache: "no-store", headers }),
           fetch("/api/bookings/split-missions", { cache: "no-store", headers }),
         ]);
 
-        if (!overviewResponse.ok || !hiddenResponse.ok) {
-          throw new Error("client missions unavailable");
+        if (!overviewResponse.ok) {
+          throw new Error("mission overview unavailable");
         }
 
-        const overview = (await overviewResponse.json()) as { cards?: MissionCard[] };
-        const hidden = (await hiddenResponse.json()) as {
-          ok?: boolean;
-          hidden?: HiddenEntity[];
+        const overview = (await overviewResponse.json()) as {
+          cards?: MissionCard[];
         };
-        const split = splitResponse.ok
-          ? ((await splitResponse.json()) as {
-              missions?: SplitMission[];
-              childBookingIds?: string[];
-            })
-          : { missions: [], childBookingIds: [] };
 
-        if (hidden.ok !== true || !Array.isArray(hidden.hidden)) {
-          throw new Error("hidden missions unavailable");
+        let removed = new Set<string>();
+        if (hiddenResponse.ok) {
+          const hidden = (await hiddenResponse.json()) as {
+            ok?: boolean;
+            hidden?: HiddenEntity[];
+          };
+          if (hidden.ok === true && Array.isArray(hidden.hidden)) {
+            removed = new Set(
+              hidden.hidden.map((item) =>
+                hiddenKey(item.entityType, item.entityId)
+              )
+            );
+          }
         }
 
-        const removed = new Set(
-          hidden.hidden.map((item) => hiddenKey(item.entityType, item.entityId))
-        );
-        const splitChildren = new Set(split.childBookingIds ?? []);
+        let splitMissions: RailMission[] = [];
+        let splitChildren = new Set<string>();
+        if (splitResponse.ok) {
+          const split = (await splitResponse.json()) as {
+            missions?: SplitMission[];
+            childBookingIds?: string[];
+          };
+          splitChildren = new Set(split.childBookingIds ?? []);
+          splitMissions = (split.missions ?? [])
+            .filter((mission) => !removed.has(hiddenKey("split", mission.id)))
+            .map((mission) => ({
+              key: `split:${mission.id}`,
+              href: "/bookings",
+              title: mission.serviceName || "KLYX",
+              statusLabel: splitStatusLabel(locale, mission.status),
+              when: dateTimeLabel(locale, mission.firstDate),
+              otherUserName: "",
+              createdAt: mission.createdAt,
+              actionRequired: mission.actionRequired,
+              history:
+                mission.status === "completed" || mission.status === "cancelled",
+            }));
+        }
 
         const standard = (overview.cards ?? [])
           .filter(
@@ -469,21 +415,6 @@ export default function MissionRail({
               !splitChildren.has(mission.id)
           )
           .map((mission) => railMissionFromCard(locale, mission));
-
-        const splitMissions = (split.missions ?? [])
-          .filter((mission) => !removed.has(hiddenKey("split", mission.id)))
-          .map<RailMission>((mission) => ({
-            key: `split:${mission.id}`,
-            href: "/bookings",
-            title: mission.serviceName || "KLYX",
-            statusLabel: splitStatusLabel(locale, mission.status),
-            when: dateTimeLabel(locale, mission.firstDate),
-            roleLabel: missionRoleLabel(locale, "client"),
-            otherUserName: "",
-            createdAt: mission.createdAt,
-            actionRequired: mission.actionRequired,
-            history: mission.status === "completed" || mission.status === "cancelled",
-          }));
 
         if (!cancelled) {
           setMissions([...standard, ...splitMissions].sort(compareMissions));
@@ -499,7 +430,7 @@ export default function MissionRail({
     return () => {
       cancelled = true;
     };
-  }, [accountType, activeProfileId, locale]);
+  }, [locale]);
 
   const currentMissions = useMemo(
     () => missions.filter((mission) => !mission.history),
@@ -533,12 +464,8 @@ export default function MissionRail({
     setHistoryOpen(true);
   }
 
-  function isMissionActive(mission: RailMission) {
-    return normalizePath(mission.href) === currentPath;
-  }
-
   function missionRow(mission: RailMission, siblings: RailMission[]) {
-    const active = isMissionActive(mission);
+    const active = normalizePath(mission.href) === currentPath;
     const meta = missionMeta(mission, siblings);
     const Icon = mission.history ? History : Clock3;
 
@@ -609,6 +536,27 @@ export default function MissionRail({
     );
   }
 
+  async function logout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
+
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signOut({ scope: "local" });
+      if (error) throw error;
+      router.replace("/login");
+      router.refresh();
+    } catch {
+      setLoggingOut(false);
+    }
+  }
+
+  const accountLinks = [
+    { href: "/profile", label: copy.profile, icon: CircleUserRound },
+    { href: "/settings", label: copy.settings, icon: Settings },
+    { href: "/support", label: copy.support, icon: LifeBuoy },
+  ];
+
   return (
     <aside
       data-testid={mobile ? "mobile-mission-rail" : "desktop-mission-rail"}
@@ -636,7 +584,7 @@ export default function MissionRail({
           )}
         </div>
 
-        <a
+        <Link
           href={homeHref}
           onClick={onNavigate}
           aria-label={copy.newMission}
@@ -645,7 +593,7 @@ export default function MissionRail({
           className="mt-4 inline-grid h-10 w-10 place-items-center rounded-full bg-[#2563EB] text-white transition hover:opacity-90"
         >
           <Plus size={19} />
-        </a>
+        </Link>
       </div>
 
       <div
@@ -714,69 +662,58 @@ export default function MissionRail({
         )}
       </div>
 
-      {accountType === "provider" && !compact && (
-        <div
-          data-testid="provider-secondary-tools"
-          className="space-y-0.5 border-t border-border px-3 py-2 dark:border-white/8"
-        >
-          <Link
-            href="/provider"
-            onClick={onNavigate}
-            className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
-          >
-            <BriefcaseBusiness size={15} />
-            {copy.commercialProfile}
-          </Link>
-          <Link
-            href="/provider/studio"
-            onClick={onNavigate}
-            className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
-          >
-            <Wrench size={15} />
-            {copy.services}
-          </Link>
-          <Link
-            href="/provider/payments"
-            onClick={onNavigate}
-            className="flex min-h-9 items-center gap-2 rounded-lg px-2.5 text-xs font-semibold text-muted-foreground transition hover:bg-muted hover:text-foreground"
-          >
-            <WalletCards size={15} />
-            {copy.finances}
-          </Link>
-        </div>
-      )}
-
       <div
+        data-testid="account-entry"
         className={
           compact
-            ? "border-t border-border px-4 py-4 dark:border-white/8"
-            : "border-t border-border px-3 py-4 dark:border-white/8"
+            ? "space-y-1 border-t border-border px-4 py-4 dark:border-white/8"
+            : "space-y-1 border-t border-border px-3 py-4 dark:border-white/8"
         }
       >
-        {activeProfileId ? (
-          <AccountSwitcher
-            currentProfileId={activeProfileId}
-            mode="account-menu"
-            compact={compact}
-            onNavigate={onNavigate}
-          />
-        ) : (
-          <button
-            type="button"
-            disabled
-            data-testid="account-entry"
-            aria-label={copy.account}
-            title={copy.account}
-            className={
-              compact
-                ? "grid h-11 w-11 place-items-center rounded-lg text-muted-foreground opacity-50"
-                : "flex min-h-11 w-full items-center gap-2.5 rounded-lg px-2 text-sm font-semibold text-muted-foreground opacity-50"
-            }
-          >
-            <CircleUserRound size={20} />
-            {!compact && <span className="truncate">{copy.account}</span>}
-          </button>
+        {!compact && (
+          <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+            {copy.account}
+          </p>
         )}
+
+        {accountLinks.map((item) => {
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onNavigate}
+              aria-label={item.label}
+              title={item.label}
+              className={
+                compact
+                  ? "grid h-10 w-10 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                  : "flex min-h-10 items-center gap-2.5 rounded-lg px-2 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              }
+            >
+              <Icon size={18} />
+              {!compact && <span>{item.label}</span>}
+            </Link>
+          );
+        })}
+
+        <button
+          type="button"
+          onClick={() => void logout()}
+          disabled={loggingOut}
+          aria-label={loggingOut ? copy.loggingOut : copy.logout}
+          title={loggingOut ? copy.loggingOut : copy.logout}
+          className={
+            compact
+              ? "grid h-10 w-10 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
+              : "flex min-h-10 w-full items-center gap-2.5 rounded-lg px-2 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
+          }
+        >
+          <LogOut size={18} />
+          {!compact && (
+            <span>{loggingOut ? copy.loggingOut : copy.logout}</span>
+          )}
+        </button>
       </div>
     </aside>
   );
