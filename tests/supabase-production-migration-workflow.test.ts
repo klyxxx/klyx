@@ -55,16 +55,31 @@ describe("Supabase production migration historical-gap recovery", () => {
       'supabase db push --linked --dry-run > migration-proof/dry-run-before.txt 2>&1'
     );
     expect(workflow).toContain(
-      'supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run --include-all \\'
+      'supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run --include-all 2>&1 \\'
     );
     expect(workflow).toContain(
-      'supabase db push --linked --dry-run --include-all \\'
+      'supabase db push --linked --dry-run --include-all 2>&1 \\'
     );
     expect(workflow).toContain(
       "Refusing production write: second dry-run batch differs from the audited reconciliation batch."
     );
     expect(workflow).toContain(
+      '"20260913165000_klyx_business_pilot_request_cap.sql"'
+    );
+    expect(workflow).toContain(
       'echo "SUPABASE_INCLUDE_ALL=true" >> "$GITHUB_ENV"'
+    );
+  });
+
+  it("captures Supabase dry-run stderr in both audited proof files", () => {
+    expect(workflow).toContain(
+      '--dry-run --include-all 2>&1 \\\n              | tee migration-proof/dry-run-include-all.txt'
+    );
+    expect(workflow).toContain(
+      'supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run 2>&1 | tee migration-proof/dry-run-after.txt'
+    );
+    expect(workflow).toContain(
+      'supabase db push --linked --dry-run 2>&1 | tee migration-proof/dry-run-after.txt'
     );
   });
 
@@ -80,10 +95,10 @@ describe("Supabase production migration historical-gap recovery", () => {
       'supabase db push --linked "${push_args[@]}"'
     );
     expect(workflow).toContain(
-      'supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run | tee migration-proof/dry-run-after.txt'
+      'supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run 2>&1 | tee migration-proof/dry-run-after.txt'
     );
     expect(workflow).toContain(
-      'supabase db push --linked --dry-run | tee migration-proof/dry-run-after.txt'
+      'supabase db push --linked --dry-run 2>&1 | tee migration-proof/dry-run-after.txt'
     );
   });
 });
