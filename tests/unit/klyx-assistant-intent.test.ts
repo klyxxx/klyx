@@ -20,6 +20,28 @@ describe("classifyKlyxAssistantIntent", () => {
     expect(result.confidence).toBe("high");
   });
 
+  it("recognizes availability for work even without a numeric income target", () => {
+    expect(
+      classifyKlyxAssistantIntent(
+        "Je suis disponible samedi et je cherche des missions près de chez moi."
+      ).intent
+    ).toBe("income_search");
+  });
+
+  it("keeps the obtain-or-earn distinction across English input", () => {
+    expect(
+      classifyKlyxAssistantIntent(
+        "Find someone to assemble my wardrobe tomorrow after 6pm."
+      ).intent
+    ).toBe("service_need");
+
+    expect(
+      classifyKlyxAssistantIntent(
+        "I am free Saturday and want to earn about 100 euros near me."
+      ).intent
+    ).toBe("income_search");
+  });
+
   it("recognizes management of an existing mission", () => {
     expect(classifyKlyxAssistantIntent("Où en est ma mission ?").intent).toBe(
       "mission_management"
