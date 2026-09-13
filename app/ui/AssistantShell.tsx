@@ -8,12 +8,6 @@ import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import AppSidebar from "@/app/ui/AppSidebar";
 import KlyxLogo from "@/app/ui/KlyxLogo";
 import MissionRail from "@/app/ui/MissionRail";
-import { getKlyxAccountHome } from "@/lib/account-home";
-import { KLYX_ACTIVE_PROFILE_CHANGED } from "@/lib/account-switcher";
-import {
-  resolveAssistantShellProfileContext,
-  type AssistantShellProfileContext,
-} from "@/lib/assistant-shell-profile-context";
 import { trapDialogTabKey } from "@/lib/mobile-dialog-focus";
 
 const routesWithoutShell = [
@@ -61,86 +55,14 @@ function closeMenuLabel(locale: string) {
 export default function AssistantShell() {
   const pathname = usePathname();
   const { locale } = useKlyxLocale();
-  const [profileContext, setProfileContext] =
-    useState<AssistantShellProfileContext | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const mobileMenuTriggerRef = useRef<HTMLButtonElement>(null);
   const mobileDrawerRef = useRef<HTMLElement>(null);
-  const profileRequestGenerationRef = useRef(0);
-  const profileRequestAbortRef = useRef<AbortController | null>(null);
 
   const hideShell = routesWithoutShell.some((route) => matchesRoute(pathname, route));
   const preserveLegacyShell = routesWithLegacyShell.some((route) =>
     matchesRoute(pathname, route)
   );
-
-  useEffect(() => {
-    if (hideShell || preserveLegacyShell) return;
-
-    let mounted = true;
-
-    async function loadProfileContext() {
-      const generation = ++profileRequestGenerationRef.current;
-      profileRequestAbortRef.current?.abort();
-
-      const controller = new AbortController();
-      profileRequestAbortRef.current = controller;
-
-      setProfileContext(null);
-
-      try {
-        const response = await fetch("/api/profiles/active", {
-          method: "GET",
-          cache: "no-store",
-          signal: controller.signal,
-        });
-
-        if (!response.ok) return;
-
-        const data = (await response.json()) as unknown;
-        const nextContext = resolveAssistantShellProfileContext(data);
-
-        if (
-          !mounted ||
-          controller.signal.aborted ||
-          generation !== profileRequestGenerationRef.current
-        ) {
-          return;
-        }
-
-        setProfileContext(nextContext);
-      } catch {
-        if (
-          !mounted ||
-          controller.signal.aborted ||
-          generation !== profileRequestGenerationRef.current
-        ) {
-          return;
-        }
-
-        setProfileContext(null);
-      } finally {
-        if (profileRequestAbortRef.current === controller) {
-          profileRequestAbortRef.current = null;
-        }
-      }
-    }
-
-    function onProfileChanged() {
-      void loadProfileContext();
-    }
-
-    void loadProfileContext();
-    window.addEventListener(KLYX_ACTIVE_PROFILE_CHANGED, onProfileChanged);
-
-    return () => {
-      mounted = false;
-      profileRequestGenerationRef.current += 1;
-      profileRequestAbortRef.current?.abort();
-      profileRequestAbortRef.current = null;
-      window.removeEventListener(KLYX_ACTIVE_PROFILE_CHANGED, onProfileChanged);
-    };
-  }, [hideShell, pathname, preserveLegacyShell]);
 
   useEffect(() => {
     setMobileOpen(false);
@@ -183,28 +105,15 @@ export default function AssistantShell() {
     return <AppSidebar />;
   }
 
-  const accountType = profileContext?.accountType ?? null;
-  const activeProfileId = profileContext?.activeProfileId ?? null;
-  const homeHref = accountType ? getKlyxAccountHome(accountType) : "/dashboard";
-  const missionRailKey = profileContext
-    ? `${profileContext.activeProfileId}:${profileContext.accountType}`
-    : "neutral";
-
   return (
     <>
-      <MissionRail
-        key={`desktop:${missionRailKey}`}
-        accountType={accountType}
-        activeProfileId={activeProfileId}
-        homeHref={homeHref}
-        locale={locale}
-      />
+      <MissionRail homeHref="/assistant" locale={locale} />
 
       <header
         data-testid="assistant-shell-mobile-header"
         className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-border bg-background/94 px-4 backdrop-blur-xl lg:hidden dark:border-white/8"
       >
-        <KlyxLogo href={homeHref} compact />
+        <KlyxLogo href="/assistant" compact />
         <button
           ref={mobileMenuTriggerRef}
           type="button"
@@ -221,7 +130,10 @@ export default function AssistantShell() {
       <div aria-hidden="true" className="h-14 lg:hidden" />
 
       {mobileOpen && (
-        <div className="fixed inset-0 z-[70] lg:hidden" data-testid="mobile-mission-drawer-layer">
+        <div
+          className="fixed inset-0 z-[70] lg:hidden"
+          data-testid="mobile-mission-drawer-layer"
+        >
           <button
             type="button"
             className="absolute inset-0 bg-black/35 backdrop-blur-[2px]"
@@ -248,10 +160,7 @@ export default function AssistantShell() {
             </button>
 
             <MissionRail
-              key={`mobile:${missionRailKey}`}
-              accountType={accountType}
-              activeProfileId={activeProfileId}
-              homeHref={homeHref}
+              homeHref="/assistant"
               locale={locale}
               mobile
               onNavigate={() => setMobileOpen(false)}
