@@ -12,11 +12,15 @@ const reviewRoute = read("app/api/trust/reviews/route.ts");
 const adminRoute = read("app/api/admin/trust/reviews/route.ts");
 
 describe("KLYX Trust & Safety application bridge", () => {
-  it("resolves the canonical account from auth identity instead of provider role", () => {
-    expect(server).toContain('.from("accounts")');
-    expect(server).toContain('.eq("auth_user_id", auth.user.id)');
+  it("uses the canonical authenticated account instead of profile/provider identity", () => {
+    expect(server).toContain("getAuthenticatedAccount");
+    expect(server).toContain("await getAuthenticatedAccount(request)");
+    expect(server).toContain("accountId: auth.account.id");
+    expect(server).not.toContain('.from("accounts")');
+    expect(server).not.toContain('auth.user.id');
     expect(server).not.toContain("provider_profiles");
     expect(server).not.toContain("requireAccountType");
+    expect(server).not.toContain('accountType === "provider"');
   });
 
   it("does not select sensitive decision snapshots in the user read path", () => {
