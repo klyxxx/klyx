@@ -91,7 +91,7 @@ describe("provider service proposals i18n contract", () => {
   it("does not alter server validation or moderation ownership", () => {
     const route = read(routePath);
 
-    expect(route).toContain('profile.accountType !== "provider"');
+    expect(route).toContain("!profile.canOfferServices");
     expect(route).toContain('.eq("profile_id", profile.id)');
     expect(route).toContain("const category = cleanText(body.category, 80);");
     expect(route).toContain(
