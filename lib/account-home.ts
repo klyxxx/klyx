@@ -18,7 +18,8 @@ export function getKlyxAccountHome(
   input: KlyxAccountType | KlyxAccountHomeCapabilities
 ) {
   if (typeof input === "string") {
-    return KLYX_ACCOUNT_HOME[input];
+    const accountType = input;
+    return KLYX_ACCOUNT_HOME[accountType];
   }
 
   if (input.canRequestServices) {
