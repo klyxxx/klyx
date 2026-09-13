@@ -1,7 +1,6 @@
 import "server-only";
 
 import type { AuthenticatedProfile } from "@/lib/api-auth";
-import { loadKlyxAccountProfiles } from "@/lib/klyx-account-profile-scope";
 import { normalizeLocation } from "@/lib/provider-search";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -28,7 +27,6 @@ export type KlyxIncomeSearchResult = {
 type UserServiceRow = {
   id: string;
   service_id: string;
-  user_id: string;
 };
 
 type ServiceProfileRow = {
@@ -42,7 +40,6 @@ type ServiceProfileRow = {
 
 type MarketRequestRow = {
   id: string;
-  client_profile_id: string;
   service_id: string;
   title: string;
   city: string;
@@ -169,50 +166,17 @@ function formatAmount(amount: number, currency: string) {
   })} ${currency}`;
 }
 
-function candidateAmount(
-  serviceProfile: ServiceProfileRow,
-  clientBudget: number | null
-) {
-  const configuredPrice = numberOrNull(serviceProfile.price);
-  const fixedPrice =
-    serviceProfile.pricing_type === "fixed" ? configuredPrice : null;
-
-  if (
-    fixedPrice !== null &&
-    clientBudget !== null &&
-    fixedPrice > clientBudget
-  ) {
-    return null;
-  }
-
-  return {
-    potentialAmount: fixedPrice ?? clientBudget,
-    amountSource:
-      fixedPrice !== null
-        ? ("configured_fixed_rate" as const)
-        : clientBudget !== null
-          ? ("client_budget_ceiling" as const)
-          : ("unknown" as const),
-  };
-}
-
 export async function searchKlyxIncomeOpportunities(
   profile: AuthenticatedProfile,
   message: string
 ): Promise<KlyxIncomeSearchResult> {
   const target = parseIncomeTarget(message);
   const requestedDay = parseRequestedDay(message);
-  const accountProfiles = await loadKlyxAccountProfiles(profile);
-  const accountProfileIds = accountProfiles.map((item) => item.id);
-  const accountProfileIdSet = new Set(accountProfileIds);
-  const accountProfileById = new Map(
-    accountProfiles.map((item) => [item.id, item] as const)
-  );
 
   const { data: userServicesData, error: userServicesError } = await supabaseAdmin
     .from("user_services")
-    .select("id, service_id, user_id")
-    .in("user_id", accountProfileIds)
+    .select("id, service_id")
+    .eq("user_id", profile.id)
     .eq("active", true)
     .eq("provider_enabled", true);
 
@@ -241,7 +205,7 @@ export async function searchKlyxIncomeOpportunities(
     supabaseAdmin
       .from("market_service_requests")
       .select(
-        "id, client_profile_id, service_id, title, city, requested_date, requested_time, budget_max, country_code, currency"
+        "id, service_id, title, city, requested_date, requested_time, budget_max, country_code, currency"
       )
       .eq("status", "open")
       .in("service_id", serviceIds)
@@ -261,22 +225,20 @@ export async function searchKlyxIncomeOpportunities(
   const requests = (requestsResult.data ?? []) as MarketRequestRow[];
   const services = (servicesResult.data ?? []) as ServiceRow[];
   const serviceMap = new Map(services.map((item) => [item.id, item]));
-  const serviceProfileByUserService = new Map(
-    serviceProfiles.map((item) => [item.user_service_id, item] as const)
+  const userServiceByService = new Map(
+    userServices.map((item) => [item.service_id, item.id])
   );
-  const userServicesByService = new Map<string, UserServiceRow[]>();
-
-  for (const userService of userServices) {
-    const current = userServicesByService.get(userService.service_id) ?? [];
-    current.push(userService);
-    userServicesByService.set(userService.service_id, current);
-  }
-
+  const profileByUserService = new Map(
+    serviceProfiles.map((item) => [item.user_service_id, item])
+  );
+  const expectedCountry = profile.countryCode.trim().toUpperCase();
+  const expectedCurrency = (
+    target.currency || profile.currencyCode || "EUR"
+  ).trim().toUpperCase();
   const today = new Date().toISOString().slice(0, 10);
 
   const opportunities = requests
     .map((request): KlyxIncomeOpportunity | null => {
-      if (accountProfileIdSet.has(request.client_profile_id)) return null;
       if (request.requested_date && request.requested_date < today) return null;
       if (
         requestedDay !== null &&
@@ -285,68 +247,42 @@ export async function searchKlyxIncomeOpportunities(
         return null;
       }
 
+      if (
+        expectedCountry &&
+        request.country_code.trim().toUpperCase() !== expectedCountry
+      ) {
+        return null;
+      }
+
       const currency = request.currency.trim().toUpperCase();
-      if (target.currency && currency !== target.currency) return null;
+      if (expectedCurrency && currency !== expectedCurrency) return null;
 
+      const userServiceId = userServiceByService.get(request.service_id);
+      if (!userServiceId) return null;
+      const serviceProfile = profileByUserService.get(userServiceId);
+      if (!serviceProfile || serviceProfile.available === false) return null;
+      if (!locationCompatible(request.city, serviceProfile)) return null;
+
+      const configuredPrice = numberOrNull(serviceProfile.price);
       const clientBudget = numberOrNull(request.budget_max);
-      const matchingProviders = (userServicesByService.get(request.service_id) ?? [])
-        .map((userService) => {
-          const serviceProfile = serviceProfileByUserService.get(userService.id);
-          const ownerProfile = accountProfileById.get(userService.user_id);
+      const fixedPrice =
+        serviceProfile.pricing_type === "fixed" ? configuredPrice : null;
 
-          if (!serviceProfile || serviceProfile.available === false) return null;
-          if (!locationCompatible(request.city, serviceProfile)) return null;
+      if (
+        fixedPrice !== null &&
+        clientBudget !== null &&
+        fixedPrice > clientBudget
+      ) {
+        return null;
+      }
 
-          const expectedCountry = (
-            ownerProfile?.countryCode || profile.countryCode
-          )
-            .trim()
-            .toUpperCase();
-          if (
-            expectedCountry &&
-            request.country_code.trim().toUpperCase() !== expectedCountry
-          ) {
-            return null;
-          }
-
-          const expectedCurrency = (
-            ownerProfile?.currencyCode || profile.currencyCode || currency
-          )
-            .trim()
-            .toUpperCase();
-          if (expectedCurrency && currency !== expectedCurrency) return null;
-
-          const amount = candidateAmount(serviceProfile, clientBudget);
-          if (!amount) return null;
-
-          return amount;
-        })
-        .filter(
-          (
-            candidate
-          ): candidate is {
-            potentialAmount: number | null;
-            amountSource:
-              | "configured_fixed_rate"
-              | "client_budget_ceiling"
-              | "unknown";
-          } => Boolean(candidate)
-        )
-        .sort((left, right) => {
-          if (target.amount === null) return 0;
-          const leftGap =
-            left.potentialAmount === null
-              ? Number.POSITIVE_INFINITY
-              : Math.abs(left.potentialAmount - target.amount);
-          const rightGap =
-            right.potentialAmount === null
-              ? Number.POSITIVE_INFINITY
-              : Math.abs(right.potentialAmount - target.amount);
-          return leftGap - rightGap;
-        });
-
-      const selectedProvider = matchingProviders[0];
-      if (!selectedProvider) return null;
+      const potentialAmount = fixedPrice ?? clientBudget;
+      const amountSource =
+        fixedPrice !== null
+          ? "configured_fixed_rate"
+          : clientBudget !== null
+            ? "client_budget_ceiling"
+            : "unknown";
 
       return {
         requestId: request.id,
@@ -355,9 +291,9 @@ export async function searchKlyxIncomeOpportunities(
         date: request.requested_date,
         time: request.requested_time?.slice(0, 5) ?? null,
         serviceLabel: serviceLabel(serviceMap.get(request.service_id)),
-        potentialAmount: selectedProvider.potentialAmount,
+        potentialAmount,
         currency,
-        amountSource: selectedProvider.amountSource,
+        amountSource,
       };
     })
     .filter((item): item is KlyxIncomeOpportunity => Boolean(item))
@@ -383,7 +319,7 @@ export async function searchKlyxIncomeOpportunities(
   if (opportunities.length === 0) {
     return {
       reply:
-        "Je n’ai trouvé aucune mission compatible vérifiable avec les services actifs de ce compte, la zone, le jour demandé et la devise. Je n’ai accepté aucune mission et envoyé aucune offre.",
+        "Je n’ai trouvé aucune mission compatible vérifiable avec vos services actifs, votre zone et le créneau demandé. Je n’ai accepté aucune mission et envoyé aucune offre.",
       options: [],
       targetAmount: target.amount,
       targetCurrency: target.currency,
@@ -405,12 +341,10 @@ export async function searchKlyxIncomeOpportunities(
     } — ${amount}.`;
   });
 
-  const targetCurrency =
-    target.currency || profile.currencyCode.trim().toUpperCase() || "EUR";
   const targetText =
     target.amount === null
       ? ""
-      : ` autour de ${formatAmount(target.amount, targetCurrency)}`;
+      : ` autour de ${formatAmount(target.amount, expectedCurrency)}`;
 
   return {
     reply: [

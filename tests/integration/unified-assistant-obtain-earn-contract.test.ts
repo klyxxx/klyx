@@ -41,27 +41,12 @@ describe("KLYX unified obtain-or-earn assistant", () => {
     }
   });
 
-  it("scopes legacy profile rows to one authenticated account without switching them", () => {
-    const scope = read("lib/klyx-account-profile-scope.ts");
-    const handler = read("app/api/brain/converse/unified-intent.ts");
-    const income = read("lib/klyx-assistant-income-search.ts");
-
-    expect(scope).toContain('.eq("owner_user_id", activeProfile.ownerUserId)');
-    expect(scope).not.toContain("switchAccount(");
-    expect(scope).not.toContain("ACTIVE_PROFILE_COOKIE");
-    expect(handler).toContain("loadKlyxAccountProfiles(profile)");
-    expect(handler).toContain("Promise.all(accountProfiles.map((item) => getBrainActions(item)))");
-    expect(income).toContain("loadKlyxAccountProfiles(profile)");
-    expect(income).toContain('.in("user_id", accountProfileIds)');
-  });
-
   it("keeps income discovery capability-based, read-only and bounded to three options", () => {
     const income = read("lib/klyx-assistant-income-search.ts");
 
     expect(income).toContain('.eq("provider_enabled", true)');
     expect(income).toContain('.eq("status", "open")');
     expect(income).toContain("locationCompatible");
-    expect(income).toContain("accountProfileIdSet.has(request.client_profile_id)");
     expect(income).toContain(".slice(0, 3)");
     expect(income).toContain("automaticExecutionAllowed: false");
     expect(income).not.toContain("requireAccountType");
@@ -86,7 +71,6 @@ describe("KLYX unified obtain-or-earn assistant", () => {
 
   it("manages existing missions by relationship in both directions", () => {
     const actions = read("lib/brain-actions.ts");
-    const handler = read("app/api/brain/converse/unified-intent.ts");
 
     expect(actions).toContain('"parent_id.eq." +');
     expect(actions).toContain('",provider_id.eq." +');
@@ -97,6 +81,5 @@ describe("KLYX unified obtain-or-earn assistant", () => {
     expect(actions).toContain("addClientBookingActions(profile, bookings, actionMap)");
     expect(actions).toContain("addProviderActions(profile, bookings, actionMap)");
     expect(actions).not.toContain('profile.accountType === "client"');
-    expect(handler).toContain("mergeAccountActions");
   });
 });
