@@ -11,7 +11,7 @@ function read(relativePath: string): string {
     .replace(/\r\n/g, "\n");
 }
 
-const commandRoute = read("app/api/brain/command/route.ts");
+const unifiedIntent = read("app/api/brain/converse/unified-intent.ts");
 
 describe("KLYX assistant action href guard", () => {
   it("allows only root-relative KLYX navigation", () => {
@@ -32,12 +32,13 @@ describe("KLYX assistant action href guard", () => {
       .toBeNull();
   });
 
-  it("fails closed before returning an existing assistant action", () => {
-    expect(commandRoute).toContain("normalizeKlyxAssistantActionHref(");
-    expect(commandRoute).toContain("if (!safeHref)");
-    expect(commandRoute).toContain('"no_action"');
-    expect(commandRoute).toContain("href: safeHref");
-    expect(commandRoute).toContain("automaticExecutionAllowed:");
-    expect(commandRoute).toContain("false");
+  it("fails closed before exposing a grounded mission action", () => {
+    expect(unifiedIntent).toContain("normalizeKlyxAssistantActionHref(localized.href)");
+    expect(unifiedIntent).toContain("action: href");
+    expect(unifiedIntent).toContain(": null");
+    expect(unifiedIntent).toContain("automaticExecutionAllowed: false");
+    expect(unifiedIntent).not.toContain("payment_intents");
+    expect(unifiedIntent).not.toContain("checkout.sessions");
+    expect(unifiedIntent).not.toContain("refunds.create");
   });
 });

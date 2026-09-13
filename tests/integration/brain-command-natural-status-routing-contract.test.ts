@@ -2,33 +2,38 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const routeSource = readFileSync(
+const classifierSource = readFileSync(
+  join(process.cwd(), "lib/klyx-assistant-intent.ts"),
+  "utf8"
+);
+const handlerSource = readFileSync(
+  join(process.cwd(), "app/api/brain/converse/unified-intent.ts"),
+  "utf8"
+);
+const commandSource = readFileSync(
   join(process.cwd(), "app/api/brain/command/route.ts"),
   "utf8"
 );
 
 describe("brain command natural status routing contract", () => {
+  it("classifies existing-mission status intent before any new service flow", () => {
+    expect(classifierSource).toContain("hasSpecificBrainCommandIntent(normalizedMessage)");
+    expect(classifierSource).toContain("hasGeneralBrainCommandIntent(normalizedMessage)");
+    expect(classifierSource).toContain("if (missionManagement && !incomeSearch)");
+    expect(classifierSource).toContain('intent: "mission_management"');
+  });
+
   it("uses a specifically matching grounded action for specific intents", () => {
-    expect(routeSource).toContain("bestSpecificBrainCommandAction");
-    expect(routeSource).toMatch(
-      /specificExistingIntent\s*\?\s*bestSpecificBrainCommandAction/
-    );
+    expect(handlerSource).toContain("hasSpecificBrainCommandIntent(intent.normalizedMessage)");
+    expect(handlerSource).toContain("bestSpecificBrainCommandAction(actions, intent.normalizedMessage)");
+    expect(handlerSource).toContain("bestBrainCommandAction(actions, intent.normalizedMessage)");
   });
 
-  it("does not convert a recognized status question without an action into a new request", () => {
-    expect(routeSource).toMatch(
-      /newNeedIntent\s*\|\|\s*\(\s*!generalActionIntent\s*&&\s*!specificExistingIntent\s*\)/
-    );
-    expect(routeSource).not.toMatch(
-      /newNeedIntent\s*\|\|\s*!generalActionIntent/
-    );
-  });
-
-  it("keeps automatic execution disabled for grounded and new-request responses", () => {
-    const disabledExecutions = routeSource.match(
-      /automaticExecutionAllowed:\s*false/g
-    );
-
-    expect(disabledExecutions?.length).toBeGreaterThanOrEqual(3);
+  it("does not convert missing mission actions into service creation or execution", () => {
+    expect(handlerSource).toContain("if (!action)");
+    expect(handlerSource).toContain("action: null");
+    expect(handlerSource).toContain("automaticExecutionAllowed: false");
+    expect(handlerSource).not.toContain("/api/bookings/create");
+    expect(commandSource).toContain("automaticExecutionAllowed: false");
   });
 });
