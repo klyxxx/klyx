@@ -38,17 +38,11 @@ function read(relativePath: string) {
 }
 
 describe("sidebar navigation accessibility i18n contract", () => {
-  it("uses Tolgee-backed aria labels without changing navigation structure", () => {
+  it("uses Tolgee-backed aria labels on the unified navigation", () => {
     const sidebar = read("app/ui/AppSidebar.tsx");
 
-    expect(sidebar).toContain(
-      'const desktopNavigationLabel = t("sidebar.desktopNavigation");'
-    );
-    expect(sidebar).toContain(
-      'const mobileNavigationLabel = t("sidebar.mobileNavigation");'
-    );
-    expect(sidebar).toContain("aria-label={desktopNavigationLabel}");
-    expect(sidebar).toContain("aria-label={mobileNavigationLabel}");
+    expect(sidebar).toContain('aria-label={t("sidebar.desktopNavigation")}');
+    expect(sidebar).toContain('aria-label={t("sidebar.mobileNavigation")}');
     expect(sidebar).not.toContain("translateKlyxSidebarNavigation");
     expect(sidebar).not.toContain("klyx-sidebar-navigation-i18n");
     expect(sidebar).not.toContain('aria-label="Navigation principale KLYX"');
@@ -80,14 +74,13 @@ describe("sidebar navigation accessibility i18n contract", () => {
     ).toBe(false);
   });
 
-  it("preserves the separately localized provider assistant launcher", () => {
+  it("does not expose a second role-specific assistant launcher", () => {
     const sidebar = read("app/ui/AppSidebar.tsx");
 
-    expect(sidebar).toContain(
-      'translateKlyxProviderAssistant(locale, "badge")'
-    );
-    expect(sidebar).toContain('data-testid="provider-assistant-launcher-desktop"');
-    expect(sidebar).toContain('data-testid="provider-assistant-launcher-mobile"');
-    expect(sidebar).toContain("aria-label={providerAssistantLabel}");
+    expect(sidebar).not.toContain("translateKlyxProviderAssistant");
+    expect(sidebar).not.toContain("provider-assistant-launcher-desktop");
+    expect(sidebar).not.toContain("provider-assistant-launcher-mobile");
+    expect(sidebar).not.toContain("providerAssistantLabel");
+    expect(sidebar).not.toContain('"/provider/assistant"');
   });
 });
