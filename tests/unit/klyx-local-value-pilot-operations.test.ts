@@ -77,6 +77,11 @@ describe("KLYX local value pilot operations", () => {
     const result = build();
 
     expect(result.status).toBe("running");
+    expect(result.limits).toEqual({
+      maxActiveProviders: 5,
+      maxRealRequests: 20,
+      minimumCompletedPaidMissionsForEconomicRead: 10,
+    });
     expect(result.summary.enrolledRequests).toBe(0);
     expect(result.summary.completedPaidMissions).toBe(0);
     expect(result.summary.scopeExpansionLocked).toBe(true);
@@ -164,7 +169,7 @@ describe("KLYX local value pilot operations", () => {
     expect(result.nextAction.code).toBe("resolve_financial_review");
   });
 
-  it("counts unique verified providers only when their attempt points to a real pilot offer", () => {
+  it("counts a provider only when the verified attempt belongs to that real pilot offer", () => {
     const result = build({
       requests: [request()],
       offers: [offer],
@@ -178,6 +183,12 @@ describe("KLYX local value pilot operations", () => {
         },
         {
           provider_profile_id: "provider-fake",
+          market_offer_id: "offer-1",
+          availability_verified: true,
+          income_goal_verified: true,
+        },
+        {
+          provider_profile_id: "provider-outside",
           market_offer_id: "outside-pilot-offer",
           availability_verified: true,
           income_goal_verified: true,
