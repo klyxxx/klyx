@@ -97,6 +97,11 @@ const UUID_PATTERN =
 const LEGACY_CONFIRMATION_BOUNDARY =
   "Vérifie le résumé puis confirme avant toute publication, réservation ou paiement.";
 
+// The command preflight is retained only as source-compatible rollback code.
+// Runtime traffic must always enter /api/brain/converse so every visible turn
+// belongs to the same durable account conversation history.
+const LEGACY_COMMAND_PREFLIGHT_ENABLED = false;
+
 function initialConversationFromLocation() {
   if (typeof window === "undefined") return null;
   const value = new URLSearchParams(window.location.search)
@@ -524,7 +529,7 @@ export default function AssistantThread() {
           return;
         }
 
-        if (!expectedConversationId) {
+        if (!expectedConversationId && LEGACY_COMMAND_PREFLIGHT_ENABLED) {
           const commandResponse = await fetch("/api/brain/command", {
             method: "POST",
             headers: {
