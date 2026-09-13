@@ -87,6 +87,8 @@ export function toTrustAccessDecision(
     case "ineligible":
       return "blocked";
   }
+
+  return "human_review";
 }
 
 export function redactTrustDecision(row: TrustDecisionRow) {
