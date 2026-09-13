@@ -5,6 +5,8 @@ export type TrustDecisionKind =
   | "human_review_required"
   | "ineligible";
 
+export type TrustAccessDecision = "allowed" | "human_review" | "blocked";
+
 export type TrustReviewKind = "human_review" | "appeal";
 
 export type TrustDecisionRow = {
@@ -62,6 +64,31 @@ export function asRequiredActions(
   return actions;
 }
 
+export function toTrustAccessDecision(
+  decision: Pick<
+    TrustDecisionRow,
+    "decision" | "human_review_required" | "review_status"
+  >
+): TrustAccessDecision {
+  if (
+    decision.human_review_required &&
+    decision.review_status !== "approved"
+  ) {
+    return "human_review";
+  }
+
+  switch (decision.decision) {
+    case "eligible":
+    case "eligible_with_conditions":
+      return "allowed";
+    case "human_review_required":
+      return "human_review";
+    case "requirements_missing":
+    case "ineligible":
+      return "blocked";
+  }
+}
+
 export function redactTrustDecision(row: TrustDecisionRow) {
   return {
     id: row.id,
@@ -69,6 +96,7 @@ export function redactTrustDecision(row: TrustDecisionRow) {
     targetRef: row.target_ref,
     categoryKey: row.category_key,
     jurisdictionCode: row.jurisdiction_code,
+    accessDecision: toTrustAccessDecision(row),
     decision: row.decision,
     legalPathway: row.legal_pathway,
     humanReviewRequired: row.human_review_required,
