@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       target_url:
-        description: "Canonical KLYX production origin (optional; repository variable overrides the built-in fallback)"
+        description: "Canonical KLYX production origin override (optional; defaults to versioned canonical origin)"
         required: false
         type: string
 
@@ -26,7 +26,7 @@ jobs:
     timeout-minutes: 5
 
     env:
-      KLYX_PRODUCTION_URL: ${{ inputs.target_url || vars.KLYX_PRODUCTION_URL || 'https://klyx.be' }}
+      KLYX_PRODUCTION_URL: ${{ inputs.target_url || 'https://www.klyx.be' }}
 
     steps:
       - name: Checkout repository
@@ -44,7 +44,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "${KLYX_PRODUCTION_URL:-}" ]; then
-            echo "::error::Configure repository variable KLYX_PRODUCTION_URL or provide target_url manually."
+            echo "::error::Provide target_url manually or restore the versioned canonical KLYX production origin."
             exit 1
           fi
 

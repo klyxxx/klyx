@@ -185,8 +185,8 @@ describe("KLYX operational sentinel contract", () => {
     expect(workflow).toContain('cron: "17,47 * * * *"');
     expect(workflow).toContain("permissions:\n  contents: read");
     expect(workflow).toContain("github.event_name == 'schedule'");
-    expect(workflow).toContain("inputs.target_url || vars.KLYX_PRODUCTION_URL");
-    expect(workflow).toContain("https://klyx.be");
+    expect(workflow).toContain("inputs.target_url || 'https://www.klyx.be'");
+    expect(workflow).not.toContain("vars.KLYX_PRODUCTION_URL");
     expect(workflow).toContain("node-version: 22");
     expect(workflow).toContain("run: npm run ops:smoke");
     expect(workflow).toContain("Method: GET only");
