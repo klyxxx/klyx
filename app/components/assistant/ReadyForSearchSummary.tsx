@@ -1,5 +1,11 @@
 "use client";
 
+import Link from "next/link";
+import { useEffect, useState } from "react";
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function serviceLabel(value: string) {
   return value.replace(/[-_]+/g, " ").trim();
 }
@@ -37,6 +43,13 @@ function summarySentence(
   return `J’ai compris : ${service} à ${summary.city}, le ${summary.date} à ${summary.time}${budgetPart}. Je peux chercher maintenant.`;
 }
 
+function confirmationLabel(locale: string): string {
+  if (locale === "en") return "Check and search";
+  if (locale === "nl") return "Controleren en zoeken";
+  if (locale === "de") return "Prüfen und suchen";
+  return "Vérifier et chercher";
+}
+
 export default function ReadyForSearchSummary({
   locale,
   summary,
@@ -51,12 +64,37 @@ export default function ReadyForSearchSummary({
   };
   budget: number | null;
 }) {
+  const [confirmationHref, setConfirmationHref] = useState<string | null>(null);
+
+  useEffect(() => {
+    const conversation = new URLSearchParams(window.location.search)
+      .get("conversation")
+      ?.trim();
+
+    if (!conversation || !UUID_PATTERN.test(conversation)) {
+      setConfirmationHref(null);
+      return;
+    }
+
+    setConfirmationHref(
+      `/assistant/confirm?conversation=${encodeURIComponent(conversation)}`
+    );
+  }, []);
+
   return (
     <div
       data-testid="ready-for-search-summary"
       className="max-w-[92%] border-l-2 border-[#2563EB] py-1 pl-4 text-sm leading-7 text-foreground sm:max-w-[82%]"
     >
       <p>{summarySentence(locale, summary, budget)}</p>
+      {confirmationHref && (
+        <Link
+          href={confirmationHref}
+          className="mt-3 inline-flex min-h-10 items-center rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-700"
+        >
+          {confirmationLabel(locale)}
+        </Link>
+      )}
     </div>
   );
 }

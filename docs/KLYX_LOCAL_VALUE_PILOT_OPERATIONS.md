@@ -6,7 +6,7 @@ Ce document décrit **l'exploitation** du pilote local déjà défini dans `KLYX
 
 - Pays : Belgique
 - Ville : Bruxelles
-- Zone vérifiée manuellement : Anneessens
+- Zone : Anneessens, avec confirmation explicite de la zone avant entrée dans la cohorte
 - Catégorie : Bricolage & réparation
 - Service unique : Montage de meubles
 - Maximum : 5 prestataires réels
@@ -21,7 +21,7 @@ Aucune deuxième zone, catégorie ou service n'est ouvert automatiquement. Le se
 
 La console `/founder/business/pilot` ne crée aucune preuve. Elle lit uniquement les données transactionnelles KLYX :
 
-1. `business_pilot_requests` pour la cohorte explicitement vérifiée ;
+1. `business_pilot_requests` pour la cohorte explicitement confirmée ;
 2. `market_service_requests` pour les demandes réelles ;
 3. `market_service_offers` pour les propositions réelles ;
 4. `service_quotes` et `bookings` pour la réservation ;
@@ -29,6 +29,15 @@ La console `/founder/business/pilot` ne crée aucune preuve. Elle lit uniquement
 6. `business_pilot_income_attempts` pour la disponibilité et l'objectif de revenu vérifiés du prestataire.
 
 Les identifiants affichés dans la console sont des identifiants KLYX. La console n'a pas besoin de stocker une adresse précise ou des coordonnées de contact supplémentaires.
+
+### Nature de la vérification de zone
+
+Une demande peut entrer dans la cohorte de deux façons :
+
+- **Founder** : vérification explicite puis enrôlement via `/founder/business` ;
+- **client** : après publication depuis le flux Assistant-first, le client confirme explicitement que la mission se déroule à Anneessens et qu'il s'agit bien de Montage de meubles.
+
+La confirmation client est une **déclaration explicite de première partie**, pas une preuve GPS. La table pilote ne stocke ni adresse précise, ni latitude, ni longitude. Le champ `note` distingue l'enrôlement issu de cette confirmation client.
 
 ## Ordre d'exécution
 
@@ -48,12 +57,19 @@ L'opérateur ne doit jamais modifier manuellement un statut transactionnel uniqu
 
 Quand la cohorte est vide, la prochaine action est d'obtenir **organiquement** une vraie demande Anneessens de montage de meubles. Une fixture, un compte de démonstration ou une transaction interne ne compte pas.
 
-Après création normale de la demande dans KLYX :
+Le chemin produit privilégié est désormais Assistant-first :
 
-1. vérifier qu'il s'agit bien de Montage de meubles ;
-2. vérifier explicitement que la mission est dans Anneessens ;
-3. l'enrôler via `/founder/business` ;
-4. laisser la console opérationnelle dériver la prochaine action à partir des données canoniques.
+1. le client décrit normalement son besoin dans `/assistant` ;
+2. KLYX collecte uniquement les informations manquantes ;
+3. quand le payload Brain durable est `ready: true`, le client ouvre `/assistant/confirm` depuis le fil central ;
+4. l'écran de confirmation recharge le snapshot canonique depuis `brain_messages` au lieu de faire confiance aux paramètres URL ;
+5. le client confirme explicitement puis KLYX appelle `confirm-request` et `market-publish` ;
+6. si le service est exactement Montage de meubles à Bruxelles, le client peut confirmer explicitement Anneessens + le service ;
+7. si ces deux confirmations sont données, `/api/business-pilot/enroll-request` enrôle uniquement la demande appartenant au profil client actif, sous réserve du plafond de 20.
+
+Le client peut publier sa demande sans participer au pilote. L'enrôlement pilote ne doit jamais devenir une condition cachée de publication.
+
+Le flux Founder manuel reste disponible pour une demande réelle déjà créée hors du chemin Assistant-first.
 
 ## Prestataires
 
@@ -96,6 +112,7 @@ Si 20 demandes réelles sont consommées avant d'obtenir 10 missions réellement
 ## Ce que la console ne prouve pas
 
 - Elle ne prouve pas le virement bancaire final Stripe vers le prestataire ; le ledger KLYX prouve seulement le montant prestataire enregistré.
+- La confirmation client d'Anneessens n'est pas une preuve GPS.
 - Elle ne transforme pas une inscription, une recherche, un clic ou une conversation en GMV.
 - Elle ne remplace pas les coûts réels manquants par `0 €`.
 - Elle ne permet pas de conclure que KLYX a validé son marché avant le seuil et l'analyse économique.
