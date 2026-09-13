@@ -288,10 +288,10 @@ jobs:
           echo "Running a second dry-run with --include-all before any production write."
 
           if [ "$SUPABASE_DEPLOY_MODE" = "db_url" ]; then
-            supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run --include-all \
+            supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run --include-all 2>&1 \
               | tee migration-proof/dry-run-include-all.txt
           else
-            supabase db push --linked --dry-run --include-all \
+            supabase db push --linked --dry-run --include-all 2>&1 \
               | tee migration-proof/dry-run-include-all.txt
           fi
 
@@ -342,10 +342,10 @@ jobs:
 
           if [ "$SUPABASE_DEPLOY_MODE" = "db_url" ]; then
             supabase migration list --db-url "$SUPABASE_EFFECTIVE_DB_URL" | tee migration-proof/after.txt
-            supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run | tee migration-proof/dry-run-after.txt
+            supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run 2>&1 | tee migration-proof/dry-run-after.txt
           else
             supabase migration list --linked | tee migration-proof/after.txt
-            supabase db push --linked --dry-run | tee migration-proof/dry-run-after.txt
+            supabase db push --linked --dry-run 2>&1 | tee migration-proof/dry-run-after.txt
           fi
 
           if grep -Fqi "Would push these migrations" migration-proof/dry-run-after.txt; then
