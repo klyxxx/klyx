@@ -55,10 +55,10 @@ describe("Supabase production migration historical-gap recovery", () => {
       'supabase db push --linked --dry-run > migration-proof/dry-run-before.txt 2>&1'
     );
     expect(workflow).toContain(
-      'supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run --include-all \\'
+      'supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run --include-all 2>&1 \\'
     );
     expect(workflow).toContain(
-      'supabase db push --linked --dry-run --include-all \\'
+      'supabase db push --linked --dry-run --include-all 2>&1 \\'
     );
     expect(workflow).toContain(
       "Refusing production write: second dry-run batch differs from the audited reconciliation batch."
@@ -80,10 +80,10 @@ describe("Supabase production migration historical-gap recovery", () => {
       'supabase db push --linked "${push_args[@]}"'
     );
     expect(workflow).toContain(
-      'supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run | tee migration-proof/dry-run-after.txt'
+      'supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run 2>&1 | tee migration-proof/dry-run-after.txt'
     );
     expect(workflow).toContain(
-      'supabase db push --linked --dry-run | tee migration-proof/dry-run-after.txt'
+      'supabase db push --linked --dry-run 2>&1 | tee migration-proof/dry-run-after.txt'
     );
   });
 });
