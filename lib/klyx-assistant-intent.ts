@@ -107,10 +107,30 @@ const INFORMATION_SIGNALS = [
   "was ist",
 ] as const;
 
+const EXPLANATION_PREFIXES = [
+  "comment ",
+  "pourquoi ",
+  "c est quoi",
+  "qu est ce que",
+  "que signifie",
+  "peux tu m expliquer",
+  "how ",
+  "why ",
+  "what is",
+  "what does",
+  "can you explain",
+  "hoe ",
+  "waarom ",
+  "wat is",
+  "warum ",
+  "was ist",
+] as const;
+
 const GENERIC_AMBIGUOUS = new Set([
   "mission",
   "une mission",
   "je veux une mission",
+  "je cherche une mission",
   "travail",
   "du travail",
   "job",
@@ -142,9 +162,12 @@ function hasIncomeIntent(value: string) {
 }
 
 function hasInformationIntent(value: string) {
-  return (
-    value.endsWith("?") ||
-    includesAny(value, INFORMATION_SIGNALS)
+  return value.endsWith("?") || includesAny(value, INFORMATION_SIGNALS);
+}
+
+function hasExplanationIntent(value: string) {
+  return EXPLANATION_PREFIXES.some(
+    (prefix) => value === prefix.trim() || value.startsWith(prefix)
   );
 }
 
@@ -187,6 +210,16 @@ export function classifyKlyxAssistantIntent(
     };
   }
 
+  if (GENERIC_AMBIGUOUS.has(normalizedMessage)) {
+    return {
+      intent: "clarification",
+      confidence: "high",
+      normalizedMessage,
+      clarificationQuestion:
+        "Vous cherchez quelqu’un pour un besoin, ou une mission à réaliser pour gagner de l’argent ?",
+    };
+  }
+
   if (incomeSearch) {
     return {
       intent: "income_search",
@@ -194,6 +227,18 @@ export function classifyKlyxAssistantIntent(
         hasMoneyTarget(rawMessage) || includesAny(normalizedMessage, AVAILABILITY_SIGNALS)
           ? "high"
           : "medium",
+      normalizedMessage,
+      clarificationQuestion: null,
+    };
+  }
+
+  // Explanation questions must win over lexical service signals. For example,
+  // "Comment trouver quelqu’un sur KLYX ?" asks for information; it is not an
+  // instruction to start a service request.
+  if (hasExplanationIntent(normalizedMessage)) {
+    return {
+      intent: "information",
+      confidence: "high",
       normalizedMessage,
       clarificationQuestion: null,
     };
@@ -208,17 +253,7 @@ export function classifyKlyxAssistantIntent(
     };
   }
 
-  if (GENERIC_AMBIGUOUS.has(normalizedMessage)) {
-    return {
-      intent: "clarification",
-      confidence: "high",
-      normalizedMessage,
-      clarificationQuestion:
-        "Vous cherchez quelqu’un pour un besoin, ou une mission à réaliser pour gagner de l’argent ?",
-    };
-  }
-
-  if (hasInformationIntent(rawMessage.toLowerCase())) {
+  if (hasInformationIntent(normalizedMessage)) {
     return {
       intent: "information",
       confidence: "high",
