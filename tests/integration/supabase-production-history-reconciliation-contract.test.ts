@@ -146,6 +146,7 @@ describe("Supabase production migration-history reconciliation contract", () => 
       "20260912234000_klyx_trust_legal_assessments.sql",
       "20260912235000_klyx_trust_mission_enforcement.sql",
       "20260913001700_klyx_profiles_stripe_unique_index_reconciliation.sql",
+      "20260913165000_klyx_business_pilot_request_cap.sql",
     ]);
 
     expect(approvedBatch).not.toContain(
@@ -156,6 +157,21 @@ describe("Supabase production migration-history reconciliation contract", () => 
     );
     expect(workflow.indexOf("dry-run --include-all")).toBeLessThan(
       workflow.indexOf("- name: Apply pending production migrations")
+    );
+  });
+
+  it("captures Supabase dry-run stderr before validating the audited batch and post-deploy state", () => {
+    expect(workflow).toContain(
+      'supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run --include-all 2>&1 \\\n              | tee migration-proof/dry-run-include-all.txt'
+    );
+    expect(workflow).toContain(
+      'supabase db push --linked --dry-run --include-all 2>&1 \\\n              | tee migration-proof/dry-run-include-all.txt'
+    );
+    expect(workflow).toContain(
+      'supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run 2>&1 | tee migration-proof/dry-run-after.txt'
+    );
+    expect(workflow).toContain(
+      'supabase db push --linked --dry-run 2>&1 | tee migration-proof/dry-run-after.txt'
     );
   });
 });
