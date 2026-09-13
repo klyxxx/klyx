@@ -15,7 +15,11 @@ import {
   bestSpecificBrainCommandAction,
   hasSpecificBrainCommandIntent,
 } from "@/lib/brain-command-intent";
-import { getBrainActions } from "@/lib/brain-actions";
+import {
+  getBrainActions,
+  type BrainActionItem,
+} from "@/lib/brain-actions";
+import { loadKlyxAccountProfiles } from "@/lib/klyx-account-profile-scope";
 import type {
   KlyxAssistantIntentResult,
 } from "@/lib/klyx-assistant-intent";
@@ -93,12 +97,32 @@ async function touchConversation(conversationId: string) {
   if (error) throw new Error(error.message);
 }
 
+function mergeAccountActions(actionGroups: BrainActionItem[][]) {
+  const actions = new Map<string, BrainActionItem>();
+
+  for (const group of actionGroups) {
+    for (const action of group) {
+      const existing = actions.get(action.id);
+      if (!existing || action.priority > existing.priority) {
+        actions.set(action.id, action);
+      }
+    }
+  }
+
+  return Array.from(actions.values()).sort(
+    (first, second) => second.priority - first.priority
+  );
+}
+
 async function missionManagementReply(
   profile: Awaited<ReturnType<typeof getAuthenticatedProfile>>["profile"],
   intent: KlyxAssistantIntentResult
 ) {
   const locale = await getServerKlyxLocale();
-  const actions = (await getBrainActions(profile)).slice(0, 20);
+  const accountProfiles = await loadKlyxAccountProfiles(profile);
+  const actions = mergeAccountActions(
+    await Promise.all(accountProfiles.map((item) => getBrainActions(item)))
+  ).slice(0, 20);
   const action = hasSpecificBrainCommandIntent(intent.normalizedMessage)
     ? bestSpecificBrainCommandAction(actions, intent.normalizedMessage)
     : bestBrainCommandAction(actions, intent.normalizedMessage);
@@ -106,7 +130,7 @@ async function missionManagementReply(
   if (!action) {
     return {
       reply:
-        "Je ne vois aucune action prioritaire correspondant à cette demande pour le moment.",
+        "Je ne vois aucune action prioritaire correspondant à cette demande pour ce compte pour le moment.",
       payload: {
         action: null,
         automaticExecutionAllowed: false,
