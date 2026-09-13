@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getAuthenticatedProfile } from "@/lib/api-auth";
+import { getAuthenticatedAccount } from "@/lib/api-auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   canRequestTrustReview,
@@ -13,20 +13,11 @@ const TRUST_DECISION_SELECT =
   "id, target_type, target_ref, category_key, jurisdiction_code, decision, legal_pathway, human_review_required, review_status, reason_codes, required_actions, explanation, created_at, expires_at";
 
 export async function getAuthenticatedTrustAccount(request: Request) {
-  const auth = await getAuthenticatedProfile(request);
-
-  const { data: account, error } = await supabaseAdmin
-    .from("accounts")
-    .select("id")
-    .eq("auth_user_id", auth.user.id)
-    .maybeSingle();
-
-  if (error) throw new Error(error.message);
-  if (!account) throw new Error("KLYX_TRUST_ACCOUNT_REQUIRED");
+  const auth = await getAuthenticatedAccount(request);
 
   return {
     ...auth,
-    accountId: account.id as string,
+    accountId: auth.account.id,
   };
 }
 
