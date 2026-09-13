@@ -70,8 +70,6 @@ function normalizeProfile(
         : "client",
     firstName: profile.first_name ?? "",
     lastName: profile.last_name ?? "",
-
-    // KLYX_REAL_PROFILE_MARKET_14_24
     countryCode: profile.country_code ?? "",
     currencyCode: profile.currency_code ?? "",
   };
@@ -226,8 +224,8 @@ export function requireAccountType(
   if (profile.accountType !== expected) {
     throw new Error(
       expected === "provider"
-        ? "Cette action nécessite une capacité prestataire."
-        : "Cette action nécessite une capacité client."
+        ? "Cette action nécessite un profil prestataire."
+        : "Cette action nécessite un profil client."
     );
   }
 }
