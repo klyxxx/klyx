@@ -75,9 +75,17 @@ export async function GET() {
     );
     const excludedByVerificationFlags =
       enrollmentRows.length - verifiedEnrollmentRows.length;
-    const enrolledIds = unique(
+    const verifiedEnrollmentIds = unique(
       verifiedEnrollmentRows.map((row) => row.market_request_id)
-    ).slice(0, KLYX_LOCAL_VALUE_PILOT.maxRealRequests);
+    );
+    const enrolledIds = verifiedEnrollmentIds.slice(
+      0,
+      KLYX_LOCAL_VALUE_PILOT.maxRealRequests
+    );
+    const excludedByRequestCap = Math.max(
+      0,
+      verifiedEnrollmentIds.length - enrolledIds.length
+    );
 
     if (enrolledIds.length === 0) {
       const operations = buildKlyxLocalPilotOperations({
@@ -97,7 +105,8 @@ export async function GET() {
         {
           pilotKey: KLYX_LOCAL_VALUE_PILOT.key,
           generatedAt: new Date().toISOString(),
-          excludedEnrollmentCount: excludedByVerificationFlags,
+          excludedEnrollmentCount:
+            excludedByVerificationFlags + excludedByRequestCap,
           ...operations,
         },
         { headers: { "Cache-Control": "private, no-store, max-age=0" } }
@@ -177,6 +186,7 @@ export async function GET() {
         generatedAt: new Date().toISOString(),
         excludedEnrollmentCount:
           excludedByVerificationFlags +
+          excludedByRequestCap +
           (enrolledIds.length - verifiedRequests.length),
         ...operations,
       },
