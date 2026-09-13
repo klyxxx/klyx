@@ -58,12 +58,6 @@ function normalizeProfile(
     normalizeLegacyAccountType(
       profile.account_type
     );
-  const accountType: AccountType =
-    capabilityState.canOfferServices
-      ? "provider"
-      : capabilityState.canRequestServices
-        ? "client"
-        : legacyAccountType;
 
   return {
     id: profile.id,
@@ -87,7 +81,9 @@ function normalizeProfile(
     currencyCode:
       profile.currency_code ?? null,
 
-    accountType,
+    // Backward-compatible persisted discriminator. Capabilities are exposed
+    // independently and must not silently redefine this legacy field.
+    accountType: legacyAccountType,
 
     legacyAccountType,
 
@@ -337,10 +333,26 @@ export async function getOwnedProfiles(): Promise<
       repairedProfile as ProfileRow;
   }
 
-  return normalizeOwnedProfiles(
-    [profileToReturn],
-    user.id
-  );
+  const capabilityStates =
+    await loadProfileCapabilityStates([
+      {
+        id: profileToReturn.id,
+        accountType:
+          normalizeLegacyAccountType(
+            profileToReturn.account_type
+          ),
+      },
+    ]);
+
+  return [
+    normalizeProfile(
+      profileToReturn,
+      user.id,
+      capabilityStates.get(
+        profileToReturn.id
+      )
+    ),
+  ];
 }
 
 export async function getActiveProfile(): Promise<
