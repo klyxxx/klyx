@@ -76,6 +76,11 @@ export type KlyxPilotRequestOperation = {
 
 export type KlyxPilotOperationsResult = {
   status: KlyxPilotRunStatus;
+  limits: {
+    maxActiveProviders: number;
+    maxRealRequests: number;
+    minimumCompletedPaidMissionsForEconomicRead: number;
+  };
   summary: {
     enrolledRequests: number;
     activeProviders: number;
@@ -361,13 +366,16 @@ export function buildKlyxLocalPilotOperations(
       return byStage !== 0 ? byStage : left.requestId.localeCompare(right.requestId);
     });
 
-  const pilotOfferIds = new Set(offers.map((row) => row.id));
-  const validIncomeAttempts = input.incomeAttempts.filter(
-    (row) =>
+  const offerById = new Map(offers.map((row) => [row.id, row] as const));
+  const validIncomeAttempts = input.incomeAttempts.filter((row) => {
+    const linkedOffer = offerById.get(row.market_offer_id);
+    return Boolean(
       row.availability_verified &&
-      row.income_goal_verified &&
-      pilotOfferIds.has(row.market_offer_id)
-  );
+        row.income_goal_verified &&
+        linkedOffer &&
+        linkedOffer.provider_profile_id === row.provider_profile_id
+    );
+  });
   const activeProviders = new Set(
     validIncomeAttempts.map((row) => row.provider_profile_id)
   ).size;
@@ -389,6 +397,12 @@ export function buildKlyxLocalPilotOperations(
 
   return {
     status,
+    limits: {
+      maxActiveProviders: input.maxActiveProviders,
+      maxRealRequests: input.maxRealRequests,
+      minimumCompletedPaidMissionsForEconomicRead:
+        input.minimumCompletedPaidMissionsForEconomicRead,
+    },
     summary: {
       enrolledRequests: input.requests.length,
       activeProviders,
