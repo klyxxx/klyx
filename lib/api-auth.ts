@@ -9,6 +9,8 @@ import {
 } from "@/lib/active-profile";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
+const ASSISTANT_CAPABILITY_HEADER = "x-klyx-assistant-capability";
+
 type AuthenticatedUser = {
   id: string;
   email?: string;
@@ -75,11 +77,63 @@ function normalizeProfile(
   };
 }
 
+function assistantCapability(
+  request: Request
+): AccountType | null {
+  let pathname = "";
+
+  try {
+    pathname = new URL(request.url).pathname;
+  } catch {
+    return null;
+  }
+
+  // Capability projection is deliberately restricted to the unified Brain
+  // surface. It never changes the active-profile cookie or persistent data.
+  if (pathname !== "/api/brain/converse") {
+    return null;
+  }
+
+  const value = request.headers
+    .get(ASSISTANT_CAPABILITY_HEADER)
+    ?.trim()
+    .toLowerCase();
+
+  return value === "client" || value === "provider"
+    ? value
+    : null;
+}
+
+function projectCapability(
+  profiles: readonly AuthenticatedProfile[],
+  canonicalProfile: AuthenticatedProfile,
+  requestedCapability: AccountType | null
+): AuthenticatedProfile | null {
+  if (!requestedCapability) return null;
+
+  const matchingProfile = profiles.find(
+    (item) => item.accountType === requestedCapability
+  );
+
+  if (matchingProfile) {
+    return matchingProfile;
+  }
+
+  // Transitional compatibility for the roleless product model: the same
+  // account profile may request or earn without mutating account_type.
+  return {
+    ...canonicalProfile,
+    accountType: requestedCapability,
+  };
+}
+
 export async function getAuthenticatedProfile(
   request: Request
 ): Promise<{
   user: AuthenticatedUser;
   profile: AuthenticatedProfile;
+  profiles: AuthenticatedProfile[];
+  canonicalProfile: AuthenticatedProfile;
 }> {
   const token = request.headers
     .get("authorization")
@@ -134,12 +188,25 @@ export async function getAuthenticatedProfile(
     throw new Error("Profil KLYX introuvable.");
   }
 
+  // Prefer the historical requester profile as the durable conversation
+  // anchor when it exists. This keeps old Brain history continuous while the
+  // product stops exposing permanent client/provider modes.
+  const canonicalProfile =
+    profiles.find((item) => item.accountType === "client") ?? profiles[0];
+
   const selectedProfileId = (
     await cookies()
   ).get(ACTIVE_PROFILE_COOKIE)?.value;
 
-  const profile =
-    profiles.find((item) => item.id === selectedProfileId) ?? profiles[0];
+  const selectedProfile =
+    profiles.find((item) => item.id === selectedProfileId) ?? canonicalProfile;
+  const requestedCapability = assistantCapability(request);
+  const projectedProfile = projectCapability(
+    profiles,
+    canonicalProfile,
+    requestedCapability
+  );
+  const profile = projectedProfile ?? selectedProfile;
 
   return {
     user: {
@@ -147,6 +214,8 @@ export async function getAuthenticatedProfile(
       email: user.email,
     },
     profile,
+    profiles,
+    canonicalProfile,
   };
 }
 
@@ -157,8 +226,8 @@ export function requireAccountType(
   if (profile.accountType !== expected) {
     throw new Error(
       expected === "provider"
-        ? "Cette action nécessite un profil prestataire."
-        : "Cette action nécessite un profil client."
+        ? "Cette action nécessite une capacité prestataire."
+        : "Cette action nécessite une capacité client."
     );
   }
 }
