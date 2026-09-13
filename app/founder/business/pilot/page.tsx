@@ -20,6 +20,11 @@ type PilotOperationsResponse = {
     | "running"
     | "economic_read_ready"
     | "request_cap_reached_without_proof";
+  limits: {
+    maxActiveProviders: number;
+    maxRealRequests: number;
+    minimumCompletedPaidMissionsForEconomicRead: number;
+  };
   summary: {
     enrolledRequests: number;
     activeProviders: number;
@@ -95,7 +100,12 @@ export default function FounderPilotOperationsPage() {
       const body = (await response.json().catch(() => ({}))) as
         | PilotOperationsResponse
         | { error?: string };
-      if (!response.ok || !("summary" in body) || !("requestQueue" in body)) {
+      if (
+        !response.ok ||
+        !("summary" in body) ||
+        !("requestQueue" in body) ||
+        !("limits" in body)
+      ) {
         throw new Error(
           "error" in body && body.error
             ? body.error
@@ -157,7 +167,7 @@ export default function FounderPilotOperationsPage() {
           <p className="mt-4 max-w-3xl text-sm leading-7 text-white/65">
             Cette console ne crée aucune preuve. Elle lit uniquement les demandes, offres,
             réservations et paiements canoniques KLYX, puis indique le prochain blocage à
-            résoudre sans dépasser 5 prestataires ni 20 demandes.
+            résoudre sans dépasser les plafonds du pilote.
           </p>
         </header>
 
@@ -200,17 +210,17 @@ export default function FounderPilotOperationsPage() {
             <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Metric
                 label="Demandes réelles"
-                value={`${data.summary.enrolledRequests}/20`}
+                value={`${data.summary.enrolledRequests}/${data.limits.maxRealRequests}`}
                 detail={`${data.summary.requestCapacityRemaining} place(s) restante(s)`}
               />
               <Metric
                 label="Prestataires vérifiés"
-                value={`${data.summary.activeProviders}/5`}
+                value={`${data.summary.activeProviders}/${data.limits.maxActiveProviders}`}
                 detail={`${data.summary.providerCapacityRemaining} place(s) restante(s)`}
               />
               <Metric
                 label="Terminées + payées"
-                value={`${data.summary.completedPaidMissions}/10`}
+                value={`${data.summary.completedPaidMissions}/${data.limits.minimumCompletedPaidMissionsForEconomicRead}`}
                 detail={
                   data.summary.economicReadReady
                     ? "Seuil minimal atteint"
@@ -229,13 +239,13 @@ export default function FounderPilotOperationsPage() {
                 label="Nouvelles demandes"
                 locked={data.summary.requestIntakeLocked}
                 openText="Ouvert dans la limite du pilote"
-                lockedText="Verrouillé à 20 demandes"
+                lockedText={`Verrouillé à ${data.limits.maxRealRequests} demandes`}
               />
               <Gate
                 label="Nouveaux prestataires"
                 locked={data.summary.providerEnrollmentLocked}
                 openText="Ouvert dans la limite du pilote"
-                lockedText="Verrouillé à 5 prestataires"
+                lockedText={`Verrouillé à ${data.limits.maxActiveProviders} prestataires`}
               />
               <Gate
                 label="Deuxième zone / catégorie"
@@ -298,7 +308,8 @@ export default function FounderPilotOperationsPage() {
 
             <section className="mt-6 rounded-3xl border border-border bg-card p-5 text-sm leading-6 text-muted-foreground">
               <strong className="text-foreground">Règle d'exploitation :</strong> atteindre le
-              plafond n'est pas une réussite en soi. Si 20 demandes sont consommées sans 10 missions
+              plafond n'est pas une réussite en soi. Si {data.limits.maxRealRequests} demandes sont
+              consommées sans {data.limits.minimumCompletedPaidMissionsForEconomicRead} missions
               terminées et payées, KLYX arrête l'acquisition de ce pilote et analyse les causes au lieu
               d'augmenter artificiellement le volume. Une preuve économique atteinte autorise une
               analyse, pas une expansion automatique.
