@@ -23,6 +23,8 @@ type Signal = {
 };
 
 const SERVICE_SIGNALS: readonly Signal[] = [
+  { pattern: /^\s*(?:un|le|du)?\s*service\s*$/i, weight: 7 },
+  { pattern: /^\s*(?:a|the)?\s*service\s*$/i, weight: 7 },
   { pattern: /\btrouve(?:r)?[- ]?moi\b/i, weight: 5 },
   { pattern: /\bcherche(?:r)?\s+(?:quelqu['’]?un|une personne|un pro|un prestataire)\b/i, weight: 5 },
   { pattern: /\bj['’]?ai besoin (?:de|d['’])\b/i, weight: 4 },
@@ -38,6 +40,9 @@ const SERVICE_SIGNALS: readonly Signal[] = [
 ];
 
 const INCOME_SIGNALS: readonly Signal[] = [
+  { pattern: /^\s*(?:des|les)?\s*missions?(?:\s+r[ée]mun[ée]r[ée]es?)?\s*$/i, weight: 7 },
+  { pattern: /^\s*(?:du|un)?\s*(?:travail|revenu)\s*$/i, weight: 7 },
+  { pattern: /^\s*(?:paid\s+)?(?:work|jobs?|missions?)\s*$/i, weight: 7 },
   { pattern: /\bje (?:veux|voudrais|souhaite) gagner\b/i, weight: 6 },
   { pattern: /\bgagner\s+(?:environ\s+)?\d+/i, weight: 5 },
   { pattern: /\bgagner de l['’]?argent|compl[ée]ment de revenu|revenu suppl[ée]mentaire\b/i, weight: 5 },
@@ -53,6 +58,8 @@ const INCOME_SIGNALS: readonly Signal[] = [
 ];
 
 const MANAGEMENT_SIGNALS: readonly Signal[] = [
+  { pattern: /^\s*(?:g[ée]rer|suivre)\s+(?:une|ma|la)?\s*mission\s*$/i, weight: 7 },
+  { pattern: /^\s*(?:manage|track)\s+(?:a|my|the)?\s*mission\s*$/i, weight: 7 },
   { pattern: /\bma mission|mon service|ma r[ée]servation|mon rendez[- ]?vous\b/i, weight: 5 },
   { pattern: /\bmission (?:en cours|existante|confirm[ée]e|pay[ée]e)\b/i, weight: 5 },
   { pattern: /\bo[ùu] en est|quel est le statut|suivre (?:ma|la) mission\b/i, weight: 5 },
@@ -64,6 +71,8 @@ const MANAGEMENT_SIGNALS: readonly Signal[] = [
 ];
 
 const INFORMATION_SIGNALS: readonly Signal[] = [
+  { pattern: /^\s*(?:une?|de l['’]?)?\s*(?:question|information|info)\s*$/i, weight: 7 },
+  { pattern: /^\s*(?:a\s+)?(?:question|information)\s*$/i, weight: 7 },
   { pattern: /^\s*(?:comment|pourquoi|combien|qu['’]?est[- ]?ce que|c['’]?est quoi|est[- ]?ce que)\b/i, weight: 4 },
   { pattern: /\bcomment fonctionne KLYX\b/i, weight: 5 },
   { pattern: /\bexplique[- ]?moi|peux[- ]?tu m['’]?expliquer\b/i, weight: 4 },
@@ -148,7 +157,9 @@ export function routeAssistantIntent(
   const secondScore = ranked[1]?.[1] ?? 0;
 
   if (bestScore === 0) {
-    const looksLikeQuestion = message.endsWith("?") || /^\s*(?:qui|que|quoi|who|what)\b/i.test(message);
+    const looksLikeQuestion =
+      message.endsWith("?") ||
+      /^\s*(?:qui|que|quoi|who|what)\b/i.test(message);
 
     if (looksLikeQuestion) {
       return {
