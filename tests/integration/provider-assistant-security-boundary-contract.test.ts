@@ -140,19 +140,40 @@ describe("Provider Assistant security boundary", () => {
     expect(core).toContain("apiRateLimitExceededResponse(policy, rateLimit)");
     expect(core).toContain("rateLimitResponseHeaders(policy, rateLimit)");
 
-    const auth = core.indexOf("await getAuthenticatedProfile(request)", core.indexOf("export async function POST"));
+    const auth = core.indexOf(
+      "await getAuthenticatedProfile(request)",
+      core.indexOf("export async function POST")
+    );
     const role = core.indexOf('requireAccountType(profile, "provider")', auth);
     const quota = core.indexOf("await consumeApiRateLimit(", role);
-    const parse = core.indexOf("await parseProviderAssistantPostRequest(request)", quota);
-    const hourlyRate = core.indexOf("await getHourlyRate(profile.id)", parse);
-    const analysis = core.indexOf("analyzeProviderAssistantMessage(", hourlyRate);
+    const parse = core.indexOf(
+      "await parseProviderAssistantPostRequest(request)",
+      quota
+    );
+    const incomeGoal = core.indexOf("parseProviderIncomeGoal(message)", parse);
+    const incomeOrchestration = core.indexOf(
+      "await buildProviderIncomeOrchestration(",
+      incomeGoal
+    );
+    const analysis = core.indexOf(
+      "analyzeProviderAssistantMessage(",
+      incomeGoal
+    );
+    const hourlyRate = core.indexOf("await getHourlyRate(profile.id)", analysis);
+    const unknownModelPass = core.indexOf(
+      "await improveUnknownProviderReply",
+      hourlyRate
+    );
 
     expect(auth).toBeGreaterThan(-1);
     expect(role).toBeGreaterThan(auth);
     expect(quota).toBeGreaterThan(role);
     expect(parse).toBeGreaterThan(quota);
-    expect(hourlyRate).toBeGreaterThan(parse);
-    expect(analysis).toBeGreaterThan(hourlyRate);
+    expect(incomeGoal).toBeGreaterThan(parse);
+    expect(incomeOrchestration).toBeGreaterThan(incomeGoal);
+    expect(analysis).toBeGreaterThan(incomeGoal);
+    expect(hourlyRate).toBeGreaterThan(analysis);
+    expect(unknownModelPass).toBeGreaterThan(hourlyRate);
   });
 
   it("never performs an unbounded JSON parse in the exposed provider wrapper", () => {

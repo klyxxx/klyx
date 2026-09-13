@@ -17,6 +17,16 @@ export type ProviderQualificationLevel =
   | "evidence_required"
   | "regulated";
 
+export type ProviderSearchMatchEvidence = {
+  skill: true;
+  zone: boolean;
+  availability: boolean;
+  budget: boolean | null;
+  pricing: boolean;
+  estimatedPrice: number | null;
+  durationHours: number;
+};
+
 export type ProviderSearchItem = {
   profileId: string;
   userServiceId: string;
@@ -46,6 +56,7 @@ export type ProviderSearchItem = {
   officialRegistrationLabel: string | null;
   availabilitySummary: string;
   isExactMatch: boolean;
+  matchEvidence?: ProviderSearchMatchEvidence;
 };
 
 export type ProviderSearchResponse = {
