@@ -16,42 +16,21 @@ import {
   appendAssistantExchange,
   resolveAssistantConversation,
 } from "@/lib/assistant-conversation";
-import {
-  routeAssistantIntent,
-  type AssistantIntent,
-} from "@/lib/assistant-intent-router";
+import { routeAssistantIntent } from "@/lib/assistant-intent-router";
 import { getBrainActions, type BrainActionItem } from "@/lib/brain-actions";
 import {
   KLYX_CONFIRMATION_BOUNDARY,
   getKlyxGuidedQuestion,
 } from "@/lib/brain/guided-question";
-import {
-  withoutKlyxLlmShadow,
-} from "@/lib/brain/llm/shadow";
-import {
-  parseBrainRespondRequest,
-} from "@/lib/brain/respond-http-boundary";
-import {
-  generateKlyxAiReply,
-} from "@/lib/klyx-ai";
-import {
-  isKlyxAssistantMessageTooLong,
-} from "@/lib/klyx-assistant-message-limits";
-import {
-  localizeKlyxGroundedAction,
-} from "@/lib/klyx-grounded-action-i18n";
-import {
-  getServerKlyxLocale,
-} from "@/lib/klyx-server-i18n";
-import {
-  generateKlyxVisibleAiReply,
-} from "@/lib/klyx-visible-ai";
-import {
-  GET as getProviderJobs,
-} from "@/app/api/provider/jobs/route";
-import {
-  POST as deterministicPost,
-} from "../respond/route";
+import { withoutKlyxLlmShadow } from "@/lib/brain/llm/shadow";
+import { parseBrainRespondRequest } from "@/lib/brain/respond-http-boundary";
+import { generateKlyxAiReply } from "@/lib/klyx-ai";
+import { isKlyxAssistantMessageTooLong } from "@/lib/klyx-assistant-message-limits";
+import { localizeKlyxGroundedAction } from "@/lib/klyx-grounded-action-i18n";
+import { getServerKlyxLocale } from "@/lib/klyx-server-i18n";
+import { generateKlyxVisibleAiReply } from "@/lib/klyx-visible-ai";
+import { GET as getProviderJobs } from "@/app/api/provider/jobs/route";
+import { POST as deterministicPost } from "../respond/route";
 
 const ASSISTANT_CAPABILITY_HEADER = "x-klyx-assistant-capability";
 
@@ -64,7 +43,6 @@ type BrainPayload = {
   missing?: unknown;
   ready?: unknown;
   memoryUsed?: unknown;
-  assistantIntent?: unknown;
 };
 
 type BrainResponseBody = {
@@ -74,30 +52,23 @@ type BrainResponseBody = {
 };
 
 type ProviderJob = {
-  id?: unknown;
   title?: unknown;
   city?: unknown;
   requested_date?: unknown;
   budget_max?: unknown;
   budgetTotal?: unknown;
   currency?: unknown;
-  match?: unknown;
-};
-
-type ProviderJobsBody = {
-  requests?: unknown;
 };
 
 function normalizedMissing(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-
   return value.filter(
     (item): item is string =>
       typeof item === "string" && item.trim().length > 0
   );
 }
 
-function requestHeadersWithCapability(
+function capabilityHeaders(
   request: Request,
   capability: "client" | "provider"
 ): Headers {
@@ -107,16 +78,22 @@ function requestHeadersWithCapability(
   return headers;
 }
 
-function postRequestWithCapability(params: {
+function rawCapabilityRequest(
+  request: Request,
+  capability: "client" | "provider"
+): Request {
+  return new Request(request.clone(), {
+    headers: capabilityHeaders(request, capability),
+  });
+}
+
+function jsonCapabilityRequest(params: {
   request: Request;
   capability: "client" | "provider";
-  conversationId?: string;
   message: string;
+  conversationId?: string;
 }): Request {
-  const headers = requestHeadersWithCapability(
-    params.request,
-    params.capability
-  );
+  const headers = capabilityHeaders(params.request, params.capability);
   headers.set("content-type", "application/json");
 
   return new Request(params.request.url, {
@@ -131,11 +108,8 @@ function postRequestWithCapability(params: {
   });
 }
 
-function getRequestWithCapability(
-  request: Request,
-  capability: "client" | "provider"
-): Request {
-  const headers = requestHeadersWithCapability(request, capability);
+function providerCapabilityRequest(request: Request): Request {
+  const headers = capabilityHeaders(request, "provider");
   headers.delete("content-type");
 
   return new Request(request.url, {
@@ -154,15 +128,14 @@ function amount(value: unknown): number | null {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-function providerJobs(value: unknown): ProviderJob[] {
+function jobsFrom(value: unknown): ProviderJob[] {
   if (!Array.isArray(value)) return [];
   return value.filter(
-    (item): item is ProviderJob =>
-      Boolean(item) && typeof item === "object"
+    (item): item is ProviderJob => Boolean(item) && typeof item === "object"
   );
 }
 
-function incomeEmptyReply(locale: string): string {
+function noIncomeMatch(locale: string): string {
   if (locale === "en") {
     return "I understood that you want paid work. I do not see a compatible mission yet. What kind of service can you provide?";
   }
@@ -172,73 +145,56 @@ function incomeEmptyReply(locale: string): string {
   if (locale === "de") {
     return "Ich habe verstanden, dass du bezahlte Aufträge suchst. Ich sehe noch keinen passenden Auftrag. Welche Dienstleistung kannst du anbieten?";
   }
-
   return "J’ai compris que tu cherches des missions rémunérées. Je ne vois pas encore de mission compatible. Quel type de service peux-tu rendre ?";
 }
 
-function incomeResultsReply(
-  jobs: readonly ProviderJob[],
-  locale: string
-): string {
+function incomeMatches(jobs: readonly ProviderJob[], locale: string): string {
   const selected = jobs.slice(0, 3);
   const rows = selected.map((job, index) => {
-    const title = text(job.title) || (locale === "fr" ? "Mission" : "Mission");
-    const city = text(job.city);
-    const date = text(job.requested_date);
+    const title = text(job.title) || "Mission";
     const budget = amount(job.budgetTotal) ?? amount(job.budget_max);
-    const currency = text(job.currency) || "EUR";
     const details = [
-      city,
-      date,
-      budget ? `${budget} ${currency}` : "",
+      text(job.city),
+      text(job.requested_date),
+      budget ? `${budget} ${text(job.currency) || "EUR"}` : "",
     ].filter(Boolean);
 
-    return `${index + 1}. ${title}${details.length > 0 ? ` — ${details.join(" · ")}` : ""}`;
+    return `${index + 1}. ${title}${
+      details.length > 0 ? ` — ${details.join(" · ")}` : ""
+    }`;
   });
 
-  if (locale === "en") {
-    return `I found ${selected.length} compatible paid mission${selected.length > 1 ? "s" : ""}:\n${rows.join("\n")}\n\nTell me which one you want to examine.`;
-  }
-  if (locale === "nl") {
-    return `Ik heb ${selected.length} passende betaalde opdracht${selected.length > 1 ? "en" : ""} gevonden:\n${rows.join("\n")}\n\nZeg welke je wilt bekijken.`;
-  }
-  if (locale === "de") {
-    return `Ich habe ${selected.length} passende bezahlte Auftr${selected.length > 1 ? "äge" : "ag"} gefunden:\n${rows.join("\n")}\n\nSag mir, welchen du prüfen möchtest.`;
-  }
+  const tail =
+    locale === "en"
+      ? "Tell me which one you want to examine."
+      : locale === "nl"
+        ? "Zeg welke je wilt bekijken."
+        : locale === "de"
+          ? "Sag mir, welchen du prüfen möchtest."
+          : "Dis-moi laquelle tu veux examiner.";
 
-  return `J’ai trouvé ${selected.length} mission${selected.length > 1 ? "s" : ""} rémunérée${selected.length > 1 ? "s" : ""} compatible${selected.length > 1 ? "s" : ""} :\n${rows.join("\n")}\n\nDis-moi laquelle tu veux examiner.`;
+  return `${rows.join("\n")}\n\n${tail}`;
 }
 
 async function buildIncomeReply(
   request: Request,
   locale: string
-): Promise<{
-  reply: string;
-  providerJobsCount: number;
-}> {
-  const providerRequest = getRequestWithCapability(request, "provider");
-  const response = await getProviderJobs(providerRequest);
+): Promise<{ reply: string; count: number }> {
+  const response = await getProviderJobs(providerCapabilityRequest(request));
 
   if (!response.ok) {
     if (response.status >= 500) {
       throw new Error("Provider jobs unavailable.");
     }
-
-    return {
-      reply: incomeEmptyReply(locale),
-      providerJobsCount: 0,
-    };
+    return { reply: noIncomeMatch(locale), count: 0 };
   }
 
-  const body = (await response.json()) as ProviderJobsBody;
-  const jobs = providerJobs(body.requests);
+  const body = (await response.json()) as { requests?: unknown };
+  const jobs = jobsFrom(body.requests);
 
   return {
-    reply:
-      jobs.length > 0
-        ? incomeResultsReply(jobs, locale)
-        : incomeEmptyReply(locale),
-    providerJobsCount: jobs.length,
+    reply: jobs.length > 0 ? incomeMatches(jobs, locale) : noIncomeMatch(locale),
+    count: jobs.length,
   };
 }
 
@@ -252,27 +208,17 @@ function uniqueActions(actions: readonly BrainActionItem[]): BrainActionItem[] {
     }
   }
 
-  return [...byId.values()].sort(
-    (first, second) => second.priority - first.priority
-  );
+  return [...byId.values()];
 }
 
-function actionScore(action: BrainActionItem, message: string): number {
-  const value = message.toLowerCase();
+function actionScore(action: BrainActionItem, rawMessage: string): number {
+  const message = rawMessage.toLowerCase();
   let score = action.priority;
 
-  if (/paiement|payer|payment|betalen|zahlung/.test(value) && /payment|finalize/.test(action.kind)) {
-    score += 1000;
-  }
-  if (/suiv|statut|track|status|volg|verfolg/.test(value) && /track/.test(action.kind)) {
-    score += 1000;
-  }
-  if (/termin|fini|finish|complete|klaar|fertig/.test(value) && /finish|completion|review/.test(action.kind)) {
-    score += 1000;
-  }
-  if (/offre|devis|offer|quote|aanbod|angebot/.test(value) && /offer|compare/.test(action.kind)) {
-    score += 1000;
-  }
+  if (/paiement|payer|payment|betalen|zahlung/.test(message) && /payment|finalize/.test(action.kind)) score += 1000;
+  if (/suiv|statut|track|status|volg|verfolg/.test(message) && /track/.test(action.kind)) score += 1000;
+  if (/termin|fini|finish|complete|klaar|fertig/.test(message) && /finish|completion|review/.test(action.kind)) score += 1000;
+  if (/offre|devis|offer|quote|aanbod|angebot/.test(message) && /offer|compare/.test(action.kind)) score += 1000;
 
   return score;
 }
@@ -288,11 +234,9 @@ async function buildManagementReply(params: {
   const actionGroups = await Promise.all(
     params.profiles.map((profile) => getBrainActions(profile))
   );
-  const actions = uniqueActions(actionGroups.flat());
-  const selected = [...actions].sort(
-    (first, second) =>
-      actionScore(second, params.message) -
-      actionScore(first, params.message)
+  const selected = uniqueActions(actionGroups.flat()).sort(
+    (left, right) =>
+      actionScore(right, params.message) - actionScore(left, params.message)
   )[0];
 
   if (!selected) {
@@ -312,29 +256,11 @@ async function buildManagementReply(params: {
   return {
     reply: `${localized.title}. ${localized.description}`,
     action: {
+      id: selected.id,
+      kind: selected.kind,
       href: localized.href,
       label: localized.label,
-      kind: selected.kind,
-      id: selected.id,
     },
-  };
-}
-
-async function buildInformationReply(params: {
-  message: string;
-  canonicalProfile: AuthenticatedProfile;
-}): Promise<{
-  reply: string;
-  aiMode: "openai" | "fallback";
-}> {
-  const ai = await generateKlyxAiReply({
-    message: params.message,
-    firstName: params.canonicalProfile.firstName || undefined,
-  });
-
-  return {
-    reply: ai.text,
-    aiMode: ai.mode,
   };
 }
 
@@ -343,11 +269,11 @@ async function serviceResponse(params: {
   message: string;
   conversationId?: string;
 }): Promise<Response> {
-  const capabilityRequest = postRequestWithCapability({
+  const capabilityRequest = jsonCapabilityRequest({
     request: params.request,
     capability: "client",
-    conversationId: params.conversationId,
     message: params.message,
+    conversationId: params.conversationId,
   });
   const suppressVisibleAiForCapacity =
     isKlyxAssistantMessageTooLong(params.message);
@@ -372,9 +298,7 @@ async function serviceResponse(params: {
       ? responseBody.reply.trim()
       : "";
 
-  if (!deterministicReply) {
-    return response;
-  }
+  if (!deterministicReply) return response;
 
   const payload = responseBody.payload ?? {};
   const missing = normalizedMissing(payload.missing);
@@ -420,28 +344,21 @@ async function serviceResponse(params: {
 
 export async function POST(request: Request) {
   const startedAt = Date.now();
-  const parsedRequest = await parseBrainRespondRequest(request.clone());
+  const boundedInspectionRequest = request.clone();
+  const parsedRequest = await parseBrainRespondRequest(boundedInspectionRequest);
 
   if (!parsedRequest.ok) {
-    const capabilityRequest = postRequestWithCapability({
-      request,
-      capability: "client",
-      message: "invalid",
-    });
-
-    // Preserve the certified /respond authentication and error boundary for
-    // malformed bodies instead of creating a second HTTP contract here.
+    // Keep /respond authoritative for auth, durable quota and malformed-body
+    // status while still projecting the roleless requester capability.
+    const capabilityRequest = rawCapabilityRequest(request, "client");
     return withoutKlyxLlmShadow(
       () => deterministicPost(capabilityRequest)
     );
   }
 
   try {
-    const {
-      profile,
-      profiles,
-      canonicalProfile,
-    } = await getAuthenticatedProfile(request);
+    const { profiles, canonicalProfile } =
+      await getAuthenticatedProfile(request);
     const {
       conversationId: requestedConversationId,
       message,
@@ -504,7 +421,7 @@ export async function POST(request: Request) {
     if (route.intent === "income_search") {
       const income = await buildIncomeReply(request, locale);
       reply = income.reply;
-      payload.providerJobsCount = income.providerJobsCount;
+      payload.providerJobsCount = income.count;
     } else if (route.intent === "mission_management") {
       const management = await buildManagementReply({
         profiles,
@@ -514,12 +431,12 @@ export async function POST(request: Request) {
       reply = management.reply;
       payload.assistantAction = management.action;
     } else if (route.intent === "information") {
-      const information = await buildInformationReply({
+      const information = await generateKlyxAiReply({
         message,
-        canonicalProfile,
+        firstName: canonicalProfile.firstName || undefined,
       });
-      reply = information.reply;
-      aiMode = information.aiMode;
+      reply = information.text;
+      aiMode = information.mode;
     } else {
       reply =
         route.clarificationQuestion ??
@@ -541,7 +458,6 @@ export async function POST(request: Request) {
         aiMode,
         routedIntent: route.intent,
         deterministicSafety: route.intent !== "information",
-        activeProfileIgnoredForIntent: profile.id !== canonicalProfile.id,
       },
       {
         headers: rateLimitResponseHeaders(policy, rateLimit),
