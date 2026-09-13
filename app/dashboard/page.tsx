@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { getKlyxAccountHome } from "@/lib/account-home";
 import { getActiveProfile } from "@/lib/active-profile";
 import { createClient } from "@/lib/supabase/server";
 
@@ -19,13 +20,5 @@ export default async function DashboardPage() {
     redirect("/accounts");
   }
 
-  if (profile.canRequestServices) {
-    redirect("/assistant");
-  }
-
-  if (profile.canOfferServices) {
-    redirect("/provider/assistant");
-  }
-
-  redirect("/profile");
+  redirect(getKlyxAccountHome(profile));
 }
