@@ -140,6 +140,8 @@ describe("Supabase production migration-history reconciliation contract", () => 
       "20260911160000_klyx_individual_refund_route_webhook_guard.sql",
       "20260912133000_klyx_provider_legal_authority.sql",
       "20260912190000_klyx_unique_account_foundation.sql",
+      "20260912230000_klyx_business_value_metrics.sql",
+      "20260912230500_klyx_business_loop_proofs.sql",
       "20260912233000_klyx_trust_safety_legal_foundation.sql",
       "20260912234000_klyx_trust_legal_assessments.sql",
       "20260912235000_klyx_trust_mission_enforcement.sql",
