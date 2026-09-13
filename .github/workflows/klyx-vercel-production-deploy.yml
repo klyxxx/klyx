@@ -1,0 +1,214 @@
+name: KLYX Controlled Production Deploy Proof
+
+on:
+  pull_request:
+    types: [edited]
+
+permissions:
+  contents: read
+  checks: read
+
+concurrency:
+  group: klyx-controlled-production-deploy-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  controlled-proof:
+    name: Controlled exact-main production deploy proof
+    if: >-
+      github.actor == 'klyxxx' &&
+      github.event.pull_request.base.ref == 'main' &&
+      github.event.pull_request.head.ref == 'ops/vercel-manual-deployment-gate-20260913' &&
+      github.event.pull_request.title == 'KLYX DEPLOYMENT GATE — CONTROLLED PRODUCTION TEST'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      KLYX_PRODUCTION_URL: https://www.klyx.be
+      VERCEL_ORG_ID: team_QaRMiX8yTbmNx0NTzqfhrMDj
+      VERCEL_PROJECT_ID: prj_N6ZRVFs9ySP26csLhO0tXUiGVJW7
+      VERCEL_CLI_VERSION: 59.16.0
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      EXPECTED_MAIN_SHA: ${{ github.event.pull_request.base.sha }}
+
+    steps:
+      - name: Checkout exact main SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prove exact current main SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ ! "${EXPECTED_MAIN_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Invalid expected main SHA: ${EXPECTED_MAIN_SHA}"
+            exit 1
+          fi
+
+          git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
+
+          HEAD_SHA="$(git rev-parse HEAD)"
+          REMOTE_MAIN_SHA="$(git rev-parse refs/remotes/origin/main)"
+
+          if [ "${HEAD_SHA}" != "${EXPECTED_MAIN_SHA}" ]; then
+            echo "::error::Checked out SHA ${HEAD_SHA} differs from expected main ${EXPECTED_MAIN_SHA}."
+            exit 1
+          fi
+
+          if [ "${REMOTE_MAIN_SHA}" != "${EXPECTED_MAIN_SHA}" ]; then
+            echo "::error::main moved to ${REMOTE_MAIN_SHA}; refusing stale production deploy of ${EXPECTED_MAIN_SHA}."
+            exit 1
+          fi
+
+      - name: Require green release checks on exact SHA
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          CHECKS_JSON="$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/commits/${EXPECTED_MAIN_SHA}/check-runs?per_page=100")"
+
+          required_checks=(
+            "Security Certification"
+            "Golden path isolated verification"
+            "Playwright browser verification"
+            "KLYX UX / Visual Certification"
+          )
+
+          for required_check in "${required_checks[@]}"; do
+            result="$(jq -r --arg name "${required_check}" '
+              [.check_runs[] | select(.name == $name)]
+              | last
+              | if . == null then "missing missing" else "\(.status) \(.conclusion)" end
+            ' <<<"${CHECKS_JSON}")"
+
+            if [ "${result}" != "completed success" ]; then
+              echo "::error::Required check '${required_check}' is not green on ${EXPECTED_MAIN_SHA}: ${result}"
+              exit 1
+            fi
+          done
+
+      - name: Require Vercel deployment credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${VERCEL_TOKEN:-}" ]; then
+            echo "::error::Repository secret VERCEL_TOKEN is required for the controlled manual deployment path."
+            exit 1
+          fi
+
+      - name: Pull production project configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes "vercel@${VERCEL_CLI_VERSION}" pull \
+            --yes \
+            --environment=production \
+            --token="${VERCEL_TOKEN}"
+
+      - name: Build exact main for production
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes "vercel@${VERCEL_CLI_VERSION}" build \
+            --prod \
+            --token="${VERCEL_TOKEN}"
+
+      - name: Deploy exact prebuilt output to production
+        id: deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          npx --yes "vercel@${VERCEL_CLI_VERSION}" deploy \
+            --prebuilt \
+            --prod \
+            --yes \
+            --token="${VERCEL_TOKEN}" \
+            --meta "githubCommitSha=${EXPECTED_MAIN_SHA}" \
+            --meta "klyxMainSha=${EXPECTED_MAIN_SHA}" \
+            --meta "klyxDeploymentGate=manual-central-chat" \
+            2>&1 | tee vercel-deploy-proof.log
+
+          DEPLOYMENT_URL="$(grep -Eo 'https://[^[:space:]]+\.vercel\.app' vercel-deploy-proof.log | tail -n 1)"
+
+          if [ -z "${DEPLOYMENT_URL}" ]; then
+            echo "::error::Unable to recover Vercel deployment URL from CLI output."
+            exit 1
+          fi
+
+          echo "deployment_url=${DEPLOYMENT_URL}" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify deployed health endpoint
+        shell: bash
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment_url }}
+        run: |
+          set -euo pipefail
+
+          for attempt in $(seq 1 12); do
+            if response="$(curl --fail --silent --show-error "${DEPLOYMENT_URL}/api/health")" && \
+              jq -e '.status == "ok" and .service == "klyx"' <<<"${response}" >/dev/null; then
+              exit 0
+            fi
+            sleep 5
+          done
+
+          echo "::error::Deployment health verification failed for ${DEPLOYMENT_URL}."
+          exit 1
+
+      - name: Verify canonical production domain
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for attempt in $(seq 1 12); do
+            health_ok=false
+            home_ok=false
+
+            if response="$(curl --fail --silent --show-error "${KLYX_PRODUCTION_URL}/api/health")" && \
+              jq -e '.status == "ok" and .service == "klyx"' <<<"${response}" >/dev/null; then
+              health_ok=true
+            fi
+
+            status_code="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "${KLYX_PRODUCTION_URL}/" || true)"
+            if [ "${status_code}" = "200" ]; then
+              home_ok=true
+            fi
+
+            if [ "${health_ok}" = true ] && [ "${home_ok}" = true ]; then
+              exit 0
+            fi
+
+            sleep 5
+          done
+
+          echo "::error::Canonical production verification failed for ${KLYX_PRODUCTION_URL}."
+          exit 1
+
+      - name: Record controlled proof
+        if: success()
+        shell: bash
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment_url }}
+        run: |
+          {
+            echo "## KLYX controlled production deployment proof"
+            echo
+            echo "- Exact main SHA: \`${EXPECTED_MAIN_SHA}\`"
+            echo "- Build: Vercel production build from exact SHA"
+            echo "- Deployment: ${DEPLOYMENT_URL}"
+            echo "- SHA metadata: githubCommitSha + klyxMainSha"
+            echo "- Health: PASS"
+            echo "- Canonical domain: ${KLYX_PRODUCTION_URL} PASS"
+            echo "- Trigger: explicit PR-title edit for this one-time gate proof"
+          } >> "${GITHUB_STEP_SUMMARY}"
