@@ -11,6 +11,11 @@ describe("KLYX assistant-first settings security contract", () => {
   it("keeps only phone and canonical language as primary settings", () => {
     const settings = read("app/settings/page.tsx");
     const otherToggle = settings.indexOf('data-testid="settings-other-toggle"');
+    const primarySurface = settings.slice(0, otherToggle);
+    const primaryPanels = Array.from(
+      primarySurface.matchAll(/panelKey="([^"]+)"/g),
+      (match) => match[1]
+    );
 
     expect(settings).toContain("KLYX_SETTINGS_ASSISTANT_FIRST_20260912");
     expect(otherToggle).toBeGreaterThan(0);
@@ -24,6 +29,16 @@ describe("KLYX assistant-first settings security contract", () => {
     expect(settings.indexOf('panelKey="phone"')).toBeLessThan(otherToggle);
     expect(settings.indexOf('panelKey="language"')).toBeLessThan(otherToggle);
     expect(settings.indexOf('panelKey="auth"')).toBeGreaterThan(otherToggle);
+    expect(primaryPanels).toEqual(["phone", "language"]);
+    expect(settings.match(/data-testid="settings-other-toggle"/g)).toHaveLength(1);
+    expect(settings).toContain("const [otherSettingsOpen, setOtherSettingsOpen] = useState(false)");
+    expect(primarySurface).toContain('className="mx-auto max-w-2xl"');
+    expect(primarySurface).toContain("bg-background");
+    expect(primarySurface).toContain("text-foreground");
+    expect(primarySurface).toContain("text-blue-600");
+    expect(primarySurface).not.toMatch(/\bshadow(?:-|\b)/);
+    expect(primarySurface).not.toContain("bg-card");
+    expect(primarySurface).not.toContain("rounded-2xl");
     expect(settings).not.toMatch(/violet/i);
   });
 
