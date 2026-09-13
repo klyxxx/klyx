@@ -11,25 +11,39 @@ const workflow = fs.readFileSync(
   "utf8"
 );
 
-const approvedHistoricalMigration =
-  "supabase/migrations/20260904213000_klyx_profile_delete_execution_hardening.sql";
+const approvedHistoricalMigrations = [
+  "20260905235000_klyx_activity_hidden_missions.sql",
+  "20260905235500_klyx_core_payment_rpc_execution_sentinel.sql",
+  "20260906000500_klyx_handle_new_user_search_path.sql",
+  "20260906081500_klyx_remaining_rls_initplan_optimization.sql",
+  "20260906083000_klyx_public_availability_rpc_hardening.sql",
+  "20260906083500_klyx_profiles_stripe_index_history_preflight.sql",
+  "20260906084000_klyx_profiles_stripe_duplicate_index_cleanup.sql",
+  "20260906084500_klyx_message_notification_fk_indexes.sql",
+];
 
 describe("Supabase production migration historical-gap recovery", () => {
-  it("pins recovery to the single known KLYX historical migration", () => {
-    expect(workflow).toContain(
-      `approved_historical_migration="${approvedHistoricalMigration}"`
+  it("pins recovery to the exact audited KLYX historical migration set", () => {
+    expect(workflow).toContain("approved_historical_migrations=(");
+
+    for (const migration of approvedHistoricalMigrations) {
+      expect(workflow).toContain(`"${migration}"`);
+    }
+
+    expect(workflow).not.toContain(
+      'approved_historical_migration="supabase/migrations/20260904213000_klyx_profile_delete_execution_hardening.sql"'
     );
     expect(workflow).toContain(
       'historical_gap_message="Found local migration files to be inserted before the last migration on remote database."'
     );
     expect(workflow).toContain(
-      'if [ "${#historical_migrations[@]}" -ne 1 ] \\'
+      'if [ "${#historical_migrations[@]}" -ne "${#approved_historical_sorted[@]}" ]; then'
     );
     expect(workflow).toContain(
-      '[ "${historical_migrations[0]:-}" != "$approved_historical_migration" ]'
+      "Refusing --include-all: historical migration count differs from the audited production gap."
     );
     expect(workflow).toContain(
-      "Refusing --include-all: the historical migration gap is not the single approved KLYX migration."
+      "Refusing --include-all: historical migration set differs from the audited production gap."
     );
   });
 
@@ -41,13 +55,31 @@ describe("Supabase production migration historical-gap recovery", () => {
       'supabase db push --linked --dry-run > migration-proof/dry-run-before.txt 2>&1'
     );
     expect(workflow).toContain(
-      'supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run --include-all \\'
+      'supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run --include-all 2>&1 \\'
     );
     expect(workflow).toContain(
-      'supabase db push --linked --dry-run --include-all \\'
+      'supabase db push --linked --dry-run --include-all 2>&1 \\'
+    );
+    expect(workflow).toContain(
+      "Refusing production write: second dry-run batch differs from the audited reconciliation batch."
+    );
+    expect(workflow).toContain(
+      '"20260913165000_klyx_business_pilot_request_cap.sql"'
     );
     expect(workflow).toContain(
       'echo "SUPABASE_INCLUDE_ALL=true" >> "$GITHUB_ENV"'
+    );
+  });
+
+  it("captures Supabase dry-run stderr in both audited proof files", () => {
+    expect(workflow).toContain(
+      '--dry-run --include-all 2>&1 \\\n              | tee migration-proof/dry-run-include-all.txt'
+    );
+    expect(workflow).toContain(
+      'supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run 2>&1 | tee migration-proof/dry-run-after.txt'
+    );
+    expect(workflow).toContain(
+      'supabase db push --linked --dry-run 2>&1 | tee migration-proof/dry-run-after.txt'
     );
   });
 
@@ -63,10 +95,10 @@ describe("Supabase production migration historical-gap recovery", () => {
       'supabase db push --linked "${push_args[@]}"'
     );
     expect(workflow).toContain(
-      'supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run | tee migration-proof/dry-run-after.txt'
+      'supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run 2>&1 | tee migration-proof/dry-run-after.txt'
     );
     expect(workflow).toContain(
-      'supabase db push --linked --dry-run | tee migration-proof/dry-run-after.txt'
+      'supabase db push --linked --dry-run 2>&1 | tee migration-proof/dry-run-after.txt'
     );
   });
 });
