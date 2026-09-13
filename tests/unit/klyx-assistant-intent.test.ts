@@ -32,12 +32,25 @@ describe("classifyKlyxAssistantIntent", () => {
     );
   });
 
+  it("keeps explanation questions informational even when they contain service words", () => {
+    expect(
+      classifyKlyxAssistantIntent("Comment trouver quelqu’un sur KLYX ?").intent
+    ).toBe("information");
+  });
+
   it("asks one short question when mission direction is ambiguous", () => {
     const result = classifyKlyxAssistantIntent("Je veux une mission");
 
     expect(result.intent).toBe("clarification");
     expect(result.clarificationQuestion).toContain("besoin");
     expect(result.clarificationQuestion).toContain("gagner");
+  });
+
+  it("does not assume that a bare request for work means obtain or earn", () => {
+    expect(classifyKlyxAssistantIntent("Du travail").intent).toBe("clarification");
+    expect(classifyKlyxAssistantIntent("Je cherche une mission").intent).toBe(
+      "clarification"
+    );
   });
 
   it("does not guess when obtain and earn signals collide", () => {
