@@ -14,5 +14,5 @@ export const KLYX_PUBLIC_CONFIG = {
     "",
   appUrl:
     process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-    "https://klyx.be",
+    "https://www.klyx.be",
 } as const;
