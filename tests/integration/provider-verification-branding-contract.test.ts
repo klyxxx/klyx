@@ -45,9 +45,9 @@ describe("provider verification branding contract", () => {
     expect(verificationPage).toContain("rose-500");
 
     expect(verificationPage).toContain(
-      "const profile = await getActiveProfileAccount();"
+      "const profile = await getActiveOfferProfile();"
     );
-    expect(verificationPage).toContain(
+    expect(verificationPage).not.toContain(
       'if (profile.accountType !== "provider")'
     );
     expect(verificationPage).toContain('"/api/provider/verification"');
