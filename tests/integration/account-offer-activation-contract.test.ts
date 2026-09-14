@@ -10,6 +10,7 @@ function read(relativePath: string): string {
 const capabilities = read("app/api/account/capabilities/route.ts");
 const offerRoute = read("app/api/account/offer-readiness/route.ts");
 const assistant = read("app/api/assistant/respond/route.ts");
+const converse = read("app/api/brain/converse/route.ts");
 const readiness = read("lib/account-offer-readiness-server.ts");
 const nextConfig = read("next.config.ts");
 
@@ -32,8 +33,16 @@ describe("account-first offer-services activation", () => {
     expect(readiness).toContain('.eq("account_id", accountId)');
     expect(readiness).toContain("ensureLegacyOfferCompatibilityProfile(input.accountId)");
     expect(assistant).toContain("accountId: auth.account.id");
+    expect(assistant).toContain("accountProfileIds(accountId)");
+    expect(assistant).toContain("profileIds.includes(conversation.user_id)");
     expect(assistant).not.toContain("switchAccount");
     expect(readiness).not.toContain("switchAccount");
+  });
+
+  it("starts offer onboarding independently from legacy client/provider role authority", () => {
+    expect(assistant).toContain("getAuthenticatedAccount(request)");
+    expect(assistant).not.toContain('requireAccountType(auth.profile, "client")');
+    expect(assistant).not.toContain('requireAccountType(auth.profile, "provider")');
   });
 
   it("reuses historical Stripe state and never creates a Connected Account", () => {
@@ -61,9 +70,11 @@ describe("account-first offer-services activation", () => {
     expect(readiness).not.toContain("travel_radius_km: input.radiusKm ?? 0");
   });
 
-  it("keeps the public Brain URL while dispatching offer intent to the unified assistant", () => {
+  it("keeps the public Brain URLs while dispatching the main conversation through the unified assistant", () => {
     expect(nextConfig).toContain('source: "/api/brain/respond"');
     expect(nextConfig).toContain('destination: "/api/assistant/respond"');
+    expect(converse).toContain('from "../../assistant/respond/route"');
+    expect(converse).toContain('payload.intentMode === "offer_services"');
     expect(assistant).toContain("detectOfferServicesIntent");
     expect(assistant).toContain("brainRespondPost(request)");
   });
