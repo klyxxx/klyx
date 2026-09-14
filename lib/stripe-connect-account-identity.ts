@@ -15,6 +15,11 @@ type IdentityRow = {
   conflicting_stripe_account_ids: string[] | null;
 };
 
+type HistoricalProfileRow = {
+  id: string;
+  stripe_account_id: string | null;
+};
+
 type ProfileAccountRow = {
   id: string;
   account_id: string | null;
@@ -27,6 +32,12 @@ export type AccountStripeConnectIdentity = {
   sourceProfileIds: string[];
   conflictingStripeAccountIds: string[];
 };
+
+function uniqueSorted(values: Array<string | null | undefined>): string[] {
+  return Array.from(
+    new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value)))
+  ).sort();
+}
 
 function normalizeIdentity(
   accountId: string,
@@ -51,9 +62,7 @@ function normalizeIdentity(
   };
 }
 
-export async function getAccountStripeConnectIdentity(
-  accountId: string
-): Promise<AccountStripeConnectIdentity> {
+async function readCanonicalIdentity(accountId: string): Promise<IdentityRow | null> {
   const { data, error } = await supabaseAdmin
     .from("account_stripe_connect_identities")
     .select(
@@ -62,11 +71,180 @@ export async function getAccountStripeConnectIdentity(
     .eq("account_id", accountId)
     .maybeSingle();
 
+  if (error) throw new Error(error.message);
+  return (data as IdentityRow | null) ?? null;
+}
+
+async function readHistoricalIdentity(accountId: string): Promise<{
+  profileIds: string[];
+  stripeAccountIds: string[];
+}> {
+  const { data, error } = await supabaseAdmin
+    .from("profiles")
+    .select("id, stripe_account_id")
+    .eq("account_id", accountId);
+
+  if (error) throw new Error(error.message);
+
+  const rows = (data ?? []) as HistoricalProfileRow[];
+  return {
+    profileIds: uniqueSorted(rows.map((row) => row.id)),
+    stripeAccountIds: uniqueSorted(rows.map((row) => row.stripe_account_id)),
+  };
+}
+
+async function writeLinkedIdentity(params: {
+  accountId: string;
+  stripeAccountId: string;
+  sourceProfileIds: string[];
+}): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("account_stripe_connect_identities")
+    .upsert(
+      {
+        account_id: params.accountId,
+        stripe_account_id: params.stripeAccountId,
+        identity_state: "linked",
+        source_profile_ids: uniqueSorted(params.sourceProfileIds),
+        conflicting_stripe_account_ids: [],
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "account_id" }
+    );
+
   if (error) {
+    if (error.code === "23505") {
+      throw new Error(STRIPE_CONNECT_IDENTITY_CONFLICT);
+    }
     throw new Error(error.message);
   }
+}
 
-  return normalizeIdentity(accountId, (data as IdentityRow | null) ?? null);
+export async function markAccountStripeConnectIdentityForReview(params: {
+  accountId: string;
+  stripeAccountIds: string[];
+  sourceProfileIds?: string[];
+}): Promise<void> {
+  const stripeAccountIds = uniqueSorted(params.stripeAccountIds);
+
+  if (stripeAccountIds.length < 1) {
+    throw new Error(STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED);
+  }
+
+  const { error } = await supabaseAdmin
+    .from("account_stripe_connect_identities")
+    .upsert(
+      {
+        account_id: params.accountId,
+        stripe_account_id: null,
+        identity_state: "conflict",
+        source_profile_ids: uniqueSorted(params.sourceProfileIds ?? []),
+        conflicting_stripe_account_ids: stripeAccountIds,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "account_id" }
+    );
+
+  if (error) throw new Error(error.message);
+}
+
+export async function getAccountStripeConnectIdentity(
+  accountId: string
+): Promise<AccountStripeConnectIdentity> {
+  const [canonical, history] = await Promise.all([
+    readCanonicalIdentity(accountId),
+    readHistoricalIdentity(accountId),
+  ]);
+
+  if (canonical?.identity_state === "conflict") {
+    const conflicts = uniqueSorted([
+      ...(canonical.conflicting_stripe_account_ids ?? []),
+      ...history.stripeAccountIds,
+    ]);
+
+    if (
+      conflicts.length > 0 &&
+      (conflicts.length !== (canonical.conflicting_stripe_account_ids ?? []).length ||
+        history.profileIds.some(
+          (profileId) => !(canonical.source_profile_ids ?? []).includes(profileId)
+        ))
+    ) {
+      await markAccountStripeConnectIdentityForReview({
+        accountId,
+        stripeAccountIds: conflicts,
+        sourceProfileIds: uniqueSorted([
+          ...(canonical.source_profile_ids ?? []),
+          ...history.profileIds,
+        ]),
+      });
+    }
+
+    return {
+      accountId,
+      state: "conflict",
+      stripeAccountId: null,
+      sourceProfileIds: uniqueSorted([
+        ...(canonical.source_profile_ids ?? []),
+        ...history.profileIds,
+      ]),
+      conflictingStripeAccountIds: conflicts,
+    };
+  }
+
+  const canonicalStripeId = canonical?.stripe_account_id?.trim() || null;
+  const evidence = uniqueSorted([
+    canonicalStripeId,
+    ...history.stripeAccountIds,
+  ]);
+  const sourceProfileIds = uniqueSorted([
+    ...(canonical?.source_profile_ids ?? []),
+    ...history.profileIds,
+  ]);
+
+  if (evidence.length > 1) {
+    await markAccountStripeConnectIdentityForReview({
+      accountId,
+      stripeAccountIds: evidence,
+      sourceProfileIds,
+    });
+
+    return {
+      accountId,
+      state: "conflict",
+      stripeAccountId: null,
+      sourceProfileIds,
+      conflictingStripeAccountIds: evidence,
+    };
+  }
+
+  if (evidence.length === 1) {
+    const stripeAccountId = evidence[0];
+
+    if (
+      !canonical ||
+      canonical.identity_state !== "linked" ||
+      canonical.stripe_account_id !== stripeAccountId ||
+      sourceProfileIds.some(
+        (profileId) => !(canonical.source_profile_ids ?? []).includes(profileId)
+      )
+    ) {
+      await writeLinkedIdentity({
+        accountId,
+        stripeAccountId,
+        sourceProfileIds,
+      });
+    }
+
+    return {
+      accountId,
+      state: "linked",
+      stripeAccountId,
+      sourceProfileIds,
+      conflictingStripeAccountIds: [],
+    };
+  }
+
+  return normalizeIdentity(accountId, canonical);
 }
 
 export async function getProfileAccountStripeConnectIdentity(
@@ -78,12 +256,9 @@ export async function getProfileAccountStripeConnectIdentity(
     .eq("id", profileId)
     .maybeSingle();
 
-  if (error) {
-    throw new Error(error.message);
-  }
+  if (error) throw new Error(error.message);
 
   const profile = (data as ProfileAccountRow | null) ?? null;
-
   if (!profile?.account_id) {
     throw new Error("KLYX_CANONICAL_ACCOUNT_REQUIRED");
   }
@@ -102,7 +277,6 @@ export function assertStripeConnectIdentityUsable(
     if (!identity.stripeAccountId) {
       throw new Error(STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED);
     }
-
     return identity.stripeAccountId;
   }
 
@@ -124,62 +298,26 @@ export async function persistAccountStripeConnectIdentity(params: {
     current.state === "linked" &&
     current.stripeAccountId !== params.stripeAccountId
   ) {
+    await markAccountStripeConnectIdentityForReview({
+      accountId: params.accountId,
+      stripeAccountIds: [
+        current.stripeAccountId ?? "",
+        params.stripeAccountId,
+      ],
+      sourceProfileIds: [
+        ...current.sourceProfileIds,
+        params.sourceProfileId,
+      ],
+    });
     throw new Error(STRIPE_CONNECT_IDENTITY_CONFLICT);
   }
 
-  const sourceProfileIds = Array.from(
-    new Set([...current.sourceProfileIds, params.sourceProfileId])
-  );
-
-  const { error } = await supabaseAdmin
-    .from("account_stripe_connect_identities")
-    .upsert(
-      {
-        account_id: params.accountId,
-        stripe_account_id: params.stripeAccountId,
-        identity_state: "linked",
-        source_profile_ids: sourceProfileIds,
-        conflicting_stripe_account_ids: [],
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "account_id" }
-    );
-
-  if (error) {
-    throw new Error(error.message);
-  }
-}
-
-export async function markAccountStripeConnectIdentityForReview(params: {
-  accountId: string;
-  stripeAccountIds: string[];
-  sourceProfileIds?: string[];
-}): Promise<void> {
-  const stripeAccountIds = Array.from(
-    new Set(params.stripeAccountIds.map((value) => value.trim()).filter(Boolean))
-  ).sort();
-
-  if (stripeAccountIds.length < 2) {
-    throw new Error(STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED);
-  }
-
-  const { error } = await supabaseAdmin
-    .from("account_stripe_connect_identities")
-    .upsert(
-      {
-        account_id: params.accountId,
-        stripe_account_id: null,
-        identity_state: "conflict",
-        source_profile_ids: Array.from(
-          new Set(params.sourceProfileIds ?? [])
-        ),
-        conflicting_stripe_account_ids: stripeAccountIds,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "account_id" }
-    );
-
-  if (error) {
-    throw new Error(error.message);
-  }
+  await writeLinkedIdentity({
+    accountId: params.accountId,
+    stripeAccountId: params.stripeAccountId,
+    sourceProfileIds: [
+      ...current.sourceProfileIds,
+      params.sourceProfileId,
+    ],
+  });
 }
