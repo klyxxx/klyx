@@ -10,6 +10,7 @@ on:
 permissions:
   contents: read
 
+# Diagnostic-only workflow for the account-level Stripe migration branch.
 jobs:
   verbose-tests:
     runs-on: ubuntu-22.04
