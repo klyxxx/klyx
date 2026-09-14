@@ -218,10 +218,13 @@ function requestCompatibilityProfileFrom(
     return null;
   }
 
-  return (
-    profiles.find((profile) => profile.legacyAccountType === "client") ??
-    profiles[0]
-  );
+  const profile =
+    profiles.find((item) => item.legacyAccountType === "client") ?? profiles[0];
+
+  return {
+    ...profile,
+    accountType: "client",
+  };
 }
 
 async function offerCompatibilityProfileFrom(
@@ -247,11 +250,15 @@ async function offerCompatibilityProfileFrom(
     )
   );
 
-  return (
-    profiles.find((profile) => providerProfileIds.has(profile.id)) ??
-    profiles.find((profile) => profile.legacyAccountType === "provider") ??
-    profiles[0]
-  );
+  const profile =
+    profiles.find((item) => providerProfileIds.has(item.id)) ??
+    profiles.find((item) => item.legacyAccountType === "provider") ??
+    profiles[0];
+
+  return {
+    ...profile,
+    accountType: "provider",
+  };
 }
 
 export async function getActiveProfile(): Promise<ActiveProfile | null> {
