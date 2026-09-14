@@ -3,12 +3,14 @@ import { NextResponse } from "next/server";
 import { POST as brainRespondPost } from "@/app/api/brain/respond/route";
 import {
   detectOfferServicesIntent,
+  mergeOfferLegalDraft,
   mergeOfferPricingDraft,
   offerRequirementQuestion,
   parseOfferAvailability,
   parseOfferDayOfWeek,
   parseOfferRadiusKm,
   type OfferAvailabilityDraft,
+  type OfferLegalDraft,
   type OfferPricingDraft,
 } from "@/lib/account-offer-readiness";
 import {
@@ -17,6 +19,11 @@ import {
   recordAccountOfferConversationFacts,
   type AccountOfferReadiness,
 } from "@/lib/account-offer-readiness-server";
+import {
+  loadAccountOfferLegalContext,
+  recordAccountOfferLegalDeclaration,
+  type AccountOfferLegalContext,
+} from "@/lib/account-offer-legal-server";
 import {
   apiErrorStatus,
   getAuthenticatedAccount,
@@ -49,6 +56,7 @@ type OfferConversationState = {
   offerRadiusKm: number | null;
   offerPricing: OfferPricingDraft | null;
   offerAvailability: OfferAvailabilityDraft | null;
+  offerLegal: OfferLegalDraft | null;
   incomeGoal: ParsedProviderIncomeGoal | null;
 };
 
@@ -64,6 +72,7 @@ type AssistantPayload = Omit<OfferConversationState, "offerFlow"> & {
   offerReady: boolean;
   offerStatus: AccountOfferReadiness["status"];
   offerReadiness: AccountOfferReadiness;
+  legalContext: AccountOfferLegalContext | null;
   orchestration?: unknown;
 };
 
@@ -104,6 +113,40 @@ function availabilityFromPayload(value: unknown): OfferAvailabilityDraft | null 
   }
 
   return { dayOfWeek, startTime, endTime };
+}
+
+function legalFromPayload(value: unknown): OfferLegalDraft | null {
+  if (!value || typeof value !== "object") return null;
+  const row = value as Record<string, unknown>;
+  const pathwayIntent =
+    row.pathwayIntent === "occasional" ||
+    row.pathwayIntent === "employment_structure" ||
+    row.pathwayIntent === "independent" ||
+    row.pathwayIntent === "unknown"
+      ? row.pathwayIntent
+      : null;
+  const activityFrequency =
+    row.activityFrequency === "one_off" ||
+    row.activityFrequency === "intermittent" ||
+    row.activityFrequency === "recurring" ||
+    row.activityFrequency === "unknown"
+      ? row.activityFrequency
+      : null;
+  const explicitUncertainty = row.explicitUncertainty === true;
+
+  return pathwayIntent || activityFrequency || explicitUncertainty
+    ? { pathwayIntent, activityFrequency, explicitUncertainty }
+    : null;
+}
+
+function legalDraftFromContext(
+  context: AccountOfferLegalContext
+): OfferLegalDraft {
+  return {
+    pathwayIntent: context.pathwayIntent,
+    activityFrequency: context.activityFrequency,
+    explicitUncertainty: context.explicitUncertainty,
+  };
 }
 
 function incomeGoalFromPayload(value: unknown): ParsedProviderIncomeGoal | null {
@@ -168,6 +211,7 @@ function stateFromPayload(
         : null,
     offerPricing: pricingFromPayload(payload.offerPricing),
     offerAvailability: availabilityFromPayload(payload.offerAvailability),
+    offerLegal: legalFromPayload(payload.offerLegal),
     incomeGoal: incomeGoalFromPayload(payload.incomeGoal),
   };
 }
@@ -331,6 +375,7 @@ function replyForReadiness(
     radiusKm: number | null;
     dayOfWeek: number | null;
     pricing: OfferPricingDraft | null;
+    legalContext: AccountOfferLegalContext | null;
   }
 ): string {
   if (readiness.payoutReviewRequired) {
@@ -365,6 +410,24 @@ function replyForReadiness(
     state.pricing.pricingType === null
   ) {
     return `J’ai noté ${state.pricing.amount.toFixed(2)} €. Est-ce un tarif horaire ou un prix fixe ?`;
+  }
+
+  if (next === "legal" && state.legalContext) {
+    if (state.legalContext.explicitUncertainty) {
+      return "J’ai enregistré que tu n’es pas sûr du cadre juridique applicable. Je ne vais pas le deviner : une revue humaine est nécessaire avant l’activation.";
+    }
+
+    if (state.legalContext.missingFields.includes("pathway")) {
+      return offerRequirementQuestion("legal");
+    }
+
+    if (state.legalContext.missingFields.includes("frequency")) {
+      return "À quelle fréquence comptes-tu exercer cette activité : une seule fois, de temps en temps, ou régulièrement ?";
+    }
+
+    return readiness.trust.explanation
+      ? `Tes déclarations sont enregistrées comme des faits, pas comme un statut juridique. Une revue humaine reste nécessaire. ${readiness.trust.explanation}`
+      : "Tes déclarations sont enregistrées comme des faits, pas comme un statut juridique. Une revue humaine reste nécessaire avant l’activation.";
   }
 
   if (next) return offerRequirementQuestion(next);
@@ -467,6 +530,11 @@ export async function POST(request: Request) {
       previousState?.offerAvailability?.dayOfWeek === currentDay
         ? previousState?.offerAvailability ?? null
         : null);
+    const legalThisTurn = mergeOfferLegalDraft(message, null);
+    let offerLegal = mergeOfferLegalDraft(
+      message,
+      previousState?.offerLegal ?? null
+    );
     const incomeGoal =
       parseProviderIncomeGoal(message) ?? previousState?.incomeGoal ?? null;
 
@@ -485,6 +553,29 @@ export async function POST(request: Request) {
       accountId: auth.account.id,
       serviceSlug,
     });
+    let legalContext: AccountOfferLegalContext | null = null;
+
+    if (readiness.jurisdictionCode) {
+      legalContext = await loadAccountOfferLegalContext({
+        accountId: auth.account.id,
+        jurisdictionCode: readiness.jurisdictionCode,
+      });
+
+      const declarationToRecord =
+        legalThisTurn ??
+        (!legalContext.intakeComplete ? offerLegal : null);
+
+      if (declarationToRecord) {
+        legalContext = await recordAccountOfferLegalDeclaration({
+          accountId: auth.account.id,
+          jurisdictionCode: readiness.jurisdictionCode,
+          draft: declarationToRecord,
+        });
+      }
+
+      offerLegal = legalDraftFromContext(legalContext);
+    }
+
     let activated = auth.account.canOfferServices && readiness.status === "ready";
     let orchestration: Awaited<ReturnType<typeof buildProviderIncomeOrchestration>>["orchestration"] | null = null;
     let reply = replyForReadiness(readiness, {
@@ -492,6 +583,7 @@ export async function POST(request: Request) {
       radiusKm: offerRadiusKm,
       dayOfWeek: offerDayOfWeek,
       pricing: offerPricing,
+      legalContext,
     });
 
     if (readiness.status === "ready") {
@@ -546,8 +638,16 @@ export async function POST(request: Request) {
       }
     }
 
+    const legalNeedsInput = Boolean(
+      !readiness.payoutReviewRequired &&
+        readiness.status !== "blocked" &&
+        readiness.missing.includes("legal") &&
+        legalContext &&
+        !legalContext.intakeComplete
+    );
     const continueOfferFlow =
       readiness.status === "missing_requirements" ||
+      legalNeedsInput ||
       (activated && readiness.status === "ready" && orchestration === null);
     const payload: AssistantPayload = {
       intentMode: "offer_services",
@@ -562,12 +662,14 @@ export async function POST(request: Request) {
       offerRadiusKm,
       offerPricing,
       offerAvailability,
+      offerLegal,
       incomeGoal,
       missing: readiness.missing,
       ready: false,
       offerReady: activated,
       offerStatus: readiness.status,
       offerReadiness: readiness,
+      legalContext,
       ...(orchestration ? { orchestration } : {}),
     };
 
