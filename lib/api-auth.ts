@@ -102,6 +102,24 @@ function requestPathname(request: Request): string {
   }
 }
 
+function requestCompatibilityProfileFrom(
+  profiles: readonly AuthenticatedProfile[]
+): AuthenticatedProfile {
+  return (
+    profiles.find((profile) => profile.legacyAccountType === "client") ??
+    profiles[0]
+  );
+}
+
+function offerCompatibilityProfileFrom(
+  profiles: readonly AuthenticatedProfile[]
+): AuthenticatedProfile {
+  return (
+    profiles.find((profile) => profile.legacyAccountType === "provider") ??
+    profiles[0]
+  );
+}
+
 function selectCompatibilityProfile(
   request: Request,
   profiles: readonly AuthenticatedProfile[],
@@ -113,17 +131,24 @@ function selectCompatibilityProfile(
   const compatibilityContext = getLegacyProfileCapabilityContext();
 
   if (compatibilityContext === "request") {
-    return (
-      profiles.find((profile) => profile.legacyAccountType === "client") ??
-      profiles[0]
-    );
+    return requestCompatibilityProfileFrom(profiles);
   }
 
   if (compatibilityContext === "offer") {
-    return (
-      profiles.find((profile) => profile.legacyAccountType === "provider") ??
-      profiles[0]
-    );
+    return offerCompatibilityProfileFrom(profiles);
+  }
+
+  const pathname = requestPathname(request);
+  const method = request.method.toUpperCase();
+
+  // Transitional request-storage adapter for mixed market endpoints. Creating
+  // or cancelling a market request is always a request_services operation,
+  // regardless of which legacy profile cookie happens to be active.
+  if (
+    pathname === "/api/market/requests" &&
+    (method === "POST" || method === "PATCH")
+  ) {
+    return requestCompatibilityProfileFrom(profiles);
   }
 
   // Transitional storage adapter only. Provider APIs may still use profiles.id
@@ -132,12 +157,9 @@ function selectCompatibilityProfile(
   // user's identity or make account_type authoritative again.
   if (
     canOfferServices &&
-    requestPathname(request).startsWith("/api/provider/")
+    pathname.startsWith("/api/provider/")
   ) {
-    return (
-      profiles.find((profile) => profile.legacyAccountType === "provider") ??
-      profiles[0]
-    );
+    return offerCompatibilityProfileFrom(profiles);
   }
 
   return selected;
