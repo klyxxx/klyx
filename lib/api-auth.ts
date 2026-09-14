@@ -105,26 +105,31 @@ function requestPathname(request: Request): string {
 function requestCompatibilityProfileFrom(
   profiles: readonly AuthenticatedProfile[]
 ): AuthenticatedProfile {
-  return (
-    profiles.find((profile) => profile.legacyAccountType === "client") ??
-    profiles[0]
-  );
+  const profile =
+    profiles.find((item) => item.legacyAccountType === "client") ?? profiles[0];
+
+  return {
+    ...profile,
+    accountType: profile.canRequestServices ? "client" : "provider",
+  };
 }
 
 function offerCompatibilityProfileFrom(
   profiles: readonly AuthenticatedProfile[]
 ): AuthenticatedProfile {
-  return (
-    profiles.find((profile) => profile.legacyAccountType === "provider") ??
-    profiles[0]
-  );
+  const profile =
+    profiles.find((item) => item.legacyAccountType === "provider") ?? profiles[0];
+
+  return {
+    ...profile,
+    accountType: profile.canOfferServices ? "provider" : "client",
+  };
 }
 
 function selectCompatibilityProfile(
   request: Request,
   profiles: readonly AuthenticatedProfile[],
-  selectedProfileId: string | undefined,
-  canOfferServices: boolean
+  selectedProfileId: string | undefined
 ): AuthenticatedProfile {
   const selected =
     profiles.find((item) => item.id === selectedProfileId) ?? profiles[0];
@@ -151,14 +156,11 @@ function selectCompatibilityProfile(
     return requestCompatibilityProfileFrom(profiles);
   }
 
-  // Transitional storage adapter only. Provider APIs may still use profiles.id
-  // as a foreign key, so prefer an existing legacy provider record when the
-  // canonical account is allowed to offer services. This does not switch the
-  // user's identity or make account_type authoritative again.
-  if (
-    canOfferServices &&
-    pathname.startsWith("/api/provider/")
-  ) {
+  // Every provider API receives an offer-mode compatibility projection. The
+  // projected accountType is "provider" only when the canonical account has
+  // offer_services. Legacy direct role checks therefore remain fail-closed
+  // during migration without making profiles.account_type authoritative.
+  if (pathname.startsWith("/api/provider/")) {
     return offerCompatibilityProfileFrom(profiles);
   }
 
@@ -285,8 +287,7 @@ async function getAuthenticatedContext(
   const profile = selectCompatibilityProfile(
     request,
     normalizedProfiles,
-    selectedProfileId,
-    capabilities.canOfferServices
+    selectedProfileId
   );
 
   return {
