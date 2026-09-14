@@ -4,6 +4,12 @@ import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 import {
+  loadAccountCapabilityState,
+} from "@/lib/account-actor-capabilities-server";
+import type {
+  AccountCapabilitySource,
+} from "@/lib/account-actor-capabilities";
+import {
   ACTIVE_PROFILE_COOKIE,
   type AccountType,
 } from "@/lib/active-profile";
@@ -18,6 +24,10 @@ export type AuthenticatedProfile = {
   id: string;
   ownerUserId: string;
   accountType: AccountType;
+  legacyAccountType: AccountType;
+  canRequestServices: boolean;
+  canOfferServices: boolean;
+  capabilitySource: AccountCapabilitySource;
   firstName: string;
   lastName: string;
   countryCode: string;
@@ -27,11 +37,16 @@ export type AuthenticatedProfile = {
 export type AuthenticatedAccount = {
   id: string;
   authUserId: string;
+  canRequestServices: boolean;
+  canOfferServices: boolean;
+  capabilitySource: AccountCapabilitySource;
+  enabledCapabilities: readonly string[];
 };
 
 type ProfileRow = {
   id: string;
   owner_user_id: string;
+  account_id: string | null;
   account_type: string | null;
   first_name: string | null;
   last_name: string | null;
@@ -42,6 +57,12 @@ type ProfileRow = {
 type AccountRow = {
   id: string;
   auth_user_id: string;
+};
+
+type AuthenticatedContext = {
+  user: AuthenticatedUser;
+  account: AuthenticatedAccount;
+  profile: AuthenticatedProfile;
 };
 
 function requiredEnv(name: string): string {
@@ -66,31 +87,49 @@ function supabasePublicKey(): string {
   return value;
 }
 
-function normalizeProfile(
-  profile: ProfileRow
-): AuthenticatedProfile {
-  return {
-    id: profile.id,
-    ownerUserId: profile.owner_user_id,
-    accountType:
-      profile.account_type === "provider"
-        ? "provider"
-        : "client",
-    firstName: profile.first_name ?? "",
-    lastName: profile.last_name ?? "",
-
-    // KLYX_REAL_PROFILE_MARKET_14_24
-    countryCode: profile.country_code ?? "",
-    currencyCode: profile.currency_code ?? "",
-  };
+function normalizeLegacyAccountType(
+  accountType: string | null
+): AccountType {
+  return accountType === "provider" ? "provider" : "client";
 }
 
-export async function getAuthenticatedProfile(
+function requestPathname(request: Request): string {
+  try {
+    return new URL(request.url).pathname;
+  } catch {
+    return "";
+  }
+}
+
+function selectCompatibilityProfile(
+  request: Request,
+  profiles: readonly AuthenticatedProfile[],
+  selectedProfileId: string | undefined,
+  canOfferServices: boolean
+): AuthenticatedProfile {
+  const selected =
+    profiles.find((item) => item.id === selectedProfileId) ?? profiles[0];
+
+  // Transitional storage adapter only. Provider APIs may still use profiles.id
+  // as a foreign key, so prefer an existing legacy provider record when the
+  // canonical account is allowed to offer services. This does not switch the
+  // user's identity or make account_type authoritative again.
+  if (
+    canOfferServices &&
+    requestPathname(request).startsWith("/api/provider/")
+  ) {
+    return (
+      profiles.find((profile) => profile.legacyAccountType === "provider") ??
+      selected
+    );
+  }
+
+  return selected;
+}
+
+async function getAuthenticatedContext(
   request: Request
-): Promise<{
-  user: AuthenticatedUser;
-  profile: AuthenticatedProfile;
-}> {
+): Promise<AuthenticatedContext> {
   const token = request.headers
     .get("authorization")
     ?.replace(/^Bearer\s+/i, "");
@@ -124,32 +163,93 @@ export async function getAuthenticatedProfile(
     throw new Error("Session invalide.");
   }
 
-  const { data, error: profilesError } = await supabaseAdmin
-    .from("profiles")
-    .select(
-      "id, owner_user_id, account_type, first_name, last_name, country_code, currency_code"
-    )
-    .eq("owner_user_id", user.id)
-    .order("created_at", {
-      ascending: true,
-    });
+  const [{ data: profileData, error: profilesError }, accountResult] =
+    await Promise.all([
+      supabaseAdmin
+        .from("profiles")
+        .select(
+          "id, owner_user_id, account_id, account_type, first_name, last_name, country_code, currency_code"
+        )
+        .eq("owner_user_id", user.id)
+        .order("created_at", {
+          ascending: true,
+        }),
+      supabaseAdmin
+        .from("accounts")
+        .select("id, auth_user_id")
+        .eq("auth_user_id", user.id)
+        .maybeSingle(),
+    ]);
 
   if (profilesError) {
     throw new Error(profilesError.message);
   }
 
-  const profiles = ((data ?? []) as ProfileRow[]).map(normalizeProfile);
+  if (accountResult.error) {
+    throw new Error(accountResult.error.message);
+  }
 
-  if (profiles.length === 0) {
+  const profileRows = (profileData ?? []) as ProfileRow[];
+
+  if (profileRows.length === 0) {
     throw new Error("Profil KLYX introuvable.");
   }
+
+  const account = accountResult.data as AccountRow | null;
+
+  if (!account || account.auth_user_id !== user.id) {
+    throw new Error("Compte KLYX introuvable.");
+  }
+
+  if (
+    profileRows.some(
+      (profile) =>
+        profile.account_id !== null && profile.account_id !== account.id
+    )
+  ) {
+    throw new Error("KLYX_PROFILE_ACCOUNT_OWNER_MISMATCH");
+  }
+
+  const legacyProfiles = profileRows.map((profile) => ({
+    accountType: normalizeLegacyAccountType(profile.account_type),
+  }));
+  const capabilities = await loadAccountCapabilityState(
+    account.id,
+    legacyProfiles
+  );
+
+  const normalizedProfiles: AuthenticatedProfile[] = profileRows.map(
+    (profile) => {
+      const legacyAccountType = normalizeLegacyAccountType(
+        profile.account_type
+      );
+
+      return {
+        id: profile.id,
+        ownerUserId: profile.owner_user_id,
+        accountType: legacyAccountType,
+        legacyAccountType,
+        canRequestServices: capabilities.canRequestServices,
+        canOfferServices: capabilities.canOfferServices,
+        capabilitySource: capabilities.capabilitySource,
+        firstName: profile.first_name ?? "",
+        lastName: profile.last_name ?? "",
+        countryCode: profile.country_code ?? "",
+        currencyCode: profile.currency_code ?? "",
+      };
+    }
+  );
 
   const selectedProfileId = (
     await cookies()
   ).get(ACTIVE_PROFILE_COOKIE)?.value;
 
-  const profile =
-    profiles.find((item) => item.id === selectedProfileId) ?? profiles[0];
+  const profile = selectCompatibilityProfile(
+    request,
+    normalizedProfiles,
+    selectedProfileId,
+    capabilities.canOfferServices
+  );
 
   return {
     user: {
@@ -157,48 +257,59 @@ export async function getAuthenticatedProfile(
       email: user.email,
     },
     profile,
+    account: {
+      id: account.id,
+      authUserId: account.auth_user_id,
+      canRequestServices: capabilities.canRequestServices,
+      canOfferServices: capabilities.canOfferServices,
+      capabilitySource: capabilities.capabilitySource,
+      enabledCapabilities: Array.from(capabilities.enabledCapabilities),
+    },
+  };
+}
+
+export async function getAuthenticatedProfile(
+  request: Request
+): Promise<{
+  user: AuthenticatedUser;
+  profile: AuthenticatedProfile;
+}> {
+  const { user, profile } = await getAuthenticatedContext(request);
+
+  return {
+    user,
+    profile,
   };
 }
 
 export async function getAuthenticatedAccount(
   request: Request
-): Promise<{
-  user: AuthenticatedUser;
-  account: AuthenticatedAccount;
-  profile: AuthenticatedProfile;
-}> {
-  const authenticated = await getAuthenticatedProfile(request);
-
-  const { data, error: accountError } = await supabaseAdmin
-    .from("accounts")
-    .select("id, auth_user_id")
-    .eq("auth_user_id", authenticated.user.id)
-    .maybeSingle();
-
-  if (accountError) {
-    throw new Error(accountError.message);
-  }
-
-  const account = data as AccountRow | null;
-
-  if (!account || account.auth_user_id !== authenticated.user.id) {
-    throw new Error("Compte KLYX introuvable.");
-  }
-
-  return {
-    ...authenticated,
-    account: {
-      id: account.id,
-      authUserId: account.auth_user_id,
-    },
-  };
+): Promise<AuthenticatedContext> {
+  return getAuthenticatedContext(request);
 }
 
+export function requireAccountCapability(
+  account: Pick<AuthenticatedAccount, "enabledCapabilities">,
+  capability: string
+): void {
+  if (!account.enabledCapabilities.includes(capability)) {
+    throw new Error(`KLYX_ACCOUNT_CAPABILITY_REQUIRED:${capability}`);
+  }
+}
+
+// Backward-compatible adapter for legacy call sites. The decision is now made
+// from canonical account capabilities projected onto AuthenticatedProfile;
+// account_type is retained only for storage/routing compatibility.
 export function requireAccountType(
   profile: AuthenticatedProfile,
   expected: AccountType
 ): void {
-  if (profile.accountType !== expected) {
+  const allowed =
+    expected === "provider"
+      ? profile.canOfferServices
+      : profile.canRequestServices;
+
+  if (!allowed) {
     throw new Error(
       expected === "provider"
         ? "Cette action nécessite un profil prestataire."
@@ -217,7 +328,8 @@ export function apiErrorStatus(message: string): number {
 
   if (
     message === "Profil KLYX introuvable." ||
-    message.startsWith("Cette action nécessite")
+    message.startsWith("Cette action nécessite") ||
+    message.startsWith("KLYX_ACCOUNT_CAPABILITY_REQUIRED:")
   ) {
     return 403;
   }
