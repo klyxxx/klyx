@@ -88,10 +88,15 @@ describe("provider service proposals i18n contract", () => {
     expect(moderator).toContain("SAFE_CATEGORIES.has(input.category)");
   });
 
-  it("does not alter server validation or moderation ownership", () => {
+  it("keeps server validation and moderation behind offer capability", () => {
     const route = read(routePath);
 
-    expect(route).toContain('profile.accountType !== "provider"');
+    expect(route).toContain(
+      'import { getOfferCompatibilityProfile } from "@/lib/active-profile";'
+    );
+    expect(route).toContain("const profile = await getOfferCompatibilityProfile();");
+    expect(route).toContain("if (!profile)");
+    expect(route).not.toContain('profile.accountType !== "provider"');
     expect(route).toContain('.eq("profile_id", profile.id)');
     expect(route).toContain("const category = cleanText(body.category, 80);");
     expect(route).toContain(
