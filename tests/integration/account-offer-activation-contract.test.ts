@@ -12,6 +12,7 @@ const offerRoute = read("app/api/account/offer-readiness/route.ts");
 const assistant = read("app/api/assistant/respond/route.ts");
 const converse = read("app/api/brain/converse/route.ts");
 const readiness = read("lib/account-offer-readiness-server.ts");
+const legalServer = read("lib/account-offer-legal-server.ts");
 const nextConfig = read("next.config.ts");
 
 describe("account-first offer-services activation", () => {
@@ -50,7 +51,7 @@ describe("account-first offer-services activation", () => {
     expect(readiness).toContain("stripe_onboarding_complete");
     expect(readiness).toContain("stripe_payouts_enabled");
     expect(readiness).toContain("stripeAccountIds.size > 1");
-    expect(readiness).toContain('payments.conflict\n      ? "human_review"');
+    expect(readiness).toMatch(/payments\.conflict[\s\S]{0,80}"human_review"/);
     expect(readiness).not.toContain("stripe.accounts.create");
     expect(assistant).not.toContain("stripe.accounts.create");
   });
@@ -62,6 +63,25 @@ describe("account-first offer-services activation", () => {
     expect(readiness).toContain("BE-BRU");
     expect(readiness).toContain("BE-WAL");
     expect(readiness).toContain("BE-VLG");
+  });
+
+  it("stores legal declarations only in the account-first work-context ledger", () => {
+    expect(assistant).toContain("mergeOfferLegalDraft");
+    expect(assistant).toContain("recordAccountOfferLegalDeclaration");
+    expect(legalServer).toContain('.from("trust_work_contexts")');
+    expect(legalServer).toContain("declared_pathway_intent");
+    expect(legalServer).toContain("declared_activity_frequency");
+    expect(legalServer).toContain("legal_uncertain");
+    expect(legalServer).not.toContain("provider_legal_profiles");
+    expect(assistant).not.toContain("provider_legal_profiles");
+  });
+
+  it("treats legal declarations as facts and never auto-classifies a legal pathway", () => {
+    expect(assistant).toContain("Tes déclarations sont enregistrées comme des faits, pas comme un statut juridique");
+    expect(assistant).toContain("Je ne vais pas le deviner");
+    expect(legalServer).not.toContain("occasional_compatible");
+    expect(legalServer).not.toContain("independent_compatible");
+    expect(legalServer).not.toContain("employment_structure_required");
   });
 
   it("fails closed through the existing account-first Trust & Safety decision ledger", () => {
