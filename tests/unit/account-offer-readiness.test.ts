@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   detectOfferServicesIntent,
+  mergeOfferLegalDraft,
   mergeOfferPricingDraft,
   parseOfferAvailability,
   parseOfferDayOfWeek,
@@ -47,5 +48,34 @@ describe("account offer readiness conversation parsing", () => {
       startTime: "09:00",
       endTime: "18:00",
     });
+  });
+
+  it("records only explicit legal intent and frequency facts", () => {
+    expect(mergeOfferLegalDraft("Je suis indépendant", null)).toEqual({
+      pathwayIntent: "independent",
+      activityFrequency: null,
+      explicitUncertainty: false,
+    });
+
+    expect(
+      mergeOfferLegalDraft("Je veux faire ça régulièrement", {
+        pathwayIntent: "independent",
+        activityFrequency: null,
+        explicitUncertainty: false,
+      })
+    ).toEqual({
+      pathwayIntent: "independent",
+      activityFrequency: "recurring",
+      explicitUncertainty: false,
+    });
+  });
+
+  it("routes explicit legal uncertainty to review instead of guessing", () => {
+    expect(mergeOfferLegalDraft("Je ne sais pas quel statut s'applique", null)).toEqual({
+      pathwayIntent: "unknown",
+      activityFrequency: "unknown",
+      explicitUncertainty: true,
+    });
+    expect(mergeOfferLegalDraft("Bruxelles", null)).toBeNull();
   });
 });
