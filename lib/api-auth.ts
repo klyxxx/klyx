@@ -13,6 +13,7 @@ import {
   ACTIVE_PROFILE_COOKIE,
   type AccountType,
 } from "@/lib/active-profile";
+import { getLegacyProfileCapabilityContext } from "@/lib/legacy-profile-capability-context";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 type AuthenticatedUser = {
@@ -109,6 +110,21 @@ function selectCompatibilityProfile(
 ): AuthenticatedProfile {
   const selected =
     profiles.find((item) => item.id === selectedProfileId) ?? profiles[0];
+  const compatibilityContext = getLegacyProfileCapabilityContext();
+
+  if (compatibilityContext === "request") {
+    return (
+      profiles.find((profile) => profile.legacyAccountType === "client") ??
+      selected
+    );
+  }
+
+  if (compatibilityContext === "offer") {
+    return (
+      profiles.find((profile) => profile.legacyAccountType === "provider") ??
+      selected
+    );
+  }
 
   // Transitional storage adapter only. Provider APIs may still use profiles.id
   // as a foreign key, so prefer an existing legacy provider record when the
