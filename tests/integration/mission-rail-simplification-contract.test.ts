@@ -8,41 +8,31 @@ function read(relativePath: string) {
 }
 
 const rail = read("app/ui/MissionRail.tsx");
-const accountMenu = read("app/components/AccountSwitcher.tsx");
 
 describe("KLYX MissionRail compact ChatGPT-style contract", () => {
-  it("keeps one runtime account entry and delegates account actions to the canonical switcher", () => {
-    expect(rail.match(/<AccountSwitcher/g) ?? []).toHaveLength(1);
-    expect(rail).toContain('mode="account-menu"');
-    expect(rail).toContain("compact={compact}");
-    expect(rail).toContain("activeProfileId ? (");
+  it("keeps one account entry without profile switching", () => {
     expect(rail).toContain('data-testid="account-entry"');
-
-    expect(accountMenu).toContain('data-testid="account-entry"');
-    expect(accountMenu).toContain('data-testid="account-menu-panel"');
-    expect(accountMenu).toContain('role="menuitemradio"');
+    expect(rail).not.toContain("AccountSwitcher");
+    expect(rail).not.toContain("activeProfileId");
+    expect(rail).not.toContain("accountType");
 
     for (const href of ["/profile", "/settings", "/support"]) {
-      expect(accountMenu).toContain(`href="${href}"`);
+      expect(rail).toContain(`href: "${href}"`);
     }
 
-    for (const href of ["/provider", "/provider/studio", "/provider/payments"]) {
-      expect(rail).toContain(`href="${href}"`);
-    }
-
-    expect(rail).not.toContain("password");
-    expect(rail).not.toContain("Password");
-    expect(accountMenu).not.toMatch(/password/i);
+    expect(rail).toContain('supabase.auth.signOut({ scope: "local" })');
+    expect(rail).not.toContain('href="/provider"');
+    expect(rail).not.toContain('href="/provider/studio"');
+    expect(rail).not.toContain('href="/provider/payments"');
   });
 
-  it("keeps every mission source and all mission metadata intact", () => {
+  it("keeps account-visible mission sources without a provider-only branch", () => {
     expect(rail).toContain('fetch("/api/bookings/overview"');
     expect(rail).toContain('fetch("/api/bookings/activity-hidden"');
     expect(rail).toContain('fetch("/api/bookings/split-missions"');
-    expect(rail).toContain('fetch("/api/provider/jobs"');
+    expect(rail).not.toContain('fetch("/api/provider/jobs"');
     expect(rail).toContain("mission.statusLabel.trim()");
     expect(rail).toContain("dateTimeLabel(locale, mission.dateFrom)");
-    expect(rail).toContain("missionRoleLabel(locale, mission.role)");
     expect(rail).toContain("sameFingerprint");
     expect(rail).toContain("nameDistinguishes");
     expect(rail).toContain('join(" · ")');

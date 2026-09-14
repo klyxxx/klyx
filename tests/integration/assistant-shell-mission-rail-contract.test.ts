@@ -7,19 +7,9 @@ function read(relativePath: string) {
   return fs.readFileSync(path.join(process.cwd(), relativePath), "utf8");
 }
 
-function accountMenuMode(source: string) {
-  const start = source.indexOf('if (mode === "account-menu")');
-  const end = source.indexOf("\n  return (", start);
-
-  if (start < 0 || end < 0) return "";
-  return source.slice(start, end);
-}
-
 const layout = read("app/layout.tsx");
 const shell = read("app/ui/AssistantShell.tsx");
 const rail = read("app/ui/MissionRail.tsx");
-const accountSwitcher = read("app/components/AccountSwitcher.tsx");
-const accountMenu = accountMenuMode(accountSwitcher);
 
 describe("KLYX assistant-first shell and mission rail", () => {
   it("mounts AssistantShell globally instead of the SaaS sidebar", () => {
@@ -28,7 +18,7 @@ describe("KLYX assistant-first shell and mission rail", () => {
     expect(layout).not.toContain("<AppSidebar />");
   });
 
-  it("keeps Founder/Admin isolated while public provider routes use the assistant shell", () => {
+  it("keeps Founder/Admin isolated while normal routes use one assistant shell", () => {
     for (const route of [
       '"/founder"',
       '"/admin"',
@@ -37,18 +27,22 @@ describe("KLYX assistant-first shell and mission rail", () => {
       expect(shell).toContain(route);
     }
 
-    expect(shell).not.toContain('  "/providers",');
     expect(shell).toContain("return <AppSidebar />;");
     expect(shell).toContain("<MissionRail");
+    expect(shell).not.toContain("accountType");
+    expect(shell).not.toContain("activeProfileId");
+    expect(shell).not.toContain("KLYX_ACTIVE_PROFILE_CHANGED");
+    expect(shell).not.toContain("resolveAssistantShellProfileContext");
   });
 
-  it("uses the conversational role homes for both account types", () => {
-    expect(shell).toContain("getKlyxAccountHome(accountType)");
+  it("uses /assistant as the only conversational home", () => {
+    expect(shell).toContain('<MissionRail homeHref="/assistant" locale={locale} />');
+    expect(shell).toContain('<KlyxLogo href="/assistant" compact />');
     expect(rail).toContain('data-testid="new-mission-action"');
     expect(rail).toContain('newMission: "Nouvelle mission"');
   });
 
-  it("keeps the collapsible desktop rail but makes history opt-in and compact", () => {
+  it("keeps the collapsible mission history independent from permanent roles", () => {
     expect(rail).toContain('data-testid={mobile ? "mobile-mission-rail" : "desktop-mission-rail"}');
     expect(rail).toContain('compact ? "w-[76px]" : "w-[256px]"');
     expect(rail).toContain('history: "Historique"');
@@ -57,7 +51,8 @@ describe("KLYX assistant-first shell and mission rail", () => {
     expect(rail).toContain("setCollapsedPreference(!collapsed)");
     expect(rail).toContain('fetch("/api/bookings/overview"');
     expect(rail).toContain('fetch("/api/bookings/split-missions"');
-    expect(rail).toContain('fetch("/api/provider/jobs"');
+    expect(rail).not.toContain('fetch("/api/provider/jobs"');
+    expect(rail).not.toContain('accountType === "provider"');
   });
 
   it("persists only the desktop rail collapsed preference", () => {
@@ -75,29 +70,19 @@ describe("KLYX assistant-first shell and mission rail", () => {
     expect(rail).toContain('title={meta ? `${mission.title} — ${meta}` : mission.title}');
   });
 
-  it("keeps provider tools secondary while delegating account actions to the canonical menu", () => {
-    expect(shell).not.toContain('href="/messages"');
-    expect(shell).not.toContain('href="/bookings"');
-    expect(shell).not.toContain('href="/provider/jobs"');
-    expect(shell).not.toContain('href="/profile"');
-
-    expect(rail).not.toContain('href="/messages"');
-    expect(rail).toContain("<AccountSwitcher");
-    expect(rail).toContain('mode="account-menu"');
-    expect(rail).toContain('data-testid="provider-secondary-tools"');
-    expect(rail).toContain('href="/provider"');
-    expect(rail).toContain('href="/provider/studio"');
-    expect(rail).toContain('href="/provider/payments"');
-
-    expect(accountMenu).toContain('data-testid="account-entry"');
-    expect(accountMenu).toContain('role="menuitemradio"');
-    expect(accountMenu).toContain('href="/profile"');
-    expect(accountMenu).toContain('href="/settings"');
-    expect(accountMenu).toContain('href="/support"');
-    expect(accountMenu).not.toContain('href="/accounts"');
+  it("replaces profile switching with one account menu", () => {
+    expect(rail).not.toContain("AccountSwitcher");
+    expect(rail).not.toContain("provider-secondary-tools");
+    expect(rail).not.toContain('href="/provider"');
+    expect(rail).not.toContain('href="/provider/studio"');
+    expect(rail).not.toContain('href="/provider/payments"');
+    expect(rail).toContain('href: "/profile"');
+    expect(rail).toContain('href: "/settings"');
+    expect(rail).toContain('href: "/support"');
+    expect(rail).toContain('data-testid="account-entry"');
   });
 
-  it("replaces the mobile four-tab bar with an accessible drawer", () => {
+  it("uses an accessible mobile drawer", () => {
     expect(shell).toContain('data-testid="assistant-shell-mobile-header"');
     expect(shell).toContain('data-testid="assistant-shell-mobile-menu"');
     expect(shell).toContain('role="dialog"');
