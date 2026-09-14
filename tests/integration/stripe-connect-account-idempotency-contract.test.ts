@@ -16,42 +16,37 @@ const helper = read("lib/stripe-connect-account-idempotency.ts");
 const checkout = read("app/api/stripe/create-checkout-session/route.ts");
 
 describe("Stripe Connect account creation idempotency contract", () => {
-  it("passes a deterministic idempotency key to Stripe account creation", () => {
+  it("passes a deterministic account-level idempotency key to Stripe", () => {
     expect(route).toContain("stripeConnectAccountCreateIdempotencyKey");
+    expect(route).toContain("accountId: account.id");
     expect(route).toContain("{ idempotencyKey }");
     expect(route).toContain("await stripe.accounts.create(");
-
-    const keyIndex = route.indexOf(
-      "stripeConnectAccountCreateIdempotencyKey"
-    );
-    const createIndex = route.indexOf("await stripe.accounts.create(");
-
-    expect(keyIndex).toBeGreaterThanOrEqual(0);
-    expect(createIndex).toBeGreaterThan(keyIndex);
+    expect(helper).toContain("accountId: string");
+    expect(helper).not.toContain("profileId: string");
   });
 
-  it("separates initial account creation from stale-account replacement", () => {
-    expect(helper).toContain('const purpose = staleAccountId ?');
-    expect(helper).toContain('"initial"');
-    expect(helper).toContain("replace-${staleAccountId}");
-    expect(route).toContain("const staleAccountId = accountId;");
-    expect(route).toContain(
-      "createAndPersistAccount({ staleAccountId })"
-    );
+  it("never automatically creates a replacement for an existing Stripe identity", () => {
+    expect(route).toContain("isRecoverableStripeConnectAccountForOnboarding");
+    expect(route).toContain("STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED");
+    expect(route).not.toContain("staleAccountId");
+    expect(route).not.toContain("createAndPersistAccount({ staleAccountId })");
   });
 
-  it("persists the Stripe account only after Stripe returns it and remains retry-safe if persistence fails", () => {
+  it("persists the canonical identity before maintaining the profile compatibility mirror", () => {
     const stripeCreate = route.indexOf("await stripe.accounts.create(");
-    const profileUpdate = route.indexOf("stripe_account_id: account.id");
+    const canonicalPersist = route.indexOf(
+      "await persistAccountStripeConnectIdentity({"
+    );
+    const profileMirror = route.indexOf("stripe_account_id: created.id");
 
     expect(stripeCreate).toBeGreaterThanOrEqual(0);
-    expect(profileUpdate).toBeGreaterThan(stripeCreate);
-    expect(route).toContain("if (updateError)");
-    expect(route).toContain("throw new Error(updateError.message)");
+    expect(canonicalPersist).toBeGreaterThan(stripeCreate);
+    expect(profileMirror).toBeGreaterThan(canonicalPersist);
   });
 
   it("does not weaken payment checkout authority", () => {
     expect(route).toContain("assertStripeConnectRuntimeConfigured()");
     expect(checkout).toContain("assertStripeRuntimeReady()");
+    expect(checkout).toContain("getProfileAccountStripeConnectIdentity");
   });
 });

@@ -18,8 +18,8 @@ const statusRoute = read("app/api/stripe/connect/status/route.ts");
 const recovery = read("lib/stripe-connect-account-recovery.ts");
 const checkout = read("app/api/stripe/create-checkout-session/route.ts");
 
-describe("Stripe Connect stale account recovery contract", () => {
-  it("keeps recovery narrow to missing accounts and explicit link-mode mismatch", () => {
+describe("Stripe Connect stale account fail-closed contract", () => {
+  it("keeps recovery detection narrow to missing accounts and explicit link-mode mismatch", () => {
     expect(recovery).toContain('code === "resource_missing"');
     expect(recovery).toContain('param === "account"');
     expect(recovery).toContain(
@@ -31,7 +31,6 @@ describe("Stripe Connect stale account recovery contract", () => {
     expect(createAccount).toContain(
       "isRecoverableStripeConnectAccountForOnboarding(error)"
     );
-    expect(createAccount).toContain("throw error;");
   });
 
   it("surfaces Stripe platform activation as a safe actionable conflict", () => {
@@ -63,36 +62,21 @@ describe("Stripe Connect stale account recovery contract", () => {
     );
   });
 
-  it("replaces a stale stored account only inside the onboarding POST", () => {
-    const linkAttempt = createAccount.indexOf(
-      "accountLink = await createAccountLink(accountId)"
-    );
-    const recoveryGuard = createAccount.indexOf(
+  it("never replaces a stale historical Connected Account automatically", () => {
+    expect(createAccount).toContain(
       "isRecoverableStripeConnectAccountForOnboarding(error)"
     );
-    const staleCapture = createAccount.indexOf(
-      "const staleAccountId = accountId;",
-      recoveryGuard
-    );
-    const replacement = createAccount.indexOf(
-      "accountId = await createAndPersistAccount({ staleAccountId });",
-      staleCapture
-    );
-
-    expect(linkAttempt).toBeGreaterThanOrEqual(0);
-    expect(recoveryGuard).toBeGreaterThan(linkAttempt);
-    expect(staleCapture).toBeGreaterThan(recoveryGuard);
-    expect(replacement).toBeGreaterThan(staleCapture);
-    expect(createAccount).toContain("stripe_account_id: account.id");
-    expect(createAccount).toContain("stripe_onboarding_complete: false");
-    expect(createAccount).toContain("stripe_charges_enabled: false");
-    expect(createAccount).toContain("stripe_payouts_enabled: false");
+    expect(createAccount).toContain("STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED");
+    expect(createAccount).toContain("status: 409");
+    expect(createAccount).not.toContain("const staleAccountId");
+    expect(createAccount).not.toContain("createAndPersistAccount({ staleAccountId })");
   });
 
-  it("keeps status read-only and conservative for account identity", () => {
+  it("keeps status conservative and requires review for an unavailable canonical account", () => {
     expect(statusRoute).toContain("isMissingStripeConnectAccount(error)");
-    expect(statusRoute).toContain("return disconnectedResponse(true);");
+    expect(statusRoute).toContain("return disconnectedResponse(true, true);");
     expect(statusRoute).toContain("accountUnavailable");
+    expect(statusRoute).toContain("reviewRequired");
     expect(statusRoute).not.toContain(
       "isRecoverableStripeConnectAccountForOnboarding(error)"
     );
@@ -102,5 +86,6 @@ describe("Stripe Connect stale account recovery contract", () => {
   it("does not weaken checkout transaction readiness", () => {
     expect(createAccount).toContain("assertStripeConnectRuntimeConfigured()");
     expect(checkout).toContain("assertStripeRuntimeReady()");
+    expect(checkout).toContain("getProfileAccountStripeConnectIdentity");
   });
 });
