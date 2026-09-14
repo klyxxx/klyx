@@ -16,6 +16,8 @@ import {
 import { getLegacyProfileCapabilityContext } from "@/lib/legacy-profile-capability-context";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
+const ASSISTANT_CAPABILITY_HEADER = "x-klyx-assistant-capability";
+
 type AuthenticatedUser = {
   id: string;
   email?: string;
@@ -64,6 +66,8 @@ type AuthenticatedContext = {
   user: AuthenticatedUser;
   account: AuthenticatedAccount;
   profile: AuthenticatedProfile;
+  profiles: AuthenticatedProfile[];
+  canonicalProfile: AuthenticatedProfile;
 };
 
 function requiredEnv(name: string): string {
@@ -145,6 +149,24 @@ function selectCompatibilityProfile(
 
   const pathname = requestPathname(request);
   const method = request.method.toUpperCase();
+
+  // The unified assistant may select which legacy storage adapter it needs,
+  // but the header never grants a capability. request/offer authority still
+  // comes exclusively from the canonical account capability state above.
+  if (pathname === "/api/brain/converse") {
+    const assistantAdapter = request.headers
+      .get(ASSISTANT_CAPABILITY_HEADER)
+      ?.trim()
+      .toLowerCase();
+
+    if (assistantAdapter === "client") {
+      return requestCompatibilityProfileFrom(profiles);
+    }
+
+    if (assistantAdapter === "provider") {
+      return offerCompatibilityProfileFrom(profiles);
+    }
+  }
 
   // Transitional request-storage adapters for endpoints that still persist or
   // read legacy client profile foreign keys. The selected legacy cookie never
@@ -281,6 +303,10 @@ async function getAuthenticatedContext(
     }
   );
 
+  const canonicalProfile =
+    normalizedProfiles.find((item) => item.legacyAccountType === "client") ??
+    normalizedProfiles[0];
+
   const selectedProfileId = (
     await cookies()
   ).get(ACTIVE_PROFILE_COOKIE)?.value;
@@ -297,6 +323,8 @@ async function getAuthenticatedContext(
       email: user.email,
     },
     profile,
+    profiles: normalizedProfiles,
+    canonicalProfile,
     account: {
       id: account.id,
       authUserId: account.auth_user_id,
@@ -313,12 +341,17 @@ export async function getAuthenticatedProfile(
 ): Promise<{
   user: AuthenticatedUser;
   profile: AuthenticatedProfile;
+  profiles: AuthenticatedProfile[];
+  canonicalProfile: AuthenticatedProfile;
 }> {
-  const { user, profile } = await getAuthenticatedContext(request);
+  const { user, profile, profiles, canonicalProfile } =
+    await getAuthenticatedContext(request);
 
   return {
     user,
     profile,
+    profiles,
+    canonicalProfile,
   };
 }
 
