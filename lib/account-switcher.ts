@@ -143,9 +143,12 @@ export async function getActiveProfileAccount(): Promise<SavedAccount> {
 }
 
 export async function getActiveClientProfile(): Promise<SavedAccount> {
-  const profile = await getActiveProfileAccount();
+  const result = await getProfilesState();
+  const profile =
+    result.profiles.find((item) => item.legacyAccountType === "client") ??
+    result.profiles[0];
 
-  if (!profile.canRequestServices) {
+  if (!profile || !profile.canRequestServices) {
     throw new Error("Le compte KLYX ne peut pas demander de services.");
   }
 
@@ -153,9 +156,12 @@ export async function getActiveClientProfile(): Promise<SavedAccount> {
 }
 
 export async function getActiveOfferProfile(): Promise<SavedAccount> {
-  const profile = await getActiveProfileAccount();
+  const result = await getProfilesState();
+  const profile =
+    result.profiles.find((item) => item.legacyAccountType === "provider") ??
+    result.profiles[0];
 
-  if (!profile.canOfferServices) {
+  if (!profile || !profile.canOfferServices) {
     throw new Error("Le compte KLYX ne peut pas proposer de services.");
   }
 
