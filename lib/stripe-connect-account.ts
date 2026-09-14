@@ -1,13 +1,16 @@
 import type Stripe from "stripe";
+
+import {
+  assessStripeConnectCreation,
+  type CanonicalStripeConnectState,
+} from "@/lib/stripe-connect-account-policy";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+
+export { assessStripeConnectCreation };
+export type { CanonicalStripeConnectState };
 
 export const STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED =
   "KLYX_STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED";
-
-export type CanonicalStripeConnectState =
-  | "unlinked"
-  | "linked"
-  | "review_required";
 
 export type CanonicalStripeConnect = {
   accountId: string;
@@ -52,7 +55,9 @@ type HistoricalStripeRow = {
 export class StripeConnectIdentityReviewRequiredError extends Error {
   readonly code = STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED;
 
-  constructor(message = "L'identité Stripe Connect de ce compte KLYX nécessite une revue manuelle.") {
+  constructor(
+    message = "L'identité Stripe Connect de ce compte KLYX nécessite une revue manuelle."
+  ) {
     super(message);
     this.name = "StripeConnectIdentityReviewRequiredError";
   }
@@ -66,45 +71,6 @@ export function isStripeConnectIdentityReviewRequired(
     (error instanceof Error &&
       error.message.includes(STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED))
   );
-}
-
-export function assessStripeConnectCreation(input: {
-  state: CanonicalStripeConnectState;
-  canonicalStripeAccountId: string | null;
-  historicalStripeAccountIds: string[];
-}): "reuse" | "create" | "review_required" {
-  const history = Array.from(
-    new Set(
-      input.historicalStripeAccountIds
-        .map((value) => value.trim())
-        .filter(Boolean)
-    )
-  );
-
-  if (input.state === "review_required") {
-    return "review_required";
-  }
-
-  if (input.canonicalStripeAccountId) {
-    if (
-      history.some(
-        (stripeAccountId) =>
-          stripeAccountId !== input.canonicalStripeAccountId
-      )
-    ) {
-      return "review_required";
-    }
-
-    return "reuse";
-  }
-
-  // Historical Connect identity must be promoted/reviewed by the migration or
-  // an operator. Runtime code must never create a replacement automatically.
-  if (history.length > 0) {
-    return "review_required";
-  }
-
-  return "create";
 }
 
 export function resolveCanonicalAccountCountry(
@@ -329,8 +295,8 @@ export async function updateCanonicalStripeAccountStatus(input: {
     throw new StripeConnectIdentityReviewRequiredError();
   }
 
-  // Compatibility mirror only. The canonical Stripe id itself is never copied
-  // to sibling profiles; profile ids remain historical records during rollout.
+  // Compatibility flags only. The account-level Stripe id remains canonical;
+  // historical profile Stripe ids are never rewritten by status updates.
   const { error: profileError } = await supabaseAdmin
     .from("profiles")
     .update({
