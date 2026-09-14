@@ -25,6 +25,9 @@ describe("KLYX account-level Stripe Connect contract", () => {
   const groupCheckout = source(
     "app/api/stripe/create-group-checkout-session/route.ts"
   );
+  const accountOfferReadiness = source(
+    "lib/account-offer-readiness-server.ts"
+  );
   const webhook = source("app/api/stripe/webhook/route.ts");
   const connectWebhook = source("app/api/stripe/connect-webhook/route.ts");
   const accountDelete = source("app/api/account/delete/route.ts");
@@ -74,6 +77,18 @@ describe("KLYX account-level Stripe Connect contract", () => {
       "p_stripe_account_id is distinct from v_canonical_stripe_account_id"
     );
     expect(splitGuard).toContain("klyx_claim_split_payment_unit_13_27");
+  });
+
+  it("uses canonical account Stripe state for account offer readiness", () => {
+    expect(accountOfferReadiness).toContain("getCanonicalStripeConnect");
+    expect(accountOfferReadiness).toContain('connect.state === "linked"');
+    expect(accountOfferReadiness).toContain(
+      'connect.state === "review_required"'
+    );
+    expect(accountOfferReadiness).not.toContain("stripe_account_id");
+    expect(accountOfferReadiness).not.toContain("stripe_onboarding_complete");
+    expect(accountOfferReadiness).not.toContain("stripe_charges_enabled");
+    expect(accountOfferReadiness).not.toContain("stripe_payouts_enabled");
   });
 
   it("reconciles account.updated against canonical account identity", () => {
