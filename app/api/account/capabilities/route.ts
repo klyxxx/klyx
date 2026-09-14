@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
 import {
-  ensureLegacyOfferCompatibilityProfile,
   loadAccountCapabilityState,
   writeAccountCapabilities,
 } from "@/lib/account-actor-capabilities-server";
@@ -20,9 +19,7 @@ async function authenticatedCanonicalAccount() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    return null;
-  }
+  if (!user) return null;
 
   const [{ data: accountData, error: accountError }, profilesResult] =
     await Promise.all([
@@ -37,13 +34,8 @@ async function authenticatedCanonicalAccount() {
         .eq("owner_user_id", user.id),
     ]);
 
-  if (accountError) {
-    throw new Error(accountError.message);
-  }
-
-  if (profilesResult.error) {
-    throw new Error(profilesResult.error.message);
-  }
+  if (accountError) throw new Error(accountError.message);
+  if (profilesResult.error) throw new Error(profilesResult.error.message);
 
   const account = accountData as {
     id: string;
@@ -63,10 +55,7 @@ async function authenticatedCanonicalAccount() {
         : ("client" as const),
   }));
 
-  return {
-    accountId: account.id,
-    legacyProfiles,
-  };
+  return { accountId: account.id, legacyProfiles };
 }
 
 export async function GET() {
@@ -74,7 +63,6 @@ export async function GET() {
 
   try {
     const authenticated = await authenticatedCanonicalAccount();
-
     if (!authenticated) {
       return NextResponse.json({ error: "Non connecté." }, { status: 401 });
     }
@@ -111,27 +99,38 @@ export async function PATCH(request: Request) {
 
   try {
     const authenticated = await authenticatedCanonicalAccount();
-
     if (!authenticated) {
       return NextResponse.json({ error: "Non connecté." }, { status: 401 });
     }
 
     let body: UpdateCapabilitiesBody;
-
     try {
       body = (await request.json()) as UpdateCapabilitiesBody;
     } catch {
       return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
     }
 
-    const patch: Record<string, boolean> = {};
+    // offer_services is materially different from a preference toggle. It may
+    // only be enabled by the guarded readiness flow after service, zone,
+    // availability, pricing, payouts and Trust & Safety/legal checks pass.
+    if (body.offerServices === true) {
+      return NextResponse.json(
+        {
+          error:
+            "L’activation de l’offre nécessite le contrôle de préparation KLYX.",
+          code: "KLYX_OFFER_SERVICES_READINESS_REQUIRED",
+          readinessEndpoint: "/api/account/offer-readiness",
+        },
+        { status: 409 }
+      );
+    }
 
+    const patch: Record<string, boolean> = {};
     if (typeof body.requestServices === "boolean") {
       patch.request_services = body.requestServices;
     }
-
-    if (typeof body.offerServices === "boolean") {
-      patch.offer_services = body.offerServices;
+    if (body.offerServices === false) {
+      patch.offer_services = false;
     }
 
     if (Object.keys(patch).length === 0) {
@@ -139,13 +138,6 @@ export async function PATCH(request: Request) {
         { error: "Aucune capacité KLYX valide à modifier." },
         { status: 400 }
       );
-    }
-
-    // Enabling offer_services never publishes a service or regulated category.
-    // It only prepares a minimal legacy storage adapter when old provider
-    // consumers still need profiles.id/provider_profiles.profile_id.
-    if (patch.offer_services === true) {
-      await ensureLegacyOfferCompatibilityProfile(authenticated.accountId);
     }
 
     await writeAccountCapabilities(authenticated.accountId, patch, {
