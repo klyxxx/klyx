@@ -35,7 +35,11 @@ export type AccountStripeConnectIdentity = {
 
 function uniqueSorted(values: Array<string | null | undefined>): string[] {
   return Array.from(
-    new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value)))
+    new Set(
+      values
+        .map((value) => value?.trim())
+        .filter((value): value is string => Boolean(value))
+    )
   ).sort();
 }
 
@@ -62,7 +66,9 @@ function normalizeIdentity(
   };
 }
 
-async function readCanonicalIdentity(accountId: string): Promise<IdentityRow | null> {
+async function readCanonicalIdentity(
+  accountId: string
+): Promise<IdentityRow | null> {
   const { data, error } = await supabaseAdmin
     .from("account_stripe_connect_identities")
     .select(
@@ -93,11 +99,57 @@ async function readHistoricalIdentity(accountId: string): Promise<{
   };
 }
 
+async function writeConflictIdentity(params: {
+  accountId: string;
+  stripeAccountIds: string[];
+  sourceProfileIds: string[];
+}): Promise<void> {
+  const stripeAccountIds = uniqueSorted(params.stripeAccountIds);
+
+  if (stripeAccountIds.length < 1) {
+    throw new Error(STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED);
+  }
+
+  const { error } = await supabaseAdmin
+    .from("account_stripe_connect_identities")
+    .upsert(
+      {
+        account_id: params.accountId,
+        stripe_account_id: null,
+        identity_state: "conflict",
+        source_profile_ids: uniqueSorted(params.sourceProfileIds),
+        conflicting_stripe_account_ids: stripeAccountIds,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "account_id" }
+    );
+
+  if (error) throw new Error(error.message);
+}
+
 async function writeLinkedIdentity(params: {
   accountId: string;
   stripeAccountId: string;
   sourceProfileIds: string[];
 }): Promise<void> {
+  const { data: existingOwner, error: ownerError } = await supabaseAdmin
+    .from("account_stripe_connect_identities")
+    .select("account_id")
+    .eq("stripe_account_id", params.stripeAccountId)
+    .neq("account_id", params.accountId)
+    .maybeSingle();
+
+  if (ownerError) throw new Error(ownerError.message);
+
+  if (existingOwner?.account_id) {
+    await writeConflictIdentity({
+      accountId: params.accountId,
+      stripeAccountIds: [params.stripeAccountId],
+      sourceProfileIds: params.sourceProfileIds,
+    });
+    throw new Error(STRIPE_CONNECT_IDENTITY_CONFLICT);
+  }
+
   const { error } = await supabaseAdmin
     .from("account_stripe_connect_identities")
     .upsert(
@@ -114,6 +166,11 @@ async function writeLinkedIdentity(params: {
 
   if (error) {
     if (error.code === "23505") {
+      await writeConflictIdentity({
+        accountId: params.accountId,
+        stripeAccountIds: [params.stripeAccountId],
+        sourceProfileIds: params.sourceProfileIds,
+      });
       throw new Error(STRIPE_CONNECT_IDENTITY_CONFLICT);
     }
     throw new Error(error.message);
@@ -125,27 +182,11 @@ export async function markAccountStripeConnectIdentityForReview(params: {
   stripeAccountIds: string[];
   sourceProfileIds?: string[];
 }): Promise<void> {
-  const stripeAccountIds = uniqueSorted(params.stripeAccountIds);
-
-  if (stripeAccountIds.length < 1) {
-    throw new Error(STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED);
-  }
-
-  const { error } = await supabaseAdmin
-    .from("account_stripe_connect_identities")
-    .upsert(
-      {
-        account_id: params.accountId,
-        stripe_account_id: null,
-        identity_state: "conflict",
-        source_profile_ids: uniqueSorted(params.sourceProfileIds ?? []),
-        conflicting_stripe_account_ids: stripeAccountIds,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "account_id" }
-    );
-
-  if (error) throw new Error(error.message);
+  await writeConflictIdentity({
+    accountId: params.accountId,
+    stripeAccountIds: params.stripeAccountIds,
+    sourceProfileIds: params.sourceProfileIds ?? [],
+  });
 }
 
 export async function getAccountStripeConnectIdentity(
@@ -161,21 +202,21 @@ export async function getAccountStripeConnectIdentity(
       ...(canonical.conflicting_stripe_account_ids ?? []),
       ...history.stripeAccountIds,
     ]);
+    const sourceProfileIds = uniqueSorted([
+      ...(canonical.source_profile_ids ?? []),
+      ...history.profileIds,
+    ]);
 
     if (
       conflicts.length > 0 &&
-      (conflicts.length !== (canonical.conflicting_stripe_account_ids ?? []).length ||
-        history.profileIds.some(
-          (profileId) => !(canonical.source_profile_ids ?? []).includes(profileId)
-        ))
+      (conflicts.length !==
+        (canonical.conflicting_stripe_account_ids ?? []).length ||
+        sourceProfileIds.length !== (canonical.source_profile_ids ?? []).length)
     ) {
-      await markAccountStripeConnectIdentityForReview({
+      await writeConflictIdentity({
         accountId,
         stripeAccountIds: conflicts,
-        sourceProfileIds: uniqueSorted([
-          ...(canonical.source_profile_ids ?? []),
-          ...history.profileIds,
-        ]),
+        sourceProfileIds,
       });
     }
 
@@ -183,10 +224,7 @@ export async function getAccountStripeConnectIdentity(
       accountId,
       state: "conflict",
       stripeAccountId: null,
-      sourceProfileIds: uniqueSorted([
-        ...(canonical.source_profile_ids ?? []),
-        ...history.profileIds,
-      ]),
+      sourceProfileIds,
       conflictingStripeAccountIds: conflicts,
     };
   }
@@ -202,7 +240,7 @@ export async function getAccountStripeConnectIdentity(
   ]);
 
   if (evidence.length > 1) {
-    await markAccountStripeConnectIdentityForReview({
+    await writeConflictIdentity({
       accountId,
       stripeAccountIds: evidence,
       sourceProfileIds,
@@ -224,9 +262,7 @@ export async function getAccountStripeConnectIdentity(
       !canonical ||
       canonical.identity_state !== "linked" ||
       canonical.stripe_account_id !== stripeAccountId ||
-      sourceProfileIds.some(
-        (profileId) => !(canonical.source_profile_ids ?? []).includes(profileId)
-      )
+      sourceProfileIds.length !== (canonical.source_profile_ids ?? []).length
     ) {
       await writeLinkedIdentity({
         accountId,
@@ -298,7 +334,7 @@ export async function persistAccountStripeConnectIdentity(params: {
     current.state === "linked" &&
     current.stripeAccountId !== params.stripeAccountId
   ) {
-    await markAccountStripeConnectIdentityForReview({
+    await writeConflictIdentity({
       accountId: params.accountId,
       stripeAccountIds: [
         current.stripeAccountId ?? "",
