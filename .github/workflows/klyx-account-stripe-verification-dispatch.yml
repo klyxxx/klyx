@@ -12,6 +12,7 @@ permissions:
   actions: write
 
 # Final certification dispatch for the account-level Stripe Connect migration.
+# Certification base includes main baac5a60 and the canonical offer-readiness guard.
 jobs:
   dispatch-required-gates:
     runs-on: ubuntu-22.04
