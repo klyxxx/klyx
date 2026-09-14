@@ -22,18 +22,22 @@ const profileI18n = read("lib/klyx-profile-page-i18n.ts");
 const sidebar = read("app/ui/AppSidebar.tsx");
 
 describe("KLYX canonical role home routing", () => {
-  it("keeps one shared client/provider conversational home mapping", () => {
+  it("keeps the legacy mapping while allowing account capabilities to drive home routing", () => {
     expect(accountHome).toContain('client: "/assistant"');
     expect(accountHome).toContain('provider: "/provider/assistant"');
-    expect(accountHome).toContain("return KLYX_ACCOUNT_HOME[accountType];");
+    expect(accountHome).toContain("canRequestServices");
+    expect(accountHome).toContain("canOfferServices");
+    expect(accountHome).toContain("return KLYX_ACCOUNT_HOME[input];");
+    expect(accountHome).toContain('return "/profile";');
   });
 
-  it("keeps /dashboard only as an authenticated compatibility router", () => {
+  it("keeps /dashboard only as an authenticated capability router", () => {
     const source = compact(dashboard);
 
     expect(source).toContain('redirect("/login");');
     expect(source).toContain('redirect("/accounts");');
-    expect(source).toContain("redirect(getKlyxAccountHome(profile.accountType));");
+    expect(source).toContain("redirect(getKlyxAccountHome(profile));");
+    expect(source).not.toContain("profile.accountType");
 
     for (const legacyImport of [
       "ClientDashboard",
