@@ -7,14 +7,14 @@ function read(relative: string) {
 }
 
 describe("KLYX dashboard i18n and safe-error contract", () => {
-  it("keeps /dashboard as a role-home compatibility route while preserving legacy i18n coverage", () => {
+  it("keeps /dashboard as a capability-home compatibility route while preserving legacy i18n coverage", () => {
     const page = read("app/dashboard/page.tsx");
     const resume = read("app/dashboard/DashboardResumeCenter.tsx");
 
     expect(page).toContain(
       'import { getKlyxAccountHome } from "@/lib/account-home";'
     );
-    expect(page).toContain("redirect(getKlyxAccountHome(profile.accountType));");
+    expect(page).toContain("redirect(getKlyxAccountHome(profile));");
     expect(page).not.toContain("DashboardResumeCenter");
     expect(page).not.toContain("KLYX_AI_FIRST_DASHBOARD_15_02");
     expect(page).not.toContain("<main");
