@@ -60,6 +60,8 @@ export type AccountOfferReadiness = {
   } | null;
   payoutsReady: boolean;
   stripeProfileId: string | null;
+  payoutReviewRequired: boolean;
+  payoutReason: string | null;
   trust: {
     accessDecision: "allowed" | "human_review" | "blocked" | "missing";
     decisionId: string | null;
@@ -111,6 +113,7 @@ async function resolveCompatibilityProfile(
   profiles: readonly ProfileRow[]
 ): Promise<ProfileRow | null> {
   if (profiles.length === 0) return null;
+
   const profileIds = profiles.map((profile) => profile.id);
   const { data, error } = await supabaseAdmin
     .from("provider_profiles")
@@ -118,6 +121,7 @@ async function resolveCompatibilityProfile(
     .in("profile_id", profileIds);
 
   if (error) throw new Error(error.message);
+
   const providerIds = new Set(
     ((data ?? []) as Array<{ profile_id: string }>).map((row) => row.profile_id)
   );
@@ -133,52 +137,75 @@ async function loadSelectedService(params: {
   profileId: string;
   serviceSlug?: string | null;
 }): Promise<{ service: ServiceRow; userService: UserServiceRow } | null> {
+  let userService: UserServiceRow | null = null;
+  let service: ServiceRow | null = null;
+
   if (params.serviceSlug) {
-    const { data: serviceData, error: serviceError } = await supabaseAdmin
+    const { data, error } = await supabaseAdmin
       .from("services")
       .select("id, slug, name")
       .eq("slug", params.serviceSlug)
       .maybeSingle();
-
-    if (serviceError) throw new Error(serviceError.message);
-    const service = serviceData as ServiceRow | null;
+    if (error) throw new Error(error.message);
+    service = data as ServiceRow | null;
     if (!service) return null;
 
-    const { data: userServiceData, error: userServiceError } = await supabaseAdmin
+    const result = await supabaseAdmin
       .from("user_services")
       .select("id, service_id, active, provider_enabled")
       .eq("user_id", params.profileId)
       .eq("service_id", service.id)
       .eq("provider_enabled", true)
       .maybeSingle();
+    if (result.error) throw new Error(result.error.message);
+    userService = result.data as UserServiceRow | null;
+  } else {
+    const result = await supabaseAdmin
+      .from("user_services")
+      .select("id, service_id, active, provider_enabled")
+      .eq("user_id", params.profileId)
+      .eq("provider_enabled", true)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (result.error) throw new Error(result.error.message);
+    userService = result.data as UserServiceRow | null;
+    if (!userService) return null;
 
-    if (userServiceError) throw new Error(userServiceError.message);
-    const userService = userServiceData as UserServiceRow | null;
-    return userService ? { service, userService } : null;
+    const serviceResult = await supabaseAdmin
+      .from("services")
+      .select("id, slug, name")
+      .eq("id", userService.service_id)
+      .maybeSingle();
+    if (serviceResult.error) throw new Error(serviceResult.error.message);
+    service = serviceResult.data as ServiceRow | null;
   }
 
-  const { data: userServiceData, error: userServiceError } = await supabaseAdmin
-    .from("user_services")
-    .select("id, service_id, active, provider_enabled")
-    .eq("user_id", params.profileId)
-    .eq("provider_enabled", true)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  return service && userService ? { service, userService } : null;
+}
 
-  if (userServiceError) throw new Error(userServiceError.message);
-  const userService = userServiceData as UserServiceRow | null;
-  if (!userService) return null;
+function stripeState(profiles: readonly ProfileRow[]) {
+  const stripeProfiles = profiles.filter((profile) =>
+    Boolean(profile.stripe_account_id?.trim())
+  );
+  const stripeAccountIds = new Set(
+    stripeProfiles.map((profile) => profile.stripe_account_id?.trim()).filter(Boolean)
+  );
+  const conflict = stripeAccountIds.size > 1;
+  const readyProfile = conflict
+    ? null
+    : stripeProfiles.find(
+        (profile) =>
+          profile.stripe_onboarding_complete === true &&
+          profile.stripe_charges_enabled === true &&
+          profile.stripe_payouts_enabled === true
+      ) ?? null;
 
-  const { data: serviceData, error: serviceError } = await supabaseAdmin
-    .from("services")
-    .select("id, slug, name")
-    .eq("id", userService.service_id)
-    .maybeSingle();
-
-  if (serviceError) throw new Error(serviceError.message);
-  const service = serviceData as ServiceRow | null;
-  return service ? { service, userService } : null;
+  return {
+    conflict,
+    readyProfile,
+    payoutsReady: Boolean(readyProfile) && !conflict,
+  };
 }
 
 export async function loadAccountOfferReadiness(params: {
@@ -201,7 +228,7 @@ export async function loadAccountOfferReadiness(params: {
   let zoneReady = false;
   let availabilityReady = false;
 
-  if (selected) {
+  if (selected && compatibilityProfile) {
     const [serviceProfileResult, zoneResult, availabilityResult] = await Promise.all([
       supabaseAdmin
         .from("service_profiles")
@@ -211,7 +238,7 @@ export async function loadAccountOfferReadiness(params: {
       supabaseAdmin
         .from("provider_service_zones")
         .select("id")
-        .eq("profile_id", compatibilityProfile?.id ?? "")
+        .eq("profile_id", compatibilityProfile.id)
         .eq("user_service_id", selected.userService.id)
         .eq("is_active", true)
         .limit(1),
@@ -236,15 +263,8 @@ export async function loadAccountOfferReadiness(params: {
   if (selected && !availabilityReady) missing.push("availability");
   if (selected && !pricingReady(serviceProfile)) missing.push("pricing");
 
-  const stripeProfile = profiles.find(
-    (profile) =>
-      Boolean(profile.stripe_account_id) &&
-      profile.stripe_onboarding_complete === true &&
-      profile.stripe_charges_enabled === true &&
-      profile.stripe_payouts_enabled === true
-  );
-  const payoutsReady = Boolean(stripeProfile);
-  if (!payoutsReady) missing.push("payouts");
+  const payments = stripeState(profiles);
+  if (!payments.payoutsReady) missing.push("payouts");
 
   let trust: AccountOfferReadiness["trust"] = {
     accessDecision: "missing",
@@ -254,7 +274,7 @@ export async function loadAccountOfferReadiness(params: {
     explanation: null,
   };
   let trustBlocked = false;
-  let humanReview = false;
+  let humanReview = payments.conflict;
 
   if (selected && compatibilityProfile) {
     const jurisdictionCode = (compatibilityProfile.country_code ?? "")
@@ -268,7 +288,8 @@ export async function loadAccountOfferReadiness(params: {
         ...trust,
         accessDecision: "human_review",
         reasonCodes: ["JURISDICTION_REQUIRED"],
-        explanation: "A jurisdiction is required before KLYX can evaluate legal and Trust & Safety eligibility.",
+        explanation:
+          "A jurisdiction is required before KLYX can evaluate legal and Trust & Safety eligibility.",
       };
     } else {
       const decisions = await listTrustDecisions({
@@ -288,7 +309,8 @@ export async function loadAccountOfferReadiness(params: {
           accessDecision: "human_review",
           reasonCodes: ["TRUST_DECISION_REQUIRED"],
           requiredActions: [{ code: "REQUEST_LEGAL_REVIEW" }],
-          explanation: "No current account-level category eligibility decision exists. KLYX fails closed instead of inferring legal status.",
+          explanation:
+            "No current account-level category eligibility decision exists. KLYX fails closed instead of inferring legal status.",
         };
       } else {
         trust = {
@@ -311,23 +333,21 @@ export async function loadAccountOfferReadiness(params: {
         }
       }
     }
-  } else if (!selected) {
-    trust = {
-      ...trust,
-      explanation: "A service must be selected before category-specific Trust & Safety evaluation.",
-    };
   }
 
   const uniqueMissing = Array.from(new Set(missing));
+  const hasCollectableMissing = uniqueMissing.some((item) =>
+    ["skills", "zone", "availability", "pricing", "payouts", "trust_safety"].includes(item)
+  );
   const status: AccountOfferReadinessStatus = trustBlocked
     ? "blocked"
-    : uniqueMissing.some((item) =>
-        ["skills", "zone", "availability", "pricing", "payouts", "trust_safety"].includes(item)
-      )
-      ? "missing_requirements"
-      : humanReview
-        ? "human_review"
-        : "ready";
+    : humanReview && !hasCollectableMissing
+      ? "human_review"
+      : hasCollectableMissing
+        ? "missing_requirements"
+        : humanReview
+          ? "human_review"
+          : "ready";
 
   return {
     accountId: params.accountId,
@@ -342,8 +362,12 @@ export async function loadAccountOfferReadiness(params: {
           userServiceId: selected.userService.id,
         }
       : null,
-    payoutsReady,
-    stripeProfileId: stripeProfile?.id ?? null,
+    payoutsReady: payments.payoutsReady,
+    stripeProfileId: payments.readyProfile?.id ?? null,
+    payoutReviewRequired: payments.conflict,
+    payoutReason: payments.conflict
+      ? "Multiple historical Stripe Connected Account identifiers are linked to this canonical KLYX account. Automatic selection is forbidden."
+      : null,
     trust,
   };
 }
@@ -371,19 +395,19 @@ export async function recordAccountOfferConversationFacts(
 
   if (serviceError) throw new Error(serviceError.message);
   if (profileResult.error) throw new Error(profileResult.error.message);
+
   const service = serviceData as ServiceRow | null;
   if (!service) throw new Error("KLYX_OFFER_SERVICE_NOT_FOUND");
 
-  const { data: existingUserService, error: userServiceError } = await supabaseAdmin
+  const existingResult = await supabaseAdmin
     .from("user_services")
     .select("id, service_id, active, provider_enabled")
     .eq("user_id", profileId)
     .eq("service_id", service.id)
     .maybeSingle();
+  if (existingResult.error) throw new Error(existingResult.error.message);
 
-  if (userServiceError) throw new Error(userServiceError.message);
-
-  let userService = existingUserService as UserServiceRow | null;
+  let userService = existingResult.data as UserServiceRow | null;
   if (!userService) {
     const { data, error } = await supabaseAdmin
       .from("user_services")
@@ -415,62 +439,64 @@ export async function recordAccountOfferConversationFacts(
     if (error) throw new Error(error.message);
   }
 
-  const { data: existingServiceProfile, error: serviceProfileError } = await supabaseAdmin
+  const serviceProfileResult = await supabaseAdmin
     .from("service_profiles")
     .select("id, pricing_type, price, hourly_price, fixed_price")
     .eq("user_service_id", userService.id)
     .maybeSingle();
-  if (serviceProfileError) throw new Error(serviceProfileError.message);
+  if (serviceProfileResult.error) throw new Error(serviceProfileResult.error.message);
 
-  const serviceProfilePatch: Record<string, unknown> = {
-    updated_at: new Date().toISOString(),
-  };
+  const existingServiceProfile = serviceProfileResult.data as ServiceProfileRow | null;
+  const patch: Record<string, unknown> = {};
+
   if (input.city) {
-    serviceProfilePatch.city = input.city;
-    serviceProfilePatch.service_area = [input.city];
+    patch.city = input.city;
+    patch.service_area = [input.city];
   }
   if (input.radiusKm != null) {
-    serviceProfilePatch.travel_radius_km = input.radiusKm;
+    patch.travel_radius_km = input.radiusKm;
   }
-  if (input.pricing) {
-    if (input.pricing.pricingType) {
-      serviceProfilePatch.pricing_type = input.pricing.pricingType;
-      serviceProfilePatch.price = input.pricing.amount;
-      serviceProfilePatch.hourly_price =
-        input.pricing.pricingType === "hourly" ? input.pricing.amount : null;
-      serviceProfilePatch.fixed_price =
-        input.pricing.pricingType === "fixed" ? input.pricing.amount : null;
-    }
+  if (input.pricing?.pricingType) {
+    patch.pricing_type = input.pricing.pricingType;
+    patch.price = input.pricing.amount;
+    patch.hourly_price =
+      input.pricing.pricingType === "hourly" ? input.pricing.amount : null;
+    patch.fixed_price =
+      input.pricing.pricingType === "fixed" ? input.pricing.amount : null;
   }
 
-  if (existingServiceProfile) {
-    if (Object.keys(serviceProfilePatch).length > 1) {
-      const { error } = await supabaseAdmin
-        .from("service_profiles")
-        .update(serviceProfilePatch)
-        .eq("id", existingServiceProfile.id)
-        .eq("user_service_id", userService.id);
-      if (error) throw new Error(error.message);
-    }
-  } else if (input.city || (input.pricing?.pricingType ?? null)) {
-    const { error } = await supabaseAdmin.from("service_profiles").insert({
+  if (existingServiceProfile && Object.keys(patch).length > 0) {
+    const { error } = await supabaseAdmin
+      .from("service_profiles")
+      .update({ ...patch, updated_at: new Date().toISOString() })
+      .eq("id", existingServiceProfile.id)
+      .eq("user_service_id", userService.id);
+    if (error) throw new Error(error.message);
+  } else if (!existingServiceProfile && input.pricing?.pricingType) {
+    const insertPayload: Record<string, unknown> = {
       user_service_id: userService.id,
       title: null,
       description: null,
-      pricing_type: input.pricing?.pricingType ?? "hourly",
-      price: input.pricing?.pricingType ? input.pricing.amount : null,
+      pricing_type: input.pricing.pricingType,
+      price: input.pricing.amount,
       hourly_price:
-        input.pricing?.pricingType === "hourly" ? input.pricing.amount : null,
+        input.pricing.pricingType === "hourly" ? input.pricing.amount : null,
       fixed_price:
-        input.pricing?.pricingType === "fixed" ? input.pricing.amount : null,
-      city: input.city ?? null,
-      service_area: input.city ? [input.city] : [],
-      travel_radius_km: input.radiusKm ?? 0,
+        input.pricing.pricingType === "fixed" ? input.pricing.amount : null,
       available: false,
       rating: 0,
       review_count: 0,
       updated_at: new Date().toISOString(),
-    });
+    };
+    if (input.city) {
+      insertPayload.city = input.city;
+      insertPayload.service_area = [input.city];
+    }
+    if (input.radiusKm != null) {
+      insertPayload.travel_radius_km = input.radiusKm;
+    }
+
+    const { error } = await supabaseAdmin.from("service_profiles").insert(insertPayload);
     if (error) throw new Error(error.message);
   }
 
@@ -535,8 +561,8 @@ export async function activateAccountOfferServices(params: {
 
   await ensureLegacyOfferCompatibilityProfile(params.accountId);
 
-  // Re-evaluate immediately before the capability write so a stale client
-  // snapshot cannot arm offer_services after a prerequisite has disappeared.
+  // Re-evaluate immediately before writing the canonical capability. This is
+  // intentionally fail-closed: no client-supplied readiness snapshot is trusted.
   const readiness = await loadAccountOfferReadiness(params);
   if (readiness.status !== "ready") {
     return { activated: false as const, readiness };
