@@ -93,9 +93,13 @@ async function readHistoricalIdentity(accountId: string): Promise<{
   if (error) throw new Error(error.message);
 
   const rows = (data ?? []) as HistoricalProfileRow[];
+  const evidenceRows = rows.filter((row) => Boolean(row.stripe_account_id?.trim()));
+
   return {
-    profileIds: uniqueSorted(rows.map((row) => row.id)),
-    stripeAccountIds: uniqueSorted(rows.map((row) => row.stripe_account_id)),
+    profileIds: uniqueSorted(evidenceRows.map((row) => row.id)),
+    stripeAccountIds: uniqueSorted(
+      evidenceRows.map((row) => row.stripe_account_id)
+    ),
   };
 }
 
