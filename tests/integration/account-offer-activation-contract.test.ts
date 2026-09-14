@@ -50,8 +50,18 @@ describe("account-first offer-services activation", () => {
     expect(readiness).toContain("stripe_onboarding_complete");
     expect(readiness).toContain("stripe_payouts_enabled");
     expect(readiness).toContain("stripeAccountIds.size > 1");
+    expect(readiness).toContain('payments.conflict\n      ? "human_review"');
     expect(readiness).not.toContain("stripe.accounts.create");
     expect(assistant).not.toContain("stripe.accounts.create");
+  });
+
+  it("maps a service to the canonical KLYX policy category and fails closed when unmapped", () => {
+    expect(readiness).toContain("KLYX_SERVICE_CATALOG");
+    expect(readiness).toContain("serviceCategoryKey(selected.service)");
+    expect(readiness).toContain("CATEGORY_MAPPING_REQUIRED");
+    expect(readiness).toContain("BE-BRU");
+    expect(readiness).toContain("BE-WAL");
+    expect(readiness).toContain("BE-VLG");
   });
 
   it("fails closed through the existing account-first Trust & Safety decision ledger", () => {
@@ -68,6 +78,13 @@ describe("account-first offer-services activation", () => {
     expect(assistant).toContain("parseOfferAvailability");
     expect(readiness).not.toContain('pricing_type: input.pricing?.pricingType ?? "hourly"');
     expect(readiness).not.toContain("travel_radius_km: input.radiusKm ?? 0");
+  });
+
+  it("enables only the ready service adapter and does not auto-publish the provider profile", () => {
+    expect(readiness).toContain("enableReadyServiceAdapter(readiness)");
+    expect(readiness).toContain("active: true, provider_enabled: true");
+    expect(readiness).toContain("available: true");
+    expect(readiness).not.toContain("is_published: true");
   });
 
   it("keeps the public Brain URLs while dispatching the main conversation through the unified assistant", () => {
