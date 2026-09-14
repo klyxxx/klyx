@@ -30,24 +30,29 @@ describe("Stripe Connect account creation idempotency contract", () => {
     expect(createIndex).toBeGreaterThan(keyIndex);
   });
 
-  it("separates initial account creation from stale-account replacement", () => {
-    expect(helper).toContain('const purpose = staleAccountId ?');
-    expect(helper).toContain('"initial"');
-    expect(helper).toContain("replace-${staleAccountId}");
-    expect(route).toContain("const staleAccountId = accountId;");
-    expect(route).toContain(
-      "createAndPersistAccount({ staleAccountId })"
-    );
+  it("keys account creation by the canonical KLYX account", () => {
+    expect(helper).toContain("accountId: string");
+    expect(helper).toContain("params.accountId");
+    expect(helper).toContain("account-v1");
+    expect(helper).not.toContain("profileId");
+    expect(helper).not.toContain("staleAccountId");
+    expect(route).toContain("accountId: account.id");
   });
 
-  it("persists the Stripe account only after Stripe returns it and remains retry-safe if persistence fails", () => {
+  it("never uses a stale historical Connect id to create a replacement", () => {
+    expect(route).toContain("getStripeConnectCreationDecision");
+    expect(route).toContain('decision === "review_required"');
+    expect(route).not.toContain("createAndPersistAccount({ staleAccountId })");
+    expect(route).not.toContain("const staleAccountId = accountId");
+  });
+
+  it("binds a newly created Stripe account only through the canonical account guard", () => {
     const stripeCreate = route.indexOf("await stripe.accounts.create(");
-    const profileUpdate = route.indexOf("stripe_account_id: account.id");
+    const canonicalBind = route.indexOf("bindCanonicalStripeAccount(");
 
     expect(stripeCreate).toBeGreaterThanOrEqual(0);
-    expect(profileUpdate).toBeGreaterThan(stripeCreate);
-    expect(route).toContain("if (updateError)");
-    expect(route).toContain("throw new Error(updateError.message)");
+    expect(canonicalBind).toBeGreaterThan(stripeCreate);
+    expect(route).not.toContain("stripe_account_id: account.id");
   });
 
   it("does not weaken payment checkout authority", () => {
