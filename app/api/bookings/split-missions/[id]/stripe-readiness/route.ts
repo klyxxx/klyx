@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-
 import Stripe from "stripe";
 
 import {
@@ -9,18 +8,21 @@ import {
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { assessKlyxStripeMarketAccess } from "@/lib/klyx-stripe-market-access";
 import {
+  getProviderStripeDestination,
+  isStripeConnectIdentityReviewRequired,
+} from "@/lib/stripe-connect-account";
+import {
   assessStripeConnectCountry,
   STRIPE_ACCOUNT_COUNTRY_MISMATCH,
 } from "@/lib/stripe-connect-country";
-import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getStripeRuntimeMode } from "@/lib/stripe-runtime";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 
 // KLYX_SPLIT_STRIPE_READINESS_API_13_25
+// KLYX_ACCOUNT_LEVEL_STRIPE_CONNECT_19_45
 
 type RouteContext = {
-  params: Promise<{
-    id: string;
-  }>;
+  params: Promise<{ id: string }>;
 };
 
 type JsonRow = Record<string, unknown>;
@@ -61,14 +63,12 @@ type ProviderStripeState =
   | "market_not_ready"
   | "missing_account"
   | "country_mismatch"
+  | "identity_review_required"
   | "restricted"
   | "lookup_failed";
 
 function asRecord(value: unknown): JsonRow | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return null;
-  }
-
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as JsonRow;
 }
 
@@ -82,61 +82,26 @@ function numberValue(value: unknown): number | null {
 }
 
 function profileName(profile: JsonRow | undefined): string {
-  if (!profile) {
-    return "Prestataire KLYX";
-  }
-
-  const firstName = text(profile.first_name);
-  const lastName = text(profile.last_name);
-  const name = [firstName, lastName].filter(Boolean).join(" ").trim();
-
+  if (!profile) return "Prestataire KLYX";
+  const name = [text(profile.first_name), text(profile.last_name)]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
   return name || "Prestataire KLYX";
 }
 
-function stripeAccountId(profile: JsonRow | undefined): string | null {
-  if (!profile) {
-    return null;
-  }
-
-  const candidateKeys = [
-    "stripe_account_id",
-    "stripe_connect_account_id",
-    "connect_account_id",
-    "stripeAccountId",
-    "stripeConnectAccountId",
-  ];
-
-  for (const key of candidateKeys) {
-    const value = text(profile[key]);
-    if (value.startsWith("acct_")) {
-      return value;
-    }
-  }
-
-  return null;
-}
-
 function maskedStripeAccount(accountId: string): string {
-  if (accountId.length <= 8) {
-    return "Compte Stripe";
-  }
-
-  return "••••" + accountId.slice(-4);
+  return accountId.length <= 8 ? "Compte Stripe" : "••••" + accountId.slice(-4);
 }
 
 function parseSnapshot(value: unknown): SnapshotItem[] {
   const snapshot = asRecord(value);
-  if (!snapshot || !Array.isArray(snapshot.items)) {
-    return [];
-  }
+  if (!snapshot || !Array.isArray(snapshot.items)) return [];
 
   const result: SnapshotItem[] = [];
-
   for (const rawItem of snapshot.items) {
     const item = asRecord(rawItem);
-    if (!item) {
-      continue;
-    }
+    if (!item) continue;
 
     const bookingId = text(item.bookingId);
     const slotId = text(item.slotId);
@@ -201,7 +166,6 @@ export async function GET(request: Request, context: RouteContext) {
     requireAccountType(profile, "client");
 
     const { id: batchId } = await context.params;
-
     const { data: batchData, error: batchError } = await supabaseAdmin
       .from("split_booking_batches")
       .select(
@@ -211,9 +175,7 @@ export async function GET(request: Request, context: RouteContext) {
       .eq("client_profile_id", profile.id)
       .maybeSingle();
 
-    if (batchError) {
-      throw new Error(batchError.message);
-    }
+    if (batchError) throw new Error(batchError.message);
 
     const batch = batchData as unknown as BatchRow | null;
     if (!batch) {
@@ -230,9 +192,7 @@ export async function GET(request: Request, context: RouteContext) {
         .eq("batch_id", batch.id),
       supabaseAdmin
         .from("split_booking_price_confirmations")
-        .select(
-          "id, price_snapshot, item_count, total_amount_cents, currency"
-        )
+        .select("id, price_snapshot, item_count, total_amount_cents, currency")
         .eq("batch_id", batch.id)
         .is("invalidated_at", null)
         .order("confirmed_at", { ascending: false })
@@ -240,13 +200,8 @@ export async function GET(request: Request, context: RouteContext) {
         .maybeSingle(),
     ]);
 
-    if (itemsResult.error) {
-      throw new Error(itemsResult.error.message);
-    }
-
-    if (priceResult.error) {
-      throw new Error(priceResult.error.message);
-    }
+    if (itemsResult.error) throw new Error(itemsResult.error.message);
+    if (priceResult.error) throw new Error(priceResult.error.message);
 
     const batchItems = (itemsResult.data ?? []) as unknown as BatchItemRow[];
     const priceConfirmation = priceResult.data as unknown as
@@ -273,15 +228,11 @@ export async function GET(request: Request, context: RouteContext) {
     const itemKeySet = new Set(
       batchItems.map(
         (item) =>
-          item.booking_id +
-          ":" +
-          item.slot_id +
-          ":" +
-          item.provider_profile_id
+          `${item.booking_id}:${item.slot_id}:${item.provider_profile_id}`
       )
     );
     const snapshotMatchesBatch = snapshotItems.every((item) =>
-      itemKeySet.has(item.bookingId + ":" + item.slotId + ":" + item.providerId)
+      itemKeySet.has(`${item.bookingId}:${item.slotId}:${item.providerId}`)
     );
     const structureValid =
       batch.status === "created" &&
@@ -311,28 +262,21 @@ export async function GET(request: Request, context: RouteContext) {
       profile.countryCode,
       stripeMode
     );
-
     const providerIds = Array.from(
       new Set(snapshotItems.map((item) => item.providerId))
     );
 
     const { data: profileData, error: profileError } = await supabaseAdmin
       .from("profiles")
-      .select("*")
+      .select("id, first_name, last_name")
       .in("id", providerIds);
 
-    if (profileError) {
-      throw new Error(profileError.message);
-    }
+    if (profileError) throw new Error(profileError.message);
 
-    const profiles = (profileData ?? []) as unknown as JsonRow[];
     const profileById = new Map<string, JsonRow>();
-
-    for (const providerProfile of profiles) {
+    for (const providerProfile of (profileData ?? []) as unknown as JsonRow[]) {
       const id = text(providerProfile.id);
-      if (id) {
-        profileById.set(id, providerProfile);
-      }
+      if (id) profileById.set(id, providerProfile);
     }
 
     const stripeSecret = process.env.STRIPE_SECRET_KEY;
@@ -360,12 +304,11 @@ export async function GET(request: Request, context: RouteContext) {
     const providers = await Promise.all(
       providerIds.map(async (providerId) => {
         const providerProfile = profileById.get(providerId);
-
         if (!providerProfile) {
           return blockedProviderState(
             {
               providerId,
-              providerName: profileName(providerProfile),
+              providerName: "Prestataire KLYX",
               marketCountryCode: "",
               marketReady: false,
               marketReason: "provider_profile_missing",
@@ -377,44 +320,45 @@ export async function GET(request: Request, context: RouteContext) {
           );
         }
 
-        const providerMarketAccess = assessKlyxStripeMarketAccess(
-          text(providerProfile.country_code),
-          stripeMode
-        );
-        const providerBase = {
-          providerId,
-          providerName: profileName(providerProfile),
-          marketCountryCode: providerMarketAccess.countryCode,
-          marketReady: providerMarketAccess.allowed,
-          marketReason: providerMarketAccess.reason,
-          marketBlockers: providerMarketAccess.blockers,
-        };
-
-        if (!providerMarketAccess.allowed) {
-          return blockedProviderState(
-            providerBase,
-            "market_not_ready",
-            null,
-            "PROVIDER_MARKET_NOT_READY"
-          );
-        }
-
-        const accountId = stripeAccountId(providerProfile);
-        if (!accountId) {
-          return blockedProviderState(
-            providerBase,
-            "missing_account",
-            null,
-            "PROVIDER_STRIPE_ACCOUNT_REQUIRED"
-          );
-        }
-
         try {
+          const destination = await getProviderStripeDestination(providerId);
+          const providerMarketAccess = assessKlyxStripeMarketAccess(
+            destination.countryCode ?? "",
+            stripeMode
+          );
+          const providerBase = {
+            providerId,
+            providerName: profileName(providerProfile),
+            marketCountryCode: providerMarketAccess.countryCode,
+            marketReady: providerMarketAccess.allowed,
+            marketReason: providerMarketAccess.reason,
+            marketBlockers: providerMarketAccess.blockers,
+          };
+
+          if (!providerMarketAccess.allowed) {
+            return blockedProviderState(
+              providerBase,
+              "market_not_ready",
+              null,
+              "PROVIDER_MARKET_NOT_READY"
+            );
+          }
+
+          const accountId = destination.connect.stripeAccountId;
+          if (!accountId) {
+            return blockedProviderState(
+              providerBase,
+              "missing_account",
+              null,
+              "PROVIDER_STRIPE_ACCOUNT_REQUIRED"
+            );
+          }
+
           const account = await stripe.accounts.retrieve(accountId);
-          const deletedAccount =
+          const deleted =
             (account as unknown as { deleted?: boolean }).deleted === true;
 
-          if (deletedAccount) {
+          if (deleted) {
             return blockedProviderState(
               providerBase,
               "restricted",
@@ -425,7 +369,7 @@ export async function GET(request: Request, context: RouteContext) {
 
           const liveAccount = account as Stripe.Account;
           const countryAssessment = assessStripeConnectCountry({
-            klyxCountryCode: text(providerProfile.country_code),
+            klyxCountryCode: destination.countryCode,
             stripeCountryCode: liveAccount.country,
           });
 
@@ -467,11 +411,34 @@ export async function GET(request: Request, context: RouteContext) {
             readinessBlockReason: ready ? null : "PROVIDER_STRIPE_NOT_READY",
             ready,
           };
-        } catch {
+        } catch (error) {
+          if (isStripeConnectIdentityReviewRequired(error)) {
+            return blockedProviderState(
+              {
+                providerId,
+                providerName: profileName(providerProfile),
+                marketCountryCode: "",
+                marketReady: false,
+                marketReason: "stripe_identity_review_required",
+                marketBlockers: ["stripe_identity_review_required"],
+              },
+              "identity_review_required",
+              null,
+              "KLYX_STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED"
+            );
+          }
+
           return blockedProviderState(
-            providerBase,
+            {
+              providerId,
+              providerName: profileName(providerProfile),
+              marketCountryCode: "",
+              marketReady: false,
+              marketReason: "stripe_lookup_failed",
+              marketBlockers: ["stripe_lookup"],
+            },
             "lookup_failed",
-            maskedStripeAccount(accountId),
+            null,
             "PROVIDER_STRIPE_LOOKUP_FAILED"
           );
         }
@@ -481,6 +448,9 @@ export async function GET(request: Request, context: RouteContext) {
     const readyProviders = providers.filter((provider) => provider.ready).length;
     const allProvidersStripeReady =
       providers.length >= 2 && readyProviders === providers.length;
+    const identityReviewRequired = providers.some(
+      (provider) => provider.state === "identity_review_required"
+    );
     const providerMarketBlocked = providers.some(
       (provider) => provider.state === "market_not_ready"
     );
@@ -491,11 +461,12 @@ export async function GET(request: Request, context: RouteContext) {
     const checkoutReady = clientMarketAccess.allowed && allProvidersStripeReady;
 
     let blockReason: string | null = null;
-
     if (providers.length < 2) {
       blockReason = "MULTI_PROVIDER_REQUIRED";
     } else if (!clientMarketAccess.allowed) {
       blockReason = "CLIENT_MARKET_NOT_READY";
+    } else if (identityReviewRequired) {
+      blockReason = "KLYX_STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED";
     } else if (providerMarketBlocked) {
       blockReason = "PROVIDER_MARKET_NOT_READY";
     } else if (providerCountryMismatch) {
