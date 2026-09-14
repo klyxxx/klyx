@@ -4,6 +4,7 @@ import {
   detectOfferServicesIntent,
   mergeOfferPricingDraft,
   parseOfferAvailability,
+  parseOfferDayOfWeek,
   parseOfferRadiusKm,
 } from "@/lib/account-offer-readiness";
 
@@ -35,12 +36,16 @@ describe("account offer readiness conversation parsing", () => {
     });
   });
 
+  it("retains a stated day without inventing working hours", () => {
+    expect(parseOfferDayOfWeek("Je veux travailler samedi")).toBe(6);
+    expect(parseOfferAvailability("samedi", 6)).toBeNull();
+  });
+
   it("uses a previously known day only when the user supplies an explicit time range", () => {
     expect(parseOfferAvailability("de 9h à 18h", 6)).toEqual({
       dayOfWeek: 6,
       startTime: "09:00",
       endTime: "18:00",
     });
-    expect(parseOfferAvailability("samedi", 6)).toBeNull();
   });
 });
