@@ -11,6 +11,10 @@ import {
   STRIPE_ACCOUNT_COUNTRY_MISMATCH,
 } from "@/lib/stripe-connect-country";
 import {
+  getProviderStripeDestination,
+  isStripeConnectIdentityReviewRequired,
+} from "@/lib/stripe-connect-account";
+import {
   apiErrorStatus,
   getAuthenticatedProfile,
   requireAccountType,
@@ -50,14 +54,6 @@ type PaymentClaimRow = {
   attempt_number: number;
 };
 
-type ProviderRow = {
-  country_code: string | null;
-  stripe_account_id: string | null;
-  stripe_onboarding_complete: boolean | null;
-  stripe_charges_enabled: boolean | null;
-  stripe_payouts_enabled: boolean | null;
-};
-
 type ServiceRow = {
   id: string;
   slug: string;
@@ -92,6 +88,7 @@ function timeToMinutes(value: string): number {
 function serviceLabel(service: ServiceRow): string {
   return service.name?.trim() || service.slug || "Service KLYX";
 }
+
 async function claimBookingPayment(
   bookingId: string,
   clientProfileId: string,
@@ -237,8 +234,10 @@ async function resolveService(
     serviceProfile: serviceProfileData as ServiceProfileRow,
   };
 }
+
 export async function POST(request: Request) {
   // KLYX_SERVER_OBSERVABILITY_12B_8B
+  // KLYX_ACCOUNT_LEVEL_STRIPE_CONNECT_19_45
   const startedAt = Date.now();
 
   try {
@@ -276,17 +275,12 @@ export async function POST(request: Request) {
 
     if (!bookingId) {
       logServerWarning({
-        event:
-          "stripe_checkout_rejected",
-        route:
-          "/api/stripe/create-checkout-session",
+        event: "stripe_checkout_rejected",
+        route: "/api/stripe/create-checkout-session",
         method: "POST",
         status: 400,
-        code:
-          "booking_required",
-        durationMs:
-          Date.now() -
-          startedAt,
+        code: "booking_required",
+        durationMs: Date.now() - startedAt,
       });
 
       return NextResponse.json(
@@ -316,6 +310,7 @@ export async function POST(request: Request) {
         { status: 409 }
       );
     }
+
     // KLYX_SPLIT_LEGACY_CHECKOUT_GUARD_13_27
     const {
       data: splitPaymentUnits,
@@ -331,24 +326,17 @@ export async function POST(request: Request) {
       .limit(1);
 
     if (splitPaymentGuardError) {
-      throw new Error(
-        splitPaymentGuardError.message
-      );
+      throw new Error(splitPaymentGuardError.message);
     }
 
-    if (
-      (splitPaymentUnits ?? []).length >
-      0
-    ) {
+    if ((splitPaymentUnits ?? []).length > 0) {
       return NextResponse.json(
         {
           error:
             "Le paiement de cette réservation est géré par sa mission multi-prestataires.",
           splitMissionPayment: true,
         },
-        {
-          status: 409,
-        }
+        { status: 409 }
       );
     }
 
@@ -379,24 +367,9 @@ export async function POST(request: Request) {
       throw new Error("Prestataire introuvable.");
     }
 
-    const { data: providerData, error: providerError } =
-      await supabaseAdmin
-        .from("profiles")
-        .select(
-          "country_code, stripe_account_id, stripe_onboarding_complete, stripe_charges_enabled, stripe_payouts_enabled"
-        )
-        .eq("id", providerId)
-        .maybeSingle();
-
-    if (providerError) {
-      throw new Error(providerError.message);
-    }
-
-    const provider =
-      (providerData as ProviderRow | null) ?? null;
-
+    const provider = await getProviderStripeDestination(providerId);
     const providerMarketAccess = assessKlyxStripeMarketAccess(
-      provider?.country_code ?? "",
+      provider.countryCode ?? "",
       stripeRuntime.mode
     );
 
@@ -416,13 +389,13 @@ export async function POST(request: Request) {
 
     let providerStripeAccount: Stripe.Account | null = null;
 
-    if (provider?.stripe_account_id) {
+    if (provider.connect.stripeAccountId) {
       providerStripeAccount = await stripe.accounts.retrieve(
-        provider.stripe_account_id
+        provider.connect.stripeAccountId
       );
 
       const countryAssessment = assessStripeConnectCountry({
-        klyxCountryCode: provider.country_code,
+        klyxCountryCode: provider.countryCode,
         stripeCountryCode: providerStripeAccount.country,
       });
 
@@ -478,6 +451,7 @@ export async function POST(request: Request) {
         "Le montant calculé est trop faible."
       );
     }
+
     // KLYX_STRIPE_BOOKING_CURRENCY_14_25
     const checkoutCurrency =
       booking.currency
@@ -485,25 +459,22 @@ export async function POST(request: Request) {
         .toLowerCase() ??
       "";
 
-    if (
-      !/^[a-z]{3}$/.test(
-        checkoutCurrency
-      )
-    ) {
+    if (!/^[a-z]{3}$/.test(checkoutCurrency)) {
       throw new Error(
         "Devise de réservation invalide."
       );
     }
+
     const economics = calculateKlyxEconomics(
       amountTotal,
       getKlyxCommissionPercent()
     );
 
-    const applicationFeeAmount =
-      economics.platformFeeCents;
+    const applicationFeeAmount = economics.platformFeeCents;
+    const canonicalStripeAccountId = provider.connect.stripeAccountId;
 
     const providerReady = Boolean(
-      provider?.stripe_account_id &&
+      canonicalStripeAccountId &&
         providerStripeAccount?.details_submitted &&
         providerStripeAccount.charges_enabled &&
         providerStripeAccount.payouts_enabled
@@ -515,10 +486,7 @@ export async function POST(request: Request) {
         "KLYX_ALLOW_PLATFORM_ONLY_TEST_PAYMENTS"
       );
 
-    if (
-      !providerReady &&
-      !platformOnlyTestAllowed
-    ) {
+    if (!providerReady && !platformOnlyTestAllowed) {
       return NextResponse.json(
         {
           error:
@@ -537,68 +505,62 @@ export async function POST(request: Request) {
       request.headers.get("origin") ||
       "http://localhost:3000";
 
-    const paymentIntentData: Stripe.Checkout.SessionCreateParams.PaymentIntentData =
-      {
-        metadata: {
-          booking_id: booking.id,
-          provider_id: providerId,
-          service_id: service.id,
-          service_slug: service.slug,
-          user_service_id: userServiceId,
-          payment_mode: paymentMode,
-        },
-      };
+    const paymentIntentData: Stripe.Checkout.SessionCreateParams.PaymentIntentData = {
+      metadata: {
+        booking_id: booking.id,
+        provider_id: providerId,
+        service_id: service.id,
+        service_slug: service.slug,
+        user_service_id: userServiceId,
+        payment_mode: paymentMode,
+      },
+    };
 
-    if (
-      providerReady &&
-      provider?.stripe_account_id
-    ) {
-      paymentIntentData.application_fee_amount =
-        applicationFeeAmount;
+    if (providerReady && canonicalStripeAccountId) {
+      paymentIntentData.application_fee_amount = applicationFeeAmount;
 
       paymentIntentData.transfer_data = {
-        destination: provider.stripe_account_id,
+        destination: canonicalStripeAccountId,
       };
     }
 
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
-        mode: "payment",
-        customer_email: user.email,
-        success_url: `${origin}/payment/success?booking_id=${booking.id}&session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${origin}/bookings/${booking.id}`,
-        line_items: [
-          {
-            quantity: 1,
-            price_data: {
-              currency: checkoutCurrency,
-              unit_amount: amountTotal,
-              product_data: {
-                name: `${serviceLabel(service)} · KLYX`,
-                description: `${
-                  booking.booking_date
-                } · ${booking.start_time.slice(
-                  0,
-                  5
-                )}–${booking.end_time.slice(
-                  0,
-                  5
-                )}`,
-              },
+      mode: "payment",
+      customer_email: user.email,
+      success_url: `${origin}/payment/success?booking_id=${booking.id}&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/bookings/${booking.id}`,
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: checkoutCurrency,
+            unit_amount: amountTotal,
+            product_data: {
+              name: `${serviceLabel(service)} · KLYX`,
+              description: `${
+                booking.booking_date
+              } · ${booking.start_time.slice(
+                0,
+                5
+              )}–${booking.end_time.slice(
+                0,
+                5
+              )}`,
             },
           },
-        ],
-        metadata: {
-          booking_id: booking.id,
-          parent_id: booking.parent_id,
-          provider_id: providerId,
-          service_id: service.id,
-          service_slug: service.slug,
-          user_service_id: userServiceId,
-          payment_mode: paymentMode,
         },
-        payment_intent_data:
-          paymentIntentData,
-      };
+      ],
+      metadata: {
+        booking_id: booking.id,
+        parent_id: booking.parent_id,
+        provider_id: providerId,
+        service_id: service.id,
+        service_slug: service.slug,
+        user_service_id: userServiceId,
+        payment_mode: paymentMode,
+      },
+      payment_intent_data: paymentIntentData,
+    };
 
     let attemptToken = randomUUID();
     let claim = await claimBookingPayment(
@@ -646,17 +608,12 @@ export async function POST(request: Request) {
 
       if (existingSession.status === "open" && existingSession.url) {
         logServerInfo({
-          event:
-            "stripe_checkout_reused",
-          route:
-            "/api/stripe/create-checkout-session",
+          event: "stripe_checkout_reused",
+          route: "/api/stripe/create-checkout-session",
           method: "POST",
           status: 200,
-          code:
-            paymentMode,
-          durationMs:
-            Date.now() -
-            startedAt,
+          code: paymentMode,
+          durationMs: Date.now() - startedAt,
         });
 
         return NextResponse.json({
@@ -729,14 +686,11 @@ export async function POST(request: Request) {
             service_id: service.id,
             user_service_id: userServiceId,
             payment_status: "checkout_created",
-            stripe_checkout_session_id:
-              session.id,
+            stripe_checkout_session_id: session.id,
             amount_total: amountTotal,
             payment_mode: paymentMode,
-            application_fee_amount:
-              platformFeeAmount,
-            platform_fee_amount:
-              platformFeeAmount,
+            application_fee_amount: platformFeeAmount,
+            platform_fee_amount: platformFeeAmount,
             provider_amount: providerAmount,
             payment_attempt_token: null,
             payment_checkout_started_at: null,
@@ -774,17 +728,12 @@ export async function POST(request: Request) {
     }
 
     logServerInfo({
-      event:
-        "stripe_checkout_created",
-      route:
-        "/api/stripe/create-checkout-session",
+      event: "stripe_checkout_created",
+      route: "/api/stripe/create-checkout-session",
       method: "POST",
       status: 200,
-      code:
-        paymentMode,
-      durationMs:
-        Date.now() -
-        startedAt,
+      code: paymentMode,
+      durationMs: Date.now() - startedAt,
     });
 
     return NextResponse.json({
@@ -795,6 +744,17 @@ export async function POST(request: Request) {
       serviceSlug: service.slug,
     });
   } catch (error) {
+    if (isStripeConnectIdentityReviewRequired(error)) {
+      return NextResponse.json(
+        {
+          error:
+            "L'identité Stripe Connect du prestataire nécessite une revue avant paiement.",
+          code: "KLYX_STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED",
+        },
+        { status: 409 }
+      );
+    }
+
     const message =
       error instanceof Error
         ? error.message
@@ -807,14 +767,11 @@ export async function POST(request: Request) {
 
     return secureApiErrorResponse({
       error,
-      event:
-        "stripe_checkout_failed",
-      route:
-        "/api/stripe/create-checkout-session",
+      event: "stripe_checkout_failed",
+      route: "/api/stripe/create-checkout-session",
       method: "POST",
       status,
-      code:
-        "stripe_checkout_failed",
+      code: "stripe_checkout_failed",
       publicMessage:
         status < 500
           ? message
