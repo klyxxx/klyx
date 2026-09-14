@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
 import { secureApiErrorResponse } from "@/lib/api-error";
-import { supabaseAdmin } from "@/lib/supabase-admin";
+import { syncCanonicalConnectedAccountFromStripe } from "@/lib/stripe-connect-webhook-account";
 import {
   claimStripeWebhookEvent,
   markStripeWebhookFailed,
@@ -51,23 +51,10 @@ async function updateConnectedAccount(
   stripe: Stripe,
   signedAccount: Stripe.Account
 ) {
-  // The signed event authenticates the account identity, but its mutable
-  // readiness flags can be stale if account.updated is replayed or delivered
-  // out of order. Re-read Stripe's current account state before mutating KLYX.
+  // Re-read Stripe's current state because account.updated can be replayed or
+  // delivered out of order. Identity resolution remains canonical-account only.
   const account = await stripe.accounts.retrieve(signedAccount.id);
-
-  const { error } = await supabaseAdmin
-    .from("profiles")
-    .update({
-      stripe_onboarding_complete: Boolean(account.details_submitted),
-      stripe_charges_enabled: Boolean(account.charges_enabled),
-      stripe_payouts_enabled: Boolean(account.payouts_enabled),
-    })
-    .eq("stripe_account_id", account.id);
-
-  if (error) {
-    throw new Error(error.message);
-  }
+  await syncCanonicalConnectedAccountFromStripe(account);
 }
 
 function supersededClaimResponse(event: Stripe.Event) {
