@@ -103,14 +103,18 @@ export async function recordAccountOfferLegalDeclaration(params: {
   draft: OfferLegalDraft;
 }): Promise<AccountOfferLegalContext> {
   const jurisdictionCode = validJurisdiction(params.jurisdictionCode);
-  const existing = await loadExactWorkContext(params.accountId, jurisdictionCode);
+  const [existing, inherited] = await Promise.all([
+    loadExactWorkContext(params.accountId, jurisdictionCode),
+    loadAccountOfferLegalContext({
+      accountId: params.accountId,
+      jurisdictionCode,
+    }),
+  ]);
   const existingFacts = existing?.declared_facts ?? {};
   const pathwayIntent =
-    params.draft.pathwayIntent ?? existing?.declared_pathway_intent ?? "unknown";
+    params.draft.pathwayIntent ?? inherited.pathwayIntent ?? "unknown";
   const activityFrequency =
-    params.draft.activityFrequency ??
-    existing?.declared_activity_frequency ??
-    "unknown";
+    params.draft.activityFrequency ?? inherited.activityFrequency ?? "unknown";
   const declaredFacts = {
     ...existingFacts,
     legal_uncertain: params.draft.explicitUncertainty,
