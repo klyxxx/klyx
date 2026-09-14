@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getActiveProfile, type ActiveProfile } from "@/lib/active-profile";
+import {
+  getOfferCompatibilityProfile,
+  type ActiveProfile,
+} from "@/lib/active-profile";
 import {
   PROVIDER_ACTIVITY_FREQUENCIES,
   PROVIDER_DECLARATION_STATES,
@@ -29,8 +32,8 @@ async function requireProviderProfile(): Promise<ActiveProfile> {
     throw new Error("UNAUTHENTICATED");
   }
 
-  const profile = await getActiveProfile();
-  if (!profile || profile.accountType !== "provider") {
+  const profile = await getOfferCompatibilityProfile();
+  if (!profile) {
     throw new Error("PROVIDER_PROFILE_REQUIRED");
   }
 
@@ -118,12 +121,12 @@ function errorResponse(error: unknown) {
 
   if (message === "UNAUTHENTICATED") return jsonError("Non connecté.", 401);
   if (message === "PROVIDER_PROFILE_REQUIRED") {
-    return jsonError("Active un profil prestataire pour continuer.", 403);
+    return jsonError(
+      "Active la capacité de proposer des services pour continuer.",
+      403
+    );
   }
-  if (
-    message.startsWith("INVALID_") ||
-    message === "EMPTY_PATCH"
-  ) {
+  if (message.startsWith("INVALID_") || message === "EMPTY_PATCH") {
     return jsonError("Données de parcours prestataire invalides.", 400);
   }
 
