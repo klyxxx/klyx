@@ -23,12 +23,18 @@ const providerFinanceUi = fs
   )
   .replace(/\r\n/g, "\n");
 
-describe("KLYX provider Stripe financial visibility", () => {
-  it("is provider-authenticated and reads only the active profile Connect account", () => {
-    expect(route).toContain("getAuthenticatedProfile(request)");
-    expect(route).toContain('requireAccountType(activeProfile, "provider")');
-    expect(route).toContain('.select("stripe_account_id")');
-    expect(route).toContain('.eq("id", activeProfile.id)');
+describe("KLYX account-level Stripe financial visibility", () => {
+  it("authenticates the canonical KLYX account and reads its Connect identity", () => {
+    expect(route).toContain("getAuthenticatedAccount(request)");
+    expect(route).toContain("getCanonicalStripeConnect(account.id)");
+    expect(route).not.toContain('requireAccountType(activeProfile, "provider")');
+    expect(route).not.toContain('.eq("id", activeProfile.id)');
+  });
+
+  it("fails closed while canonical Stripe identity requires review", () => {
+    expect(route).toContain('connect.state === "review_required"');
+    expect(route).toContain("StripeConnectIdentityReviewRequiredError");
+    expect(route).toContain("KLYX_STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED");
   });
 
   it("uses read-only Stripe diagnostics and connected-account scoped financial APIs", () => {
@@ -54,7 +60,7 @@ describe("KLYX provider Stripe financial visibility", () => {
     expect(providerFinanceUi).toContain("if (!stripeFinanceResolved)");
   });
 
-  it("keeps the provider inside KLYX for balance and payout visibility", () => {
+  it("keeps the existing finance UI inside KLYX while the backend authority is account-level", () => {
     expect(providerFinanceUi).toContain("Solde Stripe Connect");
     expect(providerFinanceUi).toContain("Solde disponible");
     expect(providerFinanceUi).toContain("En attente");
