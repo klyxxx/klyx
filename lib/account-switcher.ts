@@ -3,6 +3,7 @@
 import { captureKlyxProductEvent } from "@/lib/klyx-product-analytics-client";
 
 export type AccountType = "client" | "provider";
+export type CapabilitySource = "account" | "legacy_fallback";
 
 export type SavedAccount = {
   id: string;
@@ -13,6 +14,10 @@ export type SavedAccount = {
   countryCode: string | null;
   currencyCode: string | null;
   accountType: AccountType;
+  legacyAccountType?: AccountType;
+  canRequestServices: boolean;
+  canOfferServices: boolean;
+  capabilitySource: CapabilitySource;
   avatarUrl: string | null;
 };
 
@@ -37,8 +42,7 @@ type ProfilesResponse = {
   error?: string;
 };
 
-export const KLYX_ACTIVE_PROFILE_CHANGED =
-  "klyx-active-profile-changed";
+export const KLYX_ACTIVE_PROFILE_CHANGED = "klyx-active-profile-changed";
 
 export type ActiveProfileChangedDetail = {
   profileId: string;
@@ -55,16 +59,13 @@ function emitActiveProfileChanged(
   if (typeof window === "undefined") return;
 
   window.dispatchEvent(
-    new CustomEvent<ActiveProfileChangedDetail>(
-      KLYX_ACTIVE_PROFILE_CHANGED,
-      {
-        detail: {
-          profileId,
-          accountType,
-          changedAt: Date.now(),
-        },
-      }
-    )
+    new CustomEvent<ActiveProfileChangedDetail>(KLYX_ACTIVE_PROFILE_CHANGED, {
+      detail: {
+        profileId,
+        accountType,
+        changedAt: Date.now(),
+      },
+    })
   );
 }
 
@@ -72,18 +73,14 @@ function failClosedAccountsLoad(status?: number) {
   if (typeof window === "undefined") return;
   if (window.location.pathname !== "/accounts") return;
 
-  window.location.replace(
-    status === 401 ? "/login" : "/accounts/load-error"
-  );
+  window.location.replace(status === 401 ? "/login" : "/accounts/load-error");
 }
 
 async function readResponse<T>(
   response: Response,
   fallbackMessage: string
 ): Promise<T> {
-  const result = (await response.json()) as T & {
-    error?: string;
-  };
+  const result = (await response.json()) as T & { error?: string };
 
   if (!response.ok) {
     throw new Error(result.error ?? fallbackMessage);
@@ -109,9 +106,7 @@ export async function getProfilesState(): Promise<{
     if (!response.ok) {
       responseHandled = true;
       failClosedAccountsLoad(response.status);
-      throw new Error(
-        result.error ?? "Impossible de charger les profils."
-      );
+      throw new Error(result.error ?? "Impossible de charger les profils.");
     }
 
     return {
@@ -136,7 +131,6 @@ export async function getProfiles(): Promise<SavedAccount[]> {
 
 export async function getActiveProfileAccount(): Promise<SavedAccount> {
   const result = await getProfilesState();
-
   const profile = result.profiles.find(
     (item) => item.id === result.activeProfileId
   );
@@ -151,8 +145,18 @@ export async function getActiveProfileAccount(): Promise<SavedAccount> {
 export async function getActiveClientProfile(): Promise<SavedAccount> {
   const profile = await getActiveProfileAccount();
 
-  if (profile.accountType !== "client") {
-    throw new Error("Le profil KLYX actif n’est pas un profil client.");
+  if (!profile.canRequestServices) {
+    throw new Error("Le compte KLYX ne peut pas demander de services.");
+  }
+
+  return profile;
+}
+
+export async function getActiveOfferProfile(): Promise<SavedAccount> {
+  const profile = await getActiveProfileAccount();
+
+  if (!profile.canOfferServices) {
+    throw new Error("Le compte KLYX ne peut pas proposer de services.");
   }
 
   return profile;
@@ -161,9 +165,7 @@ export async function getActiveClientProfile(): Promise<SavedAccount> {
 async function performAccountSwitch(profileId: string): Promise<void> {
   const response = await fetch("/api/profiles/active", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ profileId }),
   });
 
@@ -173,16 +175,14 @@ async function performAccountSwitch(profileId: string): Promise<void> {
   };
 
   if (!response.ok) {
-    throw new Error(
-      result.error ?? "Impossible de changer de profil."
-    );
+    throw new Error(result.error ?? "Impossible de changer de profil.");
   }
 
   if (
     result.accountType !== "client" &&
     result.accountType !== "provider"
   ) {
-    throw new Error("Rôle du profil KLYX introuvable.");
+    throw new Error("Rôle de compatibilité du profil KLYX introuvable.");
   }
 
   captureKlyxProductEvent("profile selected");
@@ -206,15 +206,32 @@ export async function switchAccount(profileId: string): Promise<void> {
   }
 }
 
+export async function updateAccountCapabilities(capabilities: {
+  requestServices?: boolean;
+  offerServices?: boolean;
+}): Promise<void> {
+  const response = await fetch("/api/account/capabilities", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(capabilities),
+  });
+
+  await readResponse<{ success?: boolean }>(
+    response,
+    "Impossible de modifier les capacités du compte."
+  );
+}
+
 export async function getAvailableServices(): Promise<ServiceOption[]> {
   const response = await fetch("/api/profiles/manage", {
     method: "GET",
     cache: "no-store",
   });
 
-  const result = await readResponse<{
-    services?: ServiceOption[];
-  }>(response, "Impossible de charger les services.");
+  const result = await readResponse<{ services?: ServiceOption[] }>(
+    response,
+    "Impossible de charger les services."
+  );
 
   return Array.isArray(result.services) ? result.services : [];
 }
@@ -224,22 +241,20 @@ export async function createProfile(
 ): Promise<string> {
   const response = await fetch("/api/profiles/manage", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(values),
   });
 
-  const result = await readResponse<{
-    profileId?: string;
-  }>(response, "Impossible de créer le profil.");
+  const result = await readResponse<{ profileId?: string }>(
+    response,
+    "Impossible de créer le profil."
+  );
 
   if (!result.profileId) {
     throw new Error("Le nouveau profil est introuvable.");
   }
 
   captureKlyxProductEvent("profile created");
-
   return result.profileId;
 }
 
@@ -248,36 +263,29 @@ export async function updateProfile(
   values: Pick<
     ProfileFormValues,
     "firstName" | "lastName" | "city" | "countryCode"
-  > & {
-    avatarUrl?: string | null;
-  }
+  > & { avatarUrl?: string | null }
 ): Promise<void> {
   const response = await fetch("/api/profiles/manage", {
     method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      profileId,
-      ...values,
-    }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ profileId, ...values }),
   });
 
-  await readResponse<{
-    success?: boolean;
-  }>(response, "Impossible de modifier le profil.");
+  await readResponse<{ success?: boolean }>(
+    response,
+    "Impossible de modifier le profil."
+  );
 }
 
 export async function deleteProfile(profileId: string): Promise<void> {
   const response = await fetch("/api/profiles/manage", {
     method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ profileId }),
   });
 
-  await readResponse<{
-    success?: boolean;
-  }>(response, "Impossible de supprimer le profil.");
+  await readResponse<{ success?: boolean }>(
+    response,
+    "Impossible de supprimer le profil."
+  );
 }
