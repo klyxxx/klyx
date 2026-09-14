@@ -11,6 +11,7 @@ permissions:
   contents: read
 
 # Diagnostic-only workflow for the account-level Stripe migration branch.
+# Rerun marker: canonical-contracts-v2.
 jobs:
   verbose-tests:
     runs-on: ubuntu-22.04
