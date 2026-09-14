@@ -1,33 +1,25 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
-import {
-  apiErrorStatus,
-  getAuthenticatedProfile,
-  requireAccountType,
-} from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { apiErrorStatus, getAuthenticatedAccount } from "@/lib/api-auth";
+import {
+  assertStripeConnectIdentityUsable,
+  getAccountStripeConnectIdentity,
+  STRIPE_CONNECT_IDENTITY_CONFLICT,
+} from "@/lib/stripe-connect-account-identity";
 import { assertStripeRuntimeConfiguredForDiagnostics } from "@/lib/stripe-runtime";
-import { supabaseAdmin } from "@/lib/supabase-admin";
-
-// KLYX_PROVIDER_STRIPE_FINANCIAL_VISIBILITY_16_07
 
 function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();
-
-  if (!value) {
-    throw new Error(`Variable manquante : ${name}`);
-  }
-
+  if (!value) throw new Error(`Variable manquante : ${name}`);
   return value;
 }
 
 function noStoreJson(body: unknown, status = 200) {
   return NextResponse.json(body, {
     status,
-    headers: {
-      "Cache-Control": "private, no-store, max-age=0",
-    },
+    headers: { "Cache-Control": "private, no-store, max-age=0" },
   });
 }
 
@@ -35,27 +27,31 @@ export async function GET(request: Request) {
   const startedAt = Date.now();
 
   try {
-    const { profile: activeProfile } =
-      await getAuthenticatedProfile(request);
-    requireAccountType(activeProfile, "provider");
-
+    const { account } = await getAuthenticatedAccount(request);
     assertStripeRuntimeConfiguredForDiagnostics();
 
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from("profiles")
-      .select("stripe_account_id")
-      .eq("id", activeProfile.id)
-      .maybeSingle();
-
-    if (profileError) {
-      throw new Error(profileError.message);
+    const identity = await getAccountStripeConnectIdentity(account.id);
+    if (identity.state === "conflict") {
+      return noStoreJson(
+        {
+          connected: false,
+          reviewRequired: true,
+          code: STRIPE_CONNECT_IDENTITY_CONFLICT,
+          defaultCurrency: "eur",
+          available: [],
+          pending: [],
+          payouts: [],
+        },
+        409
+      );
     }
 
-    const stripeAccountId = profile?.stripe_account_id?.trim();
+    const stripeAccountId = assertStripeConnectIdentityUsable(identity);
 
     if (!stripeAccountId) {
       return noStoreJson({
         connected: false,
+        reviewRequired: false,
         defaultCurrency: "eur",
         available: [],
         pending: [],
@@ -64,24 +60,17 @@ export async function GET(request: Request) {
     }
 
     const stripe = new Stripe(requiredEnv("STRIPE_SECRET_KEY"));
-
-    const [account, balance, payouts] = await Promise.all([
+    const [stripeAccount, balance, payouts] = await Promise.all([
       stripe.accounts.retrieve(stripeAccountId),
       stripe.balance.retrieve({}, { stripeAccount: stripeAccountId }),
-      stripe.payouts.list(
-        {
-          limit: 5,
-        },
-        {
-          stripeAccount: stripeAccountId,
-        }
-      ),
+      stripe.payouts.list({ limit: 5 }, { stripeAccount: stripeAccountId }),
     ]);
 
-    if ("deleted" in account && account.deleted) {
+    if ("deleted" in stripeAccount && stripeAccount.deleted) {
       return noStoreJson(
         {
           connected: false,
+          reviewRequired: true,
           defaultCurrency: "eur",
           available: [],
           pending: [],
@@ -93,7 +82,8 @@ export async function GET(request: Request) {
 
     return noStoreJson({
       connected: true,
-      defaultCurrency: account.default_currency || "eur",
+      reviewRequired: false,
+      defaultCurrency: stripeAccount.default_currency || "eur",
       available: balance.available.map((entry) => ({
         amountCents: entry.amount,
         currency: entry.currency,
