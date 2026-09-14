@@ -6,6 +6,7 @@ import {
   mergeOfferPricingDraft,
   offerRequirementQuestion,
   parseOfferAvailability,
+  parseOfferDayOfWeek,
   parseOfferRadiusKm,
   type OfferAvailabilityDraft,
   type OfferPricingDraft,
@@ -19,7 +20,6 @@ import {
 import {
   apiErrorStatus,
   getAuthenticatedAccount,
-  requireAccountType,
 } from "@/lib/api-auth";
 import {
   API_RATE_LIMIT_POLICIES,
@@ -52,7 +52,8 @@ type OfferConversationState = {
   incomeGoal: ParsedProviderIncomeGoal | null;
 };
 
-type AssistantPayload = OfferConversationState & {
+type AssistantPayload = Omit<OfferConversationState, "offerFlow"> & {
+  offerFlow: boolean;
   intentMode: "offer_services";
   date: null;
   time: null;
@@ -69,35 +70,6 @@ type AssistantPayload = OfferConversationState & {
 type PayloadRow = {
   payload: Record<string, unknown> | null;
 };
-
-function normalize(value: string): string {
-  return value
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .replace(/[’']/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function explicitDayOfWeek(message: string): number | null {
-  const value = normalize(message);
-  const days = [
-    { day: 1, aliases: ["lundi", "monday"] },
-    { day: 2, aliases: ["mardi", "tuesday"] },
-    { day: 3, aliases: ["mercredi", "wednesday"] },
-    { day: 4, aliases: ["jeudi", "thursday"] },
-    { day: 5, aliases: ["vendredi", "friday"] },
-    { day: 6, aliases: ["samedi", "saturday"] },
-    { day: 0, aliases: ["dimanche", "sunday"] },
-  ];
-
-  return (
-    days.find((candidate) =>
-      candidate.aliases.some((alias) => value.includes(alias))
-    )?.day ?? null
-  );
-}
 
 function pricingFromPayload(value: unknown): OfferPricingDraft | null {
   if (!value || typeof value !== "object") return null;
@@ -170,7 +142,9 @@ function incomeGoalFromPayload(value: unknown): ParsedProviderIncomeGoal | null 
   };
 }
 
-function stateFromPayload(payload: Record<string, unknown> | null): OfferConversationState | null {
+function stateFromPayload(
+  payload: Record<string, unknown> | null
+): OfferConversationState | null {
   if (!payload || payload.offerFlow !== true) return null;
 
   return {
@@ -198,19 +172,51 @@ function stateFromPayload(payload: Record<string, unknown> | null): OfferConvers
   };
 }
 
+async function accountProfileIds(accountId: string): Promise<string[]> {
+  const { data, error } = await supabaseAdmin
+    .from("profiles")
+    .select("id")
+    .eq("account_id", accountId)
+    .order("created_at", { ascending: true });
+
+  if (error) throw new Error(error.message);
+  return (data ?? [])
+    .map((profile) => profile.id)
+    .filter((id): id is string => typeof id === "string" && Boolean(id));
+}
+
+async function assertConversationOwnedByAccount(
+  conversationId: string,
+  accountId: string
+): Promise<void> {
+  const [profileIds, conversationResult] = await Promise.all([
+    accountProfileIds(accountId),
+    supabaseAdmin
+      .from("brain_conversations")
+      .select("id, user_id")
+      .eq("id", conversationId)
+      .maybeSingle(),
+  ]);
+
+  if (conversationResult.error) {
+    throw new Error(conversationResult.error.message);
+  }
+
+  const conversation = conversationResult.data as {
+    id: string;
+    user_id: string;
+  } | null;
+
+  if (!conversation || !profileIds.includes(conversation.user_id)) {
+    throw new Error("Conversation introuvable.");
+  }
+}
+
 async function latestOfferState(
   conversationId: string,
-  profileId: string
+  accountId: string
 ): Promise<OfferConversationState | null> {
-  const { data: conversation, error: conversationError } = await supabaseAdmin
-    .from("brain_conversations")
-    .select("id")
-    .eq("id", conversationId)
-    .eq("user_id", profileId)
-    .maybeSingle();
-
-  if (conversationError) throw new Error(conversationError.message);
-  if (!conversation) throw new Error("Conversation introuvable.");
+  await assertConversationOwnedByAccount(conversationId, accountId);
 
   const { data, error } = await supabaseAdmin
     .from("brain_messages")
@@ -226,27 +232,27 @@ async function latestOfferState(
 }
 
 async function resolveOfferConversation(
-  profileId: string,
+  accountId: string,
+  storageProfileId: string,
   requestedConversationId: string | undefined,
   firstMessage: string
 ): Promise<string> {
   if (requestedConversationId) {
-    const { data, error } = await supabaseAdmin
-      .from("brain_conversations")
-      .select("id")
-      .eq("id", requestedConversationId)
-      .eq("user_id", profileId)
-      .maybeSingle();
-
-    if (error) throw new Error(error.message);
-    if (!data) throw new Error("Conversation introuvable.");
+    await assertConversationOwnedByAccount(requestedConversationId, accountId);
     return requestedConversationId;
   }
+
+  const profileIds = await accountProfileIds(accountId);
+  const userId = profileIds.includes(storageProfileId)
+    ? storageProfileId
+    : profileIds[0];
+
+  if (!userId) throw new Error("Profil KLYX introuvable.");
 
   const { data, error } = await supabaseAdmin
     .from("brain_conversations")
     .insert({
-      user_id: profileId,
+      user_id: userId,
       title: firstMessage.slice(0, 60),
     })
     .select("id")
@@ -267,6 +273,19 @@ async function loadServiceCatalog(): Promise<BrainServiceCatalogRecord[]> {
     (service): service is BrainServiceCatalogRecord =>
       typeof service.slug === "string" && service.slug.trim().length > 0
   );
+}
+
+async function profileCurrencyCode(profileId: string): Promise<string> {
+  const { data, error } = await supabaseAdmin
+    .from("profiles")
+    .select("currency_code")
+    .eq("id", profileId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return typeof data?.currency_code === "string"
+    ? data.currency_code.trim().toUpperCase()
+    : "";
 }
 
 async function insertMessage(params: {
@@ -292,7 +311,28 @@ async function touchConversation(conversationId: string) {
   if (error) throw new Error(error.message);
 }
 
-function replyForReadiness(readiness: AccountOfferReadiness): string {
+function dayLabel(dayOfWeek: number | null): string | null {
+  if (dayOfWeek === null) return null;
+  return [
+    "dimanche",
+    "lundi",
+    "mardi",
+    "mercredi",
+    "jeudi",
+    "vendredi",
+    "samedi",
+  ][dayOfWeek] ?? null;
+}
+
+function replyForReadiness(
+  readiness: AccountOfferReadiness,
+  state: {
+    city: string | null;
+    radiusKm: number | null;
+    dayOfWeek: number | null;
+    pricing: OfferPricingDraft | null;
+  }
+): string {
   if (readiness.payoutReviewRequired) {
     return "J’ai détecté plusieurs identifiants Stripe Connect historiques sur ce même compte KLYX. Je n’en sélectionne aucun automatiquement : une revue est nécessaire avant d’activer les paiements prestataire.";
   }
@@ -304,6 +344,29 @@ function replyForReadiness(readiness: AccountOfferReadiness): string {
   }
 
   const next = readiness.missing[0] ?? null;
+
+  if (next === "zone") {
+    if (state.city && state.radiusKm === null) {
+      return `J’ai la commune ${state.city}. Quel rayon maximum veux-tu couvrir, en km ?`;
+    }
+    if (!state.city && state.radiusKm !== null) {
+      return `J’ai le rayon de ${state.radiusKm} km. Dans quelle commune veux-tu travailler ?`;
+    }
+  }
+
+  if (next === "availability" && state.dayOfWeek !== null) {
+    const label = dayLabel(state.dayOfWeek) ?? "ce jour-là";
+    return `J’ai noté ${label}. Quelles heures veux-tu ouvrir, par exemple 9h–18h ?`;
+  }
+
+  if (
+    next === "pricing" &&
+    state.pricing &&
+    state.pricing.pricingType === null
+  ) {
+    return `J’ai noté ${state.pricing.amount.toFixed(2)} €. Est-ce un tarif horaire ou un prix fixe ?`;
+  }
+
   if (next) return offerRequirementQuestion(next);
 
   if (readiness.status === "human_review") {
@@ -323,7 +386,7 @@ function orchestrationReply(
   const target = goal.targetAmount.toFixed(2);
 
   if (!top) {
-    return `Ton offre est activée. J’ai réutilisé le moteur KLYX pour ton objectif de ${target} : aucune combinaison de missions compatible n’est disponible pour l’instant. Rien n’est accepté automatiquement.`;
+    return `Ton compte peut proposer des services. J’ai réutilisé le moteur KLYX pour ton objectif de ${target} : aucune combinaison de missions compatible n’est disponible pour l’instant. Rien n’est accepté automatiquement.`;
   }
 
   const missionLabels = top.missions
@@ -331,7 +394,7 @@ function orchestrationReply(
     .map((mission) => `${mission.title} à ${mission.city}`)
     .join(" · ");
 
-  return `Ton offre est activée. Pour ton objectif de ${target}, KLYX recommande actuellement : ${missionLabels}. Montant configuré : ${top.configuredAmount.toFixed(2)}. Rien n’est accepté automatiquement : tu gardes la confirmation finale.`;
+  return `Ton compte peut proposer des services. Pour ton objectif de ${target}, KLYX recommande actuellement : ${missionLabels}. Montant configuré : ${top.configuredAmount.toFixed(2)}. Rien n’est accepté automatiquement : tu gardes la confirmation finale.`;
 }
 
 export async function POST(request: Request) {
@@ -351,13 +414,12 @@ export async function POST(request: Request) {
     }
 
     const auth = await getAuthenticatedAccount(request);
-    requireAccountType(auth.profile, "client");
 
     let previousState: OfferConversationState | null = null;
     if (requestedConversationId) {
       previousState = await latestOfferState(
         requestedConversationId,
-        auth.profile.id
+        auth.account.id
       );
     }
 
@@ -373,6 +435,7 @@ export async function POST(request: Request) {
 
     const [conversationId, services] = await Promise.all([
       resolveOfferConversation(
+        auth.account.id,
         auth.profile.id,
         requestedConversationId,
         message
@@ -386,7 +449,7 @@ export async function POST(request: Request) {
       services,
     });
     const city = detectLocation(message) ?? previousState?.city ?? null;
-    const currentDay = explicitDayOfWeek(message);
+    const currentDay = parseOfferDayOfWeek(message);
     const offerDayOfWeek = currentDay ?? previousState?.offerDayOfWeek ?? null;
     const offerRadiusKm =
       parseOfferRadiusKm(message) ?? previousState?.offerRadiusKm ?? null;
@@ -424,7 +487,12 @@ export async function POST(request: Request) {
     });
     let activated = auth.account.canOfferServices && readiness.status === "ready";
     let orchestration: Awaited<ReturnType<typeof buildProviderIncomeOrchestration>>["orchestration"] | null = null;
-    let reply = replyForReadiness(readiness);
+    let reply = replyForReadiness(readiness, {
+      city,
+      radiusKm: offerRadiusKm,
+      dayOfWeek: offerDayOfWeek,
+      pricing: offerPricing,
+    });
 
     if (readiness.status === "ready") {
       const activation = await activateAccountOfferServices({
@@ -435,7 +503,9 @@ export async function POST(request: Request) {
       activated = activation.activated;
 
       if (activated && incomeGoal && readiness.compatibilityProfileId) {
-        const currencyCode = auth.profile.currencyCode.trim().toUpperCase();
+        const currencyCode = await profileCurrencyCode(
+          readiness.compatibilityProfileId
+        );
         const goalCurrency = incomeGoal.currency ?? currencyCode;
 
         if (/^[A-Z]{3}$/.test(currencyCode) && goalCurrency === currencyCode) {
@@ -468,17 +538,20 @@ export async function POST(request: Request) {
           reply = orchestrationReply(incomeGoal, orchestration);
         } else {
           reply =
-            "Ton offre est activée, mais la devise de ton objectif ne correspond pas à la devise configurée sur KLYX. Corrige la devise avant que je lance la recherche de missions.";
+            "Ton compte peut proposer des services, mais la devise de ton objectif ne correspond pas à la devise configurée sur KLYX. Corrige la devise avant que je lance la recherche de missions.";
         }
       } else if (activated) {
         reply =
-          "Ton offre est activée. Ton compte KLYX peut maintenant demander des services et en proposer sans deuxième identité. Si tu veux que je cherche des missions, indique simplement combien tu veux gagner et quel jour.";
+          "Ton compte KLYX peut maintenant demander des services et en proposer sans deuxième identité. Si tu veux que je cherche des missions, indique simplement combien tu veux gagner et quel jour.";
       }
     }
 
+    const continueOfferFlow =
+      readiness.status === "missing_requirements" ||
+      (activated && readiness.status === "ready" && orchestration === null);
     const payload: AssistantPayload = {
       intentMode: "offer_services",
-      offerFlow: true,
+      offerFlow: continueOfferFlow,
       serviceSlug,
       city,
       date: null,
@@ -517,12 +590,17 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
+    const status =
+      message === "Conversation introuvable."
+        ? 404
+        : apiErrorStatus(message);
+
     return secureApiErrorResponse({
       error,
       event: "assistant_respond_failed",
       route: "/api/assistant/respond",
       method: "POST",
-      status: apiErrorStatus(message),
+      status,
       code: "KLYX_ASSISTANT_RESPOND_FAILED",
       startedAt,
     });
