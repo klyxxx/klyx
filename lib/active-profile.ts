@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 
 import { loadAccountCapabilityState } from "@/lib/account-actor-capabilities-server";
 import type { AccountCapabilitySource } from "@/lib/account-actor-capabilities";
+import { getLegacyProfileCapabilityContext } from "@/lib/legacy-profile-capability-context";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -210,35 +211,9 @@ export async function getOwnedProfiles(): Promise<ActiveProfile[]> {
   return normalizeOwnedProfiles(user.id, [profileToReturn]);
 }
 
-export async function getActiveProfile(): Promise<ActiveProfile | null> {
-  const profiles = await getOwnedProfiles();
-
-  if (profiles.length === 0) {
-    return null;
-  }
-
-  const cookieStore = await cookies();
-  const selectedId = cookieStore
-    .get(ACTIVE_PROFILE_COOKIE)
-    ?.value
-    ?.trim();
-
-  if (selectedId) {
-    const selectedProfile = profiles.find(
-      (profile) => profile.id === selectedId
-    );
-
-    if (selectedProfile) {
-      return selectedProfile;
-    }
-  }
-
-  return profiles[0];
-}
-
-export async function getRequestCompatibilityProfile(): Promise<ActiveProfile | null> {
-  const profiles = await getOwnedProfiles();
-
+function requestCompatibilityProfileFrom(
+  profiles: readonly ActiveProfile[]
+): ActiveProfile | null {
   if (profiles.length === 0 || !profiles[0].canRequestServices) {
     return null;
   }
@@ -249,9 +224,9 @@ export async function getRequestCompatibilityProfile(): Promise<ActiveProfile | 
   );
 }
 
-export async function getOfferCompatibilityProfile(): Promise<ActiveProfile | null> {
-  const profiles = await getOwnedProfiles();
-
+async function offerCompatibilityProfileFrom(
+  profiles: readonly ActiveProfile[]
+): Promise<ActiveProfile | null> {
   if (profiles.length === 0 || !profiles[0].canOfferServices) {
     return null;
   }
@@ -277,4 +252,51 @@ export async function getOfferCompatibilityProfile(): Promise<ActiveProfile | nu
     profiles.find((profile) => profile.legacyAccountType === "provider") ??
     profiles[0]
   );
+}
+
+export async function getActiveProfile(): Promise<ActiveProfile | null> {
+  const profiles = await getOwnedProfiles();
+
+  if (profiles.length === 0) {
+    return null;
+  }
+
+  // Transitional compatibility boundary. A route can request the legacy
+  // transaction profile it needs without changing the user's active profile,
+  // cookie or canonical KLYX identity.
+  const compatibilityContext = getLegacyProfileCapabilityContext();
+
+  if (compatibilityContext === "offer") {
+    return offerCompatibilityProfileFrom(profiles);
+  }
+
+  if (compatibilityContext === "request") {
+    return requestCompatibilityProfileFrom(profiles);
+  }
+
+  const cookieStore = await cookies();
+  const selectedId = cookieStore
+    .get(ACTIVE_PROFILE_COOKIE)
+    ?.value
+    ?.trim();
+
+  if (selectedId) {
+    const selectedProfile = profiles.find(
+      (profile) => profile.id === selectedId
+    );
+
+    if (selectedProfile) {
+      return selectedProfile;
+    }
+  }
+
+  return profiles[0];
+}
+
+export async function getRequestCompatibilityProfile(): Promise<ActiveProfile | null> {
+  return requestCompatibilityProfileFrom(await getOwnedProfiles());
+}
+
+export async function getOfferCompatibilityProfile(): Promise<ActiveProfile | null> {
+  return offerCompatibilityProfileFrom(await getOwnedProfiles());
 }
