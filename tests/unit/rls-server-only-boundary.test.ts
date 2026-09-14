@@ -8,6 +8,8 @@ const SERVER_ONLY_RLS_TABLES = [
   "booking_financial_ledger",
   "booking_group_cancellation_events",
   "booking_groups",
+  "booking_incident_events",
+  "booking_incidents",
   "client_agent_plan_events",
   "market_request_provider_candidates",
   "market_service_offers",
@@ -77,7 +79,7 @@ function directTablePattern(table: string): RegExp {
 
 describe("KLY-18 server-only RLS boundary", () => {
   it("keeps the certified registry sorted and unique", () => {
-    expect(SERVER_ONLY_RLS_TABLES).toHaveLength(34);
+    expect(SERVER_ONLY_RLS_TABLES).toHaveLength(36);
     expect([...SERVER_ONLY_RLS_TABLES].sort()).toEqual([...SERVER_ONLY_RLS_TABLES]);
     expect(new Set(SERVER_ONLY_RLS_TABLES).size).toBe(SERVER_ONLY_RLS_TABLES.length);
   });
