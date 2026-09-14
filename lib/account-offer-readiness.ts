@@ -215,7 +215,7 @@ function explicitPathwayIntent(value: string): OfferLegalPathwayIntent | null {
 
 function explicitActivityFrequency(value: string): OfferActivityFrequency | null {
   if (
-    /\b(?:regulier|reguliere|chaque semaine|toutes les semaines|tous les week ends|recurring)\b/i.test(
+    /\b(?:regulier(?:ement)?|reguliere(?:ment)?|chaque semaine|toutes les semaines|tous les week ends|recurring)\b/i.test(
       value
     )
   ) {
