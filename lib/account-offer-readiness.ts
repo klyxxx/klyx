@@ -89,7 +89,7 @@ function pricingMethod(value: string): "hourly" | "fixed" | null {
 export function parseOfferPricing(message: string): OfferPricingDraft | null {
   const value = normalize(message);
   const amountMatch = value.match(
-    /\b(\d{1,5}(?:[.,]\d{1,2})?)\s*(?:€|eur|euros?)\b/i
+    /\b(\d{1,5}(?:[.,]\d{1,2})?)\s*(?:€|(?:eur|euros?)\b)/i
   );
   if (!amountMatch) return null;
 
