@@ -3,14 +3,18 @@ import Stripe from "stripe";
 
 import {
   apiErrorStatus,
-  getAuthenticatedProfile,
-  requireAccountType,
+  getAuthenticatedAccount,
 } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import {
+  getCanonicalStripeConnect,
+  isStripeConnectIdentityReviewRequired,
+  StripeConnectIdentityReviewRequiredError,
+} from "@/lib/stripe-connect-account";
 import { assertStripeRuntimeConfiguredForDiagnostics } from "@/lib/stripe-runtime";
-import { supabaseAdmin } from "@/lib/supabase-admin";
 
 // KLYX_PROVIDER_STRIPE_FINANCIAL_VISIBILITY_16_07
+// KLYX_ACCOUNT_LEVEL_STRIPE_CONNECT_19_45
 
 function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();
@@ -35,23 +39,17 @@ export async function GET(request: Request) {
   const startedAt = Date.now();
 
   try {
-    const { profile: activeProfile } =
-      await getAuthenticatedProfile(request);
-    requireAccountType(activeProfile, "provider");
+    const { account } = await getAuthenticatedAccount(request);
 
     assertStripeRuntimeConfiguredForDiagnostics();
 
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from("profiles")
-      .select("stripe_account_id")
-      .eq("id", activeProfile.id)
-      .maybeSingle();
+    const connect = await getCanonicalStripeConnect(account.id);
 
-    if (profileError) {
-      throw new Error(profileError.message);
+    if (connect.state === "review_required") {
+      throw new StripeConnectIdentityReviewRequiredError();
     }
 
-    const stripeAccountId = profile?.stripe_account_id?.trim();
+    const stripeAccountId = connect.stripeAccountId?.trim();
 
     if (!stripeAccountId) {
       return noStoreJson({
@@ -65,7 +63,7 @@ export async function GET(request: Request) {
 
     const stripe = new Stripe(requiredEnv("STRIPE_SECRET_KEY"));
 
-    const [account, balance, payouts] = await Promise.all([
+    const [stripeAccount, balance, payouts] = await Promise.all([
       stripe.accounts.retrieve(stripeAccountId),
       stripe.balance.retrieve({}, { stripeAccount: stripeAccountId }),
       stripe.payouts.list(
@@ -78,22 +76,13 @@ export async function GET(request: Request) {
       ),
     ]);
 
-    if ("deleted" in account && account.deleted) {
-      return noStoreJson(
-        {
-          connected: false,
-          defaultCurrency: "eur",
-          available: [],
-          pending: [],
-          payouts: [],
-        },
-        409
-      );
+    if ("deleted" in stripeAccount && stripeAccount.deleted) {
+      throw new StripeConnectIdentityReviewRequiredError();
     }
 
     return noStoreJson({
       connected: true,
-      defaultCurrency: account.default_currency || "eur",
+      defaultCurrency: stripeAccount.default_currency || "eur",
       available: balance.available.map((entry) => ({
         amountCents: entry.amount,
         currency: entry.currency,
@@ -115,6 +104,23 @@ export async function GET(request: Request) {
       })),
     });
   } catch (error) {
+    if (isStripeConnectIdentityReviewRequired(error)) {
+      return noStoreJson(
+        {
+          error:
+            "L'identité Stripe Connect de ce compte KLYX nécessite une revue.",
+          code: "KLYX_STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED",
+          reviewRequired: true,
+          connected: false,
+          defaultCurrency: "eur",
+          available: [],
+          pending: [],
+          payouts: [],
+        },
+        409
+      );
+    }
+
     const message =
       error instanceof Error
         ? error.message
