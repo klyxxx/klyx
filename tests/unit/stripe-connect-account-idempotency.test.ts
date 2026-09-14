@@ -3,69 +3,59 @@ import { describe, expect, it } from "vitest";
 import { stripeConnectAccountCreateIdempotencyKey } from "../../lib/stripe-connect-account-idempotency";
 
 describe("Stripe Connect account creation idempotency", () => {
-  it("keeps initial account retries stable per profile and Stripe mode", () => {
+  it("keeps retries stable per canonical KLYX account and Stripe mode", () => {
     expect(
       stripeConnectAccountCreateIdempotencyKey({
-        profileId: "profile-123",
+        accountId: "account-123",
         runtimeMode: "test",
       })
-    ).toBe("klyx-connect-account-test-profile-123-initial-v3");
+    ).toBe("klyx-connect-account-test-account-123-account-v1");
 
     expect(
       stripeConnectAccountCreateIdempotencyKey({
-        profileId: "profile-123",
+        accountId: "account-123",
         runtimeMode: "live",
       })
-    ).toBe("klyx-connect-account-live-profile-123-initial-v3");
+    ).toBe("klyx-connect-account-live-account-123-account-v1");
   });
 
-  it("uses the stale account id to isolate replacement retries", () => {
+  it("does not expose any stale-account replacement key path", () => {
     const first = stripeConnectAccountCreateIdempotencyKey({
-      profileId: "profile-123",
+      accountId: "account-123",
       runtimeMode: "live",
-      staleAccountId: "acct_old_1",
     });
     const retry = stripeConnectAccountCreateIdempotencyKey({
-      profileId: "profile-123",
+      accountId: "account-123",
       runtimeMode: "live",
-      staleAccountId: "acct_old_1",
-    });
-    const nextReplacement = stripeConnectAccountCreateIdempotencyKey({
-      profileId: "profile-123",
-      runtimeMode: "live",
-      staleAccountId: "acct_old_2",
     });
 
     expect(retry).toBe(first);
-    expect(nextReplacement).not.toBe(first);
-    expect(first).toContain("replace-acct_old_1-v3");
+    expect(first).not.toContain("replace-");
+    expect(first).not.toContain("profile-");
   });
 
-  it("rotates the account-create key revision without making retries random", () => {
+  it("isolates different canonical accounts without rotating identity", () => {
     const first = stripeConnectAccountCreateIdempotencyKey({
-      profileId: "profile-123",
+      accountId: "account-123",
       runtimeMode: "live",
-      staleAccountId: "acct_old_1",
     });
-    const retry = stripeConnectAccountCreateIdempotencyKey({
-      profileId: "profile-123",
+    const second = stripeConnectAccountCreateIdempotencyKey({
+      accountId: "account-456",
       runtimeMode: "live",
-      staleAccountId: "acct_old_1",
     });
 
-    expect(first).toBe(retry);
-    expect(first.endsWith("-v3")).toBe(true);
+    expect(first).not.toBe(second);
+    expect(first.endsWith("-account-v1")).toBe(true);
   });
 
-  it("normalizes untrusted key fragments", () => {
+  it("normalizes untrusted account key fragments", () => {
     const key = stripeConnectAccountCreateIdempotencyKey({
-      profileId: " profile:with spaces ",
+      accountId: " account:with spaces ",
       runtimeMode: "test",
-      staleAccountId: " acct/old ",
     });
 
     expect(key).toBe(
-      "klyx-connect-account-test-profile-with-spaces-replace-acct-old-v3"
+      "klyx-connect-account-test-account-with-spaces-account-v1"
     );
     expect(key.length).toBeLessThanOrEqual(255);
   });
