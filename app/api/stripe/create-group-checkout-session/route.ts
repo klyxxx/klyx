@@ -18,11 +18,14 @@ import {
   assessStripeConnectCountry,
   STRIPE_ACCOUNT_COUNTRY_MISMATCH,
 } from "@/lib/stripe-connect-country";
+import {
+  assertStripeConnectIdentityUsable,
+  getProfileAccountStripeConnectIdentity,
+  STRIPE_CONNECT_IDENTITY_CONFLICT,
+} from "@/lib/stripe-connect-account-identity";
 import { markBookingGroupPaidFromSession } from "@/lib/stripe-group-payments";
 import { assertStripeRuntimeReady } from "@/lib/stripe-runtime";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-
-// KLYX_GROUP_CHECKOUT_12_86
 
 type ClaimRow = {
   action: "create" | "reuse" | "busy" | "paid";
@@ -32,11 +35,7 @@ type ClaimRow = {
 
 function requiredEnv(name: string) {
   const value = process.env[name]?.trim();
-
-  if (!value) {
-    throw new Error("Variable manquante : " + name);
-  }
-
+  if (!value) throw new Error("Variable manquante : " + name);
   return value;
 }
 
@@ -57,17 +56,9 @@ async function claim(
       p_attempt_token: token,
     }
   );
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
+  if (error) throw new Error(error.message);
   const row = (data ?? [])[0] as ClaimRow | undefined;
-
-  if (!row) {
-    throw new Error("Verrou paiement groupe impossible.");
-  }
-
+  if (!row) throw new Error("Verrou paiement groupe impossible.");
   return row;
 }
 
@@ -76,7 +67,6 @@ async function expireUnpersistedCheckoutSession(
   session: Stripe.Checkout.Session
 ) {
   if (session.status !== "open") return;
-
   await stripe.checkout.sessions.expire(session.id);
 }
 
@@ -109,11 +99,7 @@ export async function POST(request: Request) {
 
     const stripeKey = requiredEnv("STRIPE_SECRET_KEY");
     const stripe = new Stripe(stripeKey);
-
-    const body = (await request.json()) as {
-      groupId?: string;
-    };
-
+    const body = (await request.json()) as { groupId?: string };
     const groupId = body.groupId?.trim() ?? "";
 
     if (!groupId) {
@@ -131,25 +117,16 @@ export async function POST(request: Request) {
       .eq("id", groupId)
       .maybeSingle();
 
-    if (groupError) {
-      throw new Error(groupError.message);
-    }
-
+    if (groupError) throw new Error(groupError.message);
     if (!group) {
       return NextResponse.json(
         { error: "Reservation groupee introuvable." },
         { status: 404 }
       );
     }
-
     if (group.client_profile_id !== profile.id) {
-      return NextResponse.json(
-        { error: "Acces refuse." },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "Acces refuse." }, { status: 403 });
     }
-
-    // KLYX_GROUP_CANCEL_PAYMENT_GUARD_12_90
     if (group.cancellation_request_status === "requested") {
       return NextResponse.json(
         {
@@ -160,7 +137,6 @@ export async function POST(request: Request) {
         { status: 409 }
       );
     }
-
     if (group.status !== "accepted") {
       return NextResponse.json(
         {
@@ -170,13 +146,9 @@ export async function POST(request: Request) {
         { status: 409 }
       );
     }
-
     if (group.payment_status === "paid") {
       return NextResponse.json(
-        {
-          error: "Cette reservation groupee est deja payee.",
-          alreadyPaid: true,
-        },
+        { error: "Cette reservation groupee est deja payee.", alreadyPaid: true },
         { status: 409 }
       );
     }
@@ -186,15 +158,10 @@ export async function POST(request: Request) {
       .select("id, status, payment_status, amount_total")
       .eq("booking_group_id", groupId)
       .order("group_position", { ascending: true });
-
-    if (childError) {
-      throw new Error(childError.message);
-    }
-
+    if (childError) throw new Error(childError.message);
     if (!childBookings || childBookings.length < 2) {
       throw new Error("Les reservations du groupe sont introuvables.");
     }
-
     if (childBookings.some((booking) => booking.status !== "accepted")) {
       return NextResponse.json(
         {
@@ -209,23 +176,19 @@ export async function POST(request: Request) {
       (total, booking) => total + Number(booking.amount_total ?? 0),
       0
     );
-
     const amountTotal = Number(group.total_amount_cents);
-
     if (amountTotal < 50 || childTotal !== amountTotal) {
       throw new Error(
         "Le montant du groupe ne correspond pas aux reservations."
       );
     }
 
-    // KLYX_STRIPE_GROUP_CURRENCY_14_25
     const groupCurrency = String(group.currency ?? "").trim().toUpperCase();
-
     if (!/^[A-Z]{3}$/.test(groupCurrency)) {
       throw new Error("Devise du groupe invalide.");
     }
-
     const checkoutCurrency = groupCurrency.toLowerCase();
+
     const { data: userService, error: serviceLinkError } = await supabaseAdmin
       .from("user_services")
       .select("id, user_id, service_id, active")
@@ -233,21 +196,13 @@ export async function POST(request: Request) {
       .eq("user_id", group.provider_profile_id)
       .eq("active", true)
       .maybeSingle();
-
-    if (serviceLinkError) {
-      throw new Error(serviceLinkError.message);
-    }
-
-    if (!userService) {
-      throw new Error("Le service du prestataire n est plus actif.");
-    }
+    if (serviceLinkError) throw new Error(serviceLinkError.message);
+    if (!userService) throw new Error("Le service du prestataire n est plus actif.");
 
     const [providerResult, serviceResult] = await Promise.all([
       supabaseAdmin
         .from("profiles")
-        .select(
-          "country_code, stripe_account_id, stripe_onboarding_complete, stripe_charges_enabled, stripe_payouts_enabled"
-        )
+        .select("country_code")
         .eq("id", group.provider_profile_id)
         .maybeSingle(),
       supabaseAdmin
@@ -257,26 +212,16 @@ export async function POST(request: Request) {
         .maybeSingle(),
     ]);
 
-    if (providerResult.error) {
-      throw new Error(providerResult.error.message);
-    }
-
-    if (serviceResult.error) {
-      throw new Error(serviceResult.error.message);
-    }
-
-    if (!serviceResult.data) {
-      throw new Error("Service KLYX introuvable.");
-    }
+    if (providerResult.error) throw new Error(providerResult.error.message);
+    if (serviceResult.error) throw new Error(serviceResult.error.message);
+    if (!serviceResult.data) throw new Error("Service KLYX introuvable.");
 
     const provider = providerResult.data;
     const service = serviceResult.data;
-
     const providerMarketAccess = assessKlyxStripeMarketAccess(
       provider?.country_code ?? "",
       stripeRuntime.mode
     );
-
     if (!providerMarketAccess.allowed) {
       return NextResponse.json(
         {
@@ -291,18 +236,33 @@ export async function POST(request: Request) {
       );
     }
 
+    const providerIdentity = await getProfileAccountStripeConnectIdentity(
+      group.provider_profile_id
+    );
+    if (providerIdentity.state === "conflict") {
+      return NextResponse.json(
+        {
+          error:
+            "L'identité Stripe du compte KLYX du prestataire nécessite une revue avant paiement.",
+          code: STRIPE_CONNECT_IDENTITY_CONFLICT,
+        },
+        { status: 409 }
+      );
+    }
+
+    const providerStripeAccountId = assertStripeConnectIdentityUsable(
+      providerIdentity
+    );
     let providerStripeAccount: Stripe.Account | null = null;
 
-    if (provider?.stripe_account_id) {
+    if (providerStripeAccountId) {
       providerStripeAccount = await stripe.accounts.retrieve(
-        provider.stripe_account_id
+        providerStripeAccountId
       );
-
       const countryAssessment = assessStripeConnectCountry({
-        klyxCountryCode: provider.country_code,
+        klyxCountryCode: provider?.country_code,
         stripeCountryCode: providerStripeAccount.country,
       });
-
       if (!countryAssessment.matches) {
         return NextResponse.json(
           {
@@ -319,12 +279,11 @@ export async function POST(request: Request) {
     }
 
     const providerReady = Boolean(
-      provider?.stripe_account_id &&
+      providerStripeAccountId &&
         providerStripeAccount?.details_submitted &&
         providerStripeAccount.charges_enabled &&
         providerStripeAccount.payouts_enabled
     );
-
     const platformTest =
       stripeKey.startsWith("sk_test_") &&
       envIsTrue("KLYX_ALLOW_PLATFORM_ONLY_TEST_PAYMENTS");
@@ -342,22 +301,16 @@ export async function POST(request: Request) {
     const paymentMode = providerReady
       ? "connect_destination"
       : "platform_test_only";
-
     const economics = calculateKlyxEconomics(
       amountTotal,
       getKlyxCommissionPercent()
     );
-
     const fee =
       paymentMode === "connect_destination"
         ? economics.platformFeeCents
         : 0;
-
     const providerAmount =
-      paymentMode === "connect_destination"
-        ? amountTotal - fee
-        : null;
-
+      paymentMode === "connect_destination" ? amountTotal - fee : null;
     const origin =
       process.env.NEXT_PUBLIC_APP_URL?.trim() ||
       request.headers.get("origin") ||
@@ -366,6 +319,7 @@ export async function POST(request: Request) {
     const metadata = {
       booking_group_id: group.id,
       provider_id: group.provider_profile_id,
+      provider_account_id: providerIdentity.accountId,
       service_id: service.id,
       service_slug: service.slug,
       user_service_id: group.user_service_id,
@@ -373,14 +327,12 @@ export async function POST(request: Request) {
     };
 
     const paymentIntentData:
-      Stripe.Checkout.SessionCreateParams.PaymentIntentData = {
-        metadata,
-      };
+      Stripe.Checkout.SessionCreateParams.PaymentIntentData = { metadata };
 
-    if (providerReady && provider?.stripe_account_id) {
+    if (providerReady && providerStripeAccountId) {
       paymentIntentData.application_fee_amount = fee;
       paymentIntentData.transfer_data = {
-        destination: provider.stripe_account_id,
+        destination: providerStripeAccountId,
       };
     }
 
@@ -417,14 +369,10 @@ export async function POST(request: Request) {
 
     if (paymentClaim.action === "paid") {
       return NextResponse.json(
-        {
-          error: "Cette reservation groupee est deja payee.",
-          alreadyPaid: true,
-        },
+        { error: "Cette reservation groupee est deja payee.", alreadyPaid: true },
         { status: 409 }
       );
     }
-
     if (paymentClaim.action === "busy") {
       return NextResponse.json(
         {
@@ -434,26 +382,17 @@ export async function POST(request: Request) {
         { status: 409 }
       );
     }
-    if (
-      paymentClaim.action === "reuse" &&
-      paymentClaim.checkout_session_id
-    ) {
+    if (paymentClaim.action === "reuse" && paymentClaim.checkout_session_id) {
       const existing = await stripe.checkout.sessions.retrieve(
         paymentClaim.checkout_session_id
       );
-
       if (existing.payment_status === "paid") {
         await markBookingGroupPaidFromSession(existing);
-
         return NextResponse.json(
-          {
-            error: "Cette reservation groupee est deja payee.",
-            alreadyPaid: true,
-          },
+          { error: "Cette reservation groupee est deja payee.", alreadyPaid: true },
           { status: 409 }
         );
       }
-
       if (existing.status === "open" && existing.url) {
         return NextResponse.json({
           url: existing.url,
@@ -463,13 +402,9 @@ export async function POST(request: Request) {
           groupId: group.id,
         });
       }
-
       if (existing.status !== "expired") {
         return NextResponse.json(
-          {
-            error: "Stripe traite deja ce paiement groupe.",
-            paymentPending: true,
-          },
+          { error: "Stripe traite deja ce paiement groupe.", paymentPending: true },
           { status: 409 }
         );
       }
@@ -486,10 +421,7 @@ export async function POST(request: Request) {
         .eq("id", group.id)
         .eq("stripe_checkout_session_id", existing.id)
         .neq("payment_status", "paid");
-
-      if (releaseError) {
-        throw new Error(releaseError.message);
-      }
+      if (releaseError) throw new Error(releaseError.message);
 
       attemptToken = randomUUID();
       paymentClaim = await claim(group.id, profile.id, attemptToken);
@@ -497,10 +429,7 @@ export async function POST(request: Request) {
 
     if (paymentClaim.action !== "create") {
       return NextResponse.json(
-        {
-          error: "Le paiement groupe est deja en cours.",
-          paymentPending: true,
-        },
+        { error: "Le paiement groupe est deja en cours.", paymentPending: true },
         { status: 409 }
       );
     }
@@ -512,7 +441,6 @@ export async function POST(request: Request) {
         "-attempt-" +
         String(paymentClaim.attempt_number),
     });
-
     if (!session.url) {
       await expireUnpersistedCheckoutSession(stripe, session);
       throw new Error("Stripe n a pas renvoye de lien de paiement.");
@@ -537,32 +465,21 @@ export async function POST(request: Request) {
         .select("id")
         .maybeSingle();
 
-      if (updateError) {
-        throw new Error(updateError.message);
-      }
-
+      if (updateError) throw new Error(updateError.message);
       if (!updatedGroup) {
         const { data: latest, error: latestError } = await supabaseAdmin
           .from("booking_groups")
           .select("payment_status, stripe_checkout_session_id")
           .eq("id", group.id)
           .maybeSingle();
-
-        if (latestError) {
-          throw new Error(latestError.message);
-        }
-
+        if (latestError) throw new Error(latestError.message);
         if (latest?.payment_status === "paid") {
           await expireUnpersistedCheckoutSession(stripe, session);
           return NextResponse.json(
-            {
-              error: "Cette reservation groupee est deja payee.",
-              alreadyPaid: true,
-            },
+            { error: "Cette reservation groupee est deja payee.", alreadyPaid: true },
             { status: 409 }
           );
         }
-
         if (latest?.stripe_checkout_session_id !== session.id) {
           throw new Error("Le verrou du paiement groupe a change.");
         }
@@ -581,9 +498,7 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     const message =
-      error instanceof Error
-        ? error.message
-        : "Paiement groupe impossible.";
+      error instanceof Error ? error.message : "Paiement groupe impossible.";
     const status = apiErrorStatus(message);
 
     return secureApiErrorResponse({
