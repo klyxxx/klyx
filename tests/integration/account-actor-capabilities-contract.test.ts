@@ -46,10 +46,10 @@ describe("KLYX canonical account actor capabilities", () => {
     expect(migration).toContain("'request_services'");
     expect(migration).toContain("'offer_services'");
     expect(migration).toMatch(
-      /select\s+account\.id,\s+'request_services',\s+true,\s+'legacy_backfill'/s
+      /select[\s\S]+account\.id,[\s\S]+'request_services',[\s\S]+true,[\s\S]+'legacy_backfill'/
     );
     expect(migration).toMatch(
-      /'offer_services',\s+exists \(\s+select 1\s+from public\.profiles/s
+      /'offer_services',[\s\S]+exists \([\s\S]+select 1[\s\S]+from public\.profiles/
     );
   });
 
@@ -94,7 +94,7 @@ describe("KLYX canonical account actor capabilities", () => {
       "public.klyx_account_has_capability(\n        profile.account_id,"
     );
     expect(migration).toMatch(
-      /where capability\.account_id = p_account_id\s+and capability\.capability = p_capability/s
+      /where capability\.account_id = p_account_id[\s\S]+and capability\.capability = p_capability/
     );
   });
 
@@ -102,7 +102,7 @@ describe("KLYX canonical account actor capabilities", () => {
     expect(migration).toContain("public.klyx_public_provider_profile(");
     expect(migration).toContain("public.klyx_public_provider_service(");
     expect(migration).toMatch(
-      /public\.klyx_account_has_capability\(\s*profile\.account_id,\s*'offer_services'\s*\)/s
+      /public\.klyx_account_has_capability\([\s\S]*profile\.account_id,[\s\S]*'offer_services'[\s\S]*\)/
     );
     expect(migration).toContain("provider_profile.is_published = true");
     expect(migration).toContain("verification.status = 'approved'");
@@ -113,7 +113,7 @@ describe("KLYX canonical account actor capabilities", () => {
       "public.klyx_seed_account_actor_capabilities()"
     );
     expect(migration).toMatch(
-      /create trigger klyx_accounts_seed_actor_capabilities\s+after insert on public\.accounts/s
+      /create trigger klyx_accounts_seed_actor_capabilities[\s\S]+after insert on public\.accounts/
     );
     expect(migration).toContain(
       "(new.id, 'request_services', true, 'system')"
