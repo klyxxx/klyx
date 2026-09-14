@@ -146,12 +146,13 @@ function selectCompatibilityProfile(
   const pathname = requestPathname(request);
   const method = request.method.toUpperCase();
 
-  // Transitional request-storage adapter for mixed market endpoints. Creating
-  // or cancelling a market request is always a request_services operation,
-  // regardless of which legacy profile cookie happens to be active.
+  // Transitional request-storage adapters for endpoints that still persist or
+  // read legacy client profile foreign keys. The selected legacy cookie never
+  // changes the canonical account identity or request_services authority.
   if (
-    pathname === "/api/market/requests" &&
-    (method === "POST" || method === "PATCH")
+    (pathname === "/api/market/requests" &&
+      (method === "POST" || method === "PATCH")) ||
+    pathname.startsWith("/api/brain/market-split-plan/")
   ) {
     return requestCompatibilityProfileFrom(profiles);
   }
