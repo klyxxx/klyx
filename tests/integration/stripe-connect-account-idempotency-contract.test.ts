@@ -34,7 +34,9 @@ describe("Stripe Connect account creation idempotency contract", () => {
 
   it("persists the canonical identity before maintaining the profile compatibility mirror", () => {
     const stripeCreate = route.indexOf("await stripe.accounts.create(");
-    const canonicalPersist = route.indexOf("persistAccountStripeConnectIdentity");
+    const canonicalPersist = route.indexOf(
+      "await persistAccountStripeConnectIdentity({"
+    );
     const profileMirror = route.indexOf("stripe_account_id: created.id");
 
     expect(stripeCreate).toBeGreaterThanOrEqual(0);
