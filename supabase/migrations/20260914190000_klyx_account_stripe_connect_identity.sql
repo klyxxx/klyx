@@ -48,7 +48,7 @@ comment on table public.account_stripe_connect_identities is
 comment on column public.account_stripe_connect_identities.identity_state is
   'linked = one unambiguous canonical Stripe account; conflict = contradictory Stripe identity evidence, fail closed pending human review.';
 comment on column public.account_stripe_connect_identities.source_profile_ids is
-  'Historical profile ids that contributed Stripe identity evidence. Never used as the canonical owner.';
+  'Historical profile ids that actually carried Stripe identity evidence. Never used as the canonical owner.';
 comment on column public.account_stripe_connect_identities.conflicting_stripe_account_ids is
   'Stripe account ids involved in identity evidence that cannot be safely canonicalized automatically.';
 
@@ -71,7 +71,8 @@ grant all privileges on table public.account_stripe_connect_identities
 with historical as (
   select
     profile.account_id,
-    array_agg(distinct profile.id order by profile.id) as source_profile_ids,
+    array_agg(distinct profile.id order by profile.id)
+      filter (where profile.stripe_account_id is not null) as source_profile_ids,
     array_agg(distinct profile.stripe_account_id order by profile.stripe_account_id)
       filter (where profile.stripe_account_id is not null) as stripe_account_ids
   from public.profiles as profile
@@ -111,8 +112,6 @@ set
     when public.account_stripe_connect_identities.identity_state = 'linked'
       and public.account_stripe_connect_identities.stripe_account_id = excluded.stripe_account_id
       then 'linked'
-    when public.account_stripe_connect_identities.identity_state = 'conflict'
-      then 'conflict'
     else 'conflict'
   end,
   source_profile_ids = (
@@ -144,7 +143,8 @@ set
 with historical as (
   select
     profile.account_id,
-    array_agg(distinct profile.id order by profile.id) as source_profile_ids,
+    array_agg(distinct profile.id order by profile.id)
+      filter (where profile.stripe_account_id is not null) as source_profile_ids,
     array_agg(distinct profile.stripe_account_id order by profile.stripe_account_id)
       filter (where profile.stripe_account_id is not null) as stripe_account_ids
   from public.profiles as profile
