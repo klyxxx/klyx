@@ -118,7 +118,9 @@ export function resolveCanonicalAccountCountry(
     )
   );
 
-  if (countries.length !== 1) {
+  const country = countries[0];
+
+  if (countries.length !== 1 || !country) {
     throw new StripeConnectIdentityReviewRequiredError(
       countries.length === 0
         ? "Le pays du compte KLYX doit être défini avant l'activation des paiements."
@@ -126,7 +128,7 @@ export function resolveCanonicalAccountCountry(
     );
   }
 
-  return countries[0];
+  return country;
 }
 
 function mapAccountStripeRow(row: AccountStripeRow): CanonicalStripeConnect {
@@ -276,7 +278,7 @@ export async function bindCanonicalStripeAccount(
   accountId: string,
   stripeAccountId: string
 ): Promise<void> {
-  const { error } = await supabaseAdmin.rpc(
+  const { data, error } = await supabaseAdmin.rpc(
     "klyx_bind_account_stripe_connect",
     {
       p_account_id: accountId,
@@ -284,18 +286,17 @@ export async function bindCanonicalStripeAccount(
     }
   );
 
-  if (!error) return;
+  if (error) {
+    throw new Error(error.message);
+  }
 
-  if (error.message.includes(STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED)) {
-    await markStripeConnectIdentityReview({
-      accountId,
-      reason: "runtime_stripe_identity_conflict",
-      candidateStripeAccountIds: [stripeAccountId],
-    });
+  if (data === "review_required") {
     throw new StripeConnectIdentityReviewRequiredError();
   }
 
-  throw new Error(error.message);
+  if (data !== "linked") {
+    throw new Error("Résultat de liaison Stripe Connect inattendu.");
+  }
 }
 
 export async function updateCanonicalStripeAccountStatus(input: {
