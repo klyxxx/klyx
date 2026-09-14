@@ -35,11 +35,11 @@ describe("KLYX MissionRail compact ChatGPT-style contract", () => {
     expect(accountMenu).not.toMatch(/password/i);
   });
 
-  it("keeps every mission source and all mission metadata intact", () => {
+  it("keeps every relationship-aware mission source and all mission metadata intact", () => {
     expect(rail).toContain('fetch("/api/bookings/overview"');
     expect(rail).toContain('fetch("/api/bookings/activity-hidden"');
     expect(rail).toContain('fetch("/api/bookings/split-missions"');
-    expect(rail).toContain('fetch("/api/provider/jobs"');
+    expect(rail).not.toContain('fetch("/api/provider/jobs"');
     expect(rail).toContain("mission.statusLabel.trim()");
     expect(rail).toContain("dateTimeLabel(locale, mission.dateFrom)");
     expect(rail).toContain("missionRoleLabel(locale, mission.role)");

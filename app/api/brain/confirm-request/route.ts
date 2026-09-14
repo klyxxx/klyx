@@ -6,7 +6,6 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   apiErrorStatus,
   getAuthenticatedProfile,
-  requireAccountType,
 } from "@/lib/api-auth";
 import {
   normalizeMultiSlotSchedule,
@@ -100,11 +99,6 @@ export async function POST(
       await getAuthenticatedProfile(
         request
       );
-
-    requireAccountType(
-      profile,
-      "client"
-    );
 
     const body =
       (await request.json()) as

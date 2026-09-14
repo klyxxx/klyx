@@ -159,62 +159,22 @@ function providerMissionDescription(
 async function loadBookings(
   profile: AuthenticatedProfile
 ): Promise<BookingRow[]> {
-  if (profile.accountType === "client") {
-    const { data, error } = await supabaseAdmin
-      .from("bookings")
-      .select(
-        "id, parent_id, provider_id, babysitter_id, quote_id, booking_group_id, status, payment_status, service_status, provider_finished_at, client_confirmed_at, booking_date, start_time, created_at"
-      )
-      .eq("parent_id", profile.id)
-      .in(
-        "status",
-        [
-          "pending",
-          "accepted",
-          "completed",
-        ]
-      )
-      .order(
-        "created_at",
-        {
-          ascending: false,
-        }
-      )
-      .limit(50);
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    return (data ?? []) as BookingRow[];
-  }
-
   const { data, error } = await supabaseAdmin
     .from("bookings")
     .select(
       "id, parent_id, provider_id, babysitter_id, quote_id, booking_group_id, status, payment_status, service_status, provider_finished_at, client_confirmed_at, booking_date, start_time, created_at"
     )
     .or(
-      "provider_id.eq." +
+      "parent_id.eq." +
+        profile.id +
+        ",provider_id.eq." +
         profile.id +
         ",babysitter_id.eq." +
         profile.id
     )
-    .in(
-      "status",
-      [
-        "pending",
-        "accepted",
-        "completed",
-      ]
-    )
-    .order(
-      "created_at",
-      {
-        ascending: false,
-      }
-    )
-    .limit(50);
+    .in("status", ["pending", "accepted", "completed"])
+    .order("created_at", { ascending: false })
+    .limit(80);
 
   if (error) {
     throw new Error(error.message);
@@ -413,10 +373,14 @@ async function addClientMarketActions(
 }
 
 function addClientBookingActions(
+  profile: AuthenticatedProfile,
   bookings: BookingRow[],
   actions: Map<string, BrainActionItem>
 ) {
   for (const booking of bookings) {
+    if (booking.parent_id !== profile.id) {
+      continue;
+    }
         // KLYX_GROUP_ACTIONS_12_85
         if (
           booking.booking_group_id &&
@@ -767,6 +731,13 @@ async function addProviderActions(
   }
 
   for (const booking of bookings) {
+  if (
+    booking.provider_id !== profile.id &&
+    booking.babysitter_id !== profile.id
+  ) {
+    continue;
+  }
+
         if (
           booking.booking_group_id &&
           booking.status === "pending"
@@ -885,42 +856,15 @@ async function addProviderActions(
 export async function getBrainActions(
   profile: AuthenticatedProfile
 ): Promise<BrainActionItem[]> {
-  const actionMap =
-    new Map<string, BrainActionItem>();
+  const actionMap = new Map<string, BrainActionItem>();
+  const bookings = await loadBookings(profile);
 
-  const bookings =
-    await loadBookings(profile);
+  await addClientMarketActions(profile, bookings, actionMap);
+  addClientBookingActions(profile, bookings, actionMap);
+  await addClientGroupReviewActions(profile, actionMap);
+  await addProviderActions(profile, bookings, actionMap);
 
-  if (
-    profile.accountType === "client"
-  ) {
-    await addClientMarketActions(
-      profile,
-      bookings,
-      actionMap
-    );
-
-    addClientBookingActions(
-      bookings,
-      actionMap
-    );
-    await addClientGroupReviewActions(
-      profile,
-      actionMap
-    );
-  } else {
-    await addProviderActions(
-      profile,
-      bookings,
-      actionMap
-    );
-  }
-
-  return Array.from(
-    actionMap.values()
-  ).sort(
-    (first, second) =>
-      second.priority -
-      first.priority
+  return Array.from(actionMap.values()).sort(
+    (first, second) => second.priority - first.priority
   );
 }

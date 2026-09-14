@@ -107,7 +107,7 @@ const providerItems: MenuItem[] = [
   },
 ];
 
-const PROVIDER_ASSISTANT_HREF = "/provider/assistant";
+const PROVIDER_ASSISTANT_HREF = "/assistant";
 
 function matchesRoute(pathname: string, route: string) {
   return pathname === route || pathname.startsWith(`${route}/`);

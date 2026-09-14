@@ -56,8 +56,9 @@ describe("KLYX assistant-first shell and mission rail", () => {
     expect(rail).toContain("const [historyOpen, setHistoryOpen] = useState(false)");
     expect(rail).toContain("setCollapsedPreference(!collapsed)");
     expect(rail).toContain('fetch("/api/bookings/overview"');
+    expect(rail).toContain('fetch("/api/bookings/activity-hidden"');
     expect(rail).toContain('fetch("/api/bookings/split-missions"');
-    expect(rail).toContain('fetch("/api/provider/jobs"');
+    expect(rail).not.toContain('fetch("/api/provider/jobs"');
   });
 
   it("persists only the desktop rail collapsed preference", () => {

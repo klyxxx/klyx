@@ -27,7 +27,7 @@ describe("provider assistant draft privilege hardening contract", () => {
     );
   });
 
-  it("keeps provider assistant draft access behind the server API", () => {
+  it("keeps provider assistant draft access behind the provider-only server API", () => {
     const route = readFileSync(
       join(process.cwd(), assistantRoutePath),
       "utf8"
@@ -46,9 +46,8 @@ describe("provider assistant draft privilege hardening contract", () => {
     expect(route).toContain(
       'requireAccountType(profile, "provider")'
     );
-    expect(page).toContain(
-      '"/api/provider/assistant"'
-    );
+    expect(page).toContain('redirect("/assistant")');
+    expect(page).not.toContain('"/api/provider/assistant"');
     expect(page).not.toContain(
       '.from("provider_assistant_drafts")'
     );

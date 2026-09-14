@@ -8,35 +8,32 @@ function read(relative: string) {
 }
 
 describe("KLYX provider Assistant destination UX", () => {
-  it("keeps the assistant conversation-first while preserving explicit draft control", () => {
-    const assistant = read("app/provider/assistant/page.tsx");
-    const assistantI18n = read("lib/klyx-provider-assistant-i18n.ts");
+  it("converges provider entry into the same conversation-first assistant", () => {
+    const legacyPage = read("app/provider/assistant/page.tsx");
+    const assistantPage = read("app/assistant/page.tsx");
+    const thread = read("app/components/assistant/AssistantThread.tsx");
 
-    expect(assistant).toContain("KLYX_PROVIDER_ASSISTANT_DESTINATION_2026_09_02");
-    expect(assistant).toContain('{t("prepareQuestion")}');
-    expect(assistant).toContain('placeholder={t("placeholder")}');
-    expect(assistant).toContain('{t("surfaceDescription")}');
-    expect(assistant).toContain('{t("controlNote")}');
-    expect(assistantI18n).toContain("Que dois-je préparer pour ton activité ?");
-    expect(assistantI18n).toContain('placeholder: "Demander à KLYX…"');
-    expect(assistantI18n).toContain("Rien n’est appliqué ni envoyé sans ta confirmation.");
-    expect(assistantI18n).toContain("KLYX prépare. Tu confirmes toujours avant toute action.");
+    expect(legacyPage).toContain('redirect("/assistant")');
+    expect(assistantPage).toContain("<AssistantThread />");
+    expect(thread).toContain("initialPromptFromLocation()");
+    expect(thread).toContain('.get("prompt")');
+    expect(thread).toContain("Gagner environ 100 € samedi");
+    expect(thread).toContain("AssistantComposer");
+  });
 
-    expect(assistant).toContain('{t("draftsTitle")}');
-    expect(assistantI18n).toContain("Brouillons à vérifier");
-    expect(assistant).toContain("<details");
-    expect(assistant).toContain("pendingDrafts");
+  it("keeps provider mission prompt handoff on the canonical assistant URL", () => {
+    const jobs = read("app/provider/jobs/page.tsx");
 
-    const endpointReadsAndWrites = assistant.match(
-      /fetch\("\/api\/provider\/assistant"/g
-    );
-    expect(endpointReadsAndWrites).toHaveLength(3);
-    expect(assistant).toContain('method: "POST"');
-    expect(assistant).toContain('method: "PATCH"');
-    expect(assistant).toContain('action: "apply" | "discard"');
+    expect(jobs).toContain('"/assistant?prompt="');
+    expect(jobs).not.toContain('"/provider/assistant?prompt="');
+  });
 
-    expect(assistant).not.toContain("xl:grid-cols");
-    expect(assistant).not.toContain("shadow-sm");
-    expect(assistant).not.toContain("Prépare tes disponibilités, devis et réponses");
+  it("does not keep a second provider conversation or draft-control UI", () => {
+    const legacyPage = read("app/provider/assistant/page.tsx");
+
+    expect(legacyPage).not.toContain('fetch("/api/provider/assistant"');
+    expect(legacyPage).not.toContain("pendingDrafts");
+    expect(legacyPage).not.toContain("processDraft(");
+    expect(legacyPage).not.toContain("<details");
   });
 });

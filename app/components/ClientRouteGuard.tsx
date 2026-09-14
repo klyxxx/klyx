@@ -58,7 +58,7 @@ export default function ClientRouteGuard({ children }: { children: ReactNode }) 
             setState("redirecting");
           }
 
-          router.replace("/provider/assistant");
+          router.replace("/assistant");
           return;
         }
 

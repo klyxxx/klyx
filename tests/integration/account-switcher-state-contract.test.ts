@@ -50,7 +50,7 @@ describe("KLYX profile switch UI state", () => {
     );
   });
 
-  it("hands successful role changes to the canonical full-document profile synchronizer", () => {
+  it("keeps successful profile changes on the canonical assistant home", () => {
     expect(accountSwitcher).toContain(
       "ActiveProfileSync owns the full-document role transition."
     );
@@ -63,7 +63,7 @@ describe("KLYX profile switch UI state", () => {
     );
     expect(activeProfileSync).toContain("window.location.replace(target.toString());");
     expect(accountHome).toContain('client: "/assistant"');
-    expect(accountHome).toContain('provider: "/provider/assistant"');
+    expect(accountHome).toContain('provider: "/assistant"');
   });
 
   it("lets the founder client/provider switcher recover the same way", () => {

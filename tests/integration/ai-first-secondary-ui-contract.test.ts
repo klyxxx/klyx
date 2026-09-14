@@ -34,12 +34,7 @@ describe(
 
         const assistant =
           read(
-            "app/provider/assistant/page.tsx"
-          );
-
-        const assistantI18n =
-          read(
-            "lib/klyx-provider-assistant-i18n.ts"
+            "app/components/assistant/AssistantThread.tsx"
           );
 
         const jobs =
@@ -92,19 +87,16 @@ describe(
         );
 
         expect(assistant).toContain(
-          'placeholder={t("placeholder")}'
+          "<AssistantComposer"
         );
         expect(assistant).toContain(
-          '{t("surfaceDescription")}'
+          "starterSuggestions(locale)"
         );
         expect(assistant).toContain(
-          '{t("controlNote")}'
+          "Gagner environ 100 € samedi"
         );
-        expect(assistantI18n).toContain(
-          'placeholder: "Demander à KLYX…"'
-        );
-        expect(assistantI18n).toContain(
-          "Rien n’est appliqué ni envoyé sans ta confirmation."
+        expect(assistant).toContain(
+          "KLYX_ASSISTANT_MESSAGE_MAX_LENGTH"
         );
 
         expect(jobs).toContain(
@@ -143,6 +135,9 @@ describe(
 
         expect(assistant).not.toContain(
           "Prépare tes disponibilités, devis et réponses"
+        );
+        expect(assistant).not.toContain(
+          "/api/provider/assistant"
         );
 
         expect(jobs).not.toContain(

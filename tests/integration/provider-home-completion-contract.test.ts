@@ -16,7 +16,8 @@ describe("KLYX provider home completion", () => {
     expect(providerHome).toContain("SECONDARY_LINKS");
     expect(providerHome).toContain("<details");
     expect(providerHome).toContain('href: "/provider/services/new"');
-    expect(providerHome).toContain('href: "/provider/assistant"');
+    expect(providerHome).toContain('href: "/assistant"');
+    expect(providerHome).not.toContain('href: "/provider/assistant"');
     expect(providerHome).not.toContain("MANAGEMENT_ITEMS");
     expect(providerHome).not.toContain("lg:grid-cols-3");
 

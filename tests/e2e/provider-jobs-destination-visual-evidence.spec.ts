@@ -127,7 +127,7 @@ test.describe("KLYX provider Missions destination visual evidence", () => {
 
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto("/provider/jobs", { waitUntil: "domcontentloaded" });
-    await expectAssistantFirstDesktopShell(page, "/provider/assistant");
+    await expectAssistantFirstDesktopShell(page, "/assistant");
 
     const offerToggles = page.getByRole("main").locator('button[aria-expanded]');
     await expect(offerToggles.first()).toHaveAttribute("aria-expanded", "false");
