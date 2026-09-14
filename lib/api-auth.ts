@@ -115,14 +115,14 @@ function selectCompatibilityProfile(
   if (compatibilityContext === "request") {
     return (
       profiles.find((profile) => profile.legacyAccountType === "client") ??
-      selected
+      profiles[0]
     );
   }
 
   if (compatibilityContext === "offer") {
     return (
       profiles.find((profile) => profile.legacyAccountType === "provider") ??
-      selected
+      profiles[0]
     );
   }
 
@@ -136,7 +136,7 @@ function selectCompatibilityProfile(
   ) {
     return (
       profiles.find((profile) => profile.legacyAccountType === "provider") ??
-      selected
+      profiles[0]
     );
   }
 
