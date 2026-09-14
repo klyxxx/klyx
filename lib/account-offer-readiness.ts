@@ -44,6 +44,16 @@ const OFFER_INTENT_MARKERS = [
   "offer my services",
 ] as const;
 
+const OFFER_DAYS = [
+  { dayOfWeek: 1, aliases: ["lundi", "monday"] },
+  { dayOfWeek: 2, aliases: ["mardi", "tuesday"] },
+  { dayOfWeek: 3, aliases: ["mercredi", "wednesday"] },
+  { dayOfWeek: 4, aliases: ["jeudi", "thursday"] },
+  { dayOfWeek: 5, aliases: ["vendredi", "friday"] },
+  { dayOfWeek: 6, aliases: ["samedi", "saturday"] },
+  { dayOfWeek: 0, aliases: ["dimanche", "sunday"] },
+] as const;
+
 function normalize(value: string): string {
   return value
     .toLowerCase()
@@ -131,24 +141,21 @@ function clock(hourText: string, minuteText?: string): string | null {
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
+export function parseOfferDayOfWeek(message: string): number | null {
+  const value = normalize(message);
+  return (
+    OFFER_DAYS.find((day) =>
+      day.aliases.some((alias) => value.includes(normalize(alias)))
+    )?.dayOfWeek ?? null
+  );
+}
+
 export function parseOfferAvailability(
   message: string,
   fallbackDayOfWeek: number | null = null
 ): OfferAvailabilityDraft | null {
   const value = normalize(message);
-  const days = [
-    { dayOfWeek: 1, aliases: ["lundi", "monday"] },
-    { dayOfWeek: 2, aliases: ["mardi", "tuesday"] },
-    { dayOfWeek: 3, aliases: ["mercredi", "wednesday"] },
-    { dayOfWeek: 4, aliases: ["jeudi", "thursday"] },
-    { dayOfWeek: 5, aliases: ["vendredi", "friday"] },
-    { dayOfWeek: 6, aliases: ["samedi", "saturday"] },
-    { dayOfWeek: 0, aliases: ["dimanche", "sunday"] },
-  ];
-  const explicitDay = days.find((day) =>
-    day.aliases.some((alias) => value.includes(alias))
-  )?.dayOfWeek;
-  const dayOfWeek = explicitDay ?? fallbackDayOfWeek;
+  const dayOfWeek = parseOfferDayOfWeek(message) ?? fallbackDayOfWeek;
   if (dayOfWeek === null || dayOfWeek === undefined) return null;
 
   const range = value.match(
