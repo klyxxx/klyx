@@ -63,8 +63,6 @@ function normalizeProfile(
     city: profile.city ?? "",
     countryCode: profile.country_code ?? null,
     currencyCode: profile.currency_code ?? null,
-    // Kept only for backward-compatible consumers. Permissions below come
-    // from the canonical account and are identical across sibling profiles.
     accountType,
     legacyAccountType: accountType,
     canRequestServices: capabilities.canRequestServices,
@@ -163,8 +161,6 @@ export async function getOwnedProfiles(): Promise<ActiveProfile[]> {
     return normalizeOwnedProfiles(user.id, ownedProfiles);
   }
 
-  // Legacy repair remains storage compatibility only. The repaired profile is
-  // bound to public.accounts by the canonical-account trigger from Phase 1.
   const { data: legacyProfile, error: legacyError } = await supabaseAdmin
     .from("profiles")
     .select(PROFILE_SELECT)
@@ -238,4 +234,47 @@ export async function getActiveProfile(): Promise<ActiveProfile | null> {
   }
 
   return profiles[0];
+}
+
+export async function getRequestCompatibilityProfile(): Promise<ActiveProfile | null> {
+  const profiles = await getOwnedProfiles();
+
+  if (profiles.length === 0 || !profiles[0].canRequestServices) {
+    return null;
+  }
+
+  return (
+    profiles.find((profile) => profile.legacyAccountType === "client") ??
+    profiles[0]
+  );
+}
+
+export async function getOfferCompatibilityProfile(): Promise<ActiveProfile | null> {
+  const profiles = await getOwnedProfiles();
+
+  if (profiles.length === 0 || !profiles[0].canOfferServices) {
+    return null;
+  }
+
+  const profileIds = profiles.map((profile) => profile.id);
+  const { data, error } = await supabaseAdmin
+    .from("provider_profiles")
+    .select("profile_id")
+    .in("profile_id", profileIds);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const providerProfileIds = new Set(
+    ((data ?? []) as Array<{ profile_id: string }>).map(
+      (row) => row.profile_id
+    )
+  );
+
+  return (
+    profiles.find((profile) => providerProfileIds.has(profile.id)) ??
+    profiles.find((profile) => profile.legacyAccountType === "provider") ??
+    profiles[0]
+  );
 }
