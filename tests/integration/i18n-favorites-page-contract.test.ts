@@ -64,13 +64,14 @@ describe("KLYX favorites i18n contract", () => {
     expect(page).toContain('href={`/providers/${favorite.userId}`}');
   });
 
-  it("preserves the client-only server layout boundary", () => {
+  it("preserves the canonical request-capability server layout boundary", () => {
     const layout = read("app/favorites/layout.tsx");
 
     expect(layout).toContain("supabase.auth.getUser()");
     expect(layout).toContain('redirect("/login")');
     expect(layout).toContain('redirect("/profile")');
-    expect(layout).toContain('profile.accountType !== "client"');
+    expect(layout).toContain("!profile.canRequestServices");
+    expect(layout).not.toContain('profile.accountType !== "client"');
     expect(layout).toContain('redirect("/dashboard")');
   });
 });

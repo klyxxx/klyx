@@ -22,16 +22,15 @@ describe("provider trust branding contract", () => {
     expect(trustPage).not.toContain("bg-blue-600/8");
   });
 
-  it("preserves the provider profile boundary and grounded disputes API", () => {
+  it("uses the offer capability adapter without restoring provider identity authority", () => {
     expect(trustPage).toContain(
-      'import { getActiveProfileAccount } from "@/lib/account-switcher";'
+      'import { getActiveOfferProfile } from "@/lib/account-switcher";'
     );
     expect(trustPage).toContain(
-      "const profile = await getActiveProfileAccount();"
+      "const profile = await getActiveOfferProfile();"
     );
-    expect(trustPage).toContain(
-      'if (profile.accountType !== "provider")'
-    );
+    expect(trustPage).not.toContain('profile.accountType !== "provider"');
+    expect(trustPage).not.toContain("switchAccount(");
     expect(trustPage).toContain('fetch("/api/disputes"');
   });
 });

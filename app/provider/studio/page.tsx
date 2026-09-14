@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import ProviderCapabilitiesEntry from "@/app/components/ProviderCapabilitiesEntry";
 import ProviderStudio from "@/app/components/ProviderStudio";
 import ProviderReadinessStatus from "@/app/components/ProviderReadinessStatus";
-import { getActiveProfile } from "@/lib/active-profile";
+import { getOfferCompatibilityProfile } from "@/lib/active-profile";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function ProviderStudioPage() {
@@ -16,13 +16,9 @@ export default async function ProviderStudioPage() {
     redirect("/login");
   }
 
-  const profile = await getActiveProfile();
+  const profile = await getOfferCompatibilityProfile();
 
   if (!profile) {
-    redirect("/accounts");
-  }
-
-  if (profile.accountType !== "provider") {
     redirect("/dashboard");
   }
 

@@ -18,12 +18,16 @@ The live Supabase audit verified all tables below with the same invariant:
 
 No user-facing access defect was found, so KLY-18 intentionally adds no production migration and does not widen any database permission.
 
+The post-booking incident tables added after that live audit inherit the same certified server-only boundary in migration `20260914183000_klyx_account_post_booking_incidents.sql`: RLS is enabled, browser roles are revoked, and incident events are append-only for `service_role`.
+
 ## Certified server-only tables
 
 - `api_rate_limits`
 - `booking_financial_ledger`
 - `booking_group_cancellation_events`
 - `booking_groups`
+- `booking_incident_events`
+- `booking_incidents`
 - `client_agent_plan_events`
 - `market_request_provider_candidates`
 - `market_service_offers`

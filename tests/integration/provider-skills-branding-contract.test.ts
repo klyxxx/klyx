@@ -8,14 +8,15 @@ function read(relative: string) {
 }
 
 describe("KLYX provider skills branding contract", () => {
-  it("uses the exact KLYX blue while preserving verification and storage boundaries", () => {
+  it("uses the exact KLYX blue while preserving offer-capability, verification and storage boundaries", () => {
     const skills = read("app/provider/skills/page.tsx");
     const requirements = read(
       "app/provider/skills/SkillRequirementsPanel.tsx"
     );
     const source = `${skills}\n${requirements}`;
 
-    expect(skills).toContain("getActiveClientProfile()");
+    expect(skills).toContain("getActiveOfferProfile()");
+    expect(skills).not.toContain("getActiveClientProfile()");
     expect(skills).toContain("supabase.auth.getSession()");
     expect(skills).toContain('fetch("/api/provider/skills-verification"');
     expect(skills).toContain('method: "POST"');

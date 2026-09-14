@@ -125,7 +125,7 @@ describe("KLYX transactional email lifecycle contract", () => {
     expect(bookingStatus).toContain("booking:${booking.id}:accepted:client");
     expect(bookingStatus).toContain("booking:${booking.id}:rejected:client");
     expect(quotes).toContain("quote:${quoteId}:requested:provider");
-    expect(quotes).toContain("quote:${quoteId}:${action}:${email.profileId}");
+    expect(quotes).toContain("quote:${quoteId}:${emailAction}:${email.profileId}");
     expect(reviews).toContain("review:${review.id}:received:provider");
     expect(groupReviews).toContain("review:${review.id}:received:provider");
     expect(disputes).toContain("dispute:${dispute.id}:opened:${profile.id}");

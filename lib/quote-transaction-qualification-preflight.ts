@@ -43,13 +43,11 @@ export async function quoteTransactionQualificationPreflight(
       ? body.userServiceId.trim()
       : "";
 
-  // Preserve the core route's validation responses for incomplete payloads.
   if (!providerProfileId || !userServiceId) return null;
 
   const { profile } = await getAuthenticatedProfile(request);
   requireAccountType(profile, "client");
 
-  // Preserve the core route's explicit self-quote response.
   if (providerProfileId === profile.id) return null;
 
   const { data: userService, error: userServiceError } = await supabaseAdmin
@@ -62,8 +60,6 @@ export async function quoteTransactionQualificationPreflight(
     .maybeSingle();
 
   if (userServiceError) throw new Error(userServiceError.message);
-
-  // Let the core route keep ownership of its canonical not-found response.
   if (!userService) return null;
 
   const eligible = await isUserServiceTransactionEligible({
@@ -96,8 +92,6 @@ export async function quoteLifecycleQualificationPreflight(
       ? body.action.trim()
       : "";
 
-  // Reject/cancel must remain available so an invalidated quote can always be
-  // closed. Invalid or incomplete payloads stay owned by the core route.
   if (!quoteId || (action !== "send" && action !== "accept")) return null;
 
   const { profile } = await getAuthenticatedProfile(request);
@@ -118,11 +112,8 @@ export async function quoteLifecycleQualificationPreflight(
   if (action === "send") {
     const providerPrice = Number(body.providerPrice);
 
-    // Preserve the core route's role, ownership, state and price-validation
-    // responses. Revalidate qualification only immediately before a mutation
-    // would otherwise be allowed.
     if (
-      profile.accountType !== "provider" ||
+      !profile.canOfferServices ||
       lifecycleQuote.provider_profile_id !== profile.id ||
       lifecycleQuote.status !== "requested" ||
       !Number.isFinite(providerPrice) ||
@@ -132,7 +123,7 @@ export async function quoteLifecycleQualificationPreflight(
       return null;
     }
   } else if (
-    profile.accountType !== "client" ||
+    !profile.canRequestServices ||
     lifecycleQuote.client_profile_id !== profile.id ||
     lifecycleQuote.status !== "sent"
   ) {
@@ -144,8 +135,6 @@ export async function quoteLifecycleQualificationPreflight(
   const userServiceId =
     lifecycleQuote.user_service_id?.trim() ?? "";
 
-  // A legacy/corrupt quote that cannot be tied to a current provider service
-  // must fail closed before send/accept rather than bypass qualification.
   if (!providerProfileId || !userServiceId) {
     return qualificationRequiredResponse(
       "Ce devis ne peut plus avancer car sa qualification métier actuelle ne peut pas être vérifiée."
