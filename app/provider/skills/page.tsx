@@ -24,7 +24,7 @@ import {
 import KlyxSelect from "@/app/components/KlyxSelect";
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import SkillRequirementsPanel from "@/app/provider/skills/SkillRequirementsPanel";
-import { getActiveClientProfile } from "@/lib/account-switcher";
+import { getActiveOfferProfile } from "@/lib/account-switcher";
 import {
   translateKlyxProviderSkillDocumentStatus,
   translateKlyxProviderSkillProofType,
@@ -141,7 +141,7 @@ export default function ProviderSkillsPage() {
     setError("");
 
     try {
-      const profile = await getActiveClientProfile();
+      const profile = await getActiveOfferProfile();
       setProfileId(profile.id);
 
       const accessToken = await token();

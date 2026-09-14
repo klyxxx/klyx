@@ -1,5 +1,5 @@
 import { after, NextResponse } from "next/server";
-import { getActiveProfile } from "@/lib/active-profile";
+import { getOfferCompatibilityProfile } from "@/lib/active-profile";
 import { sendServiceProposalLifecycleEmail } from "@/lib/email/operational-lifecycle-emails";
 import {
   createServiceSlug,
@@ -75,7 +75,6 @@ async function createUniqueService(name: string) {
 
 export async function GET() {
   const supabase = await createClient();
-
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -84,11 +83,11 @@ export async function GET() {
     return NextResponse.json({ error: "Non connecté." }, { status: 401 });
   }
 
-  const profile = await getActiveProfile();
+  const profile = await getOfferCompatibilityProfile();
 
-  if (!profile || profile.accountType !== "provider") {
+  if (!profile) {
     return NextResponse.json(
-      { error: "Un profil prestataire actif est obligatoire." },
+      { error: "La capacité de proposer des services est obligatoire." },
       { status: 403 }
     );
   }
@@ -125,7 +124,6 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const supabase = await createClient();
-
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -134,11 +132,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Non connecté." }, { status: 401 });
   }
 
-  const profile = await getActiveProfile();
+  const profile = await getOfferCompatibilityProfile();
 
-  if (!profile || profile.accountType !== "provider") {
+  if (!profile) {
     return NextResponse.json(
-      { error: "Un profil prestataire actif est obligatoire." },
+      { error: "La capacité de proposer des services est obligatoire." },
       { status: 403 }
     );
   }

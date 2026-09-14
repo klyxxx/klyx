@@ -45,7 +45,7 @@ export default async function ProviderPage() {
     redirect("/accounts");
   }
 
-  if (profile.accountType !== "provider") {
+  if (!profile.canOfferServices) {
     redirect("/dashboard");
   }
 

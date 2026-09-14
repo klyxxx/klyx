@@ -14,10 +14,7 @@ type CountResult = {
   error: { message: string } | null;
 };
 
-function assertCount(
-  result: CountResult,
-  label: string
-): number {
+function assertCount(result: CountResult, label: string): number {
   if (result.error) {
     throw new Error(`${label}: ${result.error.message}`);
   }
@@ -25,18 +22,20 @@ function assertCount(
   return result.count ?? 0;
 }
 
-async function calculateForProfile(
-  profile: {
-    id: string;
-    accountType: "client" | "provider";
-  }
-) {
+async function calculateForProfile(profile: {
+  id: string;
+  canRequestServices: boolean;
+  canOfferServices: boolean;
+}) {
   const providerFilter =
     `provider_id.eq.${profile.id},babysitter_id.eq.${profile.id}`;
+  const clientFilter = `parent_id.eq.${profile.id}`;
   const bookingParticipantFilter =
-    profile.accountType === "provider"
-      ? providerFilter
-      : `parent_id.eq.${profile.id}`;
+    profile.canRequestServices && profile.canOfferServices
+      ? `${clientFilter},${providerFilter}`
+      : profile.canOfferServices
+        ? providerFilter
+        : clientFilter;
 
   const [
     totalResult,
@@ -92,68 +91,34 @@ async function calculateForProfile(
       .select("id", { count: "exact", head: true })
       .eq("against_profile_id", profile.id)
       .eq("reason", "unsafe_behavior")
-      .in("status", [
-        "open",
-        "under_review",
-        "waiting_user",
-      ]),
-    profile.accountType === "provider"
+      .in("status", ["open", "under_review", "waiting_user"]),
+    profile.canOfferServices
       ? supabaseAdmin
           .from("service_profiles")
           .select("id, stripe_onboarding_complete")
           .eq("profile_id", profile.id)
           .limit(1)
           .maybeSingle()
-      : Promise.resolve({
-          data: null,
-          error: null,
-        }),
+      : Promise.resolve({ data: null, error: null }),
   ]);
 
   const metrics: RiskMetrics = {
-    totalBookings: assertCount(
-      totalResult,
-      "Réservations"
-    ),
-    cancelledBookings: assertCount(
-      cancelledResult,
-      "Annulations"
-    ),
-    rejectedBookings: assertCount(
-      rejectedResult,
-      "Refus"
-    ),
-    paidBookings: assertCount(
-      paidResult,
-      "Paiements"
-    ),
-    failedPayments: assertCount(
-      failedPaymentResult,
-      "Échecs de paiement"
-    ),
-    completedBookings: assertCount(
-      completedResult,
-      "Missions terminées"
-    ),
-    openedDisputes: assertCount(
-      openedDisputesResult,
-      "Litiges ouverts"
-    ),
-    receivedDisputes: assertCount(
-      receivedDisputesResult,
-      "Litiges reçus"
-    ),
+    totalBookings: assertCount(totalResult, "Réservations"),
+    cancelledBookings: assertCount(cancelledResult, "Annulations"),
+    rejectedBookings: assertCount(rejectedResult, "Refus"),
+    paidBookings: assertCount(paidResult, "Paiements"),
+    failedPayments: assertCount(failedPaymentResult, "Échecs de paiement"),
+    completedBookings: assertCount(completedResult, "Missions terminées"),
+    openedDisputes: assertCount(openedDisputesResult, "Litiges ouverts"),
+    receivedDisputes: assertCount(receivedDisputesResult, "Litiges reçus"),
     urgentSafetyReports: assertCount(
       urgentReportsResult,
       "Signalements prioritaires"
     ),
-    isProvider: profile.accountType === "provider",
+    isProvider: profile.canOfferServices,
     identityComplete:
-      profile.accountType !== "provider" ||
-      Boolean(
-        serviceProfileResult.data
-          ?.stripe_onboarding_complete
-      ),
+      !profile.canOfferServices ||
+      Boolean(serviceProfileResult.data?.stripe_onboarding_complete),
   };
 
   const assessment = calculateRisk(metrics);
@@ -171,9 +136,7 @@ async function calculateForProfile(
         assessed_at: now,
         updated_at: now,
       },
-      {
-        onConflict: "profile_id",
-      }
+      { onConflict: "profile_id" }
     );
 
   if (upsertError) throw new Error(upsertError.message);
@@ -213,20 +176,13 @@ async function calculateForProfile(
           title: signal.label,
           description: signal.detail,
           status: "open",
-          deduplication_key:
-            `risk:${profile.id}:${signal.code}`,
+          deduplication_key: `risk:${profile.id}:${signal.code}`,
         },
-        {
-          onConflict: "deduplication_key",
-          ignoreDuplicates: true,
-        }
+        { onConflict: "deduplication_key", ignoreDuplicates: true }
       );
 
     if (alertError) {
-      console.error(
-        "Security alert error:",
-        alertError.message
-      );
+      console.error("Security alert error:", alertError.message);
     }
   }
 
@@ -235,21 +191,17 @@ async function calculateForProfile(
 
 export async function GET(request: Request) {
   try {
-    const { profile } =
-      await getAuthenticatedProfile(request);
+    const { profile } = await getAuthenticatedProfile(request);
+    const { assessment, metrics } = await calculateForProfile(profile);
 
-    const { assessment, metrics } =
-      await calculateForProfile(profile);
-
-    const { data: alerts, error: alertsError } =
-      await supabaseAdmin
-        .from("security_alerts")
-        .select(
-          "id, alert_type, severity, title, description, status, created_at"
-        )
-        .eq("profile_id", profile.id)
-        .eq("status", "open")
-        .order("created_at", { ascending: false });
+    const { data: alerts, error: alertsError } = await supabaseAdmin
+      .from("security_alerts")
+      .select(
+        "id, alert_type, severity, title, description, status, created_at"
+      )
+      .eq("profile_id", profile.id)
+      .eq("status", "open")
+      .order("created_at", { ascending: false });
 
     if (alertsError) {
       throw new Error(alertsError.message);

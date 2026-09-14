@@ -1,4 +1,5 @@
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { runWithLegacyProfileCapability } from "@/lib/legacy-profile-capability-context";
 import { POST as corePost } from "./group-booking-core";
 
 type GroupBookingRouteContext = {
@@ -42,20 +43,22 @@ export async function POST(
   request: Request,
   context: GroupBookingRouteContext
 ) {
-  const startedAt = Date.now();
+  return runWithLegacyProfileCapability("request", async () => {
+    const startedAt = Date.now();
 
-  try {
-    const response = await corePost(request, context);
-    return secureCoreResponse(response, startedAt);
-  } catch (error) {
-    return secureApiErrorResponse({
-      error,
-      event: "market_group_booking_create_failed",
-      route: "/api/market/requests/[id]/group-booking",
-      method: "POST",
-      status: 500,
-      code: "KLYX_MARKET_GROUP_BOOKING_CREATE_FAILED",
-      startedAt,
-    });
-  }
+    try {
+      const response = await corePost(request, context);
+      return secureCoreResponse(response, startedAt);
+    } catch (error) {
+      return secureApiErrorResponse({
+        error,
+        event: "market_group_booking_create_failed",
+        route: "/api/market/requests/[id]/group-booking",
+        method: "POST",
+        status: 500,
+        code: "KLYX_MARKET_GROUP_BOOKING_CREATE_FAILED",
+        startedAt,
+      });
+    }
+  });
 }
