@@ -64,7 +64,9 @@ export function detectOfferServicesIntent(
 }
 
 export function parseOfferRadiusKm(message: string): number | null {
-  const match = normalize(message).match(/\b(\d{1,3})\s*(?:km|kilometres?|kilometers?)\b/i);
+  const match = normalize(message).match(
+    /\b(\d{1,3})\s*(?:km|kilometres?|kilometers?)\b/i
+  );
   if (!match) return null;
   const radius = Number(match[1]);
   return Number.isInteger(radius) && radius >= 1 && radius <= 100
@@ -72,21 +74,53 @@ export function parseOfferRadiusKm(message: string): number | null {
     : null;
 }
 
+function pricingMethod(value: string): "hourly" | "fixed" | null {
+  const hourly =
+    /(?:\/\s*h\b|par\s+heure\b|de\s+l\s+heure\b|horaire\b|hourly\b|per\s+hour\b)/i.test(
+      value
+    );
+  const fixed =
+    /\b(?:forfait|forfaitaire|prix\s+fixe|fixed)\b/i.test(value);
+
+  if (hourly === fixed) return null;
+  return hourly ? "hourly" : "fixed";
+}
+
 export function parseOfferPricing(message: string): OfferPricingDraft | null {
   const value = normalize(message);
-  const amountMatch = value.match(/\b(\d{1,5}(?:[.,]\d{1,2})?)\s*(?:€|eur|euros?)\b/i);
+  const amountMatch = value.match(
+    /\b(\d{1,5}(?:[.,]\d{1,2})?)\s*(?:€|eur|euros?)\b/i
+  );
   if (!amountMatch) return null;
 
   const amount = Number(amountMatch[1].replace(",", "."));
   if (!Number.isFinite(amount) || amount < 1 || amount > 10000) return null;
 
-  const hourly = /(?:\/\s*h\b|par\s+heure\b|de\s+l\s+heure\b|hourly\b|per\s+hour\b)/i.test(value);
-  const fixed = /\b(?:forfait|forfaitaire|prix\s+fixe|fixed)\b/i.test(value);
-
   return {
     amount: Math.round(amount * 100) / 100,
-    pricingType: hourly ? "hourly" : fixed ? "fixed" : null,
+    pricingType: pricingMethod(value),
   };
+}
+
+export function mergeOfferPricingDraft(
+  message: string,
+  previous: OfferPricingDraft | null
+): OfferPricingDraft | null {
+  const current = parseOfferPricing(message);
+  const method = pricingMethod(normalize(message));
+
+  if (current) {
+    return {
+      amount: current.amount,
+      pricingType: current.pricingType ?? previous?.pricingType ?? null,
+    };
+  }
+
+  if (previous && method) {
+    return { ...previous, pricingType: method };
+  }
+
+  return previous;
 }
 
 function clock(hourText: string, minuteText?: string): string | null {
