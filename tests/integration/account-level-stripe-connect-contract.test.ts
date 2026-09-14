@@ -69,7 +69,7 @@ describe("KLYX account-level Stripe Connect contract", () => {
 
   it("keeps split payouts fail closed against the canonical destination", () => {
     expect(splitGuard).toContain("klyx_assert_canonical_split_stripe_identity");
-    expect(splitGuard).toContain("stripe_connect_state is distinct from 'linked'");
+    expect(splitGuard).toContain("v_state is distinct from 'linked'");
     expect(splitGuard).toContain(
       "p_stripe_account_id is distinct from v_canonical_stripe_account_id"
     );
