@@ -130,7 +130,7 @@ describe("KLYX canonical account capability authority", () => {
     expect(second.profile.canOfferServices).toBe(true);
   });
 
-  it("routes market mutations through the request compatibility adapter without switching identity", async () => {
+  it("routes market mutations through request compatibility without switching canonical identity", async () => {
     mocks.state.selectedProfileId = "profile-provider";
 
     const post = await getAuthenticatedAccount(
@@ -144,8 +144,52 @@ describe("KLYX canonical account capability authority", () => {
     expect(patch.account.id).toBe(ACCOUNT_ID);
     expect(post.profile.id).toBe("profile-client");
     expect(patch.profile.id).toBe("profile-client");
+    expect(post.profile.accountType).toBe("client");
+    expect(patch.profile.accountType).toBe("client");
     expect(post.profile.canRequestServices).toBe(true);
     expect(post.profile.canOfferServices).toBe(true);
+  });
+
+  it("projects provider API compatibility mode from offer_services even without a legacy provider profile", async () => {
+    mocks.profileOrder.mockResolvedValue({
+      data: [profile("profile-client", "client")],
+      error: null,
+    });
+
+    const context = await getAuthenticatedAccount(
+      request("/api/provider/studio")
+    );
+
+    expect(context.account.id).toBe(ACCOUNT_ID);
+    expect(context.profile.id).toBe("profile-client");
+    expect(context.profile.legacyAccountType).toBe("client");
+    expect(context.profile.accountType).toBe("provider");
+    expect(context.profile.canOfferServices).toBe(true);
+  });
+
+  it("fails legacy provider-role checks closed when offer_services is disabled", async () => {
+    mocks.profileOrder.mockResolvedValue({
+      data: [profile("profile-provider", "provider")],
+      error: null,
+    });
+    mocks.capabilityEq.mockResolvedValue({
+      data: [
+        { account_id: ACCOUNT_ID, capability: "request_services", enabled: true },
+        { account_id: ACCOUNT_ID, capability: "offer_services", enabled: false },
+      ],
+      error: null,
+    });
+
+    const context = await getAuthenticatedAccount(
+      request("/api/provider/studio")
+    );
+
+    expect(context.profile.legacyAccountType).toBe("provider");
+    expect(context.profile.accountType).toBe("client");
+    expect(context.profile.canOfferServices).toBe(false);
+    expect(() => requireAccountType(context.profile, "provider")).toThrow(
+      "Cette action nécessite un profil prestataire."
+    );
   });
 
   it("makes legacy role guards read canonical account capabilities", async () => {
