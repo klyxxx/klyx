@@ -64,8 +64,9 @@ import {
 const USER_ID = "00000000-0000-4000-8000-000000000001";
 const ACCOUNT_ID = "10000000-0000-4000-8000-000000000001";
 
-function request(path = "/api/test") {
+function request(path = "/api/test", method = "GET") {
   return new Request(`https://www.klyx.be${path}`, {
+    method,
     headers: { authorization: "Bearer test-token" },
   });
 }
@@ -127,6 +128,24 @@ describe("KLYX canonical account capability authority", () => {
     expect(first.profile.canOfferServices).toBe(true);
     expect(second.profile.canRequestServices).toBe(true);
     expect(second.profile.canOfferServices).toBe(true);
+  });
+
+  it("routes market mutations through the request compatibility adapter without switching identity", async () => {
+    mocks.state.selectedProfileId = "profile-provider";
+
+    const post = await getAuthenticatedAccount(
+      request("/api/market/requests", "POST")
+    );
+    const patch = await getAuthenticatedAccount(
+      request("/api/market/requests", "PATCH")
+    );
+
+    expect(post.account.id).toBe(ACCOUNT_ID);
+    expect(patch.account.id).toBe(ACCOUNT_ID);
+    expect(post.profile.id).toBe("profile-client");
+    expect(patch.profile.id).toBe("profile-client");
+    expect(post.profile.canRequestServices).toBe(true);
+    expect(post.profile.canOfferServices).toBe(true);
   });
 
   it("makes legacy role guards read canonical account capabilities", async () => {
