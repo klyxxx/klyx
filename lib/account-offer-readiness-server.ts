@@ -12,6 +12,7 @@ import type {
   OfferPricingDraft,
 } from "@/lib/account-offer-readiness";
 import { findBelgianLocality } from "@/lib/belgian-localities";
+import { KLYX_SERVICE_CATALOG } from "@/lib/klyx-service-catalog";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { listTrustDecisions } from "@/lib/trust-safety/server";
 
@@ -19,6 +20,7 @@ type ProfileRow = {
   id: string;
   account_type: string | null;
   country_code: string | null;
+  currency_code: string | null;
   city: string | null;
   stripe_account_id: string | null;
   stripe_onboarding_complete: boolean | null;
@@ -47,6 +49,11 @@ type ServiceProfileRow = {
   fixed_price: number | string | null;
 };
 
+type SelectedService = {
+  service: ServiceRow;
+  userService: UserServiceRow;
+};
+
 export type AccountOfferReadiness = {
   accountId: string;
   status: AccountOfferReadinessStatus;
@@ -57,7 +64,9 @@ export type AccountOfferReadiness = {
     slug: string;
     name: string;
     userServiceId: string;
+    categoryKey: string | null;
   } | null;
+  jurisdictionCode: string | null;
   payoutsReady: boolean;
   stripeProfileId: string | null;
   payoutReviewRequired: boolean;
@@ -80,6 +89,47 @@ export type RecordAccountOfferFactsInput = {
   availability?: OfferAvailabilityDraft | null;
 };
 
+function normalizeCatalogLabel(value: string): string {
+  return value
+    .trim()
+    .toLocaleLowerCase("fr")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[’']/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function serviceCategoryKey(service: ServiceRow): string | null {
+  const normalizedName = normalizeCatalogLabel(service.name);
+  const category = KLYX_SERVICE_CATALOG.find((candidate) =>
+    candidate.services.some(
+      (serviceName) => normalizeCatalogLabel(serviceName) === normalizedName
+    )
+  );
+
+  return category?.slug ?? null;
+}
+
+function regionalJurisdictionCode(profile: ProfileRow): string | null {
+  const countryCode = (profile.country_code ?? "").trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(countryCode)) return null;
+  if (countryCode !== "BE") return countryCode;
+
+  const locality = profile.city ? findBelgianLocality(profile.city) : null;
+  if (!locality) return "BE";
+
+  switch (locality.region) {
+    case "Bruxelles":
+      return "BE-BRU";
+    case "Wallonie":
+      return "BE-WAL";
+    case "Flandre":
+      return "BE-VLG";
+  }
+}
+
 function positiveNumber(value: unknown): boolean {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0;
@@ -100,7 +150,7 @@ async function accountProfiles(accountId: string): Promise<ProfileRow[]> {
   const { data, error } = await supabaseAdmin
     .from("profiles")
     .select(
-      "id, account_type, country_code, city, stripe_account_id, stripe_onboarding_complete, stripe_charges_enabled, stripe_payouts_enabled"
+      "id, account_type, country_code, currency_code, city, stripe_account_id, stripe_onboarding_complete, stripe_charges_enabled, stripe_payouts_enabled"
     )
     .eq("account_id", accountId)
     .order("created_at", { ascending: true });
@@ -136,52 +186,53 @@ async function resolveCompatibilityProfile(
 async function loadSelectedService(params: {
   profileId: string;
   serviceSlug?: string | null;
-}): Promise<{ service: ServiceRow; userService: UserServiceRow } | null> {
-  let userService: UserServiceRow | null = null;
-  let service: ServiceRow | null = null;
-
+}): Promise<SelectedService | null> {
   if (params.serviceSlug) {
-    const { data, error } = await supabaseAdmin
+    const { data: serviceData, error: serviceError } = await supabaseAdmin
       .from("services")
       .select("id, slug, name")
       .eq("slug", params.serviceSlug)
       .maybeSingle();
-    if (error) throw new Error(error.message);
-    service = data as ServiceRow | null;
+
+    if (serviceError) throw new Error(serviceError.message);
+    const service = serviceData as ServiceRow | null;
     if (!service) return null;
 
-    const result = await supabaseAdmin
+    const { data: userServiceData, error: userServiceError } = await supabaseAdmin
       .from("user_services")
       .select("id, service_id, active, provider_enabled")
       .eq("user_id", params.profileId)
       .eq("service_id", service.id)
       .eq("provider_enabled", true)
       .maybeSingle();
-    if (result.error) throw new Error(result.error.message);
-    userService = result.data as UserServiceRow | null;
-  } else {
-    const result = await supabaseAdmin
-      .from("user_services")
-      .select("id, service_id, active, provider_enabled")
-      .eq("user_id", params.profileId)
-      .eq("provider_enabled", true)
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    if (result.error) throw new Error(result.error.message);
-    userService = result.data as UserServiceRow | null;
-    if (!userService) return null;
 
-    const serviceResult = await supabaseAdmin
-      .from("services")
-      .select("id, slug, name")
-      .eq("id", userService.service_id)
-      .maybeSingle();
-    if (serviceResult.error) throw new Error(serviceResult.error.message);
-    service = serviceResult.data as ServiceRow | null;
+    if (userServiceError) throw new Error(userServiceError.message);
+    const userService = userServiceData as UserServiceRow | null;
+    return userService ? { service, userService } : null;
   }
 
-  return service && userService ? { service, userService } : null;
+  const { data: userServiceData, error: userServiceError } = await supabaseAdmin
+    .from("user_services")
+    .select("id, service_id, active, provider_enabled")
+    .eq("user_id", params.profileId)
+    .eq("provider_enabled", true)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (userServiceError) throw new Error(userServiceError.message);
+  const userService = userServiceData as UserServiceRow | null;
+  if (!userService) return null;
+
+  const { data: serviceData, error: serviceError } = await supabaseAdmin
+    .from("services")
+    .select("id, slug, name")
+    .eq("id", userService.service_id)
+    .maybeSingle();
+
+  if (serviceError) throw new Error(serviceError.message);
+  const service = serviceData as ServiceRow | null;
+  return service ? { service, userService } : null;
 }
 
 function stripeState(profiles: readonly ProfileRow[]) {
@@ -189,7 +240,9 @@ function stripeState(profiles: readonly ProfileRow[]) {
     Boolean(profile.stripe_account_id?.trim())
   );
   const stripeAccountIds = new Set(
-    stripeProfiles.map((profile) => profile.stripe_account_id?.trim()).filter(Boolean)
+    stripeProfiles
+      .map((profile) => profile.stripe_account_id?.trim())
+      .filter((value): value is string => Boolean(value))
   );
   const conflict = stripeAccountIds.size > 1;
   const readyProfile = conflict
@@ -206,6 +259,31 @@ function stripeState(profiles: readonly ProfileRow[]) {
     readyProfile,
     payoutsReady: Boolean(readyProfile) && !conflict,
   };
+}
+
+async function latestCategoryDecision(params: {
+  accountId: string;
+  categoryKey: string;
+  jurisdictionCode: string;
+}) {
+  const jurisdictionCandidates =
+    params.jurisdictionCode.startsWith("BE-")
+      ? [params.jurisdictionCode, "BE"]
+      : [params.jurisdictionCode];
+
+  for (const jurisdictionCode of jurisdictionCandidates) {
+    const decisions = await listTrustDecisions({
+      accountId: params.accountId,
+      targetType: "category",
+      categoryKey: params.categoryKey,
+      jurisdictionCode,
+      limit: 1,
+    });
+    const decision = decisions[0] ?? null;
+    if (decision) return { decision, jurisdictionCode };
+  }
+
+  return { decision: null, jurisdictionCode: jurisdictionCandidates[0] ?? null };
 }
 
 export async function loadAccountOfferReadiness(params: {
@@ -266,6 +344,10 @@ export async function loadAccountOfferReadiness(params: {
   const payments = stripeState(profiles);
   if (!payments.payoutsReady) missing.push("payouts");
 
+  const categoryKey = selected ? serviceCategoryKey(selected.service) : null;
+  const jurisdictionCode = compatibilityProfile
+    ? regionalJurisdictionCode(compatibilityProfile)
+    : null;
   let trust: AccountOfferReadiness["trust"] = {
     accessDecision: "missing",
     decisionId: null,
@@ -277,29 +359,35 @@ export async function loadAccountOfferReadiness(params: {
   let humanReview = payments.conflict;
 
   if (selected && compatibilityProfile) {
-    const jurisdictionCode = (compatibilityProfile.country_code ?? "")
-      .trim()
-      .toUpperCase();
-
-    if (!/^[A-Z]{2}$/.test(jurisdictionCode)) {
+    if (!categoryKey) {
+      humanReview = true;
+      missing.push("legal");
+      trust = {
+        ...trust,
+        accessDecision: "human_review",
+        reasonCodes: ["CATEGORY_MAPPING_REQUIRED"],
+        requiredActions: [{ code: "COMPLETE_CATEGORY_REVIEW" }],
+        explanation:
+          "This service is not mapped to a canonical KLYX policy category. Automatic activation is forbidden until a human review maps it.",
+      };
+    } else if (!jurisdictionCode) {
       humanReview = true;
       missing.push("legal");
       trust = {
         ...trust,
         accessDecision: "human_review",
         reasonCodes: ["JURISDICTION_REQUIRED"],
+        requiredActions: [{ code: "REQUEST_LEGAL_REVIEW" }],
         explanation:
           "A jurisdiction is required before KLYX can evaluate legal and Trust & Safety eligibility.",
       };
     } else {
-      const decisions = await listTrustDecisions({
+      const lookup = await latestCategoryDecision({
         accountId: params.accountId,
-        targetType: "category",
-        categoryKey: selected.service.slug,
+        categoryKey,
         jurisdictionCode,
-        limit: 1,
       });
-      const decision = decisions[0] ?? null;
+      const decision = lookup.decision;
 
       if (!decision) {
         humanReview = true;
@@ -341,7 +429,7 @@ export async function loadAccountOfferReadiness(params: {
   );
   const status: AccountOfferReadinessStatus = trustBlocked
     ? "blocked"
-    : humanReview && !hasCollectableMissing
+    : payments.conflict
       ? "human_review"
       : hasCollectableMissing
         ? "missing_requirements"
@@ -360,8 +448,10 @@ export async function loadAccountOfferReadiness(params: {
           slug: selected.service.slug,
           name: selected.service.name,
           userServiceId: selected.userService.id,
+          categoryKey,
         }
       : null,
+    jurisdictionCode,
     payoutsReady: payments.payoutsReady,
     stripeProfileId: payments.readyProfile?.id ?? null,
     payoutReviewRequired: payments.conflict,
@@ -444,7 +534,9 @@ export async function recordAccountOfferConversationFacts(
     .select("id, pricing_type, price, hourly_price, fixed_price")
     .eq("user_service_id", userService.id)
     .maybeSingle();
-  if (serviceProfileResult.error) throw new Error(serviceProfileResult.error.message);
+  if (serviceProfileResult.error) {
+    throw new Error(serviceProfileResult.error.message);
+  }
 
   const existingServiceProfile = serviceProfileResult.data as ServiceProfileRow | null;
   const patch: Record<string, unknown> = {};
@@ -488,6 +580,7 @@ export async function recordAccountOfferConversationFacts(
       review_count: 0,
       updated_at: new Date().toISOString(),
     };
+
     if (input.city) {
       insertPayload.city = input.city;
       insertPayload.service_area = [input.city];
@@ -496,7 +589,9 @@ export async function recordAccountOfferConversationFacts(
       insertPayload.travel_radius_km = input.radiusKm;
     }
 
-    const { error } = await supabaseAdmin.from("service_profiles").insert(insertPayload);
+    const { error } = await supabaseAdmin
+      .from("service_profiles")
+      .insert(insertPayload);
     if (error) throw new Error(error.message);
   }
 
@@ -550,6 +645,29 @@ export async function recordAccountOfferConversationFacts(
   return { profileId, userServiceId: userService.id };
 }
 
+async function enableReadyServiceAdapter(
+  readiness: AccountOfferReadiness
+): Promise<void> {
+  if (!readiness.service || !readiness.compatibilityProfileId) {
+    throw new Error("KLYX_OFFER_READY_SERVICE_REQUIRED");
+  }
+
+  const [userServiceResult, serviceProfileResult] = await Promise.all([
+    supabaseAdmin
+      .from("user_services")
+      .update({ active: true, provider_enabled: true })
+      .eq("id", readiness.service.userServiceId)
+      .eq("user_id", readiness.compatibilityProfileId),
+    supabaseAdmin
+      .from("service_profiles")
+      .update({ available: true, updated_at: new Date().toISOString() })
+      .eq("user_service_id", readiness.service.userServiceId),
+  ]);
+
+  if (userServiceResult.error) throw new Error(userServiceResult.error.message);
+  if (serviceProfileResult.error) throw new Error(serviceProfileResult.error.message);
+}
+
 export async function activateAccountOfferServices(params: {
   accountId: string;
   serviceSlug?: string | null;
@@ -561,12 +679,17 @@ export async function activateAccountOfferServices(params: {
 
   await ensureLegacyOfferCompatibilityProfile(params.accountId);
 
-  // Re-evaluate immediately before writing the canonical capability. This is
-  // intentionally fail-closed: no client-supplied readiness snapshot is trusted.
+  // Re-evaluate immediately before changing storage or writing the canonical
+  // capability. No client-supplied readiness snapshot is trusted.
   const readiness = await loadAccountOfferReadiness(params);
   if (readiness.status !== "ready") {
     return { activated: false as const, readiness };
   }
+
+  // The service adapter becomes usable for the already merged orchestration
+  // engine, but provider_profiles.is_published remains untouched. Public
+  // discovery and regulated qualification gates therefore remain independent.
+  await enableReadyServiceAdapter(readiness);
 
   await writeAccountCapabilities(
     params.accountId,
