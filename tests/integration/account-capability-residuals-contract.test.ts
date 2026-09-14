@@ -7,6 +7,10 @@ function read(relativePath: string) {
   return fs.readFileSync(path.join(process.cwd(), relativePath), "utf8");
 }
 
+function compact(source: string) {
+  return source.replace(/\s+/g, " ");
+}
+
 describe("KLYX account capability residual guards", () => {
   it("routes the compatibility dashboard from canonical capability projections", () => {
     const accountHome = read("lib/account-home.ts");
@@ -22,9 +26,9 @@ describe("KLYX account capability residual guards", () => {
   });
 
   it("authorizes market split planning by request_services instead of legacy role", () => {
-    const route = read("app/api/brain/market-split-plan/[id]/route.ts");
+    const route = compact(read("app/api/brain/market-split-plan/[id]/route.ts"));
 
-    expect(route).toContain("if (!profile.canRequestServices)");
+    expect(route).toContain("if ( !profile.canRequestServices )");
     expect(route).not.toContain('profile.accountType !==');
     expect(route).toContain("marketRequest.client_profile_id !== profile.id");
   });
