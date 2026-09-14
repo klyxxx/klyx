@@ -18,11 +18,16 @@ import {
   assessStripeConnectCountry,
   STRIPE_ACCOUNT_COUNTRY_MISMATCH,
 } from "@/lib/stripe-connect-country";
+import {
+  getProviderStripeDestination,
+  isStripeConnectIdentityReviewRequired,
+} from "@/lib/stripe-connect-account";
 import { markBookingGroupPaidFromSession } from "@/lib/stripe-group-payments";
 import { assertStripeRuntimeReady } from "@/lib/stripe-runtime";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 // KLYX_GROUP_CHECKOUT_12_86
+// KLYX_ACCOUNT_LEVEL_STRIPE_CONNECT_19_45
 
 type ClaimRow = {
   action: "create" | "reuse" | "busy" | "paid";
@@ -242,24 +247,14 @@ export async function POST(request: Request) {
       throw new Error("Le service du prestataire n est plus actif.");
     }
 
-    const [providerResult, serviceResult] = await Promise.all([
-      supabaseAdmin
-        .from("profiles")
-        .select(
-          "country_code, stripe_account_id, stripe_onboarding_complete, stripe_charges_enabled, stripe_payouts_enabled"
-        )
-        .eq("id", group.provider_profile_id)
-        .maybeSingle(),
+    const [provider, serviceResult] = await Promise.all([
+      getProviderStripeDestination(group.provider_profile_id),
       supabaseAdmin
         .from("services")
         .select("id, slug, name")
         .eq("id", userService.service_id)
         .maybeSingle(),
     ]);
-
-    if (providerResult.error) {
-      throw new Error(providerResult.error.message);
-    }
 
     if (serviceResult.error) {
       throw new Error(serviceResult.error.message);
@@ -269,11 +264,10 @@ export async function POST(request: Request) {
       throw new Error("Service KLYX introuvable.");
     }
 
-    const provider = providerResult.data;
     const service = serviceResult.data;
 
     const providerMarketAccess = assessKlyxStripeMarketAccess(
-      provider?.country_code ?? "",
+      provider.countryCode ?? "",
       stripeRuntime.mode
     );
 
@@ -292,14 +286,15 @@ export async function POST(request: Request) {
     }
 
     let providerStripeAccount: Stripe.Account | null = null;
+    const canonicalStripeAccountId = provider.connect.stripeAccountId;
 
-    if (provider?.stripe_account_id) {
+    if (canonicalStripeAccountId) {
       providerStripeAccount = await stripe.accounts.retrieve(
-        provider.stripe_account_id
+        canonicalStripeAccountId
       );
 
       const countryAssessment = assessStripeConnectCountry({
-        klyxCountryCode: provider.country_code,
+        klyxCountryCode: provider.countryCode,
         stripeCountryCode: providerStripeAccount.country,
       });
 
@@ -319,7 +314,7 @@ export async function POST(request: Request) {
     }
 
     const providerReady = Boolean(
-      provider?.stripe_account_id &&
+      canonicalStripeAccountId &&
         providerStripeAccount?.details_submitted &&
         providerStripeAccount.charges_enabled &&
         providerStripeAccount.payouts_enabled
@@ -377,10 +372,10 @@ export async function POST(request: Request) {
         metadata,
       };
 
-    if (providerReady && provider?.stripe_account_id) {
+    if (providerReady && canonicalStripeAccountId) {
       paymentIntentData.application_fee_amount = fee;
       paymentIntentData.transfer_data = {
-        destination: provider.stripe_account_id,
+        destination: canonicalStripeAccountId,
       };
     }
 
@@ -434,6 +429,7 @@ export async function POST(request: Request) {
         { status: 409 }
       );
     }
+
     if (
       paymentClaim.action === "reuse" &&
       paymentClaim.checkout_session_id
@@ -580,6 +576,17 @@ export async function POST(request: Request) {
       groupId: group.id,
     });
   } catch (error) {
+    if (isStripeConnectIdentityReviewRequired(error)) {
+      return NextResponse.json(
+        {
+          error:
+            "L'identité Stripe Connect du prestataire nécessite une revue avant paiement.",
+          code: "KLYX_STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED",
+        },
+        { status: 409 }
+      );
+    }
+
     const message =
       error instanceof Error
         ? error.message
