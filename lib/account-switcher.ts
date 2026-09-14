@@ -152,7 +152,10 @@ export async function getActiveClientProfile(): Promise<SavedAccount> {
     throw new Error("Le compte KLYX ne peut pas demander de services.");
   }
 
-  return profile;
+  return {
+    ...profile,
+    accountType: "client",
+  };
 }
 
 export async function getActiveOfferProfile(): Promise<SavedAccount> {
@@ -165,7 +168,10 @@ export async function getActiveOfferProfile(): Promise<SavedAccount> {
     throw new Error("Le compte KLYX ne peut pas proposer de services.");
   }
 
-  return profile;
+  return {
+    ...profile,
+    accountType: "provider",
+  };
 }
 
 async function performAccountSwitch(profileId: string): Promise<void> {
