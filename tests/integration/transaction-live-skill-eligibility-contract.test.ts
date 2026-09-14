@@ -82,18 +82,16 @@ describe("transaction live skill eligibility contract", () => {
     expect(quotePreflight).toContain(
       'action !== "send" && action !== "accept"'
     );
-    expect(quotePreflight).toContain(
-      'profile.accountType !== "provider"'
-    );
+    expect(quotePreflight).toContain("!profile.canOfferServices");
     expect(quotePreflight).toContain(
       'lifecycleQuote.status !== "requested"'
     );
-    expect(quotePreflight).toContain(
-      'profile.accountType !== "client"'
-    );
+    expect(quotePreflight).toContain("!profile.canRequestServices");
     expect(quotePreflight).toContain(
       'lifecycleQuote.status !== "sent"'
     );
+    expect(quotePreflight).not.toContain('profile.accountType !== "provider"');
+    expect(quotePreflight).not.toContain('profile.accountType !== "client"');
     expect(quotePreflight).toContain(
       "return qualificationRequiredResponse("
     );

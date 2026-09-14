@@ -22,9 +22,7 @@ const profileManage = readFileSync(
 
 describe("profile server boundary contract", () => {
   it("removes all direct authenticated profile writes", () => {
-    expect(migration).toContain(
-      "KLYX_PROFILE_SERVER_BOUNDARY_12B_12G"
-    );
+    expect(migration).toContain("KLYX_PROFILE_SERVER_BOUNDARY_12B_12G");
     expect(migration).toContain(
       "revoke all privileges on table public.profiles from authenticated;"
     );
@@ -63,30 +61,28 @@ describe("profile server boundary contract", () => {
   });
 
   it("moves rich owned-profile loading behind the server boundary", () => {
+    expect(activeProfile).toContain('import "server-only"');
     expect(activeProfile).toContain(
       'import { supabaseAdmin } from "@/lib/supabase-admin";'
     );
-    expect(activeProfile).toContain(
-      "KLYX_AUTHENTICATED_PROFILE_PRIVACY_12B_12E"
-    );
     expect(activeProfile).toContain("await supabaseAdmin");
-    expect(activeProfile).toContain(
-      '"owner_user_id",\n        user.id'
+    expect(activeProfile).toMatch(
+      /\.from\("profiles"\)[\s\S]*?\.eq\(\s*"owner_user_id",\s*user\.id\s*\)/
     );
-    expect(activeProfile).not.toContain(
-      "KLYX_ACTIVE_PROFILE_RLS_PHASE_7C"
+    expect(activeProfile).toMatch(
+      /\.from\("accounts"\)[\s\S]*?\.eq\(\s*"auth_user_id",\s*ownerUserId\s*\)/
     );
+    expect(activeProfile).toContain("KLYX_PROFILE_ACCOUNT_OWNER_MISMATCH");
+    expect(activeProfile).not.toContain("KLYX_ACTIVE_PROFILE_RLS_PHASE_7C");
   });
 
   it("keeps profile management writes server-side while auth.uid RPCs keep the session", () => {
+    expect(profileManage).toContain("KLYX_PROFILE_SERVER_BOUNDARY_12B_12G");
     expect(profileManage).toContain(
-      "KLYX_PROFILE_SERVER_BOUNDARY_12B_12G"
+      'const { data, error } = await supabaseAdmin\n      .from("profiles")\n      .update(updatePayload)'
     );
     expect(profileManage).toContain(
-      "const { data, error } = await supabaseAdmin\n      .from(\"profiles\")\n      .update(updatePayload)"
-    );
-    expect(profileManage).toContain(
-      "const { data: ownedProfiles, error: profilesError } = await supabaseAdmin\n      .from(\"profiles\")"
+      'const { data: ownedProfiles, error: profilesError } = await supabaseAdmin\n      .from("profiles")'
     );
     expect(profileManage).toContain(
       'await supabase.rpc(\n      "klyx_create_profile"'
@@ -95,7 +91,7 @@ describe("profile server boundary contract", () => {
       'await supabase.rpc("klyx_delete_profile"'
     );
     expect(profileManage).not.toContain(
-      "const { data, error } = await supabase\n      .from(\"profiles\")\n      .update(updatePayload)"
+      'const { data, error } = await supabase\n      .from("profiles")\n      .update(updatePayload)'
     );
   });
 });

@@ -23,7 +23,7 @@ export default async function ProviderLayout({
     redirect("/profile");
   }
 
-  if (profile.accountType !== "provider") {
+  if (!profile.canOfferServices) {
     redirect("/dashboard");
   }
 

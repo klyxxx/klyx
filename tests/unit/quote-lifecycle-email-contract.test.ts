@@ -44,7 +44,7 @@ describe("quote lifecycle transactional email contract", () => {
     expect(afterIndex).toBeGreaterThan(successGuardIndex);
     expect(emailIndex).toBeGreaterThan(afterIndex);
     expect(patchRoute).toContain(
-      "deduplicationKey: `quote:${quoteId}:${action}:${email.profileId}`"
+      "deduplicationKey: `quote:${quoteId}:${emailAction}:${email.profileId}`"
     );
   });
 

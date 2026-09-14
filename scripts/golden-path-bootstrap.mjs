@@ -214,6 +214,43 @@ async function main() {
     }
   }
 
+  // The isolated Golden fixture is created after migrations. A real legacy
+  // provider would already have been captured by the capability migration
+  // backfill, so reproduce that migrated state explicitly for this fixture.
+  // This does not make profiles.account_type an authorization authority.
+  const { data: account, error: accountError } = await admin
+    .from("accounts")
+    .select("id")
+    .eq("auth_user_id", user.id)
+    .single();
+
+  if (accountError || !account?.id) {
+    throw new Error(
+      `Unable to load golden-path canonical account: ${
+        accountError?.message ?? "not found"
+      }`
+    );
+  }
+
+  const { error: capabilityError } = await admin
+    .from("account_actor_capabilities")
+    .upsert(
+      {
+        account_id: account.id,
+        capability: "offer_services",
+        enabled: true,
+        source: "legacy_backfill",
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "account_id,capability" }
+    );
+
+  if (capabilityError) {
+    throw new Error(
+      `Unable to reproduce golden-path legacy offer capability: ${capabilityError.message}`
+    );
+  }
+
   await userClient.auth.signOut();
 
   // Never print the dedicated email/password/keys.

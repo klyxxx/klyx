@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
-import { getActiveProfileAccount } from "@/lib/account-switcher";
+import { getActiveOfferProfile } from "@/lib/account-switcher";
 import {
   getKlyxTrustIntlLocale,
   translateKlyxTrustReason,
@@ -52,13 +52,7 @@ export default function ProviderTrustPage() {
       setErrorMessage("");
 
       try {
-        const profile = await getActiveProfileAccount();
-
-        if (profile.accountType !== "provider") {
-          setErrorMessage(t("loadError"));
-          return;
-        }
-
+        const profile = await getActiveOfferProfile();
         setProfileId(profile.id);
 
         const {

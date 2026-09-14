@@ -8,9 +8,9 @@ const source = fs.readFileSync(
 );
 
 describe("provider trust UX", () => {
-  it("keeps the page provider-scoped without the client report shortcut or old dashboard hero", () => {
-    expect(source).toContain("getActiveProfileAccount()");
-    expect(source).toContain('profile.accountType !== "provider"');
+  it("keeps the page offer-capability scoped without the client report shortcut or old dashboard hero", () => {
+    expect(source).toContain("getActiveOfferProfile()");
+    expect(source).not.toContain('profile.accountType !== "provider"');
     expect(source).not.toContain('href="/trust/new"');
     expect(source).not.toContain('t("reportClient")');
     expect(source).toContain("DisputeSection");

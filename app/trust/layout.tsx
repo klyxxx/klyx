@@ -23,8 +23,8 @@ export default async function ClientTrustLayout({
     redirect("/profile");
   }
 
-  if (profile.accountType !== "client") {
-    redirect("/provider/trust");
+  if (!profile.canRequestServices) {
+    redirect("/dashboard");
   }
 
   return children;

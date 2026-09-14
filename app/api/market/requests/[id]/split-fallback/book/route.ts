@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { runWithLegacyProfileCapability } from "@/lib/legacy-profile-capability-context";
 import { POST as postSplitBookingCore } from "./book-route-core";
 
 type RouteContext = {
@@ -38,8 +39,7 @@ async function sanitizeCoreResponse(
 
   try {
     body = await response.clone().json();
-  }
-  catch {
+  } catch {
     return response;
   }
 
@@ -71,33 +71,34 @@ export async function POST(
   request: Request,
   context: RouteContext
 ) {
-  const startedAt = Date.now();
+  return runWithLegacyProfileCapability("request", async () => {
+    const startedAt = Date.now();
 
-  try {
-    const response = await postSplitBookingCore(
-      request,
-      context
-    );
+    try {
+      const response = await postSplitBookingCore(
+        request,
+        context
+      );
 
-    return sanitizeCoreResponse(
-      response,
-      startedAt
-    );
-  }
-  catch (error) {
-    return secureApiErrorResponse({
-      error,
-      event: "split_booking_create_failed",
-      code: "KLYX_SPLIT_BOOKING_CREATE_FAILED",
-      status: 500,
-      route: "/api/market/requests/[id]/split-fallback/book",
-      method: "POST",
-      startedAt,
-      details: {
-        bookingCreated: false,
-        paymentCreated: false,
-        automaticRetry: false,
-      },
-    });
-  }
+      return sanitizeCoreResponse(
+        response,
+        startedAt
+      );
+    } catch (error) {
+      return secureApiErrorResponse({
+        error,
+        event: "split_booking_create_failed",
+        code: "KLYX_SPLIT_BOOKING_CREATE_FAILED",
+        status: 500,
+        route: "/api/market/requests/[id]/split-fallback/book",
+        method: "POST",
+        startedAt,
+        details: {
+          bookingCreated: false,
+          paymentCreated: false,
+          automaticRetry: false,
+        },
+      });
+    }
+  });
 }

@@ -50,14 +50,19 @@ describe("service proposal server boundary contract", () => {
     expect(page).not.toContain('.from("service_proposals")');
   });
 
-  it("uses supabaseAdmin for provider proposal reads and writes", () => {
+  it("uses the canonical offer capability adapter and supabaseAdmin", () => {
     const route = readFileSync(join(process.cwd(), providerRoutePath), "utf8");
 
     expect(route).toContain(
       'import { supabaseAdmin } from "@/lib/supabase-admin";'
     );
-    expect(route).toContain("const profile = await getActiveProfile();");
-    expect(route).toContain('profile.accountType !== "provider"');
+    expect(route).toContain(
+      'import { getOfferCompatibilityProfile } from "@/lib/active-profile";'
+    );
+    expect(route).toContain(
+      "const profile = await getOfferCompatibilityProfile();"
+    );
+    expect(route).not.toContain('profile.accountType !== "provider"');
     expect(route.match(/supabaseAdmin\s*\n\s*\.from\("service_proposals"\)/g)?.length)
       .toBeGreaterThanOrEqual(3);
     expect(route).not.toContain('supabase\n    .from("service_proposals")');

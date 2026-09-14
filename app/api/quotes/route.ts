@@ -9,6 +9,7 @@ import {
   quoteRequestedEmail,
   quoteSentEmail,
 } from "@/lib/email/templates";
+import { runWithLegacyProfileCapability } from "@/lib/legacy-profile-capability-context";
 import {
   quoteLifecycleQualificationPreflight,
   quoteTransactionQualificationPreflight,
@@ -130,156 +131,168 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const startedAt = Date.now();
-  const emailRequest = request.clone();
+  return runWithLegacyProfileCapability("request", async () => {
+    const startedAt = Date.now();
+    const emailRequest = request.clone();
 
-  try {
-    const preflight = await quoteTransactionQualificationPreflight(
-      request.clone()
-    );
+    try {
+      const preflight = await quoteTransactionQualificationPreflight(
+        request.clone()
+      );
 
-    if (preflight) return preflight;
+      if (preflight) return preflight;
 
-    const response = await corePost(request);
-    const securedResponse = await secureCoreResponse(
-      response,
-      "POST",
-      startedAt
-    );
+      const response = await corePost(request);
+      const securedResponse = await secureCoreResponse(
+        response,
+        "POST",
+        startedAt
+      );
 
-    if (securedResponse.ok) {
-      const [emailBody, responseBody] = await Promise.all([
-        emailRequest.json().catch(() => null) as Promise<{
-          providerProfileId?: unknown;
-        } | null>,
-        securedResponse.clone().json().catch(() => null) as Promise<{
-          quote?: { id?: unknown };
-        } | null>,
-      ]);
-      const providerProfileId =
-        typeof emailBody?.providerProfileId === "string"
-          ? emailBody.providerProfileId.trim()
-          : "";
-      const quoteId =
-        typeof responseBody?.quote?.id === "string"
-          ? responseBody.quote.id.trim()
-          : "";
+      if (securedResponse.ok) {
+        const [emailBody, responseBody] = await Promise.all([
+          emailRequest.json().catch(() => null) as Promise<{
+            providerProfileId?: unknown;
+          } | null>,
+          securedResponse.clone().json().catch(() => null) as Promise<{
+            quote?: { id?: unknown };
+          } | null>,
+        ]);
+        const providerProfileId =
+          typeof emailBody?.providerProfileId === "string"
+            ? emailBody.providerProfileId.trim()
+            : "";
+        const quoteId =
+          typeof responseBody?.quote?.id === "string"
+            ? responseBody.quote.id.trim()
+            : "";
 
-      if (providerProfileId && quoteId) {
-        after(async () => {
-          await sendKlyxDeduplicatedEmail({
-            deduplicationKey: `quote:${quoteId}:requested:provider`,
-            templateKey: "quote.requested.provider",
-            profileId: providerProfileId,
-            ...quoteRequestedEmail(),
+        if (providerProfileId && quoteId) {
+          after(async () => {
+            await sendKlyxDeduplicatedEmail({
+              deduplicationKey: `quote:${quoteId}:requested:provider`,
+              templateKey: "quote.requested.provider",
+              profileId: providerProfileId,
+              ...quoteRequestedEmail(),
+            });
           });
-        });
+        }
       }
-    }
 
-    return securedResponse;
-  } catch (error) {
-    return secureApiErrorResponse({
-      error,
-      event: "quotes_create_failed",
-      route: "/api/quotes",
-      method: "POST",
-      status: 500,
-      code: "KLYX_QUOTES_CREATE_FAILED",
-      startedAt,
-    });
-  }
+      return securedResponse;
+    } catch (error) {
+      return secureApiErrorResponse({
+        error,
+        event: "quotes_create_failed",
+        route: "/api/quotes",
+        method: "POST",
+        status: 500,
+        code: "KLYX_QUOTES_CREATE_FAILED",
+        startedAt,
+      });
+    }
+  });
 }
 
 export async function PATCH(request: Request) {
-  const startedAt = Date.now();
-  const emailRequest = request.clone();
+  const actionBody = (await request
+    .clone()
+    .json()
+    .catch(() => null)) as { action?: unknown } | null;
+  const action =
+    typeof actionBody?.action === "string" ? actionBody.action.trim() : "";
+  const capabilityContext = action === "send" ? "offer" : "request";
 
-  try {
-    const preflight = await quoteLifecycleQualificationPreflight(
-      request.clone()
-    );
+  return runWithLegacyProfileCapability(capabilityContext, async () => {
+    const startedAt = Date.now();
+    const emailRequest = request.clone();
 
-    if (preflight) return preflight;
+    try {
+      const preflight = await quoteLifecycleQualificationPreflight(
+        request.clone()
+      );
 
-    const response = await corePatch(request);
-    const securedResponse = await secureCoreResponse(
-      response,
-      "PATCH",
-      startedAt
-    );
+      if (preflight) return preflight;
 
-    if (securedResponse.ok) {
-      const emailBody = (await emailRequest
-        .json()
-        .catch(() => null)) as {
-        quoteId?: unknown;
-        action?: unknown;
-      } | null;
-      const quoteId =
-        typeof emailBody?.quoteId === "string"
-          ? emailBody.quoteId.trim()
-          : "";
-      const action =
-        typeof emailBody?.action === "string"
-          ? emailBody.action.trim()
-          : "";
-      const isEmailAction = [
-        "send",
-        "accept",
-        "reject",
-        "cancel",
-      ].includes(action);
+      const response = await corePatch(request);
+      const securedResponse = await secureCoreResponse(
+        response,
+        "PATCH",
+        startedAt
+      );
 
-      if (quoteId && isEmailAction) {
-        after(async () => {
-          const { data: quote, error: quoteError } =
-            await supabaseAdmin
-              .from("service_quotes")
-              .select(
-                "client_profile_id, provider_profile_id"
-              )
-              .eq("id", quoteId)
-              .maybeSingle();
+      if (securedResponse.ok) {
+        const emailBody = (await emailRequest
+          .json()
+          .catch(() => null)) as {
+          quoteId?: unknown;
+          action?: unknown;
+        } | null;
+        const quoteId =
+          typeof emailBody?.quoteId === "string"
+            ? emailBody.quoteId.trim()
+            : "";
+        const emailAction =
+          typeof emailBody?.action === "string"
+            ? emailBody.action.trim()
+            : "";
+        const isEmailAction = [
+          "send",
+          "accept",
+          "reject",
+          "cancel",
+        ].includes(emailAction);
 
-          if (quoteError || !quote) {
-            logServerWarning({
-              event: "quote_lifecycle_email_lookup_failed",
-              route: "/api/quotes",
-              method: "PATCH",
-              code: "KLYX_QUOTE_EMAIL_LOOKUP_FAILED",
+        if (quoteId && isEmailAction) {
+          after(async () => {
+            const { data: quote, error: quoteError } =
+              await supabaseAdmin
+                .from("service_quotes")
+                .select(
+                  "client_profile_id, provider_profile_id"
+                )
+                .eq("id", quoteId)
+                .maybeSingle();
+
+            if (quoteError || !quote) {
+              logServerWarning({
+                event: "quote_lifecycle_email_lookup_failed",
+                route: "/api/quotes",
+                method: "PATCH",
+                code: "KLYX_QUOTE_EMAIL_LOOKUP_FAILED",
+              });
+              return;
+            }
+
+            const email = quoteLifecycleEmail(
+              emailAction as QuoteLifecycleEmailAction,
+              quote as QuoteLifecycleEmailTarget,
+              quoteId
+            );
+
+            await sendKlyxDeduplicatedEmail({
+              deduplicationKey: `quote:${quoteId}:${emailAction}:${email.profileId}`,
+              templateKey: email.templateKey,
+              profileId: email.profileId,
+              subject: email.subject,
+              text: email.text,
+              html: email.html,
             });
-            return;
-          }
-
-          const email = quoteLifecycleEmail(
-            action as QuoteLifecycleEmailAction,
-            quote as QuoteLifecycleEmailTarget,
-            quoteId
-          );
-
-          await sendKlyxDeduplicatedEmail({
-            deduplicationKey: `quote:${quoteId}:${action}:${email.profileId}`,
-            templateKey: email.templateKey,
-            profileId: email.profileId,
-            subject: email.subject,
-            text: email.text,
-            html: email.html,
           });
-        });
+        }
       }
-    }
 
-    return securedResponse;
-  } catch (error) {
-    return secureApiErrorResponse({
-      error,
-      event: "quotes_update_failed",
-      route: "/api/quotes",
-      method: "PATCH",
-      status: 500,
-      code: "KLYX_QUOTES_UPDATE_FAILED",
-      startedAt,
-    });
-  }
+      return securedResponse;
+    } catch (error) {
+      return secureApiErrorResponse({
+        error,
+        event: "quotes_update_failed",
+        route: "/api/quotes",
+        method: "PATCH",
+        status: 500,
+        code: "KLYX_QUOTES_UPDATE_FAILED",
+        startedAt,
+      });
+    }
+  });
 }
