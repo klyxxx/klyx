@@ -24,6 +24,24 @@ export type OfferAvailabilityDraft = {
   endTime: string;
 };
 
+export type OfferLegalPathwayIntent =
+  | "occasional"
+  | "employment_structure"
+  | "independent"
+  | "unknown";
+
+export type OfferActivityFrequency =
+  | "one_off"
+  | "intermittent"
+  | "recurring"
+  | "unknown";
+
+export type OfferLegalDraft = {
+  pathwayIntent: OfferLegalPathwayIntent | null;
+  activityFrequency: OfferActivityFrequency | null;
+  explicitUncertainty: boolean;
+};
+
 const OFFER_INTENT_MARKERS = [
   "gagner de l argent",
   "gagner de l’argent",
@@ -60,6 +78,7 @@ function normalize(value: string): string {
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
     .replace(/[’']/g, " ")
+    .replace(/[-_]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -170,6 +189,82 @@ export function parseOfferAvailability(
   return { dayOfWeek, startTime, endTime };
 }
 
+function explicitPathwayIntent(value: string): OfferLegalPathwayIntent | null {
+  if (
+    /\b(?:independant|independante|a mon compte|via mon entreprise|self employed|self employment)\b/i.test(
+      value
+    )
+  ) {
+    return "independent";
+  }
+
+  if (
+    /\b(?:salarie|salariee|contrat de travail|structure d emploi|employe par|employee by|employment structure)\b/i.test(
+      value
+    )
+  ) {
+    return "employment_structure";
+  }
+
+  if (/\b(?:activite occasionnelle|occasionnel|occasionnelle)\b/i.test(value)) {
+    return "occasional";
+  }
+
+  return null;
+}
+
+function explicitActivityFrequency(value: string): OfferActivityFrequency | null {
+  if (
+    /\b(?:regulier|reguliere|chaque semaine|toutes les semaines|tous les week ends|recurring)\b/i.test(
+      value
+    )
+  ) {
+    return "recurring";
+  }
+
+  if (/\b(?:ponctuel|ponctuelle|une seule fois|one off)\b/i.test(value)) {
+    return "one_off";
+  }
+
+  if (/\b(?:de temps en temps|intermittent|intermittente|occasionnellement)\b/i.test(value)) {
+    return "intermittent";
+  }
+
+  return null;
+}
+
+export function mergeOfferLegalDraft(
+  message: string,
+  previous: OfferLegalDraft | null
+): OfferLegalDraft | null {
+  const value = normalize(message);
+  const explicitUncertainty =
+    /\b(?:je ne sais pas|je sais pas|pas sur|pas sure|aucune idee|i don t know|not sure)\b/i.test(
+      value
+    );
+  const pathwayIntent = explicitPathwayIntent(value);
+  const activityFrequency = explicitActivityFrequency(value);
+
+  if (!explicitUncertainty && !pathwayIntent && !activityFrequency) {
+    return previous;
+  }
+
+  if (explicitUncertainty) {
+    return {
+      pathwayIntent: previous?.pathwayIntent ?? "unknown",
+      activityFrequency: previous?.activityFrequency ?? "unknown",
+      explicitUncertainty: true,
+    };
+  }
+
+  return {
+    pathwayIntent: pathwayIntent ?? previous?.pathwayIntent ?? null,
+    activityFrequency:
+      activityFrequency ?? previous?.activityFrequency ?? null,
+    explicitUncertainty: false,
+  };
+}
+
 export function offerRequirementQuestion(
   requirement: AccountOfferRequirement
 ): string {
@@ -187,6 +282,6 @@ export function offerRequirementQuestion(
     case "trust_safety":
       return "Il reste une vérification Trust & Safety à compléter avant l’activation de l’offre.";
     case "legal":
-      return "La situation juridique nécessite une revue humaine avant d’activer cette activité.";
+      return "Pour l’évaluation légale, indique seulement comment tu comptes exercer cette activité : occasionnellement, comme indépendant, via une structure d’emploi, ou dis que tu ne sais pas.";
   }
 }
