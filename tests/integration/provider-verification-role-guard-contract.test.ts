@@ -7,15 +7,15 @@ const verificationPage = readFileSync(
   "utf8"
 );
 
-describe("provider verification role guard contract", () => {
-  it("uses the active provider profile instead of the client-only helper", () => {
+describe("provider verification capability guard contract", () => {
+  it("uses the offer-capable compatibility profile without requiring a provider role switch", () => {
     expect(verificationPage).toContain(
-      'import { getActiveProfileAccount } from "@/lib/account-switcher";'
+      'import { getActiveOfferProfile } from "@/lib/account-switcher";'
     );
     expect(verificationPage).toContain(
-      "const profile = await getActiveProfileAccount();"
+      "const profile = await getActiveOfferProfile();"
     );
-    expect(verificationPage).toContain(
+    expect(verificationPage).not.toContain(
       'if (profile.accountType !== "provider")'
     );
     expect(verificationPage).toContain("setProfileId(profile.id)");
