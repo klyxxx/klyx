@@ -1,46 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => {
-  const state = {
-    selectedProfileId: "profile-client",
-  };
-
+  const state = { selectedProfileId: "profile-client" };
   const getUser = vi.fn();
-  const createClient = vi.fn(() => ({
-    auth: {
-      getUser,
-    },
-  }));
+  const createClient = vi.fn(() => ({ auth: { getUser } }));
 
   const profileOrder = vi.fn();
-  const profileEq = vi.fn(() => ({
-    order: profileOrder,
-  }));
-  const profileSelect = vi.fn(() => ({
-    eq: profileEq,
-  }));
+  const profileEq = vi.fn(() => ({ order: profileOrder }));
+  const profileSelect = vi.fn(() => ({ eq: profileEq }));
 
   const accountMaybeSingle = vi.fn();
-  const accountEq = vi.fn(() => ({
-    maybeSingle: accountMaybeSingle,
-  }));
-  const accountSelect = vi.fn(() => ({
-    eq: accountEq,
-  }));
+  const accountEq = vi.fn(() => ({ maybeSingle: accountMaybeSingle }));
+  const accountSelect = vi.fn(() => ({ eq: accountEq }));
+
+  const capabilityEq = vi.fn();
+  const capabilitySelect = vi.fn(() => ({ eq: capabilityEq }));
 
   const from = vi.fn((table: string) => {
-    if (table === "profiles") {
-      return {
-        select: profileSelect,
-      };
+    if (table === "profiles") return { select: profileSelect };
+    if (table === "accounts") return { select: accountSelect };
+    if (table === "account_actor_capabilities") {
+      return { select: capabilitySelect };
     }
-
-    if (table === "accounts") {
-      return {
-        select: accountSelect,
-      };
-    }
-
     throw new Error(`Unexpected table in test: ${table}`);
   });
 
@@ -49,21 +30,15 @@ const mocks = vi.hoisted(() => {
     getUser,
     createClient,
     profileOrder,
-    profileEq,
-    profileSelect,
     accountMaybeSingle,
     accountEq,
-    accountSelect,
+    capabilityEq,
     from,
   };
 });
 
 vi.mock("server-only", () => ({}));
-
-vi.mock("@supabase/supabase-js", () => ({
-  createClient: mocks.createClient,
-}));
-
+vi.mock("@supabase/supabase-js", () => ({ createClient: mocks.createClient }));
 vi.mock("next/headers", () => ({
   cookies: vi.fn(async () => ({
     get: (name: string) =>
@@ -72,32 +47,26 @@ vi.mock("next/headers", () => ({
         : undefined,
   })),
 }));
-
 vi.mock("@/lib/active-profile", () => ({
   ACTIVE_PROFILE_COOKIE: "klyx_active_profile",
 }));
-
 vi.mock("@/lib/supabase-admin", () => ({
-  supabaseAdmin: {
-    from: mocks.from,
-  },
+  supabaseAdmin: { from: mocks.from },
 }));
 
 import {
-  apiErrorStatus,
   getAuthenticatedAccount,
   getAuthenticatedProfile,
+  requireAccountCapability,
   requireAccountType,
 } from "@/lib/api-auth";
 
 const USER_ID = "00000000-0000-4000-8000-000000000001";
 const ACCOUNT_ID = "10000000-0000-4000-8000-000000000001";
 
-function request() {
-  return new Request("https://www.klyx.be/api/test", {
-    headers: {
-      authorization: "Bearer test-token",
-    },
+function request(path = "/api/test") {
+  return new Request(`https://www.klyx.be${path}`, {
+    headers: { authorization: "Bearer test-token" },
   });
 }
 
@@ -105,29 +74,24 @@ function profile(id: string, accountType: "client" | "provider") {
   return {
     id,
     owner_user_id: USER_ID,
+    account_id: ACCOUNT_ID,
     account_type: accountType,
-    first_name: accountType === "client" ? "Mohamed" : "Youssouf",
-    last_name: "KLYX",
+    first_name: "KLYX",
+    last_name: "User",
     country_code: "BE",
     currency_code: "EUR",
   };
 }
 
-describe("KLYX authenticated account compatibility adapter", () => {
+describe("KLYX canonical account capability authority", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "test-publishable-key";
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "test-key";
 
     mocks.state.selectedProfileId = "profile-client";
     mocks.getUser.mockResolvedValue({
-      data: {
-        user: {
-          id: USER_ID,
-          email: "owner@example.com",
-        },
-      },
+      data: { user: { id: USER_ID, email: "owner@example.com" } },
       error: null,
     });
     mocks.profileOrder.mockResolvedValue({
@@ -138,84 +102,85 @@ describe("KLYX authenticated account compatibility adapter", () => {
       error: null,
     });
     mocks.accountMaybeSingle.mockResolvedValue({
-      data: {
-        id: ACCOUNT_ID,
-        auth_user_id: USER_ID,
-      },
+      data: { id: ACCOUNT_ID, auth_user_id: USER_ID },
+      error: null,
+    });
+    mocks.capabilityEq.mockResolvedValue({
+      data: [
+        { account_id: ACCOUNT_ID, capability: "request_services", enabled: true },
+        { account_id: ACCOUNT_ID, capability: "offer_services", enabled: true },
+      ],
       error: null,
     });
   });
 
-  it("keeps the legacy authenticated-profile path account-independent", async () => {
-    const result = await getAuthenticatedProfile(request());
-
-    expect(result.profile.id).toBe("profile-client");
-    expect(mocks.from).toHaveBeenCalledTimes(1);
-    expect(mocks.from).toHaveBeenCalledWith("profiles");
-    expect(mocks.from).not.toHaveBeenCalledWith("accounts");
-  });
-
-  it("returns the same canonical account when the active profile switches", async () => {
-    const clientContext = await getAuthenticatedAccount(request());
-
+  it("keeps one account and one capability set across legacy profile switches", async () => {
+    const first = await getAuthenticatedAccount(request());
     mocks.state.selectedProfileId = "profile-provider";
-    const providerContext = await getAuthenticatedAccount(request());
+    const second = await getAuthenticatedAccount(request());
 
-    expect(clientContext.profile.id).toBe("profile-client");
-    expect(providerContext.profile.id).toBe("profile-provider");
-    expect(clientContext.account).toEqual({
-      id: ACCOUNT_ID,
-      authUserId: USER_ID,
-    });
-    expect(providerContext.account).toEqual(clientContext.account);
-    expect(mocks.accountEq).toHaveBeenNthCalledWith(1, "auth_user_id", USER_ID);
-    expect(mocks.accountEq).toHaveBeenNthCalledWith(2, "auth_user_id", USER_ID);
+    expect(first.account.id).toBe(ACCOUNT_ID);
+    expect(second.account.id).toBe(ACCOUNT_ID);
+    expect(first.profile.id).toBe("profile-client");
+    expect(second.profile.id).toBe("profile-provider");
+    expect(first.profile.canRequestServices).toBe(true);
+    expect(first.profile.canOfferServices).toBe(true);
+    expect(second.profile.canRequestServices).toBe(true);
+    expect(second.profile.canOfferServices).toBe(true);
   });
 
-  it("never accepts an account belonging to another authenticated user", async () => {
-    mocks.accountMaybeSingle.mockResolvedValue({
-      data: {
-        id: "10000000-0000-4000-8000-000000000002",
-        auth_user_id: "00000000-0000-4000-8000-000000000002",
-      },
+  it("makes legacy role guards read canonical account capabilities", async () => {
+    const { profile: activeProfile } = await getAuthenticatedProfile(request());
+
+    expect(activeProfile.legacyAccountType).toBe("client");
+    expect(() => requireAccountType(activeProfile, "client")).not.toThrow();
+    expect(() => requireAccountType(activeProfile, "provider")).not.toThrow();
+  });
+
+  it("supports extensible account capability checks", async () => {
+    mocks.capabilityEq.mockResolvedValue({
+      data: [
+        { account_id: ACCOUNT_ID, capability: "request_services", enabled: true },
+        { account_id: ACCOUNT_ID, capability: "service.review", enabled: true },
+      ],
       error: null,
     });
 
-    await expect(getAuthenticatedAccount(request())).rejects.toThrow(
-      "Compte KLYX introuvable."
-    );
-    expect(mocks.accountEq).toHaveBeenCalledWith("auth_user_id", USER_ID);
-  });
-
-  it("fails closed when the canonical account is absent", async () => {
-    mocks.accountMaybeSingle.mockResolvedValue({
-      data: null,
-      error: null,
-    });
-
-    await expect(getAuthenticatedAccount(request())).rejects.toThrow(
-      "Compte KLYX introuvable."
+    const { account } = await getAuthenticatedAccount(request());
+    expect(() => requireAccountCapability(account, "service.review")).not.toThrow();
+    expect(() => requireAccountCapability(account, "missing")).toThrow(
+      "KLYX_ACCOUNT_CAPABILITY_REQUIRED:missing"
     );
   });
 
-  it("preserves legacy role authorization and API status behavior", () => {
-    expect(() =>
-      requireAccountType(
+  it("fails closed on account/profile identity mismatch", async () => {
+    mocks.profileOrder.mockResolvedValue({
+      data: [
         {
-          id: "profile-client",
-          ownerUserId: USER_ID,
-          accountType: "client",
-          firstName: "Mohamed",
-          lastName: "KLYX",
-          countryCode: "BE",
-          currencyCode: "EUR",
+          ...profile("profile-client", "client"),
+          account_id: "10000000-0000-4000-8000-000000000099",
         },
-        "provider"
-      )
-    ).toThrow("Cette action nécessite un profil prestataire.");
+      ],
+      error: null,
+    });
 
-    expect(apiErrorStatus("Session manquante.")).toBe(401);
-    expect(apiErrorStatus("Profil KLYX introuvable.")).toBe(403);
-    expect(apiErrorStatus("Compte KLYX introuvable.")).toBe(500);
+    await expect(getAuthenticatedAccount(request())).rejects.toThrow(
+      "KLYX_PROFILE_ACCOUNT_OWNER_MISMATCH"
+    );
+  });
+
+  it("uses legacy capability fallback only if the account capability table is unavailable", async () => {
+    mocks.capabilityEq.mockResolvedValue({
+      data: null,
+      error: {
+        code: "42P01",
+        message: "account_actor_capabilities does not exist",
+      },
+    });
+
+    const context = await getAuthenticatedAccount(request());
+    expect(context.account.capabilitySource).toBe("legacy_fallback");
+    expect(context.account.canRequestServices).toBe(true);
+    expect(context.account.canOfferServices).toBe(true);
   });
 });
