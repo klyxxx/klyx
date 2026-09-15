@@ -12,7 +12,10 @@ function read(relativePath: string) {
 const migration = read(
   "supabase/migrations/20260821163000_klyx_refund_payment_terminal_state.sql"
 );
-const statusRoute = read("app/api/bookings/status/route.ts");
+const statusRoute = [
+  read("app/api/bookings/status/route.ts"),
+  read("app/api/bookings/status/route-core.ts"),
+].join("\n");
 const refundReconciliation = read("lib/stripe-refunds.ts");
 const groupRefunds = read("lib/stripe-group-refunds.ts");
 const paymentWebhooks = read("lib/stripe-payments.ts");
