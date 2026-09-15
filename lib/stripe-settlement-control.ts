@@ -28,6 +28,15 @@ function envTrue(value: string | undefined): boolean {
   return value?.trim().toLowerCase() === "true";
 }
 
+function runtimeSettlementEnvironment(): SettlementEnvironment {
+  return {
+    KLYX_STRIPE_SETTLEMENT_MODE: process.env.KLYX_STRIPE_SETTLEMENT_MODE,
+    KLYX_SETTLEMENT_CONTROL_TEST_READY:
+      process.env.KLYX_SETTLEMENT_CONTROL_TEST_READY,
+    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+  };
+}
+
 function normalizedRequestedMode(
   env: SettlementEnvironment
 ): KlyxSettlementMode {
@@ -54,7 +63,7 @@ function normalizedRequestedMode(
  * a certified way to settle them.
  */
 export function getKlyxSettlementMode(
-  env: SettlementEnvironment = process.env
+  env: SettlementEnvironment = runtimeSettlementEnvironment()
 ): KlyxSettlementMode {
   const requested = normalizedRequestedMode(env);
 
