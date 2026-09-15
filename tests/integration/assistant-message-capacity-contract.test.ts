@@ -49,8 +49,8 @@ describe("assistant message capacity contract", () => {
     expect(routeIndex).toBeGreaterThan(parseFailureIndex);
     expect(serviceResponseIndex).toBeGreaterThan(parseFailureIndex);
     expect(converseRoute).toContain("await generateKlyxVisibleAiReply");
-    expect(converseRoute).toContain(
-      "suppressVisibleAiForCapacity =\n    isKlyxAssistantMessageTooLong(params.message)"
+    expect(converseRoute).toMatch(
+      /suppressVisibleAiForCapacity\s*=\s*isKlyxAssistantMessageTooLong\(params\.message\)/
     );
     expect(boundary).toContain(
       "rawMessage.length > BRAIN_RESPOND_MAX_MESSAGE_CHARACTERS"
