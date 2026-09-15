@@ -11,28 +11,40 @@ const FIRST_PROFILE_CAPTURED_KEY =
 
 type Phase = "pending" | "completed";
 
+export function completeKlyxFirstProfileAnalytics(): void {
+  try {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (
+      window.sessionStorage.getItem(FIRST_PROFILE_CAPTURED_KEY) === "1"
+    ) {
+      window.sessionStorage.removeItem(FIRST_PROFILE_PENDING_KEY);
+      return;
+    }
+
+    if (window.sessionStorage.getItem(FIRST_PROFILE_PENDING_KEY) !== "1") {
+      return;
+    }
+
+    window.sessionStorage.setItem(FIRST_PROFILE_CAPTURED_KEY, "1");
+    window.sessionStorage.removeItem(FIRST_PROFILE_PENDING_KEY);
+    captureKlyxProductEvent("profile created");
+  } catch {
+    // Analytics storage availability must never affect onboarding.
+  }
+}
+
 export default function KlyxFirstProfileAnalytics({ phase }: { phase: Phase }) {
   useEffect(() => {
+    if (phase === "completed") {
+      completeKlyxFirstProfileAnalytics();
+      return;
+    }
+
     try {
-      if (phase === "pending") {
-        window.sessionStorage.setItem(FIRST_PROFILE_PENDING_KEY, "1");
-        return;
-      }
-
-      if (
-        window.sessionStorage.getItem(FIRST_PROFILE_CAPTURED_KEY) === "1"
-      ) {
-        window.sessionStorage.removeItem(FIRST_PROFILE_PENDING_KEY);
-        return;
-      }
-
-      if (window.sessionStorage.getItem(FIRST_PROFILE_PENDING_KEY) !== "1") {
-        return;
-      }
-
-      window.sessionStorage.setItem(FIRST_PROFILE_CAPTURED_KEY, "1");
-      window.sessionStorage.removeItem(FIRST_PROFILE_PENDING_KEY);
-      captureKlyxProductEvent("profile created");
+      window.sessionStorage.setItem(FIRST_PROFILE_PENDING_KEY, "1");
     } catch {
       // Analytics storage availability must never affect onboarding.
     }
