@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   CircleUserRound,
@@ -325,6 +326,7 @@ export default function MissionRail({
   const copy = copyFor(locale);
   const [collapsed, setCollapsed] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [missions, setMissions] = useState<RailMission[]>([]);
   const [loading, setLoading] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -343,6 +345,10 @@ export default function MissionRail({
       // The rail remains expanded when storage is unavailable.
     }
   }, [mobile]);
+
+  useEffect(() => {
+    setAccountOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     let cancelled = false;
@@ -464,6 +470,11 @@ export default function MissionRail({
     setHistoryOpen(true);
   }
 
+  function closeAccountForNavigation() {
+    setAccountOpen(false);
+    onNavigate?.();
+  }
+
   function missionRow(mission: RailMission, siblings: RailMission[]) {
     const active = normalizePath(mission.href) === currentPath;
     const meta = missionMeta(mission, siblings);
@@ -544,6 +555,7 @@ export default function MissionRail({
       const supabase = createClient();
       const { error } = await supabase.auth.signOut({ scope: "local" });
       if (error) throw error;
+      setAccountOpen(false);
       router.replace("/login");
       router.refresh();
     } catch {
@@ -666,54 +678,79 @@ export default function MissionRail({
         data-testid="account-entry"
         className={
           compact
-            ? "space-y-1 border-t border-border px-4 py-4 dark:border-white/8"
-            : "space-y-1 border-t border-border px-3 py-4 dark:border-white/8"
+            ? "border-t border-border px-4 py-4 dark:border-white/8"
+            : "border-t border-border px-3 py-4 dark:border-white/8"
         }
       >
-        {!compact && (
-          <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-            {copy.account}
-          </p>
-        )}
+        <div className={compact ? "relative isolate w-11" : "relative isolate w-full"}>
+          <button
+            type="button"
+            data-testid="mission-rail-account-entry"
+            onClick={() => setAccountOpen((value) => !value)}
+            disabled={loggingOut}
+            className={
+              compact
+                ? "grid h-11 w-11 place-items-center rounded-lg text-foreground transition hover:bg-muted disabled:cursor-wait disabled:opacity-60"
+                : "flex min-h-11 w-full items-center gap-2.5 rounded-lg px-2 text-left text-sm font-semibold text-foreground transition hover:bg-muted disabled:cursor-wait disabled:opacity-60"
+            }
+            aria-expanded={accountOpen}
+            aria-haspopup="menu"
+            aria-label={copy.account}
+            title={compact ? copy.account : undefined}
+          >
+            <span className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full bg-[#2563EB]/10 text-[#2563EB]">
+              <CircleUserRound size={16} />
+            </span>
+            {!compact && (
+              <>
+                <span className="min-w-0 flex-1 truncate">{copy.account}</span>
+                <ChevronDown
+                  size={14}
+                  className={`shrink-0 text-muted-foreground transition ${
+                    accountOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </>
+            )}
+          </button>
 
-        {accountLinks.map((item) => {
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onNavigate}
-              aria-label={item.label}
-              title={item.label}
-              className={
-                compact
-                  ? "grid h-10 w-10 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
-                  : "flex min-h-10 items-center gap-2.5 rounded-lg px-2 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground"
-              }
+          {accountOpen && (
+            <div
+              role="menu"
+              aria-label={copy.account}
+              data-testid="account-menu-panel"
+              className="absolute bottom-full left-0 z-[90] mb-2 w-[min(19rem,calc(100vw-1.5rem))] rounded-2xl border border-border bg-card p-2 shadow-2xl dark:border-white/10"
             >
-              <Icon size={18} />
-              {!compact && <span>{item.label}</span>}
-            </Link>
-          );
-        })}
-
-        <button
-          type="button"
-          onClick={() => void logout()}
-          disabled={loggingOut}
-          aria-label={loggingOut ? copy.loggingOut : copy.logout}
-          title={loggingOut ? copy.loggingOut : copy.logout}
-          className={
-            compact
-              ? "grid h-10 w-10 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
-              : "flex min-h-10 w-full items-center gap-2.5 rounded-lg px-2 text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
-          }
-        >
-          <LogOut size={18} />
-          {!compact && (
-            <span>{loggingOut ? copy.loggingOut : copy.logout}</span>
+              <div className="space-y-0.5">
+                {accountLinks.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      role="menuitem"
+                      onClick={closeAccountForNavigation}
+                      className="flex min-h-10 items-center gap-3 rounded-xl px-2.5 text-sm font-medium text-foreground transition hover:bg-muted"
+                    >
+                      <Icon size={16} className="text-muted-foreground" />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => void logout()}
+                  disabled={loggingOut}
+                  className="flex min-h-10 w-full items-center gap-3 rounded-xl px-2.5 text-left text-sm font-medium text-foreground transition hover:bg-muted disabled:cursor-wait disabled:opacity-60"
+                >
+                  <LogOut size={16} className="text-muted-foreground" />
+                  {loggingOut ? copy.loggingOut : copy.logout}
+                </button>
+              </div>
+            </div>
           )}
-        </button>
+        </div>
       </div>
     </aside>
   );
