@@ -1,6 +1,7 @@
 import {
   releasePlatformHeldBookingSettlement,
 } from "@/lib/booking-settlement-server";
+import { secureApiErrorResponse } from "@/lib/api-error";
 import { logServerError } from "@/lib/server-log";
 import { POST as corePost } from "./route-core";
 
@@ -22,38 +23,52 @@ import { POST as corePost } from "./route-core";
  */
 
 export async function POST(request: Request) {
-  const body = (await request.clone().json().catch(() => null)) as {
-    bookingId?: string;
-    action?: string;
-    status?: string;
-  } | null;
+  const startedAt = Date.now();
 
-  const response = await corePost(request);
-  const action = body?.action ?? body?.status;
-  const bookingId = body?.bookingId?.trim() ?? "";
+  try {
+    const body = (await request.clone().json().catch(() => null)) as {
+      bookingId?: string;
+      action?: string;
+      status?: string;
+    } | null;
 
-  if (
-    response.status >= 200 &&
-    response.status < 300 &&
-    action === "client_confirmed" &&
-    bookingId
-  ) {
-    try {
-      await releasePlatformHeldBookingSettlement(bookingId);
-    } catch (error) {
-      // Mission completion is authoritative and must not be undone because a
-      // financial settlement needs retry/reconciliation. The settlement control
-      // plane remains fail-closed and will reconcile before any later Transfer.
-      logServerError({
-        event: "platform_held_settlement_release_failed",
-        route: "/api/bookings/tracking",
-        method: "POST",
-        status: 500,
-        code: "platform_held_settlement_release_failed",
-        error,
-      });
+    const response = await corePost(request);
+    const action = body?.action ?? body?.status;
+    const bookingId = body?.bookingId?.trim() ?? "";
+
+    if (
+      response.status >= 200 &&
+      response.status < 300 &&
+      action === "client_confirmed" &&
+      bookingId
+    ) {
+      try {
+        await releasePlatformHeldBookingSettlement(bookingId);
+      } catch (error) {
+        // Mission completion is authoritative and must not be undone because a
+        // financial settlement needs retry/reconciliation. The settlement
+        // control plane remains fail-closed before any later Transfer.
+        logServerError({
+          event: "platform_held_settlement_release_failed",
+          route: "/api/bookings/tracking",
+          method: "POST",
+          status: 500,
+          code: "platform_held_settlement_release_failed",
+          error,
+        });
+      }
     }
-  }
 
-  return response;
+    return response;
+  } catch (error) {
+    return secureApiErrorResponse({
+      error,
+      event: "booking_tracking_wrapper_failed",
+      route: "/api/bookings/tracking",
+      method: "POST",
+      status: 500,
+      code: "booking_tracking_wrapper_failed",
+      startedAt,
+    });
+  }
 }
