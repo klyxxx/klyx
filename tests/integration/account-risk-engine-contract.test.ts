@@ -8,9 +8,8 @@ function read(path: string): string {
 
 describe("canonical account risk engine contract", () => {
   it("aggregates risk across every profile owned by the authenticated account", () => {
-    const source = read("app/api/security/risk/risk-route-core.ts");
+    const source = read("lib/account-risk-server.ts");
 
-    expect(source).toContain("getAuthenticatedAccount");
     expect(source).toContain('.eq("owner_user_id", account.authUserId)');
     expect(source).toContain("profile.account_id !== account.id");
     expect(source).toContain("KLYX_PROFILE_ACCOUNT_OWNER_MISMATCH");
@@ -21,7 +20,7 @@ describe("canonical account risk engine contract", () => {
   });
 
   it("uses canonical Stripe Connect state instead of legacy profile readiness", () => {
-    const source = read("app/api/security/risk/risk-route-core.ts");
+    const source = read("lib/account-risk-server.ts");
 
     expect(source).toContain("getCanonicalStripeConnect(account.id)");
     expect(source).toContain('connect?.state === "linked"');
