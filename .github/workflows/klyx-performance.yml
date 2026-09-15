@@ -160,7 +160,10 @@ jobs:
         run: node scripts/golden-path-provider-fixture.mjs
 
       - name: Unit and integration tests
-        run: npm test
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee vitest.log
 
       - name: TypeScript
         run: npx tsc --noEmit --pretty false
@@ -251,6 +254,7 @@ jobs:
           path: |
             performance-results/
             performance-server.log
+            vitest.log
           if-no-files-found: ignore
           retention-days: 30
 
