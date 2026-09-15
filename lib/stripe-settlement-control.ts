@@ -12,12 +12,11 @@ export const KLYX_SETTLEMENT_TEST_NOT_ARMED =
 export const KLYX_SETTLEMENT_MODE_INVALID =
   "KLYX_SETTLEMENT_MODE_INVALID";
 
-export type SettlementEnvironment = Pick<
-  NodeJS.ProcessEnv,
-  | "KLYX_STRIPE_SETTLEMENT_MODE"
-  | "KLYX_SETTLEMENT_CONTROL_TEST_READY"
-  | "STRIPE_SECRET_KEY"
->;
+export type SettlementEnvironment = {
+  KLYX_STRIPE_SETTLEMENT_MODE?: string;
+  KLYX_SETTLEMENT_CONTROL_TEST_READY?: string;
+  STRIPE_SECRET_KEY?: string;
+};
 
 export type PlatformHeldPaymentIntentPlan = {
   paymentMode: typeof KLYX_PLATFORM_HELD_SETTLEMENT_MODE;
