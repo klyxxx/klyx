@@ -6,6 +6,12 @@ function read(relative: string): string {
   return readFileSync(join(process.cwd(), relative), "utf8");
 }
 
+function executableSource(source: string): string {
+  return source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/.*$/gm, "");
+}
+
 const singleWrapper = read("app/api/stripe/create-checkout-session/route.ts");
 const singleCore = read("app/api/stripe/create-checkout-session/route-core.ts");
 const groupWrapper = read("app/api/stripe/create-group-checkout-session/route.ts");
@@ -24,13 +30,14 @@ const migration = read(
 describe("transaction risk gate contract", () => {
   it("runs canonical risk preflight before delegating every checkout", () => {
     for (const wrapper of [singleWrapper, groupWrapper, splitWrapper]) {
-      const gate = wrapper.indexOf("enforceCheckoutTransactionRisk({");
-      const delegatedCore = wrapper.lastIndexOf("return corePost(");
+      const executable = executableSource(wrapper);
+      const gate = executable.indexOf("enforceCheckoutTransactionRisk({");
+      const delegatedCore = executable.lastIndexOf("return corePost(");
 
       expect(gate).toBeGreaterThan(-1);
       expect(delegatedCore).toBeGreaterThan(gate);
-      expect(wrapper).toContain("automaticSuspension: false");
-      expect(wrapper).not.toContain("stripe.checkout.sessions.create");
+      expect(executable).toContain("automaticSuspension: false");
+      expect(executable).not.toContain("stripe.checkout.sessions.create");
     }
   });
 
