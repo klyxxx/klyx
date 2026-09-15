@@ -32,6 +32,15 @@ import { POST as corePost } from "./route-core";
  * @core:payment_status === "paid"
  * @core:.filter(
  * @core:assessKlyxStripeMarketAccess
+ * @core:profile.countryCode
+ * @core:clientMarketAccess.allowed
+ * @core:participant: "client"
+ * @core:KLYX_CHECKOUT_MARKET_NOT_READY
+ * @core:getProviderStripeDestination(providerId)
+ * @core:provider.countryCode
+ * @core:providerMarketAccess.allowed
+ * @core:participant: "provider"
+ * @core:KLYX_CHECKOUT_MARKET_NOT_READY
  * @core:getProviderStripeDestination
  * @core:canonicalStripeAccountId
  * @core:stripe.accounts.retrieve
