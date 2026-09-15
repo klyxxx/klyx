@@ -143,7 +143,7 @@ describe("KLYX platform-held settlement phase-2 contract", () => {
     expect(release).toContain("KLYX_SETTLEMENT_RELEASE_FINALIZE_LOST");
   });
 
-  it("reverses an already released provider transfer before customer refund creation", () => {
+  it("verifies the TEST parent Transfer before reversal and only then refunds the customer", () => {
     const wrapper = read("app/api/bookings/status/route.ts");
     const core = read("app/api/bookings/status/route-core.ts");
     const release = read("lib/booking-settlement-server.ts");
@@ -151,11 +151,33 @@ describe("KLYX platform-held settlement phase-2 contract", () => {
     const riskIndex = wrapper.indexOf("await enforceRefundTransactionRisk({");
     const settlementIndex = wrapper.indexOf("await preparePlatformHeldBookingRefund(");
     const coreIndex = wrapper.lastIndexOf("return corePost(request)");
+    const refundFunctionIndex = release.indexOf(
+      "export async function preparePlatformHeldBookingRefund"
+    );
+    const parentRetrieveIndex = release.indexOf(
+      "await stripe.transfers.retrieve(transferId)",
+      refundFunctionIndex
+    );
+    const verifyParentIndex = release.indexOf(
+      "verifyTransferTruth({",
+      parentRetrieveIndex
+    );
+    const listReversalIndex = release.indexOf(
+      "stripe.transfers.listReversals(",
+      verifyParentIndex
+    );
+    const createReversalIndex = release.indexOf(
+      "stripe.transfers.createReversal(",
+      listReversalIndex
+    );
 
     expect(settlementIndex).toBeGreaterThan(riskIndex);
     expect(coreIndex).toBeGreaterThan(settlementIndex);
-    expect(release).toContain("stripe.transfers.listReversals(");
-    expect(release).toContain("stripe.transfers.createReversal(");
+    expect(parentRetrieveIndex).toBeGreaterThan(refundFunctionIndex);
+    expect(verifyParentIndex).toBeGreaterThan(parentRetrieveIndex);
+    expect(listReversalIndex).toBeGreaterThan(verifyParentIndex);
+    expect(createReversalIndex).toBeGreaterThan(listReversalIndex);
+    expect(release).toContain("const metadata = reversal.metadata ?? {}");
     expect(release).toContain("klyx-booking-settlement-reversal-${bookingId}");
     expect(core).toContain("booking.payment_mode === \"connect_destination\"");
     expect(core).toContain("refundParameters.reverse_transfer = true");
