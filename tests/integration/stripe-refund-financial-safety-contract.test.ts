@@ -8,9 +8,10 @@ function read(path: string) {
 
 describe("Stripe refund financial safety contract", () => {
   it("keeps grouped refund creation idempotent and traceable", () => {
-    const route = read(
-      "app/api/booking-groups/[id]/cancellation/route.ts"
-    );
+    const route = [
+      read("app/api/booking-groups/[id]/cancellation/route.ts"),
+      read("app/api/booking-groups/[id]/cancellation/route-core.ts"),
+    ].join("\n");
 
     expect(route).toContain("stripe.refunds.create");
     expect(route).toContain("idempotencyKey:");
