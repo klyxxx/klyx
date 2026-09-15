@@ -15,8 +15,11 @@ describe("KLYX platform-held settlement phase-2 contract", () => {
   it("keeps legacy destination checkout unchanged and routes held mode additively", () => {
     const wrapper = read("app/api/stripe/create-checkout-session/route.ts");
     const legacy = read("app/api/stripe/create-checkout-session/route-core.ts");
-    const held = read(
+    const heldWrapper = read(
       "app/api/stripe/create-checkout-session/route-platform-held.ts"
+    );
+    const heldCore = read(
+      "app/api/stripe/create-checkout-session/route-platform-held-core.ts"
     );
 
     expect(wrapper).toContain("getKlyxSettlementMode()");
@@ -27,13 +30,36 @@ describe("KLYX platform-held settlement phase-2 contract", () => {
     expect(legacy).toContain("paymentIntentData.application_fee_amount");
     expect(legacy).toContain("paymentIntentData.transfer_data");
 
-    expect(held).toContain('transfer_group: plan.transferGroup');
-    expect(held).toContain('payment_mode: plan.paymentMode');
-    expect(held).toContain("klyx_persist_platform_held_checkout");
-    expect(held).not.toContain("paymentIntentData.transfer_data");
-    expect(held).not.toContain("application_fee_amount:");
-    expect(held).toContain("KLYX_PLATFORM_HELD_GROUP_NOT_SUPPORTED");
-    expect(held).toContain("KLYX_PLATFORM_HELD_SPLIT_NOT_SUPPORTED");
+    expect(heldWrapper).toContain('POST as corePost } from "./route-platform-held-core"');
+    expect(heldCore).toContain('transfer_group: plan.transferGroup');
+    expect(heldCore).toContain('payment_mode: plan.paymentMode');
+    expect(heldCore).toContain("klyx_persist_platform_held_checkout");
+    expect(heldCore).not.toContain("paymentIntentData.transfer_data");
+    expect(heldCore).not.toContain("application_fee_amount:");
+    expect(heldCore).toContain("KLYX_PLATFORM_HELD_GROUP_NOT_SUPPORTED");
+    expect(heldCore).toContain("KLYX_PLATFORM_HELD_SPLIT_NOT_SUPPORTED");
+  });
+
+  it("fails closed on a COMPLETE cross-mode checkout whose async payment is still pending", () => {
+    const wrapper = read(
+      "app/api/stripe/create-checkout-session/route-platform-held.ts"
+    );
+
+    const completeGuardIndex = wrapper.indexOf(
+      'existingSession.status === "complete"'
+    );
+    const pendingGuardIndex = wrapper.indexOf(
+      'existingSession.payment_status !== "paid"'
+    );
+    const pendingResponseIndex = wrapper.indexOf(
+      '"KLYX_PLATFORM_HELD_CROSS_MODE_PAYMENT_PENDING"'
+    );
+    const delegateIndex = wrapper.lastIndexOf("return corePost(request)");
+
+    expect(completeGuardIndex).toBeGreaterThan(-1);
+    expect(pendingGuardIndex).toBeGreaterThan(completeGuardIndex);
+    expect(pendingResponseIndex).toBeGreaterThan(pendingGuardIndex);
+    expect(delegateIndex).toBeGreaterThan(pendingResponseIndex);
   });
 
   it("persists checkout and frozen settlement truth atomically at the database boundary", () => {
@@ -70,23 +96,36 @@ describe("KLYX platform-held settlement phase-2 contract", () => {
     expect(migration).toContain("state = case when state = 'pending_payment' then 'held'");
   });
 
-  it("gates provider release before the Stripe Transfer and reconciles existing transfers first", () => {
+  it("gates provider release before the executable reconciliation call and Stripe Transfer", () => {
     const release = read("lib/booking-settlement-server.ts");
     const risk = read("lib/transaction-risk-server.ts");
 
+    const releaseFunctionIndex = release.indexOf(
+      "export async function releasePlatformHeldBookingSettlement"
+    );
     const riskIndex = release.indexOf(
-      "await enforceSettlementReleaseTransactionRisk({"
+      "await enforceSettlementReleaseTransactionRisk({",
+      releaseFunctionIndex
     );
     const claimIndex = release.indexOf(
-      '"klyx_claim_booking_settlement_release"'
+      '"klyx_claim_booking_settlement_release"',
+      riskIndex
     );
-    const listIndex = release.indexOf("stripe.transfers.list({");
-    const createIndex = release.indexOf("stripe.transfers.create(");
+    const reconcileCallIndex = release.indexOf(
+      "transfer = await reconcileExistingTransfer({",
+      claimIndex
+    );
+    const createIndex = release.indexOf(
+      "transfer = await stripe.transfers.create(",
+      reconcileCallIndex
+    );
 
-    expect(riskIndex).toBeGreaterThan(-1);
+    expect(releaseFunctionIndex).toBeGreaterThan(-1);
+    expect(riskIndex).toBeGreaterThan(releaseFunctionIndex);
     expect(claimIndex).toBeGreaterThan(riskIndex);
-    expect(listIndex).toBeGreaterThan(claimIndex);
-    expect(createIndex).toBeGreaterThan(listIndex);
+    expect(reconcileCallIndex).toBeGreaterThan(claimIndex);
+    expect(createIndex).toBeGreaterThan(reconcileCallIndex);
+    expect(release).toContain("stripe.transfers.list({");
     expect(release).toContain("source_transaction: claim.stripe_charge_id");
     expect(release).toContain("transfer_group: claim.transfer_group");
     expect(release).toContain("klyx-booking-settlement-${bookingId}");
@@ -135,8 +174,11 @@ describe("KLYX platform-held settlement phase-2 contract", () => {
   });
 
   it("is TEST-only, server-only and never creates bank payouts", () => {
-    const held = read(
+    const heldWrapper = read(
       "app/api/stripe/create-checkout-session/route-platform-held.ts"
+    );
+    const heldCore = read(
+      "app/api/stripe/create-checkout-session/route-platform-held-core.ts"
     );
     const release = read("lib/booking-settlement-server.ts");
     const migration = compact(
@@ -145,12 +187,15 @@ describe("KLYX platform-held settlement phase-2 contract", () => {
       )
     );
 
-    expect(held).toContain('key.startsWith("sk_live_")');
-    expect(held).toContain('key.startsWith("sk_test_")');
+    expect(heldWrapper).toContain('key.startsWith("sk_live_")');
+    expect(heldWrapper).toContain('key.startsWith("sk_test_")');
+    expect(heldCore).toContain('key.startsWith("sk_live_")');
+    expect(heldCore).toContain('key.startsWith("sk_test_")');
     expect(release).toContain('key.startsWith("sk_live_")');
     expect(release).toContain('key.startsWith("sk_test_")');
     expect(release).not.toContain("stripe.payouts.create");
-    expect(held).not.toContain("stripe.payouts.create");
+    expect(heldWrapper).not.toContain("stripe.payouts.create");
+    expect(heldCore).not.toContain("stripe.payouts.create");
     expect(migration).toContain("from public, anon, authenticated");
     expect(migration).toContain("to service_role");
   });
