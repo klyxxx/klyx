@@ -48,7 +48,9 @@ describe("KLYX visible AI journeys", () => {
     const shadow = read("lib/brain/llm/shadow.ts");
 
     expect(clientRoute).toContain("withoutKlyxLlmShadow");
-    expect(clientRoute).toContain("deterministicPost(request)");
+    expect(clientRoute).toContain("deterministicPost(capabilityRequest)");
+    expect(clientRoute).toContain('capability: "client"');
+    expect(clientRoute).toContain('rawCapabilityRequest(request, "client")');
     expect(clientRoute).toContain("generateKlyxVisibleAiReply");
     expect(clientRoute).toContain("getKlyxGuidedQuestion");
     expect(clientRoute).toContain("KLYX_CONFIRMATION_BOUNDARY");

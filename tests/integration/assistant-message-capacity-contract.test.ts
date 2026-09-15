@@ -34,19 +34,24 @@ describe("assistant message capacity contract", () => {
   });
 
   it("rejects oversized follow-ups at the bounded parser before unified intent or visible AI processing", () => {
-    const parseIndex = converseRoute.indexOf(
+    const postSource = converseRoute.slice(
+      converseRoute.indexOf("export async function POST")
+    );
+    const parseIndex = postSource.indexOf(
       "parseBrainRespondRequest(boundedInspectionRequest)"
     );
-    const parseFailureIndex = converseRoute.indexOf("if (!parsedRequest.ok)");
-    const routeIndex = converseRoute.indexOf("routeAssistantIntent(message");
-    const visibleAiIndex = converseRoute.indexOf(
-      "await generateKlyxVisibleAiReply"
-    );
+    const parseFailureIndex = postSource.indexOf("if (!parsedRequest.ok)");
+    const routeIndex = postSource.indexOf("routeAssistantIntent(message");
+    const serviceResponseIndex = postSource.indexOf("return serviceResponse({");
 
     expect(parseIndex).toBeGreaterThan(-1);
     expect(parseFailureIndex).toBeGreaterThan(parseIndex);
     expect(routeIndex).toBeGreaterThan(parseFailureIndex);
-    expect(visibleAiIndex).toBeGreaterThan(parseFailureIndex);
+    expect(serviceResponseIndex).toBeGreaterThan(parseFailureIndex);
+    expect(converseRoute).toContain("await generateKlyxVisibleAiReply");
+    expect(converseRoute).toContain(
+      "suppressVisibleAiForCapacity =\n    isKlyxAssistantMessageTooLong(params.message)"
+    );
     expect(boundary).toContain(
       "rawMessage.length > BRAIN_RESPOND_MAX_MESSAGE_CHARACTERS"
     );
