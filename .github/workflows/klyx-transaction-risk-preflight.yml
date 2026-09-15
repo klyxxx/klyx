@@ -50,3 +50,5 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+      # KLYX_TRANSACTION_RISK_PREFLIGHT_RERUN_2
