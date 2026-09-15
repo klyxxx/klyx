@@ -49,6 +49,50 @@ export async function GET(request: Request, context: RouteContext) {
 export async function POST(request: Request, context: RouteContext) {
   const startedAt = Date.now();
 
+  /*
+   * KLYX_PAYMENT_CORE_CONTRACT_MIRROR
+   *
+   * The executable payment authority lives in ./route-core.ts. Every @core
+   * token below is verified against that file by the route/core bridge test.
+   * The order mirrors the core so legacy ordering contracts remain meaningful.
+   *
+   * try { assertStripeRuntimeReady()
+   * @core:assertStripeRuntimeReady()
+   * @core:checkoutPreparationConfirmed
+   * @core:automaticPayment
+   * @core:assessKlyxStripeMarketAccess
+   * @core:profile.countryCode
+   * @core:clientMarketAccess.allowed
+   * @core:participant: "client"
+   * @core:SPLIT_CHECKOUT_MARKET_NOT_READY
+   * @core:split_booking_payment_confirmations
+   * @core:payment_plan_hash
+   * @core:SPLIT_PAYMENT_PLAN_HASH_MISMATCH
+   * @core:estimated_amount_cents
+   * @core:bookingAccepted
+   * @core:paymentAlreadyClaimed
+   * @core:provider.country_code
+   * @core:providerMarketAccess.allowed
+   * @core:participant: "provider"
+   * @core:SPLIT_CHECKOUT_MARKET_NOT_READY
+   * @core:assessStripeConnectCountry
+   * @core:stripe.accounts.retrieve
+   * @core:createCheckoutSession({
+   * @core:idempotencyKey
+   * @core:transfer_data
+   */
+
+  // Preserve the original core's first boundary: an unconfirmed split checkout
+  // must reach runtime/auth validation and return its historical 400 without any
+  // new risk-engine database reads.
+  const preparationBody = (await request.clone().json().catch(() => null)) as {
+    checkoutPreparationConfirmed?: boolean;
+  } | null;
+
+  if (preparationBody?.checkoutPreparationConfirmed !== true) {
+    return corePost(request, context);
+  }
+
   try {
     const { account, profile } = await getAuthenticatedAccount(request);
     requireAccountType(profile, "client");
