@@ -6,6 +6,7 @@ const route = readFileSync(
   join(process.cwd(), "app/api/brain/command/route.ts"),
   "utf8"
 );
+const compactRoute = route.replace(/\s+/g, " ");
 
 const groundedActionI18n = readFileSync(
   join(process.cwd(), "lib/klyx-grounded-action-i18n.ts"),
@@ -18,8 +19,8 @@ describe("brain command grounded action i18n contract", () => {
     expect(route).toContain("await getServerKlyxLocale()");
     expect(route).toContain('from "@/lib/klyx-grounded-action-i18n"');
     expect(route).toContain("localizeKlyxGroundedAction(");
-    expect(route).toContain('mode:\n            "existing_action"');
-    expect(route).toContain("automaticExecutionAllowed:\n            false");
+    expect(compactRoute).toContain('mode: "existing_action"');
+    expect(compactRoute).toContain("automaticExecutionAllowed: false");
   });
 
   it("keeps action selection grounded in the existing server registry", () => {
@@ -36,6 +37,8 @@ describe("brain command grounded action i18n contract", () => {
     expect(groundedActionI18n).toContain('kind !== "compare_offers"');
     expect(groundedActionI18n).toContain('kind === "provider_offer_update"');
     expect(route).toContain('action.kind === "compare_offers"');
-    expect(route).toContain("description:\n                    action.description");
+    expect(compactRoute).toContain("description: action.description");
+    expect(route).toContain("normalizeKlyxAssistantActionHref(");
+    expect(route).toContain("if (!safeHref)");
   });
 });
