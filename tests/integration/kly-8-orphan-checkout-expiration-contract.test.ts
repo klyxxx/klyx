@@ -6,8 +6,8 @@ function read(relative: string) {
   return fs.readFileSync(path.join(process.cwd(), relative), "utf8");
 }
 
-const checkoutRoute = "app/api/stripe/create-checkout-session/route.ts";
-const groupCheckoutRoute = "app/api/stripe/create-group-checkout-session/route.ts";
+const checkoutRoute = "app/api/stripe/create-checkout-session/route-core.ts";
+const groupCheckoutRoute = "app/api/stripe/create-group-checkout-session/route-core.ts";
 
 function assertOrphanCheckoutExpirationContract(source: string) {
   expect(source).toContain("async function expireUnpersistedCheckoutSession(");
