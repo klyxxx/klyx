@@ -11,12 +11,9 @@ import {
   type KlyxClientRouteGuardMessageKey,
 } from "@/lib/klyx-client-route-guard-i18n";
 
-type AccountType = "client" | "provider";
-
 type ProfileResponse = {
   profile?: {
-    accountType: AccountType;
-    canRequestServices?: boolean;
+    canRequestServices: boolean;
   };
 };
 
@@ -51,12 +48,11 @@ export default function ClientRouteGuard({ children }: { children: ReactNode }) 
           throw new Error("profile-check-failed");
         }
 
-        const canRequestServices =
-          typeof body.profile.canRequestServices === "boolean"
-            ? body.profile.canRequestServices
-            : body.profile.accountType === "client";
+        if (typeof body.profile.canRequestServices !== "boolean") {
+          throw new Error("account-capability-check-failed");
+        }
 
-        if (!canRequestServices) {
+        if (!body.profile.canRequestServices) {
           if (active) setState("redirecting");
           router.replace("/dashboard");
           return;
