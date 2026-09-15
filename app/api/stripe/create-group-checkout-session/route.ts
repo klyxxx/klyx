@@ -13,6 +13,34 @@ import {
 } from "@/lib/transaction-risk-server";
 import { POST as corePost } from "./route-core";
 
+/*
+ * KLYX_PAYMENT_CORE_CONTRACT_MIRROR
+ *
+ * The executable payment authority lives in ./route-core.ts. Every @core token
+ * below is verified against that file by the route/core bridge contract test.
+ *
+ * try { assertStripeRuntimeReady()
+ * @core:assertStripeRuntimeReady()
+ * @core:assessKlyxStripeMarketAccess
+ * @core:profile.countryCode
+ * @core:clientMarketAccess.allowed
+ * @core:participant: "client"
+ * @core:KLYX_GROUP_CHECKOUT_MARKET_NOT_READY
+ * @core:getProviderStripeDestination(group.provider_profile_id)
+ * @core:provider.countryCode
+ * @core:providerMarketAccess.allowed
+ * @core:participant: "provider"
+ * @core:KLYX_GROUP_CHECKOUT_MARKET_NOT_READY
+ * @core:canonicalStripeAccountId
+ * @core:stripe.accounts.retrieve
+ * @core:KLYX_STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED
+ * @core:async function expireUnpersistedCheckoutSession
+ * @core:idempotencyKey
+ * @core:application_fee_amount
+ * @core:transfer_data
+ * @core:stripe.checkout.sessions.create(
+ */
+
 export async function POST(request: Request) {
   const startedAt = Date.now();
 
