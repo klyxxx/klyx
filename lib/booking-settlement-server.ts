@@ -536,15 +536,35 @@ export async function preparePlatformHeldBookingRefund(
     );
   }
 
+  const chargeId = settlement.stripe_charge_id;
+  if (!chargeId) {
+    throw new SettlementRefundPreparationError(
+      "KLYX_SETTLEMENT_REFUND_CHARGE_TRUTH_MISSING"
+    );
+  }
+
   const stripe = testStripeClient();
+  const parentTransfer = await stripe.transfers.retrieve(transferId);
+
+  // Transfer is the authoritative object for livemode and immutable release
+  // truth. Stripe's TransferReversal type intentionally does not expose
+  // `livemode`, so verify the parent before any reversal reconciliation/write.
+  verifyTransferTruth({
+    transfer: parentTransfer,
+    settlement,
+    chargeId,
+  });
+
   const reversals = await stripe.transfers.listReversals(transferId, {
     limit: 100,
   });
-  const matching = reversals.data.filter(
-    (reversal) =>
-      reversal.metadata.booking_id === bookingId &&
-      reversal.metadata.payment_mode === PAYMENT_MODE
-  );
+  const matching = reversals.data.filter((reversal) => {
+    const metadata = reversal.metadata ?? {};
+    return (
+      metadata.booking_id === bookingId &&
+      metadata.payment_mode === PAYMENT_MODE
+    );
+  });
 
   if (matching.length > 1) {
     throw new SettlementRefundPreparationError(
@@ -576,8 +596,6 @@ export async function preparePlatformHeldBookingRefund(
       }
     );
   }
-
-  if (reversal.livemode) throw new Error(LIVE_FORBIDDEN);
 
   await finalizeReversal({
     bookingId,
