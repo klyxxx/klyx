@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import FirstProfileSetup from "./FirstProfileSetup";
 import KlyxFirstProfileAnalytics from "./KlyxFirstProfileAnalytics";
 
+// KLYX_AI_FIRST_ONBOARDING_15_04
 export default async function OnboardingPage() {
   const supabase = await createClient();
   const {
