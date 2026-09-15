@@ -6,6 +6,7 @@ import FirstProfileSetup from "./FirstProfileSetup";
 import KlyxFirstProfileAnalytics from "./KlyxFirstProfileAnalytics";
 
 // KLYX_ONBOARDING_REAL_WORKFLOWS_13_86
+// KLYX_AI_FIRST_ONBOARDING_15_04
 export default async function OnboardingPage() {
   const supabase = await createClient();
 
