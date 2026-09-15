@@ -13,7 +13,7 @@ import {
 
 test.use({ trace: "off", screenshot: "off", video: "off" });
 
-test.describe("KLYX strict role navigation", () => {
+test.describe("KLYX unified assistant navigation", () => {
   test.skip(
     !hasE2ECredentials,
     "Dedicated KLYX E2E credentials are not configured."
@@ -43,45 +43,50 @@ test.describe("KLYX strict role navigation", () => {
 
     const accountEntry = rail.getByTestId("account-entry");
     await expect(accountEntry).toBeVisible();
-    await expect(accountEntry).toBeEnabled();
-    await accountEntry.click();
-
-    const accountMenu = rail.getByTestId("account-menu-panel");
+    await accountEntry.getByTestId("mission-rail-account-entry").click();
+    const accountMenu = accountEntry.getByTestId("account-menu-panel");
     await expect(accountMenu).toBeVisible();
     await expect(accountMenu.locator('a[href="/profile"]')).toBeVisible();
     await expect(accountMenu.locator('a[href="/settings"]')).toBeVisible();
-    await expect(accountMenu.locator('a[href="/messages"]')).toHaveCount(0);
+    await expect(accountMenu.locator('a[href="/support"]')).toBeVisible();
+    await expect(accountMenu.locator('a[href="/provider/studio"]')).toHaveCount(0);
+    await expect(accountMenu.locator('a[href="/provider/payments"]')).toHaveCount(0);
   });
 
-  test("provider desktop keeps Services and Finances secondary to the Assistant", async ({
+  test("provider profile uses the exact same Assistant shell without a permanent provider mode", async ({
+    page,
+  }) => {
+    await loginKlyxE2E(page);
+    await activateKlyxE2EProfile(page, "provider");
+    await page.goto("/assistant");
+
+    await expectAssistantFirstDesktopShell(page, "/assistant");
+
+    const rail = page.getByTestId("desktop-mission-rail");
+    await expect(rail.getByRole("navigation")).toHaveCount(0);
+    await expect(rail.getByTestId("provider-secondary-tools")).toHaveCount(0);
+    await expect(rail.locator('a[href="/provider/studio"]')).toHaveCount(0);
+    await expect(rail.locator('a[href="/provider/payments"]')).toHaveCount(0);
+
+    const accountEntry = rail.getByTestId("account-entry");
+    await expect(accountEntry).toBeVisible();
+    await accountEntry.getByTestId("mission-rail-account-entry").click();
+    const accountMenu = accountEntry.getByTestId("account-menu-panel");
+    await expect(accountMenu).toBeVisible();
+    await expect(accountMenu.locator('a[href="/profile"]')).toBeVisible();
+    await expect(accountMenu.locator('a[href="/settings"]')).toBeVisible();
+    await expect(accountMenu.locator('a[href="/support"]')).toBeVisible();
+  });
+
+  test("legacy provider assistant URL converges to the unified Assistant", async ({
     page,
   }) => {
     await loginKlyxE2E(page);
     await activateKlyxE2EProfile(page, "provider");
     await page.goto("/provider/assistant");
 
-    await expectAssistantFirstDesktopShell(page, "/provider/assistant");
-
-    const rail = page.getByTestId("desktop-mission-rail");
-    await expect(rail.getByRole("navigation")).toHaveCount(0);
-
-    const providerTools = rail.getByTestId("provider-secondary-tools");
-    await expect(providerTools).toBeVisible();
-    await expect(providerTools.locator('a[href="/provider/studio"]')).toBeVisible();
-    await expect(providerTools.locator('a[href="/provider/payments"]')).toBeVisible();
-
-    const accountEntry = rail.getByTestId("account-entry");
-    await expect(accountEntry).toBeVisible();
-    await expect(accountEntry).toBeEnabled();
-    await accountEntry.click();
-
-    const accountMenu = rail.getByTestId("account-menu-panel");
-    await expect(accountMenu).toBeVisible();
-    await expect(accountMenu.locator('a[href="/profile"]')).toBeVisible();
-    await expect(accountMenu.locator('a[href="/settings"]')).toBeVisible();
-    await expect(accountMenu.locator('a[href="/provider/studio"]')).toHaveCount(0);
-    await expect(accountMenu.locator('a[href="/provider/payments"]')).toHaveCount(0);
-    await expect(accountMenu.locator('a[href="/messages"]')).toHaveCount(0);
+    await expect(page).toHaveURL(/\/assistant(?:\?|$)/);
+    await expectAssistantFirstDesktopShell(page, "/assistant");
   });
 
   test("mobile uses a header and drawer with no four-entry bottom bar", async ({

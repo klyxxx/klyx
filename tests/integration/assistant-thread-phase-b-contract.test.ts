@@ -76,13 +76,26 @@ describe("KLYX Phase B D01-D03 thread contract", () => {
     );
   });
 
-  it("uses guarded async work and silently discards stale responses", () => {
+  it("uses account-stable guarded async work and silently discards only stale requests", () => {
     expect(thread).toContain("AbortController");
     expect(thread).toContain("requestGenerationRef");
-    expect(thread).toContain("KLYX_ACTIVE_PROFILE_CHANGED");
-    expect(thread).toContain("expectedProfileId");
     expect(thread).toContain("requestConversationId");
     expect(thread).toContain("controller.signal.aborted");
+    expect(thread).not.toContain("KLYX_ACTIVE_PROFILE_CHANGED");
+    expect(thread).not.toContain("getActiveProfileAccount");
+    expect(thread).not.toContain("activeProfileIdRef");
+    expect(thread).not.toContain("expectedProfileId");
+  });
+
+  it("renders only root-relative grounded actions returned by the unified Brain", () => {
+    expect(thread).toContain("assistantAction?: BrainPayloadAction | null");
+    expect(thread).toContain("payloadAssistantAction(nextPayload)");
+    expect(thread).toContain('href.startsWith("/")');
+    expect(thread).toContain('href.startsWith("//")');
+    expect(thread).toContain('variant: action ? "groundedAction" : "text"');
+    expect(thread).toContain("action,");
+    expect(turns).toContain("href={action.href}");
+    expect(turns).toContain("{action.label}");
   });
 
   it("handles hardened HTTP errors without resetting the conversation or blind retry", () => {

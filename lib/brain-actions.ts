@@ -156,10 +156,22 @@ function providerMissionDescription(
   return "Le paiement est confirme. Tu peux commencer le suivi.";
 }
 
+function isClientStorageProfile(profile: AuthenticatedProfile): boolean {
+  return profile.legacyAccountType === "client";
+}
+
+function hasAccountCapabilityForStorageProfile(
+  profile: AuthenticatedProfile
+): boolean {
+  return isClientStorageProfile(profile)
+    ? profile.canRequestServices
+    : profile.canOfferServices;
+}
+
 async function loadBookings(
   profile: AuthenticatedProfile
 ): Promise<BookingRow[]> {
-  if (profile.accountType === "client") {
+  if (isClientStorageProfile(profile)) {
     const { data, error } = await supabaseAdmin
       .from("bookings")
       .select(
@@ -256,7 +268,9 @@ async function addClientMarketActions(
     .limit(30);
 
   if (requestError) {
-    throw new Error(requestError.message);
+    throw new Error(
+      requestError.message
+    );
   }
 
   const requests =
@@ -885,6 +899,10 @@ async function addProviderActions(
 export async function getBrainActions(
   profile: AuthenticatedProfile
 ): Promise<BrainActionItem[]> {
+  if (!hasAccountCapabilityForStorageProfile(profile)) {
+    return [];
+  }
+
   const actionMap =
     new Map<string, BrainActionItem>();
 
@@ -892,7 +910,7 @@ export async function getBrainActions(
     await loadBookings(profile);
 
   if (
-    profile.accountType === "client"
+    isClientStorageProfile(profile)
   ) {
     await addClientMarketActions(
       profile,

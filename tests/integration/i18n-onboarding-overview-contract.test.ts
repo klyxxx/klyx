@@ -8,62 +8,38 @@ function read(relativePath: string) {
 }
 
 const serverPage = read("app/onboarding/page.tsx");
-const overview = read("app/onboarding/OnboardingOverview.tsx");
-const i18n = read("lib/klyx-onboarding-overview-i18n.ts");
+const firstProfile = read("app/onboarding/FirstProfileSetup.tsx");
 
-describe("KLYX onboarding overview page-i18n integration", () => {
-  it("keeps authentication, profile resolution and first-profile setup on the server", () => {
+describe("KLYX roleless onboarding integration", () => {
+  it("keeps authentication and first-profile creation on the existing secure boundary", () => {
     expect(serverPage).not.toContain('"use client"');
     expect(serverPage).toContain('from "@/lib/supabase/server"');
     expect(serverPage).toContain("await supabase.auth.getUser()");
     expect(serverPage).toMatch(/redirect\(\s*"\/login"\s*\)/);
     expect(serverPage).toContain("await getActiveProfile()");
     expect(serverPage).toContain("<FirstProfileSetup");
-    expect(serverPage).toMatch(/metadata\.account_type\s*===\s*"provider"/);
-    expect(serverPage).toMatch(/profile\.accountType\s*===\s*"provider"/);
-    expect(serverPage).toContain("<OnboardingOverview provider={provider} firstName={firstName} />");
   });
 
-  it("moves only the translated presentation to a locale-aware client component", () => {
-    expect(overview).toContain('"use client"');
-    expect(overview).toContain('from "@/app/components/KlyxLocaleProvider"');
-    expect(overview).toContain("const { locale } = useKlyxLocale()");
-    expect(overview).toContain("translateKlyxOnboardingOverview(locale, key)");
-    expect(overview).toContain("formatKlyxOnboardingWelcome(locale, firstName)");
-    expect(overview).toContain("<ProviderOnboardingProgress />");
+  it("sends every completed account to the same assistant shell", () => {
+    expect(serverPage).toMatch(/if \(profile\)[\s\S]*redirect\("\/assistant"\)/);
+    expect(serverPage).not.toContain("profile.accountType");
+    expect(serverPage).not.toContain("OnboardingOverview");
+    expect(firstProfile).toContain('router.replace("/assistant")');
   });
 
-  it("preserves the role-specific destinations and product-boundary markers", () => {
-    for (const marker of [
-      "KLYX_ONBOARDING_REAL_WORKFLOWS_13_86",
-      "KLYX_ROLE_NEXT_ACTION_14_03",
-      "KLYX_AI_FIRST_ONBOARDING_15_04",
-      "KLYX_ROLE_SAFETY_CONTEXT_14_03",
-      "KLYX_PROVIDER_ONBOARDING_SHORTCUTS_13_86",
-    ]) {
-      expect(`${serverPage}\n${overview}`).toContain(marker);
-    }
-
-    for (const href of [
-      "/dashboard",
-      "/provider",
-      "/provider/jobs",
-      "/provider/assistant",
-    ]) {
-      expect(overview).toContain(`href="${href}"`);
-    }
-
-    for (const href of ["/assistant/market", "/profile", "/search"]) {
-      expect(overview).toContain(`href: "${href}"`);
-    }
-    expect(overview).toContain("href={step.href}");
+  it("does not ask for a permanent client/provider role", () => {
+    expect(firstProfile).not.toContain("setAccountType");
+    expect(firstProfile).not.toContain("roleChoiceUnlocked");
+    expect(firstProfile).not.toContain("providerSelected");
+    expect(firstProfile).not.toContain("clientSelected");
+    expect(firstProfile).toContain('accountType: "client"');
+    expect(firstProfile).toContain("Transitional schema value only");
   });
 
-  it("keeps overview coverage explicit and fail-closed", () => {
-    expect(i18n).toContain(
-      'KLYX_ONBOARDING_OVERVIEW_TRANSLATED_LOCALES = [\n  "fr",\n  "en",\n  "nl",\n  "de",\n]'
-    );
-    expect(i18n).toContain(': "fr"');
-    expect(i18n).toContain("hasKlyxOnboardingOverviewTranslation");
+  it("keeps identity and market information required before entering KLYX", () => {
+    expect(firstProfile).toContain('t("identityRequired")');
+    expect(firstProfile).toContain('t("marketRequired")');
+    expect(firstProfile).toContain("KLYX_SUPPORTED_MARKETS");
+    expect(firstProfile).toContain('fetch("/api/profiles/manage"');
   });
 });

@@ -58,7 +58,7 @@ describe("KLYX i18n foundation shell contract", () => {
     expect(provider).toContain('window.addEventListener("storage", onStorage)');
   });
 
-  it("wires locale context through the compact definitive role-first application shell", () => {
+  it("wires locale context through the compact definitive roleless application shell", () => {
     expect(layout).toContain("<KlyxLocaleProvider initialLocale={locale}>");
     expect(layout).toContain("lang={localeMetadata.htmlLang}");
     expect(layout).toContain("dir={localeMetadata.dir}");
@@ -68,12 +68,15 @@ describe("KLYX i18n foundation shell contract", () => {
       "translateKlyxTolgeeRuntimeNavigation(locale, item.translationLabel)"
     );
     expect(sidebar).not.toContain("translateKlyxNavigationLabel");
-    expect(sidebar).toContain("translateKlyxProviderAssistant");
+    expect(sidebar).not.toContain("translateKlyxProviderAssistant");
+    expect(sidebar).toContain("const unifiedItems: MenuItem[] = [");
+    expect(sidebar).toContain('title: "KLYX"');
     expect(sidebar).toContain('title: "Activité"');
-    expect(sidebar).toContain('title: "Missions"');
-    expect(sidebar).toContain('title: "Services"');
-    expect(sidebar).toContain('title: "Finances"');
+    expect(sidebar).toContain('title: "Messages"');
     expect(sidebar).toContain('title: "Profil"');
+    expect(sidebar).not.toContain('title: "Missions"');
+    expect(sidebar).not.toContain('title: "Services"');
+    expect(sidebar).not.toContain('title: "Finances"');
     expect(sidebar).not.toContain('title: "Gestion"');
     expect(sidebar).not.toContain('t("sidebar.searchPlaceholder")');
     expect(sidebar).not.toContain("searchPlaceholder");

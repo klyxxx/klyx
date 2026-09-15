@@ -16,6 +16,8 @@ import {
 import { getLegacyProfileCapabilityContext } from "@/lib/legacy-profile-capability-context";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
+const ASSISTANT_CAPABILITY_HEADER = "x-klyx-assistant-capability";
+
 type AuthenticatedUser = {
   id: string;
   email?: string;
@@ -64,6 +66,8 @@ type AuthenticatedContext = {
   user: AuthenticatedUser;
   account: AuthenticatedAccount;
   profile: AuthenticatedProfile;
+  profiles: AuthenticatedProfile[];
+  canonicalProfile: AuthenticatedProfile;
 };
 
 function requiredEnv(name: string): string {
@@ -102,6 +106,24 @@ function requestPathname(request: Request): string {
   }
 }
 
+function assistantCapability(request: Request): AccountType | null {
+  const pathname = requestPathname(request);
+
+  // Capability projection is deliberately restricted to the unified Brain
+  // surface. The header selects a legacy adapter only after canonical account
+  // capabilities authorize the requested operation.
+  if (pathname !== "/api/brain/converse") {
+    return null;
+  }
+
+  const value = request.headers
+    .get(ASSISTANT_CAPABILITY_HEADER)
+    ?.trim()
+    .toLowerCase();
+
+  return value === "client" || value === "provider" ? value : null;
+}
+
 function requestCompatibilityProfileFrom(
   profiles: readonly AuthenticatedProfile[]
 ): AuthenticatedProfile {
@@ -126,13 +148,30 @@ function offerCompatibilityProfileFrom(
   };
 }
 
+function projectCapability(
+  profiles: readonly AuthenticatedProfile[],
+  canonicalProfile: AuthenticatedProfile,
+  requestedCapability: AccountType | null
+): AuthenticatedProfile | null {
+  if (!requestedCapability) return null;
+
+  if (requestedCapability === "client") {
+    if (!canonicalProfile.canRequestServices) return null;
+    return requestCompatibilityProfileFrom(profiles);
+  }
+
+  if (!canonicalProfile.canOfferServices) return null;
+  return offerCompatibilityProfileFrom(profiles);
+}
+
 function selectCompatibilityProfile(
   request: Request,
   profiles: readonly AuthenticatedProfile[],
+  canonicalProfile: AuthenticatedProfile,
   selectedProfileId: string | undefined
 ): AuthenticatedProfile {
   const selected =
-    profiles.find((item) => item.id === selectedProfileId) ?? profiles[0];
+    profiles.find((item) => item.id === selectedProfileId) ?? canonicalProfile;
   const compatibilityContext = getLegacyProfileCapabilityContext();
 
   if (compatibilityContext === "request") {
@@ -141,6 +180,16 @@ function selectCompatibilityProfile(
 
   if (compatibilityContext === "offer") {
     return offerCompatibilityProfileFrom(profiles);
+  }
+
+  const projectedProfile = projectCapability(
+    profiles,
+    canonicalProfile,
+    assistantCapability(request)
+  );
+
+  if (projectedProfile) {
+    return projectedProfile;
   }
 
   const pathname = requestPathname(request);
@@ -281,6 +330,10 @@ async function getAuthenticatedContext(
     }
   );
 
+  const canonicalProfile =
+    normalizedProfiles.find((item) => item.legacyAccountType === "client") ??
+    normalizedProfiles[0];
+
   const selectedProfileId = (
     await cookies()
   ).get(ACTIVE_PROFILE_COOKIE)?.value;
@@ -288,6 +341,7 @@ async function getAuthenticatedContext(
   const profile = selectCompatibilityProfile(
     request,
     normalizedProfiles,
+    canonicalProfile,
     selectedProfileId
   );
 
@@ -297,6 +351,8 @@ async function getAuthenticatedContext(
       email: user.email,
     },
     profile,
+    profiles: normalizedProfiles,
+    canonicalProfile,
     account: {
       id: account.id,
       authUserId: account.auth_user_id,
@@ -313,12 +369,17 @@ export async function getAuthenticatedProfile(
 ): Promise<{
   user: AuthenticatedUser;
   profile: AuthenticatedProfile;
+  profiles: AuthenticatedProfile[];
+  canonicalProfile: AuthenticatedProfile;
 }> {
-  const { user, profile } = await getAuthenticatedContext(request);
+  const { user, profile, profiles, canonicalProfile } =
+    await getAuthenticatedContext(request);
 
   return {
     user,
     profile,
+    profiles,
+    canonicalProfile,
   };
 }
 

@@ -12,14 +12,15 @@ function compact(source: string) {
 }
 
 describe("KLYX account capability residual guards", () => {
-  it("routes the compatibility dashboard from canonical capability projections", () => {
+  it("routes the compatibility dashboard from canonical capability projections into the single assistant home", () => {
     const accountHome = read("lib/account-home.ts");
     const dashboard = read("app/dashboard/page.tsx");
 
     expect(accountHome).toContain("canRequestServices");
     expect(accountHome).toContain("canOfferServices");
+    expect(accountHome).toContain("input.canRequestServices || input.canOfferServices");
     expect(accountHome).toContain('return "/assistant";');
-    expect(accountHome).toContain('return "/provider/assistant";');
+    expect(accountHome).not.toContain('return "/provider/assistant";');
     expect(accountHome).toContain('return "/profile";');
     expect(dashboard).toContain("redirect(getKlyxAccountHome(profile));");
     expect(dashboard).not.toContain("profile.accountType");

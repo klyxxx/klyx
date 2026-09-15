@@ -241,7 +241,7 @@ describe("KLYX Tolgee runtime bridge", () => {
     );
   });
 
-  it("serves AppSidebar business navigation from published Tolgee catalogs", () => {
+  it("serves committed navigation compatibility copy from published Tolgee catalogs", () => {
     for (const locale of KLYX_TOLGEE_PUBLISHED_LOCALES) {
       const publishedLocale = locale as KlyxSelectableLocale;
       const expectedLabels = EXPECTED_APP_SIDEBAR_NAVIGATION[publishedLocale];
@@ -327,19 +327,20 @@ describe("KLYX Tolgee runtime bridge", () => {
 
     expect(sidebarSource).toContain("const { locale, t } = useKlyxLocale();");
     expect(sidebarSource).toContain(
-      'const desktopNavigationLabel = t("sidebar.desktopNavigation");'
+      'aria-label={t("sidebar.desktopNavigation")}'
     );
     expect(sidebarSource).toContain(
-      'const mobileNavigationLabel = t("sidebar.mobileNavigation");'
+      'aria-label={t("sidebar.mobileNavigation")}'
     );
     expect(sidebarSource).toContain(
       "translateKlyxTolgeeRuntimeNavigation(locale, item.translationLabel)"
     );
+    expect(sidebarSource).toContain("const unifiedItems: MenuItem[] = [");
     expect(sidebarSource).not.toContain("translateKlyxUi");
     expect(sidebarSource).not.toContain("translateKlyxSidebarNavigation");
     expect(sidebarSource).not.toContain("klyx-sidebar-navigation-i18n");
     expect(sidebarSource).not.toContain("translateKlyxNavigationLabel");
-    expect(sidebarSource).toContain("translateKlyxProviderAssistant");
+    expect(sidebarSource).not.toContain("translateKlyxProviderAssistant");
 
     expect(composerSource).toContain("translateKlyxTolgeeRuntimeUi");
     expect(composerSource).toContain('"assistant.voice.label"');
