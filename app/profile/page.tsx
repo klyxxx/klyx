@@ -19,11 +19,14 @@ import {
 } from "lucide-react";
 
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
+import { getKlyxAccountHome } from "@/lib/account-home";
 import {
   resolveKlyxProfilePageApiErrorKey,
   translateKlyxProfilePage,
   type KlyxProfilePageMessageKey,
 } from "@/lib/klyx-profile-page-i18n";
+
+type AccountType = "client" | "provider";
 
 type ProfilePayload = {
   profile?: {
@@ -33,6 +36,7 @@ type ProfilePayload = {
     age: number | null;
     city: string;
     avatarUrl: string | null;
+    accountType: AccountType;
   };
   error?: string;
 };
@@ -46,6 +50,7 @@ export default function ProfilePage() {
   const t = (key: KlyxProfilePageMessageKey) =>
     translateKlyxProfilePage(locale, key);
 
+  const [accountType, setAccountType] = useState<AccountType>("client");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [age, setAge] = useState("");
@@ -66,8 +71,7 @@ export default function ProfilePage() {
     () => `${firstName.trim()} ${lastName.trim()}`.trim(),
     [firstName, lastName]
   );
-  const homeHref = "/assistant";
-  const profileLabel = t("title");
+  const homeHref = getKlyxAccountHome(accountType);
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -97,6 +101,7 @@ export default function ProfilePage() {
       setAge(body.profile.age === null ? "" : String(body.profile.age));
       setCity(body.profile.city);
       setAvatarUrl(body.profile.avatarUrl ?? "");
+      setAccountType(body.profile.accountType);
     } catch {
       setErrorKey("loadFailed");
     } finally {
@@ -219,6 +224,9 @@ export default function ProfilePage() {
     );
   }
 
+  const roleLabel =
+    accountType === "provider" ? t("providerProfile") : t("clientProfile");
+
   return (
     <main className="min-h-full w-full max-w-full overflow-x-hidden bg-background px-4 pb-28 pt-7 text-foreground sm:px-6 sm:pt-10 lg:pb-10">
       <div className="mx-auto w-full min-w-0 max-w-3xl">
@@ -232,10 +240,10 @@ export default function ProfilePage() {
 
         <header className="mt-6 min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">
-            {profileLabel}
+            {roleLabel}
           </p>
           <h1 className="mt-2 break-words text-3xl font-bold tracking-[-0.04em] [overflow-wrap:anywhere] sm:text-5xl">
-            {fullName || profileLabel}
+            {fullName || roleLabel}
           </h1>
           {city && (
             <p className="mt-2 break-words text-sm text-muted-foreground [overflow-wrap:anywhere]">
@@ -283,10 +291,10 @@ export default function ProfilePage() {
 
             <div className="min-w-0 flex-1">
               <p className="break-words text-base font-semibold tracking-[-0.015em] [overflow-wrap:anywhere] sm:text-lg">
-                {fullName || profileLabel}
+                {fullName || roleLabel}
               </p>
               <p className="mt-1 text-xs font-medium text-muted-foreground sm:text-sm">
-                {profileLabel}
+                {roleLabel}
               </p>
             </div>
           </div>
