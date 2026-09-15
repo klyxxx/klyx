@@ -5,7 +5,7 @@ begin;
 -- The canonical account capability remains the authorization authority.
 -- The historical profiles.id path segment is only a compatibility storage key,
 -- so additionally require that the target profile is actually provider-capable
--- through provider data, never through profiles.account_type.
+-- through provider data, never through a legacy role column.
 
 create or replace function public.klyx_owns_provider_verification_path(
   p_name text
@@ -70,6 +70,6 @@ grant execute on function public.klyx_owns_provider_verification_path(text)
   to authenticated, service_role;
 
 comment on function public.klyx_owns_provider_verification_path(text) is
-  'Storage RLS adapter: require owned legacy profile folder, canonical offer_services capability, and provider compatibility data without using profiles.account_type as authority.';
+  'Storage RLS adapter: require owned legacy profile folder, canonical offer_services capability, and provider compatibility data without using a legacy role column as authority.';
 
 commit;
