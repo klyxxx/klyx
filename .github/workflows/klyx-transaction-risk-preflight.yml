@@ -1,0 +1,33 @@
+name: KLYX Transaction Risk Preflight
+
+on:
+  push:
+    branches:
+      - feature/transaction-risk-gate-20260915
+    paths:
+      - ".github/workflows/klyx-transaction-risk-preflight.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-typescript:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Unit and integration tests
+        run: npm test
+
+      - name: TypeScript safety check
+        run: npx tsc --noEmit --pretty false
