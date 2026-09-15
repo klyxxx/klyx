@@ -8,6 +8,7 @@ import {
 import type { AuthenticatedAccount } from "@/lib/api-auth";
 import {
   assessTransactionRisk,
+  type TransactionRiskAction,
   type TransactionRiskAssessment,
   type TransactionRiskDecision,
   type TransactionRiskParticipant,
@@ -18,10 +19,11 @@ export const TRANSACTION_RISK_REVIEW_REQUIRED =
   "KLYX_TRANSACTION_RISK_REVIEW_REQUIRED";
 export const TRANSACTION_RISK_BLOCKED = "KLYX_TRANSACTION_RISK_BLOCKED";
 
-export type CheckoutRiskSubjectType =
+export type TransactionRiskSubjectType =
   | "booking"
   | "booking_group"
   | "split_batch";
+export type CheckoutRiskSubjectType = TransactionRiskSubjectType;
 
 type ProfileAccountRow = {
   id: string;
@@ -66,7 +68,7 @@ export function isTransactionRiskGateError(
 
 async function recordDecision(input: {
   accountId: string;
-  subjectType: CheckoutRiskSubjectType;
+  subjectType: TransactionRiskSubjectType;
   subjectId: string;
   result: TransactionRiskAssessment;
   riskScore: number;
@@ -105,15 +107,26 @@ async function recordDecision(input: {
   if (error) throw new Error(error.message);
 }
 
+function throwIfNotAllowed(result: TransactionRiskAssessment): void {
+  if (result.decision === "allow") return;
+
+  throw new TransactionRiskGateError({
+    decision: result.decision,
+    participant: result.participant,
+    reasonCodes: result.reasonCodes,
+  });
+}
+
 async function assessParticipant(input: {
   account: CanonicalRiskAccount;
+  action: TransactionRiskAction;
   participant: TransactionRiskParticipant;
-  subjectType: CheckoutRiskSubjectType;
+  subjectType: TransactionRiskSubjectType;
   subjectId: string;
 }) {
   const evaluation = await evaluateCanonicalAccountRisk(input.account);
   const result = assessTransactionRisk({
-    action: "checkout_create",
+    action: input.action,
     participant: input.participant,
     assessment: evaluation.assessment,
     metrics: evaluation.metrics,
@@ -129,13 +142,7 @@ async function assessParticipant(input: {
     riskAssessedAt: evaluation.assessedAt,
   });
 
-  if (result.decision !== "allow") {
-    throw new TransactionRiskGateError({
-      decision: result.decision,
-      participant: result.participant,
-      reasonCodes: result.reasonCodes,
-    });
-  }
+  throwIfNotAllowed(result);
 }
 
 async function resolveCanonicalAccountIdsForProfiles(
@@ -195,6 +202,38 @@ async function resolveCanonicalAccountIdsForProfiles(
   return Array.from(new Set(accountIds));
 }
 
+async function assessCanonicalAccountId(input: {
+  accountId: string;
+  canOfferServices: boolean;
+  action: TransactionRiskAction;
+  participant: TransactionRiskParticipant;
+  subjectType: TransactionRiskSubjectType;
+  subjectId: string;
+}): Promise<void> {
+  const evaluation = await evaluateCanonicalAccountRiskById(
+    input.accountId,
+    input.canOfferServices
+  );
+  const result = assessTransactionRisk({
+    action: input.action,
+    participant: input.participant,
+    assessment: evaluation.assessment,
+    metrics: evaluation.metrics,
+  });
+
+  await recordDecision({
+    accountId: input.accountId,
+    subjectType: input.subjectType,
+    subjectId: input.subjectId,
+    result,
+    riskScore: evaluation.assessment.score,
+    riskLevel: evaluation.assessment.level,
+    riskAssessedAt: evaluation.assessedAt,
+  });
+
+  throwIfNotAllowed(result);
+}
+
 export async function enforceCheckoutTransactionRisk(input: {
   payerAccount: AuthenticatedAccount;
   recipientProfileIds: readonly string[];
@@ -209,6 +248,7 @@ export async function enforceCheckoutTransactionRisk(input: {
 
   await assessParticipant({
     account: payer,
+    action: "checkout_create",
     participant: "payer",
     subjectType: input.subjectType,
     subjectId: input.subjectId,
@@ -219,30 +259,39 @@ export async function enforceCheckoutTransactionRisk(input: {
   );
 
   for (const accountId of recipientAccountIds) {
-    const evaluation = await evaluateCanonicalAccountRiskById(accountId, true);
-    const result = assessTransactionRisk({
+    await assessCanonicalAccountId({
+      accountId,
+      canOfferServices: true,
       action: "checkout_create",
       participant: "recipient",
-      assessment: evaluation.assessment,
-      metrics: evaluation.metrics,
-    });
-
-    await recordDecision({
-      accountId,
       subjectType: input.subjectType,
       subjectId: input.subjectId,
-      result,
-      riskScore: evaluation.assessment.score,
-      riskLevel: evaluation.assessment.level,
-      riskAssessedAt: evaluation.assessedAt,
     });
-
-    if (result.decision !== "allow") {
-      throw new TransactionRiskGateError({
-        decision: result.decision,
-        participant: result.participant,
-        reasonCodes: result.reasonCodes,
-      });
-    }
   }
+}
+
+export async function enforceRefundTransactionRisk(input: {
+  refundRecipientProfileId: string;
+  subjectType: "booking" | "booking_group";
+  subjectId: string;
+}): Promise<void> {
+  const [accountId] = await resolveCanonicalAccountIdsForProfiles([
+    input.refundRecipientProfileId,
+  ]);
+
+  if (!accountId) {
+    throw new Error("KLYX_TRANSACTION_RISK_ACCOUNT_NOT_FOUND");
+  }
+
+  // A refund is customer-directed money. Deliberately evaluate the canonical
+  // account without provider-side Stripe Connect state so a provider identity
+  // problem on the same account cannot withhold a customer refund.
+  await assessCanonicalAccountId({
+    accountId,
+    canOfferServices: false,
+    action: "refund_create",
+    participant: "payer",
+    subjectType: input.subjectType,
+    subjectId: input.subjectId,
+  });
 }
