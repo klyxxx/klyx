@@ -3,7 +3,9 @@ import type {
   RiskMetrics,
 } from "@/lib/security-risk";
 
-export type TransactionRiskAction = "checkout_create";
+export type TransactionRiskAction =
+  | "checkout_create"
+  | "refund_create";
 export type TransactionRiskParticipant = "payer" | "recipient";
 export type TransactionRiskDecision =
   | "allow"
@@ -34,6 +36,39 @@ export function assessTransactionRisk(
   const { action, participant, assessment, metrics } = input;
   const signals = signalCodes(assessment);
   const reasons: string[] = [];
+
+  // A refund returns money to the original payer. Provider-side Stripe identity,
+  // safety reports and received disputes must not be repurposed to withhold that
+  // money. The current refund policy only escalates a combined behavioral abuse
+  // pattern; infrastructure/evaluation failures still fail closed before Stripe.
+  if (action === "refund_create") {
+    const repeatedCancellationPattern =
+      signals.has("repeated_cancellations") &&
+      metrics.cancelledBookings >= 3;
+    const repeatedOpenedDisputePattern =
+      signals.has("multiple_opened_disputes") &&
+      metrics.openedDisputes >= 2;
+
+    if (
+      participant === "payer" &&
+      repeatedCancellationPattern &&
+      repeatedOpenedDisputePattern
+    ) {
+      return {
+        action,
+        participant,
+        decision: "review_required",
+        reasonCodes: ["refund_abuse_pattern"],
+      };
+    }
+
+    return {
+      action,
+      participant,
+      decision: "allow",
+      reasonCodes: [],
+    };
+  }
 
   // A provider-side canonical Stripe identity conflict is a hard financial
   // boundary. It is intentionally ignored when the same account acts only as
