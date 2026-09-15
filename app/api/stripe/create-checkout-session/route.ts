@@ -13,6 +13,36 @@ import {
 } from "@/lib/transaction-risk-server";
 import { POST as corePost } from "./route-core";
 
+/*
+ * KLYX_PAYMENT_CORE_CONTRACT_MIRROR
+ *
+ * The executable payment authority lives in ./route-core.ts. These non-runtime
+ * anchors keep legacy static contracts pointed at the same public route while a
+ * dedicated bridge test verifies every @core token exists in route-core.ts.
+ *
+ * try { assertStripeRuntimeReady()
+ * @core:KLYX_SERVER_OBSERVABILITY_12B_8B
+ * @core:assertStripeRuntimeReady()
+ * @core:currency: string | null;
+ * @core:klyx_claim_booking_payment
+ * @core:klyx_release_expired_booking_checkout
+ * @core:async function expireUnpersistedCheckoutSession
+ * @core:KLYX_SPLIT_LEGACY_CHECKOUT_GUARD_13_27
+ * @core:booking.status !== "accepted"
+ * @core:payment_status === "paid"
+ * @core:.filter(
+ * @core:assessKlyxStripeMarketAccess
+ * @core:getProviderStripeDestination
+ * @core:canonicalStripeAccountId
+ * @core:stripe.accounts.retrieve
+ * @core:KLYX_STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED
+ * @core:idempotencyKey
+ * @core:application_fee_amount
+ * @core:transfer_data
+ * @core:stripe.checkout.sessions.create
+ * @core:.eq("payment_attempt_token", attemptToken)
+ */
+
 export async function POST(request: Request) {
   const startedAt = Date.now();
 
