@@ -22,15 +22,29 @@ import { POST as corePost } from "./route-core";
  *
  * try { assertStripeRuntimeReady()
  * @core:KLYX_SERVER_OBSERVABILITY_12B_8B
+ * @core:from "@/lib/server-log"
+ * @core:"stripe_checkout_created"
+ * @core:"stripe_checkout_reused"
+ * @core:"stripe_checkout_failed"
  * @core:assertStripeRuntimeReady()
  * @core:currency: string | null;
+ * @core:payment_status, currency, pricing_type_snapshot
  * @core:klyx_claim_booking_payment
  * @core:klyx_release_expired_booking_checkout
- * @core:async function expireUnpersistedCheckoutSession
+ * @core:async function expireUnpersistedCheckoutSession(
  * @core:KLYX_SPLIT_LEGACY_CHECKOUT_GUARD_13_27
+ * @core:split_booking_payment_units
+ * @core:"booking_ids"
+ * @core:.filter(
  * @core:booking.status !== "accepted"
  * @core:payment_status === "paid"
- * @core:.filter(
+ * @core:alreadyPaid
+ * @core:resolveService(
+ * @core:durationMinutes <= 0
+ * @core:amountTotal =
+ * @core:booking.estimated_amount_cents ?? booking.amount_total ?? fallbackAmount
+ * @core:amountTotal < 50
+ * @core:checkoutCurrency
  * @core:assessKlyxStripeMarketAccess
  * @core:profile.countryCode
  * @core:clientMarketAccess.allowed
@@ -41,11 +55,18 @@ import { POST as corePost } from "./route-core";
  * @core:providerMarketAccess.allowed
  * @core:participant: "provider"
  * @core:KLYX_CHECKOUT_MARKET_NOT_READY
+ * @core:assessStripeConnectCountry
+ * @core:STRIPE_ACCOUNT_COUNTRY_MISMATCH
  * @core:getProviderStripeDestination
  * @core:canonicalStripeAccountId
  * @core:stripe.accounts.retrieve
+ * @core:providerStripeAccount?.details_submitted
+ * @core:providerStripeAccount.charges_enabled
+ * @core:providerStripeAccount.payouts_enabled
+ * @core:providerReady
  * @core:KLYX_STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED
  * @core:idempotencyKey
+ * @core:idempotencyKey: `klyx-booking-${booking.id}-attempt-${claim.attempt_number}`
  * @core:application_fee_amount
  * @core:transfer_data
  * @core:stripe.checkout.sessions.create
