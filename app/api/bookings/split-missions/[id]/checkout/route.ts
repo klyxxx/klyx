@@ -60,26 +60,48 @@ export async function POST(request: Request, context: RouteContext) {
    * @core:assertStripeRuntimeReady()
    * @core:checkoutPreparationConfirmed
    * @core:automaticPayment
+   * @core:moneyMovedAutomatically
    * @core:assessKlyxStripeMarketAccess
    * @core:profile.countryCode
    * @core:clientMarketAccess.allowed
    * @core:participant: "client"
    * @core:SPLIT_CHECKOUT_MARKET_NOT_READY
    * @core:split_booking_payment_confirmations
+   * @core:SPLIT_PAYMENT_CONFIRMATION_REQUIRED
    * @core:payment_plan_hash
    * @core:SPLIT_PAYMENT_PLAN_HASH_MISMATCH
    * @core:estimated_amount_cents
+   * @core:amount_total
    * @core:bookingAccepted
+   * @core:SPLIT_LIVE_BOOKING_CHANGED
    * @core:paymentAlreadyClaimed
+   * @core:SPLIT_CHILD_ALREADY_HAS_PAYMENT
    * @core:provider.country_code
    * @core:providerMarketAccess.allowed
    * @core:participant: "provider"
    * @core:SPLIT_CHECKOUT_MARKET_NOT_READY
-   * @core:assessStripeConnectCountry
    * @core:stripe.accounts.retrieve
+   * @core:const countryAssessment = assessStripeConnectCountry
+   * @core:assessStripeConnectCountry
+   * @core:STRIPE_ACCOUNT_COUNTRY_MISMATCH
+   * @core:SPLIT_PROVIDER_STRIPE_CHANGED
+   * @core:charges_enabled
+   * @core:payouts_enabled
+   * @core:details_submitted
    * @core:createCheckoutSession({
    * @core:idempotencyKey
+   * @core:application_fee_amount
    * @core:transfer_data
+   * @core:klyx_claim_split_payment_unit_13_27
+   * @core:existing.payment_status ===
+   * @core:"paid"
+   * @core:klyx_release_split_checkout_13_27
+   * @core:klyx_attach_split_checkout_13_27
+   * @core:klyx_finalize_split_payment_run_13_27
+   * @core:explicitStripeCheckoutRequired:
+   * @core:automaticRedirect:
+   * @core:automaticPayment:
+   * @core:moneyMovedAutomatically:
    */
 
   // Preserve the original core's first boundary: an unconfirmed split checkout
