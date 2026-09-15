@@ -8,6 +8,7 @@ import {
 import type { AuthenticatedAccount } from "@/lib/api-auth";
 import {
   assessTransactionRisk,
+  type TransactionRiskAction,
   type TransactionRiskAssessment,
   type TransactionRiskDecision,
   type TransactionRiskParticipant,
@@ -18,10 +19,13 @@ export const TRANSACTION_RISK_REVIEW_REQUIRED =
   "KLYX_TRANSACTION_RISK_REVIEW_REQUIRED";
 export const TRANSACTION_RISK_BLOCKED = "KLYX_TRANSACTION_RISK_BLOCKED";
 
-export type CheckoutRiskSubjectType =
+export type TransactionRiskSubjectType =
   | "booking"
   | "booking_group"
   | "split_batch";
+
+// Backward-compatible export retained for checkout callers and tests.
+export type CheckoutRiskSubjectType = TransactionRiskSubjectType;
 
 type ProfileAccountRow = {
   id: string;
@@ -66,7 +70,7 @@ export function isTransactionRiskGateError(
 
 async function recordDecision(input: {
   accountId: string;
-  subjectType: CheckoutRiskSubjectType;
+  subjectType: TransactionRiskSubjectType;
   subjectId: string;
   result: TransactionRiskAssessment;
   riskScore: number;
@@ -105,15 +109,16 @@ async function recordDecision(input: {
   if (error) throw new Error(error.message);
 }
 
-async function assessParticipant(input: {
+async function assessCanonicalParticipant(input: {
   account: CanonicalRiskAccount;
+  action: TransactionRiskAction;
   participant: TransactionRiskParticipant;
-  subjectType: CheckoutRiskSubjectType;
+  subjectType: TransactionRiskSubjectType;
   subjectId: string;
 }) {
   const evaluation = await evaluateCanonicalAccountRisk(input.account);
   const result = assessTransactionRisk({
-    action: "checkout_create",
+    action: input.action,
     participant: input.participant,
     assessment: evaluation.assessment,
     metrics: evaluation.metrics,
@@ -121,6 +126,44 @@ async function assessParticipant(input: {
 
   await recordDecision({
     accountId: input.account.id,
+    subjectType: input.subjectType,
+    subjectId: input.subjectId,
+    result,
+    riskScore: evaluation.assessment.score,
+    riskLevel: evaluation.assessment.level,
+    riskAssessedAt: evaluation.assessedAt,
+  });
+
+  if (result.decision !== "allow") {
+    throw new TransactionRiskGateError({
+      decision: result.decision,
+      participant: result.participant,
+      reasonCodes: result.reasonCodes,
+    });
+  }
+}
+
+async function assessCanonicalParticipantById(input: {
+  accountId: string;
+  canOfferServices: boolean;
+  action: TransactionRiskAction;
+  participant: TransactionRiskParticipant;
+  subjectType: TransactionRiskSubjectType;
+  subjectId: string;
+}) {
+  const evaluation = await evaluateCanonicalAccountRiskById(
+    input.accountId,
+    input.canOfferServices
+  );
+  const result = assessTransactionRisk({
+    action: input.action,
+    participant: input.participant,
+    assessment: evaluation.assessment,
+    metrics: evaluation.metrics,
+  });
+
+  await recordDecision({
+    accountId: input.accountId,
     subjectType: input.subjectType,
     subjectId: input.subjectId,
     result,
@@ -207,8 +250,9 @@ export async function enforceCheckoutTransactionRisk(input: {
     canOfferServices: input.payerAccount.canOfferServices,
   };
 
-  await assessParticipant({
+  await assessCanonicalParticipant({
     account: payer,
+    action: "checkout_create",
     participant: "payer",
     subjectType: input.subjectType,
     subjectId: input.subjectId,
@@ -219,30 +263,60 @@ export async function enforceCheckoutTransactionRisk(input: {
   );
 
   for (const accountId of recipientAccountIds) {
-    const evaluation = await evaluateCanonicalAccountRiskById(accountId, true);
-    const result = assessTransactionRisk({
+    await assessCanonicalParticipantById({
+      accountId,
+      canOfferServices: true,
       action: "checkout_create",
       participant: "recipient",
-      assessment: evaluation.assessment,
-      metrics: evaluation.metrics,
-    });
-
-    await recordDecision({
-      accountId,
       subjectType: input.subjectType,
       subjectId: input.subjectId,
-      result,
-      riskScore: evaluation.assessment.score,
-      riskLevel: evaluation.assessment.level,
-      riskAssessedAt: evaluation.assessedAt,
     });
+  }
+}
 
-    if (result.decision !== "allow") {
-      throw new TransactionRiskGateError({
-        decision: result.decision,
-        participant: result.participant,
-        reasonCodes: result.reasonCodes,
-      });
-    }
+export async function enforceRefundTransactionRisk(input: {
+  requesterAccount: AuthenticatedAccount;
+  refundRecipientProfileId: string;
+  subjectType: Extract<TransactionRiskSubjectType, "booking" | "booking_group">;
+  subjectId: string;
+}): Promise<void> {
+  const recipientAccountIds = await resolveCanonicalAccountIdsForProfiles([
+    input.refundRecipientProfileId,
+  ]);
+  const recipientAccountId = recipientAccountIds[0];
+
+  if (!recipientAccountId) {
+    throw new Error("KLYX_TRANSACTION_RISK_REFUND_RECIPIENT_NOT_FOUND");
+  }
+
+  // The original payer is the only refund destination KLYX recognizes. Assess
+  // that canonical account first because repeated dispute behavior is the only
+  // current account-risk signal allowed to delay a refund for human review.
+  await assessCanonicalParticipantById({
+    accountId: recipientAccountId,
+    canOfferServices: true,
+    action: "refund_create",
+    participant: "refund_recipient",
+    subjectType: input.subjectType,
+    subjectId: input.subjectId,
+  });
+
+  // If the approver/requester is a different canonical account, record a fresh
+  // account-level assessment for auditability. Refund policy deliberately does
+  // not strand customer funds because of requester/provider-only risk signals.
+  if (input.requesterAccount.id !== recipientAccountId) {
+    const requester: CanonicalRiskAccount = {
+      id: input.requesterAccount.id,
+      authUserId: input.requesterAccount.authUserId,
+      canOfferServices: input.requesterAccount.canOfferServices,
+    };
+
+    await assessCanonicalParticipant({
+      account: requester,
+      action: "refund_create",
+      participant: "requester",
+      subjectType: input.subjectType,
+      subjectId: input.subjectId,
+    });
   }
 }

@@ -8,6 +8,8 @@ const buttonPath =
   "app/components/NotificationButton.tsx";
 const statusRoutePath =
   "app/api/bookings/status/route.ts";
+const statusRouteCorePath =
+  "app/api/bookings/status/route-core.ts";
 const readRoutePath =
   "app/api/notifications/read/route.ts";
 
@@ -78,10 +80,10 @@ describe("notification unification contract", () => {
   });
 
   it("shares booking notification deduplication keys with the server API", () => {
-    const statusRoute = readFileSync(
-      join(process.cwd(), statusRoutePath),
-      "utf8"
-    );
+    const statusRoute = [
+      readFileSync(join(process.cwd(), statusRoutePath), "utf8"),
+      readFileSync(join(process.cwd(), statusRouteCorePath), "utf8"),
+    ].join("\n");
     const readRoute = readFileSync(
       join(process.cwd(), readRoutePath),
       "utf8"

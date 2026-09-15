@@ -3,8 +3,12 @@ import type {
   RiskMetrics,
 } from "@/lib/security-risk";
 
-export type TransactionRiskAction = "checkout_create";
-export type TransactionRiskParticipant = "payer" | "recipient";
+export type TransactionRiskAction = "checkout_create" | "refund_create";
+export type TransactionRiskParticipant =
+  | "payer"
+  | "recipient"
+  | "requester"
+  | "refund_recipient";
 export type TransactionRiskDecision =
   | "allow"
   | "review_required"
@@ -28,10 +32,50 @@ function signalCodes(assessment: RiskAssessment): Set<string> {
   return new Set(assessment.signals.map((signal) => signal.code));
 }
 
+function assessRefundRisk(input: Input): TransactionRiskAssessment {
+  const { action, participant, assessment, metrics } = input;
+  const signals = signalCodes(assessment);
+
+  // A refund returns money to the original payer. Provider-only Stripe identity
+  // problems, safety reports received by the requester, or adverse provider
+  // history must not strand customer funds. Those signals remain visible in the
+  // canonical account assessment, but they do not block a refund by themselves.
+  //
+  // The one account-level condition that can justify a temporary review here is
+  // a critical pattern of disputes OPENED by the refund recipient. This is the
+  // double-recovery boundary (refund plus repeated dispute/chargeback behavior),
+  // so it is review-only rather than an automatic permanent block.
+  const criticalRecipientDisputeRisk =
+    participant === "refund_recipient" &&
+    assessment.level === "critical" &&
+    (signals.has("multiple_opened_disputes") || metrics.openedDisputes >= 3);
+
+  if (criticalRecipientDisputeRisk) {
+    return {
+      action,
+      participant,
+      decision: "review_required",
+      reasonCodes: ["critical_refund_recipient_dispute_risk"],
+    };
+  }
+
+  return {
+    action,
+    participant,
+    decision: "allow",
+    reasonCodes: [],
+  };
+}
+
 export function assessTransactionRisk(
   input: Input
 ): TransactionRiskAssessment {
   const { action, participant, assessment, metrics } = input;
+
+  if (action === "refund_create") {
+    return assessRefundRisk(input);
+  }
+
   const signals = signalCodes(assessment);
   const reasons: string[] = [];
 

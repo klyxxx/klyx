@@ -7,10 +7,16 @@ const createRoute = fs.readFileSync(
   path.join(process.cwd(), "app/api/bookings/create/route.ts"),
   "utf8"
 );
-const statusRoute = fs.readFileSync(
-  path.join(process.cwd(), "app/api/bookings/status/route.ts"),
-  "utf8"
-);
+const statusRoute = [
+  fs.readFileSync(
+    path.join(process.cwd(), "app/api/bookings/status/route.ts"),
+    "utf8"
+  ),
+  fs.readFileSync(
+    path.join(process.cwd(), "app/api/bookings/status/route-core.ts"),
+    "utf8"
+  ),
+].join("\n");
 
 describe("booking transactional email contract", () => {
   it("notifies the provider only after booking creation has succeeded", () => {
