@@ -5,6 +5,10 @@ import {
   getAuthenticatedAccount,
 } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import {
+  isSettlementRefundPreparationError,
+  preparePlatformHeldBookingRefund,
+} from "@/lib/booking-settlement-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   enforceRefundTransactionRisk,
@@ -73,6 +77,25 @@ export async function POST(request: Request) {
       subjectId: bookingId,
     });
 
+    const settlementPreparation = await preparePlatformHeldBookingRefund(
+      bookingId
+    );
+
+    if (
+      settlementPreparation.status === "busy" ||
+      settlementPreparation.status === "not_ready"
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Le remboursement est temporairement en attente de réconciliation financière. Réessaie dans quelques instants.",
+          code: "KLYX_SETTLEMENT_REFUND_RECONCILIATION_PENDING",
+          automaticSuspension: false,
+        },
+        { status: 409 }
+      );
+    }
+
     return corePost(request);
   } catch (error) {
     if (isTransactionRiskGateError(error)) {
@@ -85,6 +108,18 @@ export async function POST(request: Request) {
           automaticSuspension: false,
         },
         { status: 409 }
+      );
+    }
+
+    if (isSettlementRefundPreparationError(error)) {
+      return NextResponse.json(
+        {
+          error:
+            "Le remboursement nécessite une réconciliation financière avant de continuer.",
+          code: error.code,
+          automaticSuspension: false,
+        },
+        { status: error.status }
       );
     }
 

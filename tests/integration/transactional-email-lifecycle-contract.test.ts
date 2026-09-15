@@ -13,6 +13,13 @@ function bookingStatusSurface() {
   ].join("\n");
 }
 
+function bookingTrackingSurface() {
+  return [
+    source("app/api/bookings/tracking/route.ts"),
+    source("app/api/bookings/tracking/route-core.ts"),
+  ].join("\n");
+}
+
 describe("KLYX transactional email lifecycle contract", () => {
   it("covers account/profile creation and profile deletion only after successful mutations", () => {
     const profiles = source("app/api/profiles/manage/route.ts");
@@ -85,7 +92,7 @@ describe("KLYX transactional email lifecycle contract", () => {
   });
 
   it("covers mission completion, review receipt and dispute opening", () => {
-    const tracking = source("app/api/bookings/tracking/route.ts");
+    const tracking = bookingTrackingSurface();
     const reviews = source("app/api/reviews/route.ts");
     const groupReviews = source("app/api/group-reviews/route.ts");
     const disputes = source("app/api/disputes/route.ts");
