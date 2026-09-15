@@ -106,6 +106,24 @@ function requestPathname(request: Request): string {
   }
 }
 
+function assistantCapability(request: Request): AccountType | null {
+  const pathname = requestPathname(request);
+
+  // Capability projection is deliberately restricted to the unified Brain
+  // surface. The header selects a legacy adapter only after canonical account
+  // capabilities authorize the requested operation.
+  if (pathname !== "/api/brain/converse") {
+    return null;
+  }
+
+  const value = request.headers
+    .get(ASSISTANT_CAPABILITY_HEADER)
+    ?.trim()
+    .toLowerCase();
+
+  return value === "client" || value === "provider" ? value : null;
+}
+
 function requestCompatibilityProfileFrom(
   profiles: readonly AuthenticatedProfile[]
 ): AuthenticatedProfile {
@@ -130,13 +148,30 @@ function offerCompatibilityProfileFrom(
   };
 }
 
+function projectCapability(
+  profiles: readonly AuthenticatedProfile[],
+  canonicalProfile: AuthenticatedProfile,
+  requestedCapability: AccountType | null
+): AuthenticatedProfile | null {
+  if (!requestedCapability) return null;
+
+  if (requestedCapability === "client") {
+    if (!canonicalProfile.canRequestServices) return null;
+    return requestCompatibilityProfileFrom(profiles);
+  }
+
+  if (!canonicalProfile.canOfferServices) return null;
+  return offerCompatibilityProfileFrom(profiles);
+}
+
 function selectCompatibilityProfile(
   request: Request,
   profiles: readonly AuthenticatedProfile[],
+  canonicalProfile: AuthenticatedProfile,
   selectedProfileId: string | undefined
 ): AuthenticatedProfile {
   const selected =
-    profiles.find((item) => item.id === selectedProfileId) ?? profiles[0];
+    profiles.find((item) => item.id === selectedProfileId) ?? canonicalProfile;
   const compatibilityContext = getLegacyProfileCapabilityContext();
 
   if (compatibilityContext === "request") {
@@ -147,26 +182,18 @@ function selectCompatibilityProfile(
     return offerCompatibilityProfileFrom(profiles);
   }
 
+  const projectedProfile = projectCapability(
+    profiles,
+    canonicalProfile,
+    assistantCapability(request)
+  );
+
+  if (projectedProfile) {
+    return projectedProfile;
+  }
+
   const pathname = requestPathname(request);
   const method = request.method.toUpperCase();
-
-  // The unified assistant may select which legacy storage adapter it needs,
-  // but the header never grants a capability. request/offer authority still
-  // comes exclusively from the canonical account capability state above.
-  if (pathname === "/api/brain/converse") {
-    const assistantAdapter = request.headers
-      .get(ASSISTANT_CAPABILITY_HEADER)
-      ?.trim()
-      .toLowerCase();
-
-    if (assistantAdapter === "client") {
-      return requestCompatibilityProfileFrom(profiles);
-    }
-
-    if (assistantAdapter === "provider") {
-      return offerCompatibilityProfileFrom(profiles);
-    }
-  }
 
   // Transitional request-storage adapters for endpoints that still persist or
   // read legacy client profile foreign keys. The selected legacy cookie never
@@ -314,6 +341,7 @@ async function getAuthenticatedContext(
   const profile = selectCompatibilityProfile(
     request,
     normalizedProfiles,
+    canonicalProfile,
     selectedProfileId
   );
 

@@ -43,11 +43,14 @@ test.describe("KLYX unified assistant navigation", () => {
 
     const accountEntry = rail.getByTestId("account-entry");
     await expect(accountEntry).toBeVisible();
-    await expect(accountEntry.locator('a[href="/profile"]')).toBeVisible();
-    await expect(accountEntry.locator('a[href="/settings"]')).toBeVisible();
-    await expect(accountEntry.locator('a[href="/support"]')).toBeVisible();
-    await expect(accountEntry.locator('a[href="/provider/studio"]')).toHaveCount(0);
-    await expect(accountEntry.locator('a[href="/provider/payments"]')).toHaveCount(0);
+    await accountEntry.getByTestId("mission-rail-account-entry").click();
+    const accountMenu = accountEntry.getByTestId("account-menu-panel");
+    await expect(accountMenu).toBeVisible();
+    await expect(accountMenu.locator('a[href="/profile"]')).toBeVisible();
+    await expect(accountMenu.locator('a[href="/settings"]')).toBeVisible();
+    await expect(accountMenu.locator('a[href="/support"]')).toBeVisible();
+    await expect(accountMenu.locator('a[href="/provider/studio"]')).toHaveCount(0);
+    await expect(accountMenu.locator('a[href="/provider/payments"]')).toHaveCount(0);
   });
 
   test("provider profile uses the exact same Assistant shell without a permanent provider mode", async ({
@@ -67,9 +70,12 @@ test.describe("KLYX unified assistant navigation", () => {
 
     const accountEntry = rail.getByTestId("account-entry");
     await expect(accountEntry).toBeVisible();
-    await expect(accountEntry.locator('a[href="/profile"]')).toBeVisible();
-    await expect(accountEntry.locator('a[href="/settings"]')).toBeVisible();
-    await expect(accountEntry.locator('a[href="/support"]')).toBeVisible();
+    await accountEntry.getByTestId("mission-rail-account-entry").click();
+    const accountMenu = accountEntry.getByTestId("account-menu-panel");
+    await expect(accountMenu).toBeVisible();
+    await expect(accountMenu.locator('a[href="/profile"]')).toBeVisible();
+    await expect(accountMenu.locator('a[href="/settings"]')).toBeVisible();
+    await expect(accountMenu.locator('a[href="/support"]')).toBeVisible();
   });
 
   test("legacy provider assistant URL converges to the unified Assistant", async ({
