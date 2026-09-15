@@ -20,6 +20,7 @@ import {
   type KlyxFirstProfileMessageKey,
 } from "@/lib/klyx-first-profile-i18n";
 import { KLYX_SUPPORTED_MARKETS } from "@/lib/klyx-supported-markets";
+import { completeKlyxFirstProfileAnalytics } from "./KlyxFirstProfileAnalytics";
 
 // KLYX_FIRST_PROFILE_HANDOFF_13_87
 // KLYX_FIRST_PROFILE_MARKET_REQUIRED_16_01
@@ -128,6 +129,7 @@ export default function FirstProfileSetup({ initialFullName }: Props) {
         return;
       }
 
+      completeKlyxFirstProfileAnalytics();
       router.replace("/assistant");
       router.refresh();
     } catch {
