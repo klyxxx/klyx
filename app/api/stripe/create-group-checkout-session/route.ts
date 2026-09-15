@@ -33,8 +33,15 @@ import { POST as corePost } from "./route-core";
  * @core:KLYX_GROUP_CHECKOUT_MARKET_NOT_READY
  * @core:canonicalStripeAccountId
  * @core:stripe.accounts.retrieve
+ * @core:assessStripeConnectCountry
+ * @core:STRIPE_ACCOUNT_COUNTRY_MISMATCH
+ * @core:providerStripeAccount?.details_submitted
+ * @core:providerStripeAccount.charges_enabled
+ * @core:providerStripeAccount.payouts_enabled
+ * @core:providerReady
  * @core:KLYX_STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED
- * @core:async function expireUnpersistedCheckoutSession
+ * @core:klyx_claim_booking_group_payment
+ * @core:async function expireUnpersistedCheckoutSession(
  * @core:idempotencyKey
  * @core:application_fee_amount
  * @core:transfer_data
