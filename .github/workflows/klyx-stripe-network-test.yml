@@ -293,7 +293,6 @@ jobs:
 
           case "${STRIPE_SECRET_KEY:-}" in
             sk_test_*) ;;
-            sk_live_*) echo "::error::sk_live_* is forbidden for platform-held certification."; exit 1 ;;
             *) echo "::error::Platform-held certification requires sk_test_*."; exit 1 ;;
           esac
 
