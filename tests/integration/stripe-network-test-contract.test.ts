@@ -104,36 +104,41 @@ describe("KLYX Stripe network proof", () => {
     );
   });
 
-  it("creates and verifies a real Express Connect account through KLYX routes", () => {
+  it("creates and verifies a real Express Connect account through canonical account authority", () => {
     expect(connectProof).toContain(
       'path: "/api/stripe/connect/create-account"'
     );
     expect(connectProof).toContain('path: "/api/stripe/connect/status"');
     expect(connectProof).toContain("new Stripe(stripeSecretKey)");
-    expect(connectProof).toContain("stripe.accounts.retrieve(accountId)");
+    expect(connectProof).toContain("canonicalConnectState");
+    expect(connectProof).toContain('.from("accounts")');
+    expect(connectProof).toContain("stripe.accounts.retrieve(stripeAccountId)");
     expect(connectProof).toContain('remoteAccount.type !== "express"');
     expect(connectProof).toContain('remoteAccount.country !== "BE"');
     expect(connectProof).toContain(
-      "remoteAccount.metadata?.klyx_profile_id !== provider.id"
+      "remoteAccount.metadata?.klyx_account_id !== canonicalAccountId"
     );
+    expect(connectProof).toContain('authority: "accounts.id"');
     expect(connectProof).toContain("status?.connected !== true");
+    expect(connectProof).not.toContain("metadata?.klyx_profile_id");
   });
 
-  it("proves KLYX reuses one Connect account instead of duplicating it", () => {
+  it("proves KLYX reuses one canonical Connect account instead of duplicating it", () => {
     expect(
       connectProof.split('path: "/api/stripe/connect/create-account"').length - 1
     ).toBe(2);
     expect(connectProof).toContain(
-      'afterSecondCreate.stripe_account_id !== accountId'
+      "afterSecondCreate.stripe_account_id !== stripeAccountId"
     );
     expect(connectProof).toContain("matchingAccounts.length !== 1");
     expect(connectProof).toContain("accountReused = true");
   });
 
-  it("deletes the Stripe TEST account and clears local Connect state after proof", () => {
+  it("deletes the Stripe TEST account and clears canonical local Connect state after proof", () => {
     expect(connectProof).toContain("stripe.accounts.del(candidateId)");
     expect(connectProof).toContain("deleted.deleted !== true");
     expect(connectProof).toContain("stripe_account_id: null");
+    expect(connectProof).toContain('stripe_connect_state: "unlinked"');
     expect(connectProof).toContain("stripe_onboarding_complete: false");
     expect(connectProof).toContain("stripe_charges_enabled: false");
     expect(connectProof).toContain("stripe_payouts_enabled: false");
