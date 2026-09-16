@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import Stripe from "stripe";
 
 import {
   assertGoldenPathIsolation,
@@ -22,6 +23,116 @@ function cleaningService(services) {
   }
 
   return undefined;
+}
+
+function platformHeldStripeFixtureEnabled() {
+  return (
+    process.env.KLYX_STRIPE_MODE === "test" &&
+    process.env.KLYX_STRIPE_SETTLEMENT_MODE === "platform_held" &&
+    process.env.KLYX_SETTLEMENT_CONTROL_TEST_READY === "true" &&
+    process.env.KLYX_LIVE_PAYMENTS_ENABLED === "false"
+  );
+}
+
+function transferReady(account) {
+  return (
+    account?.livemode === false &&
+    account?.country === "BE" &&
+    account?.details_submitted === true &&
+    account?.payouts_enabled === true &&
+    account?.capabilities?.transfers === "active"
+  );
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function ensurePlatformHeldStripeDestinationFixture({ email, providerId }) {
+  if (!platformHeldStripeFixtureEnabled()) {
+    return { enabled: false, accountId: null, created: false };
+  }
+
+  const stripeSecretKey = requiredGoldenPathEnv("STRIPE_SECRET_KEY");
+  if (!stripeSecretKey.startsWith("sk_test_")) {
+    throw new Error(
+      "Platform-held provider fixture requires a Stripe sk_test_* key."
+    );
+  }
+
+  const stripe = new Stripe(stripeSecretKey);
+  const existing = await stripe.accounts.list({ limit: 100 });
+  const ready = existing.data.find(transferReady);
+
+  if (ready) {
+    return { enabled: true, accountId: ready.id, created: false };
+  }
+
+  const bankToken = await stripe.tokens.create({
+    bank_account: {
+      country: "BE",
+      currency: "eur",
+      account_holder_name: "KLYX Settlement Test",
+      account_holder_type: "individual",
+      account_number: "BE68539007547034",
+    },
+  });
+
+  const created = await stripe.accounts.create({
+    type: "custom",
+    country: "BE",
+    email,
+    business_type: "individual",
+    business_profile: {
+      mcc: "7299",
+      url: "https://accessible.stripe.com",
+    },
+    capabilities: {
+      transfers: { requested: true },
+    },
+    external_account: bankToken.id,
+    individual: {
+      first_name: "Klyx",
+      last_name: "Settlement",
+      email,
+      phone: "0000000000",
+      id_number: "222222222",
+      dob: { day: 1, month: 1, year: 1902 },
+      address: {
+        line1: "address_full_match",
+        city: "Bruxelles",
+        postal_code: "1000",
+        country: "BE",
+      },
+    },
+    tos_acceptance: {
+      date: Math.floor(Date.now() / 1000),
+      ip: "127.0.0.1",
+    },
+    metadata: {
+      klyx_platform_held_network_fixture: "true",
+      klyx_provider_profile_id: providerId,
+    },
+  });
+
+  let refreshed = created;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    refreshed = await stripe.accounts.retrieve(created.id);
+    if (transferReady(refreshed)) {
+      return { enabled: true, accountId: refreshed.id, created: true };
+    }
+    await sleep(500);
+  }
+
+  const due = [
+    ...(refreshed.requirements?.currently_due ?? []),
+    ...(refreshed.requirements?.past_due ?? []),
+  ];
+  throw new Error(
+    `Stripe TEST provider fixture is not transfer-ready. Due: ${
+      Array.from(new Set(due)).join(", ") || "unknown"
+    }`
+  );
 }
 
 async function main() {
@@ -78,6 +189,11 @@ async function main() {
       throw new Error("Golden-path profiles must use the BE/EUR market.");
     }
   }
+
+  const stripeFixture = await ensurePlatformHeldStripeDestinationFixture({
+    email,
+    providerId: provider.id,
+  });
 
   const { data: services, error: servicesError } = await admin
     .from("services")
@@ -305,6 +421,8 @@ async function main() {
       userServiceId: userService.id,
       hourlyPrice: 35,
       city: "Bruxelles",
+      platformHeldStripeFixture: stripeFixture.enabled,
+      platformHeldStripeFixtureCreated: stripeFixture.created,
     })}\n`
   );
 }
