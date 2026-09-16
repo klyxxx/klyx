@@ -102,6 +102,23 @@ function stripeObjectId(value) {
   return typeof value === "string" ? value : value?.id ?? null;
 }
 
+function v2TransferStatus(account) {
+  return (
+    account?.configuration?.recipient?.capabilities?.stripe_balance
+      ?.stripe_transfers?.status ?? null
+  );
+}
+
+function v2RecipientTransferReady(account) {
+  return (
+    account?.livemode === false &&
+    account?.identity?.country === "BE" &&
+    account?.applied_configurations?.includes("recipient") === true &&
+    account?.configuration?.recipient?.applied === true &&
+    v2TransferStatus(account) === "active"
+  );
+}
+
 async function loadProfiles(admin, ownerUserId) {
   const { data, error } = await admin
     .from("profiles")
@@ -154,93 +171,44 @@ async function latestAcceptedUnpaidBooking(admin, clientId, providerId) {
   return data;
 }
 
-async function activeBelgianConnectedAccount(stripe) {
+async function findPlatformHeldRecipientAccount(stripe, providerId) {
   const accounts = await stripe.accounts.list({ limit: 100 });
-  return (
-    accounts.data.find(
-      (account) =>
-        account.livemode === false &&
-        account.country === "BE" &&
-        account.details_submitted === true &&
-        account.payouts_enabled === true &&
-        account.capabilities?.transfers === "active"
-    ) ?? null
-  );
+
+  for (const account of accounts.data) {
+    if (
+      account.livemode !== false ||
+      account.country !== "BE" ||
+      account.metadata?.klyx_platform_held_network_fixture !== "true" ||
+      account.metadata?.klyx_provider_profile_id !== providerId
+    ) {
+      continue;
+    }
+
+    const v2Account = await stripe.v2.core.accounts.retrieve(account.id, {
+      include: ["configuration.recipient", "identity", "requirements"],
+    });
+
+    if (v2RecipientTransferReady(v2Account)) {
+      return { legacyAccount: account, v2Account };
+    }
+  }
+
+  return null;
 }
 
-async function createBelgianConnectedAccount(stripe, email, providerId) {
-  const bankToken = await stripe.tokens.create({
-    bank_account: {
-      country: "BE",
-      currency: "eur",
-      account_holder_name: "KLYX Settlement Test",
-      account_holder_type: "individual",
-      account_number: "BE68539007547034",
-    },
-  });
-
-  const account = await stripe.accounts.create({
-    type: "custom",
-    country: "BE",
-    email,
-    business_type: "individual",
-    business_profile: {
-      mcc: "7299",
-      url: "https://example.com",
-    },
-    capabilities: {
-      transfers: { requested: true },
-    },
-    external_account: bankToken.id,
-    individual: {
-      first_name: "Klyx",
-      last_name: "Settlement",
-      email,
-      phone: "+32470123456",
-      dob: { day: 1, month: 1, year: 1990 },
-      address: {
-        line1: "Rue du Test 1",
-        city: "Bruxelles",
-        postal_code: "1000",
-        country: "BE",
-      },
-    },
-    tos_acceptance: {
-      date: Math.floor(Date.now() / 1000),
-      ip: "127.0.0.1",
-    },
-    metadata: {
-      klyx_platform_held_network_proof: "true",
-      klyx_provider_profile_id: providerId,
-    },
-  });
-
-  const refreshed = await stripe.accounts.retrieve(account.id);
-  if (
-    refreshed.details_submitted !== true ||
-    refreshed.payouts_enabled !== true ||
-    refreshed.capabilities?.transfers !== "active"
-  ) {
-    const due = [
-      ...(refreshed.requirements?.currently_due ?? []),
-      ...(refreshed.requirements?.past_due ?? []),
-    ];
+async function provisionConnectedAccount({ stripe, providerId }) {
+  const existing = await findPlatformHeldRecipientAccount(stripe, providerId);
+  if (!existing) {
     throw new Error(
-      `Stripe TEST connected account is not transfer-ready. Due: ${Array.from(new Set(due)).join(", ") || "unknown"}`
+      "Platform-held provider fixture did not leave a TEST recipient account with active stripe_transfers."
     );
   }
 
-  return refreshed;
-}
-
-async function provisionConnectedAccount({ stripe, email, providerId }) {
-  const existing = await activeBelgianConnectedAccount(stripe);
-  if (existing) {
-    return { account: existing, createdForProof: false };
-  }
-
-  const created = await createBelgianConnectedAccount(stripe, email, providerId);
-  return { account: created, createdForProof: true };
+  return {
+    account: existing.legacyAccount,
+    v2Account: existing.v2Account,
+    createdForProof: true,
+  };
 }
 
 async function bindCanonicalAccount(admin, accountId, stripeAccount) {
@@ -685,10 +653,6 @@ async function runReleaseRetryReversalScenario({
   assert(acceptedTransfer.transfer_group === held.transfer_group, "Real Transfer transfer_group mismatch.");
   assert(stripeObjectId(acceptedTransfer.destination) === held.stripe_account_id, "Real Transfer destination mismatch.");
 
-  // Model the transport failure that matters operationally: Stripe accepted the
-  // idempotent money movement, but KLYX did not receive/commit the response.
-  // The production catch path reopens the claim when transfers.create throws;
-  // this RPC reproduces that post-timeout DB state without creating a fake Stripe object.
   const { data: failedClaim, error: failedClaimError } = await admin.rpc(
     "klyx_fail_booking_settlement_release",
     {
@@ -907,12 +871,17 @@ async function main() {
   const { client, provider, accountId } = await loadProfiles(admin, signInData.user.id);
 
   let connectedAccount = null;
+  let connectedV2Account = null;
   let createdConnectedAccount = false;
   let cleanupFailure = null;
 
   try {
-    const provisioned = await provisionConnectedAccount({ stripe, email, providerId: provider.id });
+    const provisioned = await provisionConnectedAccount({
+      stripe,
+      providerId: provider.id,
+    });
     connectedAccount = provisioned.account;
+    connectedV2Account = provisioned.v2Account;
     createdConnectedAccount = provisioned.createdForProof;
     await bindCanonicalAccount(admin, accountId, connectedAccount);
 
@@ -951,6 +920,8 @@ async function main() {
           splitBookingEnabled: false,
           liveSecretAccepted: false,
           canonicalAccountStripeIdUsed: true,
+          recipientTransferCapabilityActive: true,
+          bankPayoutRequiredForRelease: false,
           refundBeforeRelease,
           releaseRetryReversal,
           invariants: {
@@ -990,14 +961,18 @@ async function main() {
         dbStripeCoherent: true,
         liveForbidden: true,
         groupSplitForbidden: true,
+        bankPayoutRequired: false,
       })}\n`
     );
   } finally {
     try {
-      if (connectedAccount && createdConnectedAccount) {
-        const deleted = await stripe.accounts.del(connectedAccount.id);
-        if (deleted.deleted !== true) {
-          throw new Error(`Stripe did not confirm deletion of proof account ${connectedAccount.id}.`);
+      if (connectedAccount && connectedV2Account && createdConnectedAccount) {
+        const configurations = connectedV2Account.applied_configurations ?? [];
+        const closed = await stripe.v2.core.accounts.close(connectedAccount.id, {
+          applied_configurations: configurations,
+        });
+        if (closed.closed !== true) {
+          throw new Error(`Stripe did not confirm closure of proof account ${connectedAccount.id}.`);
         }
       }
 
