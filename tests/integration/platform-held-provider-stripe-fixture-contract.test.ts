@@ -37,15 +37,31 @@ describe("KLYX platform-held provider Stripe TEST fixture", () => {
     expect(fixture).not.toContain("sk_live_");
   });
 
-  it("uses Stripe TEST verification signals and bounded read-only readiness polling", () => {
-    expect(fixture).toContain('url: "https://accessible.stripe.com"');
-    expect(fixture).toContain('phone: "0000000000"');
-    expect(fixture).toContain('id_number: "222222222"');
-    expect(fixture).toContain("dob: { day: 1, month: 1, year: 1902 }");
+  it("uses Accounts v2 TEST identity signals and bounded readiness polling", () => {
+    expect(fixture).toContain("stripe.v2.core.accounts.create(");
+    expect(fixture).toContain('dashboard: "none"');
+    expect(fixture).toContain('country: "BE"');
+    expect(fixture).toContain('entity_type: "individual"');
+    expect(fixture).toContain(
+      "date_of_birth: { day: 1, month: 1, year: 1902 }"
+    );
     expect(fixture).toContain('line1: "address_full_match"');
-    expect(fixture).toContain("transfers: { requested: true }");
+    expect(fixture).toContain("terms_of_service");
+    expect(fixture).toContain('fees_collector: "application"');
+    expect(fixture).toContain('losses_collector: "application"');
+    expect(fixture).toContain("stripe_transfers: { requested: true }");
+    expect(fixture).toContain(
+      "klyx-platform-held-v2-fixture-${providerId}"
+    );
+
+    // The Stripe platform has migrated account creation to Accounts v2. KLYX
+    // may still use v1 only for already-created account compatibility reads and
+    // external-account management while #803 remains scoped to TEST proof.
+    expect(fixture).not.toContain("stripe.accounts.create({");
     expect(fixture).toContain("stripe.accounts.list({ limit: 100 })");
+    expect(fixture).toContain("stripe.accounts.createExternalAccount(created.id");
     expect(fixture).toContain("stripe.accounts.retrieve(created.id)");
+    expect(fixture).toContain("stripe.v2.core.accounts.retrieve(created.id");
     expect(fixture).toContain("attempt < 20");
     expect(fixture).toContain("requirements?.currently_due");
     expect(fixture).toContain("requirements?.past_due");
