@@ -50,7 +50,7 @@ test.describe("KLYX legacy provider Assistant destination", () => {
     await expect(
       page.getByRole("heading", { name: "Que puis-je organiser pour vous ?" })
     ).toBeVisible();
-    await expect(page.getByPlaceholder("Demander à KLYX…")).toBeVisible();
+    await expect(page.getByPlaceholder("De quoi avez-vous besoin ?")).toBeVisible();
     await expect(page.getByText("Brouillons à vérifier")).toHaveCount(0);
 
     await attachViewport(page, testInfo, "unified-assistant-from-provider-legacy-desktop");
