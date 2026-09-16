@@ -21,73 +21,48 @@ async function attachViewport(page: Page, testInfo: TestInfo, name: string) {
   });
 }
 
-const draftsPayload = {
-  drafts: [
-    {
-      id: "assistant-draft-e2e-1",
-      draft_type: "availability",
-      title: "Disponibilité vendredi matin",
-      payload: { dayLabel: "Vendredi", startTime: "09:00", endTime: "12:00" },
-      status: "draft",
-      created_at: "2026-09-02T08:30:00.000Z",
-    },
-  ],
-};
-
-test.describe("KLYX provider Assistant destination", () => {
+test.describe("KLYX legacy provider Assistant destination", () => {
   test.skip(!hasE2ECredentials, "Dedicated KLYX E2E credentials are not configured.");
 
   test.afterEach(async ({ page }) => {
     await clearSensitivePassword(page);
   });
 
-  test("keeps the assistant conversation-first on desktop and mobile", async ({ page }, testInfo) => {
+  test("converges provider compatibility navigation to the unified conversation-first assistant", async ({
+    page,
+  }, testInfo) => {
     test.setTimeout(180_000);
     await loginKlyxE2E(page);
     await activateKlyxE2EProfile(page, "provider");
 
-    let mutationRequests = 0;
-    await page.route("**/api/provider/assistant", async (route) => {
-      if (route.request().method() !== "GET") {
-        mutationRequests += 1;
-        await route.abort();
-        return;
+    let providerAssistantRequests = 0;
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname === "/api/provider/assistant") {
+        providerAssistantRequests += 1;
       }
-
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(draftsPayload),
-      });
     });
 
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/provider/assistant", { waitUntil: "domcontentloaded" });
-    await expectAssistantFirstDesktopShell(page, "/provider/assistant");
 
+    await expect(page).toHaveURL(/\/assistant(?:\?|$)/);
+    await expectAssistantFirstDesktopShell(page, "/assistant");
     await expect(
-      page.getByRole("heading", { name: "Que dois-je préparer pour ton activité ?" })
+      page.getByRole("heading", { name: "Que puis-je organiser pour vous ?" })
     ).toBeVisible();
     await expect(page.getByPlaceholder("Demander à KLYX…")).toBeVisible();
+    await expect(page.getByText("Brouillons à vérifier")).toHaveCount(0);
 
-    const draftsSummary = page.locator("main summary").filter({
-      hasText: "Brouillons à vérifier",
-    });
-    await expect(draftsSummary).toBeVisible();
-    await expect(draftsSummary).toContainText("1");
-    await expect(page.getByText("Disponibilité vendredi matin")).toBeHidden();
-
-    await draftsSummary.click();
-    await expect(page.getByText("Disponibilité vendredi matin")).toBeVisible();
-    await attachViewport(page, testInfo, "provider-assistant-focused-desktop");
+    await attachViewport(page, testInfo, "unified-assistant-from-provider-legacy-desktop");
 
     await page.setViewportSize({ width: 390, height: 844 });
     await expectAssistantFirstMobileShell(page);
     await expect(
-      page.getByRole("heading", { name: "Que dois-je préparer pour ton activité ?" })
+      page.getByRole("heading", { name: "Que puis-je organiser pour vous ?" })
     ).toBeVisible();
-    await attachViewport(page, testInfo, "provider-assistant-focused-mobile");
 
-    expect(mutationRequests).toBe(0);
+    await attachViewport(page, testInfo, "unified-assistant-from-provider-legacy-mobile");
+
+    expect(providerAssistantRequests).toBe(0);
   });
 });
