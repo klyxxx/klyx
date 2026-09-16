@@ -104,7 +104,7 @@ describe("KLYX Stripe network proof", () => {
     );
   });
 
-  it("creates and verifies a real Express Connect account through canonical account authority", () => {
+  it("creates and verifies a real Express-dashboard Connect account through canonical account authority", () => {
     expect(connectProof).toContain(
       'path: "/api/stripe/connect/create-account"'
     );
@@ -113,8 +113,15 @@ describe("KLYX Stripe network proof", () => {
     expect(connectProof).toContain("canonicalConnectState");
     expect(connectProof).toContain('.from("accounts")');
     expect(connectProof).toContain("stripe.accounts.retrieve(stripeAccountId)");
-    expect(connectProof).toContain('remoteAccount.type !== "express"');
+    expect(connectProof).toContain("retrieveV2ConnectAccount");
+    expect(connectProof).toContain(
+      'remoteAccount.controller?.stripe_dashboard?.type !== "express"'
+    );
+    expect(connectProof).toContain(
+      'remoteAccount.controller?.losses?.payments !== "application"'
+    );
     expect(connectProof).toContain('remoteAccount.country !== "BE"');
+    expect(connectProof).toContain('remoteV2Account.dashboard !== "express"');
     expect(connectProof).toContain(
       "remoteAccount.metadata?.klyx_account_id !== canonicalAccountId"
     );
@@ -134,15 +141,15 @@ describe("KLYX Stripe network proof", () => {
     expect(connectProof).toContain("accountReused = true");
   });
 
-  it("deletes the Stripe TEST account and clears canonical local Connect state after proof", () => {
-    expect(connectProof).toContain("stripe.accounts.del(candidateId)");
-    expect(connectProof).toContain("deleted.deleted !== true");
+  it("closes the Stripe TEST v2 account and clears canonical local Connect state after proof", () => {
+    expect(connectProof).toContain("stripe.v2.core.accounts.close(stripeAccountId");
+    expect(connectProof).toContain("closed.closed !== true");
     expect(connectProof).toContain("stripe_account_id: null");
     expect(connectProof).toContain('stripe_connect_state: "unlinked"');
     expect(connectProof).toContain("stripe_onboarding_complete: false");
     expect(connectProof).toContain("stripe_charges_enabled: false");
     expect(connectProof).toContain("stripe_payouts_enabled: false");
-    expect(connectProof).toContain("accountDeletedAfterProof: true");
+    expect(connectProof).toContain("accountClosedAfterProof: true");
     expect(connectProof).toContain("localStateResetAfterProof: true");
   });
 
