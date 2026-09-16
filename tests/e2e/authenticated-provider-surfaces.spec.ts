@@ -26,7 +26,7 @@ test.describe("KLYX authenticated provider surfaces", () => {
 
     for (const route of [
       "/provider",
-      "/provider/assistant",
+      "/assistant",
       "/provider/jobs",
       "/provider/payments",
       "/provider/planning",

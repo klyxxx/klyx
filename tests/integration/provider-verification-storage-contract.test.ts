@@ -12,6 +12,9 @@ function readRepoFile(file: string) {
 const migration = readRepoFile(
   "supabase/migrations/20260821235500_klyx_provider_verification_storage_guard.sql"
 );
+const accountAuthorityMigration = readRepoFile(
+  "supabase/migrations/20260914195500_klyx_provider_verification_account_capability_authority.sql"
+);
 const page = readRepoFile("app/provider/verification/page.tsx");
 const api = readRepoFile("app/api/provider/verification/route.ts");
 const documentApi = readRepoFile(
@@ -46,19 +49,30 @@ describe("KLYX provider verification Storage boundary", () => {
     expect(api).toContain("sizeBytes > 10 * 1024 * 1024");
   });
 
-  it("binds Storage paths to canonical provider ownership helpers", () => {
+  it("binds Storage paths to owned profile folders but authorizes provider capability from the canonical account", () => {
     expect(migration).toContain("klyx_owns_provider_verification_path");
-    expect(migration).toContain("security invoker");
     expect(migration).toContain("public.klyx_owns_profile(v_profile_id)");
-    expect(migration).toContain(
-      "public.klyx_profile_has_type(v_profile_id, 'provider')"
-    );
     expect(migration).toContain("array_length(v_folders, 1) <> 2");
     expect(migration).toContain("invalid_text_representation");
     expect(migration).toContain(
       "public.klyx_owns_provider_verification_path(name)"
     );
     expect(migration).not.toContain("from public.profiles as profile");
+
+    expect(accountAuthorityMigration).toContain(
+      "create or replace function public.klyx_owns_provider_verification_path"
+    );
+    expect(accountAuthorityMigration).toContain("security definer");
+    expect(accountAuthorityMigration).toContain(
+      "public.klyx_owns_profile(v_profile_id)"
+    );
+    expect(accountAuthorityMigration).toContain(
+      "public.klyx_profile_account_has_capability("
+    );
+    expect(accountAuthorityMigration).toContain("'offer_services'");
+    expect(accountAuthorityMigration).not.toContain(
+      "klyx_profile_has_type(v_profile_id, 'provider')"
+    );
 
     for (const folder of [
       "identity",
@@ -76,13 +90,22 @@ describe("KLYX provider verification Storage boundary", () => {
   });
 
   it("keeps helper execution minimal and browser profile reads closed", () => {
-    expect(migration).toContain(
+    expect(accountAuthorityMigration).toContain(
+      "alter function public.klyx_owns_provider_verification_path(text)"
+    );
+    expect(accountAuthorityMigration).toContain("owner to postgres");
+    expect(accountAuthorityMigration).toContain(
       "revoke all on function public.klyx_owns_provider_verification_path(text)"
     );
-    expect(migration).toContain(
+    expect(accountAuthorityMigration).toContain(
+      "from public, anon, authenticated"
+    );
+    expect(accountAuthorityMigration).toContain(
       "grant execute on function public.klyx_owns_provider_verification_path(text)"
     );
-    expect(migration).toContain("to authenticated, service_role");
+    expect(accountAuthorityMigration).toContain(
+      "to authenticated, service_role"
+    );
     expect(migration).not.toContain("grant select on table public.profiles");
     expect(migration).toContain(
       "alter function public.klyx_can_cleanup_provider_verification_object(text)"

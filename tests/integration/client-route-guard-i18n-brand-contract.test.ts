@@ -22,12 +22,12 @@ describe("KLYX client route guard locale and brand contract", () => {
     expect(guard).toContain('t("checking")');
   });
 
-  it("authorizes the route from request capability rather than legacy provider identity", () => {
+  it("authorizes the route only from the canonical request capability", () => {
     const guard = read("app/components/ClientRouteGuard.tsx");
 
     expect(guard).toContain("body.profile.canRequestServices");
-    expect(guard).not.toContain('body.profile.accountType === "provider"');
-    expect(guard).not.toContain('body.profile.accountType !== "client"');
+    expect(guard).toContain('typeof body.profile.canRequestServices !== "boolean"');
+    expect(guard).not.toContain("body.profile.accountType");
   });
 
   it("keeps failures presentation-safe and localized", () => {

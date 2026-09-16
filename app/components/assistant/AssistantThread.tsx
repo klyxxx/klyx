@@ -11,11 +11,6 @@ import {
 
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import {
-  KLYX_ACTIVE_PROFILE_CHANGED,
-  getActiveProfileAccount,
-  type ActiveProfileChangedDetail,
-} from "@/lib/account-switcher";
-import {
   translateKlyxAssistantCommand,
   type KlyxAssistantCommandMessageKey,
 } from "@/lib/klyx-assistant-command-i18n";
@@ -51,6 +46,13 @@ type BrainSummary = {
   time: string;
 };
 
+type BrainPayloadAction = {
+  id?: string;
+  kind?: string;
+  href?: string;
+  label?: string;
+};
+
 type BrainPayload = {
   serviceSlug?: string | null;
   city?: string | null;
@@ -59,6 +61,7 @@ type BrainPayload = {
   budget?: number | null;
   missing?: string[];
   ready?: boolean;
+  assistantAction?: BrainPayloadAction | null;
   readiness?: {
     nextMissing?: string | null;
     summary?: BrainSummary | null;
@@ -94,9 +97,16 @@ const UUID_PATTERN =
 const LEGACY_CONFIRMATION_BOUNDARY =
   "Vérifie le résumé puis confirme avant toute publication, réservation ou paiement.";
 
+// The command preflight is retained only as source-compatible rollback code.
+// Runtime traffic must always enter /api/brain/converse so every visible turn
+// belongs to the same durable account conversation history.
+const LEGACY_COMMAND_PREFLIGHT_ENABLED = false;
+
 function initialConversationFromLocation() {
   if (typeof window === "undefined") return null;
-  const value = new URLSearchParams(window.location.search).get("conversation")?.trim();
+  const value = new URLSearchParams(window.location.search)
+    .get("conversation")
+    ?.trim();
   return value && UUID_PATTERN.test(value) ? value : null;
 }
 
@@ -120,6 +130,19 @@ function presentationReply(
     .trim();
 
   return value || fallbackQuestion;
+}
+
+function payloadAssistantAction(
+  payload: BrainPayload | null
+): AssistantAction | undefined {
+  const href = payload?.assistantAction?.href?.trim() ?? "";
+  const label = payload?.assistantAction?.label?.trim() ?? "";
+
+  if (!href || !label || !href.startsWith("/") || href.startsWith("//")) {
+    return undefined;
+  }
+
+  return { href, label };
 }
 
 function fallbackQuestion(locale: string, nextMissing: string | null) {
@@ -147,7 +170,8 @@ function fallbackQuestion(locale: string, nextMissing: string | null) {
     date: "An welchem Tag brauchst du die Dienstleistung?",
     heure: "Zu welcher Zeit möchtest du die Dienstleistung?",
   };
-  const table = locale === "en" ? en : locale === "nl" ? nl : locale === "de" ? de : fr;
+  const table =
+    locale === "en" ? en : locale === "nl" ? nl : locale === "de" ? de : fr;
 
   return (
     (nextMissing && table[nextMissing]) ||
@@ -160,32 +184,80 @@ function fallbackQuestion(locale: string, nextMissing: string | null) {
 function starterSuggestions(locale: string): readonly AssistantSuggestion[] {
   if (locale === "en") {
     return [
-      { id: "tomorrow", label: "Find someone for tomorrow", value: "Find someone for tomorrow" },
-      { id: "move", label: "Organize a move", value: "I need to organize a move" },
-      { id: "photo", label: "Analyze a photo", value: "I need help analyzing a photo" },
+      {
+        id: "tomorrow",
+        label: "Find someone for tomorrow",
+        value: "Find someone for tomorrow",
+      },
+      {
+        id: "move",
+        label: "Organize a move",
+        value: "I need to organize a move",
+      },
+      {
+        id: "photo",
+        label: "Analyze a photo",
+        value: "I need help analyzing a photo",
+      },
     ];
   }
 
   if (locale === "nl") {
     return [
-      { id: "tomorrow", label: "Iemand vinden voor morgen", value: "Ik zoek iemand voor morgen" },
-      { id: "move", label: "Een verhuizing organiseren", value: "Ik wil een verhuizing organiseren" },
-      { id: "photo", label: "Een foto analyseren", value: "Ik wil een foto analyseren" },
+      {
+        id: "tomorrow",
+        label: "Iemand vinden voor morgen",
+        value: "Ik zoek iemand voor morgen",
+      },
+      {
+        id: "move",
+        label: "Een verhuizing organiseren",
+        value: "Ik wil een verhuizing organiseren",
+      },
+      {
+        id: "photo",
+        label: "Een foto analyseren",
+        value: "Ik wil een foto analyseren",
+      },
     ];
   }
 
   if (locale === "de") {
     return [
-      { id: "tomorrow", label: "Jemanden für morgen finden", value: "Ich suche jemanden für morgen" },
-      { id: "move", label: "Einen Umzug organisieren", value: "Ich möchte einen Umzug organisieren" },
-      { id: "photo", label: "Ein Foto analysieren", value: "Ich möchte ein Foto analysieren" },
+      {
+        id: "tomorrow",
+        label: "Jemanden für morgen finden",
+        value: "Ich suche jemanden für morgen",
+      },
+      {
+        id: "move",
+        label: "Einen Umzug organisieren",
+        value: "Ich möchte einen Umzug organisieren",
+      },
+      {
+        id: "photo",
+        label: "Ein Foto analysieren",
+        value: "Ich möchte ein Foto analysieren",
+      },
     ];
   }
 
   return [
-    { id: "tomorrow", label: "Trouver quelqu’un pour demain", value: "Trouver quelqu’un pour demain" },
-    { id: "move", label: "Organiser un déménagement", value: "Je dois organiser un déménagement" },
-    { id: "photo", label: "Analyser une photo", value: "J’ai besoin d’aide pour analyser une photo" },
+    {
+      id: "tomorrow",
+      label: "Trouver quelqu’un pour demain",
+      value: "Trouver quelqu’un pour demain",
+    },
+    {
+      id: "move",
+      label: "Organiser un déménagement",
+      value: "Je dois organiser un déménagement",
+    },
+    {
+      id: "photo",
+      label: "Analyser une photo",
+      value: "J’ai besoin d’aide pour analyser une photo",
+    },
   ];
 }
 
@@ -243,7 +315,6 @@ export default function AssistantThread() {
   const [phaseState, setPhaseState] = useState<PhaseState>("empty");
 
   const conversationIdRef = useRef<string | null>(null);
-  const activeProfileIdRef = useRef<string | null>(null);
   const requestGenerationRef = useRef(0);
   const requestControllerRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
@@ -257,7 +328,8 @@ export default function AssistantThread() {
   const focusMovedDuringRequestRef = useRef(false);
   const shouldRestoreFocusRef = useRef(false);
 
-  const nextMissing = payload?.readiness?.nextMissing ?? payload?.missing?.[0] ?? null;
+  const nextMissing =
+    payload?.readiness?.nextMissing ?? payload?.missing?.[0] ?? null;
   const ready = payload?.ready === true;
   const empty = turns.length === 0 && !busy;
 
@@ -294,15 +366,6 @@ export default function AssistantThread() {
     conversationIdRef.current = anchoredConversation;
     setConversationId(anchoredConversation);
 
-    void getActiveProfileAccount()
-      .then((profile) => {
-        if (mountedRef.current) activeProfileIdRef.current = profile.id;
-      })
-      .catch(() => {
-        // ClientRouteGuard owns access. This profile lookup only protects async
-        // responses from being applied after a profile switch.
-      });
-
     function resetVisibleThread(nextConversation: string | null) {
       conversationIdRef.current = nextConversation;
       setConversationId(nextConversation);
@@ -316,15 +379,6 @@ export default function AssistantThread() {
       setPhaseState("empty");
     }
 
-    function onProfileChanged(event: Event) {
-      const detail = (event as CustomEvent<ActiveProfileChangedDetail>).detail;
-      if (!detail?.profileId) return;
-
-      activeProfileIdRef.current = detail.profileId;
-      invalidatePending();
-      resetVisibleThread(null);
-    }
-
     function onHistoryNavigation() {
       const nextConversation = initialConversationFromLocation();
       if (nextConversation === conversationIdRef.current) return;
@@ -333,13 +387,11 @@ export default function AssistantThread() {
       resetVisibleThread(nextConversation);
     }
 
-    window.addEventListener(KLYX_ACTIVE_PROFILE_CHANGED, onProfileChanged);
     window.addEventListener("popstate", onHistoryNavigation);
 
     return () => {
       mountedRef.current = false;
       invalidatePending();
-      window.removeEventListener(KLYX_ACTIVE_PROFILE_CHANGED, onProfileChanged);
       window.removeEventListener("popstate", onHistoryNavigation);
     };
   }, [invalidatePending]);
@@ -420,7 +472,6 @@ export default function AssistantThread() {
 
       const expectedConversationId = conversationIdRef.current;
       let requestConversationId = expectedConversationId;
-      const expectedProfileId = activeProfileIdRef.current;
       const generation = requestGenerationRef.current + 1;
       requestGenerationRef.current = generation;
 
@@ -464,17 +515,7 @@ export default function AssistantThread() {
           return false;
         }
 
-        if (conversationIdRef.current !== requestConversationId) return false;
-
-        if (
-          expectedProfileId &&
-          activeProfileIdRef.current &&
-          expectedProfileId !== activeProfileIdRef.current
-        ) {
-          return false;
-        }
-
-        return true;
+        return conversationIdRef.current === requestConversationId;
       };
 
       try {
@@ -488,7 +529,7 @@ export default function AssistantThread() {
           return;
         }
 
-        if (!expectedConversationId) {
+        if (!expectedConversationId && LEGACY_COMMAND_PREFLIGHT_ENABLED) {
           const commandResponse = await fetch("/api/brain/command", {
             method: "POST",
             headers: {
@@ -596,7 +637,10 @@ export default function AssistantThread() {
         const nextPayload = brain.payload ?? null;
         const returnedConversationId = brain.conversationId?.trim();
 
-        if (returnedConversationId && UUID_PATTERN.test(returnedConversationId)) {
+        if (
+          returnedConversationId &&
+          UUID_PATTERN.test(returnedConversationId)
+        ) {
           requestConversationId = returnedConversationId;
           applyConversationAnchor(returnedConversationId);
         } else if (!requestConversationId) {
@@ -617,10 +661,13 @@ export default function AssistantThread() {
         const additions: AssistantTurnModel[] = [];
 
         if (visibleReply) {
+          const action = payloadAssistantAction(nextPayload);
           additions.push({
             id: nextTurnId("assistant"),
             role: "assistant",
             content: visibleReply,
+            variant: action ? "groundedAction" : "text",
+            action,
           });
         }
 

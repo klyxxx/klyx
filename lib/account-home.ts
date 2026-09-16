@@ -7,7 +7,7 @@ export type KlyxAccountHomeCapabilities = {
 
 export const KLYX_ACCOUNT_HOME = {
   client: "/assistant",
-  provider: "/provider/assistant",
+  provider: "/assistant",
 } as const satisfies Record<KlyxAccountType, string>;
 
 export function getKlyxAccountHome(accountType: KlyxAccountType): string;
@@ -21,12 +21,8 @@ export function getKlyxAccountHome(
     return KLYX_ACCOUNT_HOME[input];
   }
 
-  if (input.canRequestServices) {
+  if (input.canRequestServices || input.canOfferServices) {
     return "/assistant";
-  }
-
-  if (input.canOfferServices) {
-    return "/provider/assistant";
   }
 
   return "/profile";

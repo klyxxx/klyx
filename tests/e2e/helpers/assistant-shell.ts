@@ -1,8 +1,14 @@
 import { expect, type Page } from "@playwright/test";
 
+type AssistantHomeHref = "/assistant" | "/provider/assistant";
+
+function canonicalAssistantHomeHref(homeHref: AssistantHomeHref) {
+  return homeHref === "/provider/assistant" ? "/assistant" : homeHref;
+}
+
 export async function expectAssistantFirstDesktopShell(
   page: Page,
-  homeHref: "/assistant" | "/provider/assistant"
+  homeHref: AssistantHomeHref
 ) {
   const rail = page.getByTestId("desktop-mission-rail");
 
@@ -11,7 +17,7 @@ export async function expectAssistantFirstDesktopShell(
   await expect(page.getByTestId("mobile-navigation")).toHaveCount(0);
   await expect(rail.getByTestId("new-mission-action")).toHaveAttribute(
     "href",
-    homeHref
+    canonicalAssistantHomeHref(homeHref)
   );
 
   const box = await rail.boundingBox();
@@ -29,7 +35,7 @@ export async function expectAssistantFirstMobileShell(page: Page) {
 
 export async function openAssistantFirstMobileDrawer(
   page: Page,
-  homeHref: "/assistant" | "/provider/assistant"
+  homeHref: AssistantHomeHref
 ) {
   await expectAssistantFirstMobileShell(page);
   await page.getByTestId("assistant-shell-mobile-menu").click();
@@ -39,7 +45,7 @@ export async function openAssistantFirstMobileDrawer(
   await expect(dialog.getByTestId("mobile-mission-rail")).toBeVisible();
   await expect(dialog.getByTestId("new-mission-action")).toHaveAttribute(
     "href",
-    homeHref
+    canonicalAssistantHomeHref(homeHref)
   );
 
   return dialog;

@@ -21,17 +21,20 @@ const profilePage = read("app/profile/page.tsx");
 const profileI18n = read("lib/klyx-profile-page-i18n.ts");
 const sidebar = read("app/ui/AppSidebar.tsx");
 
-describe("KLYX canonical role home routing", () => {
-  it("keeps the legacy mapping while allowing account capabilities to drive home routing", () => {
+describe("KLYX canonical assistant home routing", () => {
+  it("maps legacy roles and every active canonical capability to the same assistant home", () => {
     expect(accountHome).toContain('client: "/assistant"');
-    expect(accountHome).toContain('provider: "/provider/assistant"');
+    expect(accountHome).toContain('provider: "/assistant"');
     expect(accountHome).toContain("canRequestServices");
     expect(accountHome).toContain("canOfferServices");
+    expect(accountHome).toContain("input.canRequestServices || input.canOfferServices");
     expect(accountHome).toContain("return KLYX_ACCOUNT_HOME[input];");
+    expect(accountHome).toContain('return "/assistant";');
     expect(accountHome).toContain('return "/profile";');
+    expect(accountHome).not.toContain('"/provider/assistant"');
   });
 
-  it("keeps /dashboard only as an authenticated capability router", () => {
+  it("keeps /dashboard only as an authenticated capability compatibility router", () => {
     const source = compact(dashboard);
 
     expect(source).toContain('redirect("/login");');
@@ -51,10 +54,11 @@ describe("KLYX canonical role home routing", () => {
     }
   });
 
-  it("lets login use the compatibility route without rendering the legacy dashboard", () => {
+  it("lets login use the compatibility route without rendering a role dashboard", () => {
     const redirects = login.match(/router\.replace\("\/dashboard"\)/g) ?? [];
     expect(redirects.length).toBeGreaterThanOrEqual(2);
     expect(dashboard).not.toContain("<main");
+    expect(accountHome).not.toContain('provider: "/provider/assistant"');
   });
 
   it("does not duplicate the account switcher inside profile content", () => {
@@ -62,7 +66,7 @@ describe("KLYX canonical role home routing", () => {
     expect(profileLayout).not.toContain("getActiveProfile");
   });
 
-  it("returns from Profil directly to the active role home", () => {
+  it("returns from Profil to the single KLYX assistant home", () => {
     expect(profilePage).toContain(
       'import { getKlyxAccountHome } from "@/lib/account-home";'
     );
@@ -79,25 +83,9 @@ describe("KLYX canonical role home routing", () => {
     expect(profileI18n).not.toContain('"dashboard",');
   });
 
-  it("keeps the definitive four-item role navigation", () => {
+  it("keeps the assistant as the primary navigation destination", () => {
     expect(sidebar).toContain('title: "KLYX"');
-    expect(sidebar).toContain('title: "Activité"');
-    expect(sidebar).toContain('title: "Messages"');
-    expect(sidebar).toContain('title: "Profil"');
     expect(sidebar).toContain('href: "/assistant"');
-    expect(sidebar).toContain('href: "/bookings"');
-    expect(sidebar).toContain('href: "/messages"');
-    expect(sidebar).toContain('href: "/profile"');
-
-    expect(sidebar).toContain('title: "Missions"');
-    expect(sidebar).toContain('title: "Services"');
-    expect(sidebar).toContain('title: "Finances"');
-    expect(sidebar).toContain('href: "/provider/jobs"');
-    expect(sidebar).toContain('href: "/provider/studio"');
-    expect(sidebar).toContain('href: "/provider/payments"');
-
-    expect(sidebar).not.toContain('title: "Gestion"');
     expect(sidebar).not.toContain('href: "/provider/assistant"');
-    expect(sidebar).not.toContain('href: "/provider/services"');
   });
 });

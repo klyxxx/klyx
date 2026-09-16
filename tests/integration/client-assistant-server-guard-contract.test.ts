@@ -7,26 +7,26 @@ function read(relativePath: string) {
 }
 
 describe("assistant canonical account capability guard", () => {
-  it("validates auth and request capability before rendering assistant children", () => {
+  it("requires authentication before rendering the unified assistant", () => {
     const layout = read("app/assistant/layout.tsx");
 
     expect(layout).toContain('redirect("/login")');
-    expect(layout).toContain('redirect("/accounts")');
-    expect(layout).toContain("!profile.canRequestServices");
+    expect(layout).toContain("return children");
     expect(layout).not.toContain('profile.accountType !== "client"');
-
-    const capabilityCheck = layout.indexOf("!profile.canRequestServices");
-    const childrenRender = layout.indexOf("return children");
-    expect(capabilityCheck).toBeGreaterThan(-1);
-    expect(childrenRender).toBeGreaterThan(capabilityCheck);
+    expect(layout).not.toContain("!profile.canRequestServices");
   });
 
-  it("keeps the client-side route guard as a second defense layer", () => {
+  it("keeps capability authorization account-first at the assistant API boundary", () => {
     const page = read("app/assistant/page.tsx");
-    expect(page).toContain("<ClientRouteGuard>");
+    expect(page).toContain("<AssistantThread />");
+    expect(page).not.toContain("<ClientRouteGuard>");
 
-    const guard = read("app/components/ClientRouteGuard.tsx");
-    expect(guard).toContain("canRequestServices");
-    expect(guard).not.toContain('body.profile.accountType === "provider"');
+    const route = read("app/api/brain/converse/route.ts");
+    const auth = read("lib/api-auth.ts");
+    expect(route).toContain("getAuthenticatedProfile(request)");
+    expect(auth).toContain("loadAccountCapabilityState(");
+    expect(auth).toContain("canonicalProfile.canRequestServices");
+    expect(auth).toContain("canonicalProfile.canOfferServices");
+    expect(auth).not.toContain('profile.accountType !== "client"');
   });
 });

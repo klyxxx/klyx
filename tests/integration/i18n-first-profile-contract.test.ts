@@ -22,14 +22,17 @@ describe("KLYX first-profile page-i18n integration", () => {
     expect(source).toContain("KLYX_FIRST_PROFILE_I18N_16_02");
   });
 
-  it("preserves the explicit market, role lock and provider-only service boundaries", () => {
+  it("preserves the explicit market boundary while keeping role as transitional schema compatibility only", () => {
     const source = read("app/onboarding/FirstProfileSetup.tsx");
 
     expect(source).toMatch(/if\s*\(\s*!countryCode\s*\)/);
     expect(source).toMatch(/JSON\.stringify\(\{[\s\S]*countryCode[\s\S]*accountType/);
-    expect(source).toContain("KLYX_FIRST_PROFILE_ROLE_LOCK_14_05");
-    expect(source).toMatch(/roleChoiceUnlocked[\s\S]*useState\(\s*false\s*\)/);
-    expect(source).toMatch(/serviceId\s*:\s*accountType\s*===\s*["']provider["']\s*\?\s*serviceId\s*:\s*null/);
+    expect(source).toContain('accountType: "client"');
+    expect(source).toContain("serviceId: null");
+    expect(source).toContain("Transitional schema value only");
+    expect(source).not.toContain("setAccountType");
+    expect(source).not.toContain("roleChoiceUnlocked");
+    expect(source).toContain('router.replace("/assistant")');
     expect(source).toContain("router.refresh()");
   });
 
