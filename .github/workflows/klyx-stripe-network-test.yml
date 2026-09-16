@@ -249,3 +249,230 @@ jobs:
           if command -v supabase >/dev/null 2>&1; then
             supabase stop --no-backup || true
           fi
+
+  stripe-network-platform-held:
+    name: Stripe TEST platform-held single-booking settlement proof
+    if: github.ref_name == 'feature/platform-held-settlement-test-20260915'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+
+    env:
+      KLYX_GOLDEN_PATH_MUTATIONS_ENABLED: ${{ inputs.confirm_stripe_test_network }}
+      KLYX_GOLDEN_PATH_LOCAL_SUPABASE: "true"
+      KLYX_PRODUCTION_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_TELEMETRY_DISABLED: "1"
+
+      KLYX_STRIPE_MODE: "test"
+      KLYX_STRIPE_SETTLEMENT_MODE: "platform_held"
+      KLYX_SETTLEMENT_CONTROL_TEST_READY: "true"
+      STRIPE_SECRET_KEY: ${{ secrets.KLYX_STRIPE_TEST_SECRET_KEY }}
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.KLYX_STRIPE_TEST_PUBLISHABLE_KEY }}
+      KLYX_ALLOW_PLATFORM_ONLY_TEST_PAYMENTS: "false"
+      KLYX_LIVE_PAYMENTS_ENABLED: "false"
+      NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Refuse unsafe held-settlement network trigger
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "$KLYX_GOLDEN_PATH_MUTATIONS_ENABLED" != "true" ]; then
+            echo "::error::Platform-held Stripe proof requires explicit confirmation."
+            exit 1
+          fi
+
+          case "${STRIPE_SECRET_KEY:-}" in
+            sk_test_*) ;;
+            sk_live_*) echo "::error::sk_live_* is forbidden for platform-held certification."; exit 1 ;;
+            *) echo "::error::Platform-held certification requires sk_test_*."; exit 1 ;;
+          esac
+
+          case "${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:-}" in
+            pk_test_*) ;;
+            *) echo "::error::Platform-held certification requires pk_test_*."; exit 1 ;;
+          esac
+
+          if [ "$KLYX_STRIPE_MODE" != "test" ] || \
+             [ "$KLYX_STRIPE_SETTLEMENT_MODE" != "platform_held" ] || \
+             [ "$KLYX_SETTLEMENT_CONTROL_TEST_READY" != "true" ] || \
+             [ "$KLYX_LIVE_PAYMENTS_ENABLED" != "false" ]; then
+            echo "::error::Platform-held certification runtime is not TEST-only."
+            exit 1
+          fi
+
+          node <<'NODE'
+          const production = new URL(process.env.KLYX_PRODUCTION_SUPABASE_URL);
+          const hostname = production.hostname.toLowerCase();
+          const valid = hostname.endsWith(".supabase.co") || hostname.endsWith(".supabase.com");
+          if (!valid || ["127.0.0.1", "localhost", "[::1]"].includes(hostname)) {
+            throw new Error("Production comparison URL must be a non-loopback Supabase URL.");
+          }
+          NODE
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
+        with:
+          version: 2.111.0
+
+      - name: Initialize local Supabase config
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f supabase/config.toml ]; then
+            supabase init
+          fi
+
+      - name: Start ephemeral local Supabase
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase start \
+            -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+
+      - name: Export ephemeral Supabase credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          eval "$(supabase status -o env)"
+          local_public_key="${ANON_KEY:-${PUBLISHABLE_KEY:-}}"
+
+          for name in API_URL SERVICE_ROLE_KEY; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Supabase local status did not provide ${name}."
+              exit 1
+            fi
+          done
+
+          if [ -z "$local_public_key" ]; then
+            echo "::error::Supabase local status did not provide ANON_KEY/PUBLISHABLE_KEY."
+            exit 1
+          fi
+
+          case "$API_URL" in
+            http://127.0.0.1:54321|http://localhost:54321) ;;
+            *) echo "::error::Refusing non-loopback Supabase API URL: ${API_URL}"; exit 1 ;;
+          esac
+
+          held_email="stripe-held-${GITHUB_RUN_ID}@example.test"
+          held_password="$(openssl rand -base64 36 | tr -d '\n')"
+          webhook_secret="whsec_$(openssl rand -hex 32)"
+
+          echo "::add-mask::$local_public_key"
+          echo "::add-mask::$SERVICE_ROLE_KEY"
+          echo "::add-mask::$held_password"
+          echo "::add-mask::$webhook_secret"
+
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
+            echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$local_public_key"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+            echo "KLYX_E2E_EMAIL=$held_email"
+            echo "KLYX_E2E_PASSWORD=$held_password"
+            echo "STRIPE_WEBHOOK_SECRET=$webhook_secret"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify isolated runtime guards
+        run: >-
+          node --input-type=module -e
+          "import('./scripts/golden-path-runtime.mjs').then(({assertGoldenPathIsolation}) => assertGoldenPathIsolation())"
+
+      - name: Bootstrap dedicated held-settlement account
+        run: node scripts/golden-path-bootstrap.mjs
+
+      - name: Verify dedicated held-settlement account
+        run: node scripts/golden-path-preflight.mjs
+
+      - name: Prepare held-settlement provider fixture
+        run: node scripts/golden-path-provider-fixture.mjs
+
+      - name: Verify test suite on held runtime SHA
+        run: npm test
+
+      - name: TypeScript on held runtime SHA
+        run: npx tsc --noEmit --pretty false
+
+      - name: Production build on held runtime SHA
+        run: npm run build
+
+      - name: Start isolated held-settlement KLYX server
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          npm run start -- -p 3100 > stripe-held-network-server.log 2>&1 &
+          server_pid=$!
+          echo "KLYX_STRIPE_HELD_NETWORK_SERVER_PID=$server_pid" >> "$GITHUB_ENV"
+
+          for attempt in $(seq 1 40); do
+            if curl --fail --silent --show-error http://127.0.0.1:3100/login > /dev/null; then
+              echo "Isolated platform-held KLYX server is ready."
+              exit 0
+            fi
+
+            if ! kill -0 "$server_pid" 2>/dev/null; then
+              echo "::error::Isolated platform-held KLYX server exited early."
+              cat stripe-held-network-server.log
+              exit 1
+            fi
+
+            sleep 1
+          done
+
+          echo "::error::Isolated platform-held KLYX server did not become ready."
+          cat stripe-held-network-server.log
+          exit 1
+
+      - name: Prepare first single booking through KLYX APIs
+        run: node scripts/golden-path-client-lifecycle.mjs
+
+      - name: Verify real Stripe TEST platform-held settlement lifecycle
+        run: node scripts/golden-path-platform-held-settlement-network.mjs
+
+      - name: Upload platform-held Stripe TEST proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: klyx-platform-held-stripe-proof-${{ github.run_id }}
+          path: stripe-network-proof/platform-held-settlement-proof.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload held server log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: klyx-platform-held-server-log-${{ github.run_id }}
+          path: stripe-held-network-server.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Stop isolated held-settlement KLYX server
+        if: always()
+        shell: bash
+        run: |
+          if [ -n "${KLYX_STRIPE_HELD_NETWORK_SERVER_PID:-}" ] && \
+             kill -0 "$KLYX_STRIPE_HELD_NETWORK_SERVER_PID" 2>/dev/null; then
+            kill "$KLYX_STRIPE_HELD_NETWORK_SERVER_PID" || true
+          fi
+
+      - name: Destroy ephemeral local Supabase
+        if: always()
+        shell: bash
+        run: |
+          if command -v supabase >/dev/null 2>&1; then
+            supabase stop --no-backup || true
+          fi
