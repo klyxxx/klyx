@@ -171,6 +171,7 @@ async function resolveService(booking: BookingRow, providerId: string): Promise<
 }
 
 export async function POST(request: Request) {
+  // KLYX_SERVER_OBSERVABILITY_12B_8B
   const startedAt = Date.now();
 
   try {
