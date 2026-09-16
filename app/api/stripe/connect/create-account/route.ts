@@ -64,7 +64,8 @@ async function createTestConnectedAccount(input: {
       display_name: "KLYX Stripe TEST Connect",
       dashboard: "express",
       identity: {
-        country: input.accountCountry as Stripe.V2.Core.AccountCreateParams.Identity.Country,
+        country:
+          input.accountCountry as Stripe.V2.Core.AccountCreateParams.Identity["country"],
       },
       configuration: {
         merchant: {
