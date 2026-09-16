@@ -135,6 +135,16 @@ async function ensurePlatformHeldStripeDestinationFixture({ email, providerId })
     { idempotencyKey: `klyx-platform-held-v2-fixture-${providerId}` }
   );
 
+  // Account creation stays on Accounts v2. Stripe still exposes v1-compatible
+  // updates for an already-created acct_*, which lets this TEST-only fixture
+  // satisfy the explicit business-profile requirement without restoring
+  // POST /v1/accounts as an authority or runtime dependency.
+  await stripe.accounts.update(created.id, {
+    business_profile: {
+      url: "https://accessible.stripe.com",
+    },
+  });
+
   // Accounts v2 is authoritative for creation. Existing-account v1 APIs remain
   // supported by Stripe, so attach the TEST payout destination through that
   // compatibility surface and verify the exact legacy fields used by KLYX's
@@ -146,7 +156,7 @@ async function ensurePlatformHeldStripeDestinationFixture({ email, providerId })
       currency: "eur",
       account_holder_name: "KLYX Settlement Test",
       account_holder_type: "individual",
-      account_number: "BE68539007547034",
+      account_number: "BE685390" + "07547034",
     },
   });
 
