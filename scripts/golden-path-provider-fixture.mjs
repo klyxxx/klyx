@@ -34,7 +34,7 @@ function platformHeldStripeFixtureEnabled() {
   );
 }
 
-function transferReady(account) {
+function legacyTransferReady(account) {
   return (
     account?.livemode === false &&
     account?.country === "BE" &&
@@ -48,6 +48,16 @@ function v2TransferStatus(account) {
   return (
     account?.configuration?.recipient?.capabilities?.stripe_balance
       ?.stripe_transfers?.status ?? null
+  );
+}
+
+function v2RecipientTransferReady(account) {
+  return (
+    account?.livemode === false &&
+    account?.identity?.country === "BE" &&
+    account?.applied_configurations?.includes("recipient") === true &&
+    account?.configuration?.recipient?.applied === true &&
+    v2TransferStatus(account) === "active"
   );
 }
 
@@ -69,14 +79,14 @@ async function ensurePlatformHeldStripeDestinationFixture({ email, providerId })
 
   const stripe = new Stripe(stripeSecretKey);
 
-  // Preserve reuse of any already-certified legacy TEST destination. New
-  // connected-account creation itself must use Accounts v2 because the Stripe
-  // TEST platform is migrated and rejects POST /v1/accounts.
+  // Reuse a legacy TEST destination only when it is already fully certified.
+  // New connected-account creation itself must use Accounts v2 because this
+  // Stripe TEST platform rejects POST /v1/accounts.
   const existing = await stripe.accounts.list({ limit: 100 });
-  const ready = existing.data.find(transferReady);
+  const legacyReady = existing.data.find(legacyTransferReady);
 
-  if (ready) {
-    return { enabled: true, accountId: ready.id, created: false };
+  if (legacyReady) {
+    return { enabled: true, accountId: legacyReady.id, created: false };
   }
 
   const created = await stripe.v2.core.accounts.create(
@@ -136,55 +146,34 @@ async function ensurePlatformHeldStripeDestinationFixture({ email, providerId })
   );
 
   // Account creation stays on Accounts v2. Stripe still exposes v1-compatible
-  // updates for an already-created acct_*, which lets this TEST-only fixture
-  // satisfy the explicit business-profile requirement without restoring
-  // POST /v1/accounts as an authority or runtime dependency.
+  // updates for an already-created acct_*. The TEST business-profile URL is an
+  // identity requirement observed on the real recipient capability; it is not
+  // a bank-payout prerequisite.
   await stripe.accounts.update(created.id, {
     business_profile: {
       url: "https://accessible.stripe.com",
     },
   });
 
-  // Accounts v2 is authoritative for creation. Existing-account v1 APIs remain
-  // supported by Stripe, so attach the TEST payout destination through that
-  // compatibility surface and verify the exact legacy fields used by KLYX's
-  // current settlement runtime. This keeps #803 scoped away from a product-wide
-  // Connect migration while proving the real acct_* can receive a Transfer.
-  const bankToken = await stripe.tokens.create({
-    bank_account: {
-      country: "BE",
-      currency: "eur",
-      account_holder_name: "KLYX Settlement Test",
-      account_holder_type: "individual",
-      account_number: "BE685390" + "07547034",
-    },
-  });
-
-  await stripe.accounts.createExternalAccount(created.id, {
-    external_account: bankToken.id,
-    default_for_currency: true,
-  });
-
-  let refreshed = await stripe.accounts.retrieve(created.id);
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    if (transferReady(refreshed)) {
-      return { enabled: true, accountId: refreshed.id, created: true };
-    }
-    await sleep(500);
-    refreshed = await stripe.accounts.retrieve(created.id);
-  }
-
-  const v2Account = await stripe.v2.core.accounts.retrieve(created.id, {
+  let refreshed = await stripe.v2.core.accounts.retrieve(created.id, {
     include: ["configuration.recipient", "identity", "requirements"],
   });
-  const due = [
-    ...(refreshed.requirements?.currently_due ?? []),
-    ...(refreshed.requirements?.past_due ?? []),
-  ];
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (v2RecipientTransferReady(refreshed)) {
+      return { enabled: true, accountId: created.id, created: true };
+    }
+
+    await sleep(500);
+    refreshed = await stripe.v2.core.accounts.retrieve(created.id, {
+      include: ["configuration.recipient", "identity", "requirements"],
+    });
+  }
+
   throw new Error(
-    `Stripe TEST provider fixture is not transfer-ready. v2 stripe_transfers=${
-      v2TransferStatus(v2Account) ?? "unknown"
-    }; v1 due: ${Array.from(new Set(due)).join(", ") || "unknown"}`
+    `Stripe TEST provider fixture is not recipient-transfer-ready. recipient_applied=${
+      refreshed?.configuration?.recipient?.applied ?? "unknown"
+    }; stripe_transfers=${v2TransferStatus(refreshed) ?? "unknown"}`
   );
 }
 
@@ -476,6 +465,7 @@ async function main() {
       city: "Bruxelles",
       platformHeldStripeFixture: stripeFixture.enabled,
       platformHeldStripeFixtureCreated: stripeFixture.created,
+      platformHeldStripeAccountId: stripeFixture.accountId,
     })}\n`
   );
 }
