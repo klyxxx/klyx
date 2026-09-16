@@ -55,10 +55,12 @@ describe("KLYX platform-held provider Stripe TEST fixture", () => {
     );
 
     // The Stripe platform has migrated account creation to Accounts v2. KLYX
-    // may still use v1 only for already-created account compatibility reads and
-    // external-account management while #803 remains scoped to TEST proof.
+    // may still use v1 only for already-created account compatibility updates,
+    // reads and external-account management while #803 remains TEST-only.
     expect(fixture).not.toContain("stripe.accounts.create({");
     expect(fixture).toContain("stripe.accounts.list({ limit: 100 })");
+    expect(fixture).toContain("stripe.accounts.update(created.id");
+    expect(fixture).toContain('url: "https://accessible.stripe.com"');
     expect(fixture).toContain("stripe.accounts.createExternalAccount(created.id");
     expect(fixture).toContain("stripe.accounts.retrieve(created.id)");
     expect(fixture).toContain("stripe.v2.core.accounts.retrieve(created.id");
