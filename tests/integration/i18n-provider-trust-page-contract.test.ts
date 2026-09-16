@@ -16,10 +16,10 @@ describe("KLYX provider trust i18n contract", () => {
     expect(page).not.toContain("Centre de confiance prestataire");
   });
 
-  it("preserves authenticated no-store GET-only behavior on the active provider profile", () => {
+  it("preserves authenticated no-store GET-only behavior on the offer-capable compatibility profile", () => {
     const page = read("app/provider/trust/page.tsx");
-    expect(page).toContain("getActiveProfileAccount()");
-    expect(page).toContain('profile.accountType !== "provider"');
+    expect(page).toContain("getActiveOfferProfile()");
+    expect(page).not.toContain('profile.accountType !== "provider"');
     expect(page).toContain("supabase.auth.getSession()");
     expect(page).toContain('fetch("/api/disputes"');
     expect(page).toContain('cache: "no-store"');

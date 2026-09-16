@@ -34,21 +34,21 @@ describe("KLYX multilingual brain command router contract", () => {
   });
 
   it("preserves existing-action routing without automatic execution", () => {
-    expect(routeSource).toContain('mode:\n            "existing_action"');
-    expect(routeSource).toContain("automaticExecutionAllowed:\n            false");
+    expect(routeSource).toMatch(/mode:\s*"existing_action"/);
+    expect(routeSource).toMatch(/automaticExecutionAllowed:\s*false/);
     expect(routeSource).toContain("action,");
   });
 
   it("preserves new-request confirmation and the raw user request", () => {
-    expect(routeSource).toContain('params.set(\n        "request",\n        rawMessage');
-    expect(routeSource).toContain('mode:\n          "new_request"');
-    expect(routeSource).toContain("requiresConfirmation:\n          true");
+    expect(routeSource).toMatch(/params\.set\(\s*"request",\s*rawMessage\s*\)/);
+    expect(routeSource).toMatch(/mode:\s*"new_request"/);
+    expect(routeSource).toMatch(/requiresConfirmation:\s*true/);
     expect(routeSource).toContain('"/assistant/market?" +');
   });
 
   it("preserves every no-execution path including unsafe href rejection", () => {
-    expect(routeSource).toContain('mode:\n        "no_action"');
-    expect(routeSource).toContain('href:\n        "/assistant/actions"');
+    expect(routeSource).toMatch(/mode:\s*"no_action"/);
+    expect(routeSource).toMatch(/href:\s*"\/assistant\/actions"/);
     expect(routeSource).toContain("if (!safeHref)");
     expect(routeSource.match(/automaticExecutionAllowed:\s*false/g)?.length).toBe(4);
     expect(routeSource).not.toContain("payment_intents");

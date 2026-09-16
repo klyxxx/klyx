@@ -6,37 +6,32 @@ function read(relativePath: string) {
   return fs.readFileSync(path.join(process.cwd(), relativePath), "utf8");
 }
 
-describe("KLYX frozen sidebar and settings access contract", () => {
+describe("KLYX unified shell and settings access contract", () => {
   const sidebar = read("app/ui/AppSidebar.tsx");
   const rail = read("app/ui/MissionRail.tsx");
-  const accountMenu = read("app/components/AccountSwitcher.tsx");
   const profile = read("app/profile/page.tsx");
   const settings = read("app/settings/page.tsx");
 
-  it("keeps the exact client and provider sidebar destinations", () => {
-    for (const href of [
-      "/assistant",
-      "/bookings",
-      "/messages",
-      "/provider/jobs",
-      "/provider/studio",
-      "/provider/payments",
-    ]) {
+  it("keeps one roleless shell destination set", () => {
+    for (const href of ["/assistant", "/bookings", "/messages", "/profile"]) {
       expect(sidebar).toContain(`href: "${href}"`);
     }
 
-    expect(sidebar.match(/href: "\/profile"/g)?.length).toBe(2);
-    expect(sidebar).toContain("<AccountSwitcher");
+    expect(sidebar).not.toContain("AccountSwitcher");
+    expect(sidebar).not.toContain('href: "/provider/jobs"');
+    expect(sidebar).not.toContain('href: "/provider/studio"');
+    expect(sidebar).not.toContain('href: "/provider/payments"');
     expect(sidebar).not.toContain('href: "/settings"');
   });
 
-  it("exposes Settings through the canonical account menu instead of duplicating Profile navigation", () => {
+  it("exposes Settings through the roleless mission-rail account area", () => {
     expect(profile).not.toContain('href="/settings"');
     expect(profile).not.toContain('t("settings")');
-    expect(rail).toContain("<AccountSwitcher");
-    expect(rail).toContain('mode="account-menu"');
-    expect(rail).not.toContain('href="/settings"');
-    expect(accountMenu.match(/href="\/settings"/g) ?? []).toHaveLength(1);
+    expect(rail).not.toContain("AccountSwitcher");
+    expect(rail).toContain('data-testid="account-entry"');
+    expect(rail).toContain('href: "/profile"');
+    expect(rail).toContain('href: "/settings"');
+    expect(rail).toContain('href: "/support"');
     expect(settings).toContain('href="/profile"');
   });
 

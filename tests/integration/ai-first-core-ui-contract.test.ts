@@ -55,7 +55,7 @@ describe(
         expect(
           dashboard
         ).toContain(
-          "redirect(getKlyxAccountHome(profile.accountType));"
+          "redirect(getKlyxAccountHome(profile));"
         );
 
         expect(

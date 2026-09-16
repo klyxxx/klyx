@@ -63,13 +63,12 @@ export async function GET(
       );
 
     if (
-      profile.accountType !==
-      "client"
+      !profile.canRequestServices
     ) {
       return NextResponse.json(
         {
           error:
-            "Cette analyse est reservee au client.",
+            "Cette analyse nécessite la capacité de demander un service.",
         },
         {
           status: 403,

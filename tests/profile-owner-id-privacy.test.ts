@@ -26,13 +26,13 @@ describe("profile owner id privacy", () => {
   it("keeps ownership resolution on the server-side admin client", () => {
     expect(activeProfile).toContain('import "server-only"');
     expect(activeProfile).toContain("supabaseAdmin");
-    expect(activeProfile).toContain('"owner_user_id"');
+    expect(activeProfile).toContain("owner_user_id");
     expect(activeProfile).toContain("user.id");
   });
 
   it("fails closed when a legacy id match is already owned by another auth user", () => {
-    const legacyLookup = activeProfile.indexOf(
-      '.eq(\n        "id",\n        user.id\n      )'
+    const legacyLookup = activeProfile.search(
+      /\.eq\(\s*"id",\s*user\.id\s*\)/
     );
     const ownershipGuard = activeProfile.indexOf(
       "legacyProfile.owner_user_id !== user.id"
@@ -42,16 +42,10 @@ describe("profile owner id privacy", () => {
       ownershipGuard
     );
     const legacyReturn = activeProfile.indexOf(
-      "normalizeProfile(\n      profileToReturn,",
+      "normalizeOwnedProfiles(user.id, [profileToReturn])",
       ownershipGuard
     );
 
-    expect(activeProfile).toContain(
-      "KLYX_LEGACY_PROFILE_OWNER_FAIL_CLOSED_20260905"
-    );
-    expect(activeProfile).toContain(
-      "legacyProfile.owner_user_id &&\n    legacyProfile.owner_user_id !== user.id"
-    );
     expect(legacyLookup).toBeGreaterThanOrEqual(0);
     expect(ownershipGuard).toBeGreaterThan(legacyLookup);
     expect(legacyRepair).toBeGreaterThan(ownershipGuard);
@@ -64,42 +58,46 @@ describe("profile owner id privacy", () => {
   it("only repairs owner_user_id when the legacy owner is absent", () => {
     const repairStart = activeProfile.indexOf("!legacyProfile.owner_user_id");
     const repairEnd = activeProfile.indexOf(
-      "return [\n    normalizeProfile(",
+      "return normalizeOwnedProfiles(user.id, [profileToReturn]);",
       repairStart
     );
     const repairBlock = activeProfile.slice(repairStart, repairEnd);
 
     expect(repairStart).toBeGreaterThanOrEqual(0);
     expect(repairEnd).toBeGreaterThan(repairStart);
-    expect(repairBlock).toContain("owner_user_id:\n            user.id");
-    expect(repairBlock).toContain(
-      '.is(\n          "owner_user_id",\n          null\n        )'
-    );
+    expect(repairBlock).toMatch(/owner_user_id:\s*user\.id/);
+    expect(repairBlock).toMatch(/\.is\(\s*"owner_user_id",\s*null\s*\)/);
     expect(repairBlock).not.toContain("legacyProfile.owner_user_id =");
   });
 
   it("makes the legacy owner repair compare-and-set and fails closed on a race", () => {
-    const atomicMarker = activeProfile.indexOf(
-      "KLYX_LEGACY_PROFILE_OWNER_ATOMIC_REPAIR_20260905"
-    );
-    const ownerPrecondition = activeProfile.indexOf(
-      '.is(\n          "owner_user_id",\n          null\n        )',
-      atomicMarker
-    );
+    const repairStart = activeProfile.indexOf("!legacyProfile.owner_user_id");
+    const ownerPreconditionMatch = /\.is\(\s*"owner_user_id",\s*null\s*\)/g;
+    ownerPreconditionMatch.lastIndex = repairStart;
+    const ownerPrecondition = ownerPreconditionMatch.exec(activeProfile)?.index ?? -1;
     const repairedRowRead = activeProfile.indexOf(".maybeSingle();", ownerPrecondition);
     const raceGuard = activeProfile.indexOf("if (!repairedProfile)", repairedRowRead);
     const repairedAssignment = activeProfile.indexOf(
-      "profileToReturn =\n      repairedProfile as ProfileRow;",
+      "profileToReturn = repairedProfile as ProfileRow;",
       raceGuard
     );
 
-    expect(atomicMarker).toBeGreaterThanOrEqual(0);
-    expect(ownerPrecondition).toBeGreaterThan(atomicMarker);
+    expect(repairStart).toBeGreaterThanOrEqual(0);
+    expect(ownerPrecondition).toBeGreaterThan(repairStart);
     expect(repairedRowRead).toBeGreaterThan(ownerPrecondition);
     expect(raceGuard).toBeGreaterThan(repairedRowRead);
     expect(repairedAssignment).toBeGreaterThan(raceGuard);
 
     const raceGuardBlock = activeProfile.slice(raceGuard, repairedAssignment);
     expect(raceGuardBlock).toContain("return [];");
+  });
+
+  it("fails closed on canonical account ownership mismatch", () => {
+    expect(activeProfile).toContain('.from("accounts")');
+    expect(activeProfile).toMatch(/\.eq\(\s*"auth_user_id",\s*ownerUserId\s*\)/);
+    expect(activeProfile).toContain("KLYX_PROFILE_ACCOUNT_OWNER_MISMATCH");
+    expect(activeProfile).toContain(
+      "profile.account_id !== null && profile.account_id !== account.id"
+    );
   });
 });

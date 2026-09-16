@@ -41,7 +41,7 @@ function expectSameHorizontalGeometry(
   expect(after.height).toBeCloseTo(before.height, 0);
 }
 
-test.describe("KLYX profile switcher stable layout", () => {
+test.describe("KLYX roleless account menu stable layout", () => {
   test.skip(
     !hasE2ECredentials,
     "Dedicated KLYX E2E credentials are not configured."
@@ -51,7 +51,7 @@ test.describe("KLYX profile switcher stable layout", () => {
     await clearSensitivePassword(page);
   });
 
-  test("provider mission rail keeps stable dimensions and mobile drawer remains usable", async ({
+  test("provider compatibility profile keeps the canonical mission rail stable on desktop and mobile", async ({
     page,
   }, testInfo) => {
     test.setTimeout(180_000);
@@ -60,11 +60,13 @@ test.describe("KLYX profile switcher stable layout", () => {
 
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/profile", { waitUntil: "domcontentloaded" });
-    await expectAssistantFirstDesktopShell(page, "/provider/assistant");
+    await expectAssistantFirstDesktopShell(page, "/assistant");
 
     const desktopRail = page.getByTestId("desktop-mission-rail");
-    const switcher = desktopRail.getByTestId("account-switcher");
-    const trigger = switcher.getByTestId("account-entry");
+    await expect(desktopRail.getByTestId("account-switcher")).toHaveCount(0);
+
+    const accountEntry = desktopRail.getByTestId("account-entry");
+    const trigger = accountEntry.getByTestId("mission-rail-account-entry");
 
     await expect(trigger).toBeVisible();
     await expect(trigger).toBeEnabled();
@@ -76,8 +78,12 @@ test.describe("KLYX profile switcher stable layout", () => {
 
     await trigger.click();
 
-    const menu = switcher.getByTestId("account-menu-panel");
+    const menu = accountEntry.getByTestId("account-menu-panel");
     await expect(menu).toBeVisible();
+    await expect(menu.locator('a[href="/profile"]')).toBeVisible();
+    await expect(menu.locator('a[href="/settings"]')).toBeVisible();
+    await expect(menu.locator('a[href="/support"]')).toBeVisible();
+    await expect(menu.locator('[role="menuitemradio"]')).toHaveCount(0);
 
     const railAfter = await desktopRail.boundingBox();
     const triggerAfter = await trigger.boundingBox();
@@ -93,7 +99,7 @@ test.describe("KLYX profile switcher stable layout", () => {
     expect(menuBox!.width).toBeLessThanOrEqual(304);
     expect(menuBox!.x + menuBox!.width).toBeLessThanOrEqual(1440);
 
-    await attachViewport(page, testInfo, "provider-account-switcher-open-stable-desktop");
+    await attachViewport(page, testInfo, "roleless-account-menu-open-stable-desktop");
 
     await page.keyboard.press("Escape");
     await page.evaluate(() => {
@@ -110,7 +116,7 @@ test.describe("KLYX profile switcher stable layout", () => {
     expect(railAfterScroll!.width).toBeLessThanOrEqual(264);
     expect(railAfterScroll!.height).toBeCloseTo(900, 0);
 
-    await attachViewport(page, testInfo, "provider-mission-rail-dimensions-stable-after-scroll");
+    await attachViewport(page, testInfo, "mission-rail-dimensions-stable-after-scroll");
 
     await page.setViewportSize({ width: 390, height: 844 });
     await expectAssistantFirstMobileShell(page);
@@ -134,10 +140,10 @@ test.describe("KLYX profile switcher stable layout", () => {
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
     await expectAssistantFirstMobileShell(page);
 
-    const drawer = await openAssistantFirstMobileDrawer(page, "/provider/assistant");
+    const drawer = await openAssistantFirstMobileDrawer(page, "/assistant");
     await expect(drawer).toBeVisible();
     await page.keyboard.press("Escape");
 
-    await attachViewport(page, testInfo, "provider-mobile-drawer-usable-after-scroll");
+    await attachViewport(page, testInfo, "mobile-drawer-usable-after-scroll");
   });
 });

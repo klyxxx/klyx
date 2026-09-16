@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import {
   activateKlyxE2EProfile,
   clearSensitivePassword,
@@ -14,34 +14,27 @@ test.use({
   video: "off",
 });
 
-async function openAccountSwitcher(
-  page: Page,
-  homeHref: "/assistant" | "/provider/assistant"
-) {
-  await expectAssistantFirstDesktopShell(page, homeHref);
+async function expectRolelessAccountMenu(page: Page) {
+  await expectAssistantFirstDesktopShell(page, "/assistant");
 
   const rail = page.getByTestId("desktop-mission-rail");
+  await expect(rail.getByTestId("account-switcher")).toHaveCount(0);
+
   const accountEntry = rail.getByTestId("account-entry");
-  await expect(accountEntry).toBeVisible();
-  await expect(accountEntry).toBeEnabled();
-  await accountEntry.click();
+  const trigger = accountEntry.getByTestId("mission-rail-account-entry");
+  await expect(trigger).toBeVisible();
+  await expect(trigger).toBeEnabled();
+  await trigger.click();
 
-  const switcher = rail.getByTestId("account-switcher");
-  await expect(switcher.getByTestId("account-menu-panel")).toBeVisible();
-  return switcher;
+  const menu = accountEntry.getByTestId("account-menu-panel");
+  await expect(menu).toBeVisible();
+  await expect(menu.getByRole("menuitemradio")).toHaveCount(0);
+  await expect(menu.locator('a[href="/profile"]')).toBeVisible();
+  await expect(menu.locator('a[href="/settings"]')).toBeVisible();
+  await expect(menu.locator('a[href="/support"]')).toBeVisible();
 }
 
-async function switchThroughUi(switcher: Locator) {
-  const targetProfile = switcher.locator(
-    '[role="menuitemradio"][aria-checked="false"]'
-  );
-
-  await expect(targetProfile).toHaveCount(1);
-  await expect(targetProfile).toBeVisible();
-  await targetProfile.click();
-}
-
-test.describe("KLYX authenticated multi-profile", () => {
+test.describe("KLYX authenticated compatibility profiles", () => {
   test.skip(
     !hasE2ECredentials,
     "Dedicated KLYX E2E session bootstrap is not configured."
@@ -51,7 +44,7 @@ test.describe("KLYX authenticated multi-profile", () => {
     await clearSensitivePassword(page);
   });
 
-  test("switch client/provider with a full role workspace reload", async ({ page }) => {
+  test("keeps legacy client/provider profiles behind one roleless account rail", async ({ page }) => {
     test.setTimeout(120_000);
 
     await loginKlyxE2E(page);
@@ -64,46 +57,34 @@ test.describe("KLYX authenticated multi-profile", () => {
       (profile) => profile.accountType === "provider"
     );
 
-    expect(client, "Dedicated E2E client profile is missing.").toBeTruthy();
-    expect(provider, "Dedicated E2E provider profile is missing.").toBeTruthy();
+    expect(client, "Dedicated E2E client compatibility profile is missing.").toBeTruthy();
+    expect(provider, "Dedicated E2E provider compatibility profile is missing.").toBeTruthy();
 
     await activateKlyxE2EProfile(page, "client");
-    await page.goto("/dashboard");
-    await page.waitForURL((url) => url.pathname === "/assistant");
-    await expect(
-      page.getByRole("heading", { name: "Que puis-je organiser pour vous ?" })
-    ).toBeVisible();
-    await expectAssistantFirstDesktopShell(page, "/assistant");
+    await page.goto("/assistant", { waitUntil: "domcontentloaded" });
+    await expect(page).toHaveURL(/\/assistant(?:\?|$)/);
+    await expectRolelessAccountMenu(page);
 
-    await page.goto("/profile");
-    const clientSwitcher = await openAccountSwitcher(page, "/assistant");
-    await switchThroughUi(clientSwitcher);
-    await page.waitForURL((url) => url.pathname === "/provider/assistant");
-    await expectAssistantFirstDesktopShell(page, "/provider/assistant");
-    await expect(
-      page.getByRole("heading", { name: "Que dois-je préparer pour ton activité ?" })
-    ).toBeVisible();
+    const clientState = await readKlyxE2EProfiles(page);
+    expect(clientState.activeProfileId).toBe(client!.id);
+
+    await activateKlyxE2EProfile(page, "provider");
+    await page.goto("/assistant", { waitUntil: "domcontentloaded" });
+    await expect(page).toHaveURL(/\/assistant(?:\?|$)/);
+    await expectRolelessAccountMenu(page);
 
     const providerState = await readKlyxE2EProfiles(page);
     expect(providerState.activeProfileId).toBe(provider!.id);
 
     await page.reload({ waitUntil: "domcontentloaded" });
-    await expect(page).toHaveURL(/\/provider\/assistant(?:\?|$)/);
-    await expectAssistantFirstDesktopShell(page, "/provider/assistant");
-
-    await page.goto("/profile");
-    const providerSwitcher = await openAccountSwitcher(
-      page,
-      "/provider/assistant"
-    );
-    await switchThroughUi(providerSwitcher);
-    await page.waitForURL((url) => url.pathname === "/assistant");
-    await expect(
-      page.getByRole("heading", { name: "Que puis-je organiser pour vous ?" })
-    ).toBeVisible();
+    await expect(page).toHaveURL(/\/assistant(?:\?|$)/);
     await expectAssistantFirstDesktopShell(page, "/assistant");
 
-    const clientState = await readKlyxE2EProfiles(page);
-    expect(clientState.activeProfileId).toBe(client!.id);
+    await activateKlyxE2EProfile(page, "client");
+    await page.goto("/assistant", { waitUntil: "domcontentloaded" });
+
+    const restoredClientState = await readKlyxE2EProfiles(page);
+    expect(restoredClientState.activeProfileId).toBe(client!.id);
+    await expectAssistantFirstDesktopShell(page, "/assistant");
   });
 });

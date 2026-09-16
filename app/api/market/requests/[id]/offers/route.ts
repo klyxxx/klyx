@@ -1,4 +1,5 @@
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { runWithLegacyProfileCapability } from "@/lib/legacy-profile-capability-context";
 import {
   PATCH as corePatch,
   POST as corePost,
@@ -54,42 +55,46 @@ export async function POST(
   request: Request,
   context: OfferRouteContext
 ) {
-  const startedAt = Date.now();
+  return runWithLegacyProfileCapability("offer", async () => {
+    const startedAt = Date.now();
 
-  try {
-    const response = await corePost(request, context);
-    return secureCoreResponse(response, "POST", startedAt);
-  } catch (error) {
-    return secureApiErrorResponse({
-      error,
-      event: "market_offer_create_failed",
-      route: "/api/market/requests/[id]/offers",
-      method: "POST",
-      status: 500,
-      code: "KLYX_MARKET_OFFER_CREATE_FAILED",
-      startedAt,
-    });
-  }
+    try {
+      const response = await corePost(request, context);
+      return secureCoreResponse(response, "POST", startedAt);
+    } catch (error) {
+      return secureApiErrorResponse({
+        error,
+        event: "market_offer_create_failed",
+        route: "/api/market/requests/[id]/offers",
+        method: "POST",
+        status: 500,
+        code: "KLYX_MARKET_OFFER_CREATE_FAILED",
+        startedAt,
+      });
+    }
+  });
 }
 
 export async function PATCH(
   request: Request,
   context: OfferRouteContext
 ) {
-  const startedAt = Date.now();
+  return runWithLegacyProfileCapability("offer", async () => {
+    const startedAt = Date.now();
 
-  try {
-    const response = await corePatch(request, context);
-    return secureCoreResponse(response, "PATCH", startedAt);
-  } catch (error) {
-    return secureApiErrorResponse({
-      error,
-      event: "market_offer_update_failed",
-      route: "/api/market/requests/[id]/offers",
-      method: "PATCH",
-      status: 500,
-      code: "KLYX_MARKET_OFFER_UPDATE_FAILED",
-      startedAt,
-    });
-  }
+    try {
+      const response = await corePatch(request, context);
+      return secureCoreResponse(response, "PATCH", startedAt);
+    } catch (error) {
+      return secureApiErrorResponse({
+        error,
+        event: "market_offer_update_failed",
+        route: "/api/market/requests/[id]/offers",
+        method: "PATCH",
+        status: 500,
+        code: "KLYX_MARKET_OFFER_UPDATE_FAILED",
+        startedAt,
+      });
+    }
+  });
 }

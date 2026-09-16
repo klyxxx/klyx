@@ -117,6 +117,7 @@ describe("KLY-5 privacy-first product analytics contract", () => {
   it("captures profile milestones only after successful profile operations", () => {
     const accounts = read("lib/account-switcher.ts");
     const onboarding = read("app/onboarding/page.tsx");
+    const firstProfileSetup = read("app/onboarding/FirstProfileSetup.tsx");
     const firstProfileAnalytics = read(
       "app/onboarding/KlyxFirstProfileAnalytics.tsx"
     );
@@ -134,8 +135,17 @@ describe("KLY-5 privacy-first product analytics contract", () => {
     expect(onboarding).toContain(
       '<KlyxFirstProfileAnalytics phase="pending" />'
     );
-    expect(onboarding).toContain(
+    expect(onboarding).not.toContain(
       '<KlyxFirstProfileAnalytics phase="completed" />'
+    );
+    expect(firstProfileSetup).toContain("completeKlyxFirstProfileAnalytics();");
+    expect(
+      firstProfileSetup.lastIndexOf("completeKlyxFirstProfileAnalytics();")
+    ).toBeGreaterThan(
+      firstProfileSetup.indexOf("if (!response.ok || !body.profileId)")
+    );
+    expect(firstProfileAnalytics).toContain(
+      "export function completeKlyxFirstProfileAnalytics"
     );
     expect(firstProfileAnalytics).toContain("FIRST_PROFILE_PENDING_KEY");
     expect(firstProfileAnalytics).toContain("FIRST_PROFILE_CAPTURED_KEY");

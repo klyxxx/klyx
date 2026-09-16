@@ -30,15 +30,17 @@ describe("KLYX first-profile market contract", () => {
     expect(api).toContain("currency_code: marketInput.currencyCode");
   });
 
-  it("preserves the first-profile role lock, provider-only service and no-automatic-action boundary", () => {
+  it("keeps first-profile creation roleless while preserving no-automatic-action safety", () => {
     const source = read("app/onboarding/FirstProfileSetup.tsx");
     const i18n = read("lib/klyx-first-profile-i18n.ts");
 
-    expect(source).toContain("KLYX_FIRST_PROFILE_ROLE_LOCK_14_05");
-    expect(source).toMatch(/roleChoiceUnlocked[\s\S]*useState\(\s*false\s*\)/);
-    expect(source).toMatch(/if\s*\(\s*accountType\s*===\s*["']client["']\s*\)[\s\S]*setServiceId\(\s*["']["']\s*\)/);
-    expect(source).toMatch(/serviceId\s*:\s*accountType\s*===\s*["']provider["']\s*\?\s*serviceId\s*:\s*null/);
+    expect(source).toContain('accountType: "client"');
+    expect(source).toContain("serviceId: null");
+    expect(source).toContain("Transitional schema value only");
+    expect(source).not.toContain("roleChoiceUnlocked");
+    expect(source).not.toContain("setAccountType");
     expect(source).toContain('t("noAutomaticAction")');
+    expect(source).toContain('router.replace("/assistant")');
     expect(i18n).toContain("noAutomaticAction:");
     expect(i18n).toMatch(/noAutomaticAction:\s*["'][^"']*réservation[^"']*paiement[^"']*["']/);
   });

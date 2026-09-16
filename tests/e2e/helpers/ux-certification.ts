@@ -421,8 +421,14 @@ export async function expectReferenceScreenshot(page: Page, name: string) {
   const desktopRail = page.getByTestId("desktop-mission-rail");
   const accountIdentityMasks = (await desktopRail.isVisible())
     ? [
-        desktopRail.getByTestId("account-entry").locator(":scope > span").nth(0),
-        desktopRail.getByTestId("account-entry").locator(":scope > span").nth(1),
+        desktopRail
+          .getByTestId("mission-rail-account-entry")
+          .locator(":scope > span")
+          .nth(0),
+        desktopRail
+          .getByTestId("mission-rail-account-entry")
+          .locator(":scope > span")
+          .nth(1),
       ]
     : [];
 

@@ -74,10 +74,10 @@ describe("KLYX provider legal authority security contract", () => {
     expect(serverAuthority).toContain("update.human_reviewed_path = null");
   });
 
-  it("requires an authenticated active provider profile before exposing authority", () => {
+  it("requires auth plus canonical offer capability before exposing authority", () => {
     expect(route).toContain("await supabase.auth.getUser()");
-    expect(route).toContain("await getActiveProfile()");
-    expect(route).toContain('profile.accountType !== "provider"');
+    expect(route).toContain("await getOfferCompatibilityProfile()");
+    expect(route).not.toContain('profile.accountType !== "provider"');
     expect(route).toContain("getProviderLegalAuthority(profile)");
     expect(route).toContain("updateProviderLegalDeclarations(profile, patch)");
   });

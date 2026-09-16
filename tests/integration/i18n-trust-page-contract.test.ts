@@ -58,14 +58,15 @@ describe("KLYX trust overview i18n contract", () => {
     expect(helper).toContain("unknownStatus");
   });
 
-  it("keeps the existing server-side client-only authorization boundary untouched", () => {
+  it("keeps the authenticated canonical request-capability boundary", () => {
     const layout = read("app/trust/layout.tsx");
 
     expect(layout).toContain("supabase.auth.getUser()");
     expect(layout).toContain("getActiveProfile()");
     expect(layout).toContain('redirect("/login")');
     expect(layout).toContain('redirect("/profile")');
-    expect(layout).toContain('profile.accountType !== "client"');
-    expect(layout).toContain('redirect("/provider/trust")');
+    expect(layout).toContain("!profile.canRequestServices");
+    expect(layout).not.toContain('profile.accountType !== "client"');
+    expect(layout).toContain('redirect("/dashboard")');
   });
 });

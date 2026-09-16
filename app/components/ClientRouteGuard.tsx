@@ -11,11 +11,9 @@ import {
   type KlyxClientRouteGuardMessageKey,
 } from "@/lib/klyx-client-route-guard-i18n";
 
-type AccountType = "client" | "provider";
-
 type ProfileResponse = {
   profile?: {
-    accountType: AccountType;
+    canRequestServices: boolean;
   };
 };
 
@@ -39,10 +37,7 @@ export default function ClientRouteGuard({ children }: { children: ReactNode }) 
         });
 
         if (response.status === 401) {
-          if (active) {
-            setState("redirecting");
-          }
-
+          if (active) setState("redirecting");
           router.replace("/login");
           return;
         }
@@ -53,22 +48,19 @@ export default function ClientRouteGuard({ children }: { children: ReactNode }) 
           throw new Error("profile-check-failed");
         }
 
-        if (body.profile.accountType === "provider") {
-          if (active) {
-            setState("redirecting");
-          }
+        if (typeof body.profile.canRequestServices !== "boolean") {
+          throw new Error("account-capability-check-failed");
+        }
 
-          router.replace("/provider/assistant");
+        if (!body.profile.canRequestServices) {
+          if (active) setState("redirecting");
+          router.replace("/dashboard");
           return;
         }
 
-        if (active) {
-          setState("allowed");
-        }
+        if (active) setState("allowed");
       } catch {
-        if (!active) {
-          return;
-        }
+        if (!active) return;
 
         setErrorMessage(
           translateKlyxClientRouteGuard(locale, "profileCheckError")
@@ -93,15 +85,12 @@ export default function ClientRouteGuard({ children }: { children: ReactNode }) 
       <main className="klyx-page grid min-h-[60vh] place-items-center">
         <section className="w-full max-w-lg rounded-3xl border border-rose-500/25 bg-rose-500/10 p-6 text-center">
           <ShieldCheck size={30} className="mx-auto text-rose-600" />
-
           <h1 className="mt-4 text-xl font-black">
             {t("verificationErrorTitle")}
           </h1>
-
           <p className="mt-2 text-sm leading-6 text-muted-foreground">
             {errorMessage}
           </p>
-
           <button
             type="button"
             onClick={() => window.location.reload()}
@@ -121,7 +110,6 @@ export default function ClientRouteGuard({ children }: { children: ReactNode }) 
           size={34}
           className="mx-auto animate-spin text-blue-600"
         />
-
         <p className="mt-4 text-sm font-bold text-muted-foreground">
           {state === "redirecting" ? t("redirecting") : t("checking")}
         </p>

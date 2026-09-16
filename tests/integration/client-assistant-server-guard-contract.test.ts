@@ -6,23 +6,27 @@ function read(relativePath: string) {
   return readFileSync(join(process.cwd(), relativePath), "utf8").replace(/\r\n/g, "\n");
 }
 
-describe("client assistant server role guard", () => {
-  it("validates auth and active client role before rendering assistant children", () => {
+describe("assistant canonical account capability guard", () => {
+  it("requires authentication before rendering the unified assistant", () => {
     const layout = read("app/assistant/layout.tsx");
 
     expect(layout).toContain('redirect("/login")');
-    expect(layout).toContain('redirect("/accounts")');
-    expect(layout).toContain('profile.accountType !== "client"');
-    expect(layout).toContain("redirect(getKlyxAccountHome(profile.accountType))");
-
-    const roleCheck = layout.indexOf('profile.accountType !== "client"');
-    const childrenRender = layout.indexOf("return children");
-    expect(roleCheck).toBeGreaterThan(-1);
-    expect(childrenRender).toBeGreaterThan(roleCheck);
+    expect(layout).toContain("return children");
+    expect(layout).not.toContain('profile.accountType !== "client"');
+    expect(layout).not.toContain("!profile.canRequestServices");
   });
 
-  it("keeps the client-side route guard as a second defense layer", () => {
+  it("keeps capability authorization account-first at the assistant API boundary", () => {
     const page = read("app/assistant/page.tsx");
-    expect(page).toContain("<ClientRouteGuard>");
+    expect(page).toContain("<AssistantThread />");
+    expect(page).not.toContain("<ClientRouteGuard>");
+
+    const route = read("app/api/brain/converse/route.ts");
+    const auth = read("lib/api-auth.ts");
+    expect(route).toContain("getAuthenticatedProfile(request)");
+    expect(auth).toContain("loadAccountCapabilityState(");
+    expect(auth).toContain("canonicalProfile.canRequestServices");
+    expect(auth).toContain("canonicalProfile.canOfferServices");
+    expect(auth).not.toContain('profile.accountType !== "client"');
   });
 });
