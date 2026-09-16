@@ -13,8 +13,8 @@ function read(relativePath: string): string {
 
 const route = read("app/api/stripe/connect/create-account/route.ts");
 
-describe("Stripe Connect provider business type onboarding contract", () => {
-  it("does not force every provider to be an individual", () => {
+describe("Stripe Connect account-level business type onboarding contract", () => {
+  it("does not force every earner to be an individual", () => {
     expect(route).not.toContain('business_type: "individual"');
     expect(route).not.toContain("business_type: 'individual'");
   });
@@ -25,11 +25,12 @@ describe("Stripe Connect provider business type onboarding contract", () => {
     expect(route).toContain("stripe.accountLinks.create");
   });
 
-  it("preserves capabilities, idempotency and provider-only authority", () => {
+  it("preserves capabilities and moves authority to the canonical account", () => {
     expect(route).toContain("card_payments: { requested: true }");
     expect(route).toContain("transfers: { requested: true }");
     expect(route).toContain("stripeConnectAccountCreateIdempotencyKey");
     expect(route).toContain("{ idempotencyKey }");
-    expect(route).toContain('requireAccountType(activeProfile, "provider")');
+    expect(route).toContain("getAuthenticatedAccount(request)");
+    expect(route).not.toContain('requireAccountType(activeProfile, "provider")');
   });
 });
