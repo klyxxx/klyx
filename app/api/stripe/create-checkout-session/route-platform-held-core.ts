@@ -369,10 +369,17 @@ export async function POST(request: Request) {
       );
     }
 
+    const providerRecipientAccount = await stripe.v2.core.accounts.retrieve(
+      canonicalStripeAccountId,
+      { include: ["configuration.recipient", "identity", "requirements"] }
+    );
     const providerReady = Boolean(
-      providerStripeAccount.details_submitted &&
-        providerStripeAccount.payouts_enabled &&
-        providerStripeAccount.capabilities?.transfers === "active"
+      providerRecipientAccount.livemode === false &&
+        providerRecipientAccount.identity?.country === "BE" &&
+        providerRecipientAccount.applied_configurations?.includes("recipient") === true &&
+        providerRecipientAccount.configuration?.recipient?.applied === true &&
+        providerRecipientAccount.configuration?.recipient?.capabilities?.stripe_balance
+          ?.stripe_transfers?.status === "active"
     );
 
     if (!providerReady) {
