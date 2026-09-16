@@ -232,6 +232,7 @@ export async function POST(request: Request) {
       );
     }
 
+    // KLYX_SPLIT_LEGACY_CHECKOUT_GUARD_13_27
     const { data: splitPaymentUnits, error: splitPaymentGuardError } =
       await supabaseAdmin
         .from("split_booking_payment_units")
