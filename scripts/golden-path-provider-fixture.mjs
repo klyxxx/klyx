@@ -44,6 +44,13 @@ function transferReady(account) {
   );
 }
 
+function v2TransferStatus(account) {
+  return (
+    account?.configuration?.recipient?.capabilities?.stripe_balance
+      ?.stripe_transfers?.status ?? null
+  );
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -61,6 +68,10 @@ async function ensurePlatformHeldStripeDestinationFixture({ email, providerId })
   }
 
   const stripe = new Stripe(stripeSecretKey);
+
+  // Preserve reuse of any already-certified legacy TEST destination. New
+  // connected-account creation itself must use Accounts v2 because the Stripe
+  // TEST platform is migrated and rejects POST /v1/accounts.
   const existing = await stripe.accounts.list({ limit: 100 });
   const ready = existing.data.find(transferReady);
 
@@ -68,6 +79,67 @@ async function ensurePlatformHeldStripeDestinationFixture({ email, providerId })
     return { enabled: true, accountId: ready.id, created: false };
   }
 
+  const created = await stripe.v2.core.accounts.create(
+    {
+      contact_email: email,
+      display_name: "KLYX Platform-Held Test Fixture",
+      dashboard: "none",
+      identity: {
+        country: "BE",
+        entity_type: "individual",
+        attestations: {
+          terms_of_service: {
+            account: {
+              date: new Date().toISOString(),
+              ip: "127.0.0.1",
+              user_agent: "KLYX Stripe TEST certification",
+            },
+          },
+        },
+        individual: {
+          given_name: "Klyx",
+          surname: "Settlement",
+          email,
+          phone: "+32470123456",
+          date_of_birth: { day: 1, month: 1, year: 1902 },
+          address: {
+            line1: "address_full_match",
+            city: "Bruxelles",
+            postal_code: "1000",
+            country: "BE",
+          },
+        },
+      },
+      configuration: {
+        recipient: {
+          capabilities: {
+            stripe_balance: {
+              stripe_transfers: { requested: true },
+            },
+          },
+        },
+      },
+      defaults: {
+        currency: "eur",
+        responsibilities: {
+          fees_collector: "application",
+          losses_collector: "application",
+        },
+      },
+      metadata: {
+        klyx_platform_held_network_fixture: "true",
+        klyx_provider_profile_id: providerId,
+      },
+      include: ["configuration.recipient", "identity", "requirements"],
+    },
+    { idempotencyKey: `klyx-platform-held-v2-fixture-${providerId}` }
+  );
+
+  // Accounts v2 is authoritative for creation. Existing-account v1 APIs remain
+  // supported by Stripe, so attach the TEST payout destination through that
+  // compatibility surface and verify the exact legacy fields used by KLYX's
+  // current settlement runtime. This keeps #803 scoped away from a product-wide
+  // Connect migration while proving the real acct_* can receive a Transfer.
   const bankToken = await stripe.tokens.create({
     bank_account: {
       country: "BE",
@@ -78,60 +150,31 @@ async function ensurePlatformHeldStripeDestinationFixture({ email, providerId })
     },
   });
 
-  const created = await stripe.accounts.create({
-    type: "custom",
-    country: "BE",
-    email,
-    business_type: "individual",
-    business_profile: {
-      mcc: "7299",
-      url: "https://accessible.stripe.com",
-    },
-    capabilities: {
-      transfers: { requested: true },
-    },
+  await stripe.accounts.createExternalAccount(created.id, {
     external_account: bankToken.id,
-    individual: {
-      first_name: "Klyx",
-      last_name: "Settlement",
-      email,
-      phone: "0000000000",
-      id_number: "222222222",
-      dob: { day: 1, month: 1, year: 1902 },
-      address: {
-        line1: "address_full_match",
-        city: "Bruxelles",
-        postal_code: "1000",
-        country: "BE",
-      },
-    },
-    tos_acceptance: {
-      date: Math.floor(Date.now() / 1000),
-      ip: "127.0.0.1",
-    },
-    metadata: {
-      klyx_platform_held_network_fixture: "true",
-      klyx_provider_profile_id: providerId,
-    },
+    default_for_currency: true,
   });
 
-  let refreshed = created;
+  let refreshed = await stripe.accounts.retrieve(created.id);
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    refreshed = await stripe.accounts.retrieve(created.id);
     if (transferReady(refreshed)) {
       return { enabled: true, accountId: refreshed.id, created: true };
     }
     await sleep(500);
+    refreshed = await stripe.accounts.retrieve(created.id);
   }
 
+  const v2Account = await stripe.v2.core.accounts.retrieve(created.id, {
+    include: ["configuration.recipient", "identity", "requirements"],
+  });
   const due = [
     ...(refreshed.requirements?.currently_due ?? []),
     ...(refreshed.requirements?.past_due ?? []),
   ];
   throw new Error(
-    `Stripe TEST provider fixture is not transfer-ready. Due: ${
-      Array.from(new Set(due)).join(", ") || "unknown"
-    }`
+    `Stripe TEST provider fixture is not transfer-ready. v2 stripe_transfers=${
+      v2TransferStatus(v2Account) ?? "unknown"
+    }; v1 due: ${Array.from(new Set(due)).join(", ") || "unknown"}`
   );
 }
 
