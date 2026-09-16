@@ -37,7 +37,7 @@ describe("KLYX platform-held provider Stripe TEST fixture", () => {
     expect(fixture).not.toContain("sk_live_");
   });
 
-  it("uses Accounts v2 TEST identity signals and bounded readiness polling", () => {
+  it("uses Accounts v2 recipient transfer readiness with bounded polling", () => {
     expect(fixture).toContain("stripe.v2.core.accounts.create(");
     expect(fixture).toContain('dashboard: "none"');
     expect(fixture).toContain('country: "BE"');
@@ -53,20 +53,25 @@ describe("KLYX platform-held provider Stripe TEST fixture", () => {
     expect(fixture).toContain(
       "klyx-platform-held-v2-fixture-${providerId}"
     );
+    expect(fixture).toContain(
+      'account?.applied_configurations?.includes("recipient") === true'
+    );
+    expect(fixture).toContain(
+      "account?.configuration?.recipient?.applied === true"
+    );
+    expect(fixture).toContain('v2TransferStatus(account) === "active"');
 
-    // The Stripe platform has migrated account creation to Accounts v2. KLYX
-    // may still use v1 only for already-created account compatibility updates,
-    // reads and external-account management while #803 remains TEST-only.
+    // Account creation is Accounts v2-only. v1 is allowed only as a read/update
+    // compatibility surface for already-created accounts; Platform-Held itself
+    // must not require an external bank account or a bank payout capability.
     expect(fixture).not.toContain("stripe.accounts.create({");
     expect(fixture).toContain("stripe.accounts.list({ limit: 100 })");
     expect(fixture).toContain("stripe.accounts.update(created.id");
     expect(fixture).toContain('url: "https://accessible.stripe.com"');
-    expect(fixture).toContain("stripe.accounts.createExternalAccount(created.id");
-    expect(fixture).toContain("stripe.accounts.retrieve(created.id)");
     expect(fixture).toContain("stripe.v2.core.accounts.retrieve(created.id");
     expect(fixture).toContain("attempt < 20");
-    expect(fixture).toContain("requirements?.currently_due");
-    expect(fixture).toContain("requirements?.past_due");
+    expect(fixture).not.toContain("createExternalAccount");
+    expect(fixture).not.toContain("stripe.tokens.create(");
   });
 
   it("never performs a settlement, refund, reversal or bank payout mutation", () => {
