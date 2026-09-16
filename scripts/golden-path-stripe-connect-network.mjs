@@ -146,6 +146,17 @@ async function discoverProofAccounts(stripe, accountId) {
   );
 }
 
+async function retrieveV2ConnectAccount(stripe, accountId) {
+  return stripe.v2.core.accounts.retrieve(accountId, {
+    include: [
+      "configuration.merchant",
+      "configuration.recipient",
+      "identity",
+      "requirements",
+    ],
+  });
+}
+
 async function main() {
   const { e2eOrigin, localSupabase } = assertGoldenPathIsolation();
 
@@ -241,11 +252,12 @@ async function main() {
 
   const canonicalAccountId = provider.account_id;
   let stripeAccountId = null;
+  let appliedConfigurations = [];
   let accountCreated = false;
   let accountReused = false;
   let remoteAccountVerified = false;
   let statusVerified = false;
-  const deletedAccountIds = [];
+  let accountClosedAfterProof = false;
   let cleanupFailure = null;
 
   try {
@@ -294,19 +306,29 @@ async function main() {
     accountCreated = true;
 
     const remoteAccount = await stripe.accounts.retrieve(stripeAccountId);
+    const remoteV2Account = await retrieveV2ConnectAccount(stripe, stripeAccountId);
+    appliedConfigurations = remoteV2Account.applied_configurations ?? [];
 
     if (
       remoteAccount.id !== stripeAccountId ||
-      remoteAccount.type !== "express" ||
+      remoteAccount.controller?.stripe_dashboard?.type !== "express" ||
+      remoteAccount.controller?.losses?.payments !== "application" ||
       remoteAccount.country !== "BE" ||
       remoteAccount.details_submitted !== false ||
       remoteAccount.charges_enabled !== false ||
       remoteAccount.payouts_enabled !== false ||
       remoteAccount.metadata?.klyx_account_id !== canonicalAccountId ||
-      remoteAccount.metadata?.klyx_owner_user_id !== signInData.user.id
+      remoteAccount.metadata?.klyx_owner_user_id !== signInData.user.id ||
+      remoteV2Account.dashboard !== "express" ||
+      remoteV2Account.livemode !== false ||
+      remoteV2Account.identity?.country !== "BE" ||
+      remoteV2Account.metadata?.klyx_account_id !== canonicalAccountId ||
+      remoteV2Account.metadata?.klyx_owner_user_id !== signInData.user.id ||
+      !appliedConfigurations.includes("merchant") ||
+      !appliedConfigurations.includes("recipient")
     ) {
       throw new Error(
-        "Remote Stripe TEST Connect account does not match canonical KLYX state."
+        "Remote Stripe TEST Connect account does not match canonical KLYX v2/controller state."
       );
     }
 
@@ -391,31 +413,20 @@ async function main() {
     statusVerified = true;
   } finally {
     try {
-      const candidateIds = new Set();
-
       if (
         typeof stripeAccountId === "string" &&
-        stripeAccountId.startsWith("acct_")
+        stripeAccountId.startsWith("acct_") &&
+        appliedConfigurations.length > 0
       ) {
-        candidateIds.add(stripeAccountId);
-      }
-
-      const discovered = await discoverProofAccounts(
-        stripe,
-        canonicalAccountId
-      );
-      for (const account of discovered) {
-        candidateIds.add(account.id);
-      }
-
-      for (const candidateId of candidateIds) {
-        const deleted = await stripe.accounts.del(candidateId);
-        if (deleted.deleted !== true) {
+        const closed = await stripe.v2.core.accounts.close(stripeAccountId, {
+          applied_configurations: appliedConfigurations,
+        });
+        if (closed.closed !== true) {
           throw new Error(
-            `Stripe did not confirm deletion for ${candidateId}.`
+            `Stripe did not confirm closure for ${stripeAccountId}.`
           );
         }
-        deletedAccountIds.push(candidateId);
+        accountClosedAfterProof = true;
       }
 
       await resetProviderConnectState(
@@ -456,7 +467,7 @@ async function main() {
     !remoteAccountVerified ||
     !statusVerified ||
     !stripeAccountId ||
-    !deletedAccountIds.includes(stripeAccountId)
+    !accountClosedAfterProof
   ) {
     throw new Error(
       "Stripe Connect network proof did not complete all invariants."
@@ -472,14 +483,15 @@ async function main() {
         stripeConnectNetwork: true,
         testMode: true,
         authority: "accounts.id",
-        accountType: "express",
+        accountDashboard: "express",
+        accountApi: "v2",
         country: "BE",
         accountCreated: true,
         accountReused: true,
         onboardingComplete: false,
         chargesEnabled: false,
         payoutsEnabled: false,
-        accountDeletedAfterProof: true,
+        accountClosedAfterProof: true,
         localStateResetAfterProof: true,
         payoutClaimed: false,
         verifiedAt: new Date().toISOString(),
@@ -496,12 +508,13 @@ async function main() {
       stripeConnectNetwork: true,
       testMode: true,
       authority: "accounts.id",
-      accountType: "express",
+      accountDashboard: "express",
+      accountApi: "v2",
       country: "BE",
       accountCreated: true,
       accountReused: true,
       statusVerified: true,
-      accountDeletedAfterProof: true,
+      accountClosedAfterProof: true,
       payoutClaimed: false,
     })}\n`
   );
