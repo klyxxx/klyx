@@ -12,14 +12,17 @@ const workflow = fs.readFileSync(
 );
 
 const approvedHistoricalMigrations = [
-  "20260905235000_klyx_activity_hidden_missions.sql",
-  "20260905235500_klyx_core_payment_rpc_execution_sentinel.sql",
-  "20260906000500_klyx_handle_new_user_search_path.sql",
-  "20260906081500_klyx_remaining_rls_initplan_optimization.sql",
-  "20260906083000_klyx_public_availability_rpc_hardening.sql",
-  "20260906083500_klyx_profiles_stripe_index_history_preflight.sql",
-  "20260906084000_klyx_profiles_stripe_duplicate_index_cleanup.sql",
-  "20260906084500_klyx_message_notification_fk_indexes.sql",
+  "20260913003000_klyx_trust_review_resolution_rpc.sql",
+  "20260913004000_klyx_trust_latest_decision_enforcement.sql",
+];
+
+const approvedReconciliationBatch = [
+  "20260913003000_klyx_trust_review_resolution_rpc.sql",
+  "20260913004000_klyx_trust_latest_decision_enforcement.sql",
+  "20260914121500_klyx_account_actor_capabilities.sql",
+  "20260914183000_klyx_account_post_booking_incidents.sql",
+  "20260914195500_klyx_provider_verification_account_capability_authority.sql",
+  "20260915134000_klyx_provider_verification_compatibility_profile_guard.sql",
 ];
 
 describe("Supabase production migration historical-gap recovery", () => {
@@ -63,9 +66,11 @@ describe("Supabase production migration historical-gap recovery", () => {
     expect(workflow).toContain(
       "Refusing production write: second dry-run batch differs from the audited reconciliation batch."
     );
-    expect(workflow).toContain(
-      '"20260913165000_klyx_business_pilot_request_cap.sql"'
-    );
+
+    for (const migration of approvedReconciliationBatch) {
+      expect(workflow).toContain(`"${migration}"`);
+    }
+
     expect(workflow).toContain(
       'echo "SUPABASE_INCLUDE_ALL=true" >> "$GITHUB_ENV"'
     );
