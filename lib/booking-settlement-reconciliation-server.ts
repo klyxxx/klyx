@@ -959,6 +959,23 @@ export async function reconcilePlatformHeldBookingSettlement(input: {
     });
 
     if (refundIsActive) {
+      if (
+        settlement.state === "release_claimed" &&
+        !transfer
+      ) {
+        return markHumanReview({
+          runId,
+          bookingId: input.bookingId,
+          source: input.source,
+          beforeState: settlement.state,
+          reasonCodes: ["refund_release_claim_race"],
+        });
+      }
+
+      if (transfer) {
+        await recordTransferTruth(input.bookingId, transfer.id);
+      }
+
       if (!(await forceRefundPending(input.bookingId))) {
         return markHumanReview({
           runId,
@@ -970,8 +987,6 @@ export async function reconcilePlatformHeldBookingSettlement(input: {
       }
 
       if (transfer) {
-        await recordTransferTruth(input.bookingId, transfer.id);
-
         const reversalBefore = await findReversal(
           stripe,
           settlement,
