@@ -20,11 +20,15 @@ This is a settlement gate, not an escrow product. Product copy and internal docu
 
 ## Current production boundary
 
-Production remains on `connect_destination` until the controlled release path is complete and certified. In the existing flow, `payment_intent_data.transfer_data.destination` moves the provider amount into the connected Stripe account as part of the charge. That is too late for a KLYX pre-transfer risk decision.
+Production remains on `connect_destination`. The single-booking and booking-group `platform_held` paths are Stripe TEST-only and fail closed on any `sk_live_*` secret. Split settlement remains disabled until a later dedicated certification.
+
+The repository must not treat a successful TEST certification as permission to enable Live. Live activation requires the explicit readiness gate at the end of this document.
+
+The existing production destination-charge path remains unchanged until the controlled release path is complete and certified. In the existing flow, `payment_intent_data.transfer_data.destination` moves the provider amount into the connected Stripe account as part of the charge. That is too late for a KLYX pre-transfer risk decision.
 
 `lib/stripe-settlement-control.ts` therefore fails closed if `platform_held` is requested with a live Stripe secret. There is intentionally no live override in phase 1.
 
-## Phase-1 database control plane
+## Settlement control planes
 
 `booking_settlements` is server-only and stores one settlement unit per single booking:
 
@@ -37,6 +41,8 @@ Production remains on `connect_destination` until the controlled release path is
 - review/failure audit fields.
 
 The table is not readable or writable by `anon` or `authenticated` roles.
+
+`booking_group_settlements` applies the same invariant to one booking group with one provider: one frozen provider identity, one captured platform charge, one platform commission, one provider release amount and at most one Stripe Transfer. Child-booking ledger entries split the frozen group economics deterministically; the last child absorbs cent-rounding remainder so aggregate commission and provider amounts reconcile exactly to the captured group gross.
 
 ### State machine
 
@@ -76,9 +82,10 @@ The following order is mandatory:
 4. implement the single-booking Stripe Transfer side effect behind the atomic claim;
 5. reconcile refunds before release and transfer reversals after release;
 6. certify TEST network behavior, Golden Path, Security, Performance, E2E and UX on one SHA;
-7. extend the same invariant to booking groups and split-payment units;
-8. perform a legal/accounting review of business-of-record, funds-flow and country constraints;
-9. only then add an explicit live activation mechanism.
+7. certify the same invariant for booking groups in Stripe TEST;
+8. only after Group Booking is merged and certified, extend the invariant to split-payment units;
+9. perform a legal/accounting review of business-of-record, funds-flow and country constraints;
+10. only then add an explicit live activation mechanism.
 
 No production migration, Stripe payout-schedule mutation or Vercel deployment belongs to phase 1.
 
@@ -93,3 +100,27 @@ Phase 1 does **not**:
 - claim KLYX controls bank payouts;
 - apply the migration to production;
 - deploy to Vercel.
+
+
+## Group Booking TEST gate
+
+The group settlement gate is complete only when one immutable PR head proves all of the following:
+
+- a group contains at least two child bookings but exactly one settlement unit and one provider Transfer;
+- platform commission + provider release = captured group gross, including cent rounding;
+- all child bookings and the parent group are paid and completed before release;
+- the canonical KLYX account and canonical Stripe Connect identity still match the frozen settlement identity;
+- the Stripe recipient capability is re-read immediately before release and must still allow transfers;
+- a fresh `settlement_release` risk decision exists for `subject_type = booking_group`;
+- retries reconcile the existing Transfer instead of creating another;
+- a refund after release records the Transfer reversal before the customer refund can become terminal;
+- `sk_live_*` cannot execute Checkout, Transfer or reversal in the Platform-Held path;
+- split settlement remains disabled.
+
+## Live Readiness Gate
+
+Live remains **OFF** unless every proof below is present on the final integrated code lineage:
+
+`single + recovery + group + split + refunds + Trust & Safety + Stripe identity + reconciliation`
+
+A missing, stale or non-exact-head proof means the gate is **NOT READY**. No individual green subsystem can override a missing gate.
