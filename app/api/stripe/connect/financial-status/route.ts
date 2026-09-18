@@ -1,37 +1,25 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
-import {
-  apiErrorStatus,
-  getAuthenticatedAccount,
-} from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { apiErrorStatus, getAuthenticatedAccount } from "@/lib/api-auth";
 import {
-  getCanonicalStripeConnect,
-  isStripeConnectIdentityReviewRequired,
-  StripeConnectIdentityReviewRequiredError,
-} from "@/lib/stripe-connect-account";
+  assertStripeConnectIdentityUsable,
+  getAccountStripeConnectIdentity,
+  STRIPE_CONNECT_IDENTITY_CONFLICT,
+} from "@/lib/stripe-connect-account-identity";
 import { assertStripeRuntimeConfiguredForDiagnostics } from "@/lib/stripe-runtime";
-
-// KLYX_PROVIDER_STRIPE_FINANCIAL_VISIBILITY_16_07
-// KLYX_ACCOUNT_LEVEL_STRIPE_CONNECT_19_45
 
 function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();
-
-  if (!value) {
-    throw new Error(`Variable manquante : ${name}`);
-  }
-
+  if (!value) throw new Error(`Variable manquante : ${name}`);
   return value;
 }
 
 function noStoreJson(body: unknown, status = 200) {
   return NextResponse.json(body, {
     status,
-    headers: {
-      "Cache-Control": "private, no-store, max-age=0",
-    },
+    headers: { "Cache-Control": "private, no-store, max-age=0" },
   });
 }
 
@@ -40,20 +28,30 @@ export async function GET(request: Request) {
 
   try {
     const { account } = await getAuthenticatedAccount(request);
-
     assertStripeRuntimeConfiguredForDiagnostics();
 
-    const connect = await getCanonicalStripeConnect(account.id);
-
-    if (connect.state === "review_required") {
-      throw new StripeConnectIdentityReviewRequiredError();
+    const identity = await getAccountStripeConnectIdentity(account.id);
+    if (identity.state === "conflict") {
+      return noStoreJson(
+        {
+          connected: false,
+          reviewRequired: true,
+          code: STRIPE_CONNECT_IDENTITY_CONFLICT,
+          defaultCurrency: "eur",
+          available: [],
+          pending: [],
+          payouts: [],
+        },
+        409
+      );
     }
 
-    const stripeAccountId = connect.stripeAccountId?.trim();
+    const stripeAccountId = assertStripeConnectIdentityUsable(identity);
 
     if (!stripeAccountId) {
       return noStoreJson({
         connected: false,
+        reviewRequired: false,
         defaultCurrency: "eur",
         available: [],
         pending: [],
@@ -62,26 +60,29 @@ export async function GET(request: Request) {
     }
 
     const stripe = new Stripe(requiredEnv("STRIPE_SECRET_KEY"));
-
     const [stripeAccount, balance, payouts] = await Promise.all([
       stripe.accounts.retrieve(stripeAccountId),
       stripe.balance.retrieve({}, { stripeAccount: stripeAccountId }),
-      stripe.payouts.list(
-        {
-          limit: 5,
-        },
-        {
-          stripeAccount: stripeAccountId,
-        }
-      ),
+      stripe.payouts.list({ limit: 5 }, { stripeAccount: stripeAccountId }),
     ]);
 
     if ("deleted" in stripeAccount && stripeAccount.deleted) {
-      throw new StripeConnectIdentityReviewRequiredError();
+      return noStoreJson(
+        {
+          connected: false,
+          reviewRequired: true,
+          defaultCurrency: "eur",
+          available: [],
+          pending: [],
+          payouts: [],
+        },
+        409
+      );
     }
 
     return noStoreJson({
       connected: true,
+      reviewRequired: false,
       defaultCurrency: stripeAccount.default_currency || "eur",
       available: balance.available.map((entry) => ({
         amountCents: entry.amount,
@@ -104,23 +105,6 @@ export async function GET(request: Request) {
       })),
     });
   } catch (error) {
-    if (isStripeConnectIdentityReviewRequired(error)) {
-      return noStoreJson(
-        {
-          error:
-            "L'identité Stripe Connect de ce compte KLYX nécessite une revue.",
-          code: "KLYX_STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED",
-          reviewRequired: true,
-          connected: false,
-          defaultCurrency: "eur",
-          available: [],
-          pending: [],
-          payouts: [],
-        },
-        409
-      );
-    }
-
     const message =
       error instanceof Error
         ? error.message
