@@ -24,6 +24,7 @@ const trackingRoute = read("app/api/bookings/tracking/route.ts");
 const statusRoute = read("app/api/bookings/status/route.ts");
 const identity = read("lib/stripe-connect-account-identity.ts");
 const webhookEvents = read("lib/stripe-webhook-events.ts");
+const opsRoute = read("app/api/ops/settlement-reconciliation/route.ts");
 
 describe("KLYX settlement recovery / reconciliation contract", () => {
   it("is server-only, TEST-only and contains no LLM financial mutation path", () => {
@@ -239,5 +240,18 @@ describe("KLYX settlement recovery / reconciliation contract", () => {
     );
     expect(recovery).not.toContain("setInterval(");
     expect(recovery).not.toContain("while (true)");
+  });
+
+  it("exposes reconciliation and metrics only through a dedicated authenticated server endpoint", () => {
+    expect(opsRoute).toContain('import "server-only"');
+    expect(opsRoute).toContain("KLYX_SETTLEMENT_RECONCILIATION_SECRET");
+    expect(opsRoute).toContain("timingSafeEqual");
+    expect(opsRoute).toContain("export async function POST");
+    expect(opsRoute).toContain("export async function GET");
+    expect(opsRoute).toContain("reconcilePendingPlatformHeldSettlements");
+    expect(opsRoute).toContain("getPlatformHeldSettlementMetrics");
+    expect(opsRoute).toContain('source: "scheduled"');
+    expect(opsRoute).toContain('"Cache-Control": "no-store"');
+    expect(opsRoute).not.toContain("NEXT_PUBLIC_");
   });
 });
