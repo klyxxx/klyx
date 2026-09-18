@@ -13,6 +13,8 @@ function compact(source: string) {
 
 const migrationPath =
   "supabase/migrations/20260915200500_klyx_platform_held_settlement_fail_closed.sql";
+const claimQualificationMigrationPath =
+  "supabase/migrations/20260918130000_klyx_settlement_claim_sql_qualification.sql";
 
 describe("KLYX platform-held settlement fail-closed hardening", () => {
   it("requires completed paid single-booking held truth and a real source charge before SQL claim", () => {
@@ -76,6 +78,31 @@ describe("KLYX platform-held settlement fail-closed hardening", () => {
     expect(migration).toContain("set state = 'refunded'");
     expect(migration).toContain(
       "before update of payment_status, refund_status on public.bookings"
+    );
+  });
+
+  it("qualifies claim source columns so RETURNS TABLE outputs cannot shadow them", () => {
+    const migration = compact(read(claimQualificationMigrationPath));
+
+    expect(migration).toContain(
+      "create or replace function public.klyx_claim_booking_settlement_release"
+    );
+    expect(migration).toContain(
+      "select a.stripe_account_id, a.stripe_connect_state"
+    );
+    expect(migration).toContain("from public.accounts as a");
+    expect(migration).toContain("where a.id = v_account_id");
+    expect(migration).toContain(
+      "update public.booking_settlements as s set state = 'release_claimed', release_attempt_number = s.release_attempt_number + 1"
+    );
+    expect(migration).not.toContain(
+      "select stripe_account_id, stripe_connect_state"
+    );
+    expect(migration).toContain(
+      "revoke all on function public.klyx_claim_booking_settlement_release(uuid, uuid) from public, anon, authenticated"
+    );
+    expect(migration).toContain(
+      "grant execute on function public.klyx_claim_booking_settlement_release(uuid, uuid) to service_role"
     );
   });
 
