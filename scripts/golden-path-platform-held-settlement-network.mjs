@@ -587,16 +587,26 @@ async function runRefundBeforeReleaseScenario({
   }
 
   assert(
-    remoteRefund.livemode === false,
-    "Remote pre-release refund unexpectedly used live mode."
-  );
-  assert(
     remoteRefund.status === "succeeded",
     `Remote pre-release refund did not converge to succeeded: ${remoteRefund.status}.`
   );
   assert(
     stripeObjectId(remoteRefund.payment_intent) === intent.id,
     "Pre-release refund PaymentIntent mismatch."
+  );
+  const remoteRefundChargeId = stripeObjectId(remoteRefund.charge);
+  assert(
+    remoteRefundChargeId === charge.id,
+    "Pre-release refund source charge mismatch."
+  );
+  const remoteRefundCharge = await stripe.charges.retrieve(remoteRefundChargeId);
+  assert(
+    remoteRefundCharge.livemode === false,
+    "Pre-release refund source charge unexpectedly used live mode."
+  );
+  assert(
+    stripeObjectId(remoteRefundCharge.payment_intent) === intent.id,
+    "Pre-release refund source charge PaymentIntent mismatch."
   );
 
   const refundEvent = {
