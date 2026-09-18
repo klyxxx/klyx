@@ -6,18 +6,25 @@ import {
   requireAccountType,
 } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import {
+  getKlyxSettlementMode,
+  KLYX_PLATFORM_HELD_SETTLEMENT_MODE,
+} from "@/lib/stripe-settlement-control";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   enforceCheckoutTransactionRisk,
   isTransactionRiskGateError,
 } from "@/lib/transaction-risk-server";
 import { POST as corePost } from "./route-core";
+import { POST as platformHeldPost } from "./route-platform-held";
 
 /*
  * KLYX_PAYMENT_CORE_CONTRACT_MIRROR
  *
- * The executable payment authority lives in ./route-core.ts. Every @core token
- * below is verified against that file by the route/core bridge contract test.
+ * The executable legacy destination-charge authority lives in ./route-core.ts.
+ * Every @core token below is verified against that file by the route/core
+ * bridge contract. Platform-Held dispatch is additive after the same account
+ * risk preflight and does not replace legacy readiness/country authority.
  *
  * try { assertStripeRuntimeReady()
  * @core:assertStripeRuntimeReady()
@@ -84,6 +91,10 @@ export async function POST(request: Request) {
       subjectType: "booking_group",
       subjectId: groupId,
     });
+
+    if (getKlyxSettlementMode() === KLYX_PLATFORM_HELD_SETTLEMENT_MODE) {
+      return platformHeldPost(request);
+    }
 
     return corePost(request);
   } catch (error) {

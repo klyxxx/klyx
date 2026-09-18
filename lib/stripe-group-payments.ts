@@ -3,6 +3,7 @@ import "server-only";
 import type Stripe from "stripe";
 
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { distributeGroupSettlementEconomics } from "@/lib/group-settlement-economics";
 import { upsertFinancialLedgerEntry } from "@/lib/payment-ledger";
 import {
   calculateKlyxEconomics,
@@ -416,22 +417,47 @@ function groupPaymentEconomics(
       getKlyxCommissionPercent()
     );
 
-  const platformFee =
+  const providerSettlementMode =
     paymentMode ===
-    "connect_destination"
-      ? group.application_fee_amount ??
+      "connect_destination" ||
+    paymentMode ===
+      "platform_held";
+
+  const frozenFee =
+    group.platform_fee_amount ??
+    group.application_fee_amount;
+
+  const platformFee =
+    providerSettlementMode
+      ? frozenFee ??
         economics.platformFeeCents
       : 0;
 
   const providerAmount =
-    paymentMode ===
-    "connect_destination"
-      ? Math.max(
+    providerSettlementMode
+      ? group.provider_amount ??
+        Math.max(
           amountTotal -
             platformFee,
           0
         )
       : null;
+
+  if (
+    paymentMode ===
+      "platform_held" &&
+    (
+      frozenFee == null ||
+      group.provider_amount == null ||
+      platformFee +
+        group.provider_amount !==
+        amountTotal
+    )
+  ) {
+    throw new Error(
+      "KLYX_GROUP_HELD_ECONOMICS_MISMATCH"
+    );
+  }
 
   return {
     amountTotal,
@@ -475,80 +501,43 @@ async function upsertGroupPaymentLedgers(
     economics: GroupPaymentEconomics;
   }
 ) {
-  let distributedFee = 0;
+  const shares = distributeGroupSettlementEconomics({
+    childGrossAmountsCents: params.childRows.map((child) =>
+      Number(child.amount_total ?? 0)
+    ),
+    grossAmountCents: params.economics.amountTotal,
+    platformFeeCents: params.economics.platformFee,
+  });
 
-  for (
-    let index = 0;
-    index <
-    params.childRows.length;
-    index += 1
-  ) {
-    const child =
-      params.childRows[index];
-
-    const gross =
-      Number(
-        child.amount_total ??
-        0
-      );
-
-    const fee =
-      index ===
-      params.childRows.length - 1
-        ? Math.max(
-            params.economics.platformFee -
-              distributedFee,
-            0
-          )
-        : params.economics.amountTotal > 0
-          ? Math.floor(
-              params.economics.platformFee *
-                gross /
-                params.economics.amountTotal
-            )
-          : 0;
-
-    distributedFee +=
-      fee;
-
-    const childProviderAmount =
-      params.economics.paymentMode ===
-      "connect_destination"
-        ? Math.max(
-            gross - fee,
-            0
-          )
-        : null;
+  for (let index = 0; index < params.childRows.length; index += 1) {
+    const child = params.childRows[index];
+    const share = shares[index];
 
     await upsertFinancialLedgerEntry({
-      bookingId:
-        child.id,
+      bookingId: child.id,
       entryKey:
         "booking:" +
         child.id +
         ":group-payment:" +
         params.session.id,
-      entryType:
-        "payment_succeeded",
-      status:
-        "succeeded",
-      currency:
-        childCurrencyCode(
-          child,
-          params.canonicalGroupCurrency
-        ),
-      grossAmountCents:
-        gross,
-      platformFeeCents:
-        fee,
+      entryType: "payment_succeeded",
+      status: "succeeded",
+      currency: childCurrencyCode(
+        child,
+        params.canonicalGroupCurrency
+      ),
+      grossAmountCents: share.grossAmountCents,
+      platformFeeCents: share.platformFeeCents,
       providerAmountCents:
-        childProviderAmount,
-      paymentMode:
-        params.economics.paymentMode,
-      stripeCheckoutSessionId:
-        params.session.id,
-      stripePaymentIntentId:
-        params.incomingIntent,
+        [
+          "connect_destination",
+          "platform_held",
+        ].includes(params.economics.paymentMode)
+          ? share.providerAmountCents
+          : null,
+      paymentMode: params.economics.paymentMode,
+      stripeCheckoutSessionId: params.session.id,
+      stripePaymentIntentId: params.incomingIntent,
     });
   }
 }
