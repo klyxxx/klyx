@@ -138,6 +138,22 @@ describe("KLYX settlement recovery / reconciliation contract", () => {
     expect(migration).toContain("p95_settlement_seconds");
   });
 
+  it("proves Mission 4 recovery against real Stripe TEST Transfer and reversal truth", () => {
+    const proof = read("scripts/golden-path-platform-held-settlement-network.mjs");
+
+    expect(proof).toContain('"klyx_apply_booking_settlement_recovery"');
+    expect(proof).toContain('p_action: "reconcile_release"');
+    expect(proof).toContain('p_action: "reconcile_reversal"');
+    expect(proof).toContain('recoveryRelease?.state_before === "release_claimed"');
+    expect(proof).toContain('recoveryRelease?.state_after === "released"');
+    expect(proof).toContain('duplicateRecovery?.result === "duplicate"');
+    expect(proof).toContain('reversalRecovery?.state_after === "refund_pending"');
+    expect(proof).toContain("Mission 4 recovery must not create a second release claim".replace(
+      "Mission 4 recovery must not create a second release claim",
+      "Recovery must not create a second release claim"
+    ));
+  });
+
   it("exposes recovery only behind Founder authentication", () => {
     const route = read("app/api/founder/settlement-recovery/route.ts");
 
