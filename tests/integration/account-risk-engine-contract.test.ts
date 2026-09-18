@@ -22,9 +22,9 @@ describe("canonical account risk engine contract", () => {
   it("uses canonical Stripe Connect state instead of legacy profile readiness", () => {
     const source = read("lib/account-risk-server.ts");
 
-    expect(source).toContain("getCanonicalStripeConnect(account.id)");
+    expect(source).toContain("getAccountStripeConnectIdentity(account.id)");
     expect(source).toContain('connect?.state === "linked"');
-    expect(source).toContain('connect?.state === "review_required"');
+    expect(source).toContain('connect?.state === "conflict"');
     expect(source).not.toContain("stripe_onboarding_complete");
     expect(source).not.toContain("service_profiles");
   });
