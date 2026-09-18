@@ -1,6 +1,6 @@
 import {
-  releasePlatformHeldBookingSettlement,
-} from "@/lib/booking-settlement-server";
+  reconcilePlatformHeldBookingSettlement,
+} from "@/lib/booking-settlement-reconciliation-server";
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { logServerError } from "@/lib/server-log";
 import { POST as corePost } from "./route-core";
@@ -43,11 +43,33 @@ export async function POST(request: Request) {
       bookingId
     ) {
       try {
-        await releasePlatformHeldBookingSettlement(bookingId);
+        const settlement = await reconcilePlatformHeldBookingSettlement({
+          bookingId,
+          source: "release",
+        });
+
+        if (
+          settlement.status === "failed" ||
+          settlement.status === "human_review"
+        ) {
+          logServerError({
+            event: "platform_held_settlement_reconciliation_attention",
+            route: "/api/bookings/tracking",
+            method: "POST",
+            status: 500,
+            code:
+              settlement.reasonCode ??
+              "platform_held_settlement_reconciliation_attention",
+            error: new Error(
+              settlement.reasonCode ??
+                "Platform-held settlement requires reconciliation attention."
+            ),
+          });
+        }
       } catch (error) {
         // Mission completion is authoritative and must not be undone because a
-        // financial settlement needs retry/reconciliation. The settlement
-        // control plane remains fail-closed before any later Transfer.
+        // financial settlement needs retry/reconciliation. Recovery searches
+        // Stripe truth first and remains fail-closed before any later Transfer.
         logServerError({
           event: "platform_held_settlement_release_failed",
           route: "/api/bookings/tracking",
