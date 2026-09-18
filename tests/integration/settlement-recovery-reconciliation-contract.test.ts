@@ -75,6 +75,21 @@ describe("KLYX settlement recovery / reconciliation contract", () => {
     );
   });
 
+  it("fails closed when a refund races an unresolved release claim", () => {
+    expect(recovery).toContain(
+      'settlement.state === "release_claimed"'
+    );
+    expect(recovery).toContain(
+      '"refund_release_claim_race"'
+    );
+    expect(migration).toContain(
+      "state <> 'release_claimed' or stripe_transfer_id is not null"
+    );
+    expect(migration).toContain(
+      "state <> 'human_review'"
+    );
+  });
+
   it("recovers reversal-created / DB-not-finalized and fences refund against release", () => {
     const refundFenceIndex = recovery.indexOf(
       'input.source === "refund"'
