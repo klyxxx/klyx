@@ -1,11 +1,8 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
-import {
-  apiErrorStatus,
-  getAuthenticatedAccount,
-} from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { apiErrorStatus, getAuthenticatedAccount } from "@/lib/api-auth";
 import {
   assessKlyxMarketReadiness,
   getKlyxMarketReadiness,
@@ -17,27 +14,17 @@ import {
 } from "@/lib/stripe-connect-country";
 import { isMissingStripeConnectAccount } from "@/lib/stripe-connect-account-recovery";
 import {
-  getCanonicalStripeConnect,
-  isStripeConnectIdentityReviewRequired,
-  markStripeConnectIdentityReview,
-  resolveCanonicalAccountCountry,
-  StripeConnectIdentityReviewRequiredError,
-  updateCanonicalStripeAccountStatus,
-} from "@/lib/stripe-connect-account";
+  assertStripeConnectIdentityUsable,
+  getAccountStripeConnectIdentity,
+  STRIPE_CONNECT_IDENTITY_CONFLICT,
+  STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED,
+} from "@/lib/stripe-connect-account-identity";
 import { assertStripeConnectRuntimeConfigured } from "@/lib/stripe-runtime";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
-// KLYX_PROVIDER_LIVE_PAYMENT_READINESS_STATUS_15_06
-// KLYX_PROVIDER_LIVE_SWITCH_DIAGNOSTIC_16_06
-// KLYX_ACCOUNT_LEVEL_STRIPE_CONNECT_19_45
-
 function requiredEnv(name: string): string {
   const value = process.env[name];
-
-  if (!value) {
-    throw new Error(`Variable manquante : ${name}`);
-  }
-
+  if (!value) throw new Error(`Variable manquante : ${name}`);
   return value;
 }
 
@@ -45,25 +32,17 @@ export async function GET(request: Request) {
   const startedAt = Date.now();
 
   try {
-    const { account: klyxAccount } = await getAuthenticatedAccount(request);
-
+    const { account, profile: activeProfile } =
+      await getAuthenticatedAccount(request);
     const stripeRuntime = assertStripeConnectRuntimeConfigured();
     const stripe = new Stripe(requiredEnv("STRIPE_SECRET_KEY"));
-
-    const { data: countryRows, error: countryError } = await supabaseAdmin
-      .from("profiles")
-      .select("country_code")
-      .eq("account_id", klyxAccount.id);
-
-    if (countryError) throw new Error(countryError.message);
-
-    const accountCountry = resolveCanonicalAccountCountry(
-      (countryRows ?? []).map((row) => row.country_code)
-    );
-    const marketReadiness = getKlyxMarketReadiness(accountCountry);
+    const marketReadiness = getKlyxMarketReadiness(activeProfile.countryCode);
     const marketAssessment = assessKlyxMarketReadiness(marketReadiness);
 
-    const disconnectedResponse = () => {
+    const disconnectedResponse = (
+      accountUnavailable = false,
+      reviewRequired = false
+    ) => {
       const readiness = assessKlyxProviderPaymentReadiness({
         runtimeMode: stripeRuntime.mode,
         livePaymentsEnabled: stripeRuntime.livePaymentsEnabled,
@@ -80,8 +59,8 @@ export async function GET(request: Request) {
         chargesEnabled: false,
         payoutsEnabled: false,
         accountId: null,
-        accountUnavailable: false,
-        reviewRequired: false,
+        accountUnavailable,
+        reviewRequired,
         runtimeMode: stripeRuntime.mode,
         livePaymentsEnabled: stripeRuntime.livePaymentsEnabled,
         countryCode: marketReadiness.countryCode,
@@ -90,39 +69,42 @@ export async function GET(request: Request) {
         marketCommerciallyReady: marketAssessment.ready,
         marketBlockers: marketAssessment.blockers,
         ...readiness,
-        paymentBlockReason: readiness.blockReason,
+        paymentBlockReason: reviewRequired
+          ? STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED
+          : readiness.blockReason,
       });
     };
 
-    const connect = await getCanonicalStripeConnect(klyxAccount.id);
+    const identity = await getAccountStripeConnectIdentity(account.id);
 
-    if (connect.state === "review_required") {
-      throw new StripeConnectIdentityReviewRequiredError();
+    if (identity.state === "conflict") {
+      return NextResponse.json(
+        {
+          error:
+            "Plusieurs identités Stripe historiques sont associées à ce compte KLYX. Une revue est requise.",
+          code: STRIPE_CONNECT_IDENTITY_CONFLICT,
+          reviewRequired: true,
+        },
+        { status: 409 }
+      );
     }
 
-    if (!connect.stripeAccountId) {
-      return disconnectedResponse();
-    }
+    const stripeAccountId = assertStripeConnectIdentityUsable(identity);
+    if (!stripeAccountId) return disconnectedResponse(false, false);
 
     let stripeAccount: Stripe.Account;
 
     try {
-      stripeAccount = await stripe.accounts.retrieve(connect.stripeAccountId);
+      stripeAccount = await stripe.accounts.retrieve(stripeAccountId);
     } catch (error) {
       if (isMissingStripeConnectAccount(error)) {
-        await markStripeConnectIdentityReview({
-          accountId: klyxAccount.id,
-          reason: "stored_stripe_account_unavailable",
-          candidateStripeAccountIds: [connect.stripeAccountId],
-        });
-        throw new StripeConnectIdentityReviewRequiredError();
+        return disconnectedResponse(true, true);
       }
-
       throw error;
     }
 
     const countryAssessment = assessStripeConnectCountry({
-      klyxCountryCode: accountCountry,
+      klyxCountryCode: activeProfile.countryCode,
       stripeCountryCode: stripeAccount.country,
     });
     const countryMismatch = !countryAssessment.matches;
@@ -130,10 +112,16 @@ export async function GET(request: Request) {
     const chargesEnabled = Boolean(stripeAccount.charges_enabled);
     const payoutsEnabled = Boolean(stripeAccount.payouts_enabled);
 
-    await updateCanonicalStripeAccountStatus({
-      accountId: klyxAccount.id,
-      stripeAccount,
-    });
+    const { error: updateError } = await supabaseAdmin
+      .from("profiles")
+      .update({
+        stripe_onboarding_complete: onboardingComplete,
+        stripe_charges_enabled: chargesEnabled,
+        stripe_payouts_enabled: payoutsEnabled,
+      })
+      .eq("account_id", account.id);
+
+    if (updateError) throw new Error(updateError.message);
 
     const readiness = assessKlyxProviderPaymentReadiness({
       runtimeMode: stripeRuntime.mode,
@@ -172,18 +160,6 @@ export async function GET(request: Request) {
           : readiness.blockReason,
     });
   } catch (error) {
-    if (isStripeConnectIdentityReviewRequired(error)) {
-      return NextResponse.json(
-        {
-          error:
-            "L'identité Stripe Connect de ce compte KLYX nécessite une revue.",
-          code: "KLYX_STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED",
-          reviewRequired: true,
-        },
-        { status: 409 }
-      );
-    }
-
     const message =
       error instanceof Error
         ? error.message
