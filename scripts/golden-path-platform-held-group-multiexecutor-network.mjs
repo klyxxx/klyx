@@ -1,0 +1,1156 @@
+import { createHash, createHmac, randomUUID } from "node:crypto";
+import fs from "node:fs";
+
+import { createClient } from "@supabase/supabase-js";
+import Stripe from "stripe";
+
+import {
+  assertGoldenPathIsolation,
+  requiredGoldenPathEnv,
+} from "./golden-path-runtime.mjs";
+
+const ACTIVE_PROFILE_COOKIE = "klyx_active_profile";
+const FLOW = "platform_held_group_multiexecutor";
+const PAYMENT_MODE = "platform_held_group";
+const PROOF_PATH =
+  "stripe-network-proof/platform-held-group-multiexecutor-proof.json";
+
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+function hash(value) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function yesterdayDate() {
+  return new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+}
+
+function stripeObjectId(value) {
+  return typeof value === "string" ? value : value?.id ?? null;
+}
+
+async function requestJson({
+  appOrigin,
+  accessToken,
+  profileId,
+  path,
+  method,
+  body,
+  headers = {},
+  expectedStatuses = [200],
+}) {
+  const requestHeaders = { "Content-Type": "application/json", ...headers };
+  if (accessToken) requestHeaders.Authorization = "Bearer " + accessToken;
+  if (profileId) {
+    requestHeaders.Cookie =
+      ACTIVE_PROFILE_COOKIE + "=" + encodeURIComponent(profileId);
+  }
+
+  const response = await fetch(appOrigin + path, {
+    method,
+    headers: requestHeaders,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+  const raw = await response.text();
+  const payload = raw ? JSON.parse(raw) : null;
+
+  if (!expectedStatuses.includes(response.status)) {
+    throw new Error(
+      method +
+        " " +
+        path +
+        " returned " +
+        response.status +
+        ": " +
+        String(payload?.error ?? "unexpected response")
+    );
+  }
+
+  return { status: response.status, payload };
+}
+
+function signedStripeEvent(event, webhookSecret) {
+  const timestamp = Math.floor(Date.now() / 1000);
+  const raw = JSON.stringify(event);
+  const signature = createHmac("sha256", webhookSecret)
+    .update(String(timestamp) + "." + raw, "utf8")
+    .digest("hex");
+  return { raw, signature: "t=" + timestamp + ",v1=" + signature };
+}
+
+async function postWebhook({ appOrigin, webhookSecret, event }) {
+  const signed = signedStripeEvent(event, webhookSecret);
+  return requestJson({
+    appOrigin,
+    path: "/api/stripe/webhook",
+    method: "POST",
+    body: undefined,
+    headers: {
+      "stripe-signature": signed.signature,
+      "Content-Type": "application/json",
+    },
+    expectedStatuses: [200],
+    rawBody: signed.raw,
+  });
+}
+
+async function postWebhookRaw({ appOrigin, webhookSecret, event }) {
+  const signed = signedStripeEvent(event, webhookSecret);
+  const response = await fetch(appOrigin + "/api/stripe/webhook", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "stripe-signature": signed.signature,
+    },
+    body: signed.raw,
+  });
+  const raw = await response.text();
+  const payload = raw ? JSON.parse(raw) : null;
+  if (response.status !== 200) {
+    throw new Error(
+      "Stripe webhook returned " +
+        response.status +
+        ": " +
+        String(payload?.error ?? "unexpected response")
+    );
+  }
+  return payload;
+}
+
+async function insertOne(admin, table, payload, select = "*") {
+  const { data, error } = await admin.from(table).insert(payload).select(select).single();
+  if (error) throw new Error(table + " insert failed: " + error.message);
+  return data;
+}
+
+async function createProvider({
+  admin,
+  supabaseUrl,
+  publishableKey,
+  serviceId,
+  label,
+}) {
+  const email =
+    "group-held-" + label + "-" + randomUUID().replaceAll("-", "") + "@example.test";
+  const password = "Klyx-" + randomUUID() + "-Test9!";
+
+  const { data: created, error: createError } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { full_name: "KLYX Group " + label, account_type: "provider" },
+  });
+  if (createError || !created.user) {
+    throw new Error(
+      "Unable to create " + label + " provider auth user: " +
+        String(createError?.message ?? "missing user")
+    );
+  }
+
+  const client = createClient(supabaseUrl, publishableKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const { data: signed, error: signError } = await client.auth.signInWithPassword({
+    email,
+    password,
+  });
+  if (signError || !signed.session) {
+    throw new Error("Unable to sign in " + label + " provider.");
+  }
+
+  const { data: profileId, error: profileError } = await client.rpc(
+    "klyx_create_profile",
+    {
+      p_first_name: "Group",
+      p_last_name: label,
+      p_city: "Bruxelles",
+      p_account_type: "provider",
+      p_service_id: serviceId,
+    }
+  );
+  if (profileError || typeof profileId !== "string") {
+    throw new Error(
+      "Unable to create " + label + " provider profile: " +
+        String(profileError?.message ?? "invalid id")
+    );
+  }
+
+  const { data: profile, error: normalizeError } = await admin
+    .from("profiles")
+    .update({
+      country_code: "BE",
+      currency_code: "EUR",
+      city: "Bruxelles",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", profileId)
+    .select("id, account_id, owner_user_id")
+    .single();
+
+  if (normalizeError || !profile?.account_id) {
+    throw new Error(
+      "Unable to normalize " + label + " provider: " +
+        String(normalizeError?.message ?? "missing account")
+    );
+  }
+
+  const { error: capabilityError } = await admin
+    .from("account_actor_capabilities")
+    .upsert(
+      {
+        account_id: profile.account_id,
+        capability: "offer_services",
+        enabled: true,
+        source: "golden_path",
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "account_id,capability" }
+    );
+  if (capabilityError) throw new Error(capabilityError.message);
+
+  const { data: userService, error: serviceError } = await admin
+    .from("user_services")
+    .select("id")
+    .eq("user_id", profile.id)
+    .eq("service_id", serviceId)
+    .maybeSingle();
+
+  if (serviceError || !userService?.id) {
+    throw new Error(
+      "Unable to load " + label + " provider service: " +
+        String(serviceError?.message ?? "missing user_service")
+    );
+  }
+
+  await admin
+    .from("user_services")
+    .update({ active: true, provider_enabled: true })
+    .eq("id", userService.id);
+
+  await client.auth.signOut();
+
+  return {
+    id: profile.id,
+    accountId: profile.account_id,
+    userId: created.user.id,
+    email,
+    userServiceId: userService.id,
+  };
+}
+
+function recipientReady(account) {
+  return Boolean(
+    account?.livemode === false &&
+      account?.identity?.country === "BE" &&
+      account?.applied_configurations?.includes("recipient") === true &&
+      account?.configuration?.recipient?.applied === true &&
+      account?.configuration?.recipient?.capabilities?.stripe_balance
+        ?.stripe_transfers?.status === "active"
+  );
+}
+
+async function createRecipient(stripe, provider, label) {
+  const created = await stripe.v2.core.accounts.create(
+    {
+      contact_email:
+        "stripe-group-" + label + "-" + randomUUID().replaceAll("-", "") + "@example.com",
+      display_name: "KLYX Group " + label,
+      dashboard: "none",
+      identity: {
+        country: "BE",
+        entity_type: "individual",
+        attestations: {
+          terms_of_service: {
+            account: {
+              date: new Date().toISOString(),
+              ip: "127.0.0.1",
+              user_agent: "KLYX Stripe TEST group certification",
+            },
+          },
+        },
+        individual: {
+          given_name: "Klyx",
+          surname: "Group" + label,
+          email:
+            "stripe-id-" + label + "-" + randomUUID().replaceAll("-", "") + "@example.com",
+          phone: label === "A" ? "+32470123451" : "+32470123452",
+          date_of_birth: { day: label === "A" ? 2 : 3, month: 1, year: 1902 },
+          address: {
+            line1: "address_full_match",
+            city: "Bruxelles",
+            postal_code: "1000",
+            country: "BE",
+          },
+        },
+      },
+      configuration: {
+        recipient: {
+          capabilities: {
+            stripe_balance: {
+              stripe_transfers: { requested: true },
+            },
+          },
+        },
+      },
+      defaults: {
+        currency: "eur",
+        responsibilities: {
+          fees_collector: "application",
+          losses_collector: "application",
+        },
+      },
+      metadata: {
+        klyx_platform_held_group_network_fixture: "true",
+        klyx_provider_profile_id: provider.id,
+      },
+      include: ["configuration.recipient", "identity", "requirements"],
+    },
+    {
+      idempotencyKey:
+        "klyx-platform-held-group-network-" + provider.id,
+    }
+  );
+
+  await stripe.accounts.update(created.id, {
+    business_profile: { url: "https://accessible.stripe.com" },
+  });
+
+  let account = await stripe.v2.core.accounts.retrieve(created.id, {
+    include: ["configuration.recipient", "identity", "requirements"],
+  });
+
+  for (let attempt = 0; attempt < 20 && !recipientReady(account); attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    account = await stripe.v2.core.accounts.retrieve(created.id, {
+      include: ["configuration.recipient", "identity", "requirements"],
+    });
+  }
+
+  assert(recipientReady(account), label + " Stripe recipient is not transfer-ready.");
+  return account;
+}
+
+async function bindRecipient(admin, provider, stripeAccountId) {
+  const { error: identityError } = await admin
+    .from("account_stripe_connect_identities")
+    .upsert(
+      {
+        account_id: provider.accountId,
+        stripe_account_id: stripeAccountId,
+        identity_state: "linked",
+        source_profile_ids: [provider.id],
+        conflicting_stripe_account_ids: [],
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "account_id" }
+    );
+  if (identityError) throw new Error(identityError.message);
+
+  const { error: profileError } = await admin
+    .from("profiles")
+    .update({
+      stripe_account_id: stripeAccountId,
+      stripe_onboarding_complete: true,
+      stripe_charges_enabled: true,
+      stripe_payouts_enabled: true,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", provider.id)
+    .eq("account_id", provider.accountId);
+  if (profileError) throw new Error(profileError.message);
+}
+
+async function closeRecipient(stripe, accountId) {
+  try {
+    const account = await stripe.v2.core.accounts.retrieve(accountId, {
+      include: ["configuration.recipient", "identity", "requirements"],
+    });
+    if (account?.closed === true) return;
+    const configurations = account.applied_configurations ?? [];
+    if (configurations.length === 0) return;
+    const closed = await stripe.v2.core.accounts.close(accountId, {
+      applied_configurations: configurations,
+    });
+    assert(closed.closed === true, "Stripe TEST recipient did not close.");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!/closed|not found|resource_missing/i.test(message)) throw error;
+  }
+}
+
+async function setupBatch({
+  admin,
+  clientId,
+  serviceId,
+  providerA,
+  providerB,
+  stripeA,
+  stripeB,
+}) {
+  const now = new Date().toISOString();
+  const date = yesterdayDate();
+
+  const request = await insertOne(
+    admin,
+    "market_service_requests",
+    {
+      client_profile_id: clientId,
+      service_id: serviceId,
+      title: "Stripe TEST Platform-Held multi-executor proof",
+      description: "Ephemeral Group Booking settlement proof.",
+      city: "Bruxelles",
+      requested_date: date,
+      requested_time: "09:00",
+      budget_max: 101,
+      budget_total: 101,
+      status: "open",
+      request_mode: "multi_slot",
+      slot_count: 3,
+      prefer_single_provider: false,
+      country_code: "BE",
+      currency: "EUR",
+    },
+    "id"
+  );
+
+  const planConfirmation = await insertOne(
+    admin,
+    "market_split_plan_confirmations",
+    {
+      market_request_id: request.id,
+      client_profile_id: clientId,
+      plan_hash: hash("group-plan-" + request.id),
+      plan_snapshot: { proof: true, slots: 3, providers: 2 },
+      slot_count: 3,
+      provider_count: 2,
+    },
+    "id, plan_hash"
+  );
+
+  const batch = await insertOne(
+    admin,
+    "split_booking_batches",
+    {
+      market_request_id: request.id,
+      client_profile_id: clientId,
+      confirmation_id: planConfirmation.id,
+      plan_hash: planConfirmation.plan_hash,
+      status: "creating",
+      expected_booking_count: 3,
+      provider_count: 2,
+    },
+    "id"
+  );
+
+  const specs = [
+    {
+      provider: providerA,
+      amount: 3333,
+      start: "09:00",
+      end: "10:00",
+      position: 1,
+    },
+    {
+      provider: providerA,
+      amount: 3334,
+      start: "11:00",
+      end: "12:00",
+      position: 2,
+    },
+    {
+      provider: providerB,
+      amount: 3334,
+      start: "13:00",
+      end: "14:00",
+      position: 3,
+    },
+  ];
+
+  const bookings = [];
+  for (const spec of specs) {
+    const booking = await insertOne(
+      admin,
+      "bookings",
+      {
+        babysitter_id: spec.provider.id,
+        provider_id: spec.provider.id,
+        parent_id: clientId,
+        booking_date: date,
+        start_time: spec.start,
+        end_time: spec.end,
+        status: "accepted",
+        payment_status: "unpaid",
+        service_status: "scheduled",
+        amount_total: spec.amount,
+        estimated_amount_cents: spec.amount,
+        currency: "EUR",
+        service_id: serviceId,
+        user_service_id: spec.provider.userServiceId,
+        pricing_type_snapshot: "fixed",
+        unit_price_cents: spec.amount,
+        country_code: "BE",
+        accepted_at: now,
+        updated_at: now,
+      },
+      "id"
+    );
+    bookings.push({ ...booking, ...spec });
+  }
+
+  const { error: itemError } = await admin.from("split_booking_batch_items").insert(
+    bookings.map((booking) => ({
+      batch_id: batch.id,
+      booking_id: booking.id,
+      slot_id: "group-held-" + batch.id + "-" + booking.position,
+      slot_position: booking.position,
+      provider_profile_id: booking.provider.id,
+      user_service_id: booking.provider.userServiceId,
+    }))
+  );
+  if (itemError) throw new Error(itemError.message);
+
+  const { error: readyError } = await admin
+    .from("split_booking_batches")
+    .update({ status: "created", completed_at: now, updated_at: now })
+    .eq("id", batch.id);
+  if (readyError) throw new Error(readyError.message);
+
+  const priceConfirmation = await insertOne(
+    admin,
+    "split_booking_price_confirmations",
+    {
+      batch_id: batch.id,
+      client_profile_id: clientId,
+      price_hash: hash("group-price-" + batch.id),
+      price_snapshot: { proof: true, total_amount_cents: 10001 },
+      item_count: 3,
+      total_amount_cents: 10001,
+      currency: "EUR",
+    },
+    "id"
+  );
+
+  const units = [
+    {
+      providerId: providerA.id,
+      amountCents: 6667,
+      currency: "EUR",
+      bookingIds: bookings
+        .filter((booking) => booking.provider.id === providerA.id)
+        .map((booking) => booking.id)
+        .sort(),
+      stripeAccountId: stripeA.id,
+    },
+    {
+      providerId: providerB.id,
+      amountCents: 3334,
+      currency: "EUR",
+      bookingIds: bookings
+        .filter((booking) => booking.provider.id === providerB.id)
+        .map((booking) => booking.id)
+        .sort(),
+      stripeAccountId: stripeB.id,
+    },
+  ].sort((a, b) => a.providerId.localeCompare(b.providerId));
+
+  const canonicalPlan = {
+    batchId: batch.id,
+    priceConfirmationId: priceConfirmation.id,
+    providerCount: 2,
+    paymentUnitCount: 2,
+    totalAmountCents: 10001,
+    currency: "EUR",
+    units,
+  };
+
+  const paymentConfirmation = await insertOne(
+    admin,
+    "split_booking_payment_confirmations",
+    {
+      batch_id: batch.id,
+      client_profile_id: clientId,
+      price_confirmation_id: priceConfirmation.id,
+      payment_plan_hash: hash(JSON.stringify(canonicalPlan)),
+      payment_plan_snapshot: canonicalPlan,
+      provider_count: 2,
+      payment_unit_count: 2,
+      total_amount_cents: 10001,
+      currency: "EUR",
+    },
+    "id"
+  );
+
+  return { batch, bookings, paymentConfirmation, canonicalPlan };
+}
+
+async function loadParent(admin, batchId) {
+  const { data, error } = await admin
+    .from("platform_held_group_settlements")
+    .select("*")
+    .eq("batch_id", batchId)
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+async function loadMembers(admin, parentId) {
+  const { data, error } = await admin
+    .from("platform_held_group_settlement_members")
+    .select("*")
+    .eq("group_settlement_id", parentId);
+  if (error) throw new Error(error.message);
+  return data ?? [];
+}
+
+async function completeBooking({
+  admin,
+  appOrigin,
+  accessToken,
+  clientId,
+  bookingId,
+}) {
+  const now = new Date().toISOString();
+  const { error } = await admin
+    .from("bookings")
+    .update({
+      service_status: "in_progress",
+      provider_finished_at: now,
+      updated_at: now,
+    })
+    .eq("id", bookingId);
+  if (error) throw new Error(error.message);
+
+  return requestJson({
+    appOrigin,
+    accessToken,
+    profileId: clientId,
+    path: "/api/bookings/tracking",
+    method: "POST",
+    body: { bookingId, action: "client_confirmed", note: "Stripe TEST proof." },
+  });
+}
+
+async function main() {
+  const { e2eOrigin, localSupabase } = assertGoldenPathIsolation();
+  assert(localSupabase, "Group settlement network proof requires local Supabase.");
+
+  const appOrigin = new URL(requiredGoldenPathEnv("NEXT_PUBLIC_APP_URL")).origin;
+  assert(
+    appOrigin === "http://127.0.0.1:3100",
+    "Group settlement network proof requires isolated KLYX on port 3100."
+  );
+
+  const stripeKey = requiredGoldenPathEnv("STRIPE_SECRET_KEY");
+  const publishable = requiredGoldenPathEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
+  const serviceRole = requiredGoldenPathEnv("SUPABASE_SERVICE_ROLE_KEY");
+  const email = requiredGoldenPathEnv("KLYX_E2E_EMAIL");
+  const password = requiredGoldenPathEnv("KLYX_E2E_PASSWORD");
+  const webhookSecret = requiredGoldenPathEnv("STRIPE_WEBHOOK_SECRET");
+
+  assert(stripeKey.startsWith("sk_test_"), "Stripe TEST secret key required.");
+  assert(
+    process.env.KLYX_STRIPE_MODE === "test" &&
+      process.env.KLYX_STRIPE_SETTLEMENT_MODE === "platform_held" &&
+      process.env.KLYX_SETTLEMENT_CONTROL_TEST_READY === "true" &&
+      process.env.KLYX_LIVE_PAYMENTS_ENABLED === "false",
+    "Unsafe group settlement network runtime."
+  );
+
+  const admin = createClient(e2eOrigin, serviceRole, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const userClient = createClient(e2eOrigin, publishable, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  const stripe = new Stripe(stripeKey);
+
+  const { data: signIn, error: signInError } = await userClient.auth.signInWithPassword({
+    email,
+    password,
+  });
+  if (signInError || !signIn.session || !signIn.user) {
+    throw new Error("Unable to authenticate group settlement proof client.");
+  }
+
+  const accessToken = signIn.session.access_token;
+  const { data: profiles, error: profileError } = await admin
+    .from("profiles")
+    .select("id, account_type")
+    .eq("owner_user_id", signIn.user.id);
+  if (profileError) throw new Error(profileError.message);
+
+  const client = (profiles ?? []).find((profile) => profile.account_type === "client");
+  assert(client, "Golden client profile missing.");
+
+  const { data: service, error: serviceError } = await admin
+    .from("services")
+    .select("id")
+    .limit(1)
+    .single();
+  if (serviceError || !service) throw new Error("Service catalog missing.");
+
+  let stripeA = null;
+  let stripeB = null;
+  let stripeBClosed = false;
+  let checkoutSessionId = null;
+
+  try {
+    const providerA = await createProvider({
+      admin,
+      supabaseUrl: e2eOrigin,
+      publishableKey: publishable,
+      serviceId: service.id,
+      label: "A",
+    });
+    const providerB = await createProvider({
+      admin,
+      supabaseUrl: e2eOrigin,
+      publishableKey: publishable,
+      serviceId: service.id,
+      label: "B",
+    });
+
+    stripeA = await createRecipient(stripe, providerA, "A");
+    stripeB = await createRecipient(stripe, providerB, "B");
+    assert(stripeA.id !== stripeB.id, "Proof recipients must be distinct.");
+
+    await bindRecipient(admin, providerA, stripeA.id);
+    await bindRecipient(admin, providerB, stripeB.id);
+
+    const fixture = await setupBatch({
+      admin,
+      clientId: client.id,
+      serviceId: service.id,
+      providerA,
+      providerB,
+      stripeA,
+      stripeB,
+    });
+
+    const checkout = await requestJson({
+      appOrigin,
+      accessToken,
+      profileId: client.id,
+      path: "/api/bookings/split-missions/" + fixture.batch.id + "/checkout",
+      method: "POST",
+      body: { checkoutPreparationConfirmed: true },
+    });
+
+    assert(checkout.payload?.paymentMode === PAYMENT_MODE, "Wrong payment mode.");
+    assert(checkout.payload?.executorCount === 2, "Expected two executors.");
+    assert(checkout.payload?.amountTotalCents === 10001, "Gross amount mismatch.");
+    checkoutSessionId = new URL(checkout.payload.url).pathname.split("/").filter(Boolean).pop();
+
+    let parent = await loadParent(admin, fixture.batch.id);
+    assert(parent.state === "pending_payment", "Parent must begin pending_payment.");
+    assert(
+      parent.stripe_checkout_session_id?.startsWith("cs_"),
+      "Real Checkout session was not attached."
+    );
+    checkoutSessionId = parent.stripe_checkout_session_id;
+
+    let members = await loadMembers(admin, parent.id);
+    assert(members.length === 2, "Expected exactly two frozen executor settlements.");
+    assert(
+      members.reduce((sum, row) => sum + Number(row.gross_amount_cents), 0) === 10001,
+      "Member gross totals do not reconcile."
+    );
+    assert(
+      members.reduce((sum, row) => sum + Number(row.platform_fee_cents), 0) ===
+        Number(parent.platform_fee_cents),
+      "Member commission totals do not reconcile."
+    );
+    assert(
+      members.reduce((sum, row) => sum + Number(row.provider_amount_cents), 0) ===
+        Number(parent.provider_amount_cents),
+      "Member provider totals do not reconcile."
+    );
+    assert(Number(parent.platform_fee_cents) > 0, "Platform commission must be positive.");
+
+    const metadata = {
+      klyx_flow: FLOW,
+      split_batch_id: fixture.batch.id,
+      group_settlement_id: parent.id,
+      payment_confirmation_id: fixture.paymentConfirmation.id,
+      payment_mode: PAYMENT_MODE,
+      settlement_transfer_group: parent.transfer_group,
+      executor_count: "2",
+    };
+
+    const intent = await stripe.paymentIntents.create(
+      {
+        amount: 10001,
+        currency: "eur",
+        payment_method: "pm_card_visa",
+        payment_method_types: ["card"],
+        confirm: true,
+        transfer_group: parent.transfer_group,
+        metadata,
+      },
+      { idempotencyKey: "klyx-group-proof-charge-" + parent.id }
+    );
+    const paidIntent = await stripe.paymentIntents.retrieve(intent.id, {
+      expand: ["latest_charge"],
+    });
+    const chargeId = stripeObjectId(paidIntent.latest_charge);
+    assert(paidIntent.status === "succeeded", "Platform charge did not succeed.");
+    assert(chargeId?.startsWith("ch_"), "Platform charge id missing.");
+
+    const paymentEvent = {
+      id: "evt_test_group_paid_" + randomUUID().replaceAll("-", ""),
+      object: "event",
+      created: Math.floor(Date.now() / 1000),
+      data: {
+        object: {
+          id: parent.stripe_checkout_session_id,
+          object: "checkout.session",
+          amount_total: 10001,
+          currency: "eur",
+          metadata,
+          mode: "payment",
+          payment_intent: paidIntent.id,
+          payment_status: "paid",
+          status: "complete",
+          livemode: false,
+        },
+      },
+      livemode: false,
+      pending_webhooks: 1,
+      request: { id: null, idempotency_key: null },
+      type: "checkout.session.completed",
+    };
+
+    const webhook = await postWebhookRaw({ appOrigin, webhookSecret, event: paymentEvent });
+    assert(webhook?.platformHeldGroup === true, "Held group webhook not recognized.");
+
+    parent = await loadParent(admin, fixture.batch.id);
+    members = await loadMembers(admin, parent.id);
+    assert(parent.state === "held", "Parent settlement did not enter held state.");
+    assert(parent.stripe_payment_intent_id === paidIntent.id, "PaymentIntent truth mismatch.");
+    assert(parent.stripe_charge_id === chargeId, "Charge truth mismatch.");
+
+    const providerABookings = fixture.bookings.filter(
+      (booking) => booking.provider.id === providerA.id
+    );
+    const providerBBooking = fixture.bookings.find(
+      (booking) => booking.provider.id === providerB.id
+    );
+    assert(providerABookings.length === 2 && providerBBooking, "Fixture booking split invalid.");
+
+    await completeBooking({
+      admin,
+      appOrigin,
+      accessToken,
+      clientId: client.id,
+      bookingId: providerABookings[0].id,
+    });
+
+    let remoteTransfers = await stripe.transfers.list({
+      transfer_group: parent.transfer_group,
+      limit: 100,
+    });
+    assert(remoteTransfers.data.length === 0, "Executor A released before all its bookings completed.");
+
+    await completeBooking({
+      admin,
+      appOrigin,
+      accessToken,
+      clientId: client.id,
+      bookingId: providerABookings[1].id,
+    });
+
+    members = await loadMembers(admin, parent.id);
+    const memberA = members.find((member) => member.provider_profile_id === providerA.id);
+    let memberB = members.find((member) => member.provider_profile_id === providerB.id);
+    assert(memberA && memberB, "Frozen executor rows missing.");
+
+    remoteTransfers = await stripe.transfers.list({
+      transfer_group: parent.transfer_group,
+      limit: 100,
+    });
+    let transferA = remoteTransfers.data.find(
+      (transfer) => transfer.metadata?.group_settlement_member_id === memberA.id
+    );
+    assert(transferA, "Executor A Transfer missing.");
+    assert(
+      transferA.amount === Number(memberA.provider_amount_cents),
+      "Executor A Transfer amount mismatch."
+    );
+    assert(stripeObjectId(transferA.source_transaction) === chargeId, "Transfer source charge mismatch.");
+
+    const resetNow = new Date().toISOString();
+    const { error: resetError } = await admin
+      .from("bookings")
+      .update({
+        status: "accepted",
+        service_status: "in_progress",
+        client_confirmed_at: null,
+        completed_at: null,
+        provider_finished_at: resetNow,
+        updated_at: resetNow,
+      })
+      .eq("id", providerABookings[1].id);
+    if (resetError) throw new Error(resetError.message);
+
+    await requestJson({
+      appOrigin,
+      accessToken,
+      profileId: client.id,
+      path: "/api/bookings/tracking",
+      method: "POST",
+      body: {
+        bookingId: providerABookings[1].id,
+        action: "client_confirmed",
+        note: "Idempotent release replay.",
+      },
+    });
+
+    remoteTransfers = await stripe.transfers.list({
+      transfer_group: parent.transfer_group,
+      limit: 100,
+    });
+    const aTransfers = remoteTransfers.data.filter(
+      (transfer) => transfer.metadata?.group_settlement_member_id === memberA.id
+    );
+    assert(aTransfers.length === 1, "Executor A release was duplicated.");
+    transferA = aTransfers[0];
+
+    await closeRecipient(stripe, stripeB.id);
+    stripeBClosed = true;
+
+    await completeBooking({
+      admin,
+      appOrigin,
+      accessToken,
+      clientId: client.id,
+      bookingId: providerBBooking.id,
+    });
+
+    members = await loadMembers(admin, parent.id);
+    memberB = members.find((member) => member.provider_profile_id === providerB.id);
+    const refreshedA = members.find((member) => member.provider_profile_id === providerA.id);
+    assert(memberB?.state === "review_required", "Disabled executor B was not isolated to review.");
+    assert(refreshedA?.state === "released", "Executor A release was lost when B became ineligible.");
+
+    remoteTransfers = await stripe.transfers.list({
+      transfer_group: parent.transfer_group,
+      limit: 100,
+    });
+    assert(
+      remoteTransfers.data.every(
+        (transfer) => transfer.metadata?.group_settlement_member_id !== memberB.id
+      ),
+      "Disabled executor B unexpectedly received a Transfer."
+    );
+    assert(
+      remoteTransfers.data.reduce((sum, transfer) => sum + transfer.amount, 0) <=
+        Number(parent.provider_amount_cents),
+      "Aggregate releases exceeded frozen provider funds."
+    );
+
+    const partialGross = Math.min(1000, Number(refreshedA.gross_amount_cents) - 1);
+    const feeRefund = Math.floor(
+      (partialGross * Number(refreshedA.platform_fee_cents)) /
+        Number(refreshedA.gross_amount_cents)
+    );
+    const providerRefund = partialGross - feeRefund;
+    assert(providerRefund > 0, "Partial refund must require a provider reversal.");
+
+    const requestKey = "network-partial-" + randomUUID();
+    const refundBody = {
+      kind: "partial",
+      requestKey,
+      amountCents: partialGross,
+      allocations: [
+        {
+          memberId: refreshedA.id,
+          grossRefundCents: partialGross,
+          platformFeeRefundCents: feeRefund,
+          providerRefundCents: providerRefund,
+        },
+      ],
+    };
+
+    await requestJson({
+      appOrigin,
+      accessToken,
+      profileId: client.id,
+      path: "/api/bookings/split-missions/" + fixture.batch.id + "/refund",
+      method: "POST",
+      body: refundBody,
+    });
+
+    let { data: refundRow, error: refundRowError } = await admin
+      .from("platform_held_group_refunds")
+      .select("*")
+      .eq("group_settlement_id", parent.id)
+      .eq("request_key", requestKey)
+      .single();
+    if (refundRowError) throw new Error(refundRowError.message);
+    assert(refundRow.stripe_refund_id?.startsWith("re_"), "Stripe partial refund id missing.");
+
+    let remoteRefund = await stripe.refunds.retrieve(refundRow.stripe_refund_id);
+    for (let attempt = 0; attempt < 20 && remoteRefund.status === "pending"; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      remoteRefund = await stripe.refunds.retrieve(refundRow.stripe_refund_id);
+    }
+    assert(remoteRefund.status === "succeeded", "Stripe partial refund did not succeed.");
+
+    if (refundRow.state !== "succeeded") {
+      const refundEvent = {
+        id: "evt_test_group_refund_" + randomUUID().replaceAll("-", ""),
+        object: "event",
+        created: Math.floor(Date.now() / 1000),
+        data: { object: remoteRefund },
+        livemode: false,
+        pending_webhooks: 1,
+        request: { id: null, idempotency_key: null },
+        type: "refund.updated",
+      };
+      await postWebhookRaw({ appOrigin, webhookSecret, event: refundEvent });
+    }
+
+    await requestJson({
+      appOrigin,
+      accessToken,
+      profileId: client.id,
+      path: "/api/bookings/split-missions/" + fixture.batch.id + "/refund",
+      method: "POST",
+      body: refundBody,
+    });
+
+    ({ data: refundRow, error: refundRowError } = await admin
+      .from("platform_held_group_refunds")
+      .select("*")
+      .eq("group_settlement_id", parent.id)
+      .eq("request_key", requestKey)
+      .single());
+    if (refundRowError) throw new Error(refundRowError.message);
+    assert(refundRow.state === "succeeded", "Local partial refund did not finalize.");
+
+    const { data: allocation, error: allocationError } = await admin
+      .from("platform_held_group_refund_allocations")
+      .select("*")
+      .eq("refund_id", refundRow.id)
+      .eq("member_id", refreshedA.id)
+      .single();
+    if (allocationError) throw new Error(allocationError.message);
+
+    const reversals = await stripe.transfers.listReversals(transferA.id, { limit: 100 });
+    const matchingReversals = reversals.data.filter(
+      (row) => row.metadata?.group_refund_allocation_id === allocation.id
+    );
+    assert(matchingReversals.length === 1, "Partial reversal was duplicated or missing.");
+    assert(
+      matchingReversals[0].amount === providerRefund,
+      "Partial reversal amount mismatch."
+    );
+
+    const refunds = await stripe.refunds.list({
+      payment_intent: paidIntent.id,
+      limit: 100,
+    });
+    const matchingRefunds = refunds.data.filter(
+      (row) => row.metadata?.platform_held_group_refund_id === refundRow.id
+    );
+    assert(matchingRefunds.length === 1, "Customer partial refund was duplicated or missing.");
+    assert(matchingRefunds[0].amount === partialGross, "Customer refund amount mismatch.");
+
+    parent = await loadParent(admin, fixture.batch.id);
+    members = await loadMembers(admin, parent.id);
+    const finalA = members.find((member) => member.id === refreshedA.id);
+    const finalB = members.find((member) => member.id === memberB.id);
+
+    assert(Number(parent.refunded_amount_cents) === partialGross, "Parent refunded total mismatch.");
+    assert(Number(finalA.reversed_amount_cents) === providerRefund, "Member reversal accounting mismatch.");
+    assert(Number(finalA.refunded_gross_amount_cents) === partialGross, "Member refund accounting mismatch.");
+    assert(finalB.state === "review_required", "Blocked executor B state was lost after sibling refund.");
+
+    fs.mkdirSync("stripe-network-proof", { recursive: true });
+    fs.writeFileSync(
+      PROOF_PATH,
+      JSON.stringify(
+        {
+          verified: true,
+          flow: FLOW,
+          stripeTestOnly: true,
+          batchId: fixture.batch.id,
+          groupSettlementId: parent.id,
+          grossAmountCents: Number(parent.gross_amount_cents),
+          platformFeeCents: Number(parent.platform_fee_cents),
+          providerAmountCents: Number(parent.provider_amount_cents),
+          executorCount: 2,
+          childBookingCount: 3,
+          onePlatformCharge: true,
+          chargeId,
+          transferGroup: parent.transfer_group,
+          executorA: {
+            memberId: finalA.id,
+            transferId: transferA.id,
+            transferAmountCents: transferA.amount,
+            idempotentTransferCount: aTransfers.length,
+            reversedAmountCents: providerRefund,
+          },
+          executorB: {
+            memberId: finalB.id,
+            state: finalB.state,
+            stripeAccountDisabledBeforeRelease: true,
+            transferCreated: false,
+          },
+          partialRefund: {
+            stripeRefundId: matchingRefunds[0].id,
+            grossRefundCents: partialGross,
+            providerReversalCents: providerRefund,
+            reversalCount: matchingReversals.length,
+            refundCount: matchingRefunds.length,
+          },
+          aggregateReleaseCents: remoteTransfers.data.reduce(
+            (sum, transfer) => sum + transfer.amount,
+            0
+          ),
+          aggregateReleaseCapCents: Number(parent.provider_amount_cents),
+        },
+        null,
+        2
+      ) + "\n",
+      "utf8"
+    );
+
+    process.stdout.write(
+      JSON.stringify({
+        verified: true,
+        flow: FLOW,
+        grossAmountCents: Number(parent.gross_amount_cents),
+        executorCount: 2,
+        transferCount: remoteTransfers.data.length,
+        blockedExecutorIsolated: true,
+        partialRefundCents: partialGross,
+      }) + "\n"
+    );
+  } finally {
+    if (checkoutSessionId) {
+      try {
+        const session = await stripe.checkout.sessions.retrieve(checkoutSessionId);
+        if (session.status === "open") {
+          await stripe.checkout.sessions.expire(checkoutSessionId);
+        }
+      } catch {}
+    }
+
+    if (stripeA?.id) {
+      await closeRecipient(stripe, stripeA.id);
+    }
+    if (stripeB?.id && !stripeBClosed) {
+      await closeRecipient(stripe, stripeB.id);
+    }
+  }
+}
+
+main().catch((error) => {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error("KLYX Platform-Held multi-executor Stripe network proof failed: " + message);
+  process.exitCode = 1;
+});
