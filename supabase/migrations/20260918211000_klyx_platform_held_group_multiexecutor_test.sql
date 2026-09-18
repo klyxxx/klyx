@@ -109,8 +109,9 @@ create table if not exists public.platform_held_group_settlement_members (
   gross_amount_cents bigint not null check (gross_amount_cents > 0),
   platform_fee_cents bigint not null check (platform_fee_cents >= 0),
   provider_amount_cents bigint not null check (provider_amount_cents >= 0),
-  state text not null default 'held'
+  state text not null default 'pending_payment'
     check (state in (
+      'pending_payment',
       'held',
       'release_claimed',
       'released',
@@ -504,7 +505,7 @@ begin
       (v_member ->> 'gross_amount_cents')::bigint,
       (v_member ->> 'platform_fee_cents')::bigint,
       (v_member ->> 'provider_amount_cents')::bigint,
-      'held'
+      'pending_payment'
     );
   end loop;
 
@@ -654,6 +655,12 @@ begin
          updated_at = now()
    where id = p_group_settlement_id
      and state in ('pending_payment', 'held');
+
+  update public.platform_held_group_settlement_members
+     set state = 'held',
+         updated_at = now()
+   where group_settlement_id = p_group_settlement_id
+     and state = 'pending_payment';
 
   return true;
 end;
