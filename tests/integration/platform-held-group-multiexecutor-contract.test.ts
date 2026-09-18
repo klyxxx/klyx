@@ -258,6 +258,34 @@ describe("Platform-Held multi-executor group settlement contract", () => {
     expect(server).toContain("klyx-platform-held-group-refund-");
   });
 
+  it("network proof covers concurrent releases, isolated failure, partial and total refund", () => {
+    const proof = read(
+      "scripts/golden-path-platform-held-group-multiexecutor-network.mjs"
+    );
+
+    expect(proof).toContain("await Promise.all([");
+    expect(proof).toContain(
+      "Concurrent releases did not create exactly one Transfer per executor."
+    );
+    expect(proof).toContain(
+      "Concurrent releases exceeded frozen provider funds."
+    );
+    expect(proof).toContain(
+      "Disabled executor B was not isolated to review."
+    );
+    expect(proof).toContain('kind: "partial"');
+    expect(proof).toContain('kind: "total"');
+    expect(proof).toContain("serverDerivedAllocation: true");
+    expect(proof).toContain(
+      "Partial + total Stripe refunds do not exactly equal the captured group charge."
+    );
+    expect(proof).toContain(
+      "Released executor A was not fully reversed across partial + total refunds."
+    );
+    expect(proof).toContain("concurrency: concurrencyProof");
+    expect(proof).not.toContain("platformFeeRefundCents: feeRefund,\n          providerRefundCents:");
+  });
+
   it("is Stripe TEST-only for all new money movement", () => {
     const checkout = read(
       "app/api/bookings/split-missions/[id]/checkout/route-platform-held-core.ts"
