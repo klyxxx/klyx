@@ -4,7 +4,6 @@ import Stripe from "stripe";
 
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { sendStripeLifecycleEmails } from "@/lib/email/stripe-lifecycle-hook";
-import { syncCanonicalConnectedAccountFromStripe } from "@/lib/stripe-connect-webhook-account";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   markBookingGroupFailedFromSession,
@@ -28,7 +27,6 @@ import { reconcileStripeRefund } from "@/lib/stripe-refunds";
 // KLYX_STRIPE_WEBHOOK_RETRY_LEASE_16_07
 // KLYX_STRIPE_EXPIRED_CHECKOUT_RELEASE_16_08
 // KLYX_STRIPE_STALE_FAILURE_GUARD_16_09
-// KLYX_ACCOUNT_LEVEL_STRIPE_CONNECT_19_45
 
 function getStripeWebhookConfig() {
   const stripeSecretKey = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
@@ -67,11 +65,23 @@ async function updateConnectedAccount(
   stripe: Stripe,
   signedAccount: Stripe.Account
 ) {
-  // Re-read current Stripe state because account.updated can be replayed or
-  // delivered out of order. Never infer/adopt canonical identity from the
-  // webhook itself; historical-only ids are moved to manual review.
+  // The signed event authenticates the account identity, but its mutable
+  // readiness flags can be stale if account.updated is replayed or delivered
+  // out of order. Re-read Stripe's current account state before mutating KLYX.
   const account = await stripe.accounts.retrieve(signedAccount.id);
-  await syncCanonicalConnectedAccountFromStripe(account);
+
+  const { error } = await supabaseAdmin
+    .from("profiles")
+    .update({
+      stripe_onboarding_complete: Boolean(account.details_submitted),
+      stripe_charges_enabled: Boolean(account.charges_enabled),
+      stripe_payouts_enabled: Boolean(account.payouts_enabled),
+    })
+    .eq("stripe_account_id", account.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 function isGroupSession(session: Stripe.Checkout.Session) {
