@@ -149,7 +149,7 @@ describe("KLYX platform-held settlement phase-2 contract", () => {
     const release = read("lib/booking-settlement-server.ts");
 
     const riskIndex = wrapper.indexOf("await enforceRefundTransactionRisk({");
-    const settlementIndex = wrapper.indexOf("await preparePlatformHeldBookingRefund(");
+    const settlementIndex = wrapper.indexOf("await reconcilePlatformHeldBookingSettlement({");
     const coreIndex = wrapper.lastIndexOf("return corePost(request)");
     const refundFunctionIndex = release.indexOf(
       "export async function preparePlatformHeldBookingRefund"
@@ -189,7 +189,8 @@ describe("KLYX platform-held settlement phase-2 contract", () => {
 
     expect(wrapper).toContain("await corePost(request)");
     expect(wrapper).toContain('action === "client_confirmed"');
-    expect(wrapper).toContain("await releasePlatformHeldBookingSettlement(bookingId)");
+    expect(wrapper).toContain("await reconcilePlatformHeldBookingSettlement({");
+    expect(wrapper).toContain('source: "release"');
     expect(wrapper).toContain("return response");
     expect(core).toContain('status: "completed"');
     expect(core).toContain('.eq("status", "accepted")');
