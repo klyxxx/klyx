@@ -2,6 +2,7 @@ import "server-only";
 
 import Stripe from "stripe";
 
+import { reconcilePlatformHeldGroupRefundFromStripe } from "@/lib/platform-held-group-settlement-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 const FLOW = "platform_held_group_multiexecutor" as const;
@@ -250,6 +251,29 @@ export async function handlePlatformHeldGroupStripeWebhookEvent(
 
     await reconcilePaidSession(stripe, session);
     return true;
+  }
+
+  if (
+    event.type === "refund.created" ||
+    event.type === "refund.updated" ||
+    event.type === "refund.failed"
+  ) {
+    const refund = event.data.object as Stripe.Refund;
+    return reconcilePlatformHeldGroupRefundFromStripe(refund);
+  }
+
+  if (event.type === "charge.refunded") {
+    const charge = event.data.object as Stripe.Charge;
+    let handled = false;
+
+    for (const refund of charge.refunds?.data ?? []) {
+      const reconciled = await reconcilePlatformHeldGroupRefundFromStripe(
+        refund
+      );
+      handled = handled || reconciled;
+    }
+
+    return handled;
   }
 
   if (event.type === "payment_intent.payment_failed") {
