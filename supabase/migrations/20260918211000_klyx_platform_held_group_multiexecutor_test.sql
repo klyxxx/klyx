@@ -1050,6 +1050,15 @@ begin
     raise exception 'KLYX_GROUP_HELD_REFUND_RELEASE_CONFLICT';
   end if;
 
+  if exists (
+    select 1
+      from public.platform_held_group_refunds r
+     where r.group_settlement_id = v_parent.id
+       and r.state in ('reversing', 'ready', 'refunding', 'review_required')
+  ) then
+    raise exception 'KLYX_GROUP_HELD_REFUND_ALREADY_ACTIVE';
+  end if;
+
   select *
     into v_existing
     from public.platform_held_group_refunds
@@ -1286,6 +1295,32 @@ begin
   return true;
 end;
 $$;
+
+create or replace function public.klyx_mark_platform_held_group_refund_review(
+  p_refund_id uuid,
+  p_error_code text,
+  p_error_message text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $
+declare
+  v_updated integer;
+begin
+  update public.platform_held_group_refunds
+     set state = 'review_required',
+         failure_code = left(coalesce(p_error_code, 'group_refund_review_required'), 120),
+         failure_message = left(coalesce(p_error_message, 'Group refund requires review.'), 1000),
+         updated_at = now()
+   where id = p_refund_id
+     and state <> 'succeeded';
+
+  get diagnostics v_updated = row_count;
+  return v_updated = 1;
+end;
+$;
 
 create or replace function public.klyx_mark_platform_held_group_refund_allocation_review(
   p_allocation_id uuid,
@@ -1550,6 +1585,8 @@ revoke all on function public.klyx_create_platform_held_group_refund_plan(
 revoke all on function public.klyx_finalize_platform_held_group_member_reversal(
   uuid, text, text, bigint
 ) from public, anon, authenticated;
+revoke all on function public.klyx_mark_platform_held_group_refund_review(uuid, text, text)
+  from public, anon, authenticated;
 revoke all on function public.klyx_mark_platform_held_group_refund_allocation_review(uuid, text, text)
   from public, anon, authenticated;
 revoke all on function public.klyx_mark_platform_held_group_refund_inflight(uuid)
@@ -1592,6 +1629,8 @@ grant execute on function public.klyx_create_platform_held_group_refund_plan(
 grant execute on function public.klyx_finalize_platform_held_group_member_reversal(
   uuid, text, text, bigint
 ) to service_role;
+grant execute on function public.klyx_mark_platform_held_group_refund_review(uuid, text, text)
+  to service_role;
 grant execute on function public.klyx_mark_platform_held_group_refund_allocation_review(uuid, text, text)
   to service_role;
 grant execute on function public.klyx_mark_platform_held_group_refund_inflight(uuid)
