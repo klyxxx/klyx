@@ -842,52 +842,92 @@ async function runReleaseRetryReversalScenario({
   assert(acceptedTransfer.transfer_group === held.transfer_group, "Real Transfer transfer_group mismatch.");
   assert(stripeObjectId(acceptedTransfer.destination) === held.stripe_account_id, "Real Transfer destination mismatch.");
 
-  const { data: failedClaim, error: failedClaimError } = await admin.rpc(
-    "klyx_fail_booking_settlement_release",
-    {
-      p_booking_id: booking.id,
-      p_claim_token: winningToken,
-      p_error_code: "network_timeout_after_stripe_acceptance",
-      p_error_message: "Stripe TEST accepted Transfer; response intentionally treated as lost for retry proof.",
-    }
+  // Mission 4 proof: model a lost application response AFTER Stripe accepted the
+  // Transfer. DB remains release_claimed with no transfer id. Recovery must
+  // observe Stripe truth and converge DB without creating any money movement.
+  const afterLostResponse = await loadSettlement(admin, booking.id);
+  assert(
+    afterLostResponse.state === "release_claimed",
+    `Lost-response model must keep release_claimed, got ${afterLostResponse.state}.`
   );
-  if (failedClaimError) throw new Error(`Unable to model post-acceptance network timeout: ${failedClaimError.message}`);
-  assert(failedClaim === true, "Timeout model did not reopen the settlement claim.");
-
-  const afterTimeout = await loadSettlement(admin, booking.id);
-  assert(afterTimeout.state === "release_failed", "Settlement must be release_failed after modeled timeout.");
-  assert(afterTimeout.stripe_transfer_id === null, "DB must not invent a Transfer id after lost response.");
-
-  const retryToken = randomUUID();
-  const retryClaim = await claimRelease(admin, booking.id, retryToken);
-  assert(retryClaim.action === "create", `Retry claim was not reopened: ${retryClaim.action}.`);
-  assert(retryClaim.attempt_number === 2, "Retry claim must increment release attempt to 2.");
+  assert(
+    afterLostResponse.stripe_transfer_id === null,
+    "DB must not invent a Transfer id before recovery observes Stripe."
+  );
 
   const reconciledList = await stripe.transfers.list({
-    transfer_group: retryClaim.transfer_group,
-    destination: retryClaim.stripe_account_id,
-    limit: 10,
+    transfer_group: held.transfer_group,
+    limit: 100,
   });
   const matchingTransfers = reconciledList.data.filter(
     (transfer) =>
       transfer.metadata?.booking_id === booking.id &&
       transfer.metadata?.payment_mode === PAYMENT_MODE
   );
-  assert(matchingTransfers.length === 1, `transfer_group reconciliation expected one Transfer, found ${matchingTransfers.length}.`);
+  assert(
+    matchingTransfers.length === 1,
+    `Recovery reconciliation expected one Transfer, found ${matchingTransfers.length}.`
+  );
   const reconciledTransfer = matchingTransfers[0];
-  assert(reconciledTransfer.id === acceptedTransfer.id, "Retry reconciliation found a different Transfer.");
-  assert(stripeObjectId(reconciledTransfer.source_transaction) === charge.id, "Reconciled Transfer source_transaction mismatch.");
+  assert(
+    reconciledTransfer.id === acceptedTransfer.id,
+    "Recovery reconciliation found a different Transfer."
+  );
+  assert(
+    stripeObjectId(reconciledTransfer.source_transaction) === charge.id,
+    "Reconciled Transfer source_transaction mismatch."
+  );
 
-  const { data: finalizeData, error: finalizeError } = await admin.rpc(
-    "klyx_finalize_booking_settlement_release",
+  const releaseObservationKey = `stripe-test-recovery-release:${acceptedTransfer.id}`;
+  const { data: recoveryReleaseData, error: recoveryReleaseError } = await admin.rpc(
+    "klyx_apply_booking_settlement_recovery",
     {
       p_booking_id: booking.id,
-      p_claim_token: retryToken,
-      p_stripe_transfer_id: reconciledTransfer.id,
+      p_action: "reconcile_release",
+      p_observation_key: releaseObservationKey,
+      p_stripe_transfer_id: acceptedTransfer.id,
+      p_stripe_transfer_reversal_id: null,
+      p_reason_codes: ["STRIPE_TRANSFER_OBSERVED"],
+      p_details: {
+        network_proof: true,
+        charge_id: charge.id,
+        transfer_group: held.transfer_group,
+      },
     }
   );
-  if (finalizeError) throw new Error(`Unable to finalize reconciled settlement: ${finalizeError.message}`);
-  assert(finalizeData === true, "Reconciled settlement finalize returned false.");
+  if (recoveryReleaseError) {
+    throw new Error(
+      `Mission 4 release recovery failed: ${recoveryReleaseError.message}`
+    );
+  }
+  const recoveryRelease = (recoveryReleaseData ?? [])[0];
+  assert(
+    recoveryRelease?.result === "applied" &&
+      recoveryRelease?.state_before === "release_claimed" &&
+      recoveryRelease?.state_after === "released",
+    `Mission 4 release recovery did not converge release_claimed -> released: ${JSON.stringify(recoveryRelease)}`
+  );
+
+  const { data: duplicateRecoveryData, error: duplicateRecoveryError } =
+    await admin.rpc("klyx_apply_booking_settlement_recovery", {
+      p_booking_id: booking.id,
+      p_action: "reconcile_release",
+      p_observation_key: releaseObservationKey,
+      p_stripe_transfer_id: acceptedTransfer.id,
+      p_stripe_transfer_reversal_id: null,
+      p_reason_codes: ["STRIPE_TRANSFER_OBSERVED"],
+      p_details: { network_proof: true, duplicate: true },
+    });
+  if (duplicateRecoveryError) {
+    throw new Error(
+      `Mission 4 duplicate recovery check failed: ${duplicateRecoveryError.message}`
+    );
+  }
+  const duplicateRecovery = (duplicateRecoveryData ?? [])[0];
+  assert(
+    duplicateRecovery?.result === "duplicate",
+    "Mission 4 recovery audit key was not idempotent."
+  );
 
   const idempotentTransfer = await stripe.transfers.create(transferParams, {
     idempotencyKey: transferIdempotencyKey,
@@ -912,7 +952,7 @@ async function runReleaseRetryReversalScenario({
   const released = await loadSettlement(admin, booking.id);
   assert(released.state === "released", `Settlement did not finalize released: ${released.state}.`);
   assert(released.stripe_transfer_id === acceptedTransfer.id, "DB released Transfer id mismatch.");
-  assert(released.release_attempt_number === 2, "DB release attempt number mismatch after retry.");
+  assert(released.release_attempt_number === 1, "Recovery must not create a second release claim.");
 
   const { data: prepareData, error: prepareError } = await admin.rpc(
     "klyx_prepare_booking_settlement_refund",
@@ -951,15 +991,51 @@ async function runReleaseRetryReversalScenario({
   );
   assert(matchingReversals.length === 1, "Post-release retry created multiple Transfer reversals.");
 
-  for (const attempt of [1, 2]) {
-    const { data, error } = await admin.rpc("klyx_finalize_booking_settlement_reversal", {
+  // Mission 4 proof: Stripe accepted the reversal while DB still only knows
+  // refund_pending. Recovery observes the existing reversal and persists it;
+  // it must not create a second reversal.
+  const reversalObservationKey = `stripe-test-recovery-reversal:${reversal.id}`;
+  const { data: reversalRecoveryData, error: reversalRecoveryError } =
+    await admin.rpc("klyx_apply_booking_settlement_recovery", {
       p_booking_id: booking.id,
+      p_action: "reconcile_reversal",
+      p_observation_key: reversalObservationKey,
       p_stripe_transfer_id: acceptedTransfer.id,
       p_stripe_transfer_reversal_id: reversal.id,
+      p_reason_codes: ["STRIPE_REVERSAL_OBSERVED"],
+      p_details: { network_proof: true },
     });
-    if (error) throw new Error(`Reversal finalize attempt ${attempt} failed: ${error.message}`);
-    assert(data === true, `Reversal finalize attempt ${attempt} was not idempotent.`);
+  if (reversalRecoveryError) {
+    throw new Error(
+      `Mission 4 reversal recovery failed: ${reversalRecoveryError.message}`
+    );
   }
+  const reversalRecovery = (reversalRecoveryData ?? [])[0];
+  assert(
+    reversalRecovery?.result === "applied" &&
+      reversalRecovery?.state_after === "refund_pending",
+    `Mission 4 reversal recovery did not preserve refund_pending: ${JSON.stringify(reversalRecovery)}`
+  );
+
+  const { data: duplicateReversalRecoveryData, error: duplicateReversalRecoveryError } =
+    await admin.rpc("klyx_apply_booking_settlement_recovery", {
+      p_booking_id: booking.id,
+      p_action: "reconcile_reversal",
+      p_observation_key: reversalObservationKey,
+      p_stripe_transfer_id: acceptedTransfer.id,
+      p_stripe_transfer_reversal_id: reversal.id,
+      p_reason_codes: ["STRIPE_REVERSAL_OBSERVED"],
+      p_details: { network_proof: true, duplicate: true },
+    });
+  if (duplicateReversalRecoveryError) {
+    throw new Error(
+      `Mission 4 duplicate reversal recovery failed: ${duplicateReversalRecoveryError.message}`
+    );
+  }
+  assert(
+    (duplicateReversalRecoveryData ?? [])[0]?.result === "duplicate",
+    "Mission 4 reversal recovery audit key was not idempotent."
+  );
 
   const afterReversal = await loadSettlement(admin, booking.id);
   assert(afterReversal.state === "refund_pending", "Settlement must remain refund_pending until customer refund succeeds.");
@@ -1060,6 +1136,11 @@ async function runReleaseRetryReversalScenario({
     releaseAttempts: terminalSettlement.release_attempt_number,
     transferCountAfterRetry: transferMatchesAfterRetry.length,
     reversalCountAfterRetry: matchingReversals.length,
+    recoveryReleaseApplied: recoveryRelease?.result === "applied",
+    recoveryReleaseDuplicateSuppressed: duplicateRecovery?.result === "duplicate",
+    recoveryReversalApplied: reversalRecovery?.result === "applied",
+    recoveryReversalDuplicateSuppressed:
+      (duplicateReversalRecoveryData ?? [])[0]?.result === "duplicate",
     settlementState: terminalSettlement.state,
   };
 }
@@ -1169,6 +1250,9 @@ async function main() {
             realSourceTransaction: true,
             retryAfterLostTransferResponse: true,
             reconciledByTransferGroup: true,
+            mission4RecoveryReleaseRpc: true,
+            mission4RecoveryAuditIdempotency: true,
+            mission4RecoveryReversalRpc: true,
             noDoubleTransfer: true,
             idempotentReversal: true,
             dbStripeCoherentAfterRetry: true,
@@ -1191,6 +1275,9 @@ async function main() {
         atomicClaim: true,
         transferSourceTransaction: true,
         retryReconciledByTransferGroup: true,
+        mission4RecoveryRelease: true,
+        mission4RecoveryReversal: true,
+        recoveryAuditIdempotent: true,
         noDoubleTransfer: true,
         reversalIdempotent: true,
         dbStripeCoherent: true,
