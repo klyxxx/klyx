@@ -711,6 +711,32 @@ async function buildRemainingTotalAllocations(parent: ParentRow) {
   return { amountCents, allocations };
 }
 
+function assertPartialRefundRequestMatchesFrozen(input: {
+  request: Extract<GroupRefundRequest, { kind: "partial" }>;
+  refund: RefundRow;
+  allocations: AllocationRow[];
+}) {
+  const requested = [...input.request.allocations]
+    .map((allocation) => ({
+      memberId: allocation.memberId.trim(),
+      grossRefundCents: allocation.grossRefundCents,
+    }))
+    .sort((a, b) => a.memberId.localeCompare(b.memberId));
+  const frozen = input.allocations
+    .map((allocation) => ({
+      memberId: allocation.member_id,
+      grossRefundCents: Number(allocation.gross_refund_cents),
+    }))
+    .sort((a, b) => a.memberId.localeCompare(b.memberId));
+
+  if (
+    Number(input.refund.amount_cents) !== input.request.amountCents ||
+    JSON.stringify(requested) !== JSON.stringify(frozen)
+  ) {
+    throw new Error("KLYX_GROUP_HELD_REFUND_KEY_CONFLICT");
+  }
+}
+
 async function buildPartialAllocations(
   parent: ParentRow,
   amountCents: number,
@@ -1049,28 +1075,6 @@ export async function refundPlatformHeldGroup(input: {
 
   if (refund) {
     allocations = await loadAllocations(refund.id);
-
-    if (input.request.kind === "partial") {
-      const requested = [...input.request.allocations]
-        .map((allocation) => ({
-          memberId: allocation.memberId.trim(),
-          grossRefundCents: allocation.grossRefundCents,
-        }))
-        .sort((a, b) => a.memberId.localeCompare(b.memberId));
-      const frozen = allocations
-        .map((allocation) => ({
-          memberId: allocation.member_id,
-          grossRefundCents: Number(allocation.gross_refund_cents),
-        }))
-        .sort((a, b) => a.memberId.localeCompare(b.memberId));
-
-      if (
-        Number(refund.amount_cents) !== input.request.amountCents ||
-        JSON.stringify(requested) !== JSON.stringify(frozen)
-      ) {
-        throw new Error("KLYX_GROUP_HELD_REFUND_KEY_CONFLICT");
-      }
-    }
   } else {
     const desired =
       input.request.kind === "total"
@@ -1109,6 +1113,17 @@ export async function refundPlatformHeldGroup(input: {
 
     refund = await loadRefund(refundId);
     allocations = await loadAllocations(refund.id);
+  }
+
+  // Revalidate after the SQL create-or-reuse boundary as well. This covers two
+  // concurrent callers that both observed no plan before one of them won the
+  // parent-row lock and froze the request key.
+  if (input.request.kind === "partial") {
+    assertPartialRefundRequestMatchesFrozen({
+      request: input.request,
+      refund,
+      allocations,
+    });
   }
 
   const reversalPending = await processRequiredReversals({
