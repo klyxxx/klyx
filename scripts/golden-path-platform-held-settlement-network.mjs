@@ -945,7 +945,7 @@ async function runReleaseRetryReversalScenario({
   assert(afterReversal.state === "refund_pending", "Settlement must remain refund_pending until customer refund succeeds.");
   assert(afterReversal.stripe_transfer_reversal_id === reversal.id, "DB reversal id mismatch.");
 
-  const refund = await stripe.refunds.create(
+  const createdRefund = await stripe.refunds.create(
     {
       payment_intent: intent.id,
       amount: Number(released.gross_amount_cents),
@@ -957,16 +957,51 @@ async function runReleaseRetryReversalScenario({
     },
     { idempotencyKey: `klyx-booking-refund-network-proof-${booking.id}` }
   );
-  assert(refund.livemode === false && refund.status === "succeeded", "Post-release Stripe TEST refund did not succeed.");
 
+  assert(createdRefund.livemode === false, "Post-release Stripe TEST refund unexpectedly used live mode.");
+  assert(
+    ["pending", "succeeded"].includes(createdRefund.status),
+    `Post-release Stripe TEST refund entered an unexpected state: ${createdRefund.status}.`
+  );
+
+  let remoteRefund = createdRefund;
+  for (let attempt = 0; attempt < 40 && remoteRefund.status === "pending"; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    remoteRefund = await stripe.refunds.retrieve(createdRefund.id);
+  }
+
+  assert(
+    remoteRefund.status === "succeeded",
+    `Post-release Stripe TEST refund did not converge to succeeded: ${remoteRefund.status}.`
+  );
+  assert(
+    remoteRefund.amount === Number(released.gross_amount_cents) &&
+      remoteRefund.currency === String(released.currency).toLowerCase(),
+    "Post-release Stripe TEST refund amount/currency mismatch."
+  );
+
+  const refundChargeId = stripeObjectId(remoteRefund.charge);
+  assert(refundChargeId === charge.id, "Post-release Stripe TEST refund source charge mismatch.");
+
+  let refundPaymentIntentId = stripeObjectId(remoteRefund.payment_intent);
+  if (!refundPaymentIntentId) {
+    const refundedCharge = await stripe.charges.retrieve(refundChargeId);
+    refundPaymentIntentId = stripeObjectId(refundedCharge.payment_intent);
+  }
+  assert(
+    refundPaymentIntentId === intent.id,
+    "Post-release Stripe TEST refund PaymentIntent mismatch."
+  );
+
+  // Persist terminal DB truth only after Stripe itself is terminal succeeded.
   const now = new Date().toISOString();
   const { error: terminalBookingError } = await admin
     .from("bookings")
     .update({
       payment_status: "refunded",
       refund_status: "succeeded",
-      stripe_refund_id: refund.id,
-      refunded_amount_cents: Number(released.gross_amount_cents),
+      stripe_refund_id: remoteRefund.id,
+      refunded_amount_cents: remoteRefund.amount,
       refunded_at: now,
       updated_at: now,
     })
@@ -979,9 +1014,14 @@ async function runReleaseRetryReversalScenario({
   assert(terminalSettlement.stripe_transfer_reversal_id === reversal.id, "Terminal settlement lost reversal truth.");
 
   const remoteTransfer = await stripe.transfers.retrieve(acceptedTransfer.id);
-  const remoteRefund = await stripe.refunds.retrieve(refund.id);
+  const finalRemoteRefund = await stripe.refunds.retrieve(remoteRefund.id);
   assert(remoteTransfer.amount_reversed === Number(released.provider_amount_cents), "Remote Transfer is not fully reversed.");
-  assert(remoteRefund.status === "succeeded" && stripeObjectId(remoteRefund.payment_intent) === intent.id, "Remote refund truth mismatch after retry.");
+  assert(
+    finalRemoteRefund.status === "succeeded" &&
+      finalRemoteRefund.amount === remoteRefund.amount &&
+      stripeObjectId(finalRemoteRefund.charge) === charge.id,
+    "Remote refund truth mismatch after retry."
+  );
 
   await expireCheckout(stripe, released.stripe_checkout_session_id);
 
@@ -991,7 +1031,7 @@ async function runReleaseRetryReversalScenario({
     chargeId: charge.id,
     transferId: acceptedTransfer.id,
     reversalId: reversal.id,
-    refundId: refund.id,
+    refundId: remoteRefund.id,
     transferGroup: held.transfer_group,
     sourceTransaction: stripeObjectId(remoteTransfer.source_transaction),
     releaseAttempts: terminalSettlement.release_attempt_number,
