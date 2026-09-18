@@ -432,11 +432,97 @@ async function markGroupPaid({
     type: "checkout.session.completed",
   };
 
-  const webhook = await postSignedWebhook({
-    appOrigin,
-    webhookSecret,
-    event,
-  });
+  let webhook;
+
+  try {
+    webhook = await postSignedWebhook({
+      appOrigin,
+      webhookSecret,
+      event,
+    });
+  } catch (error) {
+    const [
+      groupSnapshot,
+      childSnapshot,
+      settlementSnapshot,
+      ledgerSnapshot,
+      webhookSnapshot,
+      notificationSnapshot,
+    ] = await Promise.all([
+      admin
+        .from("booking_groups")
+        .select(
+          "id, status, payment_status, payment_mode, total_amount_cents, currency, application_fee_amount, platform_fee_amount, provider_amount, stripe_checkout_session_id, stripe_payment_intent_id"
+        )
+        .eq("id", groupId)
+        .maybeSingle(),
+      admin
+        .from("bookings")
+        .select(
+          "id, booking_group_id, group_position, status, payment_status, payment_mode, amount_total, currency, currency_code, application_fee_amount, platform_fee_amount, provider_amount, stripe_checkout_session_id, stripe_payment_intent_id"
+        )
+        .eq("booking_group_id", groupId)
+        .order("group_position", { ascending: true }),
+      admin
+        .from("booking_group_settlements")
+        .select(
+          "booking_group_id, state, gross_amount_cents, platform_fee_cents, provider_amount_cents, currency, stripe_checkout_session_id, stripe_payment_intent_id, stripe_charge_id, stripe_transfer_id, stripe_transfer_reversal_id"
+        )
+        .eq("booking_group_id", groupId)
+        .maybeSingle(),
+      Promise.resolve({ data: [], error: null }),
+      admin
+        .from("stripe_webhook_events")
+        .select("stripe_event_id, status, attempt_count, last_error")
+        .eq("stripe_event_id", event.id)
+        .maybeSingle(),
+      admin
+        .from("user_notifications")
+        .select("booking_id, deduplication_key")
+        .like("deduplication_key", "booking-group:" + groupId + ":%"),
+    ]);
+
+    const childIds = (childSnapshot.data ?? []).map((row) => row.id);
+    let ledger = ledgerSnapshot;
+    if (childIds.length > 0) {
+      ledger = await admin
+        .from("booking_financial_ledger")
+        .select(
+          "booking_id, entry_key, entry_type, status, currency, gross_amount_cents, platform_fee_cents, provider_amount_cents, payment_mode, stripe_checkout_session_id, stripe_payment_intent_id"
+        )
+        .in("booking_id", childIds);
+    }
+
+    const diagnostic = {
+      verified: false,
+      stripeTestNetwork: true,
+      stage: "checkout.session.completed_webhook",
+      error: error instanceof Error ? error.message : String(error),
+      group: groupSnapshot.data ?? null,
+      groupError: groupSnapshot.error?.message ?? null,
+      children: childSnapshot.data ?? [],
+      childrenError: childSnapshot.error?.message ?? null,
+      settlement: settlementSnapshot.data ?? null,
+      settlementError: settlementSnapshot.error?.message ?? null,
+      ledger: ledger.data ?? [],
+      ledgerError: ledger.error?.message ?? null,
+      webhookEvent: webhookSnapshot.data ?? null,
+      webhookEventError: webhookSnapshot.error?.message ?? null,
+      notifications: notificationSnapshot.data ?? [],
+      notificationsError: notificationSnapshot.error?.message ?? null,
+      capturedAt: new Date().toISOString(),
+    };
+
+    fs.mkdirSync(PROOF_DIR, { recursive: true });
+    fs.writeFileSync(
+      PROOF_DIR + "/platform-held-group-settlement-proof.json",
+      JSON.stringify(diagnostic, null, 2) + "\n",
+      "utf8"
+    );
+
+    throw error;
+  }
+
   assert(webhook.payload?.received === true, "Group paid webhook was rejected.");
 
   const { data: attached, error: attachError } = await admin.rpc(

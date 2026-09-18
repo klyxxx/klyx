@@ -15,8 +15,8 @@ as $$
 declare
   v_settlement public.booking_settlements%rowtype;
 begin
-  if new.payment_mode <> 'platform_held'
-     or new.payment_status <> 'paid'
+  if coalesce(new.payment_mode, '') <> 'platform_held'
+     or coalesce(new.payment_status, '') <> 'paid'
      or new.booking_group_id is not null then
     return new;
   end if;
@@ -53,9 +53,9 @@ as $$
 declare
   v_updated integer;
 begin
-  if new.payment_mode <> 'platform_held'
-     or new.payment_status <> 'paid'
-     or old.payment_status = 'paid'
+  if coalesce(new.payment_mode, '') <> 'platform_held'
+     or coalesce(new.payment_status, '') <> 'paid'
+     or coalesce(old.payment_status, '') = 'paid'
      or new.booking_group_id is not null then
     return new;
   end if;

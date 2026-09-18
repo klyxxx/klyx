@@ -25,8 +25,14 @@ describe("KLYX platform-held group child delegation", () => {
     expect(occurrences.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("keeps platform-held and paid checks before delegation", () => {
-    expect(source).toContain("new.payment_mode <> 'platform_held'");
-    expect(source).toContain("new.payment_status <> 'paid'");
+  it("keeps the legacy NULL-safe platform-held boundary before delegation", () => {
+    const modeChecks =
+      source.match(/coalesce\(new\.payment_mode, ''\) <> 'platform_held'/g) ?? [];
+    const paidChecks =
+      source.match(/coalesce\(new\.payment_status, ''\) <> 'paid'/g) ?? [];
+
+    expect(modeChecks.length).toBeGreaterThanOrEqual(2);
+    expect(paidChecks.length).toBeGreaterThanOrEqual(2);
+    expect(source).toContain("coalesce(old.payment_status, '') = 'paid'");
   });
 });
