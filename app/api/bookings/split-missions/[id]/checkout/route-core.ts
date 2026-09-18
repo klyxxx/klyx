@@ -18,6 +18,12 @@ import {
   assessStripeConnectCountry,
   STRIPE_ACCOUNT_COUNTRY_MISMATCH,
 } from "@/lib/stripe-connect-country";
+import {
+  assertStripeConnectIdentityUsable,
+  getProfileAccountStripeConnectIdentity,
+  STRIPE_CONNECT_IDENTITY_CONFLICT,
+  STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED,
+} from "@/lib/stripe-connect-account-identity";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { assertStripeRuntimeReady } from "@/lib/stripe-runtime";
 
@@ -290,20 +296,6 @@ function paymentAlreadyClaimed(booking: JsonRow): boolean {
   return ["paid", "checkout_created", "processing", "pending"].includes(
     text(booking.payment_status).toLowerCase()
   );
-}
-
-function stripeAccountFromProfile(profile: JsonRow): string {
-  for (const key of [
-    "stripe_account_id",
-    "stripe_connect_account_id",
-    "connect_account_id",
-  ]) {
-    const value = text(profile[key]);
-    if (value.startsWith("acct_")) {
-      return value;
-    }
-  }
-  return "";
 }
 
 async function getExistingRun(batchId: string): Promise<RunRow | null> {
@@ -716,7 +708,7 @@ export async function POST(request: Request, context: RouteContext) {
     const providerIds = plan.units.map((unit) => unit.providerId);
     const { data: providerData, error: providerError } = await supabaseAdmin
       .from("profiles")
-      .select("*")
+      .select("id, country_code")
       .in("id", providerIds);
     if (providerError) {
       throw new Error(providerError.message);
@@ -763,11 +755,50 @@ export async function POST(request: Request, context: RouteContext) {
         );
       }
 
-      const liveAccountId = stripeAccountFromProfile(provider);
-      if (liveAccountId !== unit.stripeAccountId) {
+      let liveAccountId: string | null;
+
+      try {
+        const providerIdentity =
+          await getProfileAccountStripeConnectIdentity(unit.providerId);
+
+        if (providerIdentity.state === "conflict") {
+          return NextResponse.json(
+            {
+              error:
+                "L'identité Stripe du compte KLYX d'un prestataire nécessite une revue avant paiement.",
+              code: STRIPE_CONNECT_IDENTITY_CONFLICT,
+              participant: "provider",
+            },
+            { status: 409 }
+          );
+        }
+
+        liveAccountId = assertStripeConnectIdentityUsable(providerIdentity);
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          (error.message === STRIPE_CONNECT_IDENTITY_CONFLICT ||
+            error.message === STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED ||
+            error.message === "KLYX_CANONICAL_ACCOUNT_REQUIRED")
+        ) {
+          return NextResponse.json(
+            {
+              error:
+                "L'identité Stripe du compte KLYX d'un prestataire nécessite une revue avant paiement.",
+              code: STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED,
+              participant: "provider",
+            },
+            { status: 409 }
+          );
+        }
+
+        throw error;
+      }
+
+      if (!liveAccountId || liveAccountId !== unit.stripeAccountId) {
         return NextResponse.json(
           {
-            error: "Le compte Stripe d'un prestataire a changé.",
+            error: "Le compte Stripe canonique d'un prestataire a changé.",
             code: "SPLIT_PROVIDER_STRIPE_CHANGED",
           },
           { status: 409 }
