@@ -37,7 +37,7 @@ describe("Stripe Connect account creation idempotency contract", () => {
     const canonicalPersist = route.indexOf(
       "await persistAccountStripeConnectIdentity({"
     );
-    const profileMirror = route.indexOf("stripe_account_id: created.id");
+    const profileMirror = route.indexOf("stripe_account_id: createdAccountId");
 
     expect(stripeCreate).toBeGreaterThanOrEqual(0);
     expect(canonicalPersist).toBeGreaterThan(stripeCreate);
