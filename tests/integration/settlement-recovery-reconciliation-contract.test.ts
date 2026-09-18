@@ -99,6 +99,22 @@ describe("KLYX settlement recovery / reconciliation contract", () => {
     );
   });
 
+  it("uses Checkout for provenance and PaymentIntent + charge for active settlement financial truth", () => {
+    expect(recovery).toContain(
+      'settlement.state === "pending_payment"'
+    );
+    expect(recovery).toContain(
+      'session.payment_status !== "paid"'
+    );
+    expect(recovery).toContain(
+      'intent.status !== "succeeded"'
+    );
+    expect(recovery).toContain("payment_intent_charge_mismatch");
+    expect(recovery).not.toContain(
+      "settlement_active_but_checkout_not_paid"
+    );
+  });
+
   it("recovers absent or delayed payment/refund webhooks from Stripe truth", () => {
     expect(recovery).toContain("markBookingPaidFromSession");
     expect(recovery).toContain("reconcileStripeRefund");
