@@ -58,13 +58,24 @@ security definer
 set search_path = public
 as $$
 begin
-  if new.state = 'held'
-     and (tg_op = 'INSERT' or old.state is distinct from 'held') then
+  if tg_op = 'INSERT' then
+    if new.state = 'held' then
+      new.held_at := coalesce(new.held_at, now());
+    end if;
+
+    if new.state = 'human_review' then
+      new.human_review_at := coalesce(new.human_review_at, now());
+    end if;
+
+    return new;
+  end if;
+
+  if new.state = 'held' and old.state is distinct from 'held' then
     new.held_at := coalesce(new.held_at, now());
   end if;
 
   if new.state = 'human_review'
-     and (tg_op = 'INSERT' or old.state is distinct from 'human_review') then
+     and old.state is distinct from 'human_review' then
     new.human_review_at := coalesce(new.human_review_at, now());
   end if;
 
@@ -76,7 +87,7 @@ drop trigger if exists booking_settlements_recovery_timestamps
   on public.booking_settlements;
 
 create trigger booking_settlements_recovery_timestamps
-before insert or update of state on public.booking_settlements
+before insert or update on public.booking_settlements
 for each row
 execute function public.klyx_set_booking_settlement_recovery_timestamps();
 
@@ -410,15 +421,21 @@ as $$
     count(*) filter (where s.state in ('review_required', 'human_review'))::bigint,
     count(*) filter (where s.state = 'released')::bigint,
     count(*) filter (where s.stripe_transfer_reversal_id is not null)::bigint,
-    avg(
-      extract(epoch from (s.released_at - coalesce(s.held_at, s.created_at)))
-    ) filter (where s.released_at is not null)::double precision,
-    percentile_cont(0.50) within group (
-      order by extract(epoch from (s.released_at - coalesce(s.held_at, s.created_at)))
-    ) filter (where s.released_at is not null)::double precision,
-    percentile_cont(0.95) within group (
-      order by extract(epoch from (s.released_at - coalesce(s.held_at, s.created_at)))
-    ) filter (where s.released_at is not null)::double precision
+    (
+      avg(
+        extract(epoch from (s.released_at - coalesce(s.held_at, s.created_at)))
+      ) filter (where s.released_at is not null)
+    )::double precision,
+    (
+      percentile_cont(0.50) within group (
+        order by extract(epoch from (s.released_at - coalesce(s.held_at, s.created_at)))
+      ) filter (where s.released_at is not null)
+    )::double precision,
+    (
+      percentile_cont(0.95) within group (
+        order by extract(epoch from (s.released_at - coalesce(s.held_at, s.created_at)))
+      ) filter (where s.released_at is not null)
+    )::double precision
   from public.booking_settlements as s
   where s.payment_mode = 'platform_held';
 $$;
