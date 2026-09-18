@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const routePath = path.join(
   process.cwd(),
-  "app/api/stripe/create-group-checkout-session/route.ts"
+  "app/api/stripe/create-group-checkout-session/route-core.ts"
 );
 
 function readRoute() {
@@ -19,10 +19,9 @@ describe("KLYX group checkout live market gates", () => {
 
     expect(source).toContain("assessKlyxStripeMarketAccess");
     expect(source).toContain("profile.countryCode");
-    expect(source).toContain(
-      "getProviderStripeDestination(group.provider_profile_id)"
-    );
-    expect(source).toContain("provider.countryCode");
+    expect(source).toContain("getProfileAccountStripeConnectIdentity");
+    expect(source).toContain("group.provider_profile_id");
+    expect(source).toContain("provider?.country_code");
     expect(source).toMatch(/participant:\s*"client"/);
     expect(source).toMatch(/participant:\s*"provider"/);
     expect(
