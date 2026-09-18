@@ -336,6 +336,47 @@ async function loadSettlement(admin, bookingId) {
   return data;
 }
 
+
+async function attachSettlementStripeTruth({
+  admin,
+  bookingId,
+  checkoutSessionId,
+  paymentIntentId,
+  chargeId,
+}) {
+  const { data, error } = await admin.rpc(
+    "klyx_attach_booking_settlement_stripe_truth",
+    {
+      p_booking_id: bookingId,
+      p_checkout_session_id: checkoutSessionId,
+      p_payment_intent_id: paymentIntentId,
+      p_charge_id: chargeId,
+    }
+  );
+
+  if (error) {
+    throw new Error(`Unable to attach real Stripe settlement truth: ${error.message}`);
+  }
+
+  assert(data === true, "Settlement Stripe truth attachment returned false.");
+
+  const settlement = await loadSettlement(admin, bookingId);
+  assert(
+    settlement.stripe_checkout_session_id === checkoutSessionId,
+    "Settlement Checkout truth mismatch after attachment."
+  );
+  assert(
+    settlement.stripe_payment_intent_id === paymentIntentId,
+    "Settlement PaymentIntent truth mismatch after attachment."
+  );
+  assert(
+    settlement.stripe_charge_id === chargeId,
+    "Settlement charge truth mismatch after attachment."
+  );
+
+  return settlement;
+}
+
 async function createRealHeldCharge({ stripe, settlement, bookingId, providerId }) {
   const intent = await stripe.paymentIntents.create(
     {
@@ -417,7 +458,7 @@ async function markHeldPaid({
   assert(webhook.payload?.duplicate === false, "Held payment webhook was unexpectedly marked duplicate.");
 }
 
-async function assertBookingHeld(admin, bookingId, intentId, chargeId) {
+async function assertBookingHeld(admin, bookingId, intentId) {
   const { data: booking, error: bookingError } = await admin
     .from("bookings")
     .select("id, status, payment_status, payment_mode, booking_group_id, stripe_payment_intent_id")
@@ -434,7 +475,6 @@ async function assertBookingHeld(admin, bookingId, intentId, chargeId) {
   const settlement = await loadSettlement(admin, bookingId);
   assert(settlement.state === "held", `Settlement did not enter held state: ${settlement.state}.`);
   assert(settlement.stripe_payment_intent_id === intentId, "Settlement PaymentIntent truth mismatch.");
-  assert(settlement.stripe_charge_id === chargeId, "Settlement charge truth mismatch.");
   return settlement;
 }
 
@@ -484,7 +524,14 @@ async function runRefundBeforeReleaseScenario({
     intent,
   });
 
-  const held = await assertBookingHeld(admin, booking.id, intent.id, charge.id);
+  const heldBeforeStripeTruth = await assertBookingHeld(admin, booking.id, intent.id);
+  const held = await attachSettlementStripeTruth({
+    admin,
+    bookingId: booking.id,
+    checkoutSessionId: heldBeforeStripeTruth.stripe_checkout_session_id,
+    paymentIntentId: intent.id,
+    chargeId: charge.id,
+  });
 
   const beforeTransfers = await stripe.transfers.list({
     transfer_group: held.transfer_group,
@@ -639,7 +686,14 @@ async function runReleaseRetryReversalScenario({
     intent,
   });
 
-  const held = await assertBookingHeld(admin, booking.id, intent.id, charge.id);
+  const heldBeforeStripeTruth = await assertBookingHeld(admin, booking.id, intent.id);
+  const held = await attachSettlementStripeTruth({
+    admin,
+    bookingId: booking.id,
+    checkoutSessionId: heldBeforeStripeTruth.stripe_checkout_session_id,
+    paymentIntentId: intent.id,
+    chargeId: charge.id,
+  });
   await markBookingCompletedForSettlement(admin, booking.id);
   await insertSettlementRiskAllow(admin, accountId, booking.id);
 
