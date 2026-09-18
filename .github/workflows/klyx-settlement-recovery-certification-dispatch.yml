@@ -8,6 +8,7 @@ on:
 permissions:
   contents: read
   actions: write
+  statuses: write
 
 jobs:
   certify-and-dispatch:
@@ -34,7 +35,7 @@ jobs:
       - name: Production build
         run: npm run build
 
-      - name: Dispatch exact Stripe TEST recovery proof
+      - name: Dispatch and await exact Recovery verification workflows
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -43,14 +44,92 @@ jobs:
         run: |
           set -euo pipefail
 
+          report_status() {
+            local state="$1"
+            local description="$2"
+            gh api \
+              --method POST \
+              "repos/$GH_REPO/statuses/$GITHUB_SHA" \
+              -f state="$state" \
+              -f context="klyx/settlement-recovery-exact-certification" \
+              -f description="$description" >/dev/null
+          }
+
+          fail_status() {
+            report_status failure "Exact settlement recovery certification failed"
+          }
+          trap fail_status ERR
+
           checked_out_sha="$(git rev-parse HEAD)"
           if [ "$checked_out_sha" != "$GITHUB_SHA" ]; then
             echo "::error::Recovery dispatcher checkout SHA mismatch: expected $GITHUB_SHA, got $checked_out_sha."
             exit 1
           fi
 
+          report_status pending "Exact settlement recovery certification running"
+
+          gh workflow run klyx-security.yml \
+            --repo "$GH_REPO" --ref "$KLYX_REF" \
+            -f expected_sha="$GITHUB_SHA"
+
+          gh workflow run klyx-golden-path.yml \
+            --repo "$GH_REPO" --ref "$KLYX_REF" \
+            -f expected_sha="$GITHUB_SHA" \
+            -f confirm_isolated_e2e=true
+
+          gh workflow run klyx-performance.yml \
+            --repo "$GH_REPO" --ref "$KLYX_REF" \
+            -f expected_sha="$GITHUB_SHA" \
+            -f profile=smoke \
+            -f confirm_isolated_target=true
+
+          gh workflow run klyx-e2e.yml \
+            --repo "$GH_REPO" --ref "$KLYX_REF" \
+            -f expected_sha="$GITHUB_SHA"
+
           gh workflow run klyx-stripe-network-test.yml \
-            --repo "$GH_REPO" \
-            --ref "$KLYX_REF" \
+            --repo "$GH_REPO" --ref "$KLYX_REF" \
             -f expected_sha="$GITHUB_SHA" \
             -f confirm_stripe_test_network=true
+
+          workflows=(
+            klyx-security.yml
+            klyx-golden-path.yml
+            klyx-performance.yml
+            klyx-e2e.yml
+            klyx-stripe-network-test.yml
+          )
+
+          for workflow in "${workflows[@]}"; do
+            run_id=""
+
+            for attempt in $(seq 1 60); do
+              run_id="$(
+                gh run list \
+                  --repo "$GH_REPO" \
+                  --workflow "$workflow" \
+                  --commit "$GITHUB_SHA" \
+                  --event workflow_dispatch \
+                  --limit 10 \
+                  --json databaseId \
+                  --jq '.[0].databaseId // empty'
+              )"
+
+              if [ -n "$run_id" ]; then
+                break
+              fi
+
+              sleep 2
+            done
+
+            if [ -z "$run_id" ]; then
+              echo "::error::No workflow_dispatch run found for $workflow at $GITHUB_SHA."
+              exit 1
+            fi
+
+            echo "Awaiting $workflow run $run_id for $GITHUB_SHA"
+            gh run watch "$run_id" --repo "$GH_REPO" --exit-status
+          done
+
+          trap - ERR
+          report_status success "Exact settlement recovery certification passed"
