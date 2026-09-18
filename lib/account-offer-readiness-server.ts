@@ -13,7 +13,6 @@ import type {
 } from "@/lib/account-offer-readiness";
 import { findBelgianLocality } from "@/lib/belgian-localities";
 import { KLYX_SERVICE_CATALOG } from "@/lib/klyx-service-catalog";
-import { getCanonicalStripeConnect } from "@/lib/stripe-connect-account";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { listTrustDecisions } from "@/lib/trust-safety/server";
 
@@ -23,6 +22,10 @@ type ProfileRow = {
   country_code: string | null;
   currency_code: string | null;
   city: string | null;
+  stripe_account_id: string | null;
+  stripe_onboarding_complete: boolean | null;
+  stripe_charges_enabled: boolean | null;
+  stripe_payouts_enabled: boolean | null;
 };
 
 type UserServiceRow = {
@@ -146,7 +149,9 @@ function pricingReady(profile: ServiceProfileRow | null): boolean {
 async function accountProfiles(accountId: string): Promise<ProfileRow[]> {
   const { data, error } = await supabaseAdmin
     .from("profiles")
-    .select("id, account_type, country_code, currency_code, city")
+    .select(
+      "id, account_type, country_code, currency_code, city, stripe_account_id, stripe_onboarding_complete, stripe_charges_enabled, stripe_payouts_enabled"
+    )
     .eq("account_id", accountId)
     .order("created_at", { ascending: true });
 
@@ -230,6 +235,32 @@ async function loadSelectedService(params: {
   return service ? { service, userService } : null;
 }
 
+function stripeState(profiles: readonly ProfileRow[]) {
+  const stripeProfiles = profiles.filter((profile) =>
+    Boolean(profile.stripe_account_id?.trim())
+  );
+  const stripeAccountIds = new Set(
+    stripeProfiles
+      .map((profile) => profile.stripe_account_id?.trim())
+      .filter((value): value is string => Boolean(value))
+  );
+  const conflict = stripeAccountIds.size > 1;
+  const readyProfile = conflict
+    ? null
+    : stripeProfiles.find(
+        (profile) =>
+          profile.stripe_onboarding_complete === true &&
+          profile.stripe_charges_enabled === true &&
+          profile.stripe_payouts_enabled === true
+      ) ?? null;
+
+  return {
+    conflict,
+    readyProfile,
+    payoutsReady: Boolean(readyProfile) && !conflict,
+  };
+}
+
 async function latestCategoryDecision(params: {
   accountId: string;
   categoryKey: string;
@@ -310,15 +341,8 @@ export async function loadAccountOfferReadiness(params: {
   if (selected && !availabilityReady) missing.push("availability");
   if (selected && !pricingReady(serviceProfile)) missing.push("pricing");
 
-  const connect = await getCanonicalStripeConnect(params.accountId);
-  const payoutsReady =
-    connect.state === "linked" &&
-    Boolean(connect.stripeAccountId?.trim()) &&
-    connect.onboardingComplete &&
-    connect.chargesEnabled &&
-    connect.payoutsEnabled;
-  const payoutReviewRequired = connect.state === "review_required";
-  if (!payoutsReady) missing.push("payouts");
+  const payments = stripeState(profiles);
+  if (!payments.payoutsReady) missing.push("payouts");
 
   const categoryKey = selected ? serviceCategoryKey(selected.service) : null;
   const jurisdictionCode = compatibilityProfile
@@ -332,7 +356,7 @@ export async function loadAccountOfferReadiness(params: {
     explanation: null,
   };
   let trustBlocked = false;
-  let humanReview = payoutReviewRequired;
+  let humanReview = payments.conflict;
 
   if (selected && compatibilityProfile) {
     if (!categoryKey) {
@@ -405,7 +429,7 @@ export async function loadAccountOfferReadiness(params: {
   );
   const status: AccountOfferReadinessStatus = trustBlocked
     ? "blocked"
-    : payoutReviewRequired
+    : payments.conflict
       ? "human_review"
       : hasCollectableMissing
         ? "missing_requirements"
@@ -428,10 +452,10 @@ export async function loadAccountOfferReadiness(params: {
         }
       : null,
     jurisdictionCode,
-    payoutsReady,
-    stripeProfileId: payoutsReady ? compatibilityProfile?.id ?? null : null,
-    payoutReviewRequired,
-    payoutReason: payoutReviewRequired
+    payoutsReady: payments.payoutsReady,
+    stripeProfileId: payments.readyProfile?.id ?? null,
+    payoutReviewRequired: payments.conflict,
+    payoutReason: payments.conflict
       ? "Multiple historical Stripe Connected Account identifiers are linked to this canonical KLYX account. Automatic selection is forbidden."
       : null,
     trust,
