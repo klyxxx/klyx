@@ -732,12 +732,29 @@ async function runReleaseRetryReversalScenario({
   admin,
   appOrigin,
   accessToken,
+  userClient,
+  email,
+  password,
   webhookSecret,
   client,
   provider,
   accountId,
 }) {
   createSecondLifecycleBooking();
+
+  // golden-path-client-lifecycle signs out globally. Because this proof reuses
+  // the same ephemeral TEST user in a child process, that sign-out revokes the
+  // parent session too. Re-authenticate explicitly before the second Checkout
+  // instead of relying on a token whose session has been invalidated.
+  const { data: reauthData, error: reauthError } =
+    await userClient.auth.signInWithPassword({ email, password });
+  if (reauthError || !reauthData.session?.access_token) {
+    throw new Error(
+      "Unable to re-authenticate platform-held proof after second lifecycle."
+    );
+  }
+  accessToken = reauthData.session.access_token;
+
   const booking = await latestAcceptedUnpaidBooking(admin, client.id, provider.id);
   await createHeldCheckout({ appOrigin, accessToken, clientId: client.id, bookingId: booking.id });
 
@@ -1052,6 +1069,9 @@ async function main() {
       admin,
       appOrigin,
       accessToken,
+      userClient,
+      email,
+      password,
       webhookSecret,
       client,
       provider,
