@@ -21,24 +21,65 @@ import { POST as platformHeldPost } from "./route-platform-held";
 /*
  * KLYX_PAYMENT_CORE_CONTRACT_MIRROR
  *
- * The certified destination-charge authority remains in ./route-core.ts.
- * Platform-held TEST mode is additive in ./route-platform-held.ts. This public
- * route owns only authentication, transaction-risk preflight and mode dispatch.
+ * The executable certified destination-charge authority lives in
+ * ./route-core.ts. Platform-held TEST mode is additive in
+ * ./route-platform-held.ts; this public route remains the account/risk/mode
+ * dispatcher. Every @core token below is verified against route-core.ts.
  *
+ * try { assertStripeRuntimeReady()
  * @core:KLYX_SERVER_OBSERVABILITY_12B_8B
+ * @core:from "@/lib/server-log"
+ * @core:"stripe_checkout_created"
+ * @core:"stripe_checkout_reused"
+ * @core:"stripe_checkout_failed"
  * @core:assertStripeRuntimeReady()
+ * @core:currency: string | null;
+ * @core:payment_status, currency, pricing_type_snapshot
+ * @core:klyx_claim_booking_payment
+ * @core:klyx_release_expired_booking_checkout
+ * @core:async function expireUnpersistedCheckoutSession(
  * @core:KLYX_SPLIT_LEGACY_CHECKOUT_GUARD_13_27
+ * @core:split_booking_payment_units
+ * @core:"booking_ids"
+ * @core:.filter(
+ * @core:booking.status !== "accepted"
+ * @core:payment_status === "paid"
+ * @core:alreadyPaid
+ * @core:resolveService(
+ * @core:durationMinutes <= 0
+ * @core:amountTotal =
+ * @core:booking.estimated_amount_cents ?? booking.amount_total ?? fallbackAmount
+ * @core:amountTotal < 50
+ * @core:checkoutCurrency
  * @core:assessKlyxStripeMarketAccess
+ * @core:profile.countryCode
+ * @core:clientMarketAccess.allowed
+ * @core:participant: "client"
+ * @core:KLYX_CHECKOUT_MARKET_NOT_READY
  * @core:getProfileAccountStripeConnectIdentity(providerId)
+ * @core:provider?.country_code
+ * @core:providerMarketAccess.allowed
+ * @core:participant: "provider"
+ * @core:KLYX_CHECKOUT_MARKET_NOT_READY
  * @core:STRIPE_CONNECT_IDENTITY_CONFLICT
  * @core:assertStripeConnectIdentityUsable
+ * @core:providerStripeAccountId
  * @core:stripe.accounts.retrieve
  * @core:assessStripeConnectCountry
- * @core:klyx_claim_booking_payment
+ * @core:STRIPE_ACCOUNT_COUNTRY_MISMATCH
+ * @core:providerStripeAccount?.details_submitted
+ * @core:providerStripeAccount.charges_enabled
+ * @core:providerStripeAccount.payouts_enabled
+ * @core:providerReady
+ * @core:idempotencyKey
+ * @core:idempotencyKey: `klyx-booking-${booking.id}-attempt-${claim.attempt_number}`
  * @core:application_fee_amount
  * @core:transfer_data
+ * @core:destination: providerStripeAccountId
  * @core:stripe.checkout.sessions.create
+ * @core:.eq("payment_attempt_token", attemptToken)
  */
+
 
 export async function POST(request: Request) {
   const startedAt = Date.now();
