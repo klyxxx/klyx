@@ -564,13 +564,26 @@ begin
     return;
   end if;
 
-  update public.platform_held_group_settlements
-     set checkout_attempt_number = checkout_attempt_number + 1,
-         checkout_claim_token = p_claim_token,
-         checkout_claimed_at = now(),
-         updated_at = now()
-   where id = p_group_settlement_id
-   returning * into v_parent;
+  if v_parent.checkout_claim_token is not null
+     and v_parent.checkout_claimed_at is not null then
+    -- Unknown prior Stripe result: transfer ownership of the stale claim but
+    -- KEEP the same attempt number so the caller must reuse the same Stripe
+    -- idempotency key. Never mint a fresh checkout key after an unknown write.
+    update public.platform_held_group_settlements
+       set checkout_claim_token = p_claim_token,
+           checkout_claimed_at = now(),
+           updated_at = now()
+     where id = p_group_settlement_id
+     returning * into v_parent;
+  else
+    update public.platform_held_group_settlements
+       set checkout_attempt_number = checkout_attempt_number + 1,
+           checkout_claim_token = p_claim_token,
+           checkout_claimed_at = now(),
+           updated_at = now()
+     where id = p_group_settlement_id
+     returning * into v_parent;
+  end if;
 
   return query select
     'create'::text,
@@ -909,6 +922,47 @@ begin
   return v_updated = 1;
 end;
 $$;
+
+create or replace function public.klyx_mark_platform_held_group_review(
+  p_group_settlement_id uuid,
+  p_error_code text,
+  p_error_message text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $
+declare
+  v_updated integer;
+begin
+  update public.platform_held_group_settlements
+     set state = 'review_required',
+         checkout_claim_token = null,
+         checkout_claimed_at = null,
+         updated_at = now()
+   where id = p_group_settlement_id
+     and state <> 'refunded';
+
+  get diagnostics v_updated = row_count;
+
+  if v_updated = 1 then
+    update public.platform_held_group_settlement_members
+       set state = case
+             when state in ('reversed') then state
+             else 'review_required'
+           end,
+           release_claim_token = null,
+           release_claimed_at = null,
+           last_error_code = left(coalesce(p_error_code, 'group_review_required'), 120),
+           last_error_message = left(coalesce(p_error_message, 'Group settlement requires review.'), 1000),
+           updated_at = now()
+     where group_settlement_id = p_group_settlement_id;
+  end if;
+
+  return v_updated = 1;
+end;
+$;
 
 create or replace function public.klyx_mark_platform_held_group_member_review(
   p_member_id uuid,
@@ -1486,6 +1540,8 @@ revoke all on function public.klyx_reopen_platform_held_group_member_release_aft
   from public, anon, authenticated;
 revoke all on function public.klyx_fail_platform_held_group_member_release(uuid, uuid, text, text)
   from public, anon, authenticated;
+revoke all on function public.klyx_mark_platform_held_group_review(uuid, text, text)
+  from public, anon, authenticated;
 revoke all on function public.klyx_mark_platform_held_group_member_review(uuid, text, text)
   from public, anon, authenticated;
 revoke all on function public.klyx_create_platform_held_group_refund_plan(
@@ -1525,6 +1581,8 @@ grant execute on function public.klyx_reconcile_platform_held_group_member_relea
 grant execute on function public.klyx_reopen_platform_held_group_member_release_after_no_transfer(uuid)
   to service_role;
 grant execute on function public.klyx_fail_platform_held_group_member_release(uuid, uuid, text, text)
+  to service_role;
+grant execute on function public.klyx_mark_platform_held_group_review(uuid, text, text)
   to service_role;
 grant execute on function public.klyx_mark_platform_held_group_member_review(uuid, text, text)
   to service_role;
