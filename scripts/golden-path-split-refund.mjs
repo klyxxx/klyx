@@ -158,18 +158,47 @@ async function linkGoldenCanonicalStripeAccount(
   authUserId,
   stripeAccountId
 ) {
-  const { data, error } = await admin
+  const { data: account, error: accountError } = await admin
     .from("accounts")
-    .update({
-      stripe_account_id: stripeAccountId,
-      stripe_connect_state: "linked",
-      stripe_onboarding_complete: true,
-      stripe_charges_enabled: true,
-      stripe_payouts_enabled: true,
-      stripe_status_updated_at: new Date().toISOString(),
-    })
+    .select("id")
     .eq("auth_user_id", authUserId)
-    .select("id, stripe_account_id, stripe_connect_state")
+    .single();
+
+  if (accountError) {
+    throw new Error(
+      `Unable to load canonical KLYX account for split fixture: ${accountError.message}`
+    );
+  }
+
+  const { data: profiles, error: profilesError } = await admin
+    .from("profiles")
+    .select("id, stripe_account_id")
+    .eq("owner_user_id", authUserId);
+
+  if (profilesError) {
+    throw new Error(
+      `Unable to load canonical Stripe source profiles for split fixture: ${profilesError.message}`
+    );
+  }
+
+  const sourceProfileIds = (profiles ?? [])
+    .filter((profile) => profile.stripe_account_id === stripeAccountId)
+    .map((profile) => profile.id);
+
+  const { data, error } = await admin
+    .from("account_stripe_connect_identities")
+    .upsert(
+      {
+        account_id: account.id,
+        stripe_account_id: stripeAccountId,
+        identity_state: "linked",
+        source_profile_ids: sourceProfileIds,
+        conflicting_stripe_account_ids: [],
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "account_id" }
+    )
+    .select("account_id, stripe_account_id, identity_state")
     .single();
 
   if (error) {
@@ -179,12 +208,13 @@ async function linkGoldenCanonicalStripeAccount(
   }
 
   expect(
-    data.stripe_account_id === stripeAccountId &&
-      data.stripe_connect_state === "linked",
+    data.account_id === account.id &&
+      data.stripe_account_id === stripeAccountId &&
+      data.identity_state === "linked",
     "Split fixture canonical Stripe account did not reach linked state."
   );
 
-  return data;
+  return account.id;
 }
 
 async function main() {
@@ -283,12 +313,19 @@ async function main() {
    * would represent the pre-migration provider-profile ownership model and must
    * be rejected by the production guard.
    */
+  const canonicalAccountId = await linkGoldenCanonicalStripeAccount(
+    admin,
+    user.id,
+    canonicalStripeAccountId
+  );
+
   await insertOne(
     admin,
     "profiles",
     {
       id: providerTwoId,
       owner_user_id: user.id,
+      account_id: canonicalAccountId,
       full_name: "KLYX Golden Split Provider",
       first_name: "Golden",
       last_name: "Split",
@@ -305,8 +342,6 @@ async function main() {
     },
     "id"
   );
-
-  await linkGoldenCanonicalStripeAccount(admin, user.id, canonicalStripeAccountId);
 
   const providerTwoService = await insertOne(
     admin,
