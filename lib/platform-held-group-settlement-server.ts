@@ -1064,3 +1064,63 @@ export async function refundPlatformHeldGroup(input: {
   if (failError) throw new Error(failError.message);
   throw new Error("KLYX_GROUP_HELD_STRIPE_REFUND_FAILED");
 }
+
+
+export async function reconcilePlatformHeldGroupRefundFromStripe(
+  stripeRefund: Stripe.Refund
+): Promise<boolean> {
+  if (
+    stripeRefund.metadata?.payment_mode !== PAYMENT_MODE ||
+    !stripeRefund.metadata?.group_refund_id ||
+    !stripeRefund.metadata?.group_settlement_id ||
+    !stripeRefund.metadata?.split_batch_id
+  ) {
+    return false;
+  }
+
+  const stripe = testStripeClient();
+  const refund = await loadRefund(stripeRefund.metadata.group_refund_id);
+  const parent = await loadParent(refund.group_settlement_id);
+  const chargeId = stripeObjectId(stripeRefund.charge);
+
+  if (
+    refund.id !== stripeRefund.metadata.group_refund_id ||
+    parent.id !== stripeRefund.metadata.group_settlement_id ||
+    parent.batch_id !== stripeRefund.metadata.split_batch_id ||
+    !chargeId ||
+    chargeId !== parent.stripe_charge_id ||
+    stripeRefund.amount !== Number(refund.amount_cents) ||
+    stripeRefund.currency.toUpperCase() !== refund.currency
+  ) {
+    await markRefundReview(
+      refund.id,
+      "group_refund_webhook_truth_mismatch",
+      "Stripe refund webhook differs from frozen KLYX group refund truth."
+    );
+    return true;
+  }
+
+  const charge = await stripe.charges.retrieve(chargeId);
+  if (charge.livemode) throw new Error(LIVE_FORBIDDEN);
+
+  if (stripeRefund.status === "succeeded") {
+    await finalizeRefund(refund, stripeRefund);
+    return true;
+  }
+
+  if (stripeRefund.status === "failed") {
+    const { error } = await supabaseAdmin.rpc(
+      "klyx_fail_platform_held_group_refund",
+      {
+        p_refund_id: refund.id,
+        p_error_code: "stripe_refund_failed",
+        p_error_message:
+          stripeRefund.failure_reason ?? "Stripe group refund failed.",
+      }
+    );
+    if (error) throw new Error(error.message);
+    return true;
+  }
+
+  return true;
+}
