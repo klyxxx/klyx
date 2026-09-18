@@ -10,9 +10,16 @@ const statusRoutePath = path.join(
   process.cwd(),
   "app/api/bookings/status/route.ts"
 );
+const statusRouteCorePath = path.join(
+  process.cwd(),
+  "app/api/bookings/status/route-core.ts"
+);
 
 const baseline = fs.readFileSync(baselinePath, "utf8");
-const statusRoute = fs.readFileSync(statusRoutePath, "utf8");
+const statusRoute = [
+  fs.readFileSync(statusRoutePath, "utf8"),
+  fs.readFileSync(statusRouteCorePath, "utf8"),
+].join("\n");
 
 describe("provider booking overlap database guard", () => {
   it("serializes acceptance by provider and booking date", () => {

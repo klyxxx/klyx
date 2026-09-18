@@ -14,6 +14,10 @@ const bookingStatusRoutePath = path.join(
   process.cwd(),
   "app/api/bookings/status/route.ts"
 );
+const bookingStatusRouteCorePath = path.join(
+  process.cwd(),
+  "app/api/bookings/status/route-core.ts"
+);
 const stripePaymentsPath = path.join(
   process.cwd(),
   "lib/stripe-payments.ts"
@@ -25,7 +29,10 @@ const paymentClaimPath = path.join(
 
 const migration = fs.readFileSync(migrationPath, "utf8");
 const checkoutRoute = fs.readFileSync(checkoutRoutePath, "utf8");
-const bookingStatusRoute = fs.readFileSync(bookingStatusRoutePath, "utf8");
+const bookingStatusRoute = [
+  fs.readFileSync(bookingStatusRoutePath, "utf8"),
+  fs.readFileSync(bookingStatusRouteCorePath, "utf8"),
+].join("\n");
 const stripePayments = fs.readFileSync(stripePaymentsPath, "utf8");
 const paymentClaim = fs.readFileSync(paymentClaimPath, "utf8");
 

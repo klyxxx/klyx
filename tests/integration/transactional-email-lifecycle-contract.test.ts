@@ -6,6 +6,20 @@ function source(path: string) {
   return readFileSync(join(process.cwd(), path), "utf8");
 }
 
+function bookingStatusSurface() {
+  return [
+    source("app/api/bookings/status/route.ts"),
+    source("app/api/bookings/status/route-core.ts"),
+  ].join("\n");
+}
+
+function bookingTrackingSurface() {
+  return [
+    source("app/api/bookings/tracking/route.ts"),
+    source("app/api/bookings/tracking/route-core.ts"),
+  ].join("\n");
+}
+
 describe("KLYX transactional email lifecycle contract", () => {
   it("covers account/profile creation and profile deletion only after successful mutations", () => {
     const profiles = source("app/api/profiles/manage/route.ts");
@@ -78,7 +92,7 @@ describe("KLYX transactional email lifecycle contract", () => {
   });
 
   it("covers mission completion, review receipt and dispute opening", () => {
-    const tracking = source("app/api/bookings/tracking/route.ts");
+    const tracking = bookingTrackingSurface();
     const reviews = source("app/api/reviews/route.ts");
     const groupReviews = source("app/api/group-reviews/route.ts");
     const disputes = source("app/api/disputes/route.ts");
@@ -97,7 +111,7 @@ describe("KLYX transactional email lifecycle contract", () => {
     const profiles = source("app/api/profiles/manage/route.ts");
     const accountDelete = source("app/api/account/delete/route.ts");
     const bookingCreate = source("app/api/bookings/create/route.ts");
-    const bookingStatus = source("app/api/bookings/status/route.ts");
+    const bookingStatus = bookingStatusSurface();
     const quotes = source("app/api/quotes/route.ts");
     const reviews = source("app/api/reviews/route.ts");
     const groupReviews = source("app/api/group-reviews/route.ts");

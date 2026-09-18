@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+
 import {
   adminErrorPublicMessage,
   adminErrorStatus,
@@ -9,6 +10,12 @@ import { secureApiErrorResponse } from "@/lib/api-error";
 import { inspectStripeRuntime } from "@/lib/stripe-runtime";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
+type ConnectIdentityRow = {
+  account_id: string;
+  stripe_account_id: string | null;
+  identity_state: "linked" | "conflict";
+};
+
 export async function GET() {
   const startedAt = Date.now();
 
@@ -16,60 +23,89 @@ export async function GET() {
     await requireKlyxAdmin();
 
     const report = inspectStripeRuntime();
-    const secretKey =
-      process.env.STRIPE_SECRET_KEY?.trim() ?? "";
+    const secretKey = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
 
     const connectChecks: Array<{
-      profileId: string;
       accountId: string;
+      stripeAccountId: string | null;
+      state: string;
       ok: boolean;
       detail: string;
     }> = [];
 
-    if (
-      report.checks.find((check) => check.key === "secret_key")
-        ?.ok
-    ) {
-      const stripe = new Stripe(secretKey);
+    const { data: identities, error: identitiesError } = await supabaseAdmin
+      .from("account_stripe_connect_identities")
+      .select("account_id, stripe_account_id, identity_state")
+      .limit(25);
 
-      const { data, error } = await supabaseAdmin
-        .from("profiles")
-        .select("id, stripe_account_id")
-        .not("stripe_account_id", "is", null)
-        .limit(25);
+    if (identitiesError) {
+      throw new Error(identitiesError.message);
+    }
 
-      if (error) {
-        throw new Error(error.message);
+    const stripeReady =
+      report.checks.find((check) => check.key === "secret_key")?.ok === true;
+    const stripe = stripeReady ? new Stripe(secretKey) : null;
+
+    for (const row of (identities ?? []) as ConnectIdentityRow[]) {
+      const stripeAccountId = row.stripe_account_id?.trim() || null;
+      const state = row.identity_state;
+
+      if (state === "conflict") {
+        connectChecks.push({
+          accountId: row.account_id,
+          stripeAccountId: null,
+          state,
+          ok: false,
+          detail:
+            "Conflit d'identité Stripe Connect : revue manuelle obligatoire.",
+        });
+        continue;
       }
 
-      for (const row of data ?? []) {
-        const accountId =
-          typeof row.stripe_account_id === "string"
-            ? row.stripe_account_id
-            : "";
+      if (!stripeAccountId) {
+        connectChecks.push({
+          accountId: row.account_id,
+          stripeAccountId: null,
+          state,
+          ok: false,
+          detail: "Identité Connect liée sans identifiant Stripe.",
+        });
+        continue;
+      }
 
-        if (!accountId) continue;
+      if (!stripe) {
+        connectChecks.push({
+          accountId: row.account_id,
+          stripeAccountId,
+          state,
+          ok: false,
+          detail: "Clé Stripe du mode actuel indisponible.",
+        });
+        continue;
+      }
 
-        try {
-          const account =
-            await stripe.accounts.retrieve(accountId);
+      try {
+        const connectedAccount = await stripe.accounts.retrieve(
+          stripeAccountId
+        );
 
-          connectChecks.push({
-            profileId: row.id,
-            accountId,
-            ok: !("deleted" in account && account.deleted),
-            detail:
-              "Compte accessible avec la cle Stripe du mode actuel.",
-          });
-        } catch {
-          connectChecks.push({
-            profileId: row.id,
-            accountId,
-            ok: false,
-            detail:
-              "Ce compte Connect n'est pas accessible avec la cle Stripe actuelle. Il peut appartenir a l'autre mode test/live.",
-          });
-        }
+        connectChecks.push({
+          accountId: row.account_id,
+          stripeAccountId,
+          state,
+          ok: !("deleted" in connectedAccount && connectedAccount.deleted),
+          detail:
+            "Compte canonique accessible avec la clé Stripe du mode actuel.",
+        });
+      } catch {
+        connectChecks.push({
+          accountId: row.account_id,
+          stripeAccountId,
+          state,
+          ok: false,
+          detail:
+            "Le compte Connect canonique n'est pas accessible avec la clé Stripe actuelle.",
+        });
       }
     }
 

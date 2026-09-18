@@ -1,0 +1,54 @@
+name: KLYX Transaction Risk Preflight
+
+on:
+  push:
+    branches:
+      - feature/transaction-risk-gate-20260915
+    paths:
+      - ".github/workflows/klyx-transaction-risk-preflight.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test-types-and-build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Unit and integration tests
+        id: tests
+        shell: bash
+        run: |
+          set +e
+          npm test 2>&1 | tee test-output.txt
+          status=${PIPESTATUS[0]}
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit "$status"
+
+      - name: Upload test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: transaction-risk-preflight-test-output
+          path: test-output.txt
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: TypeScript safety check
+        run: npx tsc --noEmit --pretty false
+
+      - name: Production build
+        run: npm run build
+
+      # KLYX_TRANSACTION_RISK_PREFLIGHT_RERUN_3

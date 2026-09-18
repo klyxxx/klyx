@@ -4,7 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 const route = fs.readFileSync(
-  path.join(process.cwd(), "app/api/bookings/tracking/route.ts"),
+  path.join(process.cwd(), "app/api/bookings/tracking/route-core.ts"),
   "utf8"
 );
 

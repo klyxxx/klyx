@@ -42,6 +42,61 @@ function getAppOrigin(request: Request): string {
   return parsed.origin;
 }
 
+async function createTestConnectedAccount(input: {
+  stripe: Stripe;
+  accountId: string;
+  accountCountry: string;
+  ownerUserId: string;
+  email: string;
+  idempotencyKey: string;
+}): Promise<string> {
+  const connectedAccount = await input.stripe.v2.core.accounts.create(
+    {
+      contact_email: input.email,
+      display_name: "KLYX Stripe TEST Connect",
+      dashboard: "express",
+      identity: {
+        country:
+          input.accountCountry as Stripe.V2.Core.AccountCreateParams.Identity["country"],
+      },
+      configuration: {
+        merchant: {
+          capabilities: {
+            card_payments: { requested: true },
+          },
+        },
+        recipient: {
+          capabilities: {
+            stripe_balance: {
+              stripe_transfers: { requested: true },
+            },
+          },
+        },
+      },
+      defaults: {
+        currency: "eur",
+        responsibilities: {
+          fees_collector: "application",
+          losses_collector: "application",
+        },
+      },
+      metadata: {
+        klyx_account_id: input.accountId,
+        klyx_owner_user_id: input.ownerUserId,
+      },
+      include: [
+        "configuration.merchant",
+        "configuration.recipient",
+        "identity",
+        "requirements",
+      ],
+    },
+    { idempotencyKey: input.idempotencyKey }
+  );
+
+  return connectedAccount.id;
+}
+
 export async function POST(request: Request) {
   const startedAt = Date.now();
 
@@ -88,27 +143,49 @@ export async function POST(request: Request) {
         runtimeMode: stripeRuntime.mode,
       });
 
-      const created = await stripe.accounts.create(
-        {
-          type: "express",
-          country: accountCountry as Stripe.AccountCreateParams["country"],
-          email: user.email ?? undefined,
-          capabilities: {
-            card_payments: { requested: true },
-            transfers: { requested: true },
+      let createdAccountId: string;
+
+      if (stripeRuntime.mode === "test") {
+        const email = user.email?.trim();
+        if (!email) {
+          throw new Error(
+            "Une adresse e-mail est requise pour Stripe Connect TEST."
+          );
+        }
+
+        createdAccountId = await createTestConnectedAccount({
+          stripe,
+          accountId: account.id,
+          accountCountry,
+          ownerUserId: user.id,
+          email,
+          idempotencyKey,
+        });
+      } else {
+        const created = await stripe.accounts.create(
+          {
+            type: "express",
+            country: accountCountry as Stripe.AccountCreateParams["country"],
+            email: user.email ?? undefined,
+            capabilities: {
+              card_payments: { requested: true },
+              transfers: { requested: true },
+            },
+            metadata: {
+              klyx_account_id: account.id,
+              klyx_owner_user_id: user.id,
+              klyx_profile_id_compat: activeProfile.id,
+            },
           },
-          metadata: {
-            klyx_account_id: account.id,
-            klyx_owner_user_id: user.id,
-            klyx_profile_id_compat: activeProfile.id,
-          },
-        },
-        { idempotencyKey }
-      );
+          { idempotencyKey }
+        );
+
+        createdAccountId = created.id;
+      }
 
       await persistAccountStripeConnectIdentity({
         accountId: account.id,
-        stripeAccountId: created.id,
+        stripeAccountId: createdAccountId,
         sourceProfileId: activeProfile.id,
       });
 
@@ -116,7 +193,7 @@ export async function POST(request: Request) {
       const { error: mirrorError } = await supabaseAdmin
         .from("profiles")
         .update({
-          stripe_account_id: created.id,
+          stripe_account_id: createdAccountId,
           stripe_onboarding_complete: false,
           stripe_charges_enabled: false,
           stripe_payouts_enabled: false,
@@ -124,7 +201,7 @@ export async function POST(request: Request) {
         .eq("id", activeProfile.id);
 
       if (mirrorError) throw new Error(mirrorError.message);
-      accountId = created.id;
+      accountId = createdAccountId;
     }
 
     const origin = getAppOrigin(request);

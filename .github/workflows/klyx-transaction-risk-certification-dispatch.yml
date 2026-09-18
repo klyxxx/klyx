@@ -1,0 +1,50 @@
+name: KLYX Transaction Risk Certification Dispatch
+
+on:
+  push:
+    branches:
+      - feature/transaction-risk-gate-20260915
+    paths:
+      - ".github/workflows/klyx-transaction-risk-certification-dispatch.yml"
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  certify-and-dispatch:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Unit and integration tests
+        run: npm test
+
+      - name: TypeScript safety check
+        run: npx tsc --noEmit --pretty false
+
+      - name: Production build
+        run: npm run build
+
+      - name: Dispatch exact KLYX verification workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          KLYX_REF: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh workflow run klyx-security.yml --repo "$GH_REPO" --ref "$KLYX_REF"
+          gh workflow run klyx-golden-path.yml --repo "$GH_REPO" --ref "$KLYX_REF" -f confirm_isolated_e2e=true
+          gh workflow run klyx-performance.yml --repo "$GH_REPO" --ref "$KLYX_REF" -f profile=smoke -f confirm_isolated_target=true
+          gh workflow run klyx-e2e.yml --repo "$GH_REPO" --ref "$KLYX_REF"

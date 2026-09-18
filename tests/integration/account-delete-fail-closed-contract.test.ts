@@ -27,6 +27,16 @@ describe("account deletion fail-closed contract", () => {
     );
 
     expect(source).toContain("KLYX_ACCOUNT_DELETE_FAILED");
-    expect(source).toContain("KLYX_ACCOUNT_DELETE_STRIPE_BLOCKED");
+  });
+
+  it("never deletes the account-level Stripe Connect identity when one legacy profile is deleted", () => {
+    const source = readFileSync(
+      join(process.cwd(), "app/api/account/delete/route.ts"),
+      "utf8"
+    );
+
+    expect(source).not.toContain("stripe.accounts.del");
+    expect(source).not.toContain("new Stripe(");
+    expect(source).toContain("profile-only");
   });
 });

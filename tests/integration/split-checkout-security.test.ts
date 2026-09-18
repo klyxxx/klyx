@@ -11,6 +11,9 @@ import {
 const getAuthenticatedProfile =
   vi.fn();
 
+const getAuthenticatedAccount =
+  vi.fn();
+
 const requireAccountType =
   vi.fn();
 
@@ -40,6 +43,8 @@ vi.mock(
   () => ({
     apiErrorStatus:
       () => 500,
+
+    getAuthenticatedAccount,
 
     getAuthenticatedProfile,
 
@@ -177,6 +182,42 @@ describe(
         process.env.STRIPE_SECRET_KEY =
           "sk_test_klyx_13_30";
 
+        getAuthenticatedAccount
+          .mockResolvedValue({
+            user: {
+              id:
+                "auth-client",
+
+              email:
+                "client@klyx.test",
+            },
+
+            account: {
+              id:
+                "account-client",
+
+              authUserId:
+                "auth-client",
+
+              canRequestServices:
+                true,
+
+              canOfferServices:
+                false,
+
+              enabledCapabilities:
+                [],
+            },
+
+            profile: {
+              id:
+                "client-profile",
+
+              account_type:
+                "client",
+            },
+          });
+
         getAuthenticatedProfile
           .mockResolvedValue({
             user: {
@@ -307,6 +348,42 @@ describe(
     it(
       "requires the authenticated profile to be a client",
       async () => {
+        getAuthenticatedAccount
+          .mockResolvedValue({
+            user: {
+              id:
+                "auth-provider",
+
+              email:
+                "provider@klyx.test",
+            },
+
+            account: {
+              id:
+                "account-provider",
+
+              authUserId:
+                "auth-provider",
+
+              canRequestServices:
+                false,
+
+              canOfferServices:
+                true,
+
+              enabledCapabilities:
+                [],
+            },
+
+            profile: {
+              id:
+                "provider-profile",
+
+              account_type:
+                "provider",
+            },
+          });
+
         getAuthenticatedProfile
           .mockResolvedValue({
             user: {

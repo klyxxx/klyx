@@ -10,9 +10,17 @@ const statusRoutePath = path.join(
   process.cwd(),
   "app/api/bookings/status/route.ts"
 );
+const statusRouteCorePath = path.join(
+  process.cwd(),
+  "app/api/bookings/status/route-core.ts"
+);
 const trackingRoutePath = path.join(
   process.cwd(),
   "app/api/bookings/tracking/route.ts"
+);
+const trackingRouteCorePath = path.join(
+  process.cwd(),
+  "app/api/bookings/tracking/route-core.ts"
 );
 const createRoutePath = path.join(
   process.cwd(),
@@ -20,8 +28,14 @@ const createRoutePath = path.join(
 );
 
 const migration = fs.readFileSync(migrationPath, "utf8");
-const statusRoute = fs.readFileSync(statusRoutePath, "utf8");
-const trackingRoute = fs.readFileSync(trackingRoutePath, "utf8");
+const statusRoute = [
+  fs.readFileSync(statusRoutePath, "utf8"),
+  fs.readFileSync(statusRouteCorePath, "utf8"),
+].join("\n");
+const trackingRoute = [
+  fs.readFileSync(trackingRoutePath, "utf8"),
+  fs.readFileSync(trackingRouteCorePath, "utf8"),
+].join("\n");
 const createRoute = fs.readFileSync(createRoutePath, "utf8");
 
 describe("single-booking status history atomicity", () => {

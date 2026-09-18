@@ -11,14 +11,28 @@ const statusRoutePath = path.join(
   root,
   "app/api/bookings/status/route.ts"
 );
+const statusRouteCorePath = path.join(
+  root,
+  "app/api/bookings/status/route-core.ts"
+);
 const trackingRoutePath = path.join(
   root,
   "app/api/bookings/tracking/route.ts"
 );
+const trackingRouteCorePath = path.join(
+  root,
+  "app/api/bookings/tracking/route-core.ts"
+);
 
 const migration = fs.readFileSync(migrationPath, "utf8");
-const statusRoute = fs.readFileSync(statusRoutePath, "utf8");
-const trackingRoute = fs.readFileSync(trackingRoutePath, "utf8");
+const statusRoute = [
+  fs.readFileSync(statusRoutePath, "utf8"),
+  fs.readFileSync(statusRouteCorePath, "utf8"),
+].join("\n");
+const trackingRoute = [
+  fs.readFileSync(trackingRoutePath, "utf8"),
+  fs.readFileSync(trackingRouteCorePath, "utf8"),
+].join("\n");
 
 describe("booking refund transition race contract", () => {
   it("starts paid-booking cancellation refunds before the final status CAS", () => {

@@ -8,11 +8,16 @@ import {
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { assessBookingStripeReadiness } from "@/lib/booking-stripe-readiness";
 import { assessKlyxStripeMarketAccess } from "@/lib/klyx-stripe-market-access";
+import {
+  getProviderStripeDestination,
+  isStripeConnectIdentityReviewRequired,
+} from "@/lib/stripe-connect-account";
 import { inspectStripeRuntime } from "@/lib/stripe-runtime";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 // KLYX_BOOKING_STRIPE_READINESS_API_15_05
 // KLYX_BOOKING_READINESS_PARITY_API_15_06
+// KLYX_ACCOUNT_LEVEL_STRIPE_CONNECT_19_45
 
 type RouteContext = {
   params: Promise<{
@@ -35,14 +40,6 @@ type BookingRow = {
   currency: string | null;
   estimated_amount_cents: number | null;
   amount_total: number | null;
-};
-
-type ProviderRow = {
-  country_code: string | null;
-  stripe_account_id: string | null;
-  stripe_onboarding_complete: boolean | null;
-  stripe_charges_enabled: boolean | null;
-  stripe_payouts_enabled: boolean | null;
 };
 
 type ServiceProfileRow = {
@@ -88,23 +85,15 @@ export async function GET(request: Request, context: RouteContext) {
 
     if (!booking) {
       return NextResponse.json(
-        {
-          error: "Réservation introuvable.",
-        },
-        {
-          status: 404,
-        }
+        { error: "Réservation introuvable." },
+        { status: 404 }
       );
     }
 
     if (booking.parent_id !== profile.id) {
       return NextResponse.json(
-        {
-          error: "Accès refusé.",
-        },
-        {
-          status: 403,
-        }
+        { error: "Accès refusé." },
+        { status: 403 }
       );
     }
 
@@ -115,7 +104,7 @@ export async function GET(request: Request, context: RouteContext) {
 
     const [
       splitResult,
-      providerResult,
+      provider,
       serviceResult,
       userServiceResult,
       serviceProfileResult,
@@ -126,14 +115,8 @@ export async function GET(request: Request, context: RouteContext) {
         .eq("booking_id", booking.id)
         .limit(1),
       providerId
-        ? supabaseAdmin
-            .from("profiles")
-            .select(
-              "country_code, stripe_account_id, stripe_onboarding_complete, stripe_charges_enabled, stripe_payouts_enabled"
-            )
-            .eq("id", providerId)
-            .maybeSingle()
-        : Promise.resolve({ data: null, error: null }),
+        ? getProviderStripeDestination(providerId)
+        : Promise.resolve(null),
       booking.service_id
         ? supabaseAdmin
             .from("services")
@@ -162,7 +145,6 @@ export async function GET(request: Request, context: RouteContext) {
 
     for (const queryResult of [
       splitResult,
-      providerResult,
       serviceResult,
       userServiceResult,
       serviceProfileResult,
@@ -172,7 +154,6 @@ export async function GET(request: Request, context: RouteContext) {
       }
     }
 
-    const provider = (providerResult.data as ProviderRow | null) ?? null;
     const serviceProfile =
       (serviceProfileResult.data as ServiceProfileRow | null) ?? null;
     const splitMissionPayment = (splitResult.data ?? []).length > 0;
@@ -250,14 +231,15 @@ export async function GET(request: Request, context: RouteContext) {
       stripeRuntime.mode
     );
     const providerMarketAccess = assessKlyxStripeMarketAccess(
-      provider?.country_code ?? "",
+      provider?.countryCode ?? "",
       stripeRuntime.mode
     );
     const providerStripeReady = Boolean(
-      provider?.stripe_account_id &&
-        provider.stripe_onboarding_complete &&
-        provider.stripe_charges_enabled &&
-        provider.stripe_payouts_enabled
+      provider?.connect.stripeAccountId &&
+        provider.connect.state === "linked" &&
+        provider.connect.onboardingComplete &&
+        provider.connect.chargesEnabled &&
+        provider.connect.payoutsEnabled
     );
     const platformOnlyTestPaymentAllowed = Boolean(
       stripeRuntime.ready &&
@@ -313,6 +295,20 @@ export async function GET(request: Request, context: RouteContext) {
       automaticPayment: false,
     });
   } catch (error) {
+    if (isStripeConnectIdentityReviewRequired(error)) {
+      return NextResponse.json(
+        {
+          checkoutReady: false,
+          paymentInfrastructureReady: false,
+          stripeReadinessComplete: true,
+          explicitPaymentConfirmationRequired: true,
+          automaticPayment: false,
+          code: "KLYX_STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED",
+        },
+        { status: 409 }
+      );
+    }
+
     const message =
       error instanceof Error
         ? error.message
