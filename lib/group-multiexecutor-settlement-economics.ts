@@ -302,7 +302,7 @@ export function calculateCumulativeGroupRefundDelta(input: {
   // target and then taking the delta prevents penny drift across many partial
   // refunds. A full refund always returns the exact frozen KLYX commission.
   const cumulativePlatformFeeRefundCents = Number(
-    (fee * cumulativeGross + gross / 2n) / gross
+    (fee * cumulativeGross + gross / BigInt(2)) / gross
   );
   const cumulativeProviderRefundCents =
     cumulativeGrossRefundCents - cumulativePlatformFeeRefundCents;
