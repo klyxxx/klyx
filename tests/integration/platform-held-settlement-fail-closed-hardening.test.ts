@@ -55,7 +55,13 @@ describe("KLYX platform-held settlement fail-closed hardening", () => {
     expect(migration).toContain("select account_id, owner_user_id");
     expect(migration).toContain("from public.profiles");
     expect(migration).toContain("where auth_user_id = v_profile_owner_user_id");
-    expect(migration).toContain("select stripe_account_id, stripe_connect_state");
+    expect(migration).toContain(
+      "select identity.stripe_account_id, identity.identity_state"
+    );
+    expect(migration).toContain(
+      "from public.account_stripe_connect_identities as identity"
+    );
+    expect(migration).toContain("where identity.account_id = v_account_id");
     expect(migration).toContain("coalesce(v_account_connect_state, '') <> 'linked'");
     expect(migration).toContain(
       "v_account_stripe_id is distinct from v_settlement.stripe_account_id"
@@ -88,16 +94,17 @@ describe("KLYX platform-held settlement fail-closed hardening", () => {
       "create or replace function public.klyx_claim_booking_settlement_release"
     );
     expect(migration).toContain(
-      "select a.stripe_account_id, a.stripe_connect_state"
+      "select identity.stripe_account_id, identity.identity_state"
     );
-    expect(migration).toContain("from public.accounts as a");
-    expect(migration).toContain("where a.id = v_account_id");
+    expect(migration).toContain(
+      "from public.account_stripe_connect_identities as identity"
+    );
+    expect(migration).toContain("where identity.account_id = v_account_id");
     expect(migration).toContain(
       "update public.booking_settlements as s set state = 'release_claimed', release_attempt_number = s.release_attempt_number + 1"
     );
-    expect(migration).not.toContain(
-      "select stripe_account_id, stripe_connect_state"
-    );
+    expect(migration).not.toContain("select a.stripe_account_id");
+    expect(migration).not.toContain("a.stripe_connect_state");
     expect(migration).toContain(
       "revoke all on function public.klyx_claim_booking_settlement_release(uuid, uuid) from public, anon, authenticated"
     );

@@ -178,10 +178,10 @@ begin
     return;
   end if;
 
-  select stripe_account_id, stripe_connect_state
+  select identity.stripe_account_id, identity.identity_state
     into v_account_stripe_id, v_account_connect_state
-    from public.accounts
-   where id = v_account_id;
+    from public.account_stripe_connect_identities as identity
+   where identity.account_id = v_account_id;
 
   if not found
      or coalesce(v_account_connect_state, '') <> 'linked'
