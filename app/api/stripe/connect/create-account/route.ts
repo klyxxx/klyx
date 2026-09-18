@@ -1,38 +1,30 @@
-// KLYX_STRIPE_CONNECT_COUNTRY_PHASE_5G
-// KLYX_CONNECT_ONBOARDING_BEFORE_LIVE_SWITCH_16_08
-// KLYX_ACCOUNT_LEVEL_STRIPE_CONNECT_19_45
+// KLYX_STRIPE_CONNECT_ACCOUNT_CANONICAL_20260914
 import { NextResponse } from "next/server";
-import { assertStripeConnectRuntimeConfigured } from "@/lib/stripe-runtime";
 import Stripe from "stripe";
-import { supabaseAdmin } from "@/lib/supabase-admin";
-import {
-  apiErrorStatus,
-  getAuthenticatedAccount,
-} from "@/lib/api-auth";
+
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { apiErrorStatus, getAuthenticatedAccount } from "@/lib/api-auth";
 import { getKlyxMarketReadiness } from "@/lib/klyx-market-readiness";
-import { stripeConnectAccountCreateIdempotencyKey } from "@/lib/stripe-connect-account-idempotency";
 import {
-  bindCanonicalStripeAccount,
-  getStripeConnectCreationDecision,
-  isStripeConnectIdentityReviewRequired,
-  markStripeConnectIdentityReview,
-  resolveCanonicalAccountCountry,
-  StripeConnectIdentityReviewRequiredError,
-} from "@/lib/stripe-connect-account";
+  assertStripeConnectIdentityUsable,
+  getAccountStripeConnectIdentity,
+  persistAccountStripeConnectIdentity,
+  STRIPE_CONNECT_IDENTITY_CONFLICT,
+  STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED,
+} from "@/lib/stripe-connect-account-identity";
+import { stripeConnectAccountCreateIdempotencyKey } from "@/lib/stripe-connect-account-idempotency";
 import {
   isRecoverableStripeConnectAccountForOnboarding,
   isStripePlatformActivationRequired,
   isStripePlatformProfileRequired,
 } from "@/lib/stripe-connect-account-recovery";
+import { assertStripeConnectRuntimeConfigured } from "@/lib/stripe-runtime";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 
 function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();
 
-  if (!value) {
-    throw new Error(`Variable manquante : ${name}`);
-  }
-
+  if (!value) throw new Error(`Variable manquante : ${name}`);
   return value;
 }
 
@@ -54,38 +46,23 @@ export async function POST(request: Request) {
   const startedAt = Date.now();
 
   try {
-    const { user, account } = await getAuthenticatedAccount(request);
+    const { user, account, profile: activeProfile } =
+      await getAuthenticatedAccount(request);
 
-    // Connect onboarding/KYC is a capability of the canonical KLYX account,
-    // not of a permanent provider identity. A buyer can therefore activate
-    // payouts on the same account without creating or switching profiles.
     const stripeRuntime = assertStripeConnectRuntimeConfigured();
     const stripe = new Stripe(requiredEnv("STRIPE_SECRET_KEY"));
-
-    const { data: countryRows, error: countryError } = await supabaseAdmin
-      .from("profiles")
-      .select("country_code")
-      .eq("account_id", account.id);
-
-    if (countryError) throw new Error(countryError.message);
-
-    const accountCountry = resolveCanonicalAccountCountry(
-      (countryRows ?? []).map((row) => row.country_code)
-    );
+    const accountCountry = activeProfile.countryCode.trim().toUpperCase();
 
     if (!/^[A-Z]{2}$/.test(accountCountry)) {
       return NextResponse.json(
         {
-          error:
-            "Configure ton pays KLYX avant de créer ton compte de paiement.",
+          error: "Configure ton pays KLYX avant de créer ton compte de paiement.",
           code: "KLYX_STRIPE_COUNTRY_REQUIRED",
         },
         { status: 409 }
       );
     }
 
-    // Onboarding remains preparatory. Pricing and KLYX commission are not
-    // modified by this account-identity migration.
     if (stripeRuntime.mode === "live") {
       const marketReadiness = getKlyxMarketReadiness(accountCountry);
 
@@ -102,30 +79,19 @@ export async function POST(request: Request) {
       }
     }
 
-    const creation = await getStripeConnectCreationDecision(account.id);
+    const identity = await getAccountStripeConnectIdentity(account.id);
+    let accountId = assertStripeConnectIdentityUsable(identity);
 
-    if (creation.decision === "review_required") {
-      await markStripeConnectIdentityReview({
-        accountId: account.id,
-        reason: "connect_onboarding_identity_conflict",
-        candidateStripeAccountIds: creation.historicalStripeAccountIds,
-      });
-      throw new StripeConnectIdentityReviewRequiredError();
-    }
-
-    let accountId = creation.connect.stripeAccountId;
-
-    if (creation.decision === "create") {
+    if (!accountId) {
       const idempotencyKey = stripeConnectAccountCreateIdempotencyKey({
         accountId: account.id,
         runtimeMode: stripeRuntime.mode,
       });
 
-      const connectedAccount = await stripe.accounts.create(
+      const created = await stripe.accounts.create(
         {
           type: "express",
-          country:
-            accountCountry as Stripe.AccountCreateParams["country"],
+          country: accountCountry as Stripe.AccountCreateParams["country"],
           email: user.email ?? undefined,
           capabilities: {
             card_payments: { requested: true },
@@ -134,17 +100,31 @@ export async function POST(request: Request) {
           metadata: {
             klyx_account_id: account.id,
             klyx_owner_user_id: user.id,
+            klyx_profile_id_compat: activeProfile.id,
           },
         },
         { idempotencyKey }
       );
 
-      await bindCanonicalStripeAccount(account.id, connectedAccount.id);
-      accountId = connectedAccount.id;
-    }
+      await persistAccountStripeConnectIdentity({
+        accountId: account.id,
+        stripeAccountId: created.id,
+        sourceProfileId: activeProfile.id,
+      });
 
-    if (!accountId) {
-      throw new StripeConnectIdentityReviewRequiredError();
+      // Compatibility mirror only. Canonical authority is the account-level row.
+      const { error: mirrorError } = await supabaseAdmin
+        .from("profiles")
+        .update({
+          stripe_account_id: created.id,
+          stripe_onboarding_complete: false,
+          stripe_charges_enabled: false,
+          stripe_payouts_enabled: false,
+        })
+        .eq("id", activeProfile.id);
+
+      if (mirrorError) throw new Error(mirrorError.message);
+      accountId = created.id;
     }
 
     const origin = getAppOrigin(request);
@@ -159,34 +139,23 @@ export async function POST(request: Request) {
 
       return NextResponse.json({ url: accountLink.url });
     } catch (error) {
-      // A missing/stale historical acct_* is an identity conflict. Never
-      // auto-create a replacement: preserve financial identity and fail closed.
+      // Once an account-level or historical Stripe identity exists, KLYX never
+      // creates a replacement automatically. Missing/environment-mismatched
+      // identities require explicit financial review to protect payouts/history.
       if (isRecoverableStripeConnectAccountForOnboarding(error)) {
-        await markStripeConnectIdentityReview({
-          accountId: account.id,
-          reason: "stored_stripe_account_unavailable",
-          candidateStripeAccountIds: [accountId],
-        });
-        throw new StripeConnectIdentityReviewRequiredError();
+        return NextResponse.json(
+          {
+            error:
+              "L'identité Stripe existante de ce compte KLYX doit être vérifiée avant toute nouvelle création.",
+            code: STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED,
+          },
+          { status: 409 }
+        );
       }
 
       throw error;
     }
   } catch (error) {
-    if (isStripeConnectIdentityReviewRequired(error)) {
-      return secureApiErrorResponse({
-        error,
-        event: "stripe_connect_identity_review_required",
-        route: "/api/stripe/connect/create-account",
-        method: "POST",
-        code: "KLYX_STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED",
-        status: 409,
-        publicMessage:
-          "L'identité Stripe Connect de ce compte KLYX nécessite une revue avant toute création ou modification.",
-        startedAt,
-      });
-    }
-
     if (isStripePlatformProfileRequired(error)) {
       return secureApiErrorResponse({
         error,
@@ -219,6 +188,21 @@ export async function POST(request: Request) {
       error instanceof Error
         ? error.message
         : "Impossible de démarrer Stripe Connect.";
+
+    if (
+      message === STRIPE_CONNECT_IDENTITY_CONFLICT ||
+      message === STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Plusieurs identités Stripe historiques sont associées à ce compte KLYX. Une revue est requise.",
+          code: message,
+        },
+        { status: 409 }
+      );
+    }
+
     const status = apiErrorStatus(message);
 
     return secureApiErrorResponse({
