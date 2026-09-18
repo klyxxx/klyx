@@ -643,6 +643,7 @@ export async function POST(request: Request, context: RouteContext) {
         },
       },
       {
+        // A stale/unknown Checkout claim keeps the SAME attempt number/idempotency key.
         idempotencyKey: `klyx-platform-held-group-${parent.id}-attempt-${claim.attempt_number}`,
       }
     );

@@ -1188,6 +1188,17 @@ begin
     raise exception 'KLYX_GROUP_HELD_REFUND_KEY_CONFLICT';
   end if;
 
+  -- Replays with the same request key return above. A different refund must
+  -- not start while reversal/refund truth for this group is still unsettled.
+  if exists (
+    select 1
+      from public.platform_held_group_refunds r
+     where r.group_settlement_id = v_parent.id
+       and r.state in ('reversing', 'ready', 'refunding', 'review_required')
+  ) then
+    raise exception 'KLYX_GROUP_HELD_REFUND_ALREADY_ACTIVE';
+  end if;
+
   select
     coalesce(sum((a ->> 'gross_refund_cents')::bigint), 0),
     coalesce(sum((a ->> 'platform_fee_refund_cents')::bigint), 0),
