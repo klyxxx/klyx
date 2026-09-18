@@ -317,6 +317,7 @@ export async function enforceRefundTransactionRisk(input: {
 
 export async function enforceSettlementReleaseTransactionRisk(input: {
   recipientProfileId: string;
+  subjectType?: Extract<TransactionRiskSubjectType, "booking" | "booking_group">;
   subjectId: string;
 }): Promise<void> {
   const recipientAccountIds = await resolveCanonicalAccountIdsForProfiles([
@@ -333,7 +334,7 @@ export async function enforceSettlementReleaseTransactionRisk(input: {
     canOfferServices: true,
     action: "settlement_release",
     participant: "settlement_recipient",
-    subjectType: "booking",
+    subjectType: input.subjectType ?? "booking",
     subjectId: input.subjectId,
   });
 }
