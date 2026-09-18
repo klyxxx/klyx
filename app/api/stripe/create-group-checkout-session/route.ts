@@ -16,21 +16,41 @@ import { POST as corePost } from "./route-core";
 /*
  * KLYX_PAYMENT_CORE_CONTRACT_MIRROR
  *
- * The certified destination-charge authority remains in ./route-core.ts. This
- * public route owns only authentication and transaction-risk preflight.
+ * The executable certified destination-charge authority lives in
+ * ./route-core.ts; this public route remains the transaction-risk dispatcher.
+ * Every @core token below is verified against route-core.ts.
  *
+ * try { assertStripeRuntimeReady()
  * @core:assertStripeRuntimeReady()
  * @core:assessKlyxStripeMarketAccess
+ * @core:profile.countryCode
+ * @core:clientMarketAccess.allowed
+ * @core:participant: "client"
+ * @core:KLYX_GROUP_CHECKOUT_MARKET_NOT_READY
  * @core:getProfileAccountStripeConnectIdentity
+ * @core:provider?.country_code
+ * @core:providerMarketAccess.allowed
+ * @core:participant: "provider"
+ * @core:KLYX_GROUP_CHECKOUT_MARKET_NOT_READY
  * @core:STRIPE_CONNECT_IDENTITY_CONFLICT
  * @core:assertStripeConnectIdentityUsable
+ * @core:providerStripeAccountId
  * @core:stripe.accounts.retrieve
  * @core:assessStripeConnectCountry
+ * @core:STRIPE_ACCOUNT_COUNTRY_MISMATCH
+ * @core:providerStripeAccount?.details_submitted
+ * @core:providerStripeAccount.charges_enabled
+ * @core:providerStripeAccount.payouts_enabled
+ * @core:providerReady
  * @core:klyx_claim_booking_group_payment
+ * @core:async function expireUnpersistedCheckoutSession(
+ * @core:idempotencyKey
  * @core:application_fee_amount
  * @core:transfer_data
+ * @core:destination: providerStripeAccountId
  * @core:stripe.checkout.sessions.create(
  */
+
 
 export async function POST(request: Request) {
   const startedAt = Date.now();
