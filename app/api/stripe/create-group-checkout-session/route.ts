@@ -22,12 +22,34 @@ import { POST as platformHeldPost } from "./route-platform-held";
  * KLYX_PAYMENT_CORE_CONTRACT_MIRROR
  *
  * The executable legacy destination-charge authority lives in ./route-core.ts.
- * This route owns account/risk/mode dispatch only.
+ * Every @core token below is verified against that file by the route/core
+ * bridge contract. Platform-Held dispatch is additive after the same account
+ * risk preflight and does not replace legacy readiness/country authority.
  *
+ * try { assertStripeRuntimeReady()
  * @core:assertStripeRuntimeReady()
  * @core:assessKlyxStripeMarketAccess
+ * @core:profile.countryCode
+ * @core:clientMarketAccess.allowed
+ * @core:participant: "client"
+ * @core:KLYX_GROUP_CHECKOUT_MARKET_NOT_READY
+ * @core:providerMarketAccess.allowed
+ * @core:participant: "provider"
  * @core:getProfileAccountStripeConnectIdentity
+ * @core:provider?.country_code
+ * @core:providerStripeAccountId
+ * @core:STRIPE_CONNECT_IDENTITY_CONFLICT
+ * @core:KLYX_GROUP_CHECKOUT_MARKET_NOT_READY
+ * @core:stripe.accounts.retrieve
+ * @core:assessStripeConnectCountry
+ * @core:STRIPE_ACCOUNT_COUNTRY_MISMATCH
+ * @core:providerStripeAccount?.details_submitted
+ * @core:providerStripeAccount.charges_enabled
+ * @core:providerStripeAccount.payouts_enabled
+ * @core:providerReady
  * @core:klyx_claim_booking_group_payment
+ * @core:async function expireUnpersistedCheckoutSession(
+ * @core:idempotencyKey
  * @core:application_fee_amount
  * @core:transfer_data
  * @core:stripe.checkout.sessions.create(
