@@ -72,32 +72,67 @@ function assertStripeHostedUrl(value, label) {
 }
 
 async function canonicalConnectState(admin, accountId) {
-  const { data, error } = await admin
-    .from("accounts")
-    .select(
-      "id, stripe_account_id, stripe_connect_state, stripe_onboarding_complete, stripe_charges_enabled, stripe_payouts_enabled, stripe_status_updated_at"
-    )
-    .eq("id", accountId)
-    .single();
+  const [
+    { data: identity, error: identityError },
+    { data: providerProfiles, error: profileError },
+  ] = await Promise.all([
+    admin
+      .from("account_stripe_connect_identities")
+      .select("account_id, stripe_account_id, identity_state")
+      .eq("account_id", accountId)
+      .maybeSingle(),
+    admin
+      .from("profiles")
+      .select(
+        "stripe_onboarding_complete, stripe_charges_enabled, stripe_payouts_enabled"
+      )
+      .eq("account_id", accountId)
+      .eq("account_type", "provider"),
+  ]);
 
-  if (error || !data) {
+  if (identityError) {
     throw new Error(
-      `Unable to load canonical Connect state: ${error?.message ?? "missing account"}`
+      `Unable to load canonical Connect identity: ${identityError.message}`
     );
   }
 
-  return data;
+  if (profileError || !providerProfiles?.length) {
+    throw new Error(
+      `Unable to load provider Connect compatibility state: ${profileError?.message ?? "missing provider profile"}`
+    );
+  }
+
+  const first = providerProfiles[0];
+  const compatibilityStateMatches = providerProfiles.every(
+    (profile) =>
+      profile.stripe_onboarding_complete === first.stripe_onboarding_complete &&
+      profile.stripe_charges_enabled === first.stripe_charges_enabled &&
+      profile.stripe_payouts_enabled === first.stripe_payouts_enabled
+  );
+
+  if (!compatibilityStateMatches) {
+    throw new Error("Provider Connect compatibility flags diverged inside one canonical KLYX account.");
+  }
+
+  return {
+    id: accountId,
+    stripe_account_id: identity?.stripe_account_id ?? null,
+    stripe_connect_state: identity?.identity_state ?? "unlinked",
+    stripe_onboarding_complete: first.stripe_onboarding_complete,
+    stripe_charges_enabled: first.stripe_charges_enabled,
+    stripe_payouts_enabled: first.stripe_payouts_enabled,
+  };
 }
 
 async function resetProviderConnectState(admin, providerId, accountId) {
-  const { error: reviewError } = await admin
-    .from("stripe_connect_identity_reviews")
+  const { error: identityError } = await admin
+    .from("account_stripe_connect_identities")
     .delete()
     .eq("account_id", accountId);
 
-  if (reviewError) {
+  if (identityError) {
     throw new Error(
-      `Unable to reset Stripe identity review fixture: ${reviewError.message}`
+      `Unable to reset canonical Stripe identity fixture: ${identityError.message}`
     );
   }
 
@@ -110,30 +145,24 @@ async function resetProviderConnectState(admin, providerId, accountId) {
       stripe_payouts_enabled: false,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", providerId)
     .eq("account_id", accountId);
 
   if (profileError) {
     throw new Error(
-      `Unable to reset legacy provider Connect compatibility state: ${profileError.message}`
+      `Unable to reset provider Connect compatibility state: ${profileError.message}`
     );
   }
 
-  const { error: accountError } = await admin
-    .from("accounts")
-    .update({
-      stripe_account_id: null,
-      stripe_connect_state: "unlinked",
-      stripe_onboarding_complete: false,
-      stripe_charges_enabled: false,
-      stripe_payouts_enabled: false,
-      stripe_status_updated_at: null,
-    })
-    .eq("id", accountId);
+  const { data: provider, error: providerError } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("id", providerId)
+    .eq("account_id", accountId)
+    .maybeSingle();
 
-  if (accountError) {
+  if (providerError || !provider) {
     throw new Error(
-      `Unable to reset canonical Connect state: ${accountError.message}`
+      `Unable to verify provider canonical account binding after reset: ${providerError?.message ?? "missing provider"}`
     );
   }
 }
