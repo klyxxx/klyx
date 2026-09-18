@@ -696,6 +696,7 @@ async function main() {
   let stripeB = null;
   let stripeBClosed = false;
   let checkoutSessionId = null;
+  let concurrencyCheckoutSessionId = null;
 
   try {
     const providerA = await createProvider({
@@ -951,13 +952,10 @@ async function main() {
       "Aggregate releases exceeded frozen provider funds."
     );
 
-    const partialGross = Math.min(1000, Number(refreshedA.gross_amount_cents) - 1);
-    const feeRefund = Math.floor(
-      (partialGross * Number(refreshedA.platform_fee_cents)) /
-        Number(refreshedA.gross_amount_cents)
+    const partialGross = Math.min(
+      1000,
+      Number(refreshedA.gross_amount_cents) - 1
     );
-    const providerRefund = partialGross - feeRefund;
-    assert(providerRefund > 0, "Partial refund must require a provider reversal.");
 
     const requestKey = "network-partial-" + randomUUID();
     const refundBody = {
@@ -968,8 +966,6 @@ async function main() {
         {
           memberId: refreshedA.id,
           grossRefundCents: partialGross,
-          platformFeeRefundCents: feeRefund,
-          providerRefundCents: providerRefund,
         },
       ],
     };
@@ -1039,6 +1035,17 @@ async function main() {
       .single();
     if (allocationError) throw new Error(allocationError.message);
 
+    const feeRefund = Number(allocation.platform_fee_refund_cents);
+    const providerRefund = Number(allocation.provider_refund_cents);
+    assert(
+      feeRefund + providerRefund === partialGross,
+      "Server-derived partial refund economics do not reconcile."
+    );
+    assert(
+      providerRefund > 0,
+      "Partial refund must require a provider reversal for released executor A."
+    );
+
     const reversals = await stripe.transfers.listReversals(transferA.id, { limit: 100 });
     const matchingReversals = reversals.data.filter(
       (row) => row.metadata?.group_refund_allocation_id === allocation.id
@@ -1054,7 +1061,7 @@ async function main() {
       limit: 100,
     });
     const matchingRefunds = refunds.data.filter(
-      (row) => row.metadata?.platform_held_group_refund_id === refundRow.id
+      (row) => row.metadata?.group_refund_id === refundRow.id
     );
     assert(matchingRefunds.length === 1, "Customer partial refund was duplicated or missing.");
     assert(matchingRefunds[0].amount === partialGross, "Customer refund amount mismatch.");
@@ -1131,11 +1138,15 @@ async function main() {
       }) + "\n"
     );
   } finally {
-    if (checkoutSessionId) {
+    for (const sessionId of [
+      checkoutSessionId,
+      concurrencyCheckoutSessionId,
+    ]) {
+      if (!sessionId) continue;
       try {
-        const session = await stripe.checkout.sessions.retrieve(checkoutSessionId);
+        const session = await stripe.checkout.sessions.retrieve(sessionId);
         if (session.status === "open") {
-          await stripe.checkout.sessions.expire(checkoutSessionId);
+          await stripe.checkout.sessions.expire(sessionId);
         }
       } catch {}
     }
