@@ -15,6 +15,8 @@ const migrationPath =
   "supabase/migrations/20260915200500_klyx_platform_held_settlement_fail_closed.sql";
 const claimQualificationMigrationPath =
   "supabase/migrations/20260918130000_klyx_settlement_claim_sql_qualification.sql";
+const canonicalIdentityMigrationPath =
+  "supabase/migrations/20260918162000_klyx_settlement_claim_canonical_stripe_identity.sql";
 
 describe("KLYX platform-held settlement fail-closed hardening", () => {
   it("requires completed paid single-booking held truth and a real source charge before SQL claim", () => {
@@ -49,13 +51,18 @@ describe("KLYX platform-held settlement fail-closed hardening", () => {
     expect(claimIndex).toBeGreaterThan(freshIndex);
   });
 
-  it("requires the frozen destination to still equal the linked canonical Stripe identity", () => {
-    const migration = compact(read(migrationPath));
+  it("requires the frozen destination to still equal the linked #799 canonical Stripe identity", () => {
+    const migration = compact(read(canonicalIdentityMigrationPath));
 
-    expect(migration).toContain("select account_id, owner_user_id");
-    expect(migration).toContain("from public.profiles");
-    expect(migration).toContain("where auth_user_id = v_profile_owner_user_id");
-    expect(migration).toContain("select stripe_account_id, stripe_connect_state");
+    expect(migration).toContain("select p.account_id, p.owner_user_id");
+    expect(migration).toContain("from public.profiles as p");
+    expect(migration).toContain("where a.auth_user_id = v_profile_owner_user_id");
+    expect(migration).toContain(
+      "select i.stripe_account_id, i.identity_state"
+    );
+    expect(migration).toContain(
+      "from public.account_stripe_connect_identities as i"
+    );
     expect(migration).toContain("coalesce(v_account_connect_state, '') <> 'linked'");
     expect(migration).toContain(
       "v_account_stripe_id is distinct from v_settlement.stripe_account_id"
@@ -81,27 +88,23 @@ describe("KLYX platform-held settlement fail-closed hardening", () => {
     );
   });
 
-  it("qualifies claim source columns so RETURNS TABLE outputs cannot shadow them", () => {
-    const migration = compact(read(claimQualificationMigrationPath));
+  it("keeps qualified claim columns after canonical identity correction", () => {
+    const qualified = compact(read(claimQualificationMigrationPath));
+    const canonical = compact(read(canonicalIdentityMigrationPath));
 
-    expect(migration).toContain(
-      "create or replace function public.klyx_claim_booking_settlement_release"
-    );
-    expect(migration).toContain(
-      "select a.stripe_account_id, a.stripe_connect_state"
-    );
-    expect(migration).toContain("from public.accounts as a");
-    expect(migration).toContain("where a.id = v_account_id");
-    expect(migration).toContain(
+    expect(qualified).toContain(
       "update public.booking_settlements as s set state = 'release_claimed', release_attempt_number = s.release_attempt_number + 1"
     );
-    expect(migration).not.toContain(
-      "select stripe_account_id, stripe_connect_state"
+    expect(canonical).toContain(
+      "select i.stripe_account_id, i.identity_state"
     );
-    expect(migration).toContain(
+    expect(canonical).toContain(
+      "update public.booking_settlements as s set state = 'release_claimed', release_attempt_number = s.release_attempt_number + 1"
+    );
+    expect(canonical).toContain(
       "revoke all on function public.klyx_claim_booking_settlement_release(uuid, uuid) from public, anon, authenticated"
     );
-    expect(migration).toContain(
+    expect(canonical).toContain(
       "grant execute on function public.klyx_claim_booking_settlement_release(uuid, uuid) to service_role"
     );
   });
