@@ -18,8 +18,8 @@ const statusRoute = read("app/api/stripe/connect/status/route.ts");
 const recovery = read("lib/stripe-connect-account-recovery.ts");
 const checkout = read("app/api/stripe/create-checkout-session/route.ts");
 
-describe("Stripe Connect stale account recovery contract", () => {
-  it("keeps recovery classification narrow to missing accounts and explicit link-mode mismatch", () => {
+describe("Stripe Connect stale account fail-closed contract", () => {
+  it("keeps recovery detection narrow to missing accounts and explicit link-mode mismatch", () => {
     expect(recovery).toContain('code === "resource_missing"');
     expect(recovery).toContain('param === "account"');
     expect(recovery).toContain(
@@ -31,7 +31,6 @@ describe("Stripe Connect stale account recovery contract", () => {
     expect(createAccount).toContain(
       "isRecoverableStripeConnectAccountForOnboarding(error)"
     );
-    expect(createAccount).toContain("throw error;");
   });
 
   it("surfaces Stripe platform activation as a safe actionable conflict", () => {
@@ -63,26 +62,23 @@ describe("Stripe Connect stale account recovery contract", () => {
     );
   });
 
-  it("never replaces a stale historical account during onboarding", () => {
+  it("never replaces a stale historical Connected Account automatically", () => {
     expect(createAccount).toContain(
       "isRecoverableStripeConnectAccountForOnboarding(error)"
     );
-    expect(createAccount).toContain('reason: "stored_stripe_account_unavailable"');
-    expect(createAccount).toContain("markStripeConnectIdentityReview");
-    expect(createAccount).toContain("StripeConnectIdentityReviewRequiredError");
-    expect(createAccount).not.toContain("const staleAccountId = accountId;");
-    expect(createAccount).not.toContain(
-      "createAndPersistAccount({ staleAccountId })"
-    );
+    expect(createAccount).toContain("STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED");
+    expect(createAccount).toContain("status: 409");
+    expect(createAccount).not.toContain("const staleAccountId");
+    expect(createAccount).not.toContain("createAndPersistAccount({ staleAccountId })");
   });
 
-  it("keeps status read-only for identity and escalates a missing canonical account to review", () => {
+  it("keeps status conservative and requires review for an unavailable canonical account", () => {
     expect(statusRoute).toContain("isMissingStripeConnectAccount(error)");
-    expect(statusRoute).toContain('reason: "stored_stripe_account_unavailable"');
-    expect(statusRoute).toContain("markStripeConnectIdentityReview");
-    expect(statusRoute).toContain("StripeConnectIdentityReviewRequiredError");
-    expect(statusRoute).toContain(
-      'code: "KLYX_STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED"'
+    expect(statusRoute).toContain("return disconnectedResponse(true, true);");
+    expect(statusRoute).toContain("accountUnavailable");
+    expect(statusRoute).toContain("reviewRequired");
+    expect(statusRoute).not.toContain(
+      "isRecoverableStripeConnectAccountForOnboarding(error)"
     );
     expect(statusRoute).not.toContain("stripe_account_id: null");
   });
@@ -90,5 +86,6 @@ describe("Stripe Connect stale account recovery contract", () => {
   it("does not weaken checkout transaction readiness", () => {
     expect(createAccount).toContain("assertStripeConnectRuntimeConfigured()");
     expect(checkout).toContain("assertStripeRuntimeReady()");
+    expect(checkout).toContain("getProfileAccountStripeConnectIdentity");
   });
 });
