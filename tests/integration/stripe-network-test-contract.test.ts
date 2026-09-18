@@ -42,6 +42,12 @@ describe("KLYX Stripe network proof", () => {
     expect(workflow).not.toContain("push:");
     expect(workflow).toContain("confirm_stripe_test_network");
     expect(workflow).toContain(
+      "github.ref_name == 'feature/platform-held-settlement-test-20260915'"
+    );
+    expect(workflow).toContain(
+      "github.ref_name == 'integration/risk-settlement-after-799-20260918'"
+    );
+    expect(workflow).toContain(
       'if [ "$KLYX_GOLDEN_PATH_MUTATIONS_ENABLED" != "true" ]'
     );
   });
