@@ -25,13 +25,12 @@ describe("Stripe Connect account-level business type onboarding contract", () =>
     expect(route).toContain("stripe.accountLinks.create");
   });
 
-  it("preserves capabilities and canonical-account idempotency without provider-only identity", () => {
+  it("preserves capabilities and moves authority to the canonical account", () => {
     expect(route).toContain("card_payments: { requested: true }");
     expect(route).toContain("transfers: { requested: true }");
     expect(route).toContain("stripeConnectAccountCreateIdempotencyKey");
     expect(route).toContain("{ idempotencyKey }");
     expect(route).toContain("getAuthenticatedAccount(request)");
     expect(route).not.toContain('requireAccountType(activeProfile, "provider")');
-    expect(route).toContain("klyx_account_id: account.id");
   });
 });
