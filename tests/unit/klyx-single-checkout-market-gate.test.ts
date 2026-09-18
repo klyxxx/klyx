@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const routePath = path.join(
   process.cwd(),
-  "app/api/stripe/create-checkout-session/route.ts"
+  "app/api/stripe/create-checkout-session/route-core.ts"
 );
 
 function readRoute() {
@@ -19,8 +19,8 @@ describe("KLYX single checkout live market gates", () => {
 
     expect(source).toContain("assessKlyxStripeMarketAccess");
     expect(source).toContain("profile.countryCode");
-    expect(source).toContain("getProviderStripeDestination(providerId)");
-    expect(source).toContain("provider.countryCode");
+    expect(source).toContain("getProfileAccountStripeConnectIdentity(providerId)");
+    expect(source).toContain("provider?.country_code");
     expect(source).toContain('participant: "client"');
     expect(source).toContain('participant: "provider"');
     expect(source.match(/KLYX_CHECKOUT_MARKET_NOT_READY/g)?.length).toBe(2);
