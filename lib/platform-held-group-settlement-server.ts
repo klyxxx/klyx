@@ -1028,9 +1028,15 @@ export async function refundPlatformHeldGroup(input: {
     throw new Error("KLYX_GROUP_HELD_REFUND_FORBIDDEN");
   }
 
+  let refund = await loadExistingRefundByRequestKey(
+    parent.id,
+    input.request.requestKey
+  );
+
   if (
     !parent.stripe_charge_id ||
-    ["pending_payment", "refunded", "review_required"].includes(parent.state)
+    ["pending_payment", "review_required"].includes(parent.state) ||
+    (parent.state === "refunded" && !refund)
   ) {
     throw new Error("KLYX_GROUP_HELD_REFUND_NOT_READY");
   }
@@ -1039,11 +1045,6 @@ export async function refundPlatformHeldGroup(input: {
     requesterAccount: input.requesterAccount,
     subjectId: parent.batch_id,
   });
-
-  let refund = await loadExistingRefundByRequestKey(
-    parent.id,
-    input.request.requestKey
-  );
   let allocations: AllocationRow[];
 
   if (refund) {
