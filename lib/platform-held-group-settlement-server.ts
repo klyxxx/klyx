@@ -589,6 +589,23 @@ export async function releasePlatformHeldGroupMember(
   }
 }
 
+async function loadExistingRefundByRequestKey(
+  parentId: string,
+  requestKey: string
+): Promise<RefundRow | null> {
+  const { data, error } = await supabaseAdmin
+    .from("platform_held_group_refunds")
+    .select(
+      "id, group_settlement_id, batch_id, request_key, currency, amount_cents, state, stripe_refund_id"
+    )
+    .eq("group_settlement_id", parentId)
+    .eq("request_key", requestKey)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return data ? (data as RefundRow) : null;
+}
+
 async function loadRefund(refundId: string): Promise<RefundRow> {
   const { data, error } = await supabaseAdmin
     .from("platform_held_group_refunds")
@@ -1023,43 +1040,75 @@ export async function refundPlatformHeldGroup(input: {
     subjectId: parent.batch_id,
   });
 
-  const desired =
-    input.request.kind === "total"
-      ? await buildRemainingTotalAllocations(parent)
-      : await buildPartialAllocations(
-          parent,
-          input.request.amountCents,
-          input.request.allocations
-        );
-
-  validateExplicitGroupRefundAllocations({
-    refundAmountCents: desired.amountCents,
-    allocations: desired.allocations,
-  });
-
-  const { data: refundId, error: createError } = await supabaseAdmin.rpc(
-    "klyx_create_platform_held_group_refund_plan",
-    {
-      p_batch_id: parent.batch_id,
-      p_request_key: input.request.requestKey,
-      p_amount_cents: desired.amountCents,
-      p_currency: parent.currency,
-      p_allocations: desired.allocations.map((allocation) => ({
-        member_id: allocation.memberId,
-        gross_refund_cents: allocation.grossRefundCents,
-        platform_fee_refund_cents: allocation.platformFeeRefundCents,
-        provider_refund_cents: allocation.providerRefundCents,
-      })),
-    }
+  let refund = await loadExistingRefundByRequestKey(
+    parent.id,
+    input.request.requestKey
   );
+  let allocations: AllocationRow[];
 
-  if (createError) throw new Error(createError.message);
-  if (typeof refundId !== "string") {
-    throw new Error("KLYX_GROUP_HELD_REFUND_PLAN_NOT_CREATED");
+  if (refund) {
+    allocations = await loadAllocations(refund.id);
+
+    if (input.request.kind === "partial") {
+      const requested = [...input.request.allocations]
+        .map((allocation) => ({
+          memberId: allocation.memberId.trim(),
+          grossRefundCents: allocation.grossRefundCents,
+        }))
+        .sort((a, b) => a.memberId.localeCompare(b.memberId));
+      const frozen = allocations
+        .map((allocation) => ({
+          memberId: allocation.member_id,
+          grossRefundCents: Number(allocation.gross_refund_cents),
+        }))
+        .sort((a, b) => a.memberId.localeCompare(b.memberId));
+
+      if (
+        Number(refund.amount_cents) !== input.request.amountCents ||
+        JSON.stringify(requested) !== JSON.stringify(frozen)
+      ) {
+        throw new Error("KLYX_GROUP_HELD_REFUND_KEY_CONFLICT");
+      }
+    }
+  } else {
+    const desired =
+      input.request.kind === "total"
+        ? await buildRemainingTotalAllocations(parent)
+        : await buildPartialAllocations(
+            parent,
+            input.request.amountCents,
+            input.request.allocations
+          );
+
+    validateExplicitGroupRefundAllocations({
+      refundAmountCents: desired.amountCents,
+      allocations: desired.allocations,
+    });
+
+    const { data: refundId, error: createError } = await supabaseAdmin.rpc(
+      "klyx_create_platform_held_group_refund_plan",
+      {
+        p_batch_id: parent.batch_id,
+        p_request_key: input.request.requestKey,
+        p_amount_cents: desired.amountCents,
+        p_currency: parent.currency,
+        p_allocations: desired.allocations.map((allocation) => ({
+          member_id: allocation.memberId,
+          gross_refund_cents: allocation.grossRefundCents,
+          platform_fee_refund_cents: allocation.platformFeeRefundCents,
+          provider_refund_cents: allocation.providerRefundCents,
+        })),
+      }
+    );
+
+    if (createError) throw new Error(createError.message);
+    if (typeof refundId !== "string") {
+      throw new Error("KLYX_GROUP_HELD_REFUND_PLAN_NOT_CREATED");
+    }
+
+    refund = await loadRefund(refundId);
+    allocations = await loadAllocations(refund.id);
   }
-
-  let refund = await loadRefund(refundId);
-  let allocations = await loadAllocations(refund.id);
 
   const reversalPending = await processRequiredReversals({
     stripe,
