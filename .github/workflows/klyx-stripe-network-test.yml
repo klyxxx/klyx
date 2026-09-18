@@ -3,6 +3,11 @@ name: KLYX Stripe Network Test
 on:
   workflow_dispatch:
     inputs:
+      expected_sha:
+        description: "Immutable commit SHA expected by the #803 certification dispatcher"
+        required: false
+        default: ""
+        type: string
       confirm_stripe_test_network:
         description: "Confirm Stripe TEST network calls against ephemeral local KLYX"
         required: true
@@ -40,6 +45,22 @@ jobs:
       KLYX_PLAYWRIGHT_SYSTEM_CHROME: "1"
 
     steps:
+      - name: Verify immutable certification SHA
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha != '' }}
+        shell: bash
+        env:
+          KLYX_EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$KLYX_EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Invalid expected certification SHA."
+            exit 1
+          fi
+          if [ "$GITHUB_SHA" != "$KLYX_EXPECTED_SHA" ]; then
+            echo "::error::Certification SHA mismatch: expected $KLYX_EXPECTED_SHA, got $GITHUB_SHA."
+            exit 1
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -272,6 +293,22 @@ jobs:
       NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100"
 
     steps:
+      - name: Verify immutable certification SHA
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha != '' }}
+        shell: bash
+        env:
+          KLYX_EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$KLYX_EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Invalid expected certification SHA."
+            exit 1
+          fi
+          if [ "$GITHUB_SHA" != "$KLYX_EXPECTED_SHA" ]; then
+            echo "::error::Certification SHA mismatch: expected $KLYX_EXPECTED_SHA, got $GITHUB_SHA."
+            exit 1
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@v4
 

@@ -42,8 +42,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gh workflow run klyx-security.yml --repo "$GH_REPO" --ref "$KLYX_REF"
-          gh workflow run klyx-golden-path.yml --repo "$GH_REPO" --ref "$KLYX_REF" -f confirm_isolated_e2e=true
-          gh workflow run klyx-performance.yml --repo "$GH_REPO" --ref "$KLYX_REF" -f profile=smoke -f confirm_isolated_target=true
-          gh workflow run klyx-e2e.yml --repo "$GH_REPO" --ref "$KLYX_REF"
-          gh workflow run klyx-stripe-network-test.yml --repo "$GH_REPO" --ref "$KLYX_REF" -f confirm_stripe_test_network=true
+
+          checked_out_sha="$(git rev-parse HEAD)"
+          if [ "$checked_out_sha" != "$GITHUB_SHA" ]; then
+            echo "::error::Dispatcher checkout SHA mismatch: expected $GITHUB_SHA, got $checked_out_sha."
+            exit 1
+          fi
+          gh workflow run klyx-security.yml --repo "$GH_REPO" --ref "$KLYX_REF" -f expected_sha="$GITHUB_SHA"
+          gh workflow run klyx-golden-path.yml --repo "$GH_REPO" --ref "$KLYX_REF" -f expected_sha="$GITHUB_SHA" -f confirm_isolated_e2e=true
+          gh workflow run klyx-performance.yml --repo "$GH_REPO" --ref "$KLYX_REF" -f expected_sha="$GITHUB_SHA" -f profile=smoke -f confirm_isolated_target=true
+          gh workflow run klyx-e2e.yml --repo "$GH_REPO" --ref "$KLYX_REF" -f expected_sha="$GITHUB_SHA"
+          gh workflow run klyx-stripe-network-test.yml --repo "$GH_REPO" --ref "$KLYX_REF" -f expected_sha="$GITHUB_SHA" -f confirm_stripe_test_network=true
