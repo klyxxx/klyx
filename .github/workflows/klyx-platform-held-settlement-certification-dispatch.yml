@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/platform-held-settlement-test-20260915
+      - "integration/risk-settlement-*"
 
 permissions:
   contents: read
