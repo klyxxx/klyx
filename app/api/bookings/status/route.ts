@@ -6,9 +6,8 @@ import {
 } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
 import {
-  isSettlementRefundPreparationError,
-  preparePlatformHeldBookingRefund,
-} from "@/lib/booking-settlement-server";
+  reconcilePlatformHeldBookingSettlement,
+} from "@/lib/booking-settlement-reconciliation-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   enforceRefundTransactionRisk,
@@ -64,7 +63,7 @@ export async function POST(request: Request) {
       isParticipant &&
       booking.payment_status === "paid" &&
       ["pending", "accepted"].includes(booking.status) &&
-      !["processing", "succeeded"].includes(booking.refund_status ?? "");
+      booking.refund_status !== "succeeded";
 
     if (!mayCreateRefund) {
       return corePost(request);
@@ -77,19 +76,28 @@ export async function POST(request: Request) {
       subjectId: bookingId,
     });
 
-    const settlementPreparation = await preparePlatformHeldBookingRefund(
-      bookingId
-    );
+    const settlementRecovery = await reconcilePlatformHeldBookingSettlement({
+      bookingId,
+      source: "refund",
+    });
 
     if (
-      settlementPreparation.status === "busy" ||
-      settlementPreparation.status === "not_ready"
+      settlementRecovery.status === "human_review" ||
+      settlementRecovery.status === "failed" ||
+      settlementRecovery.status === "pending_release" ||
+      settlementRecovery.status === "refund_pending"
     ) {
       return NextResponse.json(
         {
           error:
-            "Le remboursement est temporairement en attente de réconciliation financière. Réessaie dans quelques instants.",
-          code: "KLYX_SETTLEMENT_REFUND_RECONCILIATION_PENDING",
+            settlementRecovery.status === "human_review"
+              ? "Le remboursement nécessite une vérification financière humaine avant de continuer."
+              : "Le remboursement est temporairement en attente de réconciliation financière. Réessaie dans quelques instants.",
+          code:
+            settlementRecovery.status === "human_review"
+              ? "KLYX_SETTLEMENT_HUMAN_REVIEW"
+              : "KLYX_SETTLEMENT_REFUND_RECONCILIATION_PENDING",
+          reasonCode: settlementRecovery.reasonCode ?? null,
           automaticSuspension: false,
         },
         { status: 409 }
@@ -108,18 +116,6 @@ export async function POST(request: Request) {
           automaticSuspension: false,
         },
         { status: 409 }
-      );
-    }
-
-    if (isSettlementRefundPreparationError(error)) {
-      return NextResponse.json(
-        {
-          error:
-            "Le remboursement nécessite une réconciliation financière avant de continuer.",
-          code: error.code,
-          automaticSuspension: false,
-        },
-        { status: error.status }
       );
     }
 
