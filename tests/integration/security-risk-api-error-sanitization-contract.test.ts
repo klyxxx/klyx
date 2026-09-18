@@ -33,7 +33,7 @@ describe("security risk API error sanitization contract", () => {
     expect(engineSource).toContain("calculateRisk");
     expect(engineSource).toContain("account_risk_assessments");
     expect(engineSource).toContain("account_security_alerts");
-    expect(engineSource).toContain("getCanonicalStripeConnect");
+    expect(engineSource).toContain("getAccountStripeConnectIdentity");
     expect(engineSource).toContain("KLYX_PROFILE_ACCOUNT_OWNER_MISMATCH");
   });
 });
