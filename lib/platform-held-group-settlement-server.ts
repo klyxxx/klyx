@@ -6,7 +6,9 @@ import Stripe from "stripe";
 import type { AuthenticatedAccount } from "@/lib/api-auth";
 import {
   assertAggregateTransferCapacity,
+  calculateCumulativeGroupRefundDelta,
   validateExplicitGroupRefundAllocations,
+  type GroupPartialRefundAllocationRequest,
   type GroupRefundAllocationInput,
 } from "@/lib/group-multiexecutor-settlement-economics";
 import {
@@ -118,7 +120,7 @@ export type GroupRefundRequest =
       kind: "partial";
       requestKey: string;
       amountCents: number;
-      allocations: GroupRefundAllocationInput[];
+      allocations: GroupPartialRefundAllocationRequest[];
     };
 
 export type GroupRefundResult =
@@ -692,6 +694,114 @@ async function buildRemainingTotalAllocations(parent: ParentRow) {
   return { amountCents, allocations };
 }
 
+async function buildPartialAllocations(
+  parent: ParentRow,
+  amountCents: number,
+  requests: readonly GroupPartialRefundAllocationRequest[]
+) {
+  if (
+    !Number.isSafeInteger(amountCents) ||
+    amountCents <= 0 ||
+    requests.length === 0
+  ) {
+    throw new Error("KLYX_GROUP_HELD_PARTIAL_REFUND_ALLOCATION_REQUIRED");
+  }
+
+  const memberIds = requests.map((request) => request.memberId.trim());
+  if (
+    memberIds.some((memberId) => !memberId) ||
+    new Set(memberIds).size !== memberIds.length
+  ) {
+    throw new Error("KLYX_GROUP_HELD_REFUND_MEMBER_DUPLICATE");
+  }
+
+  const requestedTotal = requests.reduce(
+    (sum, request) => sum + request.grossRefundCents,
+    0
+  );
+  if (requestedTotal !== amountCents) {
+    throw new Error("KLYX_GROUP_HELD_REFUND_ALLOCATION_TOTAL_MISMATCH");
+  }
+
+  const members = await loadAllMembers(parent.id);
+  const memberById = new Map(members.map((member) => [member.id, member]));
+
+  const { data: refunds, error: refundError } = await supabaseAdmin
+    .from("platform_held_group_refunds")
+    .select("id, state")
+    .eq("group_settlement_id", parent.id)
+    .neq("state", "failed");
+
+  if (refundError) throw new Error(refundError.message);
+  const activeRefundIds = (refunds ?? []).map((row) => String(row.id));
+
+  const priorByMember = new Map<
+    string,
+    { gross: number; fee: number; provider: number }
+  >();
+
+  if (activeRefundIds.length > 0) {
+    const { data, error } = await supabaseAdmin
+      .from("platform_held_group_refund_allocations")
+      .select(
+        "member_id, gross_refund_cents, platform_fee_refund_cents, provider_refund_cents"
+      )
+      .in("refund_id", activeRefundIds);
+
+    if (error) throw new Error(error.message);
+
+    for (const row of data ?? []) {
+      const memberId = String(row.member_id);
+      const prior = priorByMember.get(memberId) ?? {
+        gross: 0,
+        fee: 0,
+        provider: 0,
+      };
+      prior.gross += Number(row.gross_refund_cents);
+      prior.fee += Number(row.platform_fee_refund_cents);
+      prior.provider += Number(row.provider_refund_cents);
+      priorByMember.set(memberId, prior);
+    }
+  }
+
+  const allocations: GroupRefundAllocationInput[] = requests.map((request) => {
+    const memberId = request.memberId.trim();
+    const member = memberById.get(memberId);
+    if (!member) {
+      throw new Error("KLYX_GROUP_HELD_REFUND_MEMBER_INVALID");
+    }
+
+    const prior = priorByMember.get(memberId) ?? {
+      gross: 0,
+      fee: 0,
+      provider: 0,
+    };
+
+    const delta = calculateCumulativeGroupRefundDelta({
+      memberGrossAmountCents: Number(member.gross_amount_cents),
+      memberPlatformFeeCents: Number(member.platform_fee_cents),
+      priorGrossRefundCents: prior.gross,
+      priorPlatformFeeRefundCents: prior.fee,
+      priorProviderRefundCents: prior.provider,
+      requestedGrossRefundCents: request.grossRefundCents,
+    });
+
+    return {
+      memberId,
+      grossRefundCents: delta.grossRefundCents,
+      platformFeeRefundCents: delta.platformFeeRefundCents,
+      providerRefundCents: delta.providerRefundCents,
+    };
+  });
+
+  validateExplicitGroupRefundAllocations({
+    refundAmountCents: amountCents,
+    allocations,
+  });
+
+  return { amountCents, allocations };
+}
+
 async function markRefundReview(
   refundId: string,
   code: string,
@@ -916,10 +1026,11 @@ export async function refundPlatformHeldGroup(input: {
   const desired =
     input.request.kind === "total"
       ? await buildRemainingTotalAllocations(parent)
-      : {
-          amountCents: input.request.amountCents,
-          allocations: input.request.allocations,
-        };
+      : await buildPartialAllocations(
+          parent,
+          input.request.amountCents,
+          input.request.allocations
+        );
 
   validateExplicitGroupRefundAllocations({
     refundAmountCents: desired.amountCents,
