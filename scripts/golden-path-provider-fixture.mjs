@@ -1,10 +1,14 @@
+import fs from "node:fs";
 import { createClient } from "@supabase/supabase-js";
+import Stripe from "stripe";
 
 import {
   assertGoldenPathIsolation,
   findGoldenPathUserByEmail,
   requiredGoldenPathEnv,
 } from "./golden-path-runtime.mjs";
+
+const PLATFORM_HELD_FIXTURE_HANDOFF = "stripe-network-proof/platform-held-provider-fixture.json";
 
 const CLEANING_SERVICE_SLUGS = [
   "menage-a-domicile",
@@ -22,6 +26,163 @@ function cleaningService(services) {
   }
 
   return undefined;
+}
+
+function platformHeldStripeFixtureEnabled() {
+  return (
+    process.env.KLYX_STRIPE_MODE === "test" &&
+    process.env.KLYX_STRIPE_SETTLEMENT_MODE === "platform_held" &&
+    process.env.KLYX_SETTLEMENT_CONTROL_TEST_READY === "true" &&
+    process.env.KLYX_LIVE_PAYMENTS_ENABLED === "false"
+  );
+}
+
+function legacyTransferReady(account) {
+  return (
+    account?.livemode === false &&
+    account?.country === "BE" &&
+    account?.details_submitted === true &&
+    account?.payouts_enabled === true &&
+    account?.capabilities?.transfers === "active"
+  );
+}
+
+function v2TransferStatus(account) {
+  return (
+    account?.configuration?.recipient?.capabilities?.stripe_balance
+      ?.stripe_transfers?.status ?? null
+  );
+}
+
+function v2RecipientTransferReady(account) {
+  return (
+    account?.livemode === false &&
+    account?.identity?.country === "BE" &&
+    account?.applied_configurations?.includes("recipient") === true &&
+    account?.configuration?.recipient?.applied === true &&
+    v2TransferStatus(account) === "active"
+  );
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function ensurePlatformHeldStripeDestinationFixture({ email, providerId }) {
+  if (!platformHeldStripeFixtureEnabled()) {
+    return { enabled: false, accountId: null, created: false };
+  }
+
+  const stripeSecretKey = requiredGoldenPathEnv("STRIPE_SECRET_KEY");
+  if (!stripeSecretKey.startsWith("sk_test_")) {
+    throw new Error(
+      "Platform-held provider fixture requires a Stripe sk_test_* key."
+    );
+  }
+
+  const stripe = new Stripe(stripeSecretKey);
+
+  // Reuse a legacy TEST destination only when it is already fully certified.
+  // New connected-account creation itself must use Accounts v2 because this
+  // Stripe TEST platform rejects POST /v1/accounts.
+  const existing = await stripe.accounts.list({ limit: 100 });
+  const legacyReady = existing.data.find(
+    (account) =>
+      legacyTransferReady(account) &&
+      account.metadata?.klyx_platform_held_network_fixture === "true" &&
+      account.metadata?.klyx_provider_profile_id === providerId
+  );
+
+  if (legacyReady) {
+    return { enabled: true, accountId: legacyReady.id, created: false };
+  }
+
+  const created = await stripe.v2.core.accounts.create(
+    {
+      contact_email: email,
+      display_name: "KLYX Platform-Held Test Fixture",
+      dashboard: "none",
+      identity: {
+        country: "BE",
+        entity_type: "individual",
+        attestations: {
+          terms_of_service: {
+            account: {
+              date: new Date().toISOString(),
+              ip: "127.0.0.1",
+              user_agent: "KLYX Stripe TEST certification",
+            },
+          },
+        },
+        individual: {
+          given_name: "Klyx",
+          surname: "Settlement",
+          email,
+          phone: "+32470123456",
+          date_of_birth: { day: 1, month: 1, year: 1902 },
+          address: {
+            line1: "address_full_match",
+            city: "Bruxelles",
+            postal_code: "1000",
+            country: "BE",
+          },
+        },
+      },
+      configuration: {
+        recipient: {
+          capabilities: {
+            stripe_balance: {
+              stripe_transfers: { requested: true },
+            },
+          },
+        },
+      },
+      defaults: {
+        currency: "eur",
+        responsibilities: {
+          fees_collector: "application",
+          losses_collector: "application",
+        },
+      },
+      metadata: {
+        klyx_platform_held_network_fixture: "true",
+        klyx_provider_profile_id: providerId,
+      },
+      include: ["configuration.recipient", "identity", "requirements"],
+    },
+    { idempotencyKey: `klyx-platform-held-v2-fixture-${providerId}` }
+  );
+
+  // Account creation stays on Accounts v2. Stripe still exposes v1-compatible
+  // updates for an already-created acct_*. The TEST business-profile URL is an
+  // identity requirement observed on the real recipient capability; it is not
+  // a bank-payout prerequisite.
+  await stripe.accounts.update(created.id, {
+    business_profile: {
+      url: "https://accessible.stripe.com",
+    },
+  });
+
+  let refreshed = await stripe.v2.core.accounts.retrieve(created.id, {
+    include: ["configuration.recipient", "identity", "requirements"],
+  });
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (v2RecipientTransferReady(refreshed)) {
+      return { enabled: true, accountId: created.id, created: true };
+    }
+
+    await sleep(500);
+    refreshed = await stripe.v2.core.accounts.retrieve(created.id, {
+      include: ["configuration.recipient", "identity", "requirements"],
+    });
+  }
+
+  throw new Error(
+    `Stripe TEST provider fixture is not recipient-transfer-ready. recipient_applied=${
+      refreshed?.configuration?.recipient?.applied ?? "unknown"
+    }; stripe_transfers=${v2TransferStatus(refreshed) ?? "unknown"}`
+  );
 }
 
 async function main() {
@@ -77,6 +238,29 @@ async function main() {
     if (profile.country_code !== "BE" || profile.currency_code !== "EUR") {
       throw new Error("Golden-path profiles must use the BE/EUR market.");
     }
+  }
+
+  const stripeFixture = await ensurePlatformHeldStripeDestinationFixture({
+    email,
+    providerId: provider.id,
+  });
+
+  if (stripeFixture.enabled) {
+    fs.mkdirSync("stripe-network-proof", { recursive: true });
+    fs.writeFileSync(
+      PLATFORM_HELD_FIXTURE_HANDOFF,
+      `${JSON.stringify(
+        {
+          testMode: true,
+          providerProfileId: provider.id,
+          accountId: stripeFixture.accountId,
+          created: stripeFixture.created,
+        },
+        null,
+        2
+      )}\n`,
+      "utf8"
+    );
   }
 
   const { data: services, error: servicesError } = await admin
@@ -305,6 +489,9 @@ async function main() {
       userServiceId: userService.id,
       hourlyPrice: 35,
       city: "Bruxelles",
+      platformHeldStripeFixture: stripeFixture.enabled,
+      platformHeldStripeFixtureCreated: stripeFixture.created,
+      platformHeldStripeAccountId: stripeFixture.accountId,
     })}\n`
   );
 }

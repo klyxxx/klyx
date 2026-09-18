@@ -6,19 +6,25 @@ import {
   requireAccountType,
 } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import {
+  getKlyxSettlementMode,
+  KLYX_PLATFORM_HELD_SETTLEMENT_MODE,
+} from "@/lib/stripe-settlement-control";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   enforceCheckoutTransactionRisk,
   isTransactionRiskGateError,
 } from "@/lib/transaction-risk-server";
 import { POST as corePost } from "./route-core";
+import { POST as platformHeldPost } from "./route-platform-held";
 
 /*
  * KLYX_PAYMENT_CORE_CONTRACT_MIRROR
  *
- * The executable payment authority lives in ./route-core.ts. These non-runtime
- * anchors keep legacy static contracts pointed at the same public route while a
- * dedicated bridge test verifies every @core token exists in route-core.ts.
+ * The executable certified destination-charge authority lives in
+ * ./route-core.ts. Platform-held TEST mode is additive in
+ * ./route-platform-held.ts; this public route remains the account/risk/mode
+ * dispatcher.
  *
  * try { assertStripeRuntimeReady()
  * @core:KLYX_SERVER_OBSERVABILITY_12B_8B
@@ -97,7 +103,7 @@ export async function POST(request: Request) {
 
     if (error) throw new Error(error.message);
 
-    // Preserve the original core as the authority for not-found and ownership
+    // Preserve the payment cores as authority for not-found and ownership
     // responses. The risk preflight must not leak transaction existence.
     if (!booking || booking.parent_id !== profile.id) {
       return corePost(request);
@@ -111,6 +117,12 @@ export async function POST(request: Request) {
       subjectType: "booking",
       subjectId: bookingId,
     });
+
+    const settlementMode = getKlyxSettlementMode();
+
+    if (settlementMode === KLYX_PLATFORM_HELD_SETTLEMENT_MODE) {
+      return platformHeldPost(request);
+    }
 
     return corePost(request);
   } catch (error) {
