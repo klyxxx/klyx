@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   assertAggregateTransferCapacity,
+  calculateCumulativeGroupRefundDelta,
   freezeMultiExecutorGroupEconomics,
   validateExplicitGroupRefundAllocations,
 } from "@/lib/group-multiexecutor-settlement-economics";
@@ -130,43 +131,91 @@ describe("multi-executor platform-held group economics", () => {
     ).toThrow("KLYX_GROUP_HELD_AGGREGATE_OVERTRANSFER_GUARD");
   });
 
-  it("accepts explicit partial refund accounting and never invents allocation", () => {
+  it("allocates partial refunds cumulatively without penny drift", () => {
+    const first = calculateCumulativeGroupRefundDelta({
+      memberGrossAmountCents: 1001,
+      memberPlatformFeeCents: 150,
+      priorGrossRefundCents: 0,
+      priorPlatformFeeRefundCents: 0,
+      priorProviderRefundCents: 0,
+      requestedGrossRefundCents: 333,
+    });
+
+    expect(first).toEqual({
+      grossRefundCents: 333,
+      platformFeeRefundCents: 50,
+      providerRefundCents: 283,
+      cumulativeGrossRefundCents: 333,
+      cumulativePlatformFeeRefundCents: 50,
+      cumulativeProviderRefundCents: 283,
+    });
+
+    const second = calculateCumulativeGroupRefundDelta({
+      memberGrossAmountCents: 1001,
+      memberPlatformFeeCents: 150,
+      priorGrossRefundCents: first.cumulativeGrossRefundCents,
+      priorPlatformFeeRefundCents: first.cumulativePlatformFeeRefundCents,
+      priorProviderRefundCents: first.cumulativeProviderRefundCents,
+      requestedGrossRefundCents: 333,
+    });
+
+    const final = calculateCumulativeGroupRefundDelta({
+      memberGrossAmountCents: 1001,
+      memberPlatformFeeCents: 150,
+      priorGrossRefundCents: second.cumulativeGrossRefundCents,
+      priorPlatformFeeRefundCents: second.cumulativePlatformFeeRefundCents,
+      priorProviderRefundCents: second.cumulativeProviderRefundCents,
+      requestedGrossRefundCents: 335,
+    });
+
+    expect(second.platformFeeRefundCents).toBe(50);
+    expect(second.providerRefundCents).toBe(283);
+    expect(final.platformFeeRefundCents).toBe(50);
+    expect(final.providerRefundCents).toBe(285);
+    expect(final.cumulativeGrossRefundCents).toBe(1001);
+    expect(final.cumulativePlatformFeeRefundCents).toBe(150);
+    expect(final.cumulativeProviderRefundCents).toBe(851);
+
     expect(
       validateExplicitGroupRefundAllocations({
-        refundAmountCents: 650,
+        refundAmountCents: 335,
         allocations: [
           {
             memberId: "member-a",
-            grossRefundCents: 500,
-            platformFeeRefundCents: 75,
-            providerRefundCents: 425,
-          },
-          {
-            memberId: "member-b",
-            grossRefundCents: 150,
-            platformFeeRefundCents: 23,
-            providerRefundCents: 127,
+            grossRefundCents: final.grossRefundCents,
+            platformFeeRefundCents: final.platformFeeRefundCents,
+            providerRefundCents: final.providerRefundCents,
           },
         ],
       })
     ).toEqual({
-      grossRefundCents: 650,
-      platformFeeRefundCents: 98,
-      providerRefundCents: 552,
+      grossRefundCents: 335,
+      platformFeeRefundCents: 50,
+      providerRefundCents: 285,
     });
+  });
+
+  it("rejects malformed prior refund accounting and member over-refunds", () => {
+    expect(() =>
+      calculateCumulativeGroupRefundDelta({
+        memberGrossAmountCents: 1001,
+        memberPlatformFeeCents: 150,
+        priorGrossRefundCents: 333,
+        priorPlatformFeeRefundCents: 49,
+        priorProviderRefundCents: 283,
+        requestedGrossRefundCents: 100,
+      })
+    ).toThrow("KLYX_GROUP_HELD_REFUND_PRIOR_ACCOUNTING_MISMATCH");
 
     expect(() =>
-      validateExplicitGroupRefundAllocations({
-        refundAmountCents: 650,
-        allocations: [
-          {
-            memberId: "member-a",
-            grossRefundCents: 500,
-            platformFeeRefundCents: 75,
-            providerRefundCents: 425,
-          },
-        ],
+      calculateCumulativeGroupRefundDelta({
+        memberGrossAmountCents: 1001,
+        memberPlatformFeeCents: 150,
+        priorGrossRefundCents: 900,
+        priorPlatformFeeRefundCents: 135,
+        priorProviderRefundCents: 765,
+        requestedGrossRefundCents: 102,
       })
-    ).toThrow("KLYX_GROUP_HELD_REFUND_ALLOCATION_TOTAL_MISMATCH");
+    ).toThrow("KLYX_GROUP_HELD_REFUND_MEMBER_EXCEEDS_GROSS");
   });
 });
