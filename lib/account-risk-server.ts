@@ -1,7 +1,7 @@
 import "server-only";
 
 import { calculateRisk, type RiskAssessment, type RiskMetrics } from "@/lib/security-risk";
-import { getCanonicalStripeConnect } from "@/lib/stripe-connect-account";
+import { getAccountStripeConnectIdentity } from "@/lib/stripe-connect-account-identity";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export type CanonicalRiskAccount = {
@@ -233,7 +233,7 @@ export async function evaluateCanonicalAccountRisk(
       .eq("reason", "unsafe_behavior")
       .in("status", ["open", "under_review", "waiting_user"]),
     account.canOfferServices
-      ? getCanonicalStripeConnect(account.id)
+      ? getAccountStripeConnectIdentity(account.id)
       : Promise.resolve(null),
   ]);
 
@@ -241,10 +241,7 @@ export async function evaluateCanonicalAccountRisk(
     !account.canOfferServices ||
     Boolean(
       connect?.state === "linked" &&
-        connect.stripeAccountId &&
-        connect.onboardingComplete &&
-        connect.chargesEnabled &&
-        connect.payoutsEnabled
+        connect.stripeAccountId
     );
 
   const metrics: RiskMetrics = {
@@ -263,7 +260,7 @@ export async function evaluateCanonicalAccountRisk(
     isProvider: account.canOfferServices,
     identityComplete,
     financialIdentityReviewRequired:
-      account.canOfferServices && connect?.state === "review_required",
+      account.canOfferServices && connect?.state === "conflict",
   };
 
   const assessment = calculateRisk(metrics);
