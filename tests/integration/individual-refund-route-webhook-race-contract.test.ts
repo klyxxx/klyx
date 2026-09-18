@@ -9,7 +9,10 @@ function source(path: string) {
 const migration = source(
   "supabase/migrations/20260911160000_klyx_individual_refund_route_webhook_guard.sql"
 );
-const refundRoute = source("app/api/bookings/status/route.ts");
+const refundRoute = [
+  source("app/api/bookings/status/route.ts"),
+  source("app/api/bookings/status/route-core.ts"),
+].join("\n");
 const refundReconciliation = source("lib/stripe-refunds.ts");
 
 describe("KLYX individual refund route ↔ webhook race", () => {

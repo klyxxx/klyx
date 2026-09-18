@@ -58,7 +58,7 @@ describe("KLYX split mission Checkout i18n contract", () => {
   });
 
   it("pins the existing server-side payment and idempotency locks", () => {
-    const route = read("app/api/bookings/split-missions/[id]/checkout/route.ts");
+    const route = read("app/api/bookings/split-missions/[id]/checkout/route-core.ts");
 
     expect(route).toContain("checkoutPreparationConfirmed");
     expect(route).toContain("SPLIT_CHILD_ALREADY_HAS_PAYMENT");

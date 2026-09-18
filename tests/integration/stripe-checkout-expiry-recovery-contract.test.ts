@@ -19,11 +19,11 @@ describe("Stripe checkout expiry recovery contract", () => {
 
   it("keeps retry creation idempotent after an expired checkout", () => {
     const singleCheckout = readFileSync(
-      join(process.cwd(), "app/api/stripe/create-checkout-session/route.ts"),
+      join(process.cwd(), "app/api/stripe/create-checkout-session/route-core.ts"),
       "utf8"
     );
     const groupCheckout = readFileSync(
-      join(process.cwd(), "app/api/stripe/create-group-checkout-session/route.ts"),
+      join(process.cwd(), "app/api/stripe/create-group-checkout-session/route-core.ts"),
       "utf8"
     );
 

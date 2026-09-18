@@ -291,9 +291,14 @@ describe(
     it(
       "keeps cancellation business conflicts public without exposing 5xx failures",
       () => {
-        const source = read(
-          "app/api/booking-groups/[id]/cancellation/route.ts"
-        );
+        const source = [
+          read(
+            "app/api/booking-groups/[id]/cancellation/route.ts"
+          ),
+          read(
+            "app/api/booking-groups/[id]/cancellation/route-core.ts"
+          ),
+        ].join("\n");
 
         expect(source)
           .toContain(

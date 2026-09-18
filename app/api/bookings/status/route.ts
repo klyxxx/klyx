@@ -1,785 +1,107 @@
-import { after, NextResponse } from "next/server";
-import Stripe from "stripe";
-import { supabaseAdmin } from "@/lib/supabase-admin";
+import { NextResponse } from "next/server";
+
 import {
   apiErrorStatus,
-  getAuthenticatedProfile,
+  getAuthenticatedAccount,
 } from "@/lib/api-auth";
+import { secureApiErrorResponse } from "@/lib/api-error";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
-  secureApiErrorResponse,
-} from "@/lib/api-error";
-import { isPastBookingStart } from "@/lib/brussels-time";
-import { sendKlyxDeduplicatedEmail } from "@/lib/email/deduplicated-delivery";
-import {
-  bookingAcceptedEmail,
-  bookingCancelledEmail,
-  bookingRejectedEmail,
-  refundConfirmedEmail,
-  refundStartedEmail,
-} from "@/lib/email/templates";
-import { upsertFinancialLedgerEntry } from "@/lib/payment-ledger";
-import {
-  logServerError,
-} from "@/lib/server-log";
+  enforceRefundTransactionRisk,
+  isTransactionRiskGateError,
+} from "@/lib/transaction-risk-server";
+import { POST as corePost } from "./route-core";
 
-type BookingStatus = "accepted" | "rejected" | "cancelled";
-
-type BookingRow = {
-  id: string;
+type RefundPreflightBooking = {
   parent_id: string;
   provider_id: string | null;
   babysitter_id: string | null;
-  booking_group_id: string | null;
-  booking_date: string;
-  start_time: string;
-  end_time: string;
   status: string;
   payment_status: string | null;
-  payment_mode: string | null;
-  amount_total: number | null;
-  currency: string | null;
-  stripe_payment_intent_id: string | null;
   refund_status: string | null;
-  stripe_refund_id: string | null;
 };
-
-type ScheduleRow = {
-  id: string;
-  start_time: string;
-  end_time: string;
-};
-
-function timeToMinutes(value: string): number | null {
-  const match = /^(\d{2}):(\d{2})/.exec(value);
-
-  if (!match) return null;
-
-  return Number(match[1]) * 60 + Number(match[2]);
-}
-
-function overlaps(first: BookingRow, second: ScheduleRow): boolean {
-  const firstStart = timeToMinutes(first.start_time);
-  const firstEnd = timeToMinutes(first.end_time);
-  const secondStart = timeToMinutes(second.start_time);
-  const secondEnd = timeToMinutes(second.end_time);
-
-  if (
-    firstStart === null ||
-    firstEnd === null ||
-    secondStart === null ||
-    secondEnd === null
-  ) {
-    return false;
-  }
-
-  return firstStart < secondEnd && firstEnd > secondStart;
-}
-
-async function createNotification(params: {
-  userId: string;
-  bookingId: string;
-  type:
-    | "booking_accepted"
-    | "booking_rejected"
-    | "booking_cancelled"
-    | "system";
-  title: string;
-  message: string;
-  deduplicationKey: string;
-}) {
-  const { error } = await supabaseAdmin.from("user_notifications").upsert(
-    {
-      user_id: params.userId,
-      booking_id: params.bookingId,
-      type: params.type,
-      title: params.title,
-      message: params.message,
-      href: `/bookings/${params.bookingId}`,
-      deduplication_key: params.deduplicationKey,
-    },
-    {
-      onConflict: "deduplication_key",
-      ignoreDuplicates: true,
-    }
-  );
-
-  if (error) {
-    logServerError({
-      event:
-        "booking_notification_failed",
-      route:
-        "/api/bookings/status",
-      method: "POST",
-      status: 500,
-      code:
-        "booking_notification_failed",
-      error,
-    });
-  }
-}
-
-async function providerHasConflict(
-  booking: BookingRow,
-  providerId: string
-) {
-  const { data, error } = await supabaseAdmin
-    .from("bookings")
-    .select("id, start_time, end_time")
-    .eq("booking_date", booking.booking_date)
-    .or(
-      `provider_id.eq.${providerId},babysitter_id.eq.${providerId}`
-    )
-    .in("status", ["accepted", "completed"])
-    .neq("id", booking.id);
-
-  if (error) throw new Error(error.message);
-
-  return ((data ?? []) as ScheduleRow[]).some((item) =>
-    overlaps(booking, item)
-  );
-}
-
-function stripeClient(): Stripe {
-  const key = process.env.STRIPE_SECRET_KEY?.trim();
-
-  if (!key) {
-    throw new Error("Variable manquante : STRIPE_SECRET_KEY");
-  }
-
-  return new Stripe(key);
-}
-
-// KLYX_REFUND_CREATE_SIDE_EFFECT_BOUNDARY_16_12
-async function recordRefundCreationFailure(params: {
-  booking: BookingRow;
-  error: unknown;
-}) {
-  const { booking, error } = params;
-
-  const { data: failedBooking, error: stateError } =
-    await supabaseAdmin
-      .from("bookings")
-      .update({
-        refund_status: "failed",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", booking.id)
-      .eq("refund_status", "processing")
-      .select("id")
-      .maybeSingle();
-
-  if (stateError) {
-    throw new Error(stateError.message);
-  }
-
-  if (!failedBooking) {
-    return;
-  }
-
-  const failureMessage =
-    error instanceof Error
-      ? error.message
-      : "Remboursement Stripe impossible.";
-
-  await upsertFinancialLedgerEntry({
-    bookingId: booking.id,
-    entryKey: `booking:${booking.id}:refund-failed`,
-    entryType: "refund_failed",
-    status: "failed",
-    currency: booking.currency,
-    grossAmountCents: booking.amount_total,
-    refundAmountCents: booking.amount_total,
-    paymentMode: booking.payment_mode,
-    stripePaymentIntentId: booking.stripe_payment_intent_id,
-    failureCode: "refund_failed",
-    failureMessage,
-  });
-}
-
-async function createStripeRefundOrRecordFailure(params: {
-  booking: BookingRow;
-  actorId: string;
-}): Promise<Stripe.Refund> {
-  const { booking, actorId } = params;
-
-  try {
-    const stripe = stripeClient();
-
-    const refundParameters: Stripe.RefundCreateParams = {
-      payment_intent: booking.stripe_payment_intent_id ?? undefined,
-      amount: booking.amount_total ?? undefined,
-      reason: "requested_by_customer",
-      metadata: {
-        booking_id: booking.id,
-        requested_by: actorId,
-      },
-    };
-
-    if (booking.payment_mode === "connect_destination") {
-      refundParameters.reverse_transfer = true;
-      refundParameters.refund_application_fee = true;
-    }
-
-    const refund = await stripe.refunds.create(
-      refundParameters,
-      {
-        idempotencyKey: `klyx-booking-refund-${booking.id}`,
-      }
-    );
-
-    if (refund.status === "failed" || refund.status === "canceled") {
-      throw new Error(
-        "Stripe n’a pas pu terminer le remboursement."
-      );
-    }
-
-    return refund;
-  } catch (error) {
-    try {
-      await recordRefundCreationFailure({
-        booking,
-        error,
-      });
-    } catch (recordError) {
-      logServerError({
-        event:
-          "refund_creation_failure_record_failed",
-        route:
-          "/api/bookings/status",
-        method: "POST",
-        status: 500,
-        code:
-          "refund_creation_failure_record_failed",
-        error: recordError,
-      });
-    }
-
-    throw error;
-  }
-}
-
-async function refundPaidBooking(params: {
-  booking: BookingRow;
-  actorId: string;
-  reason: string;
-}) {
-  const { booking, actorId, reason } = params;
-
-  if (booking.refund_status === "succeeded") {
-    return {
-      refundId: booking.stripe_refund_id,
-      amount: booking.amount_total ?? 0,
-      alreadyRefunded: true,
-    };
-  }
-
-  if (!booking.stripe_payment_intent_id) {
-    throw new Error(
-      "Le paiement Stripe de cette réservation est introuvable."
-    );
-  }
-
-  if (!booking.amount_total || booking.amount_total <= 0) {
-    throw new Error("Le montant à rembourser est invalide.");
-  }
-
-  const { data: lockedBooking, error: lockError } =
-    await supabaseAdmin
-      .from("bookings")
-      .update({
-        refund_status: "processing",
-        refund_reason: reason,
-        refund_requested_by: actorId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", booking.id)
-      .eq("payment_status", "paid")
-      .or("refund_status.is.null,refund_status.eq.failed")
-      .select("id")
-      .maybeSingle();
-
-  if (lockError) throw new Error(lockError.message);
-
-  if (!lockedBooking) {
-    const { data: refreshed, error: refreshError } =
-      await supabaseAdmin
-        .from("bookings")
-        .select("refund_status, stripe_refund_id, amount_total")
-        .eq("id", booking.id)
-        .maybeSingle();
-
-    if (refreshError) throw new Error(refreshError.message);
-
-    if (refreshed?.refund_status === "succeeded") {
-      return {
-        refundId: refreshed.stripe_refund_id,
-        amount: refreshed.amount_total ?? booking.amount_total,
-        alreadyRefunded: true,
-      };
-    }
-
-    throw new Error(
-      "Un remboursement est déjà en cours. Actualise dans quelques secondes."
-    );
-  }
-
-  const refund =
-    await createStripeRefundOrRecordFailure({
-      booking,
-      actorId,
-    });
-
-  // Stripe has accepted this refund. From this boundary onward, failures are
-  // KLYX persistence/reconciliation failures and must never be relabelled as a
-  // Stripe refund failure. The signed webhook can safely replay these effects.
-  const now = new Date().toISOString();
-
-  const { error: updateError } = await supabaseAdmin
-    .from("bookings")
-    .update({
-      refund_status:
-        refund.status === "succeeded" ? "succeeded" : "processing",
-      stripe_refund_id: refund.id,
-      refunded_amount_cents: refund.amount,
-      refunded_at:
-        refund.status === "succeeded" ? now : null,
-      refund_reason: reason,
-      refund_requested_by: actorId,
-      updated_at: now,
-    })
-    .eq("id", booking.id);
-
-  if (updateError) throw new Error(updateError.message);
-
-  await upsertFinancialLedgerEntry({
-    bookingId: booking.id,
-    entryKey: `booking:${booking.id}:refund:${refund.id}`,
-    entryType: "refund_succeeded",
-    status:
-      refund.status === "succeeded"
-        ? "succeeded"
-        : "processing",
-    currency: booking.currency,
-    grossAmountCents: booking.amount_total,
-    refundAmountCents: refund.amount,
-    paymentMode: booking.payment_mode,
-    stripePaymentIntentId: booking.stripe_payment_intent_id,
-    stripeRefundId: refund.id,
-  });
-
-  return {
-    refundId: refund.id,
-    amount: refund.amount,
-    alreadyRefunded: false,
-  };
-}
 
 export async function POST(request: Request) {
   const startedAt = Date.now();
 
   try {
-    const { profile } = await getAuthenticatedProfile(request);
-
-    const body = (await request.json()) as {
+    const body = (await request.clone().json().catch(() => null)) as {
       bookingId?: string;
-      status?: BookingStatus;
-      note?: string;
-    };
+      status?: string;
+    } | null;
+    const bookingId = body?.bookingId?.trim() ?? "";
 
-    const bookingId = body.bookingId?.trim();
-    const nextStatus = body.status;
-    const note = body.note?.trim().slice(0, 500) || null;
-
-    if (!bookingId || !nextStatus) {
-      return NextResponse.json(
-        { error: "Réservation ou statut manquant." },
-        { status: 400 }
-      );
+    if (body?.status !== "cancelled" || !bookingId) {
+      return corePost(request);
     }
 
-    if (
-      !["accepted", "rejected", "cancelled"].includes(nextStatus)
-    ) {
-      return NextResponse.json(
-        { error: "Statut invalide." },
-        { status: 400 }
-      );
-    }
-
+    const { account, profile } = await getAuthenticatedAccount(request);
     const { data, error } = await supabaseAdmin
       .from("bookings")
       .select(
-        "id, parent_id, provider_id, babysitter_id, booking_group_id, booking_date, start_time, end_time, status, payment_status, payment_mode, amount_total, currency, stripe_payment_intent_id, refund_status, stripe_refund_id"
+        "parent_id, provider_id, babysitter_id, status, payment_status, refund_status"
       )
       .eq("id", bookingId)
       .maybeSingle();
 
     if (error) throw new Error(error.message);
 
+    // Preserve the core route as authority for not-found, ownership and all
+    // cancellation validation. The preflight must not leak booking existence.
     if (!data) {
-      return NextResponse.json(
-        { error: "Réservation introuvable." },
-        { status: 404 }
-      );
+      return corePost(request);
     }
 
-    const booking = data as BookingRow;
+    const booking = data as RefundPreflightBooking;
+    const providerId = booking.provider_id ?? booking.babysitter_id;
+    const isParticipant =
+      booking.parent_id === profile.id || providerId === profile.id;
+    const mayCreateRefund =
+      isParticipant &&
+      booking.payment_status === "paid" &&
+      ["pending", "accepted"].includes(booking.status) &&
+      !["processing", "succeeded"].includes(booking.refund_status ?? "");
 
-    // KLYX_GROUP_STATUS_GUARD_12_85
-    if (booking.booking_group_id) {
-      return NextResponse.json(
-        {
-          error:
-            "Cette reservation appartient a un groupe. Modifie le groupe complet depuis KLYX.",
-          code: "GROUP_STATUS_REQUIRED",
-          groupId: booking.booking_group_id,
-        },
-        { status: 409 }
-      );
+    if (!mayCreateRefund) {
+      return corePost(request);
     }
 
-    const providerId =
-      booking.provider_id ?? booking.babysitter_id;
-    const isClient = booking.parent_id === profile.id;
-    const isProvider = providerId === profile.id;
-
-    if (!isClient && !isProvider) {
-      return NextResponse.json(
-        { error: "Accès refusé." },
-        { status: 403 }
-      );
-    }
-
-    if (
-      nextStatus === "accepted" ||
-      nextStatus === "rejected"
-    ) {
-      if (!isProvider) {
-        return NextResponse.json(
-          {
-            error:
-              "Seul le prestataire peut accepter ou refuser cette demande.",
-          },
-          { status: 403 }
-        );
-      }
-
-      if (booking.status !== "pending") {
-        return NextResponse.json(
-          { error: "Cette demande n’est plus en attente." },
-          { status: 409 }
-        );
-      }
-
-      if (nextStatus === "accepted" && providerId) {
-        const hasConflict = await providerHasConflict(
-          booking,
-          providerId
-        );
-
-        if (hasConflict) {
-          return NextResponse.json(
-            {
-              error:
-                "Un autre rendez-vous accepté occupe déjà ce créneau.",
-            },
-            { status: 409 }
-          );
-        }
-      }
-    }
-
-    let refundCompleted = false;
-    let refundConfirmed = false;
-
-    if (nextStatus === "cancelled") {
-      if (!["pending", "accepted"].includes(booking.status)) {
-        return NextResponse.json(
-          {
-            error:
-              "Cette réservation ne peut plus être annulée.",
-          },
-          { status: 409 }
-        );
-      }
-
-      if (!note || note.length < 5) {
-        return NextResponse.json(
-          {
-            error:
-              "Indique un motif d’annulation d’au moins 5 caractères.",
-          },
-          { status: 400 }
-        );
-      }
-
-      if (booking.status === "pending" && isProvider) {
-        return NextResponse.json(
-          {
-            error:
-              "Refuse la demande au lieu de l’annuler.",
-          },
-          { status: 400 }
-        );
-      }
-
-      if (
-        booking.payment_status === "paid" &&
-        isPastBookingStart(
-          booking.booking_date,
-          booking.start_time
-        )
-      ) {
-        return NextResponse.json(
-          {
-            error:
-              "Une prestation déjà commencée nécessite un litige, pas une annulation automatique.",
-          },
-          { status: 409 }
-        );
-      }
-
-      if (booking.payment_status === "paid") {
-        await refundPaidBooking({
-          booking,
-          actorId: profile.id,
-          reason: note,
-        });
-        refundCompleted = true;
-
-        const { data: refundState, error: refundStateError } =
-          await supabaseAdmin
-            .from("bookings")
-            .select("refund_status")
-            .eq("id", booking.id)
-            .maybeSingle();
-
-        if (refundStateError) {
-          throw new Error(refundStateError.message);
-        }
-
-        refundConfirmed =
-          refundState?.refund_status === "succeeded";
-      }
-    }
-
-    const now = new Date().toISOString();
-    const updatePayload: Record<string, unknown> = {
-      status: nextStatus,
-      updated_at: now,
-    };
-
-    if (nextStatus === "accepted") {
-      updatePayload.accepted_at = now;
-      updatePayload.provider_response = note;
-      updatePayload.service_status = "scheduled";
-    }
-
-    if (nextStatus === "rejected") {
-      updatePayload.rejected_at = now;
-      updatePayload.provider_response = note;
-      updatePayload.service_status = "cancelled";
-    }
-
-    if (nextStatus === "cancelled") {
-      updatePayload.cancelled_at = now;
-      updatePayload.cancelled_by = profile.id;
-      updatePayload.cancellation_reason = note;
-      updatePayload.service_status = "cancelled";
-    }
-
-    const { data: updatedBooking, error: updateError } =
-      await supabaseAdmin
-        .from("bookings")
-        .update(updatePayload)
-        .eq("id", booking.id)
-        .eq("status", booking.status)
-        .select("id")
-        .maybeSingle();
-
-    if (updateError) throw new Error(updateError.message);
-
-    if (!updatedBooking) {
-      return NextResponse.json(
-        {
-          error:
-            "La réservation vient d’être modifiée. Actualise la page.",
-        },
-        { status: 409 }
-      );
-    }
-
-    const eventNote =
-      nextStatus === "cancelled" && refundCompleted
-        ? `${note} Remboursement Stripe demandé automatiquement.`
-        : note;
-
-    const { error: eventError } = await supabaseAdmin
-      .from("booking_status_events")
-      .insert({
-        booking_id: booking.id,
-        actor_id: profile.id,
-        previous_status: booking.status,
-        new_status: nextStatus,
-        note: eventNote,
-      });
-
-    if (eventError) {
-      logServerError({
-        event:
-          "booking_event_write_failed",
-        route:
-          "/api/bookings/status",
-        method: "POST",
-        status: 500,
-        code:
-          "booking_event_write_failed",
-        error: eventError,
-      });
-    }
-
-    after(async () => {
-      if (nextStatus === "accepted") {
-        await createNotification({
-          userId: booking.parent_id,
-          bookingId: booking.id,
-          type: "booking_accepted",
-          title: "Réservation acceptée",
-          message:
-            "Le prestataire a accepté ta demande. Tu peux maintenant payer.",
-          deduplicationKey:
-            `booking:${booking.id}:accepted`,
-        });
-
-        await sendKlyxDeduplicatedEmail({
-          deduplicationKey: `booking:${booking.id}:accepted:client`,
-          templateKey: "booking.accepted.client",
-          profileId: booking.parent_id,
-          ...bookingAcceptedEmail(booking.id),
-        });
-      }
-
-      if (nextStatus === "rejected") {
-        await createNotification({
-          userId: booking.parent_id,
-          bookingId: booking.id,
-          type: "booking_rejected",
-          title: "Réservation refusée",
-          message:
-            note ||
-            "Le prestataire n’est pas disponible pour cette demande.",
-          deduplicationKey:
-            `booking:${booking.id}:rejected`,
-        });
-
-        await sendKlyxDeduplicatedEmail({
-          deduplicationKey: `booking:${booking.id}:rejected:client`,
-          templateKey: "booking.rejected.client",
-          profileId: booking.parent_id,
-          ...bookingRejectedEmail(booking.id),
-        });
-      }
-
-      if (nextStatus === "cancelled") {
-        const recipientId = isClient
-          ? providerId
-          : booking.parent_id;
-
-        if (recipientId) {
-          await createNotification({
-            userId: recipientId,
-            bookingId: booking.id,
-            type: "booking_cancelled",
-            title: "Réservation annulée",
-            message: refundCompleted
-              ? `${note} Le paiement a été remboursé automatiquement.`
-              : note || "La réservation a été annulée.",
-            deduplicationKey:
-              `booking:${booking.id}:cancelled:${profile.id}`,
-          });
-
-          await sendKlyxDeduplicatedEmail({
-            deduplicationKey: `booking:${booking.id}:cancelled:${recipientId}`,
-            templateKey: "booking.cancelled.participant",
-            profileId: recipientId,
-            ...bookingCancelledEmail({
-              bookingId: booking.id,
-              refundStarted: refundCompleted,
-            }),
-          });
-        }
-
-        if (refundCompleted) {
-          await createNotification({
-            userId: booking.parent_id,
-            bookingId: booking.id,
-            type: "system",
-            title: refundConfirmed
-              ? "Remboursement confirmé"
-              : "Remboursement lancé",
-            message: refundConfirmed
-              ? "Stripe a confirmé le remboursement de cette réservation."
-              : "Stripe a reçu la demande de remboursement. Le délai bancaire peut varier.",
-            deduplicationKey: refundConfirmed
-              ? `booking:${booking.id}:refund-confirmed`
-              : `booking:${booking.id}:refund`,
-          });
-
-          await sendKlyxDeduplicatedEmail({
-            deduplicationKey: refundConfirmed
-              ? `booking:${booking.id}:refund-succeeded:client`
-              : `booking:${booking.id}:refund-processing:client`,
-            templateKey: refundConfirmed
-              ? "booking.refund_succeeded.client"
-              : "booking.refund_processing.client",
-            profileId: booking.parent_id,
-            ...(refundConfirmed
-              ? refundConfirmedEmail(booking.id)
-              : refundStartedEmail(booking.id)),
-          });
-        }
-      }
+    await enforceRefundTransactionRisk({
+      requesterAccount: account,
+      refundRecipientProfileId: booking.parent_id,
+      subjectType: "booking",
+      subjectId: bookingId,
     });
 
-    return NextResponse.json({
-      status: nextStatus,
-      refunded: refundCompleted,
-      message:
-        nextStatus === "accepted"
-          ? "Réservation acceptée."
-          : nextStatus === "rejected"
-            ? "Réservation refusée."
-            : refundCompleted
-              ? "Réservation annulée et remboursement lancé."
-              : "Réservation annulée.",
-    });
+    return corePost(request);
   } catch (error) {
-    const rawMessage =
+    if (isTransactionRiskGateError(error)) {
+      return NextResponse.json(
+        {
+          error:
+            "Ce remboursement nécessite une vérification de sécurité avant de continuer.",
+          code: error.code,
+          participant: error.participant,
+          automaticSuspension: false,
+        },
+        { status: 409 }
+      );
+    }
+
+    const message =
       error instanceof Error
         ? error.message
-        : "Impossible de modifier la réservation.";
-    const conflict = rawMessage.includes(
-      "KLYX_PROVIDER_TIME_CONFLICT"
-    );
-    const message = conflict
-      ? "Un autre rendez-vous accepté occupe déjà ce créneau."
-      : rawMessage;
-    const status = conflict ? 409 : apiErrorStatus(message);
+        : "Préflight de remboursement impossible.";
+    const status = apiErrorStatus(message);
 
     return secureApiErrorResponse({
       error,
-      event:
-        "booking_status_update_failed",
-      route:
-        "/api/bookings/status",
+      event: "transaction_risk_booking_refund_failed",
+      route: "/api/bookings/status",
       method: "POST",
-      code:
-        "booking_status_update_failed",
       status,
-      publicMessage:
-        status < 500
-          ? message
-          : undefined,
+      code: "KLYX_REFUND_RISK_PREFLIGHT_FAILED",
+      publicMessage: status < 500 ? message : undefined,
       startedAt,
     });
   }

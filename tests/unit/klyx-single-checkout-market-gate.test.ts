@@ -19,7 +19,8 @@ describe("KLYX single checkout live market gates", () => {
 
     expect(source).toContain("assessKlyxStripeMarketAccess");
     expect(source).toContain("profile.countryCode");
-    expect(source).toContain("provider?.country_code");
+    expect(source).toContain("getProviderStripeDestination(providerId)");
+    expect(source).toContain("provider.countryCode");
     expect(source).toContain('participant: "client"');
     expect(source).toContain('participant: "provider"');
     expect(source.match(/KLYX_CHECKOUT_MARKET_NOT_READY/g)?.length).toBe(2);

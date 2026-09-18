@@ -1,5 +1,4 @@
 import { after, NextResponse } from "next/server";
-import Stripe from "stripe";
 
 import { ACTIVE_PROFILE_COOKIE, getActiveProfile } from "@/lib/active-profile";
 import { resolveKlyxAccountDeletePlan } from "@/lib/account-delete-scope";
@@ -65,7 +64,7 @@ export async function DELETE(request: Request) {
 
     const { data: profiles, error: profilesError } = await supabaseAdmin
       .from("profiles")
-      .select("id, stripe_account_id")
+      .select("id")
       .eq("owner_user_id", user.id)
       .order("created_at", { ascending: true });
 
@@ -91,11 +90,10 @@ export async function DELETE(request: Request) {
     }
 
     // KLY-11 / KLYX_PROFILE_DELETE_NEVER_DELETES_AUTH_IDENTITY
-    // This endpoint is intentionally profile-only. Deleting auth.users would
-    // cascade every profile owned by the same primary sign-in, including a
-    // sibling profile created or preserved concurrently after this request's
-    // initial profile snapshot. Full identity deletion stays behind the
-    // dedicated /delete-account flow.
+    // KLYX_ACCOUNT_LEVEL_STRIPE_CONNECT_19_45
+    // This endpoint is intentionally profile-only. Stripe Connect now belongs
+    // to the canonical KLYX account, so deleting a profile must never delete,
+    // replace, disconnect or mutate the account-level Connected Account.
     if (deletePlan.scope === "account") {
       return NextResponse.json(
         {
@@ -175,35 +173,6 @@ export async function DELETE(request: Request) {
           },
           { status: 409 }
         );
-      }
-    }
-
-    const profilesToDisconnect = ownedProfiles.filter(
-      (profile) => profile.id === deletePlan.targetProfileId
-    );
-    const stripeKey = process.env.STRIPE_SECRET_KEY?.trim();
-
-    if (stripeKey) {
-      const stripe = new Stripe(stripeKey);
-
-      for (const profile of profilesToDisconnect) {
-        if (!profile.stripe_account_id) continue;
-
-        try {
-          await stripe.accounts.del(profile.stripe_account_id);
-        } catch (stripeError) {
-          return secureApiErrorResponse({
-            error: stripeError,
-            event: "account_delete_stripe_disconnect_failed",
-            route: "/api/account/delete",
-            method: "DELETE",
-            status: 409,
-            code: "KLYX_ACCOUNT_DELETE_STRIPE_BLOCKED",
-            publicMessage:
-              "Stripe empêche encore la suppression de ce compte prestataire.",
-            startedAt,
-          });
-        }
       }
     }
 

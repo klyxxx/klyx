@@ -36,6 +36,7 @@ export type RiskMetrics = {
   completedBookings: number;
   isProvider: boolean;
   identityComplete: boolean;
+  financialIdentityReviewRequired: boolean;
 };
 
 function clamp(value: number): number {
@@ -87,7 +88,7 @@ export function calculateRisk(
       label: "Plusieurs litiges ouverts",
       points: Math.min(25, metrics.openedDisputes * 6),
       detail:
-        `${metrics.openedDisputes} dossier(s) ouvert(s) par ce profil.`,
+        `${metrics.openedDisputes} dossier(s) ouvert(s) par ce compte.`,
     });
   }
 
@@ -147,14 +148,35 @@ export function calculateRisk(
 
   if (
     metrics.isProvider &&
-    !metrics.identityComplete
+    metrics.financialIdentityReviewRequired
+  ) {
+    signals.push({
+      code: "financial_identity_review_required",
+      label: "Identité financière à vérifier",
+      points: 40,
+      detail:
+        "L’identité Stripe Connect canonique du compte présente une ambiguïté qui nécessite une revue manuelle.",
+    });
+
+    recommendations.push({
+      code: "review_financial_identity",
+      label: "Vérifier l’identité financière",
+      detail:
+        "Ne pas activer les flux financiers sortants avant résolution de l’identité Stripe Connect du compte.",
+    });
+  }
+
+  if (
+    metrics.isProvider &&
+    !metrics.identityComplete &&
+    !metrics.financialIdentityReviewRequired
   ) {
     signals.push({
       code: "identity_incomplete",
       label: "Vérification incomplète",
       points: 15,
       detail:
-        "Le profil prestataire n’a pas encore terminé sa vérification.",
+        "Le compte n’a pas encore terminé sa vérification financière.",
     });
 
     recommendations.push({

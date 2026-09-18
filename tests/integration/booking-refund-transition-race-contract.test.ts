@@ -11,13 +11,20 @@ const statusRoutePath = path.join(
   root,
   "app/api/bookings/status/route.ts"
 );
+const statusRouteCorePath = path.join(
+  root,
+  "app/api/bookings/status/route-core.ts"
+);
 const trackingRoutePath = path.join(
   root,
   "app/api/bookings/tracking/route.ts"
 );
 
 const migration = fs.readFileSync(migrationPath, "utf8");
-const statusRoute = fs.readFileSync(statusRoutePath, "utf8");
+const statusRoute = [
+  fs.readFileSync(statusRoutePath, "utf8"),
+  fs.readFileSync(statusRouteCorePath, "utf8"),
+].join("\n");
 const trackingRoute = fs.readFileSync(trackingRoutePath, "utf8");
 
 describe("booking refund transition race contract", () => {
