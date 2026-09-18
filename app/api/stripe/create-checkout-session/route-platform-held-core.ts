@@ -1,36 +1,28 @@
-import { NextResponse } from "next/server";
-import { assertStripeRuntimeReady } from "@/lib/stripe-runtime";
 import { randomUUID } from "node:crypto";
+import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { supabaseAdmin } from "@/lib/supabase-admin";
-import { markBookingPaidFromSession } from "@/lib/stripe-payments";
+
+import { apiErrorStatus, getAuthenticatedProfile, requireAccountType } from "@/lib/api-auth";
+import { secureApiErrorResponse } from "@/lib/api-error";
 import { calculateKlyxEconomics, getKlyxCommissionPercent } from "@/lib/klyx-economics";
 import { assessKlyxStripeMarketAccess } from "@/lib/klyx-stripe-market-access";
+import { logServerInfo, logServerWarning } from "@/lib/server-log";
+import {
+  getProviderStripeDestination,
+  isStripeConnectIdentityReviewRequired,
+} from "@/lib/stripe-connect-account";
 import {
   assessStripeConnectCountry,
   STRIPE_ACCOUNT_COUNTRY_MISMATCH,
 } from "@/lib/stripe-connect-country";
+import { markBookingPaidFromSession } from "@/lib/stripe-payments";
+import { assertStripeRuntimeReady } from "@/lib/stripe-runtime";
 import {
-  assertStripeConnectIdentityUsable,
-  getProfileAccountStripeConnectIdentity,
-  STRIPE_CONNECT_IDENTITY_CONFLICT,
-} from "@/lib/stripe-connect-account-identity";
-import {
-  apiErrorStatus,
-  getAuthenticatedAccount,
-  requireAccountType,
-} from "@/lib/api-auth";
-import { logServerInfo, logServerWarning } from "@/lib/server-log";
-import { secureApiErrorResponse } from "@/lib/api-error";
-import {
+  buildPlatformHeldPaymentIntentPlan,
   getKlyxSettlementMode,
   KLYX_PLATFORM_HELD_SETTLEMENT_MODE,
 } from "@/lib/stripe-settlement-control";
-import {
-  enforceCheckoutTransactionRisk,
-  isTransactionRiskGateError,
-} from "@/lib/transaction-risk-server";
-import { POST as platformHeldPost } from "./route-platform-held";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 
 type BookingRow = {
   id: string;
@@ -46,8 +38,6 @@ type BookingRow = {
   status: string;
   payment_status: string | null;
   currency: string | null;
-  pricing_type_snapshot: string | null;
-  unit_price_cents: number | null;
   estimated_amount_cents: number | null;
   amount_total: number | null;
   stripe_checkout_session_id: string | null;
@@ -59,21 +49,29 @@ type PaymentClaimRow = {
   attempt_number: number;
 };
 
-type ProviderRow = {
-  country_code: string | null;
+type ServiceRow = {
+  id: string;
+  slug: string;
+  name: string | null;
 };
 
-type ServiceRow = { id: string; slug: string; name: string | null };
-type ServiceProfileRow = { price: number | null; pricing_type: string | null };
+type ServiceProfileRow = {
+  price: number | null;
+  pricing_type: string | null;
+};
 
-function requiredEnv(name: string): string {
-  const value = process.env[name]?.trim();
-  if (!value) throw new Error(`Variable manquante : ${name}`);
-  return value;
-}
+function requiredTestStripeKey(): string {
+  const key = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
 
-function envIsTrue(name: string): boolean {
-  return process.env[name]?.trim().toLowerCase() === "true";
+  if (key.startsWith("sk_live_")) {
+    throw new Error("KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY");
+  }
+
+  if (!key.startsWith("sk_test_")) {
+    throw new Error("KLYX_SETTLEMENT_STRIPE_TEST_KEY_REQUIRED");
+  }
+
+  return key;
 }
 
 function timeToMinutes(value: string): number {
@@ -83,6 +81,20 @@ function timeToMinutes(value: string): number {
 
 function serviceLabel(service: ServiceRow): string {
   return service.name?.trim() || service.slug || "Service KLYX";
+}
+
+async function getBooking(bookingId: string): Promise<BookingRow> {
+  const { data, error } = await supabaseAdmin
+    .from("bookings")
+    .select(
+      "id, parent_id, provider_id, babysitter_id, booking_group_id, service_id, user_service_id, booking_date, start_time, end_time, status, payment_status, currency, estimated_amount_cents, amount_total, stripe_checkout_session_id"
+    )
+    .eq("id", bookingId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) throw new Error("Réservation introuvable.");
+  return data as BookingRow;
 }
 
 async function claimBookingPayment(
@@ -95,6 +107,7 @@ async function claimBookingPayment(
     p_client_profile_id: clientProfileId,
     p_attempt_token: attemptToken,
   });
+
   if (error) throw new Error(error.message);
   const claim = ((data ?? []) as PaymentClaimRow[])[0];
   if (!claim) throw new Error("Impossible de verrouiller le paiement.");
@@ -104,34 +117,26 @@ async function claimBookingPayment(
 async function releaseExpiredCheckout(bookingId: string, checkoutSessionId: string) {
   const { data, error } = await supabaseAdmin.rpc(
     "klyx_release_expired_booking_checkout",
-    { p_booking_id: bookingId, p_checkout_session_id: checkoutSessionId }
+    {
+      p_booking_id: bookingId,
+      p_checkout_session_id: checkoutSessionId,
+    }
   );
+
   if (error) throw new Error(error.message);
   return data === true;
 }
 
-async function expireUnpersistedCheckoutSession(
-  stripe: Stripe,
-  session: Stripe.Checkout.Session
-) {
-  if (session.status !== "open") return;
-  await stripe.checkout.sessions.expire(session.id);
+async function expireOpenSession(stripe: Stripe, session: Stripe.Checkout.Session) {
+  if (session.status === "open") {
+    await stripe.checkout.sessions.expire(session.id);
+  }
 }
 
-async function getBooking(bookingId: string): Promise<BookingRow> {
-  const { data, error } = await supabaseAdmin
-    .from("bookings")
-    .select(
-      "id, parent_id, provider_id, babysitter_id, booking_group_id, service_id, user_service_id, booking_date, start_time, end_time, status, payment_status, currency, pricing_type_snapshot, unit_price_cents, estimated_amount_cents, amount_total, stripe_checkout_session_id"
-    )
-    .eq("id", bookingId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  if (!data) throw new Error("Réservation introuvable.");
-  return data as BookingRow;
-}
-
-async function resolveService(booking: BookingRow, providerId: string): Promise<{
+async function resolveService(
+  booking: BookingRow,
+  providerId: string
+): Promise<{
   service: ServiceRow;
   userServiceId: string;
   serviceProfile: ServiceProfileRow;
@@ -147,7 +152,11 @@ async function resolveService(booking: BookingRow, providerId: string): Promise<
     { data: userServiceData, error: userServiceError },
     { data: serviceProfileData, error: serviceProfileError },
   ] = await Promise.all([
-    supabaseAdmin.from("services").select("id, slug, name").eq("id", booking.service_id).maybeSingle(),
+    supabaseAdmin
+      .from("services")
+      .select("id, slug, name")
+      .eq("id", booking.service_id)
+      .maybeSingle(),
     supabaseAdmin
       .from("user_services")
       .select("id, user_id, service_id, active")
@@ -179,12 +188,53 @@ async function resolveService(booking: BookingRow, providerId: string): Promise<
   };
 }
 
+async function persistPlatformHeldCheckout(input: {
+  bookingId: string;
+  clientProfileId: string;
+  attemptToken: string;
+  checkoutSessionId: string;
+  providerProfileId: string;
+  serviceId: string;
+  userServiceId: string;
+  stripeAccountId: string;
+  currency: string;
+  grossAmountCents: number;
+  platformFeeCents: number;
+  providerAmountCents: number;
+  transferGroup: string;
+}) {
+  const { data, error } = await supabaseAdmin.rpc(
+    "klyx_persist_platform_held_checkout",
+    {
+      p_booking_id: input.bookingId,
+      p_client_profile_id: input.clientProfileId,
+      p_attempt_token: input.attemptToken,
+      p_checkout_session_id: input.checkoutSessionId,
+      p_provider_profile_id: input.providerProfileId,
+      p_service_id: input.serviceId,
+      p_user_service_id: input.userServiceId,
+      p_stripe_account_id: input.stripeAccountId,
+      p_currency: input.currency,
+      p_gross_amount_cents: input.grossAmountCents,
+      p_platform_fee_cents: input.platformFeeCents,
+      p_provider_amount_cents: input.providerAmountCents,
+      p_transfer_group: input.transferGroup,
+    }
+  );
+
+  if (error) throw new Error(error.message);
+  if (data !== true) throw new Error("KLYX_PLATFORM_HELD_CHECKOUT_NOT_PERSISTED");
+}
+
 export async function POST(request: Request) {
-  // KLYX_SERVER_OBSERVABILITY_12B_8B
   const startedAt = Date.now();
 
   try {
-    const { user, account, profile } = await getAuthenticatedAccount(request);
+    if (getKlyxSettlementMode() !== KLYX_PLATFORM_HELD_SETTLEMENT_MODE) {
+      throw new Error("KLYX_PLATFORM_HELD_MODE_NOT_ACTIVE");
+    }
+
+    const { user, profile } = await getAuthenticatedProfile(request);
     requireAccountType(profile, "client");
 
     const stripeRuntime = assertStripeRuntimeReady();
@@ -196,25 +246,22 @@ export async function POST(request: Request) {
     if (!clientMarketAccess.allowed) {
       return NextResponse.json(
         {
-          error:
-            "KLYX n'est pas encore ouvert aux paiements réels dans le pays de ce profil client.",
+          error: "KLYX n'est pas encore ouvert aux paiements dans le pays de ce profil client.",
           code: "KLYX_CHECKOUT_MARKET_NOT_READY",
           participant: "client",
-          countryCode: clientMarketAccess.countryCode,
-          blockers: clientMarketAccess.blockers,
         },
         { status: 409 }
       );
     }
 
-    const stripeSecretKey = requiredEnv("STRIPE_SECRET_KEY");
+    const stripeSecretKey = requiredTestStripeKey();
     const stripe = new Stripe(stripeSecretKey);
     const body = (await request.json()) as { bookingId?: string };
     const bookingId = body.bookingId?.trim();
 
     if (!bookingId) {
       logServerWarning({
-        event: "stripe_checkout_rejected",
+        event: "stripe_platform_held_checkout_rejected",
         route: "/api/stripe/create-checkout-session",
         method: "POST",
         status: 400,
@@ -225,6 +272,7 @@ export async function POST(request: Request) {
     }
 
     const booking = await getBooking(bookingId);
+
     if (booking.parent_id !== profile.id) {
       return NextResponse.json({ error: "Accès refusé." }, { status: 403 });
     }
@@ -232,29 +280,27 @@ export async function POST(request: Request) {
     if (booking.booking_group_id) {
       return NextResponse.json(
         {
-          error:
-            "Cette reservation appartient a un groupe. Utilise le paiement groupe KLYX.",
-          code: "GROUP_PAYMENT_REQUIRED",
-          groupId: booking.booking_group_id,
+          error: "Platform-held n'est pas encore certifié pour les réservations groupées.",
+          code: "KLYX_PLATFORM_HELD_GROUP_NOT_SUPPORTED",
         },
         { status: 409 }
       );
     }
 
-    // KLYX_SPLIT_LEGACY_CHECKOUT_GUARD_13_27
     const { data: splitPaymentUnits, error: splitPaymentGuardError } =
       await supabaseAdmin
         .from("split_booking_payment_units")
         .select("id")
         .filter("booking_ids", "cs", JSON.stringify([booking.id]))
         .limit(1);
+
     if (splitPaymentGuardError) throw new Error(splitPaymentGuardError.message);
+
     if ((splitPaymentUnits ?? []).length > 0) {
       return NextResponse.json(
         {
-          error:
-            "Le paiement de cette réservation est géré par sa mission multi-prestataires.",
-          splitMissionPayment: true,
+          error: "Platform-held n'est pas encore certifié pour les missions multi-prestataires.",
+          code: "KLYX_PLATFORM_HELD_SPLIT_NOT_SUPPORTED",
         },
         { status: 409 }
       );
@@ -266,6 +312,7 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
     if (booking.payment_status === "paid") {
       return NextResponse.json(
         { error: "Cette réservation est déjà payée.", alreadyPaid: true },
@@ -276,86 +323,86 @@ export async function POST(request: Request) {
     const providerId = booking.provider_id ?? booking.babysitter_id;
     if (!providerId) throw new Error("Prestataire introuvable.");
 
-    await enforceCheckoutTransactionRisk({
-      payerAccount: account,
-      recipientProfileIds: [providerId],
-      subjectType: "booking",
-      subjectId: booking.id,
-    });
-
-    const settlementMode = getKlyxSettlementMode();
-    if (settlementMode === KLYX_PLATFORM_HELD_SETTLEMENT_MODE) {
-      return platformHeldPost(request);
-    }
-
-    const { data: providerData, error: providerError } = await supabaseAdmin
-      .from("profiles")
-      .select("country_code")
-      .eq("id", providerId)
-      .maybeSingle();
-    if (providerError) throw new Error(providerError.message);
-    const provider = (providerData as ProviderRow | null) ?? null;
-
+    const provider = await getProviderStripeDestination(providerId);
     const providerMarketAccess = assessKlyxStripeMarketAccess(
-      provider?.country_code ?? "",
+      provider.countryCode ?? "",
       stripeRuntime.mode
     );
+
     if (!providerMarketAccess.allowed) {
       return NextResponse.json(
         {
-          error:
-            "KLYX n'est pas encore ouvert aux paiements réels dans le pays de ce prestataire.",
+          error: "KLYX n'est pas encore ouvert aux paiements dans le pays de ce prestataire.",
           code: "KLYX_CHECKOUT_MARKET_NOT_READY",
           participant: "provider",
-          countryCode: providerMarketAccess.countryCode,
-          blockers: providerMarketAccess.blockers,
         },
         { status: 409 }
       );
     }
 
-    const providerIdentity = await getProfileAccountStripeConnectIdentity(providerId);
-    if (providerIdentity.state === "conflict") {
+    const canonicalStripeAccountId = provider.connect.stripeAccountId;
+    if (!canonicalStripeAccountId) {
       return NextResponse.json(
         {
-          error:
-            "L'identité Stripe du compte KLYX du prestataire nécessite une revue avant paiement.",
-          code: STRIPE_CONNECT_IDENTITY_CONFLICT,
+          error: "Le prestataire doit disposer d'un compte Stripe Connect vérifié.",
+          code: "KLYX_PLATFORM_HELD_PROVIDER_STRIPE_REQUIRED",
         },
         { status: 409 }
       );
     }
-    const providerStripeAccountId = assertStripeConnectIdentityUsable(providerIdentity);
-    let providerStripeAccount: Stripe.Account | null = null;
 
-    if (providerStripeAccountId) {
-      providerStripeAccount = await stripe.accounts.retrieve(providerStripeAccountId);
-      const countryAssessment = assessStripeConnectCountry({
-        klyxCountryCode: provider?.country_code,
-        stripeCountryCode: providerStripeAccount.country,
-      });
-      if (!countryAssessment.matches) {
-        return NextResponse.json(
-          {
-            error:
-              "Le pays du compte de paiement du prestataire ne correspond plus à son pays KLYX. Le paiement est bloqué jusqu'à régularisation.",
-            code: STRIPE_ACCOUNT_COUNTRY_MISMATCH,
-            participant: "provider",
-            countryCode: countryAssessment.klyxCountryCode,
-            stripeCountryCode: countryAssessment.stripeCountryCode,
-          },
-          { status: 409 }
-        );
-      }
+    const providerStripeAccount = await stripe.accounts.retrieve(
+      canonicalStripeAccountId
+    );
+    const countryAssessment = assessStripeConnectCountry({
+      klyxCountryCode: provider.countryCode,
+      stripeCountryCode: providerStripeAccount.country,
+    });
+
+    if (!countryAssessment.matches) {
+      return NextResponse.json(
+        {
+          error: "Le pays du compte de paiement du prestataire ne correspond plus à son pays KLYX.",
+          code: STRIPE_ACCOUNT_COUNTRY_MISMATCH,
+        },
+        { status: 409 }
+      );
+    }
+
+    const providerRecipientAccount = await stripe.v2.core.accounts.retrieve(
+      canonicalStripeAccountId,
+      { include: ["configuration.recipient", "identity", "requirements"] }
+    );
+    const providerReady = Boolean(
+      providerRecipientAccount.livemode === false &&
+        providerRecipientAccount.identity?.country === "BE" &&
+        providerRecipientAccount.applied_configurations?.includes("recipient") === true &&
+        providerRecipientAccount.configuration?.recipient?.applied === true &&
+        providerRecipientAccount.configuration?.recipient?.capabilities?.stripe_balance
+          ?.stripe_transfers?.status === "active"
+    );
+
+    if (!providerReady) {
+      return NextResponse.json(
+        {
+          error: "Le prestataire doit terminer la vérification Stripe avant ce paiement.",
+          code: "KLYX_PLATFORM_HELD_PROVIDER_NOT_READY",
+        },
+        { status: 409 }
+      );
     }
 
     const { service, userServiceId, serviceProfile } = await resolveService(
       booking,
       providerId
     );
-    if (serviceProfile.price == null) throw new Error("Prix du service non renseigné.");
 
-    const durationMinutes = timeToMinutes(booking.end_time) - timeToMinutes(booking.start_time);
+    if (serviceProfile.price == null) {
+      throw new Error("Prix du service non renseigné.");
+    }
+
+    const durationMinutes =
+      timeToMinutes(booking.end_time) - timeToMinutes(booking.start_time);
     if (durationMinutes <= 0) {
       return NextResponse.json({ error: "Durée de réservation invalide." }, { status: 400 });
     }
@@ -365,7 +412,9 @@ export async function POST(request: Request) {
         (serviceProfile.pricing_type === "fixed" ? 1 : durationMinutes / 60) *
         100
     );
-    const amountTotal = booking.estimated_amount_cents ?? booking.amount_total ?? fallbackAmount;
+    const amountTotal =
+      booking.estimated_amount_cents ?? booking.amount_total ?? fallbackAmount;
+
     if (amountTotal < 50) throw new Error("Le montant calculé est trop faible.");
 
     const checkoutCurrency = booking.currency?.trim().toLowerCase() ?? "";
@@ -373,50 +422,28 @@ export async function POST(request: Request) {
       throw new Error("Devise de réservation invalide.");
     }
 
-    const economics = calculateKlyxEconomics(amountTotal, getKlyxCommissionPercent());
-    const applicationFeeAmount = economics.platformFeeCents;
-    const providerReady = Boolean(
-      providerStripeAccountId &&
-        providerStripeAccount?.details_submitted &&
-        providerStripeAccount.charges_enabled &&
-        providerStripeAccount.payouts_enabled
+    const economics = calculateKlyxEconomics(
+      amountTotal,
+      getKlyxCommissionPercent()
     );
-    const platformOnlyTestAllowed =
-      stripeSecretKey.startsWith("sk_test_") &&
-      envIsTrue("KLYX_ALLOW_PLATFORM_ONLY_TEST_PAYMENTS");
+    const plan = buildPlatformHeldPaymentIntentPlan({
+      subjectType: "booking",
+      subjectId: booking.id,
+      providerProfileId: providerId,
+      providerStripeAccountId: canonicalStripeAccountId,
+      metadata: {
+        booking_id: booking.id,
+        provider_id: providerId,
+        service_id: service.id,
+        service_slug: service.slug,
+        user_service_id: userServiceId,
+      },
+    });
 
-    if (!providerReady && !platformOnlyTestAllowed) {
-      return NextResponse.json(
-        {
-          error:
-            "Le prestataire doit terminer la vérification Stripe avant de recevoir un paiement.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const paymentMode = providerReady ? "connect_destination" : "platform_test_only";
     const origin =
       process.env.NEXT_PUBLIC_APP_URL?.trim() ||
       request.headers.get("origin") ||
       "http://localhost:3000";
-
-    const paymentIntentData: Stripe.Checkout.SessionCreateParams.PaymentIntentData = {
-      metadata: {
-        booking_id: booking.id,
-        provider_id: providerId,
-        provider_account_id: providerIdentity.accountId,
-        service_id: service.id,
-        service_slug: service.slug,
-        user_service_id: userServiceId,
-        payment_mode: paymentMode,
-      },
-    };
-
-    if (providerReady && providerStripeAccountId) {
-      paymentIntentData.application_fee_amount = applicationFeeAmount;
-      paymentIntentData.transfer_data = { destination: providerStripeAccountId };
-    }
 
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
       mode: "payment",
@@ -440,13 +467,16 @@ export async function POST(request: Request) {
         booking_id: booking.id,
         parent_id: booking.parent_id,
         provider_id: providerId,
-        provider_account_id: providerIdentity.accountId,
         service_id: service.id,
         service_slug: service.slug,
         user_service_id: userServiceId,
-        payment_mode: paymentMode,
+        payment_mode: plan.paymentMode,
+        settlement_transfer_group: plan.transferGroup,
       },
-      payment_intent_data: paymentIntentData,
+      payment_intent_data: {
+        metadata: plan.metadata,
+        transfer_group: plan.transferGroup,
+      },
     };
 
     let attemptToken = randomUUID();
@@ -458,11 +488,11 @@ export async function POST(request: Request) {
         { status: 409 }
       );
     }
+
     if (claim.action === "busy") {
       return NextResponse.json(
         {
-          error:
-            "Le paiement est déjà en cours de préparation. Réessaie dans quelques secondes.",
+          error: "Le paiement est déjà en cours de préparation. Réessaie dans quelques secondes.",
           paymentPending: true,
         },
         { status: 409 }
@@ -470,7 +500,10 @@ export async function POST(request: Request) {
     }
 
     if (claim.action === "reuse" && claim.checkout_session_id) {
-      const existingSession = await stripe.checkout.sessions.retrieve(claim.checkout_session_id);
+      const existingSession = await stripe.checkout.sessions.retrieve(
+        claim.checkout_session_id
+      );
+
       if (existingSession.payment_status === "paid") {
         await markBookingPaidFromSession(existingSession);
         return NextResponse.json(
@@ -478,36 +511,37 @@ export async function POST(request: Request) {
           { status: 409 }
         );
       }
-      if (existingSession.status === "open" && existingSession.url) {
-        logServerInfo({
-          event: "stripe_checkout_reused",
-          route: "/api/stripe/create-checkout-session",
-          method: "POST",
-          status: 200,
-          code: paymentMode,
-          durationMs: Date.now() - startedAt,
-        });
+
+      const sameHeldMode =
+        existingSession.metadata?.payment_mode === KLYX_PLATFORM_HELD_SETTLEMENT_MODE;
+
+      if (sameHeldMode && existingSession.status === "open" && existingSession.url) {
         return NextResponse.json({
           url: existingSession.url,
           reused: true,
-          paymentMode,
+          paymentMode: plan.paymentMode,
           amountTotal,
           serviceSlug: service.slug,
         });
       }
-      if (existingSession.status !== "expired") {
+
+      if (existingSession.status === "open" && !sameHeldMode) {
+        await stripe.checkout.sessions.expire(existingSession.id);
+      }
+
+      if (existingSession.status === "expired" || !sameHeldMode) {
+        await releaseExpiredCheckout(booking.id, existingSession.id);
+        attemptToken = randomUUID();
+        claim = await claimBookingPayment(booking.id, profile.id, attemptToken);
+      } else {
         return NextResponse.json(
           {
-            error:
-              "Stripe traite déjà ce paiement. Son statut sera actualisé automatiquement.",
+            error: "Stripe traite déjà ce paiement. Son statut sera actualisé automatiquement.",
             paymentPending: true,
           },
           { status: 409 }
         );
       }
-      await releaseExpiredCheckout(booking.id, existingSession.id);
-      attemptToken = randomUUID();
-      claim = await claimBookingPayment(booking.id, profile.id, attemptToken);
     }
 
     if (claim.action !== "create") {
@@ -525,103 +559,72 @@ export async function POST(request: Request) {
     }
 
     const session = await stripe.checkout.sessions.create(sessionParams, {
-      idempotencyKey: `klyx-booking-${booking.id}-attempt-${claim.attempt_number}`,
+      idempotencyKey: `klyx-booking-held-${booking.id}-attempt-${claim.attempt_number}`,
     });
+
     if (!session.url) {
-      await expireUnpersistedCheckoutSession(stripe, session);
+      await expireOpenSession(stripe, session);
       throw new Error("Stripe n'a pas renvoyé de lien de paiement.");
     }
 
-    const providerAmount =
-      paymentMode === "connect_destination" ? amountTotal - applicationFeeAmount : null;
-    const platformFeeAmount =
-      paymentMode === "connect_destination" ? applicationFeeAmount : 0;
-
     try {
-      const { data: updatedBooking, error: updateError } = await supabaseAdmin
-        .from("bookings")
-        .update({
-          provider_id: providerId,
-          service_id: service.id,
-          user_service_id: userServiceId,
-          payment_status: "checkout_created",
-          stripe_checkout_session_id: session.id,
-          amount_total: amountTotal,
-          payment_mode: paymentMode,
-          application_fee_amount: platformFeeAmount,
-          platform_fee_amount: platformFeeAmount,
-          provider_amount: providerAmount,
-          payment_attempt_token: null,
-          payment_checkout_started_at: null,
-        })
-        .eq("id", booking.id)
-        .eq("payment_attempt_token", attemptToken)
-        .select("id")
-        .maybeSingle();
-
-      if (updateError) throw new Error(updateError.message);
-      if (!updatedBooking) {
-        const latestBooking = await getBooking(booking.id);
-        if (latestBooking.payment_status === "paid") {
-          await expireUnpersistedCheckoutSession(stripe, session);
-          return NextResponse.json(
-            { error: "Cette réservation est déjà payée.", alreadyPaid: true },
-            { status: 409 }
-          );
-        }
-        if (latestBooking.stripe_checkout_session_id !== session.id) {
-          throw new Error(
-            "Le verrou de paiement a changé. Aucun nouveau débit n'a été lancé."
-          );
-        }
-      }
+      await persistPlatformHeldCheckout({
+        bookingId: booking.id,
+        clientProfileId: profile.id,
+        attemptToken,
+        checkoutSessionId: session.id,
+        providerProfileId: providerId,
+        serviceId: service.id,
+        userServiceId,
+        stripeAccountId: canonicalStripeAccountId,
+        currency: checkoutCurrency.toUpperCase(),
+        grossAmountCents: economics.grossAmountCents,
+        platformFeeCents: economics.platformFeeCents,
+        providerAmountCents: economics.providerAmountCents,
+        transferGroup: plan.transferGroup,
+      });
     } catch (error) {
-      await expireUnpersistedCheckoutSession(stripe, session);
+      await expireOpenSession(stripe, session);
       throw error;
     }
 
     logServerInfo({
-      event: "stripe_checkout_created",
+      event: "stripe_platform_held_checkout_created",
       route: "/api/stripe/create-checkout-session",
       method: "POST",
       status: 200,
-      code: paymentMode,
+      code: plan.paymentMode,
       durationMs: Date.now() - startedAt,
     });
 
     return NextResponse.json({
       url: session.url,
       reused: false,
-      paymentMode,
+      paymentMode: plan.paymentMode,
       amountTotal,
       serviceSlug: service.slug,
     });
   } catch (error) {
-    if (isTransactionRiskGateError(error)) {
+    if (isStripeConnectIdentityReviewRequired(error)) {
       return NextResponse.json(
         {
-          error:
-            error.decision === "blocked"
-              ? "Ce paiement est temporairement bloqué pour vérification de sécurité."
-              : "Ce paiement nécessite une vérification de sécurité avant de continuer.",
-          code: error.code,
-          participant: error.participant,
-          automaticSuspension: false,
+          error: "L'identité Stripe Connect du prestataire nécessite une revue avant paiement.",
+          code: "KLYX_STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED",
         },
         { status: 409 }
       );
     }
 
-    const message =
-      error instanceof Error ? error.message : "Impossible de créer le paiement.";
+    const message = error instanceof Error ? error.message : "Impossible de créer le paiement.";
     const status = message === "Réservation introuvable." ? 404 : apiErrorStatus(message);
+
     return secureApiErrorResponse({
       error,
-      event: "stripe_checkout_failed",
+      event: "stripe_platform_held_checkout_failed",
       route: "/api/stripe/create-checkout-session",
       method: "POST",
       status,
-      code: "stripe_checkout_failed",
+      code: "stripe_platform_held_checkout_failed",
       publicMessage: status < 500 ? message : undefined,
       startedAt,
     });

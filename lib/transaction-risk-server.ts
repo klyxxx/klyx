@@ -289,9 +289,6 @@ export async function enforceRefundTransactionRisk(input: {
     throw new Error("KLYX_TRANSACTION_RISK_REFUND_RECIPIENT_NOT_FOUND");
   }
 
-  // The original payer is the only refund destination KLYX recognizes. Assess
-  // that canonical account first because repeated dispute behavior is the only
-  // current account-risk signal allowed to delay a refund for human review.
   await assessCanonicalParticipantById({
     accountId: recipientAccountId,
     canOfferServices: true,
@@ -301,9 +298,6 @@ export async function enforceRefundTransactionRisk(input: {
     subjectId: input.subjectId,
   });
 
-  // If the approver/requester is a different canonical account, record a fresh
-  // account-level assessment for auditability. Refund policy deliberately does
-  // not strand customer funds because of requester/provider-only risk signals.
   if (input.requesterAccount.id !== recipientAccountId) {
     const requester: CanonicalRiskAccount = {
       id: input.requesterAccount.id,
@@ -319,4 +313,27 @@ export async function enforceRefundTransactionRisk(input: {
       subjectId: input.subjectId,
     });
   }
+}
+
+export async function enforceSettlementReleaseTransactionRisk(input: {
+  recipientProfileId: string;
+  subjectId: string;
+}): Promise<void> {
+  const recipientAccountIds = await resolveCanonicalAccountIdsForProfiles([
+    input.recipientProfileId,
+  ]);
+  const recipientAccountId = recipientAccountIds[0];
+
+  if (!recipientAccountId) {
+    throw new Error("KLYX_TRANSACTION_RISK_SETTLEMENT_RECIPIENT_NOT_FOUND");
+  }
+
+  await assessCanonicalParticipantById({
+    accountId: recipientAccountId,
+    canOfferServices: true,
+    action: "settlement_release",
+    participant: "settlement_recipient",
+    subjectType: "booking",
+    subjectId: input.subjectId,
+  });
 }

@@ -71,26 +71,37 @@ function assertStripeHostedUrl(value, label) {
   }
 }
 
-async function providerConnectState(admin, providerId) {
+async function canonicalConnectState(admin, accountId) {
   const { data, error } = await admin
-    .from("profiles")
+    .from("accounts")
     .select(
-      "id, owner_user_id, account_type, country_code, currency_code, stripe_account_id, stripe_onboarding_complete, stripe_charges_enabled, stripe_payouts_enabled"
+      "id, stripe_account_id, stripe_connect_state, stripe_onboarding_complete, stripe_charges_enabled, stripe_payouts_enabled, stripe_status_updated_at"
     )
-    .eq("id", providerId)
+    .eq("id", accountId)
     .single();
 
   if (error || !data) {
     throw new Error(
-      `Unable to load provider Connect state: ${error?.message ?? "missing profile"}`
+      `Unable to load canonical Connect state: ${error?.message ?? "missing account"}`
     );
   }
 
   return data;
 }
 
-async function resetProviderConnectState(admin, providerId) {
-  const { error } = await admin
+async function resetProviderConnectState(admin, providerId, accountId) {
+  const { error: reviewError } = await admin
+    .from("stripe_connect_identity_reviews")
+    .delete()
+    .eq("account_id", accountId);
+
+  if (reviewError) {
+    throw new Error(
+      `Unable to reset Stripe identity review fixture: ${reviewError.message}`
+    );
+  }
+
+  const { error: profileError } = await admin
     .from("profiles")
     .update({
       stripe_account_id: null,
@@ -99,19 +110,51 @@ async function resetProviderConnectState(admin, providerId) {
       stripe_payouts_enabled: false,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", providerId);
+    .eq("id", providerId)
+    .eq("account_id", accountId);
 
-  if (error) {
-    throw new Error(`Unable to reset provider Connect state: ${error.message}`);
+  if (profileError) {
+    throw new Error(
+      `Unable to reset legacy provider Connect compatibility state: ${profileError.message}`
+    );
+  }
+
+  const { error: accountError } = await admin
+    .from("accounts")
+    .update({
+      stripe_account_id: null,
+      stripe_connect_state: "unlinked",
+      stripe_onboarding_complete: false,
+      stripe_charges_enabled: false,
+      stripe_payouts_enabled: false,
+      stripe_status_updated_at: null,
+    })
+    .eq("id", accountId);
+
+  if (accountError) {
+    throw new Error(
+      `Unable to reset canonical Connect state: ${accountError.message}`
+    );
   }
 }
 
-async function discoverProofAccounts(stripe, providerId) {
+async function discoverProofAccounts(stripe, accountId) {
   const accounts = await stripe.accounts.list({ limit: 100 });
 
   return accounts.data.filter(
-    (account) => account.metadata?.klyx_profile_id === providerId
+    (account) => account.metadata?.klyx_account_id === accountId
   );
+}
+
+async function retrieveV2ConnectAccount(stripe, accountId) {
+  return stripe.v2.core.accounts.retrieve(accountId, {
+    include: [
+      "configuration.merchant",
+      "configuration.recipient",
+      "identity",
+      "requirements",
+    ],
+  });
 }
 
 async function main() {
@@ -182,7 +225,7 @@ async function main() {
 
   const { data: profiles, error: profilesError } = await admin
     .from("profiles")
-    .select("id, account_type, country_code, currency_code")
+    .select("id, account_id, account_type, country_code, currency_code")
     .eq("owner_user_id", signInData.user.id);
 
   if (profilesError) {
@@ -199,29 +242,36 @@ async function main() {
     throw new Error("Stripe Connect proof provider profile is missing.");
   }
 
+  if (!provider.account_id) {
+    throw new Error("Stripe Connect proof provider is missing its canonical KLYX account.");
+  }
+
   if (provider.country_code !== "BE" || provider.currency_code !== "EUR") {
     throw new Error("Stripe Connect proof provider must use the BE/EUR market.");
   }
 
-  let accountId = null;
+  const canonicalAccountId = provider.account_id;
+  let stripeAccountId = null;
+  let appliedConfigurations = [];
   let accountCreated = false;
   let accountReused = false;
   let remoteAccountVerified = false;
   let statusVerified = false;
-  let deletedAccountIds = [];
+  let accountClosedAfterProof = false;
   let cleanupFailure = null;
 
   try {
-    await resetProviderConnectState(admin, provider.id);
+    await resetProviderConnectState(admin, provider.id, canonicalAccountId);
 
-    const before = await providerConnectState(admin, provider.id);
+    const before = await canonicalConnectState(admin, canonicalAccountId);
     if (
       before.stripe_account_id !== null ||
+      before.stripe_connect_state !== "unlinked" ||
       before.stripe_onboarding_complete !== false ||
       before.stripe_charges_enabled !== false ||
       before.stripe_payouts_enabled !== false
     ) {
-      throw new Error("Provider Connect state did not reset before proof.");
+      throw new Error("Canonical Connect state did not reset before proof.");
     }
 
     const firstCreate = await requestJson({
@@ -234,34 +284,52 @@ async function main() {
 
     assertStripeHostedUrl(firstCreate?.url, "First Stripe Connect onboarding URL");
 
-    const afterFirstCreate = await providerConnectState(admin, provider.id);
-    accountId = afterFirstCreate.stripe_account_id;
+    const afterFirstCreate = await canonicalConnectState(
+      admin,
+      canonicalAccountId
+    );
+    stripeAccountId = afterFirstCreate.stripe_account_id;
 
     if (
-      typeof accountId !== "string" ||
-      !accountId.startsWith("acct_") ||
+      typeof stripeAccountId !== "string" ||
+      !stripeAccountId.startsWith("acct_") ||
+      afterFirstCreate.stripe_connect_state !== "linked" ||
       afterFirstCreate.stripe_onboarding_complete !== false ||
       afterFirstCreate.stripe_charges_enabled !== false ||
       afterFirstCreate.stripe_payouts_enabled !== false
     ) {
-      throw new Error("KLYX did not persist the expected new Connect account state.");
+      throw new Error(
+        "KLYX did not persist the expected canonical new Connect account state."
+      );
     }
 
     accountCreated = true;
 
-    const remoteAccount = await stripe.accounts.retrieve(accountId);
+    const remoteAccount = await stripe.accounts.retrieve(stripeAccountId);
+    const remoteV2Account = await retrieveV2ConnectAccount(stripe, stripeAccountId);
+    appliedConfigurations = remoteV2Account.applied_configurations ?? [];
 
     if (
-      remoteAccount.id !== accountId ||
-      remoteAccount.type !== "express" ||
+      remoteAccount.id !== stripeAccountId ||
+      remoteAccount.controller?.stripe_dashboard?.type !== "express" ||
+      remoteAccount.controller?.losses?.payments !== "application" ||
       remoteAccount.country !== "BE" ||
       remoteAccount.details_submitted !== false ||
       remoteAccount.charges_enabled !== false ||
       remoteAccount.payouts_enabled !== false ||
-      remoteAccount.metadata?.klyx_profile_id !== provider.id ||
-      remoteAccount.metadata?.klyx_owner_user_id !== signInData.user.id
+      remoteAccount.metadata?.klyx_account_id !== canonicalAccountId ||
+      remoteAccount.metadata?.klyx_owner_user_id !== signInData.user.id ||
+      remoteV2Account.dashboard !== "express" ||
+      remoteV2Account.livemode !== false ||
+      remoteV2Account.identity?.country !== "BE" ||
+      remoteV2Account.metadata?.klyx_account_id !== canonicalAccountId ||
+      remoteV2Account.metadata?.klyx_owner_user_id !== signInData.user.id ||
+      !appliedConfigurations.includes("merchant") ||
+      !appliedConfigurations.includes("recipient")
     ) {
-      throw new Error("Remote Stripe TEST Connect account does not match KLYX state.");
+      throw new Error(
+        "Remote Stripe TEST Connect account does not match canonical KLYX v2/controller state."
+      );
     }
 
     remoteAccountVerified = true;
@@ -274,20 +342,31 @@ async function main() {
       method: "POST",
     });
 
-    assertStripeHostedUrl(secondCreate?.url, "Reused Stripe Connect onboarding URL");
+    assertStripeHostedUrl(
+      secondCreate?.url,
+      "Reused Stripe Connect onboarding URL"
+    );
 
-    const afterSecondCreate = await providerConnectState(admin, provider.id);
-    if (afterSecondCreate.stripe_account_id !== accountId) {
-      throw new Error("KLYX created a second Connect account instead of reusing it.");
+    const afterSecondCreate = await canonicalConnectState(
+      admin,
+      canonicalAccountId
+    );
+    if (afterSecondCreate.stripe_account_id !== stripeAccountId) {
+      throw new Error(
+        "KLYX created a second Connect account instead of reusing the canonical account."
+      );
     }
 
-    const matchingAccounts = await discoverProofAccounts(stripe, provider.id);
+    const matchingAccounts = await discoverProofAccounts(
+      stripe,
+      canonicalAccountId
+    );
     if (
       matchingAccounts.length !== 1 ||
-      matchingAccounts[0]?.id !== accountId
+      matchingAccounts[0]?.id !== stripeAccountId
     ) {
       throw new Error(
-        `Expected exactly one remote Connect account for the proof profile, found ${matchingAccounts.length}.`
+        `Expected exactly one remote Connect account for the canonical KLYX account, found ${matchingAccounts.length}.`
       );
     }
 
@@ -303,7 +382,7 @@ async function main() {
 
     if (
       status?.connected !== true ||
-      status?.accountId !== accountId ||
+      status?.accountId !== stripeAccountId ||
       status?.onboardingComplete !== false ||
       status?.chargesEnabled !== false ||
       status?.payoutsEnabled !== false
@@ -318,48 +397,58 @@ async function main() {
       );
     }
 
-    const afterStatus = await providerConnectState(admin, provider.id);
+    const afterStatus = await canonicalConnectState(admin, canonicalAccountId);
     if (
-      afterStatus.stripe_account_id !== accountId ||
+      afterStatus.stripe_account_id !== stripeAccountId ||
+      afterStatus.stripe_connect_state !== "linked" ||
       afterStatus.stripe_onboarding_complete !== false ||
       afterStatus.stripe_charges_enabled !== false ||
       afterStatus.stripe_payouts_enabled !== false
     ) {
-      throw new Error("KLYX did not persist the remote Connect status faithfully.");
+      throw new Error(
+        "KLYX did not persist the remote canonical Connect status faithfully."
+      );
     }
 
     statusVerified = true;
   } finally {
     try {
-      const candidateIds = new Set();
-
-      if (typeof accountId === "string" && accountId.startsWith("acct_")) {
-        candidateIds.add(accountId);
-      }
-
-      const discovered = await discoverProofAccounts(stripe, provider.id);
-      for (const account of discovered) {
-        candidateIds.add(account.id);
-      }
-
-      for (const candidateId of candidateIds) {
-        const deleted = await stripe.accounts.del(candidateId);
-        if (deleted.deleted !== true) {
-          throw new Error(`Stripe did not confirm deletion for ${candidateId}.`);
+      if (
+        typeof stripeAccountId === "string" &&
+        stripeAccountId.startsWith("acct_") &&
+        appliedConfigurations.length > 0
+      ) {
+        const closed = await stripe.v2.core.accounts.close(stripeAccountId, {
+          applied_configurations: appliedConfigurations,
+        });
+        if (closed.closed !== true) {
+          throw new Error(
+            `Stripe did not confirm closure for ${stripeAccountId}.`
+          );
         }
-        deletedAccountIds.push(candidateId);
+        accountClosedAfterProof = true;
       }
 
-      await resetProviderConnectState(admin, provider.id);
+      await resetProviderConnectState(
+        admin,
+        provider.id,
+        canonicalAccountId
+      );
 
-      const afterCleanup = await providerConnectState(admin, provider.id);
+      const afterCleanup = await canonicalConnectState(
+        admin,
+        canonicalAccountId
+      );
       if (
         afterCleanup.stripe_account_id !== null ||
+        afterCleanup.stripe_connect_state !== "unlinked" ||
         afterCleanup.stripe_onboarding_complete !== false ||
         afterCleanup.stripe_charges_enabled !== false ||
         afterCleanup.stripe_payouts_enabled !== false
       ) {
-        throw new Error("Provider Connect state is not clean after proof.");
+        throw new Error(
+          "Canonical Connect state is not clean after proof."
+        );
       }
     } catch (error) {
       cleanupFailure = error instanceof Error ? error.message : String(error);
@@ -377,10 +466,12 @@ async function main() {
     !accountReused ||
     !remoteAccountVerified ||
     !statusVerified ||
-    !accountId ||
-    !deletedAccountIds.includes(accountId)
+    !stripeAccountId ||
+    !accountClosedAfterProof
   ) {
-    throw new Error("Stripe Connect network proof did not complete all invariants.");
+    throw new Error(
+      "Stripe Connect network proof did not complete all invariants."
+    );
   }
 
   fs.mkdirSync("stripe-network-proof", { recursive: true });
@@ -391,14 +482,16 @@ async function main() {
         verified: true,
         stripeConnectNetwork: true,
         testMode: true,
-        accountType: "express",
+        authority: "accounts.id",
+        accountDashboard: "express",
+        accountApi: "v2",
         country: "BE",
         accountCreated: true,
         accountReused: true,
         onboardingComplete: false,
         chargesEnabled: false,
         payoutsEnabled: false,
-        accountDeletedAfterProof: true,
+        accountClosedAfterProof: true,
         localStateResetAfterProof: true,
         payoutClaimed: false,
         verifiedAt: new Date().toISOString(),
@@ -414,12 +507,14 @@ async function main() {
       verified: true,
       stripeConnectNetwork: true,
       testMode: true,
-      accountType: "express",
+      authority: "accounts.id",
+      accountDashboard: "express",
+      accountApi: "v2",
       country: "BE",
       accountCreated: true,
       accountReused: true,
       statusVerified: true,
-      accountDeletedAfterProof: true,
+      accountClosedAfterProof: true,
       payoutClaimed: false,
     })}\n`
   );

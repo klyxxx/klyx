@@ -2,6 +2,12 @@ name: KLYX E2E
 
 on:
   workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: "Immutable commit SHA expected by the #803 certification dispatcher"
+        required: false
+        default: ""
+        type: string
 
   # KLYX_CI_SINGLE_EVENT_PHASE_12A_10
   push:
@@ -38,6 +44,22 @@ jobs:
       KLYX_PLAYWRIGHT_SYSTEM_CHROME: "1"
 
     steps:
+      - name: Verify immutable certification SHA
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha != '' }}
+        shell: bash
+        env:
+          KLYX_EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$KLYX_EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Invalid expected certification SHA."
+            exit 1
+          fi
+          if [ "$GITHUB_SHA" != "$KLYX_EXPECTED_SHA" ]; then
+            echo "::error::Certification SHA mismatch: expected $KLYX_EXPECTED_SHA, got $GITHUB_SHA."
+            exit 1
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -302,6 +324,22 @@ jobs:
       KLYX_E2E_SESSION_BOOTSTRAP: "1"
 
     steps:
+      - name: Verify immutable certification SHA
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha != '' }}
+        shell: bash
+        env:
+          KLYX_EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$KLYX_EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Invalid expected certification SHA."
+            exit 1
+          fi
+          if [ "$GITHUB_SHA" != "$KLYX_EXPECTED_SHA" ]; then
+            echo "::error::Certification SHA mismatch: expected $KLYX_EXPECTED_SHA, got $GITHUB_SHA."
+            exit 1
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
