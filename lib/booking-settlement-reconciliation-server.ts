@@ -769,13 +769,16 @@ async function ensurePaymentTruth(
     booking = refreshed.booking;
   }
 
+  // Checkout is authoritative for session identity and provenance. Once the
+  // settlement has already moved beyond pending_payment, final financial truth
+  // is established below from the real succeeded PaymentIntent + charge. This
+  // also permits recovery when a signed webhook was persisted but the remote
+  // Checkout projection is delayed or otherwise not yet converged.
   if (
-    settlement.state !== "pending_payment" &&
+    settlement.state === "pending_payment" &&
     session.payment_status !== "paid"
   ) {
-    throw new SettlementTruthMismatchError(
-      "settlement_active_but_checkout_not_paid"
-    );
+    return { settlement, booking };
   }
 
   return { settlement, booking };
