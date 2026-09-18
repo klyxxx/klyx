@@ -238,19 +238,21 @@ async function provisionConnectedAccount({ stripe, providerId }) {
   };
 }
 
-async function bindCanonicalAccount(admin, accountId, stripeAccount) {
-  const { data: profiles, error: profilesLoadError } = await admin
+async function bindCanonicalAccount(admin, accountId, providerId, stripeAccount) {
+  const { data: providerProfile, error: providerProfileError } = await admin
     .from("profiles")
     .select("id")
-    .eq("account_id", accountId);
+    .eq("id", providerId)
+    .eq("account_id", accountId)
+    .maybeSingle();
 
-  if (profilesLoadError) {
+  if (providerProfileError || !providerProfile) {
     throw new Error(
-      `Unable to load canonical Stripe source profiles: ${profilesLoadError.message}`
+      `Unable to load canonical Stripe provider profile: ${providerProfileError?.message ?? "missing provider profile"}`
     );
   }
 
-  const sourceProfileIds = (profiles ?? []).map((profile) => profile.id);
+  const sourceProfileIds = [providerProfile.id];
 
   const { error: identityResetError } = await admin
     .from("account_stripe_connect_identities")
@@ -291,6 +293,7 @@ async function bindCanonicalAccount(admin, accountId, stripeAccount) {
       stripe_charges_enabled: Boolean(stripeAccount.charges_enabled),
       stripe_payouts_enabled: Boolean(stripeAccount.payouts_enabled),
     })
+    .eq("id", providerId)
     .eq("account_id", accountId);
 
   if (profilesError) {
@@ -1112,7 +1115,7 @@ async function main() {
     connectedAccount = provisioned.account;
     connectedV2Account = provisioned.v2Account;
     createdConnectedAccount = provisioned.createdForProof;
-    await bindCanonicalAccount(admin, accountId, connectedAccount);
+    await bindCanonicalAccount(admin, accountId, provider.id, connectedAccount);
 
     const refundBeforeRelease = await runRefundBeforeReleaseScenario({
       stripe,
