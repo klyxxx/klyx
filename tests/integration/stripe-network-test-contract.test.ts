@@ -111,7 +111,7 @@ describe("KLYX Stripe network proof", () => {
     expect(connectProof).toContain('path: "/api/stripe/connect/status"');
     expect(connectProof).toContain("new Stripe(stripeSecretKey)");
     expect(connectProof).toContain("canonicalConnectState");
-    expect(connectProof).toContain('.from("accounts")');
+    expect(connectProof).toContain('.from("account_stripe_connect_identities")');
     expect(connectProof).toContain("stripe.accounts.retrieve(stripeAccountId)");
     expect(connectProof).toContain("retrieveV2ConnectAccount");
     expect(connectProof).toContain(
@@ -144,8 +144,8 @@ describe("KLYX Stripe network proof", () => {
   it("closes the Stripe TEST v2 account and clears canonical local Connect state after proof", () => {
     expect(connectProof).toContain("stripe.v2.core.accounts.close(stripeAccountId");
     expect(connectProof).toContain("closed.closed !== true");
-    expect(connectProof).toContain("stripe_account_id: null");
-    expect(connectProof).toContain('stripe_connect_state: "unlinked"');
+    expect(connectProof).toContain('.from("account_stripe_connect_identities")');
+    expect(connectProof).toContain(".delete()");
     expect(connectProof).toContain("stripe_onboarding_complete: false");
     expect(connectProof).toContain("stripe_charges_enabled: false");
     expect(connectProof).toContain("stripe_payouts_enabled: false");

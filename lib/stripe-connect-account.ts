@@ -1,5 +1,14 @@
+import "server-only";
+
 import type Stripe from "stripe";
 
+import {
+  getAccountStripeConnectIdentity,
+  markAccountStripeConnectIdentityForReview,
+  persistAccountStripeConnectIdentity,
+  STRIPE_CONNECT_IDENTITY_CONFLICT,
+  STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED as CANONICAL_REVIEW_REQUIRED,
+} from "@/lib/stripe-connect-account-identity";
 import {
   assessStripeConnectCreation,
   type CanonicalStripeConnectState,
@@ -30,21 +39,18 @@ export type ProviderStripeDestination = {
   connect: CanonicalStripeConnect;
 };
 
-type AccountStripeRow = {
-  id: string;
-  stripe_account_id: string | null;
-  stripe_connect_state: CanonicalStripeConnectState;
-  stripe_onboarding_complete: boolean;
-  stripe_charges_enabled: boolean;
-  stripe_payouts_enabled: boolean;
-  stripe_status_updated_at: string | null;
-};
-
 type ProviderProfileStripeRow = {
   id: string;
   account_id: string | null;
   country_code: string | null;
   stripe_account_id: string | null;
+};
+
+type ReadinessRow = {
+  id: string;
+  stripe_onboarding_complete: boolean | null;
+  stripe_charges_enabled: boolean | null;
+  stripe_payouts_enabled: boolean | null;
 };
 
 type HistoricalStripeRow = {
@@ -69,7 +75,9 @@ export function isStripeConnectIdentityReviewRequired(
   return (
     error instanceof StripeConnectIdentityReviewRequiredError ||
     (error instanceof Error &&
-      error.message.includes(STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED))
+      (error.message.includes(STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED) ||
+        error.message.includes(CANONICAL_REVIEW_REQUIRED) ||
+        error.message.includes(STRIPE_CONNECT_IDENTITY_CONFLICT)))
   );
 }
 
@@ -97,33 +105,59 @@ export function resolveCanonicalAccountCountry(
   return country;
 }
 
-function mapAccountStripeRow(row: AccountStripeRow): CanonicalStripeConnect {
+async function readinessForCanonicalIdentity(
+  accountId: string,
+  sourceProfileIds: string[]
+): Promise<Pick<
+  CanonicalStripeConnect,
+  "onboardingComplete" | "chargesEnabled" | "payoutsEnabled" | "statusUpdatedAt"
+>> {
+  let query = supabaseAdmin
+    .from("profiles")
+    .select(
+      "id, stripe_onboarding_complete, stripe_charges_enabled, stripe_payouts_enabled"
+    )
+    .eq("account_id", accountId);
+
+  if (sourceProfileIds.length > 0) {
+    query = query.in("id", sourceProfileIds);
+  }
+
+  const { data, error } = await query;
+
+  if (error) throw new Error(error.message);
+
+  const rows = (data ?? []) as ReadinessRow[];
+  const allReady = (key: keyof ReadinessRow) =>
+    rows.length > 0 && rows.every((row) => row[key] === true);
+
   return {
-    accountId: row.id,
-    stripeAccountId: row.stripe_account_id,
-    state: row.stripe_connect_state,
-    onboardingComplete: row.stripe_onboarding_complete,
-    chargesEnabled: row.stripe_charges_enabled,
-    payoutsEnabled: row.stripe_payouts_enabled,
-    statusUpdatedAt: row.stripe_status_updated_at,
+    onboardingComplete: allReady("stripe_onboarding_complete"),
+    chargesEnabled: allReady("stripe_charges_enabled"),
+    payoutsEnabled: allReady("stripe_payouts_enabled"),
+    statusUpdatedAt: null,
   };
 }
 
 export async function getCanonicalStripeConnect(
   accountId: string
 ): Promise<CanonicalStripeConnect> {
-  const { data, error } = await supabaseAdmin
-    .from("accounts")
-    .select(
-      "id, stripe_account_id, stripe_connect_state, stripe_onboarding_complete, stripe_charges_enabled, stripe_payouts_enabled, stripe_status_updated_at"
-    )
-    .eq("id", accountId)
-    .maybeSingle();
+  const identity = await getAccountStripeConnectIdentity(accountId);
+  const readiness = await readinessForCanonicalIdentity(
+    accountId,
+    identity.sourceProfileIds
+  );
 
-  if (error) throw new Error(error.message);
-  if (!data) throw new Error("Compte KLYX canonique introuvable.");
-
-  return mapAccountStripeRow(data as AccountStripeRow);
+  return {
+    accountId,
+    stripeAccountId:
+      identity.state === "linked" ? identity.stripeAccountId : null,
+    state:
+      identity.state === "conflict"
+        ? "review_required"
+        : identity.state,
+    ...readiness,
+  };
 }
 
 export async function getHistoricalStripeAccountIds(
@@ -151,70 +185,33 @@ export async function markStripeConnectIdentityReview(input: {
   reason: string;
   candidateStripeAccountIds?: string[];
 }): Promise<void> {
-  const { error: accountError } = await supabaseAdmin
-    .from("accounts")
-    .update({ stripe_connect_state: "review_required" })
-    .eq("id", input.accountId);
+  const [identity, historicalStripeAccountIds] = await Promise.all([
+    getAccountStripeConnectIdentity(input.accountId),
+    getHistoricalStripeAccountIds(input.accountId),
+  ]);
 
-  if (accountError) throw new Error(accountError.message);
-
-  const { data: sourceProfiles, error: sourceError } = await supabaseAdmin
-    .from("profiles")
-    .select("id, stripe_account_id")
-    .eq("account_id", input.accountId)
-    .not("stripe_account_id", "is", null);
-
-  if (sourceError) throw new Error(sourceError.message);
-
-  const historical = (sourceProfiles ?? []) as HistoricalStripeRow[];
-  const candidateStripeAccountIds = Array.from(
-    new Set([
-      ...historical
-        .map((profile) => profile.stripe_account_id?.trim() ?? "")
-        .filter(Boolean),
-      ...(input.candidateStripeAccountIds ?? [])
-        .map((value) => value.trim())
-        .filter(Boolean),
-    ])
+  const stripeAccountIds = Array.from(
+    new Set(
+      [
+        ...(identity.conflictingStripeAccountIds ?? []),
+        identity.stripeAccountId,
+        ...historicalStripeAccountIds,
+        ...(input.candidateStripeAccountIds ?? []),
+      ]
+        .map((value) => value?.trim() ?? "")
+        .filter(Boolean)
+    )
   );
-  const sourceProfileIds = historical.map((profile) => profile.id);
 
-  const { data: pendingReview, error: pendingError } = await supabaseAdmin
-    .from("stripe_connect_identity_reviews")
-    .select("id")
-    .eq("account_id", input.accountId)
-    .eq("status", "pending")
-    .maybeSingle();
-
-  if (pendingError) throw new Error(pendingError.message);
-
-  if (pendingReview) {
-    const { error } = await supabaseAdmin
-      .from("stripe_connect_identity_reviews")
-      .update({
-        reason: input.reason,
-        candidate_stripe_account_ids: candidateStripeAccountIds,
-        source_profile_ids: sourceProfileIds,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", pendingReview.id);
-
-    if (error) throw new Error(error.message);
-    return;
+  if (stripeAccountIds.length === 0) {
+    throw new StripeConnectIdentityReviewRequiredError();
   }
 
-  const { error } = await supabaseAdmin
-    .from("stripe_connect_identity_reviews")
-    .insert({
-      account_id: input.accountId,
-      reason: input.reason,
-      candidate_stripe_account_ids: candidateStripeAccountIds,
-      source_profile_ids: sourceProfileIds,
-    });
-
-  if (error && error.code !== "23505") {
-    throw new Error(error.message);
-  }
+  await markAccountStripeConnectIdentityForReview({
+    accountId: input.accountId,
+    stripeAccountIds,
+    sourceProfileIds: identity.sourceProfileIds,
+  });
 }
 
 export async function getStripeConnectCreationDecision(
@@ -244,24 +241,32 @@ export async function bindCanonicalStripeAccount(
   accountId: string,
   stripeAccountId: string
 ): Promise<void> {
-  const { data, error } = await supabaseAdmin.rpc(
-    "klyx_bind_account_stripe_connect",
-    {
-      p_account_id: accountId,
-      p_stripe_account_id: stripeAccountId,
+  const { data, error } = await supabaseAdmin
+    .from("profiles")
+    .select("id")
+    .eq("account_id", accountId)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data?.id) {
+    throw new StripeConnectIdentityReviewRequiredError(
+      "Aucun profil KLYX ne permet de rattacher l'identité Stripe canonique."
+    );
+  }
+
+  try {
+    await persistAccountStripeConnectIdentity({
+      accountId,
+      stripeAccountId,
+      sourceProfileId: data.id,
+    });
+  } catch (error) {
+    if (isStripeConnectIdentityReviewRequired(error)) {
+      throw new StripeConnectIdentityReviewRequiredError();
     }
-  );
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  if (data === "review_required") {
-    throw new StripeConnectIdentityReviewRequiredError();
-  }
-
-  if (data !== "linked") {
-    throw new Error("Résultat de liaison Stripe Connect inattendu.");
+    throw error;
   }
 }
 
@@ -269,44 +274,36 @@ export async function updateCanonicalStripeAccountStatus(input: {
   accountId: string;
   stripeAccount: Stripe.Account;
 }): Promise<void> {
-  const status = {
-    stripe_onboarding_complete: input.stripeAccount.details_submitted,
-    stripe_charges_enabled: input.stripeAccount.charges_enabled,
-    stripe_payouts_enabled: input.stripeAccount.payouts_enabled,
-    stripe_status_updated_at: new Date().toISOString(),
-  };
+  const identity = await getAccountStripeConnectIdentity(input.accountId);
 
-  const { data: updatedAccount, error: accountError } = await supabaseAdmin
-    .from("accounts")
-    .update(status)
-    .eq("id", input.accountId)
-    .eq("stripe_account_id", input.stripeAccount.id)
-    .eq("stripe_connect_state", "linked")
-    .select("id")
-    .maybeSingle();
-
-  if (accountError) throw new Error(accountError.message);
-  if (!updatedAccount) {
-    await markStripeConnectIdentityReview({
+  if (
+    identity.state !== "linked" ||
+    identity.stripeAccountId !== input.stripeAccount.id
+  ) {
+    await markAccountStripeConnectIdentityForReview({
       accountId: input.accountId,
-      reason: "stripe_status_identity_mismatch",
-      candidateStripeAccountIds: [input.stripeAccount.id],
+      stripeAccountIds: Array.from(
+        new Set(
+          [identity.stripeAccountId, input.stripeAccount.id]
+            .map((value) => value?.trim() ?? "")
+            .filter(Boolean)
+        )
+      ),
+      sourceProfileIds: identity.sourceProfileIds,
     });
     throw new StripeConnectIdentityReviewRequiredError();
   }
 
-  // Compatibility flags only. The account-level Stripe id remains canonical;
-  // historical profile Stripe ids are never rewritten by status updates.
-  const { error: profileError } = await supabaseAdmin
+  const { error } = await supabaseAdmin
     .from("profiles")
     .update({
-      stripe_onboarding_complete: status.stripe_onboarding_complete,
-      stripe_charges_enabled: status.stripe_charges_enabled,
-      stripe_payouts_enabled: status.stripe_payouts_enabled,
+      stripe_onboarding_complete: Boolean(input.stripeAccount.details_submitted),
+      stripe_charges_enabled: Boolean(input.stripeAccount.charges_enabled),
+      stripe_payouts_enabled: Boolean(input.stripeAccount.payouts_enabled),
     })
     .eq("account_id", input.accountId);
 
-  if (profileError) throw new Error(profileError.message);
+  if (error) throw new Error(error.message);
 }
 
 export async function getProviderStripeDestination(
@@ -335,27 +332,29 @@ export async function getProviderStripeDestination(
     throw new StripeConnectIdentityReviewRequiredError();
   }
 
+  const legacyStripeAccountId = profile.stripe_account_id?.trim() || null;
+
   if (
-    profile.stripe_account_id &&
+    legacyStripeAccountId &&
     connect.stripeAccountId &&
-    profile.stripe_account_id !== connect.stripeAccountId
+    legacyStripeAccountId !== connect.stripeAccountId
   ) {
     await markStripeConnectIdentityReview({
       accountId: profile.account_id,
       reason: "provider_profile_canonical_stripe_mismatch",
       candidateStripeAccountIds: [
-        profile.stripe_account_id,
+        legacyStripeAccountId,
         connect.stripeAccountId,
       ],
     });
     throw new StripeConnectIdentityReviewRequiredError();
   }
 
-  if (!connect.stripeAccountId && profile.stripe_account_id) {
+  if (!connect.stripeAccountId && legacyStripeAccountId) {
     await markStripeConnectIdentityReview({
       accountId: profile.account_id,
-      reason: "legacy_stripe_identity_not_promoted",
-      candidateStripeAccountIds: [profile.stripe_account_id],
+      reason: "legacy_stripe_identity_not_canonicalized",
+      candidateStripeAccountIds: [legacyStripeAccountId],
     });
     throw new StripeConnectIdentityReviewRequiredError();
   }
@@ -364,7 +363,7 @@ export async function getProviderStripeDestination(
     profileId: profile.id,
     accountId: profile.account_id,
     countryCode: profile.country_code,
-    legacyStripeAccountId: profile.stripe_account_id,
+    legacyStripeAccountId,
     connect,
   };
 }

@@ -397,16 +397,20 @@ async function sendProviderReadyEmail(account: Stripe.Account): Promise<void> {
     return;
   }
 
-  /*
-   * Connect ownership is canonical-account state. Do not fall back to a legacy
-   * profile Stripe id here: absence/ambiguity at account level must remain
-   * fail-closed and the webhook synchronizer runs before this email hook.
-   */
+  const { data: identity, error: identityError } = await supabaseAdmin
+    .from("account_stripe_connect_identities")
+    .select("account_id, identity_state")
+    .eq("stripe_account_id", account.id)
+    .eq("identity_state", "linked")
+    .maybeSingle();
+
+  if (identityError) throw new Error(identityError.message);
+  if (!identity?.account_id) return;
+
   const { data, error } = await supabaseAdmin
     .from("accounts")
     .select("id, auth_user_id")
-    .eq("stripe_account_id", account.id)
-    .eq("stripe_connect_state", "linked")
+    .eq("id", identity.account_id)
     .maybeSingle();
 
   if (error) throw new Error(error.message);

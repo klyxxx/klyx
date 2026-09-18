@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
+
 import {
   adminErrorPublicMessage,
   adminErrorStatus,
@@ -8,6 +9,12 @@ import {
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { inspectStripeRuntime } from "@/lib/stripe-runtime";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+
+type ConnectIdentityRow = {
+  account_id: string;
+  stripe_account_id: string | null;
+  identity_state: "linked" | "conflict";
+};
 
 export async function GET() {
   const startedAt = Date.now();
@@ -26,31 +33,27 @@ export async function GET() {
       detail: string;
     }> = [];
 
-    const { data: accounts, error: accountsError } = await supabaseAdmin
-      .from("accounts")
-      .select("id, stripe_account_id, stripe_connect_state")
-      .or("stripe_account_id.not.is.null,stripe_connect_state.eq.review_required")
+    const { data: identities, error: identitiesError } = await supabaseAdmin
+      .from("account_stripe_connect_identities")
+      .select("account_id, stripe_account_id, identity_state")
       .limit(25);
 
-    if (accountsError) {
-      throw new Error(accountsError.message);
+    if (identitiesError) {
+      throw new Error(identitiesError.message);
     }
 
     const stripeReady =
       report.checks.find((check) => check.key === "secret_key")?.ok === true;
     const stripe = stripeReady ? new Stripe(secretKey) : null;
 
-    for (const row of accounts ?? []) {
-      const stripeAccountId =
-        typeof row.stripe_account_id === "string"
-          ? row.stripe_account_id
-          : null;
-      const state = String(row.stripe_connect_state ?? "unlinked");
+    for (const row of (identities ?? []) as ConnectIdentityRow[]) {
+      const stripeAccountId = row.stripe_account_id?.trim() || null;
+      const state = row.identity_state;
 
-      if (state === "review_required") {
+      if (state === "conflict") {
         connectChecks.push({
-          accountId: row.id,
-          stripeAccountId,
+          accountId: row.account_id,
+          stripeAccountId: null,
           state,
           ok: false,
           detail:
@@ -60,12 +63,19 @@ export async function GET() {
       }
 
       if (!stripeAccountId) {
+        connectChecks.push({
+          accountId: row.account_id,
+          stripeAccountId: null,
+          state,
+          ok: false,
+          detail: "Identité Connect liée sans identifiant Stripe.",
+        });
         continue;
       }
 
       if (!stripe) {
         connectChecks.push({
-          accountId: row.id,
+          accountId: row.account_id,
           stripeAccountId,
           state,
           ok: false,
@@ -80,7 +90,7 @@ export async function GET() {
         );
 
         connectChecks.push({
-          accountId: row.id,
+          accountId: row.account_id,
           stripeAccountId,
           state,
           ok: !("deleted" in connectedAccount && connectedAccount.deleted),
@@ -89,7 +99,7 @@ export async function GET() {
         });
       } catch {
         connectChecks.push({
-          accountId: row.id,
+          accountId: row.account_id,
           stripeAccountId,
           state,
           ok: false,

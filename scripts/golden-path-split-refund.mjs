@@ -158,33 +158,69 @@ async function linkGoldenCanonicalStripeAccount(
   authUserId,
   stripeAccountId
 ) {
-  const { data, error } = await admin
+  const { data: account, error: accountError } = await admin
     .from("accounts")
-    .update({
-      stripe_account_id: stripeAccountId,
-      stripe_connect_state: "linked",
-      stripe_onboarding_complete: true,
-      stripe_charges_enabled: true,
-      stripe_payouts_enabled: true,
-      stripe_status_updated_at: new Date().toISOString(),
-    })
+    .select("id")
     .eq("auth_user_id", authUserId)
-    .select("id, stripe_account_id, stripe_connect_state")
     .single();
 
-  if (error) {
+  if (accountError || !account) {
     throw new Error(
-      `Unable to link canonical Stripe account for split fixture: ${error.message}`
+      `Unable to load canonical KLYX account for split fixture: ${accountError?.message ?? "missing account"}`
     );
   }
 
-  expect(
-    data.stripe_account_id === stripeAccountId &&
-      data.stripe_connect_state === "linked",
-    "Split fixture canonical Stripe account did not reach linked state."
-  );
+  const { data: profiles, error: profilesError } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("account_id", account.id);
 
-  return data;
+  if (profilesError) {
+    throw new Error(
+      `Unable to load split fixture source profiles: ${profilesError.message}`
+    );
+  }
+
+  const { error: identityError } = await admin
+    .from("account_stripe_connect_identities")
+    .upsert(
+      {
+        account_id: account.id,
+        stripe_account_id: stripeAccountId,
+        identity_state: "linked",
+        source_profile_ids: (profiles ?? []).map((profile) => profile.id),
+        conflicting_stripe_account_ids: [],
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "account_id" }
+    );
+
+  if (identityError) {
+    throw new Error(
+      `Unable to link canonical Stripe identity for split fixture: ${identityError.message}`
+    );
+  }
+
+  const { error: readinessError } = await admin
+    .from("profiles")
+    .update({
+      stripe_onboarding_complete: true,
+      stripe_charges_enabled: true,
+      stripe_payouts_enabled: true,
+    })
+    .eq("account_id", account.id);
+
+  if (readinessError) {
+    throw new Error(
+      `Unable to set split fixture Stripe readiness: ${readinessError.message}`
+    );
+  }
+
+  return {
+    id: account.id,
+    stripe_account_id: stripeAccountId,
+    stripe_connect_state: "linked",
+  };
 }
 
 async function main() {

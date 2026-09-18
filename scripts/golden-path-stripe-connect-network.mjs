@@ -72,35 +72,55 @@ function assertStripeHostedUrl(value, label) {
 }
 
 async function canonicalConnectState(admin, accountId) {
-  const { data, error } = await admin
-    .from("accounts")
-    .select(
-      "id, stripe_account_id, stripe_connect_state, stripe_onboarding_complete, stripe_charges_enabled, stripe_payouts_enabled, stripe_status_updated_at"
-    )
-    .eq("id", accountId)
-    .single();
+  const { data: identity, error: identityError } = await admin
+    .from("account_stripe_connect_identities")
+    .select("account_id, stripe_account_id, identity_state")
+    .eq("account_id", accountId)
+    .maybeSingle();
 
-  if (error || !data) {
+  if (identityError) {
     throw new Error(
-      `Unable to load canonical Connect state: ${error?.message ?? "missing account"}`
+      `Unable to load canonical Connect identity: ${identityError.message}`
     );
   }
 
-  return data;
+  const { data: profiles, error: profilesError } = await admin
+    .from("profiles")
+    .select(
+      "id, stripe_account_id, stripe_onboarding_complete, stripe_charges_enabled, stripe_payouts_enabled"
+    )
+    .eq("account_id", accountId);
+
+  if (profilesError) {
+    throw new Error(
+      `Unable to load Connect compatibility readiness: ${profilesError.message}`
+    );
+  }
+
+  const readinessProfile = (profiles ?? []).find(
+    (profile) =>
+      identity?.stripe_account_id &&
+      profile.stripe_account_id === identity.stripe_account_id
+  );
+
+  return {
+    id: accountId,
+    stripe_account_id: identity?.stripe_account_id ?? null,
+    stripe_connect_state:
+      identity?.identity_state === "conflict"
+        ? "review_required"
+        : identity?.identity_state ?? "unlinked",
+    stripe_onboarding_complete:
+      readinessProfile?.stripe_onboarding_complete === true,
+    stripe_charges_enabled:
+      readinessProfile?.stripe_charges_enabled === true,
+    stripe_payouts_enabled:
+      readinessProfile?.stripe_payouts_enabled === true,
+    stripe_status_updated_at: null,
+  };
 }
 
 async function resetProviderConnectState(admin, providerId, accountId) {
-  const { error: reviewError } = await admin
-    .from("stripe_connect_identity_reviews")
-    .delete()
-    .eq("account_id", accountId);
-
-  if (reviewError) {
-    throw new Error(
-      `Unable to reset Stripe identity review fixture: ${reviewError.message}`
-    );
-  }
-
   const { error: profileError } = await admin
     .from("profiles")
     .update({
@@ -119,21 +139,14 @@ async function resetProviderConnectState(admin, providerId, accountId) {
     );
   }
 
-  const { error: accountError } = await admin
-    .from("accounts")
-    .update({
-      stripe_account_id: null,
-      stripe_connect_state: "unlinked",
-      stripe_onboarding_complete: false,
-      stripe_charges_enabled: false,
-      stripe_payouts_enabled: false,
-      stripe_status_updated_at: null,
-    })
-    .eq("id", accountId);
+  const { error: identityError } = await admin
+    .from("account_stripe_connect_identities")
+    .delete()
+    .eq("account_id", accountId);
 
-  if (accountError) {
+  if (identityError) {
     throw new Error(
-      `Unable to reset canonical Connect state: ${accountError.message}`
+      `Unable to reset canonical Connect identity: ${identityError.message}`
     );
   }
 }

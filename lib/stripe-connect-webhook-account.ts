@@ -6,36 +6,43 @@ import {
 } from "@/lib/stripe-connect-account";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
+type CanonicalIdentityRow = {
+  account_id: string;
+  identity_state: "linked" | "conflict";
+};
+
 export async function syncCanonicalConnectedAccountFromStripe(
   stripeAccount: Stripe.Account
 ): Promise<"updated" | "review_required" | "unmapped"> {
   const { data: canonical, error: canonicalError } = await supabaseAdmin
-    .from("accounts")
-    .select("id, stripe_connect_state")
+    .from("account_stripe_connect_identities")
+    .select("account_id, identity_state")
     .eq("stripe_account_id", stripeAccount.id)
     .maybeSingle();
 
   if (canonicalError) throw new Error(canonicalError.message);
 
   if (canonical) {
-    if (canonical.stripe_connect_state === "review_required") {
+    const identity = canonical as CanonicalIdentityRow;
+
+    if (identity.identity_state === "conflict") {
       await markStripeConnectIdentityReview({
-        accountId: canonical.id,
-        reason: "webhook_received_for_review_required_identity",
+        accountId: identity.account_id,
+        reason: "webhook_received_for_conflicted_identity",
         candidateStripeAccountIds: [stripeAccount.id],
       });
       return "review_required";
     }
 
     await updateCanonicalStripeAccountStatus({
-      accountId: canonical.id,
+      accountId: identity.account_id,
       stripeAccount,
     });
     return "updated";
   }
 
-  // A webhook may arrive for an old profile-owned acct_* during the migration.
-  // Never adopt it automatically. Mark the owning canonical account for review.
+  // Historical profile ids are compatibility evidence only. A webhook for one
+  // of them must never promote it over #799 canonical account identity.
   const { data: legacyProfiles, error: legacyError } = await supabaseAdmin
     .from("profiles")
     .select("account_id")
