@@ -374,9 +374,31 @@ async function main() {
     typeof remoteRefund.payment_intent === "string"
       ? remoteRefund.payment_intent
       : remoteRefund.payment_intent?.id ?? null;
+  const remoteRefundChargeId =
+    typeof remoteRefund.charge === "string"
+      ? remoteRefund.charge
+      : remoteRefund.charge?.id ?? null;
+
+  if (!remoteRefundChargeId?.startsWith("ch_")) {
+    throw new Error("Remote Stripe test refund is missing its source charge.");
+  }
+
+  const refundedCharge = await stripe.charges.retrieve(remoteRefundChargeId);
+  const refundedChargeIntentId =
+    typeof refundedCharge.payment_intent === "string"
+      ? refundedCharge.payment_intent
+      : refundedCharge.payment_intent?.id ?? null;
 
   if (
-    remoteRefund.livemode !== false ||
+    refundedCharge.livemode !== false ||
+    refundedCharge.amount !== 7000 ||
+    refundedCharge.currency !== "eur" ||
+    refundedChargeIntentId !== intent.id
+  ) {
+    throw new Error("Remote Stripe refund source charge does not match the TEST PaymentIntent.");
+  }
+
+  if (
     remoteRefund.status !== "succeeded" ||
     remoteRefund.amount !== 7000 ||
     remoteRefund.currency !== "eur" ||

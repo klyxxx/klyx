@@ -56,7 +56,10 @@ describe("KLYX Stripe refund network proof", () => {
     expect(proof).toContain('path: "/api/bookings/status"');
     expect(proof).toContain('status: "cancelled"');
     expect(proof).toContain("stripe.refunds.retrieve");
-    expect(proof).toContain('remoteRefund.livemode !== false');
+    expect(proof).toContain("stripe.charges.retrieve(remoteRefundChargeId)");
+    expect(proof).toContain("refundedCharge.livemode !== false");
+    expect(proof).toContain("refundedChargeIntentId !== intent.id");
+    expect(proof).not.toContain("remoteRefund.livemode");
     expect(proof).toContain('remoteRefund.status !== "succeeded"');
   });
 

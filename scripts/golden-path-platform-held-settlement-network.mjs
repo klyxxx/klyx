@@ -213,7 +213,14 @@ async function provisionConnectedAccount({ stripe, providerId }) {
   );
 
   const legacyAccount = await stripe.accounts.retrieve(handoff.accountId);
-  assert(legacyAccount.livemode === false, "Platform-held provider fixture unexpectedly used live mode.");
+  assert(
+    v2Account.livemode === false,
+    "Platform-held provider fixture Accounts v2 object unexpectedly used live mode."
+  );
+  assert(
+    legacyAccount.id === handoff.accountId,
+    "Platform-held provider fixture v1 projection id mismatch."
+  );
   assert(legacyAccount.country === "BE", "Platform-held provider fixture country mismatch.");
   assert(
     legacyAccount.metadata?.klyx_platform_held_network_fixture === "true",
