@@ -300,6 +300,23 @@ async function listAndValidateTransfers(
   return { byMember, total };
 }
 
+async function stripeRecipientStillReady(
+  stripe: Stripe,
+  stripeAccountId: string
+): Promise<boolean> {
+  const account = await stripe.v2.core.accounts.retrieve(stripeAccountId, {
+    include: ["configuration.recipient", "identity", "requirements"],
+  });
+
+  return Boolean(
+    account.livemode === false &&
+      account.applied_configurations?.includes("recipient") === true &&
+      account.configuration?.recipient?.applied === true &&
+      account.configuration?.recipient?.capabilities?.stripe_balance
+        ?.stripe_transfers?.status === "active"
+  );
+}
+
 async function loadAllMembers(parentId: string): Promise<MemberRow[]> {
   const { data, error } = await supabaseAdmin
     .from("platform_held_group_settlement_members")
@@ -434,6 +451,15 @@ export async function releasePlatformHeldGroupMember(
       );
       return { status: "review_required" };
     }
+
+    if (!(await stripeRecipientStillReady(stripe, member.stripe_account_id))) {
+      await markMemberReview(
+        member.id,
+        "stripe_recipient_not_ready",
+        "Stripe recipient is no longer transfer-ready at release time."
+      );
+      return { status: "review_required" };
+    }
   } catch (error) {
     if (!isStripeConnectIdentityReviewRequired(error)) throw error;
 
@@ -499,6 +525,15 @@ export async function releasePlatformHeldGroupMember(
       existingStripeTransferAmountCents: remote.total,
       requestedTransferAmountCents: Number(member.provider_amount_cents),
     });
+
+    if (!(await stripeRecipientStillReady(stripe, member.stripe_account_id))) {
+      await markMemberReview(
+        member.id,
+        "stripe_recipient_not_ready_after_claim",
+        "Stripe recipient became ineligible immediately before Transfer."
+      );
+      return { status: "review_required" };
+    }
 
     stripeWriteAttempted = true;
     const transfer = await stripe.transfers.create(
