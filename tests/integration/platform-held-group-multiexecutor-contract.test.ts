@@ -203,6 +203,32 @@ describe("Platform-Held multi-executor group settlement contract", () => {
     );
   });
 
+  it("reconciles an existing refund request before recalculating money", () => {
+    const server = read("lib/platform-held-group-settlement-server.ts");
+
+    const lookup = server.indexOf("loadExistingRefundByRequestKey(");
+    const existingUse = server.indexOf(
+      "let refund = await loadExistingRefundByRequestKey(",
+      lookup
+    );
+    const totalBuild = server.indexOf(
+      "await buildRemainingTotalAllocations(parent)",
+      existingUse
+    );
+    const partialBuild = server.indexOf(
+      "await buildPartialAllocations(",
+      existingUse
+    );
+
+    expect(lookup).toBeGreaterThan(-1);
+    expect(existingUse).toBeGreaterThan(-1);
+    expect(totalBuild).toBeGreaterThan(existingUse);
+    expect(partialBuild).toBeGreaterThan(existingUse);
+    expect(server).toContain("KLYX_GROUP_HELD_REFUND_KEY_CONFLICT");
+    expect(server).toContain("JSON.stringify(requested)");
+    expect(server).toContain("JSON.stringify(frozen)");
+  });
+
   it("reverses each released executor allocation independently before customer refund", () => {
     const server = read("lib/platform-held-group-settlement-server.ts");
 
