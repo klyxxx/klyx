@@ -1481,6 +1481,14 @@ async function main() {
       "Blocked executor B review state was corrupted by sibling/total refunds."
     );
 
+    assert(
+      concurrencyProof &&
+        concurrencyProof.concurrentReleaseCount === 2 &&
+        concurrencyProof.transferredAmountCents ===
+          concurrencyProof.providerAmountCapCents,
+      "Concurrent release proof is incomplete."
+    );
+
     fs.mkdirSync("stripe-network-proof", { recursive: true });
     fs.writeFileSync(
       PROOF_PATH,
@@ -1504,7 +1512,7 @@ async function main() {
             transferId: transferA.id,
             transferAmountCents: transferA.amount,
             idempotentTransferCount: aTransfers.length,
-            reversedAmountCents: providerRefund,
+            reversedAmountCents: Number(finalA.reversed_amount_cents),
           },
           executorB: {
             memberId: finalB.id,
@@ -1515,10 +1523,22 @@ async function main() {
           partialRefund: {
             stripeRefundId: matchingRefunds[0].id,
             grossRefundCents: partialGross,
+            platformFeeRefundCents: feeRefund,
             providerReversalCents: providerRefund,
             reversalCount: matchingReversals.length,
             refundCount: matchingRefunds.length,
+            serverDerivedAllocation: true,
           },
+          totalRefund: {
+            stripeRefundId: totalRefundRow.stripe_refund_id,
+            remainingRefundCents: Number(totalRefundRow.amount_cents),
+            totalCustomerRefundedCents: totalCustomerRefunded,
+            totalCustomerRefundCount: groupCustomerRefunds.length,
+            executorAReversalTotalCents: totalAReversed,
+            executorAReversalCount: groupAReversals.length,
+            finalParentState: parent.state,
+          },
+          concurrency: concurrencyProof,
           aggregateReleaseCents: remoteTransfers.data.reduce(
             (sum, transfer) => sum + transfer.amount,
             0
@@ -1539,7 +1559,11 @@ async function main() {
         executorCount: 2,
         transferCount: remoteTransfers.data.length,
         blockedExecutorIsolated: true,
+        concurrentReleasesProved: true,
+        concurrentReleaseCount: concurrencyProof.concurrentReleaseCount,
         partialRefundCents: partialGross,
+        totalRefundedCents: Number(parent.refunded_amount_cents),
+        finalParentState: parent.state,
       }) + "\n"
     );
   } finally {
