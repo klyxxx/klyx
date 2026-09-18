@@ -7,15 +7,10 @@ import {
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { assessBookingGroupPaymentReadiness } from "@/lib/booking-group-payment-readiness";
 import { assessKlyxStripeMarketAccess } from "@/lib/klyx-stripe-market-access";
-import {
-  getProviderStripeDestination,
-  isStripeConnectIdentityReviewRequired,
-} from "@/lib/stripe-connect-account";
 import { inspectStripeRuntime } from "@/lib/stripe-runtime";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 // KLYX_GROUP_STRIPE_READINESS_API_15_03
-// KLYX_ACCOUNT_LEVEL_STRIPE_CONNECT_19_45
 
 type RouteContext = {
   params: Promise<{
@@ -58,8 +53,12 @@ export async function GET(
 
     if (!group) {
       return NextResponse.json(
-        { error: "Reservation groupee introuvable." },
-        { status: 404 }
+        {
+          error: "Reservation groupee introuvable.",
+        },
+        {
+          status: 404,
+        }
       );
     }
 
@@ -68,21 +67,31 @@ export async function GET(
 
     if (!isClient && !isProvider) {
       return NextResponse.json(
-        { error: "Acces refuse." },
-        { status: 403 }
+        {
+          error: "Acces refuse.",
+        },
+        {
+          status: 403,
+        }
       );
     }
 
     const [
       childBookingsResult,
-      provider,
+      providerResult,
       userServiceResult,
     ] = await Promise.all([
       supabaseAdmin
         .from("bookings")
         .select("id, status, amount_total")
         .eq("booking_group_id", group.id),
-      getProviderStripeDestination(group.provider_profile_id),
+      supabaseAdmin
+        .from("profiles")
+        .select(
+          "country_code, stripe_account_id, stripe_onboarding_complete, stripe_charges_enabled, stripe_payouts_enabled"
+        )
+        .eq("id", group.provider_profile_id)
+        .maybeSingle(),
       supabaseAdmin
         .from("user_services")
         .select("id")
@@ -94,6 +103,10 @@ export async function GET(
 
     if (childBookingsResult.error) {
       throw new Error(childBookingsResult.error.message);
+    }
+
+    if (providerResult.error) {
+      throw new Error(providerResult.error.message);
     }
 
     if (userServiceResult.error) {
@@ -136,17 +149,17 @@ export async function GET(
       profile.countryCode,
       stripeRuntime.mode
     );
+    const provider = providerResult.data;
     const providerMarketAccess = assessKlyxStripeMarketAccess(
-      provider.countryCode ?? "",
+      provider?.country_code ?? "",
       stripeRuntime.mode
     );
 
     const providerStripeReady = Boolean(
-      provider.connect.stripeAccountId &&
-        provider.connect.state === "linked" &&
-        provider.connect.onboardingComplete &&
-        provider.connect.chargesEnabled &&
-        provider.connect.payoutsEnabled
+      provider?.stripe_account_id &&
+        provider?.stripe_onboarding_complete &&
+        provider?.stripe_charges_enabled &&
+        provider?.stripe_payouts_enabled
     );
 
     const platformOnlyTestPaymentAllowed = Boolean(
@@ -207,20 +220,6 @@ export async function GET(
       automaticPayment: false,
     });
   } catch (error) {
-    if (isStripeConnectIdentityReviewRequired(error)) {
-      return NextResponse.json(
-        {
-          checkoutReady: false,
-          paymentInfrastructureReady: false,
-          stripeReadinessComplete: true,
-          explicitPaymentConfirmationRequired: true,
-          automaticPayment: false,
-          code: "KLYX_STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED",
-        },
-        { status: 409 }
-      );
-    }
-
     const message =
       error instanceof Error
         ? error.message
