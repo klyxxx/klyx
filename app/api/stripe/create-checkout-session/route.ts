@@ -56,21 +56,20 @@ import { POST as platformHeldPost } from "./route-platform-held";
  * @core:clientMarketAccess.allowed
  * @core:participant: "client"
  * @core:KLYX_CHECKOUT_MARKET_NOT_READY
- * @core:getProviderStripeDestination(providerId)
- * @core:provider.countryCode
  * @core:providerMarketAccess.allowed
  * @core:participant: "provider"
+ * @core:getProfileAccountStripeConnectIdentity(providerId)
+ * @core:provider?.country_code
+ * @core:providerStripeAccountId
+ * @core:STRIPE_CONNECT_IDENTITY_CONFLICT
  * @core:KLYX_CHECKOUT_MARKET_NOT_READY
  * @core:assessStripeConnectCountry
  * @core:STRIPE_ACCOUNT_COUNTRY_MISMATCH
- * @core:getProviderStripeDestination
- * @core:canonicalStripeAccountId
  * @core:stripe.accounts.retrieve
  * @core:providerStripeAccount?.details_submitted
  * @core:providerStripeAccount.charges_enabled
  * @core:providerStripeAccount.payouts_enabled
  * @core:providerReady
- * @core:KLYX_STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED
  * @core:idempotencyKey
  * @core:idempotencyKey: `klyx-booking-${booking.id}-attempt-${claim.attempt_number}`
  * @core:application_fee_amount

@@ -26,7 +26,8 @@ function accountUpdater(route: string): string {
 
 function assertFreshStripeAccountBoundary(
   route: string,
-  accountEventMarker: string
+  accountEventMarker: string,
+  canonicalMutationMarker: string
 ): void {
   const signatureVerification = route.indexOf("stripe.webhooks.constructEvent(");
   const accountEvent = route.indexOf(accountEventMarker);
@@ -35,9 +36,7 @@ function assertFreshStripeAccountBoundary(
   const retrieve = updater.indexOf(
     "stripe.accounts.retrieve(signedAccount.id)"
   );
-  const canonicalMutation = updater.indexOf(
-    "syncCanonicalConnectedAccountFromStripe(account)"
-  );
+  const canonicalMutation = updater.indexOf(canonicalMutationMarker);
 
   expect(signatureVerification).toBeGreaterThanOrEqual(0);
   expect(accountEvent).toBeGreaterThan(signatureVerification);
@@ -108,7 +107,9 @@ describe("Stripe account.updated replay hardening", () => {
   });
 
   it("keeps canonical identity reconciliation separate from signed event routing", () => {
-    expect(canonicalSync).toContain('.from("accounts")');
+    expect(canonicalSync).toContain(
+      '.from("account_stripe_connect_identities")'
+    );
     expect(canonicalSync).toContain("updateCanonicalStripeAccountStatus");
     expect(canonicalSync).toContain("markStripeConnectIdentityReview");
     expect(canonicalSync).not.toContain("stripe.accounts.retrieve");
@@ -117,14 +118,21 @@ describe("Stripe account.updated replay hardening", () => {
   it("does not trust mutable account flags from a replayed platform event", () => {
     assertFreshStripeAccountBoundary(
       platformWebhook,
-      'case "account.updated": {'
+      'case "account.updated": {',
+      "syncCanonicalConnectedAccountFromStripe(account)"
     );
   });
 
   it("does not trust mutable account flags from a replayed Connect event", () => {
     assertFreshStripeAccountBoundary(
       connectWebhook,
-      'event.type === "account.updated"'
+      'event.type === "account.updated"',
+      '.from("profiles")'
     );
+    const updater = accountUpdater(connectWebhook);
+    expect(updater).toContain(
+      '.from("account_stripe_connect_identities")'
+    );
+    expect(updater).toContain('.eq("account_id", identity.account_id)');
   });
 });

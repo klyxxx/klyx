@@ -13,7 +13,7 @@ function read(relativePath: string): string {
 
 const route = read("app/api/stripe/connect/create-account/route.ts");
 const helper = read("lib/stripe-connect-account-idempotency.ts");
-const checkout = read("app/api/stripe/create-checkout-session/route.ts");
+const checkout = read("app/api/stripe/create-checkout-session/route-core.ts");
 
 describe("Stripe Connect account creation idempotency contract", () => {
   it("passes a deterministic account-level idempotency key to Stripe", () => {
@@ -37,7 +37,9 @@ describe("Stripe Connect account creation idempotency contract", () => {
     const canonicalPersist = route.indexOf(
       "await persistAccountStripeConnectIdentity({"
     );
-    const profileMirror = route.indexOf("stripe_account_id: created.id");
+    const profileMirror = route.indexOf(
+      "stripe_account_id: createdAccountId"
+    );
 
     expect(stripeCreate).toBeGreaterThanOrEqual(0);
     expect(canonicalPersist).toBeGreaterThan(stripeCreate);

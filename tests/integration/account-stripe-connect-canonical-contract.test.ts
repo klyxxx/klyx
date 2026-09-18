@@ -9,9 +9,9 @@ const migration = read(
   "supabase/migrations/20260914190000_klyx_account_stripe_connect_identity.sql"
 );
 const identity = read("lib/stripe-connect-account-identity.ts");
-const checkout = read("app/api/stripe/create-checkout-session/route.ts");
+const checkout = read("app/api/stripe/create-checkout-session/route-core.ts");
 const groupCheckout = read(
-  "app/api/stripe/create-group-checkout-session/route.ts"
+  "app/api/stripe/create-group-checkout-session/route-core.ts"
 );
 const webhook = read("app/api/stripe/connect-webhook/route.ts");
 

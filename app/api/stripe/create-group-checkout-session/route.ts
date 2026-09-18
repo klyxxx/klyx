@@ -26,12 +26,13 @@ import { POST as corePost } from "./route-core";
  * @core:clientMarketAccess.allowed
  * @core:participant: "client"
  * @core:KLYX_GROUP_CHECKOUT_MARKET_NOT_READY
- * @core:getProviderStripeDestination(group.provider_profile_id)
- * @core:provider.countryCode
  * @core:providerMarketAccess.allowed
  * @core:participant: "provider"
+ * @core:getProfileAccountStripeConnectIdentity
+ * @core:provider?.country_code
+ * @core:providerStripeAccountId
+ * @core:STRIPE_CONNECT_IDENTITY_CONFLICT
  * @core:KLYX_GROUP_CHECKOUT_MARKET_NOT_READY
- * @core:canonicalStripeAccountId
  * @core:stripe.accounts.retrieve
  * @core:assessStripeConnectCountry
  * @core:STRIPE_ACCOUNT_COUNTRY_MISMATCH
@@ -39,7 +40,6 @@ import { POST as corePost } from "./route-core";
  * @core:providerStripeAccount.charges_enabled
  * @core:providerStripeAccount.payouts_enabled
  * @core:providerReady
- * @core:KLYX_STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED
  * @core:klyx_claim_booking_group_payment
  * @core:async function expireUnpersistedCheckoutSession(
  * @core:idempotencyKey
