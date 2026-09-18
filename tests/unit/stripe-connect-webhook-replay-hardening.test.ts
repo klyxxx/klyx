@@ -11,7 +11,6 @@ function source(relativePath: string): string {
 
 const platformWebhook = source("app/api/stripe/webhook/route.ts");
 const connectWebhook = source("app/api/stripe/connect-webhook/route.ts");
-const canonicalSync = source("lib/stripe-connect-webhook-account.ts");
 const webhookEvents = source("lib/stripe-webhook-events.ts");
 
 function accountUpdater(route: string): string {
@@ -35,15 +34,13 @@ function assertFreshStripeAccountBoundary(
   const retrieve = updater.indexOf(
     "stripe.accounts.retrieve(signedAccount.id)"
   );
-  const canonicalMutation = updater.indexOf(
-    "syncCanonicalConnectedAccountFromStripe(account)"
-  );
+  const compatibilityMutation = updater.indexOf('.from("profiles")');
 
   expect(signatureVerification).toBeGreaterThanOrEqual(0);
   expect(accountEvent).toBeGreaterThan(signatureVerification);
   expect(accountSync).toBeGreaterThan(accountEvent);
   expect(retrieve).toBeGreaterThanOrEqual(0);
-  expect(canonicalMutation).toBeGreaterThan(retrieve);
+  expect(compatibilityMutation).toBeGreaterThan(retrieve);
 
   expect(updater).not.toContain(
     "Boolean(signedAccount.details_submitted)"
@@ -107,11 +104,22 @@ describe("Stripe account.updated replay hardening", () => {
     );
   });
 
-  it("keeps canonical identity reconciliation separate from signed event routing", () => {
-    expect(canonicalSync).toContain('.from("accounts")');
-    expect(canonicalSync).toContain("updateCanonicalStripeAccountStatus");
-    expect(canonicalSync).toContain("markStripeConnectIdentityReview");
-    expect(canonicalSync).not.toContain("stripe.accounts.retrieve");
+  it("fans fresh Connect readiness through the #799 canonical identity without selecting conflicts", () => {
+    const updater = accountUpdater(connectWebhook);
+    const retrieve = updater.indexOf("stripe.accounts.retrieve(signedAccount.id)");
+    const canonicalLookup = updater.indexOf(
+      '.from("account_stripe_connect_identities")'
+    );
+    const canonicalAccountMatch = updater.indexOf(
+      '.eq("account_id", identity.account_id)'
+    );
+
+    expect(retrieve).toBeGreaterThanOrEqual(0);
+    expect(canonicalLookup).toBeGreaterThan(retrieve);
+    expect(updater).toContain('.eq("stripe_account_id", account.id)');
+    expect(updater).toContain('identity?.identity_state === "linked"');
+    expect(canonicalAccountMatch).toBeGreaterThan(canonicalLookup);
+    expect(updater).not.toContain('identity_state === "conflict" &&');
   });
 
   it("does not trust mutable account flags from a replayed platform event", () => {
