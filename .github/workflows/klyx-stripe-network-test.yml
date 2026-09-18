@@ -273,7 +273,7 @@ jobs:
 
   stripe-network-platform-held:
     name: Stripe TEST platform-held single-booking settlement proof
-    if: github.ref_name == 'feature/platform-held-settlement-test-20260915'
+    if: github.ref_name == 'feature/platform-held-settlement-test-20260915' || github.ref_name == 'integration/risk-settlement-post-799-20260918'
     runs-on: ubuntu-22.04
     timeout-minutes: 45
 
