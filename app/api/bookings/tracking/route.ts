@@ -1,19 +1,24 @@
 import {
+  releasePlatformHeldBookingGroupSettlement,
+} from "@/lib/booking-group-settlement-server";
+import {
+  syncBookingGroupLifecycle,
+} from "@/lib/booking-group-lifecycle";
+import {
   releasePlatformHeldBookingSettlement,
 } from "@/lib/booking-settlement-server";
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { logServerError } from "@/lib/server-log";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { POST as corePost } from "./route-core";
 
 /*
  * KLYX_TRACKING_CORE_CONTRACT_MIRROR
  *
- * Durable mission lifecycle writes and fail-open notifications remain in the
- * byte-for-byte phase-1 core. This wrapper only attempts financial settlement
- * after a successful client confirmation. Settlement failure never rolls back
- * an already completed mission.
+ * Durable mission lifecycle writes remain in ./route-core.ts. Settlement is
+ * attempted only after successful client confirmation. A financial release
+ * failure never rolls back completed mission truth.
  *
- * @core:import { after, NextResponse } from "next/server"
  * @core:if (action === "provider_finished")
  * @core:if (action === "client_confirmed")
  * @core:await addTrackingEvent({
@@ -43,11 +48,25 @@ export async function POST(request: Request) {
       bookingId
     ) {
       try {
-        await releasePlatformHeldBookingSettlement(bookingId);
+        const { data: booking, error } = await supabaseAdmin
+          .from("bookings")
+          .select("booking_group_id")
+          .eq("id", bookingId)
+          .maybeSingle();
+
+        if (error) throw new Error(error.message);
+
+        const groupId = booking?.booking_group_id?.trim() ?? "";
+
+        if (groupId) {
+          const progress = await syncBookingGroupLifecycle(groupId);
+          if (progress?.allCompleted) {
+            await releasePlatformHeldBookingGroupSettlement(groupId);
+          }
+        } else {
+          await releasePlatformHeldBookingSettlement(bookingId);
+        }
       } catch (error) {
-        // Mission completion is authoritative and must not be undone because a
-        // financial settlement needs retry/reconciliation. The settlement
-        // control plane remains fail-closed before any later Transfer.
         logServerError({
           event: "platform_held_settlement_release_failed",
           route: "/api/bookings/tracking",
