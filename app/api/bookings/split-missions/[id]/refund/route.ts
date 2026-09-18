@@ -81,7 +81,8 @@ export async function GET(request: Request, context: RouteContext) {
       refundableAmountCents:
         Number(parent.gross_amount_cents) - Number(parent.refunded_amount_cents),
       members: members ?? [],
-      partialRefundRequiresExplicitAllocation: true,
+      partialRefundRequiresMemberGrossAllocation: true,
+      partialRefundEconomicsCalculatedServerSide: true,
       totalRefundUsesAllRemainingFrozenEconomics: true,
     });
   } catch (error) {
@@ -140,7 +141,7 @@ export async function POST(request: Request, context: RouteContext) {
         return NextResponse.json(
           {
             error:
-              "Un remboursement partiel exige un montant et des allocations explicites.",
+              "Un remboursement partiel exige un montant et une allocation brute par exécutant.",
             code: "KLYX_GROUP_HELD_PARTIAL_REFUND_ALLOCATION_REQUIRED",
           },
           { status: 400 }
@@ -151,15 +152,11 @@ export async function POST(request: Request, context: RouteContext) {
         const row = asRecord(raw);
         const memberId = text(row?.memberId);
         const grossRefundCents = cents(row?.grossRefundCents);
-        const platformFeeRefundCents = cents(row?.platformFeeRefundCents);
-        const providerRefundCents = cents(row?.providerRefundCents);
 
         if (
           !memberId ||
           grossRefundCents === null ||
-          grossRefundCents <= 0 ||
-          platformFeeRefundCents === null ||
-          providerRefundCents === null
+          grossRefundCents <= 0
         ) {
           throw new Error("KLYX_GROUP_HELD_PARTIAL_REFUND_ALLOCATION_INVALID");
         }
@@ -167,8 +164,6 @@ export async function POST(request: Request, context: RouteContext) {
         return {
           memberId,
           grossRefundCents,
-          platformFeeRefundCents,
-          providerRefundCents,
         };
       });
 
