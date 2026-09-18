@@ -296,7 +296,11 @@ begin
          last_reconciled_at = now(),
          updated_at = now()
    where booking_id = p_booking_id
-     and state <> 'human_review';
+     and state <> 'human_review'
+     and (
+       state <> 'release_claimed'
+       or stripe_transfer_id is not null
+     );
 
   get diagnostics v_updated = row_count;
   return v_updated = 1;
