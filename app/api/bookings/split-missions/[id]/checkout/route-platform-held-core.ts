@@ -255,7 +255,7 @@ async function claimCheckout(parentId: string, claimToken: string) {
 
 async function buildFrozenPlan(input: {
   confirmation: ConfirmationRow;
-  stripeRuntimeMode: string;
+  stripeRuntimeMode: ReturnType<typeof assertStripeRuntimeReady>["mode"];
 }) {
   const plan = parseCanonicalPlan(input.confirmation.payment_plan_snapshot);
   if (!plan) throw new Error("KLYX_GROUP_HELD_PAYMENT_PLAN_INVALID");
