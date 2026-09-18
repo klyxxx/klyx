@@ -697,6 +697,7 @@ async function main() {
   let stripeBClosed = false;
   let checkoutSessionId = null;
   let concurrencyCheckoutSessionId = null;
+  let concurrencyProof = null;
 
   try {
     const providerA = await createProvider({
@@ -918,6 +919,236 @@ async function main() {
     );
     assert(aTransfers.length === 1, "Executor A release was duplicated.");
     transferA = aTransfers[0];
+
+    // Independent concurrency fixture: both executor releases become eligible
+    // at the same time. The parent-row lock + remote Stripe reconciliation must
+    // allow both exact transfers without ever exceeding frozen provider funds.
+    const concurrencyFixture = await setupBatch({
+      admin,
+      clientId: client.id,
+      serviceId: service.id,
+      providerA,
+      providerB,
+      stripeA,
+      stripeB,
+    });
+
+    const concurrencyCheckout = await requestJson({
+      appOrigin,
+      accessToken,
+      profileId: client.id,
+      path:
+        "/api/bookings/split-missions/" +
+        concurrencyFixture.batch.id +
+        "/checkout",
+      method: "POST",
+      body: { checkoutPreparationConfirmed: true },
+    });
+    assert(
+      concurrencyCheckout.payload?.paymentMode === PAYMENT_MODE,
+      "Concurrency fixture did not use Platform-Held group mode."
+    );
+
+    let concurrencyParent = await loadParent(
+      admin,
+      concurrencyFixture.batch.id
+    );
+    concurrencyCheckoutSessionId =
+      concurrencyParent.stripe_checkout_session_id;
+    assert(
+      concurrencyCheckoutSessionId?.startsWith("cs_"),
+      "Concurrency fixture Checkout session missing."
+    );
+
+    const concurrencyMetadata = {
+      klyx_flow: FLOW,
+      split_batch_id: concurrencyFixture.batch.id,
+      group_settlement_id: concurrencyParent.id,
+      payment_confirmation_id: concurrencyFixture.paymentConfirmation.id,
+      payment_mode: PAYMENT_MODE,
+      settlement_transfer_group: concurrencyParent.transfer_group,
+      executor_count: "2",
+    };
+
+    const concurrencyIntent = await stripe.paymentIntents.create(
+      {
+        amount: 10001,
+        currency: "eur",
+        payment_method: "pm_card_visa",
+        payment_method_types: ["card"],
+        confirm: true,
+        transfer_group: concurrencyParent.transfer_group,
+        metadata: concurrencyMetadata,
+      },
+      {
+        idempotencyKey:
+          "klyx-group-concurrency-proof-charge-" + concurrencyParent.id,
+      }
+    );
+    const paidConcurrencyIntent = await stripe.paymentIntents.retrieve(
+      concurrencyIntent.id,
+      { expand: ["latest_charge"] }
+    );
+    const concurrencyChargeId = stripeObjectId(
+      paidConcurrencyIntent.latest_charge
+    );
+    assert(
+      paidConcurrencyIntent.status === "succeeded" &&
+        concurrencyChargeId?.startsWith("ch_"),
+      "Concurrency fixture platform charge did not succeed."
+    );
+
+    const concurrencyPaymentEvent = {
+      id:
+        "evt_test_group_concurrent_paid_" +
+        randomUUID().replaceAll("-", ""),
+      object: "event",
+      created: Math.floor(Date.now() / 1000),
+      data: {
+        object: {
+          id: concurrencyParent.stripe_checkout_session_id,
+          object: "checkout.session",
+          amount_total: 10001,
+          currency: "eur",
+          metadata: concurrencyMetadata,
+          mode: "payment",
+          payment_intent: paidConcurrencyIntent.id,
+          payment_status: "paid",
+          status: "complete",
+          livemode: false,
+        },
+      },
+      livemode: false,
+      pending_webhooks: 1,
+      request: { id: null, idempotency_key: null },
+      type: "checkout.session.completed",
+    };
+
+    const concurrencyWebhook = await postWebhookRaw({
+      appOrigin,
+      webhookSecret,
+      event: concurrencyPaymentEvent,
+    });
+    assert(
+      concurrencyWebhook?.platformHeldGroup === true,
+      "Concurrency fixture webhook was not recognized."
+    );
+
+    concurrencyParent = await loadParent(
+      admin,
+      concurrencyFixture.batch.id
+    );
+    assert(
+      concurrencyParent.state === "held" &&
+        concurrencyParent.stripe_charge_id === concurrencyChargeId,
+      "Concurrency fixture did not enter held state."
+    );
+
+    const concurrencyABookings = concurrencyFixture.bookings.filter(
+      (booking) => booking.provider.id === providerA.id
+    );
+    const concurrencyBBooking = concurrencyFixture.bookings.find(
+      (booking) => booking.provider.id === providerB.id
+    );
+    assert(
+      concurrencyABookings.length === 2 && concurrencyBBooking,
+      "Concurrency fixture booking split invalid."
+    );
+
+    await completeBooking({
+      admin,
+      appOrigin,
+      accessToken,
+      clientId: client.id,
+      bookingId: concurrencyABookings[0].id,
+    });
+
+    let concurrencyTransfers = await stripe.transfers.list({
+      transfer_group: concurrencyParent.transfer_group,
+      limit: 100,
+    });
+    assert(
+      concurrencyTransfers.data.length === 0,
+      "Concurrency fixture released executor A too early."
+    );
+
+    await Promise.all([
+      completeBooking({
+        admin,
+        appOrigin,
+        accessToken,
+        clientId: client.id,
+        bookingId: concurrencyABookings[1].id,
+      }),
+      completeBooking({
+        admin,
+        appOrigin,
+        accessToken,
+        clientId: client.id,
+        bookingId: concurrencyBBooking.id,
+      }),
+    ]);
+
+    const concurrencyMembers = await loadMembers(
+      admin,
+      concurrencyParent.id
+    );
+    concurrencyTransfers = await stripe.transfers.list({
+      transfer_group: concurrencyParent.transfer_group,
+      limit: 100,
+    });
+
+    const concurrencyTransferred = concurrencyTransfers.data.reduce(
+      (sum, transfer) => sum + transfer.amount,
+      0
+    );
+    const concurrencyMemberIds = new Set(
+      concurrencyTransfers.data.map(
+        (transfer) => transfer.metadata?.group_settlement_member_id
+      )
+    );
+
+    assert(
+      concurrencyTransfers.data.length === 2 &&
+        concurrencyMemberIds.size === 2,
+      "Concurrent releases did not create exactly one Transfer per executor."
+    );
+    assert(
+      concurrencyTransferred ===
+        Number(concurrencyParent.provider_amount_cents),
+      "Concurrent releases do not exactly equal frozen provider funds."
+    );
+    assert(
+      concurrencyTransferred <=
+        Number(concurrencyParent.provider_amount_cents),
+      "Concurrent releases exceeded frozen provider funds."
+    );
+    assert(
+      concurrencyTransfers.data.every(
+        (transfer) =>
+          stripeObjectId(transfer.source_transaction) ===
+            concurrencyChargeId &&
+          transfer.transfer_group === concurrencyParent.transfer_group
+      ),
+      "Concurrent executor Transfers were not financed by the one frozen charge."
+    );
+    assert(
+      concurrencyMembers.every((member) => member.state === "released"),
+      "Concurrent executor member states did not finalize independently."
+    );
+
+    concurrencyProof = {
+      batchId: concurrencyFixture.batch.id,
+      groupSettlementId: concurrencyParent.id,
+      chargeId: concurrencyChargeId,
+      transferGroup: concurrencyParent.transfer_group,
+      concurrentReleaseCount: concurrencyTransfers.data.length,
+      transferredAmountCents: concurrencyTransferred,
+      providerAmountCapCents: Number(
+        concurrencyParent.provider_amount_cents
+      ),
+      distinctMemberTransfers: concurrencyMemberIds.size,
+    };
 
     await closeRecipient(stripe, stripeB.id);
     stripeBClosed = true;
