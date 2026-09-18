@@ -1,19 +1,29 @@
 import {
+  releasePlatformHeldBookingGroupSettlement,
+} from "@/lib/booking-group-settlement-server";
+import {
+  syncBookingGroupLifecycle,
+} from "@/lib/booking-group-lifecycle";
+import {
   reconcilePlatformHeldBookingSettlement,
 } from "@/lib/booking-settlement-reconciliation-server";
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { logServerError } from "@/lib/server-log";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { POST as corePost } from "./route-core";
 
 /*
  * KLYX_TRACKING_CORE_CONTRACT_MIRROR
  *
  * Durable mission lifecycle writes and fail-open notifications remain in the
- * byte-for-byte phase-1 core. This wrapper only attempts financial settlement
- * after a successful client confirmation. Settlement failure never rolls back
- * an already completed mission.
+ * phase-1 core. This wrapper performs financial settlement only after a
+ * successful client confirmation. A settlement failure never rolls back
+ * completed mission truth.
  *
- * @core:import { after, NextResponse } from "next/server"
+ * Single booking: Recovery/Reconciliation from #813 remains authoritative.
+ * Booking group: lifecycle must be fully completed before the group settlement
+ * release is attempted.
+ *
  * @core:if (action === "provider_finished")
  * @core:if (action === "client_confirmed")
  * @core:await addTrackingEvent({
@@ -43,33 +53,48 @@ export async function POST(request: Request) {
       bookingId
     ) {
       try {
-        const settlement = await reconcilePlatformHeldBookingSettlement({
-          bookingId,
-          source: "release",
-        });
+        const { data: booking, error } = await supabaseAdmin
+          .from("bookings")
+          .select("booking_group_id")
+          .eq("id", bookingId)
+          .maybeSingle();
 
-        if (
-          settlement.status === "failed" ||
-          settlement.status === "human_review"
-        ) {
-          logServerError({
-            event: "platform_held_settlement_reconciliation_attention",
-            route: "/api/bookings/tracking",
-            method: "POST",
-            status: 500,
-            code:
-              settlement.reasonCode ??
-              "platform_held_settlement_reconciliation_attention",
-            error: new Error(
-              settlement.reasonCode ??
-                "Platform-held settlement requires reconciliation attention."
-            ),
+        if (error) throw new Error(error.message);
+
+        const groupId = booking?.booking_group_id?.trim() ?? "";
+
+        if (groupId) {
+          const progress = await syncBookingGroupLifecycle(groupId);
+
+          if (progress?.allCompleted) {
+            await releasePlatformHeldBookingGroupSettlement(groupId);
+          }
+        } else {
+          const settlement = await reconcilePlatformHeldBookingSettlement({
+            bookingId,
+            source: "release",
           });
+
+          if (
+            settlement.status === "failed" ||
+            settlement.status === "human_review"
+          ) {
+            logServerError({
+              event: "platform_held_settlement_reconciliation_attention",
+              route: "/api/bookings/tracking",
+              method: "POST",
+              status: 500,
+              code:
+                settlement.reasonCode ??
+                "platform_held_settlement_reconciliation_attention",
+              error: new Error(
+                settlement.reasonCode ??
+                  "Platform-held settlement requires reconciliation attention."
+              ),
+            });
+          }
         }
       } catch (error) {
-        // Mission completion is authoritative and must not be undone because a
-        // financial settlement needs retry/reconciliation. Recovery searches
-        // Stripe truth first and remains fail-closed before any later Transfer.
         logServerError({
           event: "platform_held_settlement_release_failed",
           route: "/api/bookings/tracking",

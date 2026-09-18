@@ -5,6 +5,7 @@ import {
   getAuthenticatedAccount,
 } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { preparePlatformHeldBookingGroupRefund } from "@/lib/booking-group-settlement-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   enforceRefundTransactionRisk,
@@ -23,6 +24,7 @@ type RefundPreflightGroup = {
   client_profile_id: string;
   provider_profile_id: string;
   payment_status: string;
+  payment_mode: string | null;
   cancellation_request_status: string;
   cancellation_requested_by: string | null;
   cancellation_resolution: string;
@@ -46,7 +48,7 @@ export async function POST(request: Request, context: RouteContext) {
     const { data, error } = await supabaseAdmin
       .from("booking_groups")
       .select(
-        "id, client_profile_id, provider_profile_id, payment_status, cancellation_request_status, cancellation_requested_by, cancellation_resolution, refund_status"
+        "id, client_profile_id, provider_profile_id, payment_status, payment_mode, cancellation_request_status, cancellation_requested_by, cancellation_resolution, refund_status"
       )
       .eq("id", id)
       .maybeSingle();
@@ -87,6 +89,24 @@ export async function POST(request: Request, context: RouteContext) {
       subjectType: "booking_group",
       subjectId: group.id,
     });
+
+    if (group.payment_mode === "platform_held") {
+      const preparation = await preparePlatformHeldBookingGroupRefund(group.id);
+
+      if (
+        preparation.status === "busy" ||
+        preparation.status === "not_ready"
+      ) {
+        return NextResponse.json(
+          {
+            error:
+              "Le settlement groupé doit être réconcilié avant ce remboursement.",
+            code: "KLYX_GROUP_SETTLEMENT_REFUND_NOT_READY",
+          },
+          { status: 409 }
+        );
+      }
+    }
 
     return corePost(request, context);
   } catch (error) {
