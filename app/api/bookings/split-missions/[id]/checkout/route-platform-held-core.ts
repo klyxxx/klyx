@@ -256,6 +256,7 @@ async function claimCheckout(parentId: string, claimToken: string) {
 async function buildFrozenPlan(input: {
   confirmation: ConfirmationRow;
   stripeRuntimeMode: ReturnType<typeof assertStripeRuntimeReady>["mode"];
+  stripe: Stripe;
 }) {
   const plan = parseCanonicalPlan(input.confirmation.payment_plan_snapshot);
   if (!plan) throw new Error("KLYX_GROUP_HELD_PAYMENT_PLAN_INVALID");
@@ -285,11 +286,22 @@ async function buildFrozenPlan(input: {
       throw new Error("KLYX_GROUP_HELD_PROVIDER_STRIPE_CHANGED");
     }
 
-    if (
-      !destination.connect.onboardingComplete ||
-      !destination.connect.chargesEnabled ||
-      !destination.connect.payoutsEnabled
-    ) {
+    const remoteAccount = await input.stripe.v2.core.accounts.retrieve(
+      destination.connect.stripeAccountId,
+      {
+        include: ["configuration.recipient", "identity", "requirements"],
+      }
+    );
+
+    const transferReady = Boolean(
+      remoteAccount.livemode === false &&
+        remoteAccount.applied_configurations?.includes("recipient") === true &&
+        remoteAccount.configuration?.recipient?.applied === true &&
+        remoteAccount.configuration?.recipient?.capabilities?.stripe_balance
+          ?.stripe_transfers?.status === "active"
+    );
+
+    if (!transferReady) {
       throw new Error("KLYX_GROUP_HELD_PROVIDER_STRIPE_NOT_READY");
     }
 
@@ -490,6 +502,7 @@ export async function POST(request: Request, context: RouteContext) {
     const { plan, economics } = await buildFrozenPlan({
       confirmation,
       stripeRuntimeMode: stripeRuntime.mode,
+      stripe,
     });
 
     const parent = await prepareParent({
