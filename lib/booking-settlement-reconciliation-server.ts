@@ -1000,6 +1000,37 @@ export async function reconcilePlatformHeldBookingSettlement(input: {
           };
         }
 
+        if (
+          prepared.status === "refund_ready" &&
+          input.source === "refund" &&
+          !refund
+        ) {
+          await audit({
+            runId,
+            bookingId: input.bookingId,
+            source: input.source,
+            action: "refund_ready_after_reversal",
+            outcome: "recovered",
+            reasonCode: "provider_funds_already_safe",
+            beforeState: settlement.state,
+            afterState: "refund_pending",
+            transferId: transfer.id,
+            reversalId: settlement.stripe_transfer_reversal_id,
+          });
+
+          return {
+            status: "no_action",
+            reasonCode: "refund_ready",
+          };
+        }
+
+        if (prepared.status === "refunded") {
+          return {
+            status: "refunded",
+            refundId: booking.stripe_refund_id,
+          };
+        }
+
         if (prepared.status === "reversed") {
           await audit({
             runId,
@@ -1056,6 +1087,24 @@ export async function reconcilePlatformHeldBookingSettlement(input: {
               prepared.reconciled || Boolean(reversalBefore),
           };
         }
+      }
+
+      if (!transfer && input.source === "refund" && !refund) {
+        await audit({
+          runId,
+          bookingId: input.bookingId,
+          source: input.source,
+          action: "refund_fenced_without_transfer",
+          outcome: "recovered",
+          reasonCode: "refund_ready_no_provider_transfer",
+          beforeState: settlement.state,
+          afterState: "refund_pending",
+        });
+
+        return {
+          status: "no_action",
+          reasonCode: "refund_ready_no_provider_transfer",
+        };
       }
 
       if (refund) {
