@@ -188,7 +188,9 @@ describe("KLYX settlement recovery / reconciliation contract", () => {
     expect(identity).toContain(
       '"account_stripe_connect_identities"'
     );
-    expect(migration).not.toContain("profiles.stripe_account_id");
+    expect(migration).not.toContain("from public.profiles");
+    expect(migration).not.toContain("update public.profiles");
+    expect(migration).not.toContain("insert into public.profiles");
   });
 
   it("wires recovery into release and refund boundaries without rolling back mission completion", () => {
