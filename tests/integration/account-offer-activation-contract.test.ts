@@ -46,12 +46,14 @@ describe("account-first offer-services activation", () => {
     expect(assistant).not.toContain('requireAccountType(auth.profile, "provider")');
   });
 
-  it("reuses historical Stripe state and never creates a Connected Account", () => {
-    expect(readiness).toContain("stripe_account_id");
-    expect(readiness).toContain("stripe_onboarding_complete");
-    expect(readiness).toContain("stripe_payouts_enabled");
-    expect(readiness).toContain("stripeAccountIds.size > 1");
-    expect(readiness).toMatch(/payments\.conflict[\s\S]{0,80}"human_review"/);
+  it("uses canonical Stripe state, fails closed on identity review, and never creates a Connected Account", () => {
+    expect(readiness).toContain("getCanonicalStripeConnect");
+    expect(readiness).toContain('connect.state === "linked"');
+    expect(readiness).toContain('connect.state === "review_required"');
+    expect(readiness).toContain("payoutReviewRequired");
+    expect(readiness).not.toContain("stripe_account_id");
+    expect(readiness).not.toContain("stripe_onboarding_complete");
+    expect(readiness).not.toContain("stripe_payouts_enabled");
     expect(readiness).not.toContain("stripe.accounts.create");
     expect(assistant).not.toContain("stripe.accounts.create");
   });

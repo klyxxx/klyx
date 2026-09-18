@@ -19,7 +19,10 @@ describe("KLYX group checkout live market gates", () => {
 
     expect(source).toContain("assessKlyxStripeMarketAccess");
     expect(source).toContain("profile.countryCode");
-    expect(source).toContain("provider?.country_code");
+    expect(source).toContain(
+      "getProviderStripeDestination(group.provider_profile_id)"
+    );
+    expect(source).toContain("provider.countryCode");
     expect(source).toMatch(/participant:\s*"client"/);
     expect(source).toMatch(/participant:\s*"provider"/);
     expect(

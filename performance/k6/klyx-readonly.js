@@ -150,13 +150,16 @@ function authenticate() {
 
   const auth = authResponse.json();
   const accessToken = auth?.access_token;
-  const userId = auth?.user?.id;
-  if (!accessToken || !userId) return null;
+  if (!accessToken) return null;
 
+  /*
+   * profiles.owner_user_id is intentionally outside the authenticated column
+   * grant. RLS already limits client-profile rows to the signed-in owner, so
+   * the performance fixture must resolve the client through allowed columns
+   * instead of weakening the server boundary just for CI.
+   */
   const profileResponse = http.get(
-    `${SUPABASE_URL}/rest/v1/profiles?owner_user_id=eq.${encodeURIComponent(
-      userId
-    )}&account_type=eq.client&select=id&limit=1`,
+    `${SUPABASE_URL}/rest/v1/profiles?account_type=eq.client&select=id,account_type&limit=1`,
     {
       headers: {
         apikey: SUPABASE_KEY,

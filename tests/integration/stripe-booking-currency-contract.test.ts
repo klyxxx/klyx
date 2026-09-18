@@ -18,7 +18,7 @@ describe(
         const filePath =
           path.join(
             process.cwd(),
-            "app/api/stripe/create-checkout-session/route.ts"
+            "app/api/stripe/create-checkout-session/route-core.ts"
           );
 
         expect(

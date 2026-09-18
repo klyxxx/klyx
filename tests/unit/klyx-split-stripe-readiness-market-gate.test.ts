@@ -14,41 +14,45 @@ function readRoute() {
 }
 
 describe("KLYX split Stripe readiness live market alignment", () => {
-  it("uses the shared market policy for the client and every provider", () => {
+  it("uses the shared market policy for the client and every canonical provider destination", () => {
     const source = readRoute();
 
     expect(source).toContain("assessKlyxStripeMarketAccess");
     expect(source).toContain("getStripeRuntimeMode");
     expect(source).toContain("profile.countryCode");
-    expect(source).toContain("providerProfile.country_code");
+    expect(source).toContain("getProviderStripeDestination(providerId)");
+    expect(source).toContain("destination.countryCode");
     expect(source).toContain('blockReason = "CLIENT_MARKET_NOT_READY"');
     expect(source).toContain('blockReason = "PROVIDER_MARKET_NOT_READY"');
   });
 
-  it("checks provider market access before any Stripe account lookup", () => {
+  it("checks provider market access before any Stripe network account lookup", () => {
     const source = readRoute();
+    const providerDestination = source.indexOf(
+      "getProviderStripeDestination(providerId)"
+    );
     const providerGate = source.indexOf("!providerMarketAccess.allowed");
-    const accountIdLookup = source.indexOf("stripeAccountId(providerProfile)");
     const accountRetrieve = source.indexOf("stripe.accounts.retrieve");
 
-    expect(providerGate).toBeGreaterThan(-1);
-    expect(accountIdLookup).toBeGreaterThan(-1);
-    expect(accountRetrieve).toBeGreaterThan(-1);
-    expect(providerGate).toBeLessThan(accountIdLookup);
-    expect(providerGate).toBeLessThan(accountRetrieve);
+    expect(providerDestination).toBeGreaterThan(-1);
+    expect(providerGate).toBeGreaterThan(providerDestination);
+    expect(accountRetrieve).toBeGreaterThan(providerGate);
   });
 
-  it("keeps provider Stripe readiness separate while exposing combined checkout readiness", () => {
+  it("fails closed on canonical identity review while exposing combined checkout readiness", () => {
     const source = readRoute();
 
+    expect(source).toContain("isStripeConnectIdentityReviewRequired");
+    expect(source).toContain('"identity_review_required"');
+    expect(source).toContain(
+      '"KLYX_STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED"'
+    );
     expect(source).toContain("allProvidersStripeReady");
     expect(source).toContain(
       "const checkoutReady = clientMarketAccess.allowed && allProvidersStripeReady"
     );
     expect(source).toContain("paymentInfrastructureReady: checkoutReady");
     expect(source).toContain("clientMarketReady: clientMarketAccess.allowed");
-    expect(source).toContain('"market_not_ready"');
-    expect(source).toContain('"PROVIDER_MARKET_NOT_READY"');
   });
 
   it("does not turn this informative endpoint into the full Stripe runtime barrier", () => {

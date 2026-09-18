@@ -3,14 +3,23 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-const route = fs
-  .readFileSync(
+const route = [
+  fs.readFileSync(
     path.join(
       process.cwd(),
       "app/api/bookings/status/route.ts"
     ),
     "utf8"
-  )
+  ),
+  fs.readFileSync(
+    path.join(
+      process.cwd(),
+      "app/api/bookings/status/route-core.ts"
+    ),
+    "utf8"
+  ),
+]
+  .join("\n")
   .replace(/\r\n/g, "\n");
 
 function between(start: string, end: string) {

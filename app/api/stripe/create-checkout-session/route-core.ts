@@ -17,15 +17,11 @@ import {
 } from "@/lib/stripe-connect-account-identity";
 import {
   apiErrorStatus,
-  getAuthenticatedAccount,
+  getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
 import { logServerInfo, logServerWarning } from "@/lib/server-log";
 import { secureApiErrorResponse } from "@/lib/api-error";
-import {
-  enforceCheckoutTransactionRisk,
-  isTransactionRiskGateError,
-} from "@/lib/transaction-risk-server";
 
 type BookingRow = {
   id: string;
@@ -179,7 +175,7 @@ export async function POST(request: Request) {
   const startedAt = Date.now();
 
   try {
-    const { user, account, profile } = await getAuthenticatedAccount(request);
+    const { user, profile } = await getAuthenticatedProfile(request);
     requireAccountType(profile, "client");
 
     const stripeRuntime = assertStripeRuntimeReady();
@@ -270,13 +266,6 @@ export async function POST(request: Request) {
 
     const providerId = booking.provider_id ?? booking.babysitter_id;
     if (!providerId) throw new Error("Prestataire introuvable.");
-
-    await enforceCheckoutTransactionRisk({
-      payerAccount: account,
-      recipientProfileIds: [providerId],
-      subjectType: "booking",
-      subjectId: booking.id,
-    });
 
     const { data: providerData, error: providerError } = await supabaseAdmin
       .from("profiles")
@@ -587,21 +576,6 @@ export async function POST(request: Request) {
       serviceSlug: service.slug,
     });
   } catch (error) {
-    if (isTransactionRiskGateError(error)) {
-      return NextResponse.json(
-        {
-          error:
-            error.decision === "blocked"
-              ? "Ce paiement est temporairement bloqué pour vérification de sécurité."
-              : "Ce paiement nécessite une vérification de sécurité avant de continuer.",
-          code: error.code,
-          participant: error.participant,
-          automaticSuspension: false,
-        },
-        { status: 409 }
-      );
-    }
-
     const message =
       error instanceof Error ? error.message : "Impossible de créer le paiement.";
     const status = message === "Réservation introuvable." ? 404 : apiErrorStatus(message);

@@ -5,14 +5,10 @@ import Stripe from "stripe";
 
 import {
   apiErrorStatus,
-  getAuthenticatedAccount,
+  getAuthenticatedProfile,
   requireAccountType,
 } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
-import {
-  enforceCheckoutTransactionRisk,
-  isTransactionRiskGateError,
-} from "@/lib/transaction-risk-server";
 import {
   calculateKlyxEconomics,
   getKlyxCommissionPercent,
@@ -78,7 +74,7 @@ export async function POST(request: Request) {
   const startedAt = Date.now();
 
   try {
-    const { user, account, profile } = await getAuthenticatedAccount(request);
+    const { user, profile } = await getAuthenticatedProfile(request);
     requireAccountType(profile, "client");
 
     const stripeRuntime = assertStripeRuntimeReady();
@@ -131,16 +127,6 @@ export async function POST(request: Request) {
     if (group.client_profile_id !== profile.id) {
       return NextResponse.json({ error: "Acces refuse." }, { status: 403 });
     }
-
-    await enforceCheckoutTransactionRisk({
-      payerAccount: account,
-      recipientProfileIds: group.provider_profile_id
-        ? [group.provider_profile_id]
-        : [],
-      subjectType: "booking_group",
-      subjectId: group.id,
-    });
-
     if (group.cancellation_request_status === "requested") {
       return NextResponse.json(
         {
@@ -511,21 +497,6 @@ export async function POST(request: Request) {
       groupId: group.id,
     });
   } catch (error) {
-    if (isTransactionRiskGateError(error)) {
-      return NextResponse.json(
-        {
-          error:
-            error.decision === "blocked"
-              ? "Ce paiement groupé est temporairement bloqué pour vérification de sécurité."
-              : "Ce paiement groupé nécessite une vérification de sécurité avant de continuer.",
-          code: error.code,
-          participant: error.participant,
-          automaticSuspension: false,
-        },
-        { status: 409 }
-      );
-    }
-
     const message =
       error instanceof Error ? error.message : "Paiement groupe impossible.";
     const status = apiErrorStatus(message);
