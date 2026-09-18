@@ -186,6 +186,32 @@ async function loadBookableService(admin, providerId) {
   return data;
 }
 
+async function findConflictFreeDates(admin, providerId, index) {
+  const { data: existing, error } = await admin
+    .from("bookings")
+    .select("booking_date, start_time, end_time, status, provider_id, babysitter_id")
+    .or("provider_id.eq." + providerId + ",babysitter_id.eq." + providerId)
+    .in("status", ["accepted", "completed"]);
+
+  if (error) throw new Error(error.message);
+
+  const candidates = [];
+  const startOffset = 30 + index * 40;
+
+  for (let offset = startOffset; offset < startOffset + 180; offset += 1) {
+    const date = futureDate(offset);
+    const conflict = (existing ?? []).some((booking) => {
+      if (booking.booking_date !== date) return false;
+      return booking.start_time < "19:00:00" && booking.end_time > "18:00:00";
+    });
+
+    if (!conflict) candidates.push(date);
+    if (candidates.length === 2) return candidates;
+  }
+
+  throw new Error("Unable to find two conflict-free group proof dates.");
+}
+
 async function createAcceptedGroup({
   admin,
   client,
@@ -193,8 +219,11 @@ async function createAcceptedGroup({
   userService,
   index,
 }) {
-  const requestDateA = futureDate(20 + index * 3);
-  const requestDateB = futureDate(21 + index * 3);
+  const [requestDateA, requestDateB] = await findConflictFreeDates(
+    admin,
+    provider.id,
+    index
+  );
 
   const { data: requestRow, error: requestError } = await admin
     .from("market_service_requests")
@@ -225,8 +254,8 @@ async function createAcceptedGroup({
         market_request_id: requestRow.id,
         position: 1,
         requested_date: requestDateA,
-        start_time: "10:00:00",
-        end_time: "11:00:00",
+        start_time: "18:00:00",
+        end_time: "19:00:00",
         budget_max: 50,
         duration_minutes: 60,
       },
@@ -234,8 +263,8 @@ async function createAcceptedGroup({
         market_request_id: requestRow.id,
         position: 2,
         requested_date: requestDateB,
-        start_time: "10:00:00",
-        end_time: "11:00:00",
+        start_time: "18:00:00",
+        end_time: "19:00:00",
         budget_max: 50,
         duration_minutes: 60,
       },
