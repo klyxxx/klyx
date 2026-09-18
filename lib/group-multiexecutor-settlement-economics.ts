@@ -246,3 +246,87 @@ export function validateExplicitGroupRefundAllocations(input: {
     providerRefundCents: provider,
   };
 }
+
+
+export type GroupPartialRefundAllocationRequest = {
+  memberId: string;
+  grossRefundCents: number;
+};
+
+export function calculateCumulativeGroupRefundDelta(input: {
+  memberGrossAmountCents: number;
+  memberPlatformFeeCents: number;
+  priorGrossRefundCents: number;
+  priorPlatformFeeRefundCents: number;
+  priorProviderRefundCents: number;
+  requestedGrossRefundCents: number;
+}): {
+  grossRefundCents: number;
+  platformFeeRefundCents: number;
+  providerRefundCents: number;
+  cumulativeGrossRefundCents: number;
+  cumulativePlatformFeeRefundCents: number;
+  cumulativeProviderRefundCents: number;
+} {
+  for (const [value, code, allowZero] of [
+    [input.memberGrossAmountCents, "KLYX_GROUP_HELD_MEMBER_GROSS_INVALID", false],
+    [input.memberPlatformFeeCents, "KLYX_GROUP_HELD_MEMBER_FEE_INVALID", true],
+    [input.priorGrossRefundCents, "KLYX_GROUP_HELD_PRIOR_REFUND_GROSS_INVALID", true],
+    [input.priorPlatformFeeRefundCents, "KLYX_GROUP_HELD_PRIOR_REFUND_FEE_INVALID", true],
+    [input.priorProviderRefundCents, "KLYX_GROUP_HELD_PRIOR_REFUND_PROVIDER_INVALID", true],
+    [input.requestedGrossRefundCents, "KLYX_GROUP_HELD_REFUND_MEMBER_GROSS_INVALID", false],
+  ] as const) {
+    assertCents(value, code, allowZero);
+  }
+
+  if (
+    input.memberPlatformFeeCents > input.memberGrossAmountCents ||
+    input.priorPlatformFeeRefundCents + input.priorProviderRefundCents !==
+      input.priorGrossRefundCents
+  ) {
+    throw new Error("KLYX_GROUP_HELD_REFUND_PRIOR_ACCOUNTING_MISMATCH");
+  }
+
+  const cumulativeGrossRefundCents =
+    input.priorGrossRefundCents + input.requestedGrossRefundCents;
+
+  if (cumulativeGrossRefundCents > input.memberGrossAmountCents) {
+    throw new Error("KLYX_GROUP_HELD_REFUND_MEMBER_EXCEEDS_GROSS");
+  }
+
+  const gross = BigInt(input.memberGrossAmountCents);
+  const fee = BigInt(input.memberPlatformFeeCents);
+  const cumulativeGross = BigInt(cumulativeGrossRefundCents);
+
+  // Cumulative nearest-cent proportional allocation. Computing a cumulative
+  // target and then taking the delta prevents penny drift across many partial
+  // refunds. A full refund always returns the exact frozen KLYX commission.
+  const cumulativePlatformFeeRefundCents = Number(
+    (fee * cumulativeGross + gross / 2n) / gross
+  );
+  const cumulativeProviderRefundCents =
+    cumulativeGrossRefundCents - cumulativePlatformFeeRefundCents;
+
+  const platformFeeRefundCents =
+    cumulativePlatformFeeRefundCents - input.priorPlatformFeeRefundCents;
+  const providerRefundCents =
+    cumulativeProviderRefundCents - input.priorProviderRefundCents;
+
+  if (
+    platformFeeRefundCents < 0 ||
+    providerRefundCents < 0 ||
+    platformFeeRefundCents + providerRefundCents !==
+      input.requestedGrossRefundCents
+  ) {
+    throw new Error("KLYX_GROUP_HELD_REFUND_DELTA_ACCOUNTING_MISMATCH");
+  }
+
+  return {
+    grossRefundCents: input.requestedGrossRefundCents,
+    platformFeeRefundCents,
+    providerRefundCents,
+    cumulativeGrossRefundCents,
+    cumulativePlatformFeeRefundCents,
+    cumulativeProviderRefundCents,
+  };
+}
