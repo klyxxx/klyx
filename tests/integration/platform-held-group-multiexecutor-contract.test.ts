@@ -13,6 +13,8 @@ function compact(value: string) {
 
 const migrationPath =
   "supabase/migrations/20260918211000_klyx_platform_held_group_multiexecutor_test.sql";
+const refundHardeningMigrationPath =
+  "supabase/migrations/20260918213000_klyx_platform_held_group_refund_hardening.sql";
 
 describe("Platform-Held multi-executor group settlement contract", () => {
   it("uses the real multi-provider split batch as executor authority", () => {
@@ -143,17 +145,26 @@ describe("Platform-Held multi-executor group settlement contract", () => {
     expect(checkout).toContain("the SAME attempt number/idempotency key");
   });
 
-  it("supports explicit partial and total refunds without inferred allocation", () => {
+  it("supports total refunds and server-derived partial refund economics", () => {
     const server = read("lib/platform-held-group-settlement-server.ts");
     const route = read(
       "app/api/bookings/split-missions/[id]/refund/route.ts"
     );
     const migration = compact(read(migrationPath));
+    const hardening = compact(read(refundHardeningMigrationPath));
 
     expect(server).toContain('kind: "total"');
     expect(server).toContain('kind: "partial"');
+    expect(server).toContain("buildRemainingTotalAllocations");
+    expect(server).toContain("buildPartialAllocations");
+    expect(server).toContain("calculateCumulativeGroupRefundDelta");
     expect(server).toContain("validateExplicitGroupRefundAllocations");
-    expect(route).toContain("partialRefundRequiresExplicitAllocation");
+
+    expect(route).toContain("partialRefundRequiresMemberGrossAllocation");
+    expect(route).toContain("partialRefundEconomicsCalculatedServerSide");
+    expect(route).not.toContain("platformFeeRefundCents = cents");
+    expect(route).not.toContain("providerRefundCents = cents");
+
     expect(migration).toContain(
       "KLYX_GROUP_HELD_REFUND_ALLOCATION_TOTAL_MISMATCH"
     );
@@ -162,6 +173,34 @@ describe("Platform-Held multi-executor group settlement contract", () => {
     );
     expect(migration).toContain("KLYX_GROUP_HELD_REFUND_EXCEEDS_GROSS");
     expect(migration).toContain("KLYX_GROUP_HELD_REFUND_ALREADY_ACTIVE");
+
+    expect(hardening).toContain(
+      "create or replace function public.klyx_guard_platform_held_group_refund_allocation_policy"
+    );
+    expect(hardening).toContain(
+      "KLYX_GROUP_HELD_REFUND_ALLOCATION_POLICY_MISMATCH"
+    );
+    expect(hardening).toContain(
+      "v_member.platform_fee_cents::numeric * v_cumulative_gross::numeric / v_member.gross_amount_cents::numeric"
+    );
+  });
+
+  it("can finalize a Stripe refund after the DB marks it inflight", () => {
+    const server = read("lib/platform-held-group-settlement-server.ts");
+    const hardening = compact(read(refundHardeningMigrationPath));
+
+    const inflight = server.indexOf(
+      '"klyx_mark_platform_held_group_refund_inflight"'
+    );
+    const stripeWrite = server.indexOf("stripe.refunds.create(", inflight);
+    const finalize = server.indexOf("await finalizeRefund(", stripeWrite);
+
+    expect(inflight).toBeGreaterThan(-1);
+    expect(stripeWrite).toBeGreaterThan(inflight);
+    expect(finalize).toBeGreaterThan(stripeWrite);
+    expect(hardening).toContain(
+      "if v_refund.state not in ('ready', 'refunding')"
+    );
   });
 
   it("reverses each released executor allocation independently before customer refund", () => {
