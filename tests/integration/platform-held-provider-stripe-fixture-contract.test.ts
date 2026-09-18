@@ -74,6 +74,20 @@ describe("KLYX platform-held provider Stripe TEST fixture", () => {
     expect(fixture).not.toContain("stripe.tokens.create(");
   });
 
+  it("hands off the exact recipient account and never reuses an unrelated TEST account", () => {
+    expect(fixture).toContain(
+      'account.metadata?.klyx_platform_held_network_fixture === "true"'
+    );
+    expect(fixture).toContain(
+      "account.metadata?.klyx_provider_profile_id === providerId"
+    );
+    expect(fixture).toContain(
+      '"stripe-network-proof/platform-held-provider-fixture.json"'
+    );
+    expect(fixture).toContain("accountId: stripeFixture.accountId");
+    expect(fixture).toContain("created: stripeFixture.created");
+  });
+
   it("never performs a settlement, refund, reversal or bank payout mutation", () => {
     expect(fixture).not.toContain("stripe.transfers.create(");
     expect(fixture).not.toContain("stripe.transfers.createReversal(");

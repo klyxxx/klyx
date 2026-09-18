@@ -13,6 +13,7 @@ import {
 const ACTIVE_PROFILE_COOKIE = "klyx_active_profile";
 const PAYMENT_MODE = "platform_held";
 const PROOF_DIR = "stripe-network-proof";
+const PROVIDER_FIXTURE_HANDOFF = `${PROOF_DIR}/platform-held-provider-fixture.json`;
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -171,43 +172,62 @@ async function latestAcceptedUnpaidBooking(admin, clientId, providerId) {
   return data;
 }
 
-async function findPlatformHeldRecipientAccount(stripe, providerId) {
-  const accounts = await stripe.accounts.list({ limit: 100 });
-
-  for (const account of accounts.data) {
-    if (
-      account.livemode !== false ||
-      account.country !== "BE" ||
-      account.metadata?.klyx_platform_held_network_fixture !== "true" ||
-      account.metadata?.klyx_provider_profile_id !== providerId
-    ) {
-      continue;
-    }
-
-    const v2Account = await stripe.v2.core.accounts.retrieve(account.id, {
-      include: ["configuration.recipient", "identity", "requirements"],
-    });
-
-    if (v2RecipientTransferReady(v2Account)) {
-      return { legacyAccount: account, v2Account };
-    }
+function loadPlatformHeldFixtureHandoff(providerId) {
+  if (!fs.existsSync(PROVIDER_FIXTURE_HANDOFF)) {
+    throw new Error("Platform-held provider fixture handoff is missing.");
   }
 
-  return null;
+  let handoff;
+  try {
+    handoff = JSON.parse(fs.readFileSync(PROVIDER_FIXTURE_HANDOFF, "utf8"));
+  } catch {
+    throw new Error("Platform-held provider fixture handoff is invalid JSON.");
+  }
+
+  assert(handoff?.testMode === true, "Platform-held provider fixture handoff is not TEST-only.");
+  assert(
+    handoff?.providerProfileId === providerId,
+    "Platform-held provider fixture handoff provider mismatch."
+  );
+  assert(
+    typeof handoff?.accountId === "string" && handoff.accountId.startsWith("acct_"),
+    "Platform-held provider fixture handoff account id is invalid."
+  );
+  assert(
+    typeof handoff?.created === "boolean",
+    "Platform-held provider fixture handoff creation flag is invalid."
+  );
+
+  return handoff;
 }
 
 async function provisionConnectedAccount({ stripe, providerId }) {
-  const existing = await findPlatformHeldRecipientAccount(stripe, providerId);
-  if (!existing) {
-    throw new Error(
-      "Platform-held provider fixture did not leave a TEST recipient account with active stripe_transfers."
-    );
-  }
+  const handoff = loadPlatformHeldFixtureHandoff(providerId);
+  const v2Account = await stripe.v2.core.accounts.retrieve(handoff.accountId, {
+    include: ["configuration.recipient", "identity", "requirements"],
+  });
+
+  assert(
+    v2RecipientTransferReady(v2Account),
+    "Platform-held provider fixture handoff account is not recipient-transfer-ready."
+  );
+
+  const legacyAccount = await stripe.accounts.retrieve(handoff.accountId);
+  assert(legacyAccount.livemode === false, "Platform-held provider fixture unexpectedly used live mode.");
+  assert(legacyAccount.country === "BE", "Platform-held provider fixture country mismatch.");
+  assert(
+    legacyAccount.metadata?.klyx_platform_held_network_fixture === "true",
+    "Platform-held provider fixture metadata marker is missing."
+  );
+  assert(
+    legacyAccount.metadata?.klyx_provider_profile_id === providerId,
+    "Platform-held provider fixture metadata provider mismatch."
+  );
 
   return {
-    account: existing.legacyAccount,
-    v2Account: existing.v2Account,
-    createdForProof: true,
+    account: legacyAccount,
+    v2Account,
+    createdForProof: handoff.created,
   };
 }
 

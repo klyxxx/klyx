@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 import Stripe from "stripe";
 
@@ -6,6 +7,8 @@ import {
   findGoldenPathUserByEmail,
   requiredGoldenPathEnv,
 } from "./golden-path-runtime.mjs";
+
+const PLATFORM_HELD_FIXTURE_HANDOFF = "stripe-network-proof/platform-held-provider-fixture.json";
 
 const CLEANING_SERVICE_SLUGS = [
   "menage-a-domicile",
@@ -83,7 +86,12 @@ async function ensurePlatformHeldStripeDestinationFixture({ email, providerId })
   // New connected-account creation itself must use Accounts v2 because this
   // Stripe TEST platform rejects POST /v1/accounts.
   const existing = await stripe.accounts.list({ limit: 100 });
-  const legacyReady = existing.data.find(legacyTransferReady);
+  const legacyReady = existing.data.find(
+    (account) =>
+      legacyTransferReady(account) &&
+      account.metadata?.klyx_platform_held_network_fixture === "true" &&
+      account.metadata?.klyx_provider_profile_id === providerId
+  );
 
   if (legacyReady) {
     return { enabled: true, accountId: legacyReady.id, created: false };
@@ -236,6 +244,24 @@ async function main() {
     email,
     providerId: provider.id,
   });
+
+  if (stripeFixture.enabled) {
+    fs.mkdirSync("stripe-network-proof", { recursive: true });
+    fs.writeFileSync(
+      PLATFORM_HELD_FIXTURE_HANDOFF,
+      `${JSON.stringify(
+        {
+          testMode: true,
+          providerProfileId: provider.id,
+          accountId: stripeFixture.accountId,
+          created: stripeFixture.created,
+        },
+        null,
+        2
+      )}\n`,
+      "utf8"
+    );
+  }
 
   const { data: services, error: servicesError } = await admin
     .from("services")

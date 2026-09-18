@@ -195,6 +195,29 @@ describe("KLYX platform-held settlement phase-2 contract", () => {
     expect(core).toContain('.eq("status", "accepted")');
   });
 
+  it("consumes the exact TEST recipient handoff without v1 list rediscovery", () => {
+    const fixture = read("scripts/golden-path-provider-fixture.mjs");
+    const proof = read("scripts/golden-path-platform-held-settlement-network.mjs");
+
+    expect(fixture).toContain(
+      '"stripe-network-proof/platform-held-provider-fixture.json"'
+    );
+    expect(fixture).toContain("accountId: stripeFixture.accountId");
+    expect(fixture).toContain("created: stripeFixture.created");
+    expect(proof).toContain("loadPlatformHeldFixtureHandoff(providerId)");
+    expect(proof).toContain(
+      "stripe.v2.core.accounts.retrieve(handoff.accountId"
+    );
+    expect(proof).toContain("stripe.accounts.retrieve(handoff.accountId)");
+    expect(proof).not.toContain(
+      "async function findPlatformHeldRecipientAccount"
+    );
+    expect(proof).toContain("createdForProof: handoff.created");
+    expect(proof).toContain(
+      "if (connectedAccount && connectedV2Account && createdConnectedAccount)"
+    );
+  });
+
   it("is TEST-only, server-only and never creates bank payouts", () => {
     const heldWrapper = read(
       "app/api/stripe/create-checkout-session/route-platform-held.ts"
