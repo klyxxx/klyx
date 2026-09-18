@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
 import { secureApiErrorResponse } from "@/lib/api-error";
-import { syncCanonicalConnectedAccountFromStripe } from "@/lib/stripe-connect-webhook-account";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   claimStripeWebhookEvent,
   markStripeWebhookFailed,
@@ -10,9 +10,7 @@ import {
 } from "@/lib/stripe-webhook-events";
 
 function getStripeConnectWebhookConfig() {
-  const stripeSecretKey =
-    process.env.STRIPE_SECRET_KEY?.trim() ?? "";
-
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
   const webhookSecret =
     process.env.STRIPE_CONNECT_WEBHOOK_SECRET?.trim() ?? "";
 
@@ -41,20 +39,48 @@ function getStripeConnectWebhookConfig() {
     );
   }
 
-  return {
-    stripe: new Stripe(stripeSecretKey),
-    webhookSecret,
-  };
+  return { stripe: new Stripe(stripeSecretKey), webhookSecret };
 }
 
 async function updateConnectedAccount(
   stripe: Stripe,
   signedAccount: Stripe.Account
 ) {
-  // Re-read Stripe's current state because account.updated can be replayed or
-  // delivered out of order. Identity resolution remains canonical-account only.
   const account = await stripe.accounts.retrieve(signedAccount.id);
-  await syncCanonicalConnectedAccountFromStripe(account);
+  const readiness = {
+    stripe_onboarding_complete: Boolean(account.details_submitted),
+    stripe_charges_enabled: Boolean(account.charges_enabled),
+    stripe_payouts_enabled: Boolean(account.payouts_enabled),
+  };
+
+  // Preserve the legacy webhook contract for historical bookings/profiles,
+  // including identities that are currently in canonical conflict review.
+  const { error: legacyError } = await supabaseAdmin
+    .from("profiles")
+    .update(readiness)
+    .eq("stripe_account_id", account.id);
+
+  if (legacyError) throw new Error(legacyError.message);
+
+  // Canonical linked identities update every compatibility profile belonging to
+  // the same KLYX account. Conflicts have no canonical stripe_account_id and
+  // therefore cannot silently select a winner here.
+  const { data: identity, error: identityError } = await supabaseAdmin
+    .from("account_stripe_connect_identities")
+    .select("account_id, identity_state")
+    .eq("stripe_account_id", account.id)
+    .maybeSingle();
+
+  if (identityError) throw new Error(identityError.message);
+
+  if (identity?.identity_state === "linked") {
+    const { error: accountProfilesError } = await supabaseAdmin
+      .from("profiles")
+      .update(readiness)
+      .eq("account_id", identity.account_id);
+
+    if (accountProfilesError) throw new Error(accountProfilesError.message);
+  }
 }
 
 function supersededClaimResponse(event: Stripe.Event) {
@@ -72,7 +98,6 @@ function supersededClaimResponse(event: Stripe.Event) {
 
 export async function POST(request: Request) {
   const startedAt = Date.now();
-
   let stripe: Stripe;
   let webhookSecret: string;
 
@@ -105,11 +130,7 @@ export async function POST(request: Request) {
 
   try {
     const rawBody = await request.text();
-    event = stripe.webhooks.constructEvent(
-      rawBody,
-      signature,
-      webhookSecret
-    );
+    event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
   } catch (error) {
     return secureApiErrorResponse({
       error,
@@ -162,9 +183,7 @@ export async function POST(request: Request) {
       attemptCount
     );
 
-    if (!finalized) {
-      return supersededClaimResponse(event);
-    }
+    if (!finalized) return supersededClaimResponse(event);
 
     return NextResponse.json({
       received: true,
