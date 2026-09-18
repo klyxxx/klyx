@@ -14,7 +14,7 @@ const readinessRoute = fs.readFileSync(
 const checkoutRoute = fs.readFileSync(
   path.join(
     process.cwd(),
-    "app/api/bookings/split-missions/[id]/checkout/route.ts"
+    "app/api/bookings/split-missions/[id]/checkout/route-core.ts"
   ),
   "utf8"
 );
