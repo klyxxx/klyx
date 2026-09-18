@@ -9,17 +9,17 @@ describe("Stripe Connect account creation idempotency", () => {
         accountId: "account-123",
         runtimeMode: "test",
       })
-    ).toBe("klyx-connect-account-test-account-123-account-v1");
+    ).toBe("klyx-connect-account-test-account-123-initial-v4");
 
     expect(
       stripeConnectAccountCreateIdempotencyKey({
         accountId: "account-123",
         runtimeMode: "live",
       })
-    ).toBe("klyx-connect-account-live-account-123-account-v1");
+    ).toBe("klyx-connect-account-live-account-123-initial-v4");
   });
 
-  it("does not expose any stale-account replacement key path", () => {
+  it("does not vary when a legacy active profile changes", () => {
     const first = stripeConnectAccountCreateIdempotencyKey({
       accountId: "account-123",
       runtimeMode: "live",
@@ -29,33 +29,32 @@ describe("Stripe Connect account creation idempotency", () => {
       runtimeMode: "live",
     });
 
-    expect(retry).toBe(first);
-    expect(first).not.toContain("replace-");
-    expect(first).not.toContain("profile-");
+    expect(first).toBe(retry);
+    expect(first).not.toContain("profile");
   });
 
-  it("isolates different canonical accounts without rotating identity", () => {
+  it("rotates the account-create key revision without making retries random", () => {
     const first = stripeConnectAccountCreateIdempotencyKey({
       accountId: "account-123",
       runtimeMode: "live",
     });
-    const second = stripeConnectAccountCreateIdempotencyKey({
-      accountId: "account-456",
+    const retry = stripeConnectAccountCreateIdempotencyKey({
+      accountId: "account-123",
       runtimeMode: "live",
     });
 
-    expect(first).not.toBe(second);
-    expect(first.endsWith("-account-v1")).toBe(true);
+    expect(first).toBe(retry);
+    expect(first.endsWith("-v4")).toBe(true);
   });
 
-  it("normalizes untrusted account key fragments", () => {
+  it("normalizes untrusted key fragments", () => {
     const key = stripeConnectAccountCreateIdempotencyKey({
       accountId: " account:with spaces ",
       runtimeMode: "test",
     });
 
     expect(key).toBe(
-      "klyx-connect-account-test-account-with-spaces-account-v1"
+      "klyx-connect-account-test-account-with-spaces-initial-v4"
     );
     expect(key.length).toBeLessThanOrEqual(255);
   });
