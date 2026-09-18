@@ -416,22 +416,47 @@ function groupPaymentEconomics(
       getKlyxCommissionPercent()
     );
 
-  const platformFee =
+  const providerSettlementMode =
     paymentMode ===
-    "connect_destination"
-      ? group.application_fee_amount ??
+      "connect_destination" ||
+    paymentMode ===
+      "platform_held";
+
+  const frozenFee =
+    group.platform_fee_amount ??
+    group.application_fee_amount;
+
+  const platformFee =
+    providerSettlementMode
+      ? frozenFee ??
         economics.platformFeeCents
       : 0;
 
   const providerAmount =
-    paymentMode ===
-    "connect_destination"
-      ? Math.max(
+    providerSettlementMode
+      ? group.provider_amount ??
+        Math.max(
           amountTotal -
             platformFee,
           0
         )
       : null;
+
+  if (
+    paymentMode ===
+      "platform_held" &&
+    (
+      frozenFee == null ||
+      group.provider_amount == null ||
+      platformFee +
+        group.provider_amount !==
+        amountTotal
+    )
+  ) {
+    throw new Error(
+      "KLYX_GROUP_HELD_ECONOMICS_MISMATCH"
+    );
+  }
 
   return {
     amountTotal,
@@ -512,8 +537,12 @@ async function upsertGroupPaymentLedgers(
       fee;
 
     const childProviderAmount =
-      params.economics.paymentMode ===
-      "connect_destination"
+      [
+        "connect_destination",
+        "platform_held",
+      ].includes(
+        params.economics.paymentMode
+      )
         ? Math.max(
             gross - fee,
             0
