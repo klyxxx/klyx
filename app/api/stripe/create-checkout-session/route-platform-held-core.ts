@@ -8,9 +8,11 @@ import { calculateKlyxEconomics, getKlyxCommissionPercent } from "@/lib/klyx-eco
 import { assessKlyxStripeMarketAccess } from "@/lib/klyx-stripe-market-access";
 import { logServerInfo, logServerWarning } from "@/lib/server-log";
 import {
-  getProviderStripeDestination,
-  isStripeConnectIdentityReviewRequired,
-} from "@/lib/stripe-connect-account";
+  assertStripeConnectIdentityUsable,
+  getProfileAccountStripeConnectIdentity,
+  STRIPE_CONNECT_IDENTITY_CONFLICT,
+  STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED,
+} from "@/lib/stripe-connect-account-identity";
 import {
   assessStripeConnectCountry,
   STRIPE_ACCOUNT_COUNTRY_MISMATCH,
@@ -323,9 +325,24 @@ export async function POST(request: Request) {
     const providerId = booking.provider_id ?? booking.babysitter_id;
     if (!providerId) throw new Error("Prestataire introuvable.");
 
-    const provider = await getProviderStripeDestination(providerId);
+    const { data: providerProfile, error: providerProfileError } =
+      await supabaseAdmin
+        .from("profiles")
+        .select("country_code")
+        .eq("id", providerId)
+        .maybeSingle();
+
+    if (providerProfileError) throw new Error(providerProfileError.message);
+    if (!providerProfile) throw new Error("Prestataire introuvable.");
+
+    const providerIdentity =
+      await getProfileAccountStripeConnectIdentity(providerId);
+    const canonicalStripeAccountId =
+      assertStripeConnectIdentityUsable(providerIdentity);
+
+    const providerCountryCode = providerProfile.country_code?.trim() ?? "";
     const providerMarketAccess = assessKlyxStripeMarketAccess(
-      provider.countryCode ?? "",
+      providerCountryCode,
       stripeRuntime.mode
     );
 
@@ -340,7 +357,6 @@ export async function POST(request: Request) {
       );
     }
 
-    const canonicalStripeAccountId = provider.connect.stripeAccountId;
     if (!canonicalStripeAccountId) {
       return NextResponse.json(
         {
@@ -355,7 +371,7 @@ export async function POST(request: Request) {
       canonicalStripeAccountId
     );
     const countryAssessment = assessStripeConnectCountry({
-      klyxCountryCode: provider.countryCode,
+      klyxCountryCode: providerCountryCode,
       stripeCountryCode: providerStripeAccount.country,
     });
 
@@ -605,7 +621,14 @@ export async function POST(request: Request) {
       serviceSlug: service.slug,
     });
   } catch (error) {
-    if (isStripeConnectIdentityReviewRequired(error)) {
+    if (
+      error instanceof Error &&
+      [
+        STRIPE_CONNECT_IDENTITY_CONFLICT,
+        STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED,
+        "KLYX_CANONICAL_ACCOUNT_REQUIRED",
+      ].includes(error.message)
+    ) {
       return NextResponse.json(
         {
           error: "L'identité Stripe Connect du prestataire nécessite une revue avant paiement.",
