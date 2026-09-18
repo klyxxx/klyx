@@ -6,9 +6,11 @@ import Stripe from "stripe";
 import { getAuthenticatedProfile, requireAccountType } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
 import {
-  getProviderStripeDestination,
-  isStripeConnectIdentityReviewRequired,
-} from "@/lib/stripe-connect-account";
+  assertStripeConnectIdentityUsable,
+  getProfileAccountStripeConnectIdentity,
+  STRIPE_CONNECT_IDENTITY_CONFLICT,
+  STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED,
+} from "@/lib/stripe-connect-account-identity";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 // KLYX_SPLIT_PAYMENT_CONFIRMATION_API_13_26
@@ -297,12 +299,10 @@ async function inspect(batchId: string, profileId: string) {
     let canonicalStripeAccountId: string;
 
     try {
-      const destination = await getProviderStripeDestination(providerId);
+      const identity = await getProfileAccountStripeConnectIdentity(providerId);
+      const stripeAccountId = assertStripeConnectIdentityUsable(identity);
 
-      if (
-        destination.connect.state !== "linked" ||
-        !destination.connect.stripeAccountId
-      ) {
+      if (!stripeAccountId) {
         return {
           batch,
           ready: false,
@@ -313,9 +313,16 @@ async function inspect(batchId: string, profileId: string) {
         };
       }
 
-      canonicalStripeAccountId = destination.connect.stripeAccountId;
+      canonicalStripeAccountId = stripeAccountId;
     } catch (error) {
-      if (isStripeConnectIdentityReviewRequired(error)) {
+      if (
+        error instanceof Error &&
+        [
+          STRIPE_CONNECT_IDENTITY_CONFLICT,
+          STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED,
+          "KLYX_CANONICAL_ACCOUNT_REQUIRED",
+        ].includes(error.message)
+      ) {
         return {
           batch,
           ready: false,
