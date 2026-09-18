@@ -555,26 +555,87 @@ async function runRefundBeforeReleaseScenario({
   assert(cancellation.payload?.status === "cancelled", "Refund-before-release cancellation did not complete.");
   assert(cancellation.payload?.refunded === true, "Refund-before-release did not create the customer refund.");
 
+  const { data: refundStartedBooking, error: refundStartedBookingError } = await admin
+    .from("bookings")
+    .select("payment_status, refund_status, stripe_refund_id, refunded_amount_cents")
+    .eq("id", booking.id)
+    .single();
+  if (refundStartedBookingError) {
+    throw new Error(`Unable to verify pre-release refund creation: ${refundStartedBookingError.message}`);
+  }
+
+  assert(
+    refundStartedBooking.stripe_refund_id?.startsWith("re_"),
+    "Pre-release Stripe refund id is missing."
+  );
+  assert(
+    ["processing", "succeeded"].includes(refundStartedBooking.refund_status),
+    `Pre-release refund entered an invalid local status: ${refundStartedBooking.refund_status}.`
+  );
+  assert(
+    ["paid", "refunded"].includes(refundStartedBooking.payment_status),
+    `Pre-release booking entered an invalid payment status: ${refundStartedBooking.payment_status}.`
+  );
+
+  let remoteRefund = await stripe.refunds.retrieve(
+    refundStartedBooking.stripe_refund_id
+  );
+
+  for (let attempt = 0; attempt < 20 && remoteRefund.status === "pending"; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    remoteRefund = await stripe.refunds.retrieve(refundStartedBooking.stripe_refund_id);
+  }
+
+  assert(
+    remoteRefund.livemode === false,
+    "Remote pre-release refund unexpectedly used live mode."
+  );
+  assert(
+    remoteRefund.status === "succeeded",
+    `Remote pre-release refund did not converge to succeeded: ${remoteRefund.status}.`
+  );
+  assert(
+    stripeObjectId(remoteRefund.payment_intent) === intent.id,
+    "Pre-release refund PaymentIntent mismatch."
+  );
+
+  const refundEvent = {
+    id: `evt_test_klyx_held_refund_${randomUUID().replaceAll("-", "")}`,
+    object: "event",
+    created: Math.floor(Date.now() / 1000),
+    data: { object: remoteRefund },
+    livemode: false,
+    pending_webhooks: 1,
+    request: { id: null, idempotency_key: null },
+    type: "refund.updated",
+  };
+  const refundWebhook = await postSignedWebhook({
+    appOrigin,
+    webhookSecret,
+    event: refundEvent,
+  });
+  assert(
+    refundWebhook.payload?.received === true && refundWebhook.payload?.duplicate === false,
+    "KLYX did not reconcile the succeeded pre-release refund webhook."
+  );
+
   const { data: refundedBooking, error: refundedBookingError } = await admin
     .from("bookings")
     .select("payment_status, refund_status, stripe_refund_id, refunded_amount_cents")
     .eq("id", booking.id)
     .single();
-  if (refundedBookingError) throw new Error(`Unable to verify pre-release refund: ${refundedBookingError.message}`);
+  if (refundedBookingError) {
+    throw new Error(`Unable to verify terminal pre-release refund: ${refundedBookingError.message}`);
+  }
 
   assert(refundedBooking.payment_status === "refunded", "Pre-release booking is not terminal refunded.");
-  assert(refundedBooking.refund_status === "succeeded", "Pre-release refund did not succeed.");
-  assert(refundedBooking.stripe_refund_id?.startsWith("re_"), "Pre-release Stripe refund id is missing.");
-
-  const remoteRefund = await stripe.refunds.retrieve(refundedBooking.stripe_refund_id);
-  assert(remoteRefund.livemode === false && remoteRefund.status === "succeeded", "Remote pre-release refund is not a succeeded TEST refund.");
-  assert(stripeObjectId(remoteRefund.payment_intent) === intent.id, "Pre-release refund PaymentIntent mismatch.");
+  assert(refundedBooking.refund_status === "succeeded", "Pre-release refund did not become terminal succeeded.");
+  assert(refundedBooking.stripe_refund_id === remoteRefund.id, "Pre-release refund id changed during reconciliation.");
 
   const terminal = await loadSettlement(admin, booking.id);
   assert(terminal.state === "refunded", `Pre-release settlement did not become refunded: ${terminal.state}.`);
   assert(terminal.stripe_transfer_id === null, "Pre-release refund must not create a provider Transfer.");
   assert(terminal.stripe_transfer_reversal_id === null, "Pre-release refund must not create a reversal.");
-
   const afterTransfers = await stripe.transfers.list({
     transfer_group: held.transfer_group,
     destination: held.stripe_account_id,
