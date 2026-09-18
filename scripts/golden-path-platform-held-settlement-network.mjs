@@ -239,11 +239,18 @@ async function provisionConnectedAccount({ stripe, providerId }) {
 }
 
 async function bindCanonicalAccount(admin, accountId, stripeAccount) {
-  const { error: reviewsError } = await admin
-    .from("stripe_connect_identity_reviews")
+  // #799 authority: the canonical Stripe identity belongs to
+  // account_stripe_connect_identities. Profile Stripe fields are compatibility
+  // history only and accounts.stripe_* is never a routing authority.
+  const { error: identityResetError } = await admin
+    .from("account_stripe_connect_identities")
     .delete()
     .eq("account_id", accountId);
-  if (reviewsError) throw new Error(`Unable to clear local Stripe review fixture: ${reviewsError.message}`);
+  if (identityResetError) {
+    throw new Error(
+      `Unable to reset canonical Stripe identity fixture: ${identityResetError.message}`
+    );
+  }
 
   const { error: profilesError } = await admin
     .from("profiles")
@@ -254,54 +261,50 @@ async function bindCanonicalAccount(admin, accountId, stripeAccount) {
       stripe_payouts_enabled: stripeAccount.payouts_enabled,
     })
     .eq("account_id", accountId);
-  if (profilesError) throw new Error(`Unable to reset legacy profile Stripe fixture: ${profilesError.message}`);
-
-  const { error: accountResetError } = await admin
-    .from("accounts")
-    .update({
-      stripe_account_id: null,
-      stripe_connect_state: "unlinked",
-      stripe_onboarding_complete: false,
-      stripe_charges_enabled: false,
-      stripe_payouts_enabled: false,
-      stripe_status_updated_at: null,
-    })
-    .eq("id", accountId);
-  if (accountResetError) throw new Error(`Unable to reset canonical Stripe fixture: ${accountResetError.message}`);
-
-  const { data: bindData, error: bindError } = await admin.rpc(
-    "klyx_bind_account_stripe_connect",
-    {
-      p_account_id: accountId,
-      p_stripe_account_id: stripeAccount.id,
-    }
-  );
-  if (bindError) throw new Error(`Unable to bind canonical Stripe account: ${bindError.message}`);
-  if (bindData !== null && bindData !== undefined && bindData !== "linked") {
-    throw new Error(`Unexpected canonical Stripe binding result: ${String(bindData)}`);
+  if (profilesError) {
+    throw new Error(
+      `Unable to reset legacy profile Stripe fixture: ${profilesError.message}`
+    );
   }
 
-  const { error: statusError } = await admin
-    .from("accounts")
-    .update({
-      stripe_onboarding_complete: stripeAccount.details_submitted,
-      stripe_charges_enabled: stripeAccount.charges_enabled,
-      stripe_payouts_enabled: stripeAccount.payouts_enabled,
-      stripe_status_updated_at: new Date().toISOString(),
-    })
-    .eq("id", accountId)
-    .eq("stripe_account_id", stripeAccount.id)
-    .eq("stripe_connect_state", "linked");
-  if (statusError) throw new Error(`Unable to persist canonical Stripe status: ${statusError.message}`);
+  const { error: bindError } = await admin
+    .from("account_stripe_connect_identities")
+    .upsert(
+      {
+        account_id: accountId,
+        stripe_account_id: stripeAccount.id,
+        identity_state: "linked",
+        source_profile_ids: [],
+        conflicting_stripe_account_ids: [],
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "account_id" }
+    );
+  if (bindError) {
+    throw new Error(
+      `Unable to bind canonical Stripe identity: ${bindError.message}`
+    );
+  }
 
   const { data: canonical, error: canonicalError } = await admin
-    .from("accounts")
-    .select("stripe_account_id, stripe_connect_state")
-    .eq("id", accountId)
+    .from("account_stripe_connect_identities")
+    .select("stripe_account_id, identity_state")
+    .eq("account_id", accountId)
     .single();
-  if (canonicalError) throw new Error(`Unable to verify canonical Stripe binding: ${canonicalError.message}`);
-  assert(canonical.stripe_account_id === stripeAccount.id, "Canonical account did not retain the Stripe account id.");
-  assert(canonical.stripe_connect_state === "linked", "Canonical Stripe account is not linked.");
+  if (canonicalError) {
+    throw new Error(
+      `Unable to verify canonical Stripe binding: ${canonicalError.message}`
+    );
+  }
+
+  assert(
+    canonical.stripe_account_id === stripeAccount.id,
+    "Canonical account did not retain the Stripe account id."
+  );
+  assert(
+    canonical.identity_state === "linked",
+    "Canonical Stripe account is not linked."
+  );
 }
 
 async function createHeldCheckout({ appOrigin, accessToken, clientId, bookingId }) {
@@ -1191,18 +1194,30 @@ async function main() {
         }
       }
 
-      const { error: localResetError } = await admin
-        .from("accounts")
+      const { error: identityResetError } = await admin
+        .from("account_stripe_connect_identities")
+        .delete()
+        .eq("account_id", accountId);
+      if (identityResetError) {
+        throw new Error(
+          `Unable to reset local canonical Stripe identity fixture: ${identityResetError.message}`
+        );
+      }
+
+      const { error: profileResetError } = await admin
+        .from("profiles")
         .update({
           stripe_account_id: null,
-          stripe_connect_state: "unlinked",
           stripe_onboarding_complete: false,
           stripe_charges_enabled: false,
           stripe_payouts_enabled: false,
-          stripe_status_updated_at: null,
         })
-        .eq("id", accountId);
-      if (localResetError) throw new Error(`Unable to reset local canonical Stripe fixture: ${localResetError.message}`);
+        .eq("account_id", accountId);
+      if (profileResetError) {
+        throw new Error(
+          `Unable to reset local legacy profile Stripe fixture: ${profileResetError.message}`
+        );
+      }
     } catch (error) {
       cleanupFailure = error instanceof Error ? error.message : String(error);
     }
