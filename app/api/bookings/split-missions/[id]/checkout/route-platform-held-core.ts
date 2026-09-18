@@ -37,6 +37,7 @@ type CanonicalUnit = {
   amountCents: number;
   currency: string;
   bookingIds: string[];
+  slotIds: string[];
   stripeAccountId: string;
 };
 
@@ -123,6 +124,7 @@ function parseCanonicalPlan(value: unknown): CanonicalPlan | null {
     const amountCents = numberValue(unit.amountCents);
     const currency = text(unit.currency).toUpperCase();
     const bookingIds = strings(unit.bookingIds);
+    const slotIds = strings(unit.slotIds);
     const stripeAccountId = text(unit.stripeAccountId);
 
     if (
@@ -131,6 +133,8 @@ function parseCanonicalPlan(value: unknown): CanonicalPlan | null {
       amountCents <= 0 ||
       currency.length !== 3 ||
       bookingIds.length === 0 ||
+      slotIds.length === 0 ||
+      bookingIds.length !== slotIds.length ||
       !stripeAccountId.startsWith("acct_")
     ) {
       return null;
@@ -141,6 +145,7 @@ function parseCanonicalPlan(value: unknown): CanonicalPlan | null {
       amountCents,
       currency,
       bookingIds,
+      slotIds,
       stripeAccountId,
     });
   }
