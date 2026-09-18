@@ -20,8 +20,8 @@ describe("KLYX split Stripe readiness live market alignment", () => {
     expect(source).toContain("assessKlyxStripeMarketAccess");
     expect(source).toContain("getStripeRuntimeMode");
     expect(source).toContain("profile.countryCode");
-    expect(source).toContain("getProviderStripeDestination(providerId)");
-    expect(source).toContain("destination.countryCode");
+    expect(source).toContain("getProfileAccountStripeConnectIdentity(providerId)");
+    expect(source).toContain("providerProfile.country_code");
     expect(source).toContain('blockReason = "CLIENT_MARKET_NOT_READY"');
     expect(source).toContain('blockReason = "PROVIDER_MARKET_NOT_READY"');
   });
@@ -29,7 +29,7 @@ describe("KLYX split Stripe readiness live market alignment", () => {
   it("checks provider market access before any Stripe network account lookup", () => {
     const source = readRoute();
     const providerDestination = source.indexOf(
-      "getProviderStripeDestination(providerId)"
+      "getProfileAccountStripeConnectIdentity(providerId)"
     );
     const providerGate = source.indexOf("!providerMarketAccess.allowed");
     const accountRetrieve = source.indexOf("stripe.accounts.retrieve");
@@ -42,11 +42,10 @@ describe("KLYX split Stripe readiness live market alignment", () => {
   it("fails closed on canonical identity review while exposing combined checkout readiness", () => {
     const source = readRoute();
 
-    expect(source).toContain("isStripeConnectIdentityReviewRequired");
+    expect(source).toContain('identity.state === "conflict"');
     expect(source).toContain('"identity_review_required"');
-    expect(source).toContain(
-      '"KLYX_STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED"'
-    );
+    expect(source).toContain("STRIPE_CONNECT_IDENTITY_CONFLICT");
+    expect(source).toContain("STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED");
     expect(source).toContain("allProvidersStripeReady");
     expect(source).toContain(
       "const checkoutReady = clientMarketAccess.allowed && allProvidersStripeReady"
