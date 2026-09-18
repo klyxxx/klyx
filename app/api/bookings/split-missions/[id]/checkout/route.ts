@@ -73,12 +73,12 @@ export async function GET(request: Request, context: RouteContext) {
 export async function POST(request: Request, context: RouteContext) {
   const startedAt = Date.now();
   let selectedPost = corePost;
+  let platformHeldMode = false;
 
   try {
-    selectedPost =
-      getKlyxSettlementMode() === KLYX_PLATFORM_HELD_SETTLEMENT_MODE
-        ? platformHeldPost
-        : corePost;
+    platformHeldMode =
+      getKlyxSettlementMode() === KLYX_PLATFORM_HELD_SETTLEMENT_MODE;
+    selectedPost = platformHeldMode ? platformHeldPost : corePost;
   } catch (error) {
     return secureApiErrorResponse({
       error,
@@ -188,9 +188,12 @@ export async function POST(request: Request, context: RouteContext) {
         .eq("batch_id", batchId)
         .eq("client_profile_id", profile.id)
         .is("invalidated_at", null)
-        .is("consumed_at", null)
         .order("confirmed_at", { ascending: false })
         .limit(1);
+
+      if (!platformHeldMode) {
+        confirmationQuery = confirmationQuery.is("consumed_at", null);
+      }
     }
 
     const { data: confirmation, error: confirmationError } =
