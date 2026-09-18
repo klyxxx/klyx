@@ -3,7 +3,9 @@ import "server-only";
 import type Stripe from "stripe";
 
 import { sendKlyxDeduplicatedEmail } from "@/lib/email/deduplicated-delivery";
-import { providerPaymentsReadyEmail } from "@/lib/email/lifecycle-templates";
+import {
+  providerPaymentsReadyEmail,
+} from "@/lib/email/lifecycle-templates";
 import {
   sendBookingPaymentFailedEmail,
   sendBookingPaymentSucceededEmails,
@@ -47,11 +49,6 @@ type SplitPaymentEmailRow = {
   refund_status: string;
 };
 
-type StripeReadyAccountRow = {
-  id: string;
-  auth_user_id: string;
-};
-
 function warn(code: string): void {
   logServerWarning({
     event: "stripe_transactional_email_hook_failed",
@@ -61,6 +58,7 @@ function warn(code: string): void {
 
 function stringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
+
   return value.filter(
     (item): item is string =>
       typeof item === "string" && Boolean(item.trim())
@@ -77,6 +75,7 @@ async function bookingFromSession(
   session: Stripe.Checkout.Session
 ): Promise<BookingPaymentEmailRow | null> {
   const bookingId = session.metadata?.booking_id?.trim();
+
   let query = supabaseAdmin
     .from("bookings")
     .select("id, parent_id, provider_id, babysitter_id, payment_status");
@@ -86,6 +85,7 @@ async function bookingFromSession(
     : query.eq("stripe_checkout_session_id", session.id);
 
   const { data, error } = await query.maybeSingle();
+
   if (error) throw new Error(error.message);
   return data ? (data as BookingPaymentEmailRow) : null;
 }
@@ -94,6 +94,7 @@ async function bookingFromIntent(
   intent: Stripe.PaymentIntent
 ): Promise<BookingPaymentEmailRow | null> {
   const bookingId = intent.metadata?.booking_id?.trim();
+
   let query = supabaseAdmin
     .from("bookings")
     .select("id, parent_id, provider_id, babysitter_id, payment_status");
@@ -103,6 +104,7 @@ async function bookingFromIntent(
     : query.eq("stripe_payment_intent_id", intent.id);
 
   const { data, error } = await query.maybeSingle();
+
   if (error) throw new Error(error.message);
   return data ? (data as BookingPaymentEmailRow) : null;
 }
@@ -123,6 +125,7 @@ async function bookingFromRefund(
     : query.eq("stripe_payment_intent_id", intentId as string);
 
   const { data, error } = await query.maybeSingle();
+
   if (error) throw new Error(error.message);
   return data ? (data as BookingPaymentEmailRow) : null;
 }
@@ -131,6 +134,7 @@ async function groupFromSession(
   session: Stripe.Checkout.Session
 ): Promise<GroupPaymentEmailRow | null> {
   const groupId = session.metadata?.booking_group_id?.trim();
+
   let query = supabaseAdmin
     .from("booking_groups")
     .select(
@@ -142,6 +146,7 @@ async function groupFromSession(
     : query.eq("stripe_checkout_session_id", session.id);
 
   const { data, error } = await query.maybeSingle();
+
   if (error) throw new Error(error.message);
   return data ? (data as GroupPaymentEmailRow) : null;
 }
@@ -210,7 +215,9 @@ async function sendBookingStateEmail(
   }
 }
 
-async function sendGroupStateEmail(group: GroupPaymentEmailRow): Promise<void> {
+async function sendGroupStateEmail(
+  group: GroupPaymentEmailRow
+): Promise<void> {
   if (group.payment_status === "paid") {
     await sendGroupPaymentSucceededEmails({
       groupId: group.id,
@@ -227,7 +234,9 @@ async function sendGroupStateEmail(group: GroupPaymentEmailRow): Promise<void> {
   }
 }
 
-async function sendSplitStateEmail(unit: SplitPaymentEmailRow): Promise<void> {
+async function sendSplitStateEmail(
+  unit: SplitPaymentEmailRow
+): Promise<void> {
   const bookingId = stringArray(unit.booking_ids)[0];
   if (!bookingId) return;
 
@@ -257,7 +266,9 @@ async function sendSplitStateEmail(unit: SplitPaymentEmailRow): Promise<void> {
   }
 }
 
-async function sendCheckoutEmail(session: Stripe.Checkout.Session): Promise<void> {
+async function sendCheckoutEmail(
+  session: Stripe.Checkout.Session
+): Promise<void> {
   const splitUnitId = session.metadata?.split_payment_unit_id?.trim();
   if (splitUnitId) {
     const unit = await splitUnitById(splitUnitId);
@@ -275,7 +286,9 @@ async function sendCheckoutEmail(session: Stripe.Checkout.Session): Promise<void
   if (booking) await sendBookingStateEmail(booking);
 }
 
-async function sendIntentEmail(intent: Stripe.PaymentIntent): Promise<void> {
+async function sendIntentEmail(
+  intent: Stripe.PaymentIntent
+): Promise<void> {
   const splitUnitId = intent.metadata?.split_payment_unit_id?.trim();
   if (splitUnitId) {
     const unit = await splitUnitById(splitUnitId);
@@ -296,6 +309,7 @@ async function sendIntentEmail(intent: Stripe.PaymentIntent): Promise<void> {
 async function sendRefundEmail(refund: Stripe.Refund): Promise<void> {
   const intentId = refundPaymentIntentId(refund);
   const splitUnitId = refund.metadata?.split_payment_unit_id?.trim();
+
   const splitUnit = splitUnitId
     ? await splitUnitById(splitUnitId)
     : intentId
@@ -397,34 +411,19 @@ async function sendProviderReadyEmail(account: Stripe.Account): Promise<void> {
     return;
   }
 
-  /*
-   * Connect ownership is canonical-account state. Do not fall back to a legacy
-   * profile Stripe id here: absence/ambiguity at account level must remain
-   * fail-closed and the webhook synchronizer runs before this email hook.
-   */
   const { data, error } = await supabaseAdmin
-    .from("accounts")
-    .select("id, auth_user_id")
+    .from("profiles")
+    .select("id")
     .eq("stripe_account_id", account.id)
-    .eq("stripe_connect_state", "linked")
     .maybeSingle();
 
   if (error) throw new Error(error.message);
-  if (!data) return;
-
-  const canonical = data as StripeReadyAccountRow;
-  const { data: authData, error: authError } =
-    await supabaseAdmin.auth.admin.getUserById(canonical.auth_user_id);
-
-  if (authError) throw new Error(authError.message);
-
-  const to = authData.user?.email?.trim() ?? "";
-  if (!to) return;
+  if (!data?.id) return;
 
   await sendKlyxDeduplicatedEmail({
-    deduplicationKey: `account:${canonical.id}:stripe-payments-ready`,
+    deduplicationKey: `profile:${data.id}:stripe-payments-ready`,
     templateKey: "provider.stripe_ready",
-    to,
+    profileId: data.id,
     ...providerPaymentsReadyEmail(),
   });
 }
@@ -439,7 +438,9 @@ export async function sendStripeLifecycleEmails(
       event.type === "checkout.session.async_payment_failed" ||
       event.type === "checkout.session.expired"
     ) {
-      await sendCheckoutEmail(event.data.object as Stripe.Checkout.Session);
+      await sendCheckoutEmail(
+        event.data.object as Stripe.Checkout.Session
+      );
       return;
     }
 
@@ -447,7 +448,9 @@ export async function sendStripeLifecycleEmails(
       event.type === "payment_intent.succeeded" ||
       event.type === "payment_intent.payment_failed"
     ) {
-      await sendIntentEmail(event.data.object as Stripe.PaymentIntent);
+      await sendIntentEmail(
+        event.data.object as Stripe.PaymentIntent
+      );
       return;
     }
 
