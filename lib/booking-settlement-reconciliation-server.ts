@@ -935,7 +935,9 @@ export async function reconcilePlatformHeldBookingSettlement(input: {
 
     const transfer = await findTransfer(stripe, settlement, chargeId);
     const refund = await findRefund(stripe, settlement, booking);
-    const refundIsActive = activeRefund(settlement, booking, refund);
+    const refundIsActive =
+      input.source === "refund" ||
+      activeRefund(settlement, booking, refund);
 
     await audit({
       runId,
