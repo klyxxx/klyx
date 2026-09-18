@@ -34,9 +34,9 @@ describe("KLYX split Stripe readiness live market alignment", () => {
     const providerGate = source.indexOf("!providerMarketAccess.allowed");
     const accountRetrieve = source.indexOf("stripe.accounts.retrieve");
 
-    expect(providerDestination).toBeGreaterThan(-1);
-    expect(providerGate).toBeGreaterThan(providerDestination);
-    expect(accountRetrieve).toBeGreaterThan(providerGate);
+    expect(providerGate).toBeGreaterThan(-1);
+    expect(providerDestination).toBeGreaterThan(providerGate);
+    expect(accountRetrieve).toBeGreaterThan(providerDestination);
   });
 
   it("fails closed on canonical identity review while exposing combined checkout readiness", () => {
