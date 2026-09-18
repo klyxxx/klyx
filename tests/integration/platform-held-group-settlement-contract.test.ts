@@ -145,8 +145,8 @@ describe("KLYX TEST-only platform-held group settlement", () => {
     expect(release).toContain(
       '"klyx-booking-group-settlement-reversal-" + groupId'
     );
-    expect(core).toContain(
-      'group.payment_mode ===\n        "connect_destination"'
+    expect(compact(core)).toContain(
+      'group.payment_mode === "connect_destination"'
     );
     expect(core).toContain("reverse_transfer:");
   });
