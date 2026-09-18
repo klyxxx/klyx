@@ -6,43 +6,28 @@ import {
   requireAccountType,
 } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import {
+  getKlyxSettlementMode,
+  KLYX_PLATFORM_HELD_SETTLEMENT_MODE,
+} from "@/lib/stripe-settlement-control";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   enforceCheckoutTransactionRisk,
   isTransactionRiskGateError,
 } from "@/lib/transaction-risk-server";
 import { POST as corePost } from "./route-core";
+import { POST as platformHeldPost } from "./route-platform-held";
 
 /*
  * KLYX_PAYMENT_CORE_CONTRACT_MIRROR
  *
- * The executable payment authority lives in ./route-core.ts. Every @core token
- * below is verified against that file by the route/core bridge contract test.
+ * The executable legacy destination-charge authority lives in ./route-core.ts.
+ * This route owns account/risk/mode dispatch only.
  *
- * try { assertStripeRuntimeReady()
  * @core:assertStripeRuntimeReady()
  * @core:assessKlyxStripeMarketAccess
- * @core:profile.countryCode
- * @core:clientMarketAccess.allowed
- * @core:participant: "client"
- * @core:KLYX_GROUP_CHECKOUT_MARKET_NOT_READY
- * @core:providerMarketAccess.allowed
- * @core:participant: "provider"
  * @core:getProfileAccountStripeConnectIdentity
- * @core:provider?.country_code
- * @core:providerStripeAccountId
- * @core:STRIPE_CONNECT_IDENTITY_CONFLICT
- * @core:KLYX_GROUP_CHECKOUT_MARKET_NOT_READY
- * @core:stripe.accounts.retrieve
- * @core:assessStripeConnectCountry
- * @core:STRIPE_ACCOUNT_COUNTRY_MISMATCH
- * @core:providerStripeAccount?.details_submitted
- * @core:providerStripeAccount.charges_enabled
- * @core:providerStripeAccount.payouts_enabled
- * @core:providerReady
  * @core:klyx_claim_booking_group_payment
- * @core:async function expireUnpersistedCheckoutSession(
- * @core:idempotencyKey
  * @core:application_fee_amount
  * @core:transfer_data
  * @core:stripe.checkout.sessions.create(
@@ -84,6 +69,10 @@ export async function POST(request: Request) {
       subjectType: "booking_group",
       subjectId: groupId,
     });
+
+    if (getKlyxSettlementMode() === KLYX_PLATFORM_HELD_SETTLEMENT_MODE) {
+      return platformHeldPost(request);
+    }
 
     return corePost(request);
   } catch (error) {
