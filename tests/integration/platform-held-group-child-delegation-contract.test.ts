@@ -14,10 +14,17 @@ const source = fs
   .replace(/\s+/g, " ");
 
 describe("KLYX platform-held group child delegation", () => {
-  it("preserves the standalone booking settlement guard", () => {
+  it("preserves the post-803 NULL-safe standalone guards", () => {
+    expect(source).toContain(
+      "coalesce(new.payment_mode, '') <> 'platform_held'"
+    );
+    expect(source).toContain(
+      "coalesce(new.payment_status, '') <> 'paid'"
+    );
+    expect(source).toContain(
+      "coalesce(old.payment_status, '') = 'paid'"
+    );
     expect(source).toContain("from public.booking_settlements");
-    expect(source).toContain("KLYX_PLATFORM_HELD_SETTLEMENT_MISSING");
-    expect(source).toContain("KLYX_PLATFORM_HELD_PAID_SETTLEMENT_NOT_WRITABLE");
   });
 
   it("does not require one booking_settlements row per group child", () => {
@@ -25,14 +32,8 @@ describe("KLYX platform-held group child delegation", () => {
     expect(occurrences.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("keeps the legacy NULL-safe platform-held boundary before delegation", () => {
-    const modeChecks =
-      source.match(/coalesce\(new\.payment_mode, ''\) <> 'platform_held'/g) ?? [];
-    const paidChecks =
-      source.match(/coalesce\(new\.payment_status, ''\) <> 'paid'/g) ?? [];
-
-    expect(modeChecks.length).toBeGreaterThanOrEqual(2);
-    expect(paidChecks.length).toBeGreaterThanOrEqual(2);
-    expect(source).toContain("coalesce(old.payment_status, '') = 'paid'");
+  it("keeps fail-closed standalone settlement errors", () => {
+    expect(source).toContain("KLYX_PLATFORM_HELD_SETTLEMENT_MISSING");
+    expect(source).toContain("KLYX_PLATFORM_HELD_PAID_SETTLEMENT_NOT_WRITABLE");
   });
 });

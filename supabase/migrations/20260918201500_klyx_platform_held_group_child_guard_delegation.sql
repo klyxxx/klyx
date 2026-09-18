@@ -1,8 +1,8 @@
--- KLYX PLATFORM-HELD BOOKING GUARDS — GROUP CHILD DELEGATION
+-- KLYX PLATFORM-HELD BOOKING GUARDS — NULL-SAFE GROUP CHILD DELEGATION
 --
--- The single-booking control plane remains authoritative for standalone
--- bookings. Children of a booking group are intentionally governed by the
--- parent booking_group_settlements row and the group-specific ledger guard.
+-- Preserve the post-#803 NULL-safe behavior for legacy/non-platform-held
+-- standalone bookings while delegating grouped children to the parent
+-- booking_group_settlements control plane.
 
 begin;
 
@@ -81,14 +81,10 @@ begin
 end;
 $$;
 
-revoke all on function public.klyx_guard_platform_held_booking_economics()
-  from public, anon, authenticated;
-revoke all on function public.klyx_mark_platform_held_booking_paid()
-  from public, anon, authenticated;
-
 comment on function public.klyx_guard_platform_held_booking_economics() is
-  'Standalone platform-held bookings use booking_settlements; grouped children delegate frozen economics to booking_group_settlements.';
+  'NULL-safe standalone platform-held economics guard; grouped children delegate frozen economics to booking_group_settlements.';
+
 comment on function public.klyx_mark_platform_held_booking_paid() is
-  'Marks only standalone platform-held booking settlements held; grouped children are reconciled by the parent group settlement.';
+  'NULL-safe standalone platform-held paid reconciliation; grouped children are reconciled by the parent group settlement.';
 
 commit;
