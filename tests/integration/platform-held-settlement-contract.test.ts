@@ -212,6 +212,10 @@ describe("KLYX platform-held settlement phase-2 contract", () => {
     expect(proof).toContain("v2Account.livemode === false");
     expect(proof).toContain("legacyAccount.id === handoff.accountId");
     expect(proof).not.toContain("legacyAccount.livemode");
+    expect(proof).not.toContain("createdRefund.livemode");
+    expect(proof).toContain(
+      "stripeObjectId(createdRefund.charge) === charge.id && charge.livemode === false"
+    );
     expect(proof).not.toContain(
       "async function findPlatformHeldRecipientAccount"
     );

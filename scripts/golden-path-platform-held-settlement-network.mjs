@@ -958,7 +958,10 @@ async function runReleaseRetryReversalScenario({
     { idempotencyKey: `klyx-booking-refund-network-proof-${booking.id}` }
   );
 
-  assert(createdRefund.livemode === false, "Post-release Stripe TEST refund unexpectedly used live mode.");
+  assert(
+    stripeObjectId(createdRefund.charge) === charge.id && charge.livemode === false,
+    "Post-release Stripe TEST refund source charge is not the expected TEST charge."
+  );
   assert(
     ["pending", "succeeded"].includes(createdRefund.status),
     `Post-release Stripe TEST refund entered an unexpected state: ${createdRefund.status}.`
