@@ -1299,13 +1299,187 @@ async function main() {
 
     parent = await loadParent(admin, fixture.batch.id);
     members = await loadMembers(admin, parent.id);
-    const finalA = members.find((member) => member.id === refreshedA.id);
-    const finalB = members.find((member) => member.id === memberB.id);
+    let finalA = members.find((member) => member.id === refreshedA.id);
+    let finalB = members.find((member) => member.id === memberB.id);
 
     assert(Number(parent.refunded_amount_cents) === partialGross, "Parent refunded total mismatch.");
     assert(Number(finalA.reversed_amount_cents) === providerRefund, "Member reversal accounting mismatch.");
     assert(Number(finalA.refunded_gross_amount_cents) === partialGross, "Member refund accounting mismatch.");
     assert(finalB.state === "review_required", "Blocked executor B state was lost after sibling refund.");
+
+    // Total refund = all remaining frozen economics. The already released
+    // executor A must be reversed for its exact remaining provider amount;
+    // executor B never received a Transfer, so no reversal is created for B.
+    const totalRequestKey = "network-total-" + randomUUID();
+    const totalRefundBody = {
+      kind: "total",
+      requestKey: totalRequestKey,
+    };
+
+    await requestJson({
+      appOrigin,
+      accessToken,
+      profileId: client.id,
+      path: "/api/bookings/split-missions/" + fixture.batch.id + "/refund",
+      method: "POST",
+      body: totalRefundBody,
+    });
+
+    let { data: totalRefundRow, error: totalRefundError } = await admin
+      .from("platform_held_group_refunds")
+      .select("*")
+      .eq("group_settlement_id", parent.id)
+      .eq("request_key", totalRequestKey)
+      .single();
+    if (totalRefundError) throw new Error(totalRefundError.message);
+    assert(
+      totalRefundRow.stripe_refund_id?.startsWith("re_"),
+      "Stripe total refund id missing."
+    );
+
+    let remoteTotalRefund = await stripe.refunds.retrieve(
+      totalRefundRow.stripe_refund_id
+    );
+    for (
+      let attempt = 0;
+      attempt < 20 && remoteTotalRefund.status === "pending";
+      attempt += 1
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      remoteTotalRefund = await stripe.refunds.retrieve(
+        totalRefundRow.stripe_refund_id
+      );
+    }
+    assert(
+      remoteTotalRefund.status === "succeeded",
+      "Stripe total remainder refund did not succeed."
+    );
+
+    if (totalRefundRow.state !== "succeeded") {
+      const totalRefundEvent = {
+        id:
+          "evt_test_group_total_refund_" +
+          randomUUID().replaceAll("-", ""),
+        object: "event",
+        created: Math.floor(Date.now() / 1000),
+        data: { object: remoteTotalRefund },
+        livemode: false,
+        pending_webhooks: 1,
+        request: { id: null, idempotency_key: null },
+        type: "refund.updated",
+      };
+      await postWebhookRaw({
+        appOrigin,
+        webhookSecret,
+        event: totalRefundEvent,
+      });
+    }
+
+    // Same request key after terminal refund must reconcile, never mint another
+    // customer refund or recalculate a new allocation plan.
+    await requestJson({
+      appOrigin,
+      accessToken,
+      profileId: client.id,
+      path: "/api/bookings/split-missions/" + fixture.batch.id + "/refund",
+      method: "POST",
+      body: totalRefundBody,
+    });
+
+    ({ data: totalRefundRow, error: totalRefundError } = await admin
+      .from("platform_held_group_refunds")
+      .select("*")
+      .eq("group_settlement_id", parent.id)
+      .eq("request_key", totalRequestKey)
+      .single());
+    if (totalRefundError) throw new Error(totalRefundError.message);
+    assert(
+      totalRefundRow.state === "succeeded",
+      "Local total refund did not finalize."
+    );
+
+    const { data: totalAllocations, error: totalAllocationError } =
+      await admin
+        .from("platform_held_group_refund_allocations")
+        .select("*")
+        .eq("refund_id", totalRefundRow.id);
+    if (totalAllocationError) {
+      throw new Error(totalAllocationError.message);
+    }
+    assert(
+      (totalAllocations ?? []).length === 2,
+      "Total refund must allocate the remaining economics of both executors."
+    );
+
+    const allCustomerRefunds = await stripe.refunds.list({
+      payment_intent: paidIntent.id,
+      limit: 100,
+    });
+    const groupCustomerRefunds = allCustomerRefunds.data.filter(
+      (row) =>
+        row.status !== "failed" &&
+        row.metadata?.payment_mode === PAYMENT_MODE &&
+        row.metadata?.group_settlement_id === parent.id
+    );
+    const totalCustomerRefunded = groupCustomerRefunds.reduce(
+      (sum, row) => sum + row.amount,
+      0
+    );
+    assert(
+      totalCustomerRefunded === Number(parent.gross_amount_cents),
+      "Partial + total Stripe refunds do not exactly equal the captured group charge."
+    );
+
+    const allAReversals = await stripe.transfers.listReversals(
+      transferA.id,
+      { limit: 100 }
+    );
+    const groupAReversals = allAReversals.data.filter(
+      (row) =>
+        row.metadata?.payment_mode === PAYMENT_MODE &&
+        row.metadata?.group_settlement_id === parent.id
+    );
+    const totalAReversed = groupAReversals.reduce(
+      (sum, row) => sum + row.amount,
+      0
+    );
+
+    parent = await loadParent(admin, fixture.batch.id);
+    members = await loadMembers(admin, parent.id);
+    finalA = members.find((member) => member.id === refreshedA.id);
+    finalB = members.find((member) => member.id === memberB.id);
+
+    assert(parent.state === "refunded", "Parent did not reach refunded.");
+    assert(
+      Number(parent.refunded_amount_cents) ===
+        Number(parent.gross_amount_cents),
+      "Parent total refunded amount does not equal captured gross."
+    );
+    assert(
+      members.reduce(
+        (sum, member) =>
+          sum + Number(member.refunded_gross_amount_cents),
+        0
+      ) === Number(parent.gross_amount_cents),
+      "Member refund gross totals do not reconcile to parent gross."
+    );
+    assert(
+      totalAReversed === Number(finalA.provider_amount_cents) &&
+        Number(finalA.reversed_amount_cents) ===
+          Number(finalA.provider_amount_cents),
+      "Released executor A was not fully reversed across partial + total refunds."
+    );
+    assert(
+      !finalB.stripe_transfer_id &&
+        Number(finalB.reversed_amount_cents) === 0 &&
+        Number(finalB.refunded_gross_amount_cents) ===
+          Number(finalB.gross_amount_cents),
+      "Unreleased executor B refund accounting required an invalid reversal."
+    );
+    assert(
+      finalB.state === "review_required",
+      "Blocked executor B review state was corrupted by sibling/total refunds."
+    );
 
     fs.mkdirSync("stripe-network-proof", { recursive: true });
     fs.writeFileSync(
