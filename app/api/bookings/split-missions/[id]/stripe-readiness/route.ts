@@ -12,6 +12,12 @@ import {
   assessStripeConnectCountry,
   STRIPE_ACCOUNT_COUNTRY_MISMATCH,
 } from "@/lib/stripe-connect-country";
+import {
+  assertStripeConnectIdentityUsable,
+  getProfileAccountStripeConnectIdentity,
+  STRIPE_CONNECT_IDENTITY_CONFLICT,
+  STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED,
+} from "@/lib/stripe-connect-account-identity";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getStripeRuntimeMode } from "@/lib/stripe-runtime";
 
@@ -59,6 +65,7 @@ type ProviderStripeState =
   | "ready"
   | "missing_profile"
   | "market_not_ready"
+  | "identity_review_required"
   | "missing_account"
   | "country_mismatch"
   | "restricted"
@@ -91,29 +98,6 @@ function profileName(profile: JsonRow | undefined): string {
   const name = [firstName, lastName].filter(Boolean).join(" ").trim();
 
   return name || "Prestataire KLYX";
-}
-
-function stripeAccountId(profile: JsonRow | undefined): string | null {
-  if (!profile) {
-    return null;
-  }
-
-  const candidateKeys = [
-    "stripe_account_id",
-    "stripe_connect_account_id",
-    "connect_account_id",
-    "stripeAccountId",
-    "stripeConnectAccountId",
-  ];
-
-  for (const key of candidateKeys) {
-    const value = text(profile[key]);
-    if (value.startsWith("acct_")) {
-      return value;
-    }
-  }
-
-  return null;
 }
 
 function maskedStripeAccount(accountId: string): string {
@@ -318,7 +302,7 @@ export async function GET(request: Request, context: RouteContext) {
 
     const { data: profileData, error: profileError } = await supabaseAdmin
       .from("profiles")
-      .select("*")
+      .select("id, first_name, last_name, country_code")
       .in("id", providerIds);
 
     if (profileError) {
@@ -399,17 +383,32 @@ export async function GET(request: Request, context: RouteContext) {
           );
         }
 
-        const accountId = stripeAccountId(providerProfile);
-        if (!accountId) {
-          return blockedProviderState(
-            providerBase,
-            "missing_account",
-            null,
-            "PROVIDER_STRIPE_ACCOUNT_REQUIRED"
-          );
-        }
+        let accountId: string | null = null;
 
         try {
+          const identity =
+            await getProfileAccountStripeConnectIdentity(providerId);
+
+          if (identity.state === "conflict") {
+            return blockedProviderState(
+              providerBase,
+              "identity_review_required",
+              null,
+              STRIPE_CONNECT_IDENTITY_CONFLICT
+            );
+          }
+
+          accountId = assertStripeConnectIdentityUsable(identity);
+
+          if (!accountId) {
+            return blockedProviderState(
+              providerBase,
+              "missing_account",
+              null,
+              "PROVIDER_STRIPE_ACCOUNT_REQUIRED"
+            );
+          }
+
           const account = await stripe.accounts.retrieve(accountId);
           const deletedAccount =
             (account as unknown as { deleted?: boolean }).deleted === true;
@@ -467,11 +466,25 @@ export async function GET(request: Request, context: RouteContext) {
             readinessBlockReason: ready ? null : "PROVIDER_STRIPE_NOT_READY",
             ready,
           };
-        } catch {
+        } catch (error) {
+          if (
+            error instanceof Error &&
+            (error.message === STRIPE_CONNECT_IDENTITY_CONFLICT ||
+              error.message === STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED ||
+              error.message === "KLYX_CANONICAL_ACCOUNT_REQUIRED")
+          ) {
+            return blockedProviderState(
+              providerBase,
+              "identity_review_required",
+              null,
+              STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED
+            );
+          }
+
           return blockedProviderState(
             providerBase,
             "lookup_failed",
-            maskedStripeAccount(accountId),
+            accountId ? maskedStripeAccount(accountId) : null,
             "PROVIDER_STRIPE_LOOKUP_FAILED"
           );
         }
