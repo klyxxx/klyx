@@ -13,6 +13,7 @@ import type {
 } from "@/lib/account-offer-readiness";
 import { findBelgianLocality } from "@/lib/belgian-localities";
 import { KLYX_SERVICE_CATALOG } from "@/lib/klyx-service-catalog";
+import { getAccountStripeConnectIdentity } from "@/lib/stripe-connect-account-identity";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { listTrustDecisions } from "@/lib/trust-safety/server";
 
@@ -22,7 +23,6 @@ type ProfileRow = {
   country_code: string | null;
   currency_code: string | null;
   city: string | null;
-  stripe_account_id: string | null;
   stripe_onboarding_complete: boolean | null;
   stripe_charges_enabled: boolean | null;
   stripe_payouts_enabled: boolean | null;
@@ -150,7 +150,7 @@ async function accountProfiles(accountId: string): Promise<ProfileRow[]> {
   const { data, error } = await supabaseAdmin
     .from("profiles")
     .select(
-      "id, account_type, country_code, currency_code, city, stripe_account_id, stripe_onboarding_complete, stripe_charges_enabled, stripe_payouts_enabled"
+      "id, account_type, country_code, currency_code, city, stripe_onboarding_complete, stripe_charges_enabled, stripe_payouts_enabled"
     )
     .eq("account_id", accountId)
     .order("created_at", { ascending: true });
@@ -235,29 +235,34 @@ async function loadSelectedService(params: {
   return service ? { service, userService } : null;
 }
 
-function stripeState(profiles: readonly ProfileRow[]) {
-  const stripeProfiles = profiles.filter((profile) =>
-    Boolean(profile.stripe_account_id?.trim())
+async function stripeState(
+  accountId: string,
+  profiles: readonly ProfileRow[]
+) {
+  // Canonical Stripe identity is account-first. Profile flags are only a
+  // fail-closed compatibility cache of the linked account's readiness and can
+  // never select or replace a Stripe Connected Account.
+  const identity = await getAccountStripeConnectIdentity(accountId);
+  const conflict = identity.state === "conflict";
+  const compatibilityStatusReady =
+    profiles.length > 0 &&
+    profiles.every(
+      (profile) =>
+        profile.stripe_onboarding_complete === true &&
+        profile.stripe_charges_enabled === true &&
+        profile.stripe_payouts_enabled === true
+    );
+  const payoutsReady = Boolean(
+    identity.state === "linked" &&
+      identity.stripeAccountId &&
+      compatibilityStatusReady
   );
-  const stripeAccountIds = new Set(
-    stripeProfiles
-      .map((profile) => profile.stripe_account_id?.trim())
-      .filter((value): value is string => Boolean(value))
-  );
-  const conflict = stripeAccountIds.size > 1;
-  const readyProfile = conflict
-    ? null
-    : stripeProfiles.find(
-        (profile) =>
-          profile.stripe_onboarding_complete === true &&
-          profile.stripe_charges_enabled === true &&
-          profile.stripe_payouts_enabled === true
-      ) ?? null;
+  const readyProfile = payoutsReady ? profiles[0] ?? null : null;
 
   return {
     conflict,
     readyProfile,
-    payoutsReady: Boolean(readyProfile) && !conflict,
+    payoutsReady,
   };
 }
 
@@ -341,7 +346,7 @@ export async function loadAccountOfferReadiness(params: {
   if (selected && !availabilityReady) missing.push("availability");
   if (selected && !pricingReady(serviceProfile)) missing.push("pricing");
 
-  const payments = stripeState(profiles);
+  const payments = await stripeState(params.accountId, profiles);
   if (!payments.payoutsReady) missing.push("payouts");
 
   const categoryKey = selected ? serviceCategoryKey(selected.service) : null;
