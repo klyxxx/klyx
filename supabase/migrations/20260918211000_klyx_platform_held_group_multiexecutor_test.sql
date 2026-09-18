@@ -524,7 +524,7 @@ returns table (
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare
   v_parent public.platform_held_group_settlements%rowtype;
 begin
@@ -601,7 +601,7 @@ returns boolean
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare
   v_updated integer;
 begin
@@ -889,7 +889,7 @@ returns boolean
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare
   v_member public.platform_held_group_settlement_members%rowtype;
   v_remaining integer;
@@ -932,7 +932,7 @@ returns boolean
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare
   v_updated integer;
 begin
@@ -1296,7 +1296,7 @@ returns boolean
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare
   v_allocation public.platform_held_group_refund_allocations%rowtype;
 begin
@@ -1326,7 +1326,7 @@ returns boolean
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare
   v_updated integer;
 begin
@@ -1356,7 +1356,7 @@ returns boolean
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare
   v_refund public.platform_held_group_refunds%rowtype;
   v_parent public.platform_held_group_settlements%rowtype;
@@ -1639,7 +1639,7 @@ returns boolean
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare
   v_updated integer;
 begin
@@ -2516,7 +2516,7 @@ returns boolean
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare
   v_updated integer;
 begin
@@ -3095,7 +3095,7 @@ returns boolean
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare
   v_updated integer;
 begin
