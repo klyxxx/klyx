@@ -563,6 +563,10 @@ async function setupBatch({
         .filter((booking) => booking.provider.id === providerA.id)
         .map((booking) => booking.id)
         .sort(),
+      slotIds: bookings
+        .filter((booking) => booking.provider.id === providerA.id)
+        .map((booking) => "group-held-" + batch.id + "-" + booking.position)
+        .sort(),
       stripeAccountId: stripeA.id,
     },
     {
@@ -572,6 +576,10 @@ async function setupBatch({
       bookingIds: bookings
         .filter((booking) => booking.provider.id === providerB.id)
         .map((booking) => booking.id)
+        .sort(),
+      slotIds: bookings
+        .filter((booking) => booking.provider.id === providerB.id)
+        .map((booking) => "group-held-" + batch.id + "-" + booking.position)
         .sort(),
       stripeAccountId: stripeB.id,
     },
