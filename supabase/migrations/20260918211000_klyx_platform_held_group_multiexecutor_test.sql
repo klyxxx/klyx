@@ -830,23 +830,23 @@ begin
     return;
   end if;
 
-  select coalesce(sum(provider_amount_cents), 0)
+  select coalesce(sum(m.provider_amount_cents), 0)
     into v_total_member_provider
-    from public.platform_held_group_settlement_members
-   where group_settlement_id = v_parent.id;
+    from public.platform_held_group_settlement_members m
+   where m.group_settlement_id = v_parent.id;
 
   if v_total_member_provider <> v_parent.provider_amount_cents then
     raise exception 'KLYX_GROUP_HELD_MEMBER_PROVIDER_TOTAL_MISMATCH';
   end if;
 
-  select coalesce(sum(provider_amount_cents), 0)
+  select coalesce(sum(m.provider_amount_cents), 0)
     into v_committed_provider
-    from public.platform_held_group_settlement_members
-   where group_settlement_id = v_parent.id
-     and id <> v_member.id
+    from public.platform_held_group_settlement_members m
+   where m.group_settlement_id = v_parent.id
+     and m.id <> v_member.id
      and (
-       stripe_transfer_id is not null
-       or state = 'release_claimed'
+       m.stripe_transfer_id is not null
+       or m.state = 'release_claimed'
      );
 
   if v_committed_provider + v_member.provider_amount_cents
