@@ -6,12 +6,20 @@ import {
   requireAccountType,
 } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import {
+  getKlyxSettlementMode,
+  KLYX_PLATFORM_HELD_SETTLEMENT_MODE,
+} from "@/lib/stripe-settlement-control";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   enforceCheckoutTransactionRisk,
   isTransactionRiskGateError,
 } from "@/lib/transaction-risk-server";
 import { GET as coreGet, POST as corePost } from "./route-core";
+import {
+  GET as platformHeldGet,
+  POST as platformHeldPost,
+} from "./route-platform-held-core";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -43,11 +51,45 @@ function providerIdsFromSnapshot(value: unknown): string[] {
 }
 
 export async function GET(request: Request, context: RouteContext) {
-  return coreGet(request, context);
+  const startedAt = Date.now();
+
+  try {
+    return getKlyxSettlementMode() === KLYX_PLATFORM_HELD_SETTLEMENT_MODE
+      ? platformHeldGet(request, context)
+      : coreGet(request, context);
+  } catch (error) {
+    return secureApiErrorResponse({
+      error,
+      event: "split_checkout_mode_dispatch_failed",
+      route: "/api/bookings/split-missions/[id]/checkout",
+      method: "GET",
+      status: 500,
+      code: "KLYX_SPLIT_CHECKOUT_MODE_DISPATCH_FAILED",
+      startedAt,
+    });
+  }
 }
 
 export async function POST(request: Request, context: RouteContext) {
   const startedAt = Date.now();
+  let selectedPost = corePost;
+  let platformHeldMode = false;
+
+  try {
+    platformHeldMode =
+      getKlyxSettlementMode() === KLYX_PLATFORM_HELD_SETTLEMENT_MODE;
+    selectedPost = platformHeldMode ? platformHeldPost : corePost;
+  } catch (error) {
+    return secureApiErrorResponse({
+      error,
+      event: "split_checkout_mode_dispatch_failed",
+      route: "/api/bookings/split-missions/[id]/checkout",
+      method: "POST",
+      status: 500,
+      code: "KLYX_SPLIT_CHECKOUT_MODE_DISPATCH_FAILED",
+      startedAt,
+    });
+  }
 
   /*
    * KLYX_PAYMENT_CORE_CONTRACT_MIRROR
@@ -129,7 +171,7 @@ export async function POST(request: Request, context: RouteContext) {
     if (runError) throw new Error(runError.message);
 
     if (run && run.client_profile_id !== profile.id) {
-      return corePost(request, context);
+      return selectedPost(request, context);
     }
 
     let confirmationQuery = supabaseAdmin
@@ -146,9 +188,12 @@ export async function POST(request: Request, context: RouteContext) {
         .eq("batch_id", batchId)
         .eq("client_profile_id", profile.id)
         .is("invalidated_at", null)
-        .is("consumed_at", null)
         .order("confirmed_at", { ascending: false })
         .limit(1);
+
+      if (!platformHeldMode) {
+        confirmationQuery = confirmationQuery.is("consumed_at", null);
+      }
     }
 
     const { data: confirmation, error: confirmationError } =
@@ -157,7 +202,7 @@ export async function POST(request: Request, context: RouteContext) {
     if (confirmationError) throw new Error(confirmationError.message);
 
     if (!confirmation || confirmation.client_profile_id !== profile.id) {
-      return corePost(request, context);
+      return selectedPost(request, context);
     }
 
     const providerIds = providerIdsFromSnapshot(
@@ -168,7 +213,7 @@ export async function POST(request: Request, context: RouteContext) {
     // core validates its canonical hash and live bookings. Preserve that core
     // response rather than masking it with a risk decision.
     if (providerIds.length === 0) {
-      return corePost(request, context);
+      return selectedPost(request, context);
     }
 
     await enforceCheckoutTransactionRisk({
@@ -178,7 +223,7 @@ export async function POST(request: Request, context: RouteContext) {
       subjectId: batchId,
     });
 
-    return corePost(request, context);
+    return selectedPost(request, context);
   } catch (error) {
     if (isTransactionRiskGateError(error)) {
       return NextResponse.json(

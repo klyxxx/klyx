@@ -85,7 +85,7 @@ export function getKlyxSettlementMode(
 }
 
 export function settlementTransferGroup(input: {
-  subjectType: "booking" | "booking_group" | "split_unit";
+  subjectType: "booking" | "booking_group" | "split_unit" | "split_batch";
   subjectId: string;
 }): string {
   const subjectId = input.subjectId.trim();

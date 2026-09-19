@@ -1,4 +1,5 @@
 import { handleSplitStripeWebhookEvent } from "@/lib/split-stripe-payments";
+import { handlePlatformHeldGroupStripeWebhookEvent } from "@/lib/platform-held-group-payments";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
@@ -232,6 +233,33 @@ export async function POST(request: Request) {
     const attemptCount = claim.attemptCount;
     claimed = true;
     claimAttemptCount = attemptCount;
+
+    const platformHeldGroupHandled =
+      await handlePlatformHeldGroupStripeWebhookEvent(stripe, event);
+
+    if (platformHeldGroupHandled) {
+      await sendStripeLifecycleEmails(event);
+
+      const finalized = await markStripeWebhookProcessed(
+        event.id,
+        attemptCount
+      );
+
+      if (!finalized) {
+        return supersededClaimResponse(event);
+      }
+
+      return NextResponse.json(
+        {
+          received: true,
+          duplicate: false,
+          platformHeldGroup: true,
+          eventId: event.id,
+          eventType: event.type,
+        },
+        { status: 200 }
+      );
+    }
 
     const splitPaymentHandled = await handleSplitStripeWebhookEvent(
       stripe,

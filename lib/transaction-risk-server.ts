@@ -315,9 +315,37 @@ export async function enforceRefundTransactionRisk(input: {
   }
 }
 
+export async function enforcePlatformHeldGroupRefundTransactionRisk(input: {
+  requesterAccount: AuthenticatedAccount;
+  subjectId: string;
+}): Promise<void> {
+  const requester: CanonicalRiskAccount = {
+    id: input.requesterAccount.id,
+    authUserId: input.requesterAccount.authUserId,
+    canOfferServices: input.requesterAccount.canOfferServices,
+  };
+
+  await assessCanonicalParticipant({
+    account: requester,
+    action: "refund_create",
+    participant: "refund_recipient",
+    subjectType: "split_batch",
+    subjectId: input.subjectId,
+  });
+
+  await assessCanonicalParticipant({
+    account: requester,
+    action: "refund_create",
+    participant: "requester",
+    subjectType: "split_batch",
+    subjectId: input.subjectId,
+  });
+}
+
 export async function enforceSettlementReleaseTransactionRisk(input: {
   recipientProfileId: string;
   subjectId: string;
+  subjectType?: Extract<TransactionRiskSubjectType, "booking" | "split_batch">;
 }): Promise<void> {
   const recipientAccountIds = await resolveCanonicalAccountIdsForProfiles([
     input.recipientProfileId,
@@ -333,7 +361,7 @@ export async function enforceSettlementReleaseTransactionRisk(input: {
     canOfferServices: true,
     action: "settlement_release",
     participant: "settlement_recipient",
-    subjectType: "booking",
+    subjectType: input.subjectType ?? "booking",
     subjectId: input.subjectId,
   });
 }

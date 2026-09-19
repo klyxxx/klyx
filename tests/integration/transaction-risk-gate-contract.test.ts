@@ -29,7 +29,7 @@ const migration = read(
 
 describe("transaction risk gate contract", () => {
   it("runs canonical risk preflight before delegating every checkout", () => {
-    for (const wrapper of [singleWrapper, groupWrapper, splitWrapper]) {
+    for (const wrapper of [singleWrapper, groupWrapper]) {
       const executable = executableSource(wrapper);
       const gate = executable.indexOf("enforceCheckoutTransactionRisk({");
       const delegatedCore = executable.lastIndexOf("return corePost(");
@@ -39,6 +39,20 @@ describe("transaction risk gate contract", () => {
       expect(executable).toContain("automaticSuspension: false");
       expect(executable).not.toContain("stripe.checkout.sessions.create");
     }
+
+    const splitExecutable = executableSource(splitWrapper);
+    const splitGate = splitExecutable.indexOf(
+      "enforceCheckoutTransactionRisk({"
+    );
+    const splitDelegatedCore = splitExecutable.lastIndexOf(
+      "return selectedPost(request, context)"
+    );
+
+    expect(splitGate).toBeGreaterThan(-1);
+    expect(splitDelegatedCore).toBeGreaterThan(splitGate);
+    expect(splitExecutable).toContain("platformHeldPost");
+    expect(splitExecutable).toContain("automaticSuspension: false");
+    expect(splitExecutable).not.toContain("stripe.checkout.sessions.create");
   });
 
   it("keeps Stripe creation, claims and idempotency inside frozen cores", () => {
