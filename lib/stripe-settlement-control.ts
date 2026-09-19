@@ -106,7 +106,7 @@ export function settlementTransferGroup(input: {
  * mission completion and risk approval.
  */
 export function buildPlatformHeldPaymentIntentPlan(input: {
-  subjectType: "booking" | "booking_group" | "split_unit";
+  subjectType: "booking" | "booking_group" | "split_unit" | "split_batch";
   subjectId: string;
   providerProfileId: string;
   providerStripeAccountId: string;
