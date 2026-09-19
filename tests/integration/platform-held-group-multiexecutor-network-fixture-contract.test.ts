@@ -1,0 +1,26 @@
+import fs from "node:fs";
+import path from "node:path";
+
+import { describe, expect, it } from "vitest";
+
+const source = fs.readFileSync(
+  path.join(
+    process.cwd(),
+    "scripts/golden-path-platform-held-group-multiexecutor-network.mjs"
+  ),
+  "utf8"
+);
+
+describe("multi-executor Stripe TEST fixture scheduling", () => {
+  it("uses distinct dates for the three proof bookings", () => {
+    expect(source).toContain("date: daysAgoDate(1)");
+    expect(source).toContain("date: daysAgoDate(2)");
+    expect(source).toContain("date: daysAgoDate(3)");
+    expect(source).toContain("booking_date: spec.date");
+  });
+
+  it("does not weaken the provider overlap database guard", () => {
+    expect(source).not.toContain("KLYX_PROVIDER_TIME_CONFLICT");
+    expect(source).not.toContain("disable trigger");
+  });
+});

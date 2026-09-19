@@ -23,8 +23,8 @@ function hash(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
-function yesterdayDate() {
-  return new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+function daysAgoDate(daysAgo) {
+  return new Date(Date.now() - daysAgo * 86400000).toISOString().slice(0, 10);
 }
 
 function stripeObjectId(value) {
@@ -412,7 +412,7 @@ async function setupBatch({
   stripeB,
 }) {
   const now = new Date().toISOString();
-  const date = yesterdayDate();
+  const requestDate = daysAgoDate(1);
 
   const request = await insertOne(
     admin,
@@ -423,7 +423,7 @@ async function setupBatch({
       title: "Stripe TEST Platform-Held multi-executor proof",
       description: "Ephemeral Group Booking settlement proof.",
       city: "Bruxelles",
-      requested_date: date,
+      requested_date: requestDate,
       requested_time: "09:00",
       budget_max: 101,
       budget_total: 101,
@@ -470,6 +470,7 @@ async function setupBatch({
     {
       provider: providerA,
       amount: 3333,
+      date: daysAgoDate(1),
       start: "09:00",
       end: "10:00",
       position: 1,
@@ -477,6 +478,7 @@ async function setupBatch({
     {
       provider: providerA,
       amount: 3334,
+      date: daysAgoDate(2),
       start: "11:00",
       end: "12:00",
       position: 2,
@@ -484,6 +486,7 @@ async function setupBatch({
     {
       provider: providerB,
       amount: 3334,
+      date: daysAgoDate(3),
       start: "13:00",
       end: "14:00",
       position: 3,
@@ -499,7 +502,7 @@ async function setupBatch({
         babysitter_id: spec.provider.id,
         provider_id: spec.provider.id,
         parent_id: clientId,
-        booking_date: date,
+        booking_date: spec.date,
         start_time: spec.start,
         end_time: spec.end,
         status: "accepted",
