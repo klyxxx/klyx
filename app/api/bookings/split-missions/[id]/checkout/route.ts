@@ -154,7 +154,7 @@ export async function POST(request: Request, context: RouteContext) {
   } | null;
 
   if (preparationBody?.checkoutPreparationConfirmed !== true) {
-    return selectedPost(request, context);
+    return corePost(request, context);
   }
 
   try {
