@@ -19,6 +19,24 @@ describe("multi-executor Stripe TEST fixture scheduling", () => {
     expect(source).toContain("booking_date: spec.date");
   });
 
+  it("proves a partial refund before release reduces the later Transfer", () => {
+    expect(source).toContain("network-pre-release-partial-");
+    expect(source).toContain(
+      "preReleaseMemberB.provider_amount_cents"
+    );
+    expect(source).toContain(
+      "preReleaseMemberB.refunded_provider_amount_cents"
+    );
+    expect(source).toContain(
+      "Post-refund executor Transfer did not equal remaining provider entitlement."
+    );
+    expect(source).toContain("released_amount_cents");
+    expect(source).toContain(
+      "Post-refund net Transfers exceeded current provider entitlement."
+    );
+    expect(source).toContain("preReleaseRefundNetTransferProved");
+  });
+
   it("does not weaken the provider overlap database guard", () => {
     expect(source).not.toContain("KLYX_PROVIDER_TIME_CONFLICT");
     expect(source).not.toContain("disable trigger");
