@@ -729,7 +729,9 @@ async function main() {
   let stripeBClosed = false;
   let checkoutSessionId = null;
   let concurrencyCheckoutSessionId = null;
+  let preReleaseRefundCheckoutSessionId = null;
   let concurrencyProof = null;
+  let preReleaseRefundProof = null;
 
   try {
     const providerA = await createProvider({
@@ -1233,6 +1235,361 @@ async function main() {
       distinctMemberTransfers: concurrencyMemberIds.size,
     };
 
+    // Refund-before-release proof: executor B is partially refunded while no
+    // provider Transfer exists. Once B completes, the later Transfer must equal
+    // only the remaining provider entitlement, never the frozen original.
+    const preReleaseRefundFixture = await setupBatch({
+      admin,
+      clientId: client.id,
+      serviceId: service.id,
+      providerA,
+      providerB,
+      stripeA,
+      stripeB,
+    });
+
+    const preReleaseCheckout = await requestJson({
+      appOrigin,
+      accessToken,
+      profileId: client.id,
+      path:
+        "/api/bookings/split-missions/" +
+        preReleaseRefundFixture.batch.id +
+        "/checkout",
+      method: "POST",
+      body: { checkoutPreparationConfirmed: true },
+    });
+    assert(
+      preReleaseCheckout.payload?.paymentMode === PAYMENT_MODE,
+      "Pre-release refund fixture did not use Platform-Held group mode."
+    );
+
+    let preReleaseParent = await loadParent(
+      admin,
+      preReleaseRefundFixture.batch.id
+    );
+    preReleaseRefundCheckoutSessionId =
+      preReleaseParent.stripe_checkout_session_id;
+    assert(
+      preReleaseRefundCheckoutSessionId?.startsWith("cs_"),
+      "Pre-release refund Checkout session missing."
+    );
+
+    const preReleaseMetadata = {
+      klyx_flow: FLOW,
+      split_batch_id: preReleaseRefundFixture.batch.id,
+      group_settlement_id: preReleaseParent.id,
+      payment_confirmation_id:
+        preReleaseRefundFixture.paymentConfirmation.id,
+      payment_mode: PAYMENT_MODE,
+      settlement_transfer_group: preReleaseParent.transfer_group,
+      executor_count: "2",
+    };
+
+    const preReleaseIntent = await stripe.paymentIntents.create(
+      {
+        amount: 10001,
+        currency: "eur",
+        payment_method: "pm_card_visa",
+        payment_method_types: ["card"],
+        confirm: true,
+        transfer_group: preReleaseParent.transfer_group,
+        metadata: preReleaseMetadata,
+      },
+      {
+        idempotencyKey:
+          "klyx-group-pre-release-refund-proof-charge-" +
+          preReleaseParent.id,
+      }
+    );
+    const paidPreReleaseIntent = await stripe.paymentIntents.retrieve(
+      preReleaseIntent.id,
+      { expand: ["latest_charge"] }
+    );
+    const preReleaseChargeId = stripeObjectId(
+      paidPreReleaseIntent.latest_charge
+    );
+    assert(
+      paidPreReleaseIntent.status === "succeeded" &&
+        preReleaseChargeId?.startsWith("ch_"),
+      "Pre-release refund platform charge did not succeed."
+    );
+
+    const preReleasePaymentEvent = {
+      id:
+        "evt_test_group_pre_release_refund_paid_" +
+        randomUUID().replaceAll("-", ""),
+      object: "event",
+      created: Math.floor(Date.now() / 1000),
+      data: {
+        object: {
+          id: preReleaseParent.stripe_checkout_session_id,
+          object: "checkout.session",
+          amount_total: 10001,
+          currency: "eur",
+          metadata: preReleaseMetadata,
+          mode: "payment",
+          payment_intent: paidPreReleaseIntent.id,
+          payment_status: "paid",
+          status: "complete",
+          livemode: false,
+        },
+      },
+      livemode: false,
+      pending_webhooks: 1,
+      request: { id: null, idempotency_key: null },
+      type: "checkout.session.completed",
+    };
+
+    const preReleaseWebhook = await postWebhookRaw({
+      appOrigin,
+      webhookSecret,
+      event: preReleasePaymentEvent,
+    });
+    assert(
+      preReleaseWebhook?.platformHeldGroup === true,
+      "Pre-release refund fixture webhook was not recognized."
+    );
+
+    preReleaseParent = await loadParent(
+      admin,
+      preReleaseRefundFixture.batch.id
+    );
+    let preReleaseMembers = await loadMembers(
+      admin,
+      preReleaseParent.id
+    );
+    let preReleaseMemberB = preReleaseMembers.find(
+      (member) => member.provider_profile_id === providerB.id
+    );
+    const preReleaseBBooking = preReleaseRefundFixture.bookings.find(
+      (booking) => booking.provider.id === providerB.id
+    );
+    assert(
+      preReleaseMemberB && preReleaseBBooking,
+      "Pre-release refund executor B fixture is incomplete."
+    );
+
+    let preReleaseTransfers = await stripe.transfers.list({
+      transfer_group: preReleaseParent.transfer_group,
+      limit: 100,
+    });
+    assert(
+      preReleaseTransfers.data.length === 0,
+      "Pre-release refund fixture unexpectedly transferred provider funds before completion."
+    );
+
+    const preReleasePartialGross = 500;
+    const preReleaseRequestKey =
+      "network-pre-release-partial-" + randomUUID();
+    const preReleaseRefundBody = {
+      kind: "partial",
+      requestKey: preReleaseRequestKey,
+      amountCents: preReleasePartialGross,
+      allocations: [
+        {
+          memberId: preReleaseMemberB.id,
+          grossRefundCents: preReleasePartialGross,
+        },
+      ],
+    };
+
+    await requestJson({
+      appOrigin,
+      accessToken,
+      profileId: client.id,
+      path:
+        "/api/bookings/split-missions/" +
+        preReleaseRefundFixture.batch.id +
+        "/refund",
+      method: "POST",
+      body: preReleaseRefundBody,
+    });
+
+    let { data: preReleaseRefundRow, error: preReleaseRefundError } =
+      await admin
+        .from("platform_held_group_refunds")
+        .select("*")
+        .eq("group_settlement_id", preReleaseParent.id)
+        .eq("request_key", preReleaseRequestKey)
+        .single();
+    if (preReleaseRefundError) {
+      throw new Error(preReleaseRefundError.message);
+    }
+    assert(
+      preReleaseRefundRow.stripe_refund_id?.startsWith("re_"),
+      "Pre-release Stripe partial refund id missing."
+    );
+
+    let preReleaseRemoteRefund = await stripe.refunds.retrieve(
+      preReleaseRefundRow.stripe_refund_id
+    );
+    for (
+      let attempt = 0;
+      attempt < 20 && preReleaseRemoteRefund.status === "pending";
+      attempt += 1
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      preReleaseRemoteRefund = await stripe.refunds.retrieve(
+        preReleaseRefundRow.stripe_refund_id
+      );
+    }
+    assert(
+      preReleaseRemoteRefund.status === "succeeded",
+      "Pre-release Stripe partial refund did not succeed."
+    );
+
+    if (preReleaseRefundRow.state !== "succeeded") {
+      const preReleaseRefundEvent = {
+        id:
+          "evt_test_group_pre_release_refund_" +
+          randomUUID().replaceAll("-", ""),
+        object: "event",
+        created: Math.floor(Date.now() / 1000),
+        data: { object: preReleaseRemoteRefund },
+        livemode: false,
+        pending_webhooks: 1,
+        request: { id: null, idempotency_key: null },
+        type: "refund.updated",
+      };
+      await postWebhookRaw({
+        appOrigin,
+        webhookSecret,
+        event: preReleaseRefundEvent,
+      });
+    }
+
+    // Idempotent replay also forces local reconciliation when the webhook raced.
+    await requestJson({
+      appOrigin,
+      accessToken,
+      profileId: client.id,
+      path:
+        "/api/bookings/split-missions/" +
+        preReleaseRefundFixture.batch.id +
+        "/refund",
+      method: "POST",
+      body: preReleaseRefundBody,
+    });
+
+    ({ data: preReleaseRefundRow, error: preReleaseRefundError } =
+      await admin
+        .from("platform_held_group_refunds")
+        .select("*")
+        .eq("group_settlement_id", preReleaseParent.id)
+        .eq("request_key", preReleaseRequestKey)
+        .single());
+    if (preReleaseRefundError) {
+      throw new Error(preReleaseRefundError.message);
+    }
+    assert(
+      preReleaseRefundRow.state === "succeeded",
+      "Pre-release local refund did not finalize."
+    );
+
+    preReleaseParent = await loadParent(
+      admin,
+      preReleaseRefundFixture.batch.id
+    );
+    preReleaseMembers = await loadMembers(admin, preReleaseParent.id);
+    preReleaseMemberB = preReleaseMembers.find(
+      (member) => member.provider_profile_id === providerB.id
+    );
+    assert(
+      preReleaseParent.state === "partially_refunded",
+      "Pre-release partial refund did not preserve remaining release eligibility."
+    );
+    assert(
+      Number(preReleaseMemberB.refunded_provider_amount_cents) > 0 &&
+        !preReleaseMemberB.stripe_transfer_id,
+      "Pre-release provider refund entitlement was not frozen before release."
+    );
+
+    const expectedPreReleaseTransfer =
+      Number(preReleaseMemberB.provider_amount_cents) -
+      Number(preReleaseMemberB.refunded_provider_amount_cents);
+    assert(
+      expectedPreReleaseTransfer > 0,
+      "Pre-release refund consumed the entire provider entitlement unexpectedly."
+    );
+
+    await completeBooking({
+      admin,
+      appOrigin,
+      accessToken,
+      clientId: client.id,
+      bookingId: preReleaseBBooking.id,
+    });
+
+    preReleaseTransfers = await stripe.transfers.list({
+      transfer_group: preReleaseParent.transfer_group,
+      limit: 100,
+    });
+    const preReleaseBTransfers = preReleaseTransfers.data.filter(
+      (transfer) =>
+        transfer.metadata?.group_settlement_member_id ===
+        preReleaseMemberB.id
+    );
+    assert(
+      preReleaseBTransfers.length === 1,
+      "Pre-release refund executor B did not receive exactly one later Transfer."
+    );
+    assert(
+      preReleaseBTransfers[0].amount === expectedPreReleaseTransfer,
+      "Post-refund executor Transfer did not equal remaining provider entitlement."
+    );
+    assert(
+      stripeObjectId(preReleaseBTransfers[0].source_transaction) ===
+        preReleaseChargeId &&
+        preReleaseBTransfers[0].transfer_group ===
+          preReleaseParent.transfer_group,
+      "Post-refund executor Transfer lost the frozen source charge/group."
+    );
+
+    preReleaseMembers = await loadMembers(admin, preReleaseParent.id);
+    preReleaseMemberB = preReleaseMembers.find(
+      (member) => member.provider_profile_id === providerB.id
+    );
+    assert(
+      Number(preReleaseMemberB.released_amount_cents) ===
+        expectedPreReleaseTransfer,
+      "Persisted release amount does not equal the post-refund Transfer."
+    );
+
+    const preReleaseCurrentEntitlement = preReleaseMembers.reduce(
+      (sum, member) =>
+        sum +
+        Number(member.provider_amount_cents) -
+        Number(member.refunded_provider_amount_cents),
+      0
+    );
+    const preReleaseNetTransferred = preReleaseTransfers.data.reduce(
+      (sum, transfer) =>
+        sum + Math.max(transfer.amount - Number(transfer.amount_reversed ?? 0), 0),
+      0
+    );
+    assert(
+      preReleaseNetTransferred <= preReleaseCurrentEntitlement,
+      "Post-refund net Transfers exceeded current provider entitlement."
+    );
+
+    preReleaseRefundProof = {
+      batchId: preReleaseRefundFixture.batch.id,
+      groupSettlementId: preReleaseParent.id,
+      chargeId: preReleaseChargeId,
+      memberId: preReleaseMemberB.id,
+      frozenProviderAmountCents: Number(
+        preReleaseMemberB.provider_amount_cents
+      ),
+      refundedProviderAmountCents: Number(
+        preReleaseMemberB.refunded_provider_amount_cents
+      ),
+      expectedTransferAmountCents: expectedPreReleaseTransfer,
+      actualTransferAmountCents: preReleaseBTransfers[0].amount,
+      currentProviderEntitlementCents: preReleaseCurrentEntitlement,
+      netTransferredCents: preReleaseNetTransferred,
+    };
+
     await closeRecipient(stripe, stripeB.id);
     stripeBClosed = true;
 
@@ -1622,6 +1979,7 @@ async function main() {
             finalParentState: parent.state,
           },
           concurrency: concurrencyProof,
+          preReleaseRefund: preReleaseRefundProof,
           aggregateReleaseCents: remoteTransfers.data.reduce(
             (sum, transfer) => sum + transfer.amount,
             0
@@ -1644,6 +2002,9 @@ async function main() {
         blockedExecutorIsolated: true,
         concurrentReleasesProved: true,
         concurrentReleaseCount: concurrencyProof.concurrentReleaseCount,
+        preReleaseRefundNetTransferProved:
+          preReleaseRefundProof?.actualTransferAmountCents ===
+          preReleaseRefundProof?.expectedTransferAmountCents,
         partialRefundCents: partialGross,
         totalRefundedCents: Number(parent.refunded_amount_cents),
         finalParentState: parent.state,
@@ -1653,6 +2014,7 @@ async function main() {
     for (const sessionId of [
       checkoutSessionId,
       concurrencyCheckoutSessionId,
+      preReleaseRefundCheckoutSessionId,
     ]) {
       if (!sessionId) continue;
       try {
