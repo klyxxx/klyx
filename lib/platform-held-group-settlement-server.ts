@@ -57,7 +57,9 @@ type MemberRow = {
   state: string;
   release_attempt_number: number;
   release_claimed_at: string | null;
+  release_claim_amount_cents: number;
   stripe_transfer_id: string | null;
+  released_amount_cents: number;
   reversed_amount_cents: number;
   refunded_gross_amount_cents: number;
   refunded_platform_fee_cents: number;
@@ -154,6 +156,20 @@ function transferSourceId(transfer: Stripe.Transfer): string | null {
   return stripeObjectId(transfer.source_transaction);
 }
 
+function memberExpectedTransferAmount(member: MemberRow): number {
+  const released = Number(member.released_amount_cents);
+  if (released > 0) return released;
+
+  const claimed = Number(member.release_claim_amount_cents);
+  if (claimed > 0) return claimed;
+
+  return Math.max(
+    Number(member.provider_amount_cents) -
+      Number(member.refunded_provider_amount_cents),
+    0
+  );
+}
+
 async function loadParentByBatch(batchId: string): Promise<ParentRow> {
   const { data, error } = await supabaseAdmin
     .from("platform_held_group_settlements")
@@ -186,7 +202,7 @@ async function loadMember(memberId: string): Promise<MemberRow> {
   const { data, error } = await supabaseAdmin
     .from("platform_held_group_settlement_members")
     .select(
-      "id, group_settlement_id, batch_id, provider_profile_id, provider_account_id, stripe_account_id, booking_ids, currency, gross_amount_cents, platform_fee_cents, provider_amount_cents, state, release_attempt_number, release_claimed_at, stripe_transfer_id, reversed_amount_cents, refunded_gross_amount_cents, refunded_platform_fee_cents, refunded_provider_amount_cents"
+      "id, group_settlement_id, batch_id, provider_profile_id, provider_account_id, stripe_account_id, booking_ids, currency, gross_amount_cents, platform_fee_cents, provider_amount_cents, state, release_attempt_number, release_claimed_at, release_claim_amount_cents, stripe_transfer_id, released_amount_cents, reversed_amount_cents, refunded_gross_amount_cents, refunded_platform_fee_cents, refunded_provider_amount_cents"
     )
     .eq("id", memberId)
     .maybeSingle();
@@ -224,8 +240,11 @@ function verifyMemberTransfer(input: {
   transfer: Stripe.Transfer;
   parent: ParentRow;
   member: MemberRow;
+  expectedAmountCents?: number;
 }) {
   const { transfer, parent, member } = input;
+  const expectedAmountCents =
+    input.expectedAmountCents ?? memberExpectedTransferAmount(member);
 
   if (transfer.livemode) throw new Error(LIVE_FORBIDDEN);
   if (
@@ -233,7 +252,8 @@ function verifyMemberTransfer(input: {
     transfer.metadata?.split_batch_id !== parent.batch_id ||
     transfer.metadata?.group_settlement_id !== parent.id ||
     transfer.metadata?.group_settlement_member_id !== member.id ||
-    transfer.amount !== Number(member.provider_amount_cents) ||
+    expectedAmountCents <= 0 ||
+    transfer.amount !== expectedAmountCents ||
     transfer.currency.toUpperCase() !== parent.currency ||
     stripeObjectId(transfer.destination) !== member.stripe_account_id ||
     transferSourceId(transfer) !== parent.stripe_charge_id ||
@@ -259,7 +279,8 @@ async function listAndValidateTransfers(
 
   const memberById = new Map(members.map((member) => [member.id, member]));
   const byMember = new Map<string, Stripe.Transfer[]>();
-  let total = 0;
+  let grossTotal = 0;
+  let netTotal = 0;
 
   for (const transfer of listed.data) {
     if (transfer.livemode) throw new Error(LIVE_FORBIDDEN);
@@ -279,16 +300,40 @@ async function listAndValidateTransfers(
       throw new Error("KLYX_GROUP_HELD_UNKNOWN_OR_DIVERGENT_TRANSFER");
     }
 
-    verifyMemberTransfer({ transfer, parent, member });
-    total += transfer.amount;
+    verifyMemberTransfer({
+      transfer,
+      parent,
+      member,
+      expectedAmountCents: Number(claim.provider_amount_cents),
+    });
+    grossTotal += transfer.amount;
+    netTotal += Math.max(
+      transfer.amount - Number(transfer.amount_reversed ?? 0),
+      0
+    );
 
     const existing = byMember.get(member.id) ?? [];
     existing.push(transfer);
     byMember.set(member.id, existing);
   }
 
-  if (total > Number(parent.provider_amount_cents)) {
+  const currentProviderEntitlement = members.reduce(
+    (sum, member) =>
+      sum +
+      Math.max(
+        Number(member.provider_amount_cents) -
+          Number(member.refunded_provider_amount_cents),
+        0
+      ),
+    0
+  );
+
+  if (grossTotal > Number(parent.provider_amount_cents)) {
     throw new Error("KLYX_GROUP_HELD_REMOTE_OVERTRANSFER");
+  }
+
+  if (netTotal > currentProviderEntitlement) {
+    throw new Error("KLYX_GROUP_HELD_REMOTE_NET_OVERTRANSFER");
   }
 
   for (const [memberId, transfers] of byMember) {
@@ -299,7 +344,12 @@ async function listAndValidateTransfers(
     }
   }
 
-  return { byMember, total };
+  return {
+    byMember,
+    grossTotal,
+    netTotal,
+    currentProviderEntitlement,
+  };
 }
 
 async function stripeRecipientStillReady(
@@ -323,7 +373,7 @@ async function loadAllMembers(parentId: string): Promise<MemberRow[]> {
   const { data, error } = await supabaseAdmin
     .from("platform_held_group_settlement_members")
     .select(
-      "id, group_settlement_id, batch_id, provider_profile_id, provider_account_id, stripe_account_id, booking_ids, currency, gross_amount_cents, platform_fee_cents, provider_amount_cents, state, release_attempt_number, release_claimed_at, stripe_transfer_id, reversed_amount_cents, refunded_gross_amount_cents, refunded_platform_fee_cents, refunded_provider_amount_cents"
+      "id, group_settlement_id, batch_id, provider_profile_id, provider_account_id, stripe_account_id, booking_ids, currency, gross_amount_cents, platform_fee_cents, provider_amount_cents, state, release_attempt_number, release_claimed_at, release_claim_amount_cents, stripe_transfer_id, released_amount_cents, reversed_amount_cents, refunded_gross_amount_cents, refunded_platform_fee_cents, refunded_provider_amount_cents"
     )
     .eq("group_settlement_id", parentId);
 
@@ -379,7 +429,9 @@ export async function releasePlatformHeldGroupMember(
 
   if (
     !parent.stripe_charge_id ||
-    !["held", "release_partial", "released"].includes(parent.state)
+    !["held", "release_partial", "released", "partially_refunded"].includes(
+      parent.state
+    )
   ) {
     return { status: "not_ready" };
   }
@@ -524,8 +576,13 @@ export async function releasePlatformHeldGroupMember(
 
     assertAggregateTransferCapacity({
       providerAmountCents: Number(parent.provider_amount_cents),
-      existingStripeTransferAmountCents: remote.total,
-      requestedTransferAmountCents: Number(member.provider_amount_cents),
+      existingStripeTransferAmountCents: remote.grossTotal,
+      requestedTransferAmountCents: Number(claim.provider_amount_cents),
+    });
+    assertAggregateTransferCapacity({
+      providerAmountCents: remote.currentProviderEntitlement,
+      existingStripeTransferAmountCents: remote.netTotal,
+      requestedTransferAmountCents: Number(claim.provider_amount_cents),
     });
 
     if (!(await stripeRecipientStillReady(stripe, member.stripe_account_id))) {
@@ -540,7 +597,7 @@ export async function releasePlatformHeldGroupMember(
     stripeWriteAttempted = true;
     const transfer = await stripe.transfers.create(
       {
-        amount: Number(member.provider_amount_cents),
+        amount: Number(claim.provider_amount_cents),
         currency: parent.currency.toLowerCase(),
         destination: member.stripe_account_id,
         source_transaction: parent.stripe_charge_id,
