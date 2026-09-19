@@ -90,6 +90,39 @@ The idempotency key is member-specific. An unknown Stripe response leaves the
 member claim unresolved; a later pass searches Stripe truth before another
 write.
 
+### Refund before release
+
+A successful refund may reduce an executor's provider entitlement before that
+executor is released.
+
+KLYX therefore freezes two additional values per executor:
+
+- `release_claim_amount_cents`: the exact amount reserved by the serialized
+  release claim;
+- `released_amount_cents`: the exact historical Stripe Transfer amount.
+
+The releasable amount is:
+
+`member_provider_amount - member_refunded_provider_amount`
+
+It is never recomputed from the original gross after the claim is acquired.
+
+If that value is zero, no Transfer is created for that executor.
+
+A partial refund that succeeds before release does **not** permanently block the
+remaining members. The parent may remain `partially_refunded`, and eligible
+members may still release their remaining net entitlement.
+
+Remote Stripe safety uses two simultaneous invariants:
+
+`sum(historical Transfer amounts) <= frozen parent provider funds`
+
+and
+
+`sum(net Transfers after reversals) + next claim <= current provider entitlement after successful refunds`
+
+This prevents both historical over-transfer and post-refund overpayment.
+
 ## Concurrent releases
 
 Multiple executors may become releasable concurrently.
