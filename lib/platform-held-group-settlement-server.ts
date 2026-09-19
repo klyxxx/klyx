@@ -300,12 +300,7 @@ async function listAndValidateTransfers(
       throw new Error("KLYX_GROUP_HELD_UNKNOWN_OR_DIVERGENT_TRANSFER");
     }
 
-    verifyMemberTransfer({
-      transfer,
-      parent,
-      member,
-      expectedAmountCents: Number(claim.provider_amount_cents),
-    });
+    verifyMemberTransfer({ transfer, parent, member });
     grossTotal += transfer.amount;
     netTotal += Math.max(
       transfer.amount - Number(transfer.amount_reversed ?? 0),
@@ -615,7 +610,12 @@ export async function releasePlatformHeldGroupMember(
       }
     );
 
-    verifyMemberTransfer({ transfer, parent, member });
+    verifyMemberTransfer({
+      transfer,
+      parent,
+      member,
+      expectedAmountCents: Number(claim.provider_amount_cents),
+    });
 
     const { data: finalized, error: finalizeError } = await supabaseAdmin.rpc(
       "klyx_finalize_platform_held_group_member_release",
