@@ -225,10 +225,31 @@ async function createProvider({
     );
   }
 
-  await admin
+  const { error: userServiceUpdateError } = await admin
     .from("user_services")
     .update({ active: true, provider_enabled: true })
     .eq("id", userService.id);
+  if (userServiceUpdateError) throw new Error(userServiceUpdateError.message);
+
+  const { error: availabilityDeleteError } = await admin
+    .from("availability_slots")
+    .delete()
+    .eq("user_service_id", userService.id);
+  if (availabilityDeleteError) throw new Error(availabilityDeleteError.message);
+
+  const { error: availabilityInsertError } = await admin
+    .from("availability_slots")
+    .insert(
+      Array.from({ length: 7 }, (_, dayOfWeek) => ({
+        user_service_id: userService.id,
+        day_of_week: dayOfWeek,
+        start_time: "08:00",
+        end_time: "20:00",
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      }))
+    );
+  if (availabilityInsertError) throw new Error(availabilityInsertError.message);
 
   await client.auth.signOut();
 
