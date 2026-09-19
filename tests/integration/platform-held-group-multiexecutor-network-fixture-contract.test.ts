@@ -17,6 +17,11 @@ describe("multi-executor Stripe TEST fixture scheduling", () => {
     expect(source).toContain("date: daysAgoDate(2)");
     expect(source).toContain("date: daysAgoDate(3)");
     expect(source).toContain("booking_date: spec.date");
+    expect(source).toContain("dateShift: 10");
+    expect(source).toContain("dateShift: 20");
+    expect(source).toContain(
+      "spec.date = daysAgoDate(spec.position + dateShift)"
+    );
   });
 
   it("proves a partial refund before release reduces the later Transfer", () => {
