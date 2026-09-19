@@ -905,7 +905,58 @@ async function main() {
     let transferA = remoteTransfers.data.find(
       (transfer) => transfer.metadata?.group_settlement_member_id === memberA.id
     );
-    assert(transferA, "Executor A Transfer missing.");
+
+    if (!transferA) {
+      const { data: memberDiagnostic, error: memberDiagnosticError } = await admin
+        .from("platform_held_group_settlement_members")
+        .select(
+          "id, state, release_attempt_number, release_claim_token, release_claimed_at, stripe_transfer_id, last_error_code, last_error_message, provider_account_id, provider_profile_id"
+        )
+        .eq("id", memberA.id)
+        .single();
+      if (memberDiagnosticError) throw new Error(memberDiagnosticError.message);
+
+      const { data: bookingDiagnostics, error: bookingDiagnosticsError } = await admin
+        .from("bookings")
+        .select("id, status, service_status, payment_status, payment_mode, completed_at, client_confirmed_at")
+        .in("id", providerABookings.map((booking) => booking.id));
+      if (bookingDiagnosticsError) throw new Error(bookingDiagnosticsError.message);
+
+      const { data: riskDiagnostics, error: riskDiagnosticsError } = await admin
+        .from("transaction_risk_decisions")
+        .select(
+          "account_id, action, participant, subject_type, subject_id, decision, reason_codes, risk_assessed_at"
+        )
+        .eq("account_id", memberA.provider_account_id)
+        .eq("action", "settlement_release")
+        .eq("participant", "settlement_recipient")
+        .eq("subject_type", "split_batch")
+        .eq("subject_id", fixture.batch.id)
+        .order("risk_assessed_at", { ascending: false })
+        .limit(3);
+      if (riskDiagnosticsError) throw new Error(riskDiagnosticsError.message);
+
+      throw new Error(
+        "Executor A Transfer missing. diagnostics=" +
+          JSON.stringify({
+            parent: {
+              id: parent.id,
+              state: parent.state,
+              stripeChargeId: parent.stripe_charge_id,
+              providerAmountCents: parent.provider_amount_cents,
+            },
+            member: memberDiagnostic,
+            bookings: bookingDiagnostics,
+            risk: riskDiagnostics,
+            remoteTransfers: remoteTransfers.data.map((transfer) => ({
+              id: transfer.id,
+              amount: transfer.amount,
+              destination: stripeObjectId(transfer.destination),
+              memberId: transfer.metadata?.group_settlement_member_id ?? null,
+            })),
+          })
+      );
+    }
     assert(
       transferA.amount === Number(memberA.provider_amount_cents),
       "Executor A Transfer amount mismatch."
