@@ -410,6 +410,7 @@ async function setupBatch({
   providerB,
   stripeA,
   stripeB,
+  dateShift = 0,
 }) {
   const now = new Date().toISOString();
   const requestDate = daysAgoDate(1);
@@ -492,6 +493,12 @@ async function setupBatch({
       position: 3,
     },
   ];
+
+  if (dateShift > 0) {
+    for (const spec of specs) {
+      spec.date = daysAgoDate(spec.position + dateShift);
+    }
+  }
 
   const bookings = [];
   for (const spec of specs) {
@@ -1016,6 +1023,7 @@ async function main() {
       providerB,
       stripeA,
       stripeB,
+      dateShift: 10,
     });
 
     const concurrencyCheckout = await requestJson({
@@ -1246,6 +1254,7 @@ async function main() {
       providerB,
       stripeA,
       stripeB,
+      dateShift: 20,
     });
 
     const preReleaseCheckout = await requestJson({
