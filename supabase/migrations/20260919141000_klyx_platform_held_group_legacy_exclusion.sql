@@ -10,6 +10,17 @@ security definer
 set search_path = public
 as $$
 begin
+  -- Idempotent retry of the same parent insert is allowed; the unique key will
+  -- make the INSERT itself a no-op after this trigger returns.
+  if exists (
+    select 1
+      from public.platform_held_group_settlements s
+     where s.batch_id = new.batch_id
+       and s.payment_confirmation_id = new.payment_confirmation_id
+  ) then
+    return new;
+  end if;
+
   if exists (
     select 1
       from public.split_booking_payment_runs r
@@ -19,12 +30,12 @@ begin
   end if;
 
   update public.split_booking_payment_confirmations
-     set consumed_at = coalesce(consumed_at, now()),
+     set consumed_at = now(),
          updated_at = now()
    where id = new.payment_confirmation_id
      and batch_id = new.batch_id
      and invalidated_at is null
-     and (consumed_at is null or consumed_at = consumed_at);
+     and consumed_at is null;
 
   if not found then
     raise exception 'KLYX_GROUP_SETTLEMENT_CONFIRMATION_NOT_CONSUMABLE';
