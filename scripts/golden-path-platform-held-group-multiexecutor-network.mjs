@@ -204,7 +204,7 @@ async function createProvider({
         account_id: profile.account_id,
         capability: "offer_services",
         enabled: true,
-        source: "golden_path",
+        source: "system",
         updated_at: new Date().toISOString(),
       },
       { onConflict: "account_id,capability" }
