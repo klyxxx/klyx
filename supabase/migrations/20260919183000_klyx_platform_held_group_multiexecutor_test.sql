@@ -1146,6 +1146,34 @@ begin
 end;
 $$;
 
+create or replace function public.klyx_mark_platform_held_group_member_review(
+  p_member_settlement_id uuid,
+  p_reason_code text,
+  p_reason_message text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $
+declare
+  v_updated integer;
+begin
+  update public.platform_held_group_member_settlements
+     set state = 'review_required',
+         release_claim_token = null,
+         release_claimed_at = null,
+         last_error_code = left(coalesce(p_reason_code, 'group_member_review_required'), 120),
+         last_error_message = left(coalesce(p_reason_message, 'Group member settlement requires review.'), 1000),
+         updated_at = now()
+   where id = p_member_settlement_id
+     and state <> 'refunded';
+
+  get diagnostics v_updated = row_count;
+  return v_updated = 1;
+end;
+$;
+
 create or replace function public.klyx_claim_platform_held_group_refund(
   p_request_id uuid,
   p_batch_id uuid,
@@ -1613,6 +1641,8 @@ revoke all on function public.klyx_fail_platform_held_group_member_release(uuid,
   from public, anon, authenticated;
 revoke all on function public.klyx_reconcile_platform_held_group_member_transfer(uuid, text, bigint)
   from public, anon, authenticated;
+revoke all on function public.klyx_mark_platform_held_group_member_review(uuid, text, text)
+  from public, anon, authenticated;
 revoke all on function public.klyx_claim_platform_held_group_refund(uuid, uuid, jsonb)
   from public, anon, authenticated;
 revoke all on function public.klyx_finalize_platform_held_group_refund_reversal(uuid, uuid, text)
@@ -1643,6 +1673,8 @@ grant execute on function public.klyx_finalize_platform_held_group_member_releas
 grant execute on function public.klyx_fail_platform_held_group_member_release(uuid, uuid, text, text, boolean)
   to service_role;
 grant execute on function public.klyx_reconcile_platform_held_group_member_transfer(uuid, text, bigint)
+  to service_role;
+grant execute on function public.klyx_mark_platform_held_group_member_review(uuid, text, text)
   to service_role;
 grant execute on function public.klyx_claim_platform_held_group_refund(uuid, uuid, jsonb)
   to service_role;
