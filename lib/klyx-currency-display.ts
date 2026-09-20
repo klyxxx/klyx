@@ -1,21 +1,28 @@
-// KLYX_TRANSACTION_CURRENCY_DISPLAY_15_04
+import {
+  klyxMinorUnitsToDecimalString,
+  normalizeKlyxCurrencyCode,
+} from "@/lib/klyx-currency";
 
+// KLYX_TRANSACTION_CURRENCY_DISPLAY_15_04
 export function formatKlyxCurrencyAmount(
-  amountCents: number,
+  amountMinor: number,
   currency: string | null | undefined
 ): string {
-  const normalizedCurrency =
-    currency
-      ?.trim()
-      .toUpperCase() ?? "";
-  const amount = Number.isFinite(amountCents)
-    ? amountCents
-    : 0;
-  const formattedAmount = (amount / 100).toFixed(2);
+  const rawCurrency = currency?.trim() ?? "";
 
-  if (!/^[A-Z]{3}$/.test(normalizedCurrency)) {
-    return formattedAmount;
+  if (!/^[a-zA-Z]{3}$/.test(rawCurrency)) {
+    return Number.isSafeInteger(amountMinor)
+      ? String(amountMinor)
+      : "0";
   }
 
-  return `${formattedAmount} ${normalizedCurrency}`;
+  const currencyCode = normalizeKlyxCurrencyCode(rawCurrency);
+  const safeAmount = Number.isSafeInteger(amountMinor)
+    ? amountMinor
+    : 0;
+
+  return `${klyxMinorUnitsToDecimalString(
+    safeAmount,
+    currencyCode
+  )} ${currencyCode}`;
 }
