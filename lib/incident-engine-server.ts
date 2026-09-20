@@ -54,17 +54,19 @@ function integer(value: number | string | null | undefined, code: string) {
 }
 
 function mutationRow(data: unknown): IncidentMutationRow | null {
-  return (Array.isArray(data) ? data[0] : data) as
+  const row = (Array.isArray(data) ? data[0] : data) as
     | IncidentMutationRow
     | null
-    | undefined ?? null;
+    | undefined;
+  return row ?? null;
 }
 
 function breakerRow(data: unknown): BreakerMutationRow | null {
-  return (Array.isArray(data) ? data[0] : data) as
+  const row = (Array.isArray(data) ? data[0] : data) as
     | BreakerMutationRow
     | null
-    | undefined ?? null;
+    | undefined;
+  return row ?? null;
 }
 
 export async function openKlyxOpsIncident(input: {
