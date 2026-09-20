@@ -64,6 +64,12 @@ describe("KLYX central financial ledger", () => {
     expect(migration).toContain("new_state text not null");
     expect(migration).toContain("occurred_at timestamptz not null");
     expect(migration).toContain("payload_hash text not null");
+    expect(migration).toContain(
+      "extract(epoch from p_occurred_at)::text"
+    );
+    expect(migration).not.toContain(
+      "coalesce(p_occurred_at::text, '')"
+    );
     expect(migration).toContain("set search_path = public, extensions");
     expect(migration).not.toMatch(/\nas \$\n/);
     expect(migration).not.toMatch(/\n\$;\n/);
