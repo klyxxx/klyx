@@ -482,7 +482,7 @@ begin
 
   return v_id;
 end;
-$;
+$$;
 
 create or replace function public.klyx_append_financial_ledger_event(
   p_movement_key text,
