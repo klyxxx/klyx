@@ -974,6 +974,13 @@ revoke all on function public.klyx_sync_group_refund_central_ledger_trigger()
 revoke all on function public.klyx_sync_group_reversal_central_ledger_trigger()
   from public, anon, authenticated;
 
+grant execute on function public.klyx_group_member_booking_economics(uuid)
+  to service_role;
+grant execute on function public.klyx_group_member_amount_allocations(uuid, bigint)
+  to service_role;
+grant execute on function public.klyx_group_member_provider_allocations(uuid, bigint)
+  to service_role;
+
 grant execute on function public.klyx_sync_group_member_central_ledger(uuid)
   to service_role;
 grant execute on function public.klyx_sync_group_central_ledger(uuid)
