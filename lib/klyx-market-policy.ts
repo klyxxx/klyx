@@ -94,6 +94,8 @@ export function assessKlyxMarketPaymentPolicy(params: {
       blockers.push("stripe_currency_mismatch");
     }
     if (!capability.chargeEnabled) blockers.push("stripe_charge_currency");
+    if (!capability.settlementEnabled) blockers.push("stripe_settlement_currency");
+    if (!capability.payoutEnabled) blockers.push("stripe_payout_currency");
   }
 
   return {
