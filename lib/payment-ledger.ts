@@ -1,4 +1,8 @@
 // KLYX_LEDGER_CURRENCY_REQUIRED_PHASE_5G
+import {
+  recordCanonicalPaymentFromLegacyLedger,
+  recordCanonicalRefundFromLegacyLedger,
+} from "@/lib/canonical-financial-ledger";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export type FinancialLedgerEntry = {
@@ -77,5 +81,33 @@ export async function upsertFinancialLedgerEntry(
 
   if (error) {
     throw new Error(error.message);
+  }
+
+  if (entry.entryType === "payment_succeeded" && entry.status === "succeeded") {
+    await recordCanonicalPaymentFromLegacyLedger({
+      bookingId: entry.bookingId,
+      grossAmountCents: entry.grossAmountCents ?? 0,
+      platformFeeCents: entry.platformFeeCents ?? 0,
+      providerAmountCents: entry.providerAmountCents ?? null,
+      currency: currencyCode,
+      paymentMode: entry.paymentMode ?? null,
+      stripeCheckoutSessionId: entry.stripeCheckoutSessionId ?? null,
+      stripePaymentIntentId: entry.stripePaymentIntentId ?? null,
+    });
+  }
+
+  if (entry.entryType === "refund_succeeded" && entry.status === "succeeded") {
+    const stripeRefundId = entry.stripeRefundId?.trim() ?? "";
+    if (!stripeRefundId) {
+      throw new Error("KLYX_CANONICAL_LEDGER_REFUND_ID_REQUIRED");
+    }
+
+    await recordCanonicalRefundFromLegacyLedger({
+      bookingId: entry.bookingId,
+      refundAmountCents: entry.refundAmountCents ?? 0,
+      currency: currencyCode,
+      stripePaymentIntentId: entry.stripePaymentIntentId ?? null,
+      stripeRefundId,
+    });
   }
 }
