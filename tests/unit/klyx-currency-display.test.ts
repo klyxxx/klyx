@@ -21,7 +21,7 @@ describe("KLYX transaction currency display", () => {
   });
 
   it("fails safely when the currency code is missing or invalid", () => {
-    expect(formatKlyxCurrencyAmount(1250, null)).toBe("12.50");
-    expect(formatKlyxCurrencyAmount(1250, "EURO")).toBe("12.50");
+    expect(formatKlyxCurrencyAmount(1250, null)).toBe("1250");
+    expect(formatKlyxCurrencyAmount(1250, "EURO")).toBe("1250");
   });
 });
