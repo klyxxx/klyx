@@ -78,6 +78,19 @@ export async function POST(request: Request) {
     requireAccountType(profile, "client");
 
     const stripeRuntime = assertStripeRuntimeReady();
+
+    // Global Money migration safety: do not let legacy cents/commission
+    // semantics mutate LIVE money while this financial path is not yet
+    // migrated to canonical minor units + market policy.
+    if (stripeRuntime.mode === "live") {
+      return NextResponse.json(
+        {
+          error: "Les paiements groupe LIVE restent bloques jusqu au snapshot global money du groupe.",
+          code: "KLYX_GROUP_GLOBAL_MONEY_MIGRATION_REQUIRED",
+        },
+        { status: 409 }
+      );
+    }
     const clientMarketAccess = assessKlyxStripeMarketAccess(
       profile.countryCode,
       stripeRuntime.mode

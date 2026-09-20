@@ -32,6 +32,7 @@ export type ProfileFormValues = {
   lastName: string;
   city: string;
   countryCode: string;
+  currencyCode: string;
   accountType: AccountType;
   serviceId: string | null;
 };
@@ -274,7 +275,7 @@ export async function updateProfile(
   profileId: string,
   values: Pick<
     ProfileFormValues,
-    "firstName" | "lastName" | "city" | "countryCode"
+    "firstName" | "lastName" | "city" | "countryCode" | "currencyCode"
   > & { avatarUrl?: string | null }
 ): Promise<void> {
   const response = await fetch("/api/profiles/manage", {

@@ -12,6 +12,10 @@ import {
   profileDeletedEmail,
 } from "@/lib/email/lifecycle-templates";
 import { getKlyxMarket } from "@/lib/klyx-supported-markets";
+import {
+  normalizeKlyxCountryCode,
+  normalizeKlyxCurrencyCode,
+} from "@/lib/klyx-currency";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -22,6 +26,7 @@ type CreateProfileBody = {
   lastName?: unknown;
   city?: unknown;
   countryCode?: unknown;
+  currencyCode?: unknown;
   accountType?: unknown;
   serviceId?: unknown;
 };
@@ -32,6 +37,7 @@ type UpdateProfileBody = {
   lastName?: unknown;
   city?: unknown;
   countryCode?: unknown;
+  currencyCode?: unknown;
   avatarUrl?: unknown;
 };
 
@@ -91,21 +97,31 @@ function readProfileInput(body: CreateProfileBody | UpdateProfileBody): ProfileI
   return { firstName, lastName, city };
 }
 
-function readProfileMarket(countryCode: unknown) {
-  const normalized =
-    typeof countryCode === "string"
-      ? countryCode.trim().toUpperCase()
-      : "";
+function readProfileMarket(
+  countryCode: unknown,
+  currencyCode: unknown
+) {
+  const rawCountry =
+    typeof countryCode === "string" ? countryCode : "";
+  const normalizedCountry = normalizeKlyxCountryCode(rawCountry);
 
-  const market = getKlyxMarket(normalized);
+  const explicitCurrency =
+    typeof currencyCode === "string" && currencyCode.trim()
+      ? normalizeKlyxCurrencyCode(currencyCode)
+      : null;
 
-  if (!market) {
-    throw new Error("KLYX_MARKET_NOT_SUPPORTED");
+  // Compatibility suggestion only. This catalogue is not country authority.
+  const legacyCurrency =
+    getKlyxMarket(normalizedCountry)?.currencyCode ?? null;
+  const resolvedCurrency = explicitCurrency ?? legacyCurrency;
+
+  if (!resolvedCurrency) {
+    throw new Error("KLYX_PROFILE_CURRENCY_REQUIRED");
   }
 
   return {
-    countryCode: market.countryCode,
-    currencyCode: market.currencyCode,
+    countryCode: normalizedCountry,
+    currencyCode: normalizeKlyxCurrencyCode(resolvedCurrency),
   };
 }
 
@@ -122,10 +138,15 @@ function safeProfileError(error: unknown): SafeProfileError | null {
     };
   }
 
-  if (raw.includes("KLYX_MARKET_NOT_SUPPORTED")) {
+  if (
+    raw.includes("KLYX_COUNTRY_CODE_INVALID") ||
+    raw.includes("KLYX_CURRENCY_INVALID") ||
+    raw.includes("KLYX_PROFILE_CURRENCY_REQUIRED")
+  ) {
     return {
       status: 400,
-      publicMessage: "Ce pays n’est pas encore pris en charge par KLYX.",
+      publicMessage:
+        "Renseigne un code pays ISO à 2 lettres et une devise ISO à 3 lettres valides.",
     };
   }
 
@@ -247,7 +268,7 @@ export async function POST(request: Request) {
     }
 
     const profileInput = readProfileInput(body);
-    const marketInput = readProfileMarket(body.countryCode);
+    const marketInput = readProfileMarket(body.countryCode, body.currencyCode);
 
     const accountType: AccountType | null =
       body.accountType === "client" || body.accountType === "provider"
@@ -381,7 +402,7 @@ export async function PATCH(request: Request) {
     }
 
     const profileInput = readProfileInput(body);
-    const marketInput = readProfileMarket(body.countryCode);
+    const marketInput = readProfileMarket(body.countryCode, body.currencyCode);
 
     const updatePayload: Record<string, string | null> = {
       first_name: profileInput.firstName,

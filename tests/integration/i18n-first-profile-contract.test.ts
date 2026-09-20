@@ -10,15 +10,16 @@ function read(relativePath: string): string {
 }
 
 describe("KLYX first-profile page-i18n integration", () => {
-  it("wires the client component to certified page translations and localized market names", () => {
+  it("wires the client component to certified translations and global country/currency inputs", () => {
     const source = read("app/onboarding/FirstProfileSetup.tsx");
 
     expect(source).toContain("useKlyxLocale");
     expect(source).toContain("translateKlyxFirstProfile");
     expect(source).toContain("translateKlyxFirstProfileApiError");
-    expect(source).toContain("resolveKlyxFirstProfileLocale");
-    expect(source).toContain("Intl.DisplayNames");
-    expect(source).toContain("KLYX_SUPPORTED_MARKETS");
+    expect(source).toContain("KlyxMarketSelect");
+    expect(source).toContain("currencyCode");
+    expect(source).toContain('t("currencyRequired")');
+    expect(source).not.toContain("KLYX_SUPPORTED_MARKETS");
     expect(source).toContain("KLYX_FIRST_PROFILE_I18N_16_02");
   });
 
@@ -26,7 +27,7 @@ describe("KLYX first-profile page-i18n integration", () => {
     const source = read("app/onboarding/FirstProfileSetup.tsx");
 
     expect(source).toMatch(/if\s*\(\s*!countryCode\s*\)/);
-    expect(source).toMatch(/JSON\.stringify\(\{[\s\S]*countryCode[\s\S]*accountType/);
+    expect(source).toMatch(/JSON\.stringify\(\{[\s\S]*countryCode[\s\S]*currencyCode[\s\S]*accountType/);
     expect(source).toContain('accountType: "client"');
     expect(source).toContain("serviceId: null");
     expect(source).toContain("Transitional schema value only");

@@ -134,6 +134,12 @@ async function routeModule() {
   );
 }
 
+async function routeCoreModule() {
+  return import(
+    "@/app/api/bookings/split-missions/[id]/checkout/route-core"
+  );
+}
+
 function context(
   id =
     "batch-test-1"
@@ -181,6 +187,12 @@ describe(
 
         process.env.STRIPE_SECRET_KEY =
           "sk_test_klyx_13_30";
+
+        assertStripeRuntimeReady
+          .mockReturnValue({
+            mode: "test",
+            ready: true,
+          });
 
         getAuthenticatedAccount
           .mockResolvedValue({
@@ -440,15 +452,27 @@ describe(
     );
 
     it(
-      "runs Stripe runtime validation before attempting payment preparation",
+      "runs Stripe runtime validation only after explicit payment preparation confirmation",
       async () => {
         const {
           POST,
         } =
-          await routeModule();
+          await routeCoreModule();
 
         await POST(
           request({}),
+          context()
+        );
+
+        expect(
+          assertStripeRuntimeReady
+        ).not.toHaveBeenCalled();
+
+        await POST(
+          request({
+            checkoutPreparationConfirmed:
+              true,
+          }),
           context()
         );
 

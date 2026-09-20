@@ -32,6 +32,7 @@ describe("KLYX Stripe market access", () => {
     const result = assessKlyxStripeMarketAccess("ZZ", "live");
 
     expect(result.allowed).toBe(false);
-    expect(result.blockers).toContain("monetary_support");
+    expect(result.blockers).toContain("launch_decision");
+    expect(result.blockers).not.toContain("monetary_support");
   });
 });
