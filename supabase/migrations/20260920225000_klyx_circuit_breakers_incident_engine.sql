@@ -714,6 +714,8 @@ declare
   v_control_version bigint;
   v_control_operation_id uuid;
   v_active public.ops_incident_controls%rowtype;
+  v_active_control_state text;
+  v_active_control_expires_at timestamptz;
 begin
   if p_operator_auth_user_id is null then
     raise exception 'KLYX_OPS_INCIDENT_OPERATOR_REQUIRED';
@@ -762,10 +764,23 @@ begin
    limit 1;
 
   if found then
-    select c.version
-      into v_control_version
+    select c.version, c.state, c.expires_at
+      into
+        v_control_version,
+        v_active_control_state,
+        v_active_control_expires_at
       from public.ops_capability_controls as c
      where c.id = v_active.control_id;
+
+    if
+      v_active_control_state is distinct from 'DISABLED'
+      or (
+        v_active_control_expires_at is not null
+        and v_active_control_expires_at <= now()
+      )
+    then
+      raise exception 'KLYX_OPS_INCIDENT_BREAKER_STALE_LINK';
+    end if;
 
     return query
     select
