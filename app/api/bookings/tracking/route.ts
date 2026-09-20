@@ -2,7 +2,9 @@ import {
   reconcilePlatformHeldBookingSettlement,
 } from "@/lib/booking-settlement-reconciliation-server";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { releasePlatformHeldGroupMember } from "@/lib/platform-held-group-settlement-server";
 import { logServerError } from "@/lib/server-log";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { POST as corePost } from "./route-core";
 
 /*
@@ -65,6 +67,36 @@ export async function POST(request: Request) {
                 "Platform-held settlement requires reconciliation attention."
             ),
           });
+        }
+
+        if (settlement.status === "not_applicable") {
+          const { data: member, error: memberError } = await supabaseAdmin
+            .from("platform_held_group_settlement_members")
+            .select("id")
+            .filter("booking_ids", "cs", JSON.stringify([bookingId]))
+            .limit(1)
+            .maybeSingle();
+
+          if (memberError) throw new Error(memberError.message);
+
+          if (member?.id) {
+            const groupRelease = await releasePlatformHeldGroupMember(
+              String(member.id)
+            );
+
+            if (groupRelease.status === "review_required") {
+              logServerError({
+                event: "platform_held_group_member_release_review_required",
+                route: "/api/bookings/tracking",
+                method: "POST",
+                status: 500,
+                code: "platform_held_group_member_release_review_required",
+                error: new Error(
+                  "Group member settlement requires financial review."
+                ),
+              });
+            }
+          }
         }
       } catch (error) {
         // Mission completion is authoritative and must not be undone because a
