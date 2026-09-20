@@ -270,6 +270,13 @@ describe("KLYX central financial ledger", () => {
     expect(server).toContain('"account_stripe_connect_identities"');
     expect(server).toContain('"KLYX_FINANCIAL_LEDGER_PAYOUT_IDENTITY_MISMATCH"');
     expect(server).toContain("beneficiaryRef: providerAccountId");
+    expect(server).toContain('.from("bookings")');
+    expect(server).toContain('.select("provider_id, babysitter_id")');
+    expect(server).toContain('.from("profiles")');
+    expect(server).toContain("payout_booking_provider_mismatch");
+    expect(server).toContain(
+      "KLYX_FINANCIAL_LEDGER_PAYOUT_BENEFICIARY_MISMATCH"
+    );
     expect(server).not.toContain("providerRef: string");
     expect(server).toContain('source: "payout_observation"');
     expect(server).toContain("previousState?: string | null");
@@ -289,6 +296,9 @@ describe("KLYX central financial ledger", () => {
     expect(reconciliation).toContain("stripe.refunds.retrieve(");
     expect(reconciliation).toContain("stripe.payouts.retrieve(");
     expect(reconciliation).toContain("openFinancialReconciliationCase");
+    expect(reconciliation).toContain("client_beneficiary_account_mismatch");
+    expect(reconciliation).toContain("provider_beneficiary_account_mismatch");
+    expect(reconciliation).toContain("provider_beneficiary_account_unresolved");
 
     expect(reconciliation).not.toContain("stripe.transfers.create(");
     expect(reconciliation).not.toContain("stripe.transfers.createReversal(");
