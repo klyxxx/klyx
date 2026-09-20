@@ -126,6 +126,10 @@ export async function GET() {
       "ops_observability_signals_current",
       "financial_monitoring_signals_current",
       "financial_monitoring_flow_24h",
+      "ops_incidents",
+      "ops_incident_events",
+      "ops_incident_controls",
+      "ops_incidents_current",
       "reviews",
     ];
 
