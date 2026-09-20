@@ -182,6 +182,12 @@ describe(
         process.env.STRIPE_SECRET_KEY =
           "sk_test_klyx_13_30";
 
+        assertStripeRuntimeReady
+          .mockReturnValue({
+            mode: "test",
+            ready: true,
+          });
+
         getAuthenticatedAccount
           .mockResolvedValue({
             user: {
@@ -440,7 +446,7 @@ describe(
     );
 
     it(
-      "runs Stripe runtime validation before attempting payment preparation",
+      "runs Stripe runtime validation only after explicit payment preparation confirmation",
       async () => {
         const {
           POST,
@@ -449,6 +455,18 @@ describe(
 
         await POST(
           request({}),
+          context()
+        );
+
+        expect(
+          assertStripeRuntimeReady
+        ).not.toHaveBeenCalled();
+
+        await POST(
+          request({
+            checkoutPreparationConfirmed:
+              true,
+          }),
           context()
         );
 
