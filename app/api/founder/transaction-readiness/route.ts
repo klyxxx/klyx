@@ -123,6 +123,9 @@ export async function GET() {
       "ops_human_cases",
       "ops_human_case_links",
       "ops_durable_job_redrives",
+      "ops_observability_signals_current",
+      "financial_monitoring_signals_current",
+      "financial_monitoring_flow_24h",
       "reviews",
     ];
 
