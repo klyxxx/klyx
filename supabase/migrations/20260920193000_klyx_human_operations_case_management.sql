@@ -1009,6 +1009,7 @@ set search_path = public, pg_temp
 as $$
 declare
   v_job public.ops_durable_jobs%rowtype;
+  v_booking_id uuid;
 begin
   select *
     into v_job
@@ -1022,6 +1023,15 @@ begin
 
   if v_job.status <> 'dead_lettered' then
     raise exception 'KLYX_HUMAN_OPS_DURABLE_JOB_NOT_DEAD_LETTERED';
+  end if;
+
+  if v_job.domain_resource_type = 'booking'
+     and nullif(trim(v_job.domain_resource_id), '') is not null then
+    select booking.id
+      into v_booking_id
+      from public.bookings as booking
+     where booking.id::text = trim(v_job.domain_resource_id)
+     limit 1;
   end if;
 
   return query
@@ -1041,12 +1051,7 @@ begin
       ),
       p_priority => p_priority,
       p_account_id => v_job.account_id,
-      p_booking_id => case
-        when v_job.domain_resource_type = 'booking'
-             and v_job.domain_resource_id ~ '^[0-9a-fA-F-]{36}$'
-          then v_job.domain_resource_id::uuid
-        else null
-      end,
+      p_booking_id => v_booking_id,
       p_failure_domain_type => v_job.failure_domain_type,
       p_failure_domain_key => v_job.failure_domain_key,
       p_market_id => v_job.market_id,
