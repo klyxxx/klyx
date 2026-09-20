@@ -32,7 +32,7 @@ export type KlyxMarketReadiness = {
   countryCode: string;
   countryName: string | null;
   currencyCode: string | null;
-  monetarySupport: "supported" | "unsupported";
+  monetarySupport: "catalogued" | "data_required";
   stripeConnect: KlyxMarketReadinessDimension;
   kyc: KlyxMarketReadinessDimension;
   tax: KlyxMarketReadinessDimension;
@@ -107,7 +107,7 @@ function buildBaseReadiness(
     countryCode,
     countryName: market?.countryName ?? null,
     currencyCode: market?.currencyCode ?? null,
-    monetarySupport: market ? "supported" : "unsupported",
+    monetarySupport: market ? "catalogued" : "data_required",
     stripeConnect: cloneDimension(),
     kyc: cloneDimension(),
     tax: cloneDimension(),
@@ -171,10 +171,9 @@ export function assessKlyxMarketReadiness(
 ): KlyxMarketReadinessAssessment {
   const blockers: string[] = [];
 
-  if (readiness.monetarySupport !== "supported") {
-    blockers.push("monetary_support");
-  }
-
+  // The historical market catalogue is descriptive only. A country absent
+  // from it is not permanently unsupported. Live launch remains fail-closed
+  // through reviewed capability/policy evidence below.
   const dimensions = [
     ["stripe_connect", readiness.stripeConnect],
     ["kyc", readiness.kyc],
@@ -206,6 +205,10 @@ export function isKlyxMarketCommerciallyReady(
   ).ready;
 }
 
+/**
+ * Compatibility view for countries already present in the historical UX
+ * catalogue. This is intentionally NOT an exhaustive list of KLYX countries.
+ */
 export function listKlyxMarketReadiness() {
   return KLYX_SUPPORTED_MARKETS.map((market) =>
     getKlyxMarketReadiness(market.countryCode)
