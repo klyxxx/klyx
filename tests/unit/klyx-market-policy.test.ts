@@ -29,6 +29,7 @@ const rule: KlyxMarketPaymentRule = {
 
 const capability: KlyxPaymentCurrencyCapability = {
   provider: "stripe",
+  countryCode: "KE",
   currencyCode: "USD",
   chargeEnabled: true,
   payoutEnabled: true,
