@@ -301,7 +301,7 @@ returns table (
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare
   v_member public.platform_held_group_settlement_members%rowtype;
 begin
@@ -371,7 +371,7 @@ begin
   from running
   where running.total_provider > 0;
 end;
-$;
+$$;
 
 create or replace function public.klyx_group_refund_booking_allocations(
   p_allocation_id uuid
@@ -383,7 +383,7 @@ returns table (
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare
   v_allocation public.platform_held_group_refund_allocations%rowtype;
   v_refund public.platform_held_group_refunds%rowtype;
@@ -445,7 +445,7 @@ begin
   from cumulative
   left join prior using (booking_id);
 end;
-$;
+$$;
 
 create or replace function public.klyx_group_reversal_booking_allocations(
   p_reversal_id uuid
@@ -457,7 +457,7 @@ returns table (
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare
   v_reversal public.platform_held_group_member_reversals%rowtype;
   v_prior_provider bigint;
@@ -504,7 +504,7 @@ begin
   from cumulative
   left join prior using (booking_id);
 end;
-$;
+$$;
 
 create or replace function public.klyx_sync_group_member_central_ledger(
   p_member_id uuid
