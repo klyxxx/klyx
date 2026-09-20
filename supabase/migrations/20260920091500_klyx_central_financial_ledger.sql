@@ -499,7 +499,7 @@ returns text
 language plpgsql
 security definer
 set search_path = public, extensions
-as $
+as $$
 declare
   v_account_id uuid;
   v_profile_ref text;
@@ -547,7 +547,7 @@ begin
 
   return concat('unresolved-profile:', v_profile_ref);
 end;
-$;
+$$;
 
 revoke all on function public.klyx_financial_beneficiary_account_ref(uuid, uuid, text)
   from public, anon, authenticated;
