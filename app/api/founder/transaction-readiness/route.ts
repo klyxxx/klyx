@@ -119,7 +119,7 @@ export async function GET() {
       "ops_operations",
       "ops_events",
       "ops_capability_controls",
-      "ops_jobs",
+      "ops_durable_jobs",
       "reviews",
     ];
 
