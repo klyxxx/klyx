@@ -78,8 +78,11 @@ The fingerprint binds the idempotency key to:
 - structured failure-domain scope;
 - market / region / country / currency;
 - payment provider / capability / dependency;
-- priority and availability;
+- priority;
 - attempt budget and backoff policy.
+
+Scheduling time is not part of the fingerprint. A duplicate enqueue never
+silently changes the schedule of the existing job.
 
 This prevents the same idempotency key from being reused for semantically different work.
 
