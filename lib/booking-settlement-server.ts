@@ -3,6 +3,12 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import Stripe from "stripe";
 
+import { canReceiveSettlementForBooking } from "@/lib/economic-settlement-eligibility-server";
+import {
+  getProviderStripeDestination,
+  isStripeConnectIdentityReviewRequired,
+} from "@/lib/stripe-connect-account";
+import { readStripeSettlementRecipientTruth } from "@/lib/stripe-settlement-recipient-truth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   enforceSettlementReleaseTransactionRisk,
@@ -185,6 +191,22 @@ async function finalizeRelease(input: {
   if (data !== true) throw new Error("KLYX_SETTLEMENT_RELEASE_FINALIZE_LOST");
 }
 
+async function reconcileReleaseFromStripeTruth(input: {
+  bookingId: string;
+  transferId: string;
+}) {
+  const { data, error } = await supabaseAdmin.rpc(
+    "klyx_reconcile_booking_settlement_release",
+    {
+      p_booking_id: input.bookingId,
+      p_stripe_transfer_id: input.transferId,
+    }
+  );
+
+  if (error) throw new Error(error.message);
+  return data === true;
+}
+
 function verifyPaymentIntentTruth(
   settlement: SettlementRow,
   intent: Stripe.PaymentIntent,
@@ -323,6 +345,94 @@ export async function releasePlatformHeldBookingSettlement(
     chargeId,
   });
 
+  // Reconciliation is deliberately before fresh eligibility. If Stripe already
+  // moved money during a previous attempt, KLYX must reconcile external truth
+  // rather than pretending the movement did not happen.
+  try {
+    const existingTransfer = await reconcileExistingTransfer({
+      stripe,
+      settlement,
+      chargeId,
+    });
+
+    if (existingTransfer) {
+      const reconciled = await reconcileReleaseFromStripeTruth({
+        bookingId,
+        transferId: existingTransfer.id,
+      });
+
+      if (!reconciled) {
+        const refreshed = await findSettlement(bookingId);
+        if (
+          refreshed?.state !== "released" ||
+          refreshed.stripe_transfer_id !== existingTransfer.id
+        ) {
+          await markReviewRequired(bookingId, [
+            "settlement_existing_transfer_local_reconciliation_required",
+          ]);
+          return { status: "review_required" };
+        }
+      }
+
+      return {
+        status: "released",
+        transferId: existingTransfer.id,
+        reconciled: true,
+      };
+    }
+  } catch (error) {
+    await markReviewRequired(bookingId, [
+      "settlement_existing_transfer_truth_divergence",
+      error instanceof Error ? error.message : "existing_transfer_truth_error",
+    ]);
+    return { status: "review_required" };
+  }
+
+  let recipientAccountId: string;
+
+  try {
+    const destination = await getProviderStripeDestination(
+      settlement.provider_profile_id
+    );
+
+    if (
+      destination.connect.state !== "linked" ||
+      destination.connect.stripeAccountId !== settlement.stripe_account_id
+    ) {
+      await markReviewRequired(bookingId, [
+        "canonical_stripe_identity_changed",
+      ]);
+      return { status: "review_required" };
+    }
+
+    recipientAccountId = destination.accountId;
+  } catch (error) {
+    if (!isStripeConnectIdentityReviewRequired(error)) throw error;
+
+    await markReviewRequired(bookingId, [
+      "canonical_stripe_identity_review_required",
+      error.message,
+    ]);
+    return { status: "review_required" };
+  }
+
+  const economicEligibility = await canReceiveSettlementForBooking({
+    accountId: recipientAccountId,
+    bookingId,
+    expectedProviderProfileId: settlement.provider_profile_id,
+    expectedStripeAccountId: settlement.stripe_account_id,
+  });
+
+  if (!economicEligibility || economicEligibility.decision !== "allowed") {
+    await markReviewRequired(bookingId, [
+      economicEligibility?.decision ?? "human_review",
+      ...(economicEligibility?.reasonCodes ?? [
+        "economic_settlement_context_missing",
+      ]),
+    ]);
+    return { status: "review_required" };
+  }
+
   try {
     await enforceSettlementReleaseTransactionRisk({
       recipientProfileId: settlement.provider_profile_id,
@@ -416,6 +526,56 @@ export async function releasePlatformHeldBookingSettlement(
     const reconciled = Boolean(transfer);
 
     if (!transfer) {
+      const revalidatedEligibility = await canReceiveSettlementForBooking({
+        accountId: recipientAccountId,
+        bookingId,
+        expectedProviderProfileId: settlement.provider_profile_id,
+        expectedStripeAccountId: claim.stripe_account_id,
+      });
+
+      if (
+        !revalidatedEligibility ||
+        revalidatedEligibility.decision !== "allowed"
+      ) {
+        await failClaim({
+          bookingId,
+          claimToken,
+          code: "economic_settlement_eligibility_changed",
+          message:
+            "Economic settlement eligibility changed after the atomic claim.",
+        });
+        await markReviewRequired(bookingId, [
+          revalidatedEligibility?.decision ?? "human_review",
+          ...(revalidatedEligibility?.reasonCodes ?? [
+            "economic_settlement_context_missing_after_claim",
+          ]),
+        ]);
+        return { status: "review_required" };
+      }
+
+      const stripeTruth = await readStripeSettlementRecipientTruth(
+        stripe,
+        claim.stripe_account_id
+      );
+
+      if (
+        stripeTruth.stripeAccountId !== claim.stripe_account_id ||
+        stripeTruth.livemode ||
+        !stripeTruth.transferCapabilityActive
+      ) {
+        await failClaim({
+          bookingId,
+          claimToken,
+          code: "stripe_recipient_not_ready",
+          message:
+            "Remote Stripe recipient truth does not permit a new TEST Transfer.",
+        });
+        await markReviewRequired(bookingId, [
+          "stripe_recipient_not_ready",
+        ]);
+        return { status: "review_required" };
+      }
+
       transfer = await stripe.transfers.create(
         {
           amount: claim.provider_amount_cents,
