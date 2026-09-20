@@ -831,6 +831,7 @@ export default function AccountsPage() {
                           .toUpperCase(),
                       }))
                     }
+                    autoComplete="off"
                     maxLength={3}
                   />
                   <span className="mt-2 block text-xs text-muted-foreground">
