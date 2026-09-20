@@ -11,115 +11,149 @@ function read(relativePath: string) {
 }
 
 const migration = read(
-  "supabase/migrations/20260920183000_klyx_durable_jobs_retry_dlq.sql"
+  "supabase/migrations/20260920190000_klyx_durable_jobs_retry_dlq.sql"
 );
-const server = read("lib/jobs/durable-jobs-server.ts");
+const server = read("lib/durable-jobs-server.ts");
 const doc = read("docs/KLYX_DURABLE_JOBS_RETRY_DLQ.md");
 
 describe("Mission 14 Durable Jobs + Retry / DLQ", () => {
-  it("creates a server-only durable jobs substrate without becoming domain truth", () => {
+  it("creates one durable operational job authority without replacing domain truth", () => {
     expect(migration).toContain(
-      "create table if not exists public.ops_jobs"
+      "create table if not exists public.ops_durable_jobs"
     );
     expect(migration).toContain(
-      "references public.ops_operations(id) on delete restrict"
+      "operation_id uuid not null references public.ops_operations(id) on delete restrict"
     );
     expect(migration).toContain(
-      "Jobs coordinate retries and leases but never become canonical business truth"
+      "Durable at-least-once KLYX job queue"
     );
     expect(doc).toContain(
       "Durable Jobs coordinates execution. It does **not** become business truth."
     );
+    expect(doc).toContain("at-least-once");
+    expect(doc).not.toContain("exactly-once execution.");
   });
 
-  it("makes enqueue idempotent without silently resetting existing jobs", () => {
+  it("binds idempotency keys to an immutable request fingerprint", () => {
     expect(migration).toContain(
-      "create unique index if not exists ops_jobs_idempotency_unique"
+      "unique (job_type, idempotency_key)"
     );
     expect(migration).toContain(
-      "on public.ops_jobs (queue, job_type, idempotency_key)"
+      "request_fingerprint jsonb not null"
     );
     expect(migration).toContain("pg_advisory_xact_lock");
     expect(migration).toContain("hashtextextended");
     expect(migration).toContain(
-      "select v_job.id, false, v_job.status, v_job.attempt_count"
+      "KLYX_DURABLE_JOB_IDEMPOTENCY_CONFLICT"
     );
     expect(doc).toContain(
-      "Terminal jobs are not silently resurrected by enqueue."
+      "Terminal jobs are never silently resurrected by enqueue."
     );
   });
 
-  it("claims jobs with SKIP LOCKED and fences stale workers by lease token", () => {
+  it("claims with SKIP LOCKED and fences workers by lease token", () => {
     expect(migration).toContain("for update skip locked");
-    expect(migration).toContain("lease_token = v_token");
-    expect(migration).toContain("attempt_count = attempt_count + 1");
+    expect(migration).toContain(
+      "attempt_count = attempt_count + 1"
+    );
+    expect(migration).toContain(
+      "lease_token = v_lease_token"
+    );
+    expect(migration).toContain(
+      "last_claim_token = v_lease_token"
+    );
     expect(migration).toContain(
       "v_job.lease_token is distinct from p_lease_token"
     );
     expect(migration).toContain(
-      "v_job.lease_worker_id is distinct from trim(p_worker_id)"
+      "v_job.lease_owner is distinct from v_worker_id"
     );
-    expect(migration).toContain("KLYX_JOB_LEASE_LOST");
+    expect(migration).toContain(
+      "KLYX_DURABLE_JOB_LEASE_FENCED"
+    );
   });
 
-  it("reclaims stale leases but dead-letters exhausted stale jobs", () => {
-    expect(migration).toContain("lease_expires_at <= now()");
-    expect(migration).toContain("attempt_count >= max_attempts");
+  it("supports bounded lease extension and rejects expired leases", () => {
     expect(migration).toContain(
-      "'durable_job_lease_expired'"
+      "create or replace function public.klyx_extend_durable_job_lease"
     );
     expect(migration).toContain(
-      "'durable_job_dead_lettered'"
+      "KLYX_DURABLE_JOB_LEASE_EXPIRED"
+    );
+    expect(server).toContain(
+      "export async function extendKlyxDurableJobLease"
+    );
+  });
+
+  it("reaps expired leases into retry_wait or dead_lettered", () => {
+    expect(migration).toContain(
+      "create or replace function public.klyx_reap_expired_durable_jobs"
     );
     expect(migration).toContain(
-      "'KLYX_JOB_LEASE_EXHAUSTED'"
+      "status = 'dead_lettered'"
+    );
+    expect(migration).toContain(
+      "status = 'retry_wait'"
+    );
+    expect(migration).toContain(
+      "last_error_code = 'LEASE_EXPIRED'"
     );
   });
 
   it("uses deterministic capped exponential backoff", () => {
-    expect(migration).toContain("v_retry_seconds := least(");
     expect(migration).toContain(
-      "v_job.base_backoff_seconds"
+      "create or replace function public.klyx_durable_job_backoff_seconds"
     );
     expect(migration).toContain("power(2::numeric");
     expect(migration).toContain(
-      "v_job.max_backoff_seconds"
-    );
-    expect(migration).toContain(
-      "'durable_job_retry_scheduled'"
+      "p_backoff_max_seconds"
     );
     expect(doc).toContain(
-      "delay = min(max_backoff, base_backoff * 2^(attempt_count - 1))"
+      "delay = max(1, min(backoff_max, backoff_base * 2^(attempt_count - 1)))"
     );
   });
 
-  it("treats dead-letter as terminal and exposes no automatic requeue", () => {
+  it("makes completion and failure acknowledgements idempotent for the same claim", () => {
     expect(migration).toContain(
-      "status = 'dead_letter'"
+      "v_job.last_claim_token is not distinct from p_lease_token"
     );
     expect(migration).toContain(
-      "dead_lettered_at = now()"
+      "v_job.last_worker_id is not distinct from v_worker_id"
+    );
+    expect(migration).toContain(
+      "v_job.status = 'succeeded'"
+    );
+    expect(migration).toContain(
+      "v_job.status in ('retry_wait', 'dead_lettered')"
+    );
+  });
+
+  it("treats DLQ as terminal read-only state with no automatic redrive", () => {
+    expect(migration).toContain(
+      "create or replace view public.ops_durable_job_dlq"
+    );
+    expect(migration).toContain(
+      "where status = 'dead_lettered'"
     );
     expect(server).toContain(
       "export async function listKlyxDeadLetterJobs"
     );
-    expect(server).not.toContain("requeueDeadLetter");
+    expect(server).not.toContain("redrive");
     expect(migration).not.toContain(
-      "klyx_requeue_dead_letter"
+      "klyx_redrive_durable_job"
     );
     expect(doc).toContain(
-      "Human requeue/case ownership belongs to Mission 15"
+      "Human ownership, case creation and explicit redrive belong to Mission 15"
     );
   });
 
-  it("reuses Mission 13 ops_events instead of creating a second audit system", () => {
+  it("reuses Mission 13 ops_events instead of creating another audit authority", () => {
     for (const event of [
-      "durable_job_enqueued",
-      "durable_job_claimed",
-      "durable_job_lease_expired",
-      "durable_job_retry_scheduled",
-      "durable_job_succeeded",
-      "durable_job_dead_lettered",
+      "durable_job.enqueued",
+      "durable_job.claimed",
+      "durable_job.retry_scheduled",
+      "durable_job.succeeded",
+      "durable_job.dead_lettered",
     ]) {
       expect(migration).toContain(event);
     }
@@ -133,23 +167,28 @@ describe("Mission 14 Durable Jobs + Retry / DLQ", () => {
     expect(migration).not.toContain("ops_job_audit");
   });
 
-  it("keeps all job state and RPCs inaccessible to browser roles", () => {
+  it("keeps direct job mutation unavailable even to service_role", () => {
     expect(migration).toContain(
-      "alter table public.ops_jobs enable row level security"
+      "alter table public.ops_durable_jobs enable row level security"
     );
     expect(migration).toMatch(
-      /revoke all privileges on table public\.ops_jobs[\s\S]*from public, anon, authenticated/
+      /revoke all privileges on table public\.ops_durable_jobs[\s\S]*from public, anon, authenticated/
+    );
+    expect(migration).toMatch(
+      /revoke all privileges on table public\.ops_durable_jobs[\s\S]*from service_role/
+    );
+    expect(migration).toMatch(
+      /grant select on table public\.ops_durable_jobs[\s\S]*to service_role/
     );
 
     for (const rpc of [
-      "klyx_enqueue_ops_job",
-      "klyx_claim_ops_jobs",
-      "klyx_complete_ops_job",
-      "klyx_fail_ops_job",
+      "klyx_enqueue_durable_job",
+      "klyx_reap_expired_durable_jobs",
+      "klyx_claim_durable_jobs",
+      "klyx_extend_durable_job_lease",
+      "klyx_complete_durable_job",
+      "klyx_fail_durable_job",
     ]) {
-      expect(migration).toContain(
-        `revoke all on function public.${rpc}`
-      );
       expect(migration).toContain(
         `grant execute on function public.${rpc}`
       );
@@ -158,7 +197,25 @@ describe("Mission 14 Durable Jobs + Retry / DLQ", () => {
     expect(server).toContain('import "server-only"');
   });
 
-  it("does not rewrite existing domain retry or financial mutation engines", () => {
+  it("minimizes job payloads and never persists arbitrary exception messages", () => {
+    expect(migration).toContain(
+      "ops_durable_jobs_payload_size_check"
+    );
+    expect(migration).toContain(
+      "ops_durable_jobs_fingerprint_size_check"
+    );
+    expect(migration).toContain(
+      "last_error_code text"
+    );
+    expect(migration).not.toContain(
+      "last_error_message text"
+    );
+    expect(doc).toContain(
+      "The queue is not a secret store."
+    );
+  });
+
+  it("does not rewrite webhook, settlement or Stripe mutation engines", () => {
     const missionFiles = [migration, server, doc].join("\n");
 
     for (const forbidden of [
@@ -174,14 +231,15 @@ describe("Mission 14 Durable Jobs + Retry / DLQ", () => {
     }
 
     expect(doc).toContain(
-      "Existing retries are not migrated"
+      "Existing retry authorities are preserved"
     );
   });
 
-  it("exposes only enqueue, claim, completion, failure and DLQ reads in the server boundary", () => {
+  it("exposes only server-side lifecycle primitives and DLQ reads", () => {
     for (const exported of [
       "enqueueKlyxDurableJob",
       "claimKlyxDurableJobs",
+      "extendKlyxDurableJobLease",
       "completeKlyxDurableJob",
       "failKlyxDurableJob",
       "listKlyxDeadLetterJobs",
