@@ -131,6 +131,10 @@ alter table public.bookings
   add column if not exists market_payment_rule_id uuid,
   add column if not exists fx_quote_id uuid;
 
+create unique index if not exists bookings_fx_quote_unique_idx
+  on public.bookings (fx_quote_id)
+  where fx_quote_id is not null;
+
 do $$
 begin
   if not exists (
