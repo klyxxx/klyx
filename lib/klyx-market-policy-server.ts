@@ -34,6 +34,7 @@ type MarketRuleRow = {
 
 type CurrencyCapabilityRow = {
   provider: "stripe";
+  country_code: string;
   currency_code: string;
   charge_enabled: boolean;
   payout_enabled: boolean;
@@ -80,6 +81,7 @@ function mapRule(row: MarketRuleRow): KlyxMarketPaymentRule {
 function mapCapability(row: CurrencyCapabilityRow): KlyxPaymentCurrencyCapability {
   return {
     provider: row.provider,
+    countryCode: row.country_code,
     currencyCode: row.currency_code,
     chargeEnabled: row.charge_enabled,
     payoutEnabled: row.payout_enabled,
@@ -148,9 +150,10 @@ export async function resolveKlyxMarketPaymentPolicy(params: {
     supabaseAdmin
       .from("klyx_payment_currency_capabilities")
       .select(
-        "provider,currency_code,charge_enabled,payout_enabled,settlement_enabled,accounting_exponent,stripe_charge_exponent,stripe_charge_increment,stripe_payout_increment,minimum_charge_amount,maximum_charge_amount,zero_decimal,source_ref,source_checked_at"
+        "provider,country_code,currency_code,charge_enabled,payout_enabled,settlement_enabled,accounting_exponent,stripe_charge_exponent,stripe_charge_increment,stripe_payout_increment,minimum_charge_amount,maximum_charge_amount,zero_decimal,source_ref,source_checked_at"
       )
       .eq("provider", "stripe")
+      .eq("country_code", executionCountryCode)
       .eq("currency_code", currencyCode)
       .maybeSingle(),
   ]);
