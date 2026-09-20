@@ -55,8 +55,7 @@ function firstRpcRow(value: unknown): RpcWorkflowRow {
 
 function snapshotFromRow(row: RpcWorkflowRow | WorkflowRow): WorkflowSnapshot {
   const id = "workflow_id" in row ? row.workflow_id : row.id;
-  const currentStep =
-    "current_step" in row ? row.current_step : row.current_step;
+  const currentStep = row.current_step;
 
   return {
     id,
