@@ -4,6 +4,10 @@ import { randomUUID } from "node:crypto";
 import Stripe from "stripe";
 
 import type { AuthenticatedAccount } from "@/lib/api-auth";
+import {
+  recordCanonicalAggregateReversal,
+  recordCanonicalAggregateTransfer,
+} from "@/lib/canonical-financial-ledger";
 import { canReceiveSettlementForBooking } from "@/lib/economic-settlement-eligibility-server";
 import {
   assertAggregateTransferCapacity,
@@ -482,6 +486,17 @@ export async function releasePlatformHeldGroupMember(
 
   const existing = remote.byMember.get(member.id)?.[0] ?? null;
   if (existing) {
+    await recordCanonicalAggregateTransfer({
+      bookingIds: memberBookingIds(member),
+      transferId: existing.id,
+      amountCents: existing.amount,
+      currency: existing.currency,
+      providerAccountId: member.provider_account_id,
+      providerProfileId: member.provider_profile_id,
+      stripeChargeId: parent.stripe_charge_id,
+      settlementReference: `platform_held_group_member:${member.id}`,
+      reconciled: true,
+    });
     await reconcileMemberRelease(member.id, existing.id);
     return { status: "released", transferId: existing.id, reconciled: true };
   }
@@ -605,6 +620,17 @@ export async function releasePlatformHeldGroupMember(
 
     const appeared = remote.byMember.get(member.id)?.[0] ?? null;
     if (appeared) {
+      await recordCanonicalAggregateTransfer({
+        bookingIds: memberBookingIds(member),
+        transferId: appeared.id,
+        amountCents: appeared.amount,
+        currency: appeared.currency,
+        providerAccountId: member.provider_account_id,
+        providerProfileId: member.provider_profile_id,
+        stripeChargeId: parent.stripe_charge_id,
+        settlementReference: `platform_held_group_member:${member.id}`,
+        reconciled: true,
+      });
       await reconcileMemberRelease(member.id, appeared.id);
       return { status: "released", transferId: appeared.id, reconciled: true };
     }
@@ -690,6 +716,18 @@ export async function releasePlatformHeldGroupMember(
       parent,
       member,
       expectedAmountCents: Number(claim.provider_amount_cents),
+    });
+
+    await recordCanonicalAggregateTransfer({
+      bookingIds: memberBookingIds(member),
+      transferId: transfer.id,
+      amountCents: transfer.amount,
+      currency: transfer.currency,
+      providerAccountId: member.provider_account_id,
+      providerProfileId: member.provider_profile_id,
+      stripeChargeId: parent.stripe_charge_id,
+      settlementReference: `platform_held_group_member:${member.id}`,
+      reconciled: false,
     });
 
     const { data: finalized, error: finalizeError } = await supabaseAdmin.rpc(
@@ -1053,6 +1091,7 @@ async function processRequiredReversals(input: {
     }
 
     let reversal = matching[0] ?? null;
+    const reversalReconciled = Boolean(reversal);
 
     if (reversal && reversal.amount !== Number(allocation.provider_refund_cents)) {
       await markAllocationReview(
@@ -1090,6 +1129,18 @@ async function processRequiredReversals(input: {
         continue;
       }
     }
+
+    await recordCanonicalAggregateReversal({
+      bookingIds: memberBookingIds(member),
+      transferId,
+      reversalId: reversal.id,
+      amountCents: reversal.amount,
+      currency: input.parent.currency,
+      providerAccountId: member.provider_account_id,
+      providerProfileId: member.provider_profile_id,
+      settlementReference: `platform_held_group_refund_allocation:${allocation.id}`,
+      reconciled: reversalReconciled,
+    });
 
     const { data, error } = await supabaseAdmin.rpc(
       "klyx_finalize_platform_held_group_member_reversal",
