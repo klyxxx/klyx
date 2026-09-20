@@ -466,11 +466,23 @@ begin
       )
     )
   )
-  on conflict (event_key) do nothing;
+  on conflict (event_key) do nothing
+  returning id into v_id;
 
-  raise exception 'KLYX_FINANCIAL_RECONCILIATION_EVENT_CONFLICT';
+  if v_id is null then
+    select id
+      into v_id
+      from public.financial_reconciliation_events
+     where event_key = v_conflict_key;
+  end if;
+
+  if v_id is null then
+    raise exception 'KLYX_FINANCIAL_RECONCILIATION_CONFLICT_NOT_WRITABLE';
+  end if;
+
+  return v_id;
 end;
-$$;
+$;
 
 create or replace function public.klyx_append_financial_ledger_event(
   p_movement_key text,
