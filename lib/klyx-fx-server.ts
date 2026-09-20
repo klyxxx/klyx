@@ -8,6 +8,7 @@ import {
 
 type FxQuoteRow = {
   id: string;
+  client_profile_id: string;
   provider: string;
   provider_quote_id: string | null;
   source_currency: string;
@@ -19,21 +20,23 @@ type FxQuoteRow = {
 };
 
 export async function getKlyxFxQuote(
-  quoteId: string
+  quoteId: string,
+  clientProfileId: string
 ): Promise<KlyxFxQuote> {
   const { data, error } = await supabaseAdmin
     .from("klyx_fx_quotes")
     .select(
-      "id,provider,provider_quote_id,source_currency,target_currency,source_amount_minor,target_amount_minor,lock_expires_at,status"
+      "id,client_profile_id,provider,provider_quote_id,source_currency,target_currency,source_amount_minor,target_amount_minor,lock_expires_at,status"
     )
     .eq("id", quoteId)
+    .eq("client_profile_id", clientProfileId)
     .maybeSingle();
 
   if (error) {
     throw new Error(`KLYX_FX_QUOTE_READ_FAILED:${error.message}`);
   }
   if (!data) {
-    throw new Error("KLYX_FX_QUOTE_NOT_FOUND");
+    throw new Error("KLYX_FX_QUOTE_NOT_FOUND_OR_NOT_OWNED");
   }
 
   const row = data as FxQuoteRow;
