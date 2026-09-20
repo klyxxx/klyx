@@ -29,7 +29,7 @@ function fullyProvenMarket(): KlyxMarketReadiness {
     countryCode: "BE",
     countryName: "Belgique",
     currencyCode: "EUR",
-    monetarySupport: "supported",
+    monetarySupport: "catalogued",
     stripeConnect: provenDimension(),
     kyc: provenDimension(),
     tax: provenDimension(),
@@ -43,10 +43,10 @@ function fullyProvenMarket(): KlyxMarketReadiness {
 }
 
 describe("KLYX market readiness governance", () => {
-  it("does not equate monetary support with commercial readiness", () => {
+  it("does not equate catalogue presence with commercial readiness", () => {
     const belgium = getKlyxMarketReadiness("BE");
 
-    expect(belgium.monetarySupport).toBe("supported");
+    expect(belgium.monetarySupport).toBe("catalogued");
     expect(belgium.currencyCode).toBe("EUR");
     expect(belgium.launchDecision.status).toBe("closed");
     expect(isKlyxMarketCommerciallyReady("BE")).toBe(false);
