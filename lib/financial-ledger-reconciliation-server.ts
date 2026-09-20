@@ -39,6 +39,9 @@ type LedgerRow = {
 
 type BookingRow = {
   id: string;
+  parent_id: string;
+  provider_id: string | null;
+  babysitter_id: string | null;
   payment_status: string | null;
   refund_status: string | null;
   payment_mode: string | null;
@@ -244,6 +247,8 @@ async function loadLocalTruth(bookingId: string): Promise<{
   settlement: SettlementRow | null;
   group: GroupTruth;
   ledger: LedgerRow[];
+  clientAccountId: string | null;
+  providerAccountId: string | null;
 }> {
   const [
     bookingResult,
@@ -254,7 +259,7 @@ async function loadLocalTruth(bookingId: string): Promise<{
     supabaseAdmin
       .from("bookings")
       .select(
-        "id, payment_status, refund_status, payment_mode, amount_total, currency, application_fee_amount, platform_fee_amount, provider_amount, refunded_amount_cents, stripe_checkout_session_id, stripe_payment_intent_id"
+        "id, parent_id, provider_id, babysitter_id, payment_status, refund_status, payment_mode, amount_total, currency, application_fee_amount, platform_fee_amount, provider_amount, refunded_amount_cents, stripe_checkout_session_id, stripe_payment_intent_id"
       )
       .eq("id", bookingId)
       .maybeSingle(),
@@ -371,13 +376,41 @@ async function loadLocalTruth(bookingId: string): Promise<{
     };
   }
 
+  const booking = bookingResult.data as BookingRow;
+  const providerProfileId = booking.provider_id ?? booking.babysitter_id;
+  const profileIds = uniqueText([booking.parent_id, providerProfileId]);
+
+  const { data: profileAccounts, error: profileAccountsError } =
+    await supabaseAdmin
+      .from("profiles")
+      .select("id, account_id")
+      .in("id", profileIds);
+
+  if (profileAccountsError) throw new Error(profileAccountsError.message);
+
+  const accountByProfile = new Map(
+    (profileAccounts ?? []).map((row) => [
+      String(row.id),
+      typeof row.account_id === "string" ? row.account_id : null,
+    ])
+  );
+
+  const clientAccountId = accountByProfile.get(booking.parent_id) ?? null;
+  const providerAccountId =
+    group.member?.provider_account_id ??
+    (providerProfileId
+      ? accountByProfile.get(providerProfileId) ?? null
+      : null);
+
   return {
-    booking: bookingResult.data as BookingRow,
+    booking,
     settlement: settlementResult.data
       ? (settlementResult.data as SettlementRow)
       : null,
     group,
     ledger: (ledgerResult.data ?? []) as LedgerRow[],
+    clientAccountId,
+    providerAccountId,
   };
 }
 
@@ -386,8 +419,17 @@ function compareLocalTruth(input: {
   settlement: SettlementRow | null;
   group: GroupTruth;
   ledger: LedgerRow[];
+  clientAccountId: string | null;
+  providerAccountId: string | null;
 }): Divergence[] {
-  const { booking, settlement, group, ledger } = input;
+  const {
+    booking,
+    settlement,
+    group,
+    ledger,
+    clientAccountId,
+    providerAccountId,
+  } = input;
   const divergences: Divergence[] = [];
   const charge = firstOfType(ledger, "charge");
   const commission = firstOfType(ledger, "commission");
@@ -395,6 +437,77 @@ function compareLocalTruth(input: {
   const transfers = rowsOfType(ledger, "transfer");
   const reversals = rowsOfType(ledger, "reversal");
   const refunds = rowsOfType(ledger, "refund");
+
+  const clientBeneficiaryRows = ledger.filter(
+    (row) => row.beneficiary_kind === "client"
+  );
+  const providerBeneficiaryRows = ledger.filter(
+    (row) => row.beneficiary_kind === "provider"
+  );
+
+  pushMismatch(divergences, {
+    mismatch: clientBeneficiaryRows.length > 0 && !clientAccountId,
+    state: "human_review",
+    dimension: "beneficiary",
+    reasonCode: "client_beneficiary_account_unresolved",
+    expected: { authority: "accounts.id", bookingId: booking.id },
+    actual: {
+      beneficiaryRefs: uniqueText(
+        clientBeneficiaryRows.map((row) => row.beneficiary_ref)
+      ),
+    },
+  });
+
+  if (clientAccountId) {
+    for (const row of clientBeneficiaryRows) {
+      pushMismatch(divergences, {
+        mismatch: row.beneficiary_ref !== clientAccountId,
+        state: "human_review",
+        dimension: "beneficiary",
+        reasonCode: "client_beneficiary_account_mismatch",
+        expected: {
+          accountId: clientAccountId,
+          movementKey: row.movement_key,
+        },
+        actual: {
+          beneficiaryRef: row.beneficiary_ref,
+          movementType: row.movement_type,
+        },
+      });
+    }
+  }
+
+  pushMismatch(divergences, {
+    mismatch: providerBeneficiaryRows.length > 0 && !providerAccountId,
+    state: "human_review",
+    dimension: "beneficiary",
+    reasonCode: "provider_beneficiary_account_unresolved",
+    expected: { authority: "accounts.id", bookingId: booking.id },
+    actual: {
+      beneficiaryRefs: uniqueText(
+        providerBeneficiaryRows.map((row) => row.beneficiary_ref)
+      ),
+    },
+  });
+
+  if (providerAccountId) {
+    for (const row of providerBeneficiaryRows) {
+      pushMismatch(divergences, {
+        mismatch: row.beneficiary_ref !== providerAccountId,
+        state: "human_review",
+        dimension: "beneficiary",
+        reasonCode: "provider_beneficiary_account_mismatch",
+        expected: {
+          accountId: providerAccountId,
+          movementKey: row.movement_key,
+        },
+        actual: {
+          beneficiaryRef: row.beneficiary_ref,
+          movementType: row.movement_type,
+        },
+      });
+    }
+  }
 
   const groupMode = booking.payment_mode === "platform_held_group";
 
