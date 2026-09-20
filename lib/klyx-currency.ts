@@ -247,3 +247,92 @@ export function assertKlyxStripeIncrement(
     throw new Error("KLYX_STRIPE_CURRENCY_INCREMENT_INVALID");
   }
 }
+
+
+export function toKlyxStripeChargeAmount(
+  accountingMinorUnits: number,
+  currencyCode: string
+): number {
+  if (!Number.isSafeInteger(accountingMinorUnits) || accountingMinorUnits < 0) {
+    throw new Error("KLYX_MINOR_UNITS_INVALID");
+  }
+
+  const policy = getKlyxMinorUnitPolicy(currencyCode);
+  const exponentDelta =
+    policy.stripeChargeExponent - policy.accountingExponent;
+
+  let stripeAmount = accountingMinorUnits;
+
+  if (exponentDelta > 0) {
+    const multiplier = 10 ** exponentDelta;
+    if (!Number.isSafeInteger(multiplier)) {
+      throw new Error("KLYX_STRIPE_CURRENCY_SCALE_INVALID");
+    }
+    stripeAmount = accountingMinorUnits * multiplier;
+  } else if (exponentDelta < 0) {
+    const divisor = 10 ** -exponentDelta;
+    if (accountingMinorUnits % divisor !== 0) {
+      throw new Error("KLYX_STRIPE_CURRENCY_SCALE_LOSS");
+    }
+    stripeAmount = accountingMinorUnits / divisor;
+  }
+
+  if (!Number.isSafeInteger(stripeAmount)) {
+    throw new Error("KLYX_MONEY_AMOUNT_TOO_LARGE");
+  }
+
+  assertKlyxStripeIncrement(
+    stripeAmount,
+    policy.stripeChargeIncrement
+  );
+
+  return stripeAmount;
+}
+
+export function fromKlyxStripeChargeAmount(
+  stripeAmount: number,
+  currencyCode: string
+): number {
+  if (!Number.isSafeInteger(stripeAmount) || stripeAmount < 0) {
+    throw new Error("KLYX_MINOR_UNITS_INVALID");
+  }
+
+  const policy = getKlyxMinorUnitPolicy(currencyCode);
+  assertKlyxStripeIncrement(stripeAmount, policy.stripeChargeIncrement);
+
+  const exponentDelta =
+    policy.stripeChargeExponent - policy.accountingExponent;
+
+  let accountingMinorUnits = stripeAmount;
+
+  if (exponentDelta > 0) {
+    const divisor = 10 ** exponentDelta;
+    if (stripeAmount % divisor !== 0) {
+      throw new Error("KLYX_STRIPE_CURRENCY_SCALE_LOSS");
+    }
+    accountingMinorUnits = stripeAmount / divisor;
+  } else if (exponentDelta < 0) {
+    const multiplier = 10 ** -exponentDelta;
+    accountingMinorUnits = stripeAmount * multiplier;
+  }
+
+  if (!Number.isSafeInteger(accountingMinorUnits)) {
+    throw new Error("KLYX_MONEY_AMOUNT_TOO_LARGE");
+  }
+
+  return accountingMinorUnits;
+}
+
+export function assertKlyxStripePayoutAmount(
+  accountingMinorUnits: number,
+  currencyCode: string
+): void {
+  const policy = getKlyxMinorUnitPolicy(currencyCode);
+  if (
+    !Number.isSafeInteger(accountingMinorUnits) ||
+    accountingMinorUnits < 0 ||
+    accountingMinorUnits % policy.stripePayoutIncrement !== 0
+  ) {
+    throw new Error("KLYX_STRIPE_PAYOUT_INCREMENT_INVALID");
+  }
+}
