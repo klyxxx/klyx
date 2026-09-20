@@ -100,6 +100,9 @@ create index if not exists financial_ledger_entries_payout_idx
 comment on table public.financial_ledger_entries is
   'Canonical append-only KLYX financial ledger. Stripe ids are evidence/references, never the accounting authority.';
 
+comment on table public.booking_financial_ledger is
+  'LEGACY compatibility journal. Non-authoritative after Canonical Financial Ledger migration; do not use as KLYX accounting truth.';
+
 comment on column public.financial_ledger_entries.event_key is
   'Deterministic KLYX idempotency key. Reuse with different immutable facts is rejected.';
 
