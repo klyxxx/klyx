@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { syncEconomicStripeProjectionFromStripe } from "@/lib/economic-identity-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   claimStripeWebhookEvent,
@@ -44,7 +45,8 @@ function getStripeConnectWebhookConfig() {
 
 async function updateConnectedAccount(
   stripe: Stripe,
-  signedAccount: Stripe.Account
+  signedAccount: Stripe.Account,
+  correlationId: string
 ) {
   const account = await stripe.accounts.retrieve(signedAccount.id);
   const readiness = {
@@ -80,6 +82,12 @@ async function updateConnectedAccount(
       .eq("account_id", identity.account_id);
 
     if (accountProfilesError) throw new Error(accountProfilesError.message);
+
+    await syncEconomicStripeProjectionFromStripe({
+      accountId: identity.account_id,
+      stripeAccount: account,
+      correlationId,
+    });
   }
 }
 
@@ -174,7 +182,8 @@ export async function POST(request: Request) {
     if (event.type === "account.updated") {
       await updateConnectedAccount(
         stripe,
-        event.data.object as Stripe.Account
+        event.data.object as Stripe.Account,
+        event.id
       );
     }
 
