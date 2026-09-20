@@ -583,15 +583,15 @@ $$;
 
 alter function public.klyx_open_human_ops_case(
   text, text, text, text, text, text, text, text, text,
-  uuid, uuid, text, text, text, text, text, text, text, text, timestamptz
+  uuid, uuid, text, text, text, text, text, text, text, text, text, timestamptz
 ) owner to postgres;
 revoke all on function public.klyx_open_human_ops_case(
   text, text, text, text, text, text, text, text, text,
-  uuid, uuid, text, text, text, text, text, text, text, text, timestamptz
+  uuid, uuid, text, text, text, text, text, text, text, text, text, timestamptz
 ) from public, anon, authenticated;
 grant execute on function public.klyx_open_human_ops_case(
   text, text, text, text, text, text, text, text, text,
-  uuid, uuid, text, text, text, text, text, text, text, text, timestamptz
+  uuid, uuid, text, text, text, text, text, text, text, text, text, timestamptz
 ) to service_role;
 
 create or replace function public.klyx_link_human_ops_case(
