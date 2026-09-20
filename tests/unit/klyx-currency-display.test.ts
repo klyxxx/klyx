@@ -12,6 +12,8 @@ describe("KLYX transaction currency display", () => {
   it("uses the supplied ISO currency instead of hardcoding EUR", () => {
     expect(formatKlyxCurrencyAmount(1250, "USD")).toBe("12.50 USD");
     expect(formatKlyxCurrencyAmount(1250, "GBP")).toBe("12.50 GBP");
+    expect(formatKlyxCurrencyAmount(1250, "JPY")).toBe("1250 JPY");
+    expect(formatKlyxCurrencyAmount(12345, "KWD")).toBe("12.345 KWD");
   });
 
   it("normalizes ISO currency codes", () => {
