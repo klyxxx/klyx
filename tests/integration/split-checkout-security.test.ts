@@ -134,6 +134,12 @@ async function routeModule() {
   );
 }
 
+async function routeCoreModule() {
+  return import(
+    "@/app/api/bookings/split-missions/[id]/checkout/route-core"
+  );
+}
+
 function context(
   id =
     "batch-test-1"
@@ -451,7 +457,7 @@ describe(
         const {
           POST,
         } =
-          await routeModule();
+          await routeCoreModule();
 
         await POST(
           request({}),
