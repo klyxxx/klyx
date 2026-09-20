@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import Stripe from "stripe";
 
 import type { AuthenticatedAccount } from "@/lib/api-auth";
+import { canReceiveSettlementForBooking } from "@/lib/economic-settlement-eligibility-server";
 import {
   assertAggregateTransferCapacity,
   calculateCumulativeGroupRefundDelta,
@@ -15,6 +16,7 @@ import {
   getProviderStripeDestination,
   isStripeConnectIdentityReviewRequired,
 } from "@/lib/stripe-connect-account";
+import { readStripeSettlementRecipientTruth } from "@/lib/stripe-settlement-recipient-truth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   enforcePlatformHeldGroupRefundTransactionRisk,
@@ -347,21 +349,54 @@ async function listAndValidateTransfers(
   };
 }
 
-async function stripeRecipientStillReady(
-  stripe: Stripe,
-  stripeAccountId: string
-): Promise<boolean> {
-  const account = await stripe.v2.core.accounts.retrieve(stripeAccountId, {
-    include: ["configuration.recipient", "identity", "requirements"],
-  });
+function memberBookingIds(member: MemberRow): string[] {
+  if (!Array.isArray(member.booking_ids)) {
+    throw new Error("KLYX_GROUP_HELD_MEMBER_BOOKING_IDS_INVALID");
+  }
 
-  return Boolean(
-    account.livemode === false &&
-      account.applied_configurations?.includes("recipient") === true &&
-      account.configuration?.recipient?.applied === true &&
-      account.configuration?.recipient?.capabilities?.stripe_balance
-        ?.stripe_transfers?.status === "active"
+  const bookingIds = member.booking_ids
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (bookingIds.length === 0 || bookingIds.length !== member.booking_ids.length) {
+    throw new Error("KLYX_GROUP_HELD_MEMBER_BOOKING_IDS_INVALID");
+  }
+
+  return Array.from(new Set(bookingIds));
+}
+
+async function evaluateMemberEconomicSettlementEligibility(
+  member: MemberRow
+): Promise<{ allowed: boolean; reasonCodes: string[] }> {
+  const results = await Promise.all(
+    memberBookingIds(member).map((bookingId) =>
+      canReceiveSettlementForBooking({
+        accountId: member.provider_account_id,
+        bookingId,
+        expectedProviderProfileId: member.provider_profile_id,
+        expectedStripeAccountId: member.stripe_account_id,
+      })
+    )
   );
+
+  const reasonCodes: string[] = [];
+
+  for (const result of results) {
+    if (!result) {
+      reasonCodes.push("economic_settlement_context_missing");
+      continue;
+    }
+
+    if (result.decision !== "allowed") {
+      reasonCodes.push(result.decision, ...result.reasonCodes);
+    }
+  }
+
+  return {
+    allowed: reasonCodes.length === 0,
+    reasonCodes: Array.from(new Set(reasonCodes)),
+  };
 }
 
 async function loadAllMembers(parentId: string): Promise<MemberRow[]> {
@@ -466,6 +501,19 @@ export async function releasePlatformHeldGroupMember(
     member = await loadMember(member.id);
   }
 
+  const economicEligibility =
+    await evaluateMemberEconomicSettlementEligibility(member);
+
+  if (!economicEligibility.allowed) {
+    await markMemberReview(
+      member.id,
+      "economic_settlement_eligibility_denied",
+      economicEligibility.reasonCodes.join(",") ||
+        "Economic settlement eligibility did not allow release."
+    );
+    return { status: "review_required" };
+  }
+
   try {
     await enforceSettlementReleaseTransactionRisk({
       recipientProfileId: member.provider_profile_id,
@@ -501,14 +549,6 @@ export async function releasePlatformHeldGroupMember(
       return { status: "review_required" };
     }
 
-    if (!(await stripeRecipientStillReady(stripe, member.stripe_account_id))) {
-      await markMemberReview(
-        member.id,
-        "stripe_recipient_not_ready",
-        "Stripe recipient is no longer transfer-ready at release time."
-      );
-      return { status: "review_required" };
-    }
   } catch (error) {
     if (!isStripeConnectIdentityReviewRequired(error)) throw error;
 
@@ -580,11 +620,46 @@ export async function releasePlatformHeldGroupMember(
       requestedTransferAmountCents: Number(claim.provider_amount_cents),
     });
 
-    if (!(await stripeRecipientStillReady(stripe, member.stripe_account_id))) {
+    const revalidatedEconomicEligibility =
+      await evaluateMemberEconomicSettlementEligibility(member);
+
+    if (!revalidatedEconomicEligibility.allowed) {
+      await failReleaseClaim(
+        member.id,
+        claimToken,
+        "economic_settlement_eligibility_changed",
+        revalidatedEconomicEligibility.reasonCodes.join(",") ||
+          "Economic settlement eligibility changed after the atomic claim."
+      );
+      await markMemberReview(
+        member.id,
+        "economic_settlement_eligibility_changed",
+        revalidatedEconomicEligibility.reasonCodes.join(",") ||
+          "Economic settlement eligibility changed after the atomic claim."
+      );
+      return { status: "review_required" };
+    }
+
+    const stripeTruth = await readStripeSettlementRecipientTruth(
+      stripe,
+      member.stripe_account_id
+    );
+
+    if (
+      stripeTruth.stripeAccountId !== member.stripe_account_id ||
+      stripeTruth.livemode ||
+      !stripeTruth.transferCapabilityActive
+    ) {
+      await failReleaseClaim(
+        member.id,
+        claimToken,
+        "stripe_recipient_not_ready_after_claim",
+        "Remote Stripe recipient truth does not permit a new TEST Transfer."
+      );
       await markMemberReview(
         member.id,
         "stripe_recipient_not_ready_after_claim",
-        "Stripe recipient became ineligible immediately before Transfer."
+        "Remote Stripe recipient truth does not permit a new TEST Transfer."
       );
       return { status: "review_required" };
     }
