@@ -604,6 +604,96 @@ export async function recordCanonicalRefundFromLegacyLedger(input: {
   });
 }
 
+
+export async function recordCanonicalAggregateTransfer(input: {
+  bookingIds: string[];
+  transferId: string;
+  amountCents: number;
+  currency: string;
+  providerAccountId: string;
+  providerProfileId: string;
+  stripeChargeId?: string | null;
+  settlementReference: string;
+  reconciled?: boolean;
+}): Promise<void> {
+  const bookingIds = Array.from(
+    new Set(input.bookingIds.map((value) => value.trim()).filter(Boolean))
+  );
+
+  if (bookingIds.length === 0) {
+    throw new Error("KLYX_CANONICAL_LEDGER_BOOKING_REQUIRED");
+  }
+
+  await appendCanonicalFinancialMovement({
+    eventKey: `group-transfer:${input.transferId}`,
+    movementType: "transfer",
+    amountCents: input.amountCents,
+    currency: input.currency,
+    bookingIds,
+    beneficiaryType: "provider",
+    beneficiaryAccountId: input.providerAccountId,
+    beneficiaryProfileId: input.providerProfileId,
+    cause: input.reconciled
+      ? "group_provider_transfer_reconciled"
+      : "group_provider_transfer_released",
+    previousState: "release_claimed",
+    newState: "released",
+    source: input.reconciled ? "reconciliation" : "settlement",
+    stripeChargeId: input.stripeChargeId ?? null,
+    stripeTransferId: input.transferId,
+    settlementReference: input.settlementReference,
+    metadata: {
+      reconciled: Boolean(input.reconciled),
+      aggregateBookingCount: bookingIds.length,
+    },
+  });
+}
+
+export async function recordCanonicalAggregateReversal(input: {
+  bookingIds: string[];
+  transferId: string;
+  reversalId: string;
+  amountCents: number;
+  currency: string;
+  providerAccountId: string;
+  providerProfileId: string;
+  settlementReference: string;
+  reconciled?: boolean;
+}): Promise<void> {
+  const bookingIds = Array.from(
+    new Set(input.bookingIds.map((value) => value.trim()).filter(Boolean))
+  );
+
+  if (bookingIds.length === 0) {
+    throw new Error("KLYX_CANONICAL_LEDGER_BOOKING_REQUIRED");
+  }
+
+  await appendCanonicalFinancialMovement({
+    eventKey: `group-reversal:${input.reversalId}`,
+    movementType: "reversal",
+    amountCents: input.amountCents,
+    currency: input.currency,
+    bookingIds,
+    beneficiaryType: "platform",
+    beneficiaryAccountId: null,
+    beneficiaryProfileId: input.providerProfileId,
+    cause: input.reconciled
+      ? "group_provider_transfer_reversal_reconciled"
+      : "group_provider_transfer_reversed_for_refund",
+    previousState: "released",
+    newState: "refund_pending",
+    source: input.reconciled ? "reconciliation" : "settlement",
+    stripeTransferId: input.transferId,
+    stripeTransferReversalId: input.reversalId,
+    settlementReference: input.settlementReference,
+    metadata: {
+      providerAccountId: input.providerAccountId,
+      reconciled: Boolean(input.reconciled),
+      aggregateBookingCount: bookingIds.length,
+    },
+  });
+}
+
 export async function recordCanonicalPayoutAllocation(input: {
   bookingId: string;
   payoutId: string;
