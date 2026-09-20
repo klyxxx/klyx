@@ -7,7 +7,18 @@ import {
 } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { assessBookingStripeReadiness } from "@/lib/booking-stripe-readiness";
-import { assessKlyxStripeMarketAccess } from "@/lib/klyx-stripe-market-access";
+import {
+  calculateKlyxMarketEconomics,
+} from "@/lib/klyx-market-policy";
+import {
+  resolveKlyxMarketPaymentPolicy,
+} from "@/lib/klyx-market-policy-server";
+import {
+  toKlyxStripeChargeAmount,
+} from "@/lib/klyx-currency";
+import {
+  toKlyxMinorUnits,
+} from "@/lib/klyx-money";
 import {
   getProviderStripeDestination,
   isStripeConnectIdentityReviewRequired,
@@ -18,6 +29,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 // KLYX_BOOKING_STRIPE_READINESS_API_15_05
 // KLYX_BOOKING_READINESS_PARITY_API_15_06
 // KLYX_ACCOUNT_LEVEL_STRIPE_CONNECT_19_45
+// KLYX_GLOBAL_MONEY_READINESS_20260920
 
 type RouteContext = {
   params: Promise<{
@@ -38,6 +50,10 @@ type BookingRow = {
   status: string;
   payment_status: string | null;
   currency: string | null;
+  payer_country_code: string | null;
+  execution_country_code: string | null;
+  presentment_currency: string | null;
+  subtotal_amount_minor: number | null;
   estimated_amount_cents: number | null;
   amount_total: number | null;
 };
@@ -45,6 +61,11 @@ type BookingRow = {
 type ServiceProfileRow = {
   price: number | null;
   pricing_type: string | null;
+};
+
+type ServiceRow = {
+  id: string;
+  slug: string;
 };
 
 function envIsTrue(name: string) {
@@ -72,7 +93,7 @@ export async function GET(request: Request, context: RouteContext) {
     const { data: bookingData, error: bookingError } = await supabaseAdmin
       .from("bookings")
       .select(
-        "id, parent_id, provider_id, babysitter_id, booking_group_id, service_id, user_service_id, start_time, end_time, status, payment_status, currency, estimated_amount_cents, amount_total"
+        "id, parent_id, provider_id, babysitter_id, booking_group_id, service_id, user_service_id, start_time, end_time, status, payment_status, currency, payer_country_code, execution_country_code, presentment_currency, subtotal_amount_minor, estimated_amount_cents, amount_total"
       )
       .eq("id", bookingId)
       .maybeSingle();
@@ -120,7 +141,7 @@ export async function GET(request: Request, context: RouteContext) {
       booking.service_id
         ? supabaseAdmin
             .from("services")
-            .select("id")
+            .select("id, slug")
             .eq("id", booking.service_id)
             .maybeSingle()
         : Promise.resolve({ data: null, error: null }),
@@ -154,6 +175,8 @@ export async function GET(request: Request, context: RouteContext) {
       }
     }
 
+    const service =
+      (serviceResult.data as ServiceRow | null) ?? null;
     const serviceProfile =
       (serviceProfileResult.data as ServiceProfileRow | null) ?? null;
     const splitMissionPayment = (splitResult.data ?? []).length > 0;
@@ -164,32 +187,51 @@ export async function GET(request: Request, context: RouteContext) {
     const servicePrice =
       serviceProfile?.price == null ? null : Number(serviceProfile.price);
     const servicePricePresent =
-      servicePrice !== null && Number.isFinite(servicePrice);
-    const fallbackAmount =
-      servicePricePresent && durationValid
-        ? Math.round(
-            servicePrice *
-              (serviceProfile?.pricing_type === "fixed"
-                ? 1
-                : durationMinutes / 60) *
-              100
-          )
-        : null;
-    const amountTotal =
-      booking.estimated_amount_cents ??
-      booking.amount_total ??
-      fallbackAmount;
-    const paymentAmountValid = Boolean(
-      amountTotal !== null &&
-        Number.isFinite(Number(amountTotal)) &&
-        Number(amountTotal) >= 50
-    );
-    const currencyValid = /^[A-Za-z]{3}$/.test(
-      booking.currency?.trim() ?? ""
-    );
-    const serviceExists = Boolean(serviceResult.data);
+      servicePrice !== null && Number.isFinite(servicePrice) && servicePrice > 0;
+
+    const payerCountryCode =
+      booking.payer_country_code ?? profile.countryCode ?? "";
+    const executionCountryCode =
+      booking.execution_country_code ?? provider?.countryCode ?? "";
+    const presentmentCurrency =
+      (booking.presentment_currency ?? booking.currency)
+        ?.trim()
+        .toUpperCase() ?? "";
+
+    const currencyValid = /^[A-Z]{3}$/.test(presentmentCurrency);
+    const serviceExists = Boolean(service);
     const providerServiceActive = Boolean(userServiceResult.data);
     const serviceProfilePresent = Boolean(serviceProfile);
+
+    let fallbackAmountMinor: number | null = null;
+
+    if (
+      servicePricePresent &&
+      durationValid &&
+      currencyValid &&
+      /^[A-Z]{2}$/.test(executionCountryCode || payerCountryCode)
+    ) {
+      fallbackAmountMinor = toKlyxMinorUnits(
+        servicePrice *
+          (serviceProfile?.pricing_type === "fixed"
+            ? 1
+            : durationMinutes / 60),
+        executionCountryCode || payerCountryCode,
+        presentmentCurrency
+      );
+    }
+
+    const subtotalAmountMinor =
+      booking.subtotal_amount_minor ??
+      booking.estimated_amount_cents ??
+      booking.amount_total ??
+      fallbackAmountMinor;
+
+    let paymentAmountValid = Boolean(
+      subtotalAmountMinor !== null &&
+        Number.isSafeInteger(Number(subtotalAmountMinor)) &&
+        Number(subtotalAmountMinor) > 0
+    );
 
     let stripeRuntime;
 
@@ -226,14 +268,74 @@ export async function GET(request: Request, context: RouteContext) {
       });
     }
 
-    const clientMarketAccess = assessKlyxStripeMarketAccess(
-      profile.countryCode,
-      stripeRuntime.mode
+    let marketPolicy:
+      Awaited<ReturnType<typeof resolveKlyxMarketPaymentPolicy>> | null =
+      null;
+
+    try {
+      if (
+        /^[A-Z]{2}$/.test(payerCountryCode) &&
+        /^[A-Z]{2}$/.test(executionCountryCode) &&
+        currencyValid &&
+        service
+      ) {
+        marketPolicy = await resolveKlyxMarketPaymentPolicy({
+          payerCountryCode,
+          executionCountryCode,
+          serviceSlug: service.slug,
+          currencyCode: presentmentCurrency,
+        });
+      }
+    } catch {
+      marketPolicy = null;
+    }
+
+    const liveSnapshotComplete = Boolean(
+      booking.payer_country_code &&
+        booking.execution_country_code &&
+        booking.presentment_currency &&
+        booking.subtotal_amount_minor != null
     );
-    const providerMarketAccess = assessKlyxStripeMarketAccess(
-      provider?.countryCode ?? "",
-      stripeRuntime.mode
-    );
+
+    const transactionMarketReady =
+      stripeRuntime.mode === "test"
+        ? true
+        : Boolean(
+            liveSnapshotComplete &&
+              marketPolicy?.rule &&
+              marketPolicy.currencyCapability &&
+              marketPolicy.assessment.allowed
+          );
+
+    if (
+      paymentAmountValid &&
+      marketPolicy?.rule &&
+      marketPolicy.currencyCapability &&
+      marketPolicy.assessment.allowed &&
+      subtotalAmountMinor != null
+    ) {
+      const economics = calculateKlyxMarketEconomics({
+        subtotalMinor: Number(subtotalAmountMinor),
+        commissionBps: marketPolicy.rule.commissionBps,
+        taxMode: marketPolicy.rule.taxMode,
+        taxRateBps: marketPolicy.rule.taxRateBps,
+        taxInclusive: marketPolicy.rule.taxInclusive,
+        taxLiability: marketPolicy.rule.taxLiability,
+      });
+
+      const stripeAmount = toKlyxStripeChargeAmount(
+        economics.totalMinor,
+        presentmentCurrency
+      );
+      const capability = marketPolicy.currencyCapability;
+
+      paymentAmountValid =
+        (capability.minimumChargeAmount == null ||
+          stripeAmount >= capability.minimumChargeAmount) &&
+        (capability.maximumChargeAmount == null ||
+          stripeAmount <= capability.maximumChargeAmount);
+    }
+
     const providerStripeReady = Boolean(
       provider?.connect.stripeAccountId &&
         provider.connect.state === "linked" &&
@@ -254,9 +356,9 @@ export async function GET(request: Request, context: RouteContext) {
       bookingStatus: booking.status,
       paymentStatus: booking.payment_status,
       stripeRuntimeReady: stripeRuntime.ready,
-      clientMarketReady: clientMarketAccess.allowed,
+      clientMarketReady: transactionMarketReady,
       providerPresent: Boolean(providerId && provider),
-      providerMarketReady: providerMarketAccess.allowed,
+      providerMarketReady: transactionMarketReady,
       serviceReferencesPresent,
       serviceExists,
       providerServiceActive,
@@ -269,18 +371,24 @@ export async function GET(request: Request, context: RouteContext) {
       platformOnlyTestPaymentAllowed,
     });
 
+    const marketBlockers =
+      stripeRuntime.mode === "live"
+        ? marketPolicy?.assessment.blockers ??
+          ["market_rule", "stripe_currency_capability"]
+        : [];
+
     return NextResponse.json({
       bookingId: booking.id,
       ...readiness,
       stripeReadinessComplete: true,
-      clientMarketReady: clientMarketAccess.allowed,
-      clientMarketCountryCode: clientMarketAccess.countryCode,
-      clientMarketReason: clientMarketAccess.reason,
-      clientMarketBlockers: clientMarketAccess.blockers,
-      providerMarketReady: providerMarketAccess.allowed,
-      providerMarketCountryCode: providerMarketAccess.countryCode,
-      providerMarketReason: providerMarketAccess.reason,
-      providerMarketBlockers: providerMarketAccess.blockers,
+      payerCountryCode,
+      executionCountryCode,
+      presentmentCurrency,
+      marketPaymentRuleId: marketPolicy?.rule?.id ?? null,
+      marketReady: transactionMarketReady,
+      marketBlockers,
+      clientMarketReady: transactionMarketReady,
+      providerMarketReady: transactionMarketReady,
       providerStripeReady,
       platformOnlyTestPaymentAllowed,
       serviceReferencesPresent,
