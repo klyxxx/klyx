@@ -605,7 +605,7 @@ begin
     movement_key,
     event_key,
     movement_type,
-    amount_cents,
+    amount_minor,
     currency,
     booking_id,
     beneficiary_kind,
