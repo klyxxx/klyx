@@ -6,6 +6,7 @@ import {
   requireKlyxFounder,
 } from "@/lib/founder-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { getKlyxOpsCapabilityDecision } from "@/lib/ops-control-server";
 import { logServerError } from "@/lib/server-log";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -115,6 +116,9 @@ export async function GET() {
       "booking_tracking_events",
       "stripe_webhook_events",
       "booking_financial_ledger",
+      "ops_operations",
+      "ops_events",
+      "ops_capability_controls",
       "reviews",
     ];
 
@@ -131,6 +135,41 @@ export async function GET() {
         label: result.table,
         ok: result.ok,
         detail: result.detail,
+        severity: "blocking",
+      });
+    }
+
+    try {
+      const decision = await getKlyxOpsCapabilityDecision({
+        capability: "payments",
+        paymentProvider: "stripe",
+      });
+
+      checks.push({
+        key: "ops_stripe_payments_control",
+        label: "Operations · Stripe payments",
+        ok: decision.allowed,
+        detail: decision.allowed
+          ? "Aucun kill-switch Operations actif ne bloque Stripe payments."
+          : `Stripe payments bloqué par Operations (${decision.reasonCode ?? "reason_unknown"}).`,
+        severity: "blocking",
+      });
+    } catch (opsControlError) {
+      logServerError({
+        error: opsControlError,
+        event: "founder_transaction_ops_control_failed",
+        route: "/api/founder/transaction-readiness",
+        method: "GET",
+        status: 500,
+        code: "KLYX_FOUNDER_TRANSACTION_OPS_CONTROL_FAILED",
+        durationMs: Math.max(0, Date.now() - startedAt),
+      });
+
+      checks.push({
+        key: "ops_stripe_payments_control",
+        label: "Operations · Stripe payments",
+        ok: false,
+        detail: "Le control plane Operations est indisponible. État fail-closed.",
         severity: "blocking",
       });
     }
