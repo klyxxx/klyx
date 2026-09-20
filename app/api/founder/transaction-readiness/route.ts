@@ -120,6 +120,9 @@ export async function GET() {
       "ops_events",
       "ops_capability_controls",
       "ops_durable_jobs",
+      "ops_human_cases",
+      "ops_human_case_links",
+      "ops_durable_job_redrives",
       "reviews",
     ];
 
