@@ -292,11 +292,11 @@ create table if not exists public.economic_verification_cases (
   constraint economic_verification_cases_legal_entity_identity_fkey
     foreign key (legal_entity_id, economic_identity_id)
     references public.economic_legal_entities(id, economic_identity_id)
-    on delete set null,
+    on delete cascade,
   constraint economic_verification_cases_person_identity_fkey
     foreign key (economic_person_id, economic_identity_id)
     references public.economic_persons(id, economic_identity_id)
-    on delete set null,
+    on delete cascade,
   constraint economic_verification_cases_type_format_check
     check (
       char_length(verification_type) between 2 and 120
@@ -459,7 +459,7 @@ create table if not exists public.economic_restrictions (
   constraint economic_restrictions_verification_identity_fkey
     foreign key (verification_case_id, economic_identity_id)
     references public.economic_verification_cases(id, economic_identity_id)
-    on delete set null,
+    on delete cascade,
   constraint economic_restrictions_action_format_check
     check (
       char_length(restricted_action) between 2 and 120
