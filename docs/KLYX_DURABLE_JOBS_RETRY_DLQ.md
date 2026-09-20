@@ -1,6 +1,6 @@
 # KLYX Durable Jobs + Retry / DLQ
 
-Mission 14 adds a durable operational execution substrate.
+Mission 14 adds a durable, PostgreSQL-backed operational execution substrate.
 
 ## Boundary
 
@@ -11,50 +11,79 @@ Canonical authority remains in the existing domains:
 - Booking owns booking state.
 - Canonical Financial Ledger owns accounting truth.
 - Settlement owns settlement state and Stripe truth reconciliation.
-- Risk / Eligibility own authorization.
+- Risk / Economic Eligibility own authorization.
 - Stripe and Sumsub webhook tables keep their existing webhook retry leases.
 - Operations owns operational controls and failure-domain coordination.
 
-A durable job references domain resources. It must not mirror a canonical domain object and later treat its payload as more authoritative than the domain itself.
+A durable job stores small execution references and parameters. Its payload must never become a second canonical Booking, Ledger, Settlement, KYC/KYB or webhook object.
+
+## Delivery semantics
+
+Mission 14 is explicitly **at-least-once**.
+
+It does not claim exactly-once execution.
+
+Correctness comes from two layers:
+
+1. the durable-job lease fences stale workers;
+2. the invoked domain mutation must still enforce its own idempotency, authorization and domain fencing.
 
 ## Lifecycle
 
 ```text
 enqueue
   -> queued
-  -> leased
+  -> running
       -> succeeded
       -> retry_wait
-          -> leased
-      -> dead_letter
+          -> running
+      -> dead_lettered
 ```
 
-A stale lease is reclaimable only while attempts remain.
+Expired running leases are reaped deterministically:
 
-An exhausted stale lease is moved to `dead_letter`.
+- attempts remaining → `retry_wait`;
+- attempt budget exhausted → `dead_lettered`.
 
 There is no infinite retry and no silent drop.
 
-## Enqueue idempotency
+## Idempotent enqueue
 
-The unique identity is:
+The durable identity is:
 
 ```text
-(queue, job_type, idempotency_key)
+(job_type, idempotency_key)
 ```
 
-Identical concurrent enqueue attempts are serialized with a transaction-scoped advisory lock. The first creates the Operations record and job. Later calls return the existing job without resetting status, attempts or schedule.
+Concurrent identical enqueue calls are serialized with a transaction-scoped advisory lock.
 
-Terminal jobs are not silently resurrected by enqueue.
+The first call creates the job and one Mission 13 `ops_operations` correlation record.
 
-## Lease fencing
+Later calls return the existing job only when their immutable request fingerprint matches.
 
-A claim requires:
+A reused idempotency key with different payload/scope/policy fails with:
 
-- queue;
-- worker id;
-- bounded claim size;
-- bounded lease duration.
+```text
+KLYX_DURABLE_JOB_IDEMPOTENCY_CONFLICT
+```
+
+Terminal jobs are never silently resurrected by enqueue.
+
+## Request fingerprint
+
+The fingerprint binds the idempotency key to:
+
+- payload;
+- account/domain references;
+- structured failure-domain scope;
+- market / region / country / currency;
+- payment provider / capability / dependency;
+- priority and availability;
+- attempt budget and backoff policy.
+
+This prevents the same idempotency key from being reused for semantically different work.
+
+## Claim + lease fencing
 
 Claims use:
 
@@ -62,57 +91,73 @@ Claims use:
 FOR UPDATE SKIP LOCKED
 ```
 
-Each successful claim gets a new random `lease_token` and increments `attempt_count`.
+Every claim:
 
-Completion or failure must match both:
+- increments `attempt_count`;
+- assigns a random `lease_token`;
+- records `lease_owner`;
+- sets `lease_expires_at`;
+- retains `last_claim_token` / `last_worker_id` for idempotent acknowledgements.
 
-- `lease_worker_id`;
-- `lease_token`.
+Completion, failure and lease extension are accepted only for the matching worker + token.
 
-A stale worker therefore cannot finalize a job after another worker has reclaimed it.
+Expired leases cannot be extended or finalized by stale workers.
+
+Long-running workers may explicitly extend a still-valid lease through `klyx_extend_durable_job_lease`.
 
 ## Retry policy
 
-Failure before `max_attempts` schedules deterministic capped exponential backoff:
+Retryable failure schedules deterministic capped exponential backoff:
 
 ```text
-delay = min(max_backoff, base_backoff * 2^(attempt_count - 1))
+delay = max(1, min(backoff_max, backoff_base * 2^(attempt_count - 1)))
 ```
 
-Backoff is deterministic. Mission 14 does not add random jitter because correctness and replayability are more important at this foundation stage.
+The same policy is used when the reaper recovers an expired lease.
 
-At `max_attempts`, failure becomes terminal `dead_letter`.
+A non-retryable failure or exhausted attempt budget becomes `dead_lettered`.
+
+Mission 14 intentionally does not add random jitter at this foundation layer.
 
 ## DLQ
 
-DLQ is the set of `ops_jobs` where:
+The DLQ is the read-only view:
 
 ```text
-status = dead_letter
+ops_durable_job_dlq
 ```
 
-Mission 14 intentionally provides **read access only** to DLQ through the server boundary.
+It projects jobs where:
 
-It does not provide an automatic requeue or a Founder requeue button. Human requeue/case ownership belongs to Mission 15 — Human Operations / Case Management.
+```text
+status = dead_lettered
+```
+
+Mission 14 provides **read access only** to the DLQ through the server boundary.
+
+There is no automatic redrive and no Founder requeue action in Mission 14.
+
+Human ownership, case creation and explicit redrive belong to Mission 15 — Human Operations / Case Management.
 
 ## Audit
 
-Every job has one `ops_operations` correlation record.
+Every durable job owns one `ops_operations` correlation record.
 
-Important transitions append to Mission 13 `ops_events`:
+Transitions append to the existing Mission 13 `ops_events` stream:
 
-- `durable_job_enqueued`
-- `durable_job_claimed`
-- `durable_job_lease_expired`
-- `durable_job_retry_scheduled`
-- `durable_job_succeeded`
-- `durable_job_dead_lettered`
+- `durable_job.enqueued`
+- `durable_job.claimed`
+- `durable_job.retry_scheduled`
+- `durable_job.succeeded`
+- `durable_job.dead_lettered`
+
+Expired leases are converted into retry/dead-letter transitions by the reaper and audited through the same events.
 
 No second universal audit log is introduced.
 
-## Existing retries are not migrated
+## Existing retry authorities are preserved
 
-Mission 14 does not rewrite:
+Mission 14 does **not** rewrite or absorb:
 
 - Stripe webhook retry lease;
 - Sumsub webhook retry lease;
@@ -122,14 +167,33 @@ Mission 14 does not rewrite:
 
 Those mechanisms remain authoritative for their domain-level side effects.
 
-A later integration may enqueue a durable job that invokes a domain reconciliation function, but the domain function must still revalidate its own authority, idempotency and fencing.
+A future worker may enqueue a durable job that invokes one of those domain functions, but the domain function must still revalidate current truth and fencing before mutation.
+
+## Data minimization
+
+The queue is not a secret store.
+
+The schema limits payload/fingerprint size and stores only a normalized `last_error_code`, not raw exception stacks or arbitrary failure messages.
+
+Prefer stable identifiers and references over copied business payloads.
 
 ## Security
 
-`ops_jobs` is server-only:
+`ops_durable_jobs` is server-only:
 
 - RLS enabled;
 - no privileges for `public`, `anon` or `authenticated`;
-- job RPCs executable only by `service_role`.
+- `service_role` receives read access only to the table;
+- all state transitions occur through service-role-only RPCs;
+- DLQ is a read-only projection.
 
-Mission 14 creates no public worker endpoint, no browser job mutation endpoint, no Stripe LIVE activation and no production deployment side effect.
+The server boundary is `lib/durable-jobs-server.ts`.
+
+Mission 14 creates:
+
+- no public worker endpoint;
+- no browser job mutation endpoint;
+- no automatic DLQ redrive;
+- no Stripe LIVE activation;
+- no Vercel mutation;
+- no production Supabase migration application.
