@@ -137,6 +137,13 @@ describe("KLYX central financial ledger", () => {
     expect(appendBody).not.toContain(
       "delete from public.financial_ledger_events"
     );
+    expect(appendBody).toContain(
+      "'immutable_event_key_conflict'"
+    );
+    expect(appendBody).toContain("return null;");
+    expect(server).toContain(
+      "KLYX_FINANCIAL_LEDGER_EVENT_NOT_WRITABLE"
+    );
   });
 
   it("records reconciliation and human decisions append-only instead of silently correcting truth", () => {
