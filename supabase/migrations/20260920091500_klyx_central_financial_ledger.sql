@@ -167,7 +167,8 @@ create or replace function public.klyx_financial_payload_hash(
 returns text
 language sql
 immutable
-as $$
+set search_path = public, extensions
+as $
   select encode(
     digest(
       concat_ws(
@@ -246,7 +247,7 @@ create or replace function public.klyx_open_financial_reconciliation_case(
 returns uuid
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   v_case_id uuid;
@@ -632,7 +633,18 @@ begin
     new.entry_key
   );
   v_previous_state := case when tg_op = 'UPDATE' then old.status else null end;
-  v_occurred_at := coalesce(new.updated_at, new.created_at, now());
+
+  if tg_op = 'UPDATE' and old.status is not distinct from new.status then
+    v_occurred_at := coalesce(
+      old.updated_at,
+      old.created_at,
+      new.created_at,
+      now()
+    );
+  else
+    v_occurred_at := coalesce(new.updated_at, new.created_at, now());
+  end if;
+
   v_provider_amount := greatest(coalesce(new.provider_amount_cents, 0), 0);
 
   if new.entry_type in ('payment_succeeded', 'payment_failed') then
