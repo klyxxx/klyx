@@ -36,10 +36,12 @@ describe("KLYX roleless onboarding integration", () => {
     expect(firstProfile).toContain("Transitional schema value only");
   });
 
-  it("keeps identity and market information required before entering KLYX", () => {
+  it("keeps identity, country and currency required before entering KLYX", () => {
     expect(firstProfile).toContain('t("identityRequired")');
     expect(firstProfile).toContain('t("marketRequired")');
-    expect(firstProfile).toContain("KLYX_SUPPORTED_MARKETS");
+    expect(firstProfile).toContain("KlyxMarketSelect");
+    expect(firstProfile).toContain('t("currencyRequired")');
+    expect(firstProfile).not.toContain("KLYX_SUPPORTED_MARKETS");
     expect(firstProfile).toContain('fetch("/api/profiles/manage"');
   });
 });

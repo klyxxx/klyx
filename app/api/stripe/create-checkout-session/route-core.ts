@@ -5,7 +5,10 @@ import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { markBookingPaidFromSession } from "@/lib/stripe-payments";
 import { calculateKlyxEconomics, getKlyxCommissionPercent } from "@/lib/klyx-economics";
-import { assessKlyxStripeMarketAccess } from "@/lib/klyx-stripe-market-access";
+import { calculateKlyxMarketEconomics } from "@/lib/klyx-market-policy";
+import { resolveKlyxMarketPaymentPolicy } from "@/lib/klyx-market-policy-server";
+import { toKlyxStripeChargeAmount } from "@/lib/klyx-currency";
+import { toKlyxMinorUnits } from "@/lib/klyx-money";
 import {
   assessStripeConnectCountry,
   STRIPE_ACCOUNT_COUNTRY_MISMATCH,
@@ -37,6 +40,17 @@ type BookingRow = {
   status: string;
   payment_status: string | null;
   currency: string | null;
+  payer_country_code: string | null;
+  execution_country_code: string | null;
+  presentment_currency: string | null;
+  subtotal_amount_minor: number | null;
+  tax_amount_minor: number | null;
+  commission_bps: number | null;
+  commission_amount_minor: number | null;
+  total_amount_minor: number | null;
+  provider_amount_minor: number | null;
+  market_payment_rule_id: string | null;
+  fx_quote_id: string | null;
   pricing_type_snapshot: string | null;
   unit_price_cents: number | null;
   estimated_amount_cents: number | null;
@@ -113,7 +127,7 @@ async function getBooking(bookingId: string): Promise<BookingRow> {
   const { data, error } = await supabaseAdmin
     .from("bookings")
     .select(
-      "id, parent_id, provider_id, babysitter_id, booking_group_id, service_id, user_service_id, booking_date, start_time, end_time, status, payment_status, currency, pricing_type_snapshot, unit_price_cents, estimated_amount_cents, amount_total, stripe_checkout_session_id"
+      "id, parent_id, provider_id, babysitter_id, booking_group_id, service_id, user_service_id, booking_date, start_time, end_time, status, payment_status, currency, payer_country_code, execution_country_code, presentment_currency, subtotal_amount_minor, tax_amount_minor, commission_bps, commission_amount_minor, total_amount_minor, provider_amount_minor, market_payment_rule_id, fx_quote_id, pricing_type_snapshot, unit_price_cents, estimated_amount_cents, amount_total, stripe_checkout_session_id"
     )
     .eq("id", bookingId)
     .maybeSingle();
@@ -179,24 +193,6 @@ export async function POST(request: Request) {
     requireAccountType(profile, "client");
 
     const stripeRuntime = assertStripeRuntimeReady();
-    const clientMarketAccess = assessKlyxStripeMarketAccess(
-      profile.countryCode,
-      stripeRuntime.mode
-    );
-
-    if (!clientMarketAccess.allowed) {
-      return NextResponse.json(
-        {
-          error:
-            "KLYX n'est pas encore ouvert aux paiements réels dans le pays de ce profil client.",
-          code: "KLYX_CHECKOUT_MARKET_NOT_READY",
-          participant: "client",
-          countryCode: clientMarketAccess.countryCode,
-          blockers: clientMarketAccess.blockers,
-        },
-        { status: 409 }
-      );
-    }
 
     const stripeSecretKey = requiredEnv("STRIPE_SECRET_KEY");
     const stripe = new Stripe(stripeSecretKey);
@@ -275,24 +271,6 @@ export async function POST(request: Request) {
     if (providerError) throw new Error(providerError.message);
     const provider = (providerData as ProviderRow | null) ?? null;
 
-    const providerMarketAccess = assessKlyxStripeMarketAccess(
-      provider?.country_code ?? "",
-      stripeRuntime.mode
-    );
-    if (!providerMarketAccess.allowed) {
-      return NextResponse.json(
-        {
-          error:
-            "KLYX n'est pas encore ouvert aux paiements réels dans le pays de ce prestataire.",
-          code: "KLYX_CHECKOUT_MARKET_NOT_READY",
-          participant: "provider",
-          countryCode: providerMarketAccess.countryCode,
-          blockers: providerMarketAccess.blockers,
-        },
-        { status: 409 }
-      );
-    }
-
     const providerIdentity = await getProfileAccountStripeConnectIdentity(providerId);
     if (providerIdentity.state === "conflict") {
       return NextResponse.json(
@@ -339,21 +317,230 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Durée de réservation invalide." }, { status: 400 });
     }
 
-    const fallbackAmount = Math.round(
-      Number(serviceProfile.price) *
-        (serviceProfile.pricing_type === "fixed" ? 1 : durationMinutes / 60) *
-        100
-    );
-    const amountTotal = booking.estimated_amount_cents ?? booking.amount_total ?? fallbackAmount;
-    if (amountTotal < 50) throw new Error("Le montant calculé est trop faible.");
-
-    const checkoutCurrency = booking.currency?.trim().toLowerCase() ?? "";
-    if (!/^[a-z]{3}$/.test(checkoutCurrency)) {
+    const presentmentCurrency =
+      (booking.presentment_currency ?? booking.currency)
+        ?.trim()
+        .toUpperCase() ?? "";
+    if (!/^[A-Z]{3}$/.test(presentmentCurrency)) {
       throw new Error("Devise de réservation invalide.");
     }
 
-    const economics = calculateKlyxEconomics(amountTotal, getKlyxCommissionPercent());
-    const applicationFeeAmount = economics.platformFeeCents;
+    const payerCountryCode =
+      booking.payer_country_code ??
+      profile.countryCode ??
+      "";
+    const executionCountryCode =
+      booking.execution_country_code ??
+      provider?.country_code ??
+      "";
+
+    if (
+      stripeRuntime.mode === "live" &&
+      (
+        !booking.payer_country_code ||
+        !booking.execution_country_code ||
+        !booking.presentment_currency ||
+        booking.subtotal_amount_minor == null
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Cette réservation ne possède pas encore le snapshot monétaire global requis pour un paiement LIVE.",
+          code: "KLYX_GLOBAL_MONEY_SNAPSHOT_REQUIRED",
+        },
+        { status: 409 }
+      );
+    }
+
+    const legacyFallbackAmount =
+      toKlyxMinorUnits(
+        Number(serviceProfile.price) *
+          (serviceProfile.pricing_type === "fixed"
+            ? 1
+            : durationMinutes / 60),
+        executionCountryCode || payerCountryCode,
+        presentmentCurrency
+      );
+
+    const subtotalAmountMinor =
+      booking.subtotal_amount_minor ??
+      booking.estimated_amount_cents ??
+      booking.amount_total ??
+      legacyFallbackAmount;
+
+    if (
+      !Number.isSafeInteger(subtotalAmountMinor) ||
+      subtotalAmountMinor <= 0
+    ) {
+      throw new Error("Montant calculé invalide.");
+    }
+
+    let resolvedPolicy:
+      Awaited<ReturnType<typeof resolveKlyxMarketPaymentPolicy>> | null =
+      null;
+
+    try {
+      resolvedPolicy =
+        await resolveKlyxMarketPaymentPolicy({
+          payerCountryCode,
+          executionCountryCode,
+          serviceSlug: service.slug,
+          currencyCode: presentmentCurrency,
+        });
+    } catch (policyError) {
+      if (stripeRuntime.mode === "live") {
+        throw policyError;
+      }
+
+      logServerWarning({
+        event: "global_market_policy_test_fallback",
+        route: "/api/stripe/create-checkout-session",
+        method: "POST",
+        status: 200,
+        code: "test_only_legacy_fallback",
+        durationMs: Date.now() - startedAt,
+      });
+    }
+
+    if (
+      resolvedPolicy &&
+      (
+        resolvedPolicy.rule ||
+        resolvedPolicy.currencyCapability
+      ) &&
+      !resolvedPolicy.assessment.allowed
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "La combinaison pays payeur, pays d’exécution et devise n’est pas autorisée pour ce paiement.",
+          code: "KLYX_CHECKOUT_MARKET_NOT_READY",
+          payerCountryCode,
+          executionCountryCode,
+          currency: presentmentCurrency,
+          blockers: resolvedPolicy.assessment.blockers,
+        },
+        { status: 409 }
+      );
+    }
+
+    if (
+      stripeRuntime.mode === "live" &&
+      (
+        !resolvedPolicy ||
+        !resolvedPolicy.rule ||
+        !resolvedPolicy.currencyCapability ||
+        !resolvedPolicy.assessment.allowed
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Aucune règle financière LIVE certifiée ne couvre ce marché et cette devise.",
+          code: "KLYX_CHECKOUT_MARKET_NOT_READY",
+          payerCountryCode,
+          executionCountryCode,
+          currency: presentmentCurrency,
+          blockers:
+            resolvedPolicy?.assessment.blockers ?? [
+              "market_rule",
+              "stripe_currency_capability",
+            ],
+        },
+        { status: 409 }
+      );
+    }
+
+    let taxAmountMinor = 0;
+    let commissionAmountMinor = 0;
+    let commissionBps = Math.round(
+      getKlyxCommissionPercent() * 100
+    );
+    let totalAmountMinor = subtotalAmountMinor;
+    let providerAmountMinor = subtotalAmountMinor;
+    let marketPaymentRuleId: string | null = null;
+
+    if (
+      resolvedPolicy?.rule &&
+      resolvedPolicy.currencyCapability &&
+      resolvedPolicy.assessment.allowed
+    ) {
+      const marketEconomics =
+        calculateKlyxMarketEconomics({
+          subtotalMinor: subtotalAmountMinor,
+          commissionBps:
+            resolvedPolicy.rule.commissionBps,
+          taxMode:
+            resolvedPolicy.rule.taxMode,
+          taxRateBps:
+            resolvedPolicy.rule.taxRateBps,
+          taxInclusive:
+            resolvedPolicy.rule.taxInclusive,
+          taxLiability:
+            resolvedPolicy.rule.taxLiability,
+        });
+
+      taxAmountMinor = marketEconomics.taxMinor;
+      commissionAmountMinor =
+        marketEconomics.commissionMinor;
+      commissionBps =
+        resolvedPolicy.rule.commissionBps;
+      totalAmountMinor =
+        marketEconomics.totalMinor;
+      providerAmountMinor =
+        marketEconomics.providerAmountMinor;
+      marketPaymentRuleId =
+        resolvedPolicy.rule.id;
+    } else {
+      // TEST-only compatibility while existing fixtures migrate to explicit
+      // market policy rows. This path is unreachable in LIVE mode.
+      const legacyEconomics =
+        calculateKlyxEconomics(
+          subtotalAmountMinor,
+          getKlyxCommissionPercent()
+        );
+
+      commissionAmountMinor =
+        legacyEconomics.platformFeeCents;
+      providerAmountMinor =
+        legacyEconomics.providerAmountCents;
+    }
+
+    const checkoutCurrency =
+      presentmentCurrency.toLowerCase();
+    const amountTotal =
+      toKlyxStripeChargeAmount(
+        totalAmountMinor,
+        presentmentCurrency
+      );
+    const applicationFeeAmount =
+      toKlyxStripeChargeAmount(
+        commissionAmountMinor +
+          (
+            resolvedPolicy?.rule?.taxLiability === "platform"
+              ? taxAmountMinor
+              : 0
+          ),
+        presentmentCurrency
+      );
+
+    const capability =
+      resolvedPolicy?.currencyCapability ?? null;
+
+    if (
+      capability?.minimumChargeAmount != null &&
+      amountTotal < capability.minimumChargeAmount
+    ) {
+      throw new Error("KLYX_STRIPE_CHARGE_BELOW_CURRENCY_MINIMUM");
+    }
+
+    if (
+      capability?.maximumChargeAmount != null &&
+      amountTotal > capability.maximumChargeAmount
+    ) {
+      throw new Error("KLYX_STRIPE_CHARGE_ABOVE_CURRENCY_MAXIMUM");
+    }
     const providerReady = Boolean(
       providerStripeAccountId &&
         providerStripeAccount?.details_submitted &&
@@ -389,6 +576,10 @@ export async function POST(request: Request) {
         service_slug: service.slug,
         user_service_id: userServiceId,
         payment_mode: paymentMode,
+        payer_country_code: payerCountryCode,
+        execution_country_code: executionCountryCode,
+        presentment_currency: presentmentCurrency,
+        market_payment_rule_id: marketPaymentRuleId ?? "",
       },
     };
 
@@ -424,6 +615,10 @@ export async function POST(request: Request) {
         service_slug: service.slug,
         user_service_id: userServiceId,
         payment_mode: paymentMode,
+        payer_country_code: payerCountryCode,
+        execution_country_code: executionCountryCode,
+        presentment_currency: presentmentCurrency,
+        market_payment_rule_id: marketPaymentRuleId ?? "",
       },
       payment_intent_data: paymentIntentData,
     };
@@ -471,6 +666,8 @@ export async function POST(request: Request) {
           reused: true,
           paymentMode,
           amountTotal,
+          amountTotalMinor: totalAmountMinor,
+          presentmentCurrency,
           serviceSlug: service.slug,
         });
       }
@@ -530,6 +727,21 @@ export async function POST(request: Request) {
           application_fee_amount: platformFeeAmount,
           platform_fee_amount: platformFeeAmount,
           provider_amount: providerAmount,
+          payer_country_code: payerCountryCode,
+          execution_country_code: executionCountryCode,
+          presentment_currency: presentmentCurrency,
+          subtotal_amount_minor: subtotalAmountMinor,
+          tax_amount_minor: taxAmountMinor,
+          tax_mode: resolvedPolicy?.rule?.taxMode ?? "none",
+          tax_rate_bps: resolvedPolicy?.rule?.taxRateBps ?? 0,
+          tax_inclusive: resolvedPolicy?.rule?.taxInclusive ?? false,
+          tax_liability: resolvedPolicy?.rule?.taxLiability ?? "provider",
+          stripe_tax_code: resolvedPolicy?.rule?.stripeTaxCode ?? null,
+          commission_bps: commissionBps,
+          commission_amount_minor: commissionAmountMinor,
+          total_amount_minor: totalAmountMinor,
+          provider_amount_minor: providerAmountMinor,
+          market_payment_rule_id: marketPaymentRuleId,
           payment_attempt_token: null,
           payment_checkout_started_at: null,
         })
@@ -573,6 +785,8 @@ export async function POST(request: Request) {
       reused: false,
       paymentMode,
       amountTotal,
+      amountTotalMinor: totalAmountMinor,
+      presentmentCurrency,
       serviceSlug: service.slug,
     });
   } catch (error) {

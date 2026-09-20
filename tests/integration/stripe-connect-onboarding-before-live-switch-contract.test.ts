@@ -69,9 +69,16 @@ describe("KLYX Stripe Connect onboarding before live payment activation", () => 
     );
     expect(onboardingRoute).toContain('type: "account_onboarding"');
     expect(onboardingRoute).toContain(
-      'marketReadiness.monetarySupport !== "supported"'
+      "stripe.countrySpecs.retrieve(accountCountry)"
     );
-    expect(onboardingRoute).not.toContain("assessKlyxMarketReadiness");
+    expect(onboardingRoute).toContain(
+      "defaults: {"
+    );
+    expect(onboardingRoute).toContain(
+      "currency: input.currencyCode.toLowerCase()"
+    );
+    expect(onboardingRoute).not.toContain("KLYX_SUPPORTED_MARKETS");
+    expect(onboardingRoute).not.toContain("getKlyxMarketReadiness");
   });
 
   it("keeps a dedicated KLYX entry point for provider KYC and payout setup", () => {

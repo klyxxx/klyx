@@ -1,11 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import {
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { describe, expect, it } from "vitest";
 
 // KLYX_BOOKING_STRIPE_READINESS_CONTRACT_15_05
 // KLYX_BOOKING_READINESS_PARITY_CONTRACT_15_06
@@ -26,7 +22,7 @@ const readinessSource = fs.readFileSync(
 const checkoutSource = fs.readFileSync(
   path.join(
     process.cwd(),
-    "app/api/stripe/create-checkout-session/route.ts"
+    "app/api/stripe/create-checkout-session/route-core.ts"
   ),
   "utf8"
 );
@@ -40,13 +36,14 @@ describe("KLYX single-booking Stripe readiness contract", () => {
     expect(pageSource).toContain("if (!stripeReadiness?.checkoutReady)");
   });
 
-  it("keeps the readiness endpoint fail-closed for markets and provider Stripe", () => {
-    expect(readinessSource).toContain("KLYX_BOOKING_STRIPE_READINESS_API_15_05");
-    expect(readinessSource).toContain("clientMarketAccess.allowed");
-    expect(readinessSource).toContain("providerMarketAccess.allowed");
-    expect(readinessSource).toContain("providerStripeReady");
-    expect(readinessSource).toContain("platformOnlyTestPaymentAllowed");
-    expect(readinessSource).toContain("split_booking_batch_items");
+  it("uses transaction market policy instead of a permanent country allow-list", () => {
+    expect(readinessSource).toContain("KLYX_GLOBAL_MONEY_READINESS_20260920");
+    expect(readinessSource).toContain("resolveKlyxMarketPaymentPolicy");
+    expect(readinessSource).toContain("payerCountryCode");
+    expect(readinessSource).toContain("executionCountryCode");
+    expect(readinessSource).toContain("presentmentCurrency");
+    expect(readinessSource).toContain("marketPolicy.assessment.allowed");
+    expect(readinessSource).not.toContain("assessKlyxStripeMarketAccess");
   });
 
   it("matches checkout integrity prerequisites before advertising payment", () => {
@@ -57,16 +54,18 @@ describe("KLYX single-booking Stripe readiness contract", () => {
     expect(readinessSource).toContain("durationValid");
     expect(readinessSource).toContain("paymentAmountValid");
     expect(readinessSource).toContain("currencyValid");
+    expect(readinessSource).toContain("toKlyxStripeChargeAmount(");
+    expect(readinessSource).not.toMatch(/\*\s*100/);
+    expect(readinessSource).not.toContain(">= 50");
   });
 
-  it("keeps the POST checkout as the independent final authority", () => {
+  it("keeps the POST checkout core as the independent final authority", () => {
     expect(checkoutSource).toContain("assertStripeRuntimeReady()");
-    expect(checkoutSource).toContain("clientMarketAccess.allowed");
-    expect(checkoutSource).toContain("providerMarketAccess.allowed");
+    expect(checkoutSource).toContain("resolveKlyxMarketPaymentPolicy");
+    expect(checkoutSource).toContain("KLYX_GLOBAL_MONEY_SNAPSHOT_REQUIRED");
     expect(checkoutSource).toContain("resolveService(");
     expect(checkoutSource).toContain("durationMinutes <= 0");
-    expect(checkoutSource).toContain("amountTotal < 50");
-    expect(checkoutSource).toContain("checkoutCurrency");
+    expect(checkoutSource).toContain("toKlyxStripeChargeAmount(");
     expect(checkoutSource).toContain("providerReady");
     expect(checkoutSource).toContain("klyx_claim_booking_payment");
   });

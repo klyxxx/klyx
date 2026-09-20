@@ -14,6 +14,7 @@ export type KlyxFirstProfileMessageKey =
   | "servicesLoadFailed"
   | "identityRequired"
   | "marketRequired"
+  | "currencyRequired"
   | "serviceRequired"
   | "profileCreateFailed"
   | "firstSetup"
@@ -28,6 +29,9 @@ export type KlyxFirstProfileMessageKey =
   | "market"
   | "marketPlaceholder"
   | "marketHint"
+  | "currency"
+  | "currencyPlaceholder"
+  | "currencyHint"
   | "spaceQuestion"
   | "spaceHint"
   | "profileType"
@@ -77,7 +81,8 @@ const MESSAGES: Record<
   fr: {
     servicesLoadFailed: "Impossible de charger les services.",
     identityRequired: "Prénom, nom et ville sont obligatoires.",
-    marketRequired: "Choisis ton pays ou territoire KLYX.",
+    marketRequired: "Renseigne ton pays ou territoire.",
+    currencyRequired: "Renseigne une devise ISO valide sur 3 lettres.",
     serviceRequired: "Choisis ton premier métier.",
     profileCreateFailed: "Impossible de créer le profil KLYX.",
     firstSetup: "Première configuration",
@@ -91,7 +96,10 @@ const MESSAGES: Record<
     cityPlaceholder: "Ex. Bruxelles",
     market: "Pays ou territoire",
     marketPlaceholder: "Choisir un marché KLYX",
-    marketHint: "KLYX utilise ce choix pour associer le bon marché et la bonne devise.",
+    marketHint: "Le pays décrit ton contexte. Il ne limite pas KLYX à une liste permanente.",
+    currency: "Devise de transaction",
+    currencyPlaceholder: "Ex. EUR, USD, JPY",
+    currencyHint: "Code ISO à 3 lettres. Le pays ne force pas une devise unique.",
     spaceQuestion: "Quel espace veux-tu créer ?",
     spaceHint: "Le choix détermine le premier parcours affiché après création.",
     profileType: "Type de premier profil",
@@ -129,7 +137,7 @@ const MESSAGES: Record<
     createClient: "Créer mon espace client",
     noAutomaticAction: "La création de ce profil ne déclenche aucune réservation, offre ou paiement automatiquement.",
     notAuthenticated: "Non connecté.",
-    marketUnsupported: "Ce pays n’est pas encore pris en charge par KLYX.",
+    marketUnsupported: "Le pays ou la devise fournie est invalide.",
     profileLimit: "Tu peux enregistrer au maximum cinq profils KLYX.",
     serviceNotFound: "Le service sélectionné n’existe plus.",
     invalidProfileData: "Les informations du profil sont invalides.",
@@ -137,7 +145,8 @@ const MESSAGES: Record<
   en: {
     servicesLoadFailed: "Unable to load services.",
     identityRequired: "First name, last name and city are required.",
-    marketRequired: "Choose your KLYX country or territory.",
+    marketRequired: "Enter your country or territory.",
+    currencyRequired: "Enter a valid 3-letter ISO currency.",
     serviceRequired: "Choose your first service.",
     profileCreateFailed: "Unable to create the KLYX profile.",
     firstSetup: "First setup",
@@ -151,7 +160,10 @@ const MESSAGES: Record<
     cityPlaceholder: "E.g. Brussels",
     market: "Country or territory",
     marketPlaceholder: "Choose a KLYX market",
-    marketHint: "KLYX uses this choice to associate the correct market and currency.",
+    marketHint: "Country describes context; it is not a permanent KLYX allow-list.",
+    currency: "Transaction currency",
+    currencyPlaceholder: "E.g. EUR, USD, JPY",
+    currencyHint: "3-letter ISO code. Country does not force a single currency.",
     spaceQuestion: "Which space do you want to create?",
     spaceHint: "This choice determines the first journey shown after creation.",
     profileType: "First profile type",
@@ -189,7 +201,7 @@ const MESSAGES: Record<
     createClient: "Create my client space",
     noAutomaticAction: "Creating this profile does not automatically trigger any booking, offer or payment.",
     notAuthenticated: "Not signed in.",
-    marketUnsupported: "This country is not supported by KLYX yet.",
+    marketUnsupported: "The supplied country or currency is invalid.",
     profileLimit: "You can save up to five KLYX profiles.",
     serviceNotFound: "The selected service is no longer available.",
     invalidProfileData: "The profile information is invalid.",
@@ -197,7 +209,8 @@ const MESSAGES: Record<
   nl: {
     servicesLoadFailed: "Kan de diensten niet laden.",
     identityRequired: "Voornaam, achternaam en plaats zijn verplicht.",
-    marketRequired: "Kies je KLYX-land of -gebied.",
+    marketRequired: "Vul je land of gebied in.",
+    currencyRequired: "Vul een geldige ISO-valuta van 3 letters in.",
     serviceRequired: "Kies je eerste dienst.",
     profileCreateFailed: "Kan het KLYX-profiel niet aanmaken.",
     firstSetup: "Eerste configuratie",
@@ -211,7 +224,10 @@ const MESSAGES: Record<
     cityPlaceholder: "Bijv. Brussel",
     market: "Land of gebied",
     marketPlaceholder: "Kies een KLYX-markt",
-    marketHint: "KLYX gebruikt deze keuze om de juiste markt en valuta te koppelen.",
+    marketHint: "Het land beschrijft de context en is geen permanente KLYX-toelatingslijst.",
+    currency: "Transactievaluta",
+    currencyPlaceholder: "Bijv. EUR, USD, JPY",
+    currencyHint: "ISO-code van 3 letters. Het land dwingt geen enkele valuta af.",
     spaceQuestion: "Welke ruimte wil je aanmaken?",
     spaceHint: "Deze keuze bepaalt welk traject na het aanmaken eerst wordt getoond.",
     profileType: "Type eerste profiel",
@@ -249,7 +265,7 @@ const MESSAGES: Record<
     createClient: "Mijn klantruimte aanmaken",
     noAutomaticAction: "Het aanmaken van dit profiel start niet automatisch een boeking, aanbod of betaling.",
     notAuthenticated: "Niet aangemeld.",
-    marketUnsupported: "Dit land wordt nog niet door KLYX ondersteund.",
+    marketUnsupported: "Het opgegeven land of de valuta is ongeldig.",
     profileLimit: "Je kunt maximaal vijf KLYX-profielen opslaan.",
     serviceNotFound: "De geselecteerde dienst is niet meer beschikbaar.",
     invalidProfileData: "De profielgegevens zijn ongeldig.",
@@ -257,7 +273,8 @@ const MESSAGES: Record<
   de: {
     servicesLoadFailed: "Dienste konnten nicht geladen werden.",
     identityRequired: "Vorname, Nachname und Ort sind erforderlich.",
-    marketRequired: "Wähle dein KLYX-Land oder -Gebiet.",
+    marketRequired: "Gib dein Land oder Gebiet an.",
+    currencyRequired: "Gib eine gültige 3-stellige ISO-Währung an.",
     serviceRequired: "Wähle deinen ersten Dienst.",
     profileCreateFailed: "Das KLYX-Profil konnte nicht erstellt werden.",
     firstSetup: "Erste Einrichtung",
@@ -271,7 +288,10 @@ const MESSAGES: Record<
     cityPlaceholder: "Z. B. Brüssel",
     market: "Land oder Gebiet",
     marketPlaceholder: "KLYX-Markt auswählen",
-    marketHint: "KLYX verwendet diese Auswahl, um den richtigen Markt und die richtige Währung zuzuordnen.",
+    marketHint: "Das Land beschreibt den Kontext und ist keine dauerhafte KLYX-Zulassungsliste.",
+    currency: "Transaktionswährung",
+    currencyPlaceholder: "Z. B. EUR, USD, JPY",
+    currencyHint: "3-stelliger ISO-Code. Das Land erzwingt keine einzelne Währung.",
     spaceQuestion: "Welchen Bereich möchtest du erstellen?",
     spaceHint: "Diese Auswahl bestimmt den ersten Ablauf nach der Erstellung.",
     profileType: "Typ des ersten Profils",
@@ -309,7 +329,7 @@ const MESSAGES: Record<
     createClient: "Meinen Kundenbereich erstellen",
     noAutomaticAction: "Das Erstellen dieses Profils löst nicht automatisch eine Buchung, ein Angebot oder eine Zahlung aus.",
     notAuthenticated: "Nicht angemeldet.",
-    marketUnsupported: "Dieses Land wird von KLYX noch nicht unterstützt.",
+    marketUnsupported: "Das angegebene Land oder die Währung ist ungültig.",
     profileLimit: "Du kannst höchstens fünf KLYX-Profile speichern.",
     serviceNotFound: "Der ausgewählte Dienst ist nicht mehr verfügbar.",
     invalidProfileData: "Die Profildaten sind ungültig.",

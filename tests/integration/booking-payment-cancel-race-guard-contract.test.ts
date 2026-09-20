@@ -8,7 +8,7 @@ const migrationPath = path.join(
 );
 const checkoutRoutePath = path.join(
   process.cwd(),
-  "app/api/stripe/create-checkout-session/route.ts"
+  "app/api/stripe/create-checkout-session/route-core.ts"
 );
 const bookingStatusRoutePath = path.join(
   process.cwd(),
@@ -71,8 +71,10 @@ describe("individual booking payment vs cancellation boundary", () => {
     expect(checkoutRoute).toContain('requireAccountType(profile, "client")');
     expect(checkoutRoute).toContain("booking.parent_id !== profile.id");
     expect(checkoutRoute).toContain('booking.status !== "accepted"');
-    expect(checkoutRoute).toContain("amountTotal =");
-    expect(checkoutRoute).toContain("booking.estimated_amount_cents ?? booking.amount_total ?? fallbackAmount");
+    expect(checkoutRoute).toContain("subtotalAmountMinor");
+    expect(checkoutRoute).toContain("booking.subtotal_amount_minor");
+    expect(checkoutRoute).toContain("presentmentCurrency");
+    expect(checkoutRoute).toContain("toKlyxStripeChargeAmount(");
 
     expect(stripePayments).toContain('session.payment_status !==\n    "paid"');
     expect(stripePayments).toContain("verifySessionMatchesBooking");

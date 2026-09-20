@@ -13,29 +13,38 @@ function readRoute() {
   return fs.readFileSync(routePath, "utf8");
 }
 
-describe("KLYX live Stripe Connect market gate", () => {
-  it("uses the dedicated runtime configuration for preparatory Connect onboarding", () => {
+describe("KLYX live Stripe Connect country capability gate", () => {
+  it("uses runtime configuration and Stripe Country Specs for preparatory onboarding", () => {
     const source = readRoute();
 
     expect(source).toContain(
       "const stripeRuntime = assertStripeConnectRuntimeConfigured()"
     );
     expect(source).toContain('stripeRuntime.mode === "live"');
-    expect(source).toContain("getKlyxMarketReadiness(accountCountry)");
-    expect(source).toContain(
-      'marketReadiness.monetarySupport !== "supported"'
-    );
+    expect(source).toContain("stripe.countrySpecs.retrieve(accountCountry)");
     expect(source).toContain("KLYX_STRIPE_COUNTRY_UNSUPPORTED");
-    expect(source).not.toContain("assessKlyxMarketReadiness(marketReadiness)");
+    expect(source).toContain("accountCurrency");
+    expect(source).toContain("KLYX_STRIPE_CURRENCY_REQUIRED");
+    expect(source).not.toContain("KLYX_SUPPORTED_MARKETS");
+    expect(source).not.toContain("getKlyxMarketReadiness");
   });
 
-  it("fails closed on an unsupported monetary country before creating a live Connect account", () => {
+  it("checks Stripe country capability before creating a live Connect account", () => {
     const source = readRoute();
-    const guardIndex = source.indexOf("KLYX_STRIPE_COUNTRY_UNSUPPORTED");
+    const countrySpecIndex = source.indexOf(
+      "stripe.countrySpecs.retrieve(accountCountry)"
+    );
     const accountCreationIndex = source.indexOf("stripe.accounts.create");
 
-    expect(guardIndex).toBeGreaterThan(-1);
+    expect(countrySpecIndex).toBeGreaterThan(-1);
     expect(accountCreationIndex).toBeGreaterThan(-1);
-    expect(guardIndex).toBeLessThan(accountCreationIndex);
+    expect(countrySpecIndex).toBeLessThan(accountCreationIndex);
+  });
+
+  it("does not hardcode EUR for TEST connected-account defaults", () => {
+    const source = readRoute();
+
+    expect(source).toContain("currency: input.currencyCode.toLowerCase()");
+    expect(source).not.toContain('currency: "eur"');
   });
 });

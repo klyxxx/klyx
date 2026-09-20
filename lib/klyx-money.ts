@@ -1,6 +1,11 @@
 import {
-  getKlyxMarket,
-} from "@/lib/klyx-supported-markets";
+  decimalToKlyxMinorUnits,
+  getKlyxCurrencyMinorUnitExponent,
+  klyxMinorUnitsToDecimalString,
+  normalizeKlyxCountryCode,
+  normalizeKlyxCurrencyCode,
+} from "@/lib/klyx-currency";
+import { getKlyxMarket } from "@/lib/klyx-supported-markets";
 
 export type KlyxMoneyContext = {
   countryCode: string;
@@ -15,133 +20,65 @@ export type KlyxMoneyProfile = {
   currencyCode: string | null;
 };
 
+// Compatibility tokens retained for old diagnostics/scripts only.
+// They are no longer authorization rules.
+export const KLYX_MARKET_NOT_SUPPORTED = "KLYX_MARKET_NOT_SUPPORTED" as const;
+export const KLYX_CURRENCY_MARKET_MISMATCH =
+  "KLYX_CURRENCY_MARKET_MISMATCH" as const;
+
 // KLYX_TRANSACTION_CURRENCY_CONTRACT_14_22
+// KLYX_GLOBAL_CURRENCY_AUTHORITY_20260920
 
-function normalizeCountryCode(
-  value: string
-) {
-  return value
-    .trim()
-    .toUpperCase();
+export function getKlyxMinorUnitExponent(currencyCode: string): number {
+  return getKlyxCurrencyMinorUnitExponent(currencyCode);
 }
 
-function normalizeCurrencyCode(
-  value: string
-) {
-  return value
-    .trim()
-    .toUpperCase();
-}
-
-export function getKlyxMinorUnitExponent(
-  currencyCode: string
-): number {
-  const normalizedCurrency =
-    normalizeCurrencyCode(
-      currencyCode
-    );
-
-  if (!normalizedCurrency) {
-    throw new Error(
-      "KLYX_CURRENCY_REQUIRED"
-    );
-  }
-
+function currencySymbol(currencyCode: string): string {
   try {
-    const options =
-      new Intl.NumberFormat(
-        "en",
-        {
-          style: "currency",
-          currency:
-            normalizedCurrency,
-        }
-      ).resolvedOptions();
+    const parts = new Intl.NumberFormat("en", {
+      style: "currency",
+      currency: currencyCode,
+      currencyDisplay: "narrowSymbol",
+    }).formatToParts(0);
 
-    return (
-      options.maximumFractionDigits ??
-      options.minimumFractionDigits ??
-      2
-    );
+    return parts.find((part) => part.type === "currency")?.value ?? currencyCode;
   } catch {
-    throw new Error(
-      "KLYX_CURRENCY_INVALID"
-    );
+    return currencyCode;
   }
 }
 
 /**
- * Résout le contexte monétaire depuis le pays.
+ * Resolve transaction money without making country -> currency a permanent
+ * product constraint.
  *
- * La devise déclarée, lorsqu'elle existe, doit
- * impérativement correspondre à celle du marché.
- *
- * Exemple :
- * BE + EUR = valide
- * CA + CAD = valide
- * CA + USD = refusé
+ * Explicit currency is authoritative. The historical market catalogue may
+ * supply a compatibility default only when a caller has not yet migrated to
+ * an explicit currency. It never rejects a valid country/currency pair.
  */
 export function resolveKlyxMoneyContext(
   countryCode: string,
   declaredCurrencyCode?: string | null
 ): KlyxMoneyContext {
-  const normalizedCountry =
-    normalizeCountryCode(
-      countryCode
-    );
+  const normalizedCountry = normalizeKlyxCountryCode(countryCode);
+  const declared = declaredCurrencyCode?.trim()
+    ? normalizeKlyxCurrencyCode(declaredCurrencyCode)
+    : null;
 
-  const market =
-    getKlyxMarket(
-      normalizedCountry
-    );
+  const legacySuggestion = getKlyxMarket(normalizedCountry)?.currencyCode ?? null;
+  const currency = declared ?? legacySuggestion;
 
-  if (!market) {
-    throw new Error(
-      "KLYX_MARKET_NOT_SUPPORTED"
-    );
+  if (!currency) {
+    throw new Error("KLYX_CURRENCY_REQUIRED");
   }
 
-  const marketCurrency =
-    normalizeCurrencyCode(
-      market.currencyCode
-    );
-
-  if (
-    declaredCurrencyCode != null &&
-    declaredCurrencyCode.trim()
-  ) {
-    const declaredCurrency =
-      normalizeCurrencyCode(
-        declaredCurrencyCode
-      );
-
-    if (
-      declaredCurrency !==
-      marketCurrency
-    ) {
-      throw new Error(
-        "KLYX_CURRENCY_MARKET_MISMATCH"
-      );
-    }
-  }
+  const normalizedCurrency = normalizeKlyxCurrencyCode(currency);
 
   return {
-    countryCode:
-      market.countryCode,
-
-    currencyCode:
-      marketCurrency,
-
-    currencySymbol:
-      market.currencySymbol,
-
-    stripeCurrency:
-      marketCurrency.toLowerCase(),
-
-    minorUnitExponent:
-      getKlyxMinorUnitExponent(
-        marketCurrency
-      ),
+    countryCode: normalizedCountry,
+    currencyCode: normalizedCurrency,
+    currencySymbol: currencySymbol(normalizedCurrency),
+    stripeCurrency: normalizedCurrency.toLowerCase(),
+    minorUnitExponent: getKlyxCurrencyMinorUnitExponent(normalizedCurrency),
   };
 }
 
@@ -149,41 +86,22 @@ export function resolveKlyxMoneyContext(
 export function resolveKlyxProfileMoney(
   profile: KlyxMoneyProfile
 ): KlyxMoneyContext {
-  if (
-    !profile.countryCode ||
-    !profile.currencyCode
-  ) {
-    throw new Error(
-      "KLYX_PROFILE_MARKET_REQUIRED"
-    );
+  if (!profile.countryCode || !profile.currencyCode) {
+    throw new Error("KLYX_PROFILE_MARKET_REQUIRED");
   }
 
-  return resolveKlyxMoneyContext(
-    profile.countryCode,
-    profile.currencyCode
-  );
+  return resolveKlyxMoneyContext(profile.countryCode, profile.currencyCode);
 }
 
-function assertFiniteAmount(
-  amount: number
-) {
-  if (
-    !Number.isFinite(amount) ||
-    amount < 0
-  ) {
-    throw new Error(
-      "KLYX_MONEY_AMOUNT_INVALID"
-    );
+function assertFiniteAmount(amount: number) {
+  if (!Number.isFinite(amount) || amount < 0) {
+    throw new Error("KLYX_MONEY_AMOUNT_INVALID");
   }
 }
 
 /**
- * Convertit une valeur utilisateur vers l'unité
- * minimale exigée pour les transactions.
- *
- * 12.34 EUR -> 1234
- *
- * La fonction ne déclenche AUCUN paiement.
+ * Convert a user-facing major-unit amount to the ISO currency minor unit.
+ * Rounding is canonical half-up through klyx-currency, never implicit * 100.
  */
 export function toKlyxMinorUnits(
   amount: number,
@@ -192,34 +110,12 @@ export function toKlyxMinorUnits(
 ): number {
   assertFiniteAmount(amount);
 
-  const context =
-    resolveKlyxMoneyContext(
-      countryCode,
-      currencyCode
-    );
-
-  const multiplier =
-    10 **
-    context.minorUnitExponent;
-
-  const minorUnits =
-    Math.round(
-      (amount +
-        Number.EPSILON) *
-        multiplier
-    );
-
-  if (
-    !Number.isSafeInteger(
-      minorUnits
-    )
-  ) {
-    throw new Error(
-      "KLYX_MONEY_AMOUNT_TOO_LARGE"
-    );
-  }
-
-  return minorUnits;
+  const context = resolveKlyxMoneyContext(countryCode, currencyCode);
+  return decimalToKlyxMinorUnits(
+    String(amount),
+    context.currencyCode,
+    "half_up"
+  );
 }
 
 export function fromKlyxMinorUnits(
@@ -227,27 +123,13 @@ export function fromKlyxMinorUnits(
   countryCode: string,
   currencyCode?: string | null
 ): number {
-  if (
-    !Number.isSafeInteger(
-      minorUnits
-    ) ||
-    minorUnits < 0
-  ) {
-    throw new Error(
-      "KLYX_MINOR_UNITS_INVALID"
-    );
+  if (!Number.isSafeInteger(minorUnits) || minorUnits < 0) {
+    throw new Error("KLYX_MINOR_UNITS_INVALID");
   }
 
-  const context =
-    resolveKlyxMoneyContext(
-      countryCode,
-      currencyCode
-    );
-
-  return (
-    minorUnits /
-    10 **
-      context.minorUnitExponent
+  const context = resolveKlyxMoneyContext(countryCode, currencyCode);
+  return Number(
+    klyxMinorUnitsToDecimalString(minorUnits, context.currencyCode)
   );
 }
 
@@ -255,74 +137,48 @@ export function formatKlyxMoney(
   amount: number,
   countryCode: string,
   currencyCode?: string | null,
-  locale = "fr-BE"
+  locale = "en"
 ): string {
   assertFiniteAmount(amount);
 
-  const context =
-    resolveKlyxMoneyContext(
-      countryCode,
-      currencyCode
-    );
+  const context = resolveKlyxMoneyContext(countryCode, currencyCode);
 
-  return new Intl.NumberFormat(
-    locale,
-    {
-      style: "currency",
-      currency:
-        context.currencyCode,
-    }
-  ).format(amount);
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: context.currencyCode,
+  }).format(amount);
 }
 
+// Historical marker name retained; currency now comes from the transaction,
+// not from a permanent market list.
 // KLYX_STRIPE_CURRENCY_FROM_MARKET_14_22
 export function getKlyxStripeCurrency(
   countryCode: string,
   currencyCode?: string | null
 ): string {
-  return resolveKlyxMoneyContext(
-    countryCode,
-    currencyCode
-  ).stripeCurrency;
+  return resolveKlyxMoneyContext(countryCode, currencyCode).stripeCurrency;
 }
 
 /**
- * Vérifie que deux transactions/profils utilisent
- * exactement la même devise.
- *
- * Aucun taux de change silencieux.
+ * Some existing flows intentionally forbid FX. New cross-currency flows must
+ * use an explicit KlyxFxQuote rather than bypassing this guard.
  */
 export function assertKlyxSameCurrency(
   leftCurrencyCode: string,
   rightCurrencyCode: string
 ): string {
-  const left =
-    normalizeCurrencyCode(
-      leftCurrencyCode
-    );
+  const left = normalizeKlyxCurrencyCode(leftCurrencyCode);
+  const right = normalizeKlyxCurrencyCode(rightCurrencyCode);
 
-  const right =
-    normalizeCurrencyCode(
-      rightCurrencyCode
-    );
-
-  if (
-    !left ||
-    !right ||
-    left !== right
-  ) {
-    throw new Error(
-      "KLYX_TRANSACTION_CURRENCY_MISMATCH"
-    );
+  if (left !== right) {
+    throw new Error("KLYX_TRANSACTION_CURRENCY_MISMATCH");
   }
 
   return left;
 }
 
 // KLYX_NO_SILENT_FX_14_22
-export const KLYX_SILENT_CURRENCY_CONVERSION_ALLOWED =
-  false;
+export const KLYX_SILENT_CURRENCY_CONVERSION_ALLOWED = false;
 
 // KLYX_NO_AUTOMATIC_PAYMENT_14_22
-export const KLYX_AUTOMATIC_PAYMENT_ALLOWED =
-  false;
+export const KLYX_AUTOMATIC_PAYMENT_ALLOWED = false;

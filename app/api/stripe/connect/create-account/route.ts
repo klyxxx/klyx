@@ -4,7 +4,6 @@ import Stripe from "stripe";
 
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { apiErrorStatus, getAuthenticatedAccount } from "@/lib/api-auth";
-import { getKlyxMarketReadiness } from "@/lib/klyx-market-readiness";
 import {
   assertStripeConnectIdentityUsable,
   getAccountStripeConnectIdentity,
@@ -46,6 +45,7 @@ async function createTestConnectedAccount(input: {
   stripe: Stripe;
   accountId: string;
   accountCountry: string;
+  currencyCode: string;
   ownerUserId: string;
   email: string;
   idempotencyKey: string;
@@ -74,7 +74,7 @@ async function createTestConnectedAccount(input: {
         },
       },
       defaults: {
-        currency: "eur",
+        currency: input.currencyCode.toLowerCase(),
         responsibilities: {
           fees_collector: "application",
           losses_collector: "application",
@@ -107,6 +107,7 @@ export async function POST(request: Request) {
     const stripeRuntime = assertStripeConnectRuntimeConfigured();
     const stripe = new Stripe(requiredEnv("STRIPE_SECRET_KEY"));
     const accountCountry = activeProfile.countryCode.trim().toUpperCase();
+    const accountCurrency = activeProfile.currencyCode.trim().toUpperCase();
 
     if (!/^[A-Z]{2}$/.test(accountCountry)) {
       return NextResponse.json(
@@ -118,14 +119,24 @@ export async function POST(request: Request) {
       );
     }
 
-    if (stripeRuntime.mode === "live") {
-      const marketReadiness = getKlyxMarketReadiness(accountCountry);
+    if (!/^[A-Z]{3}$/.test(accountCurrency)) {
+      return NextResponse.json(
+        {
+          error: "Configure une devise ISO valide avant de créer ton compte de paiement.",
+          code: "KLYX_STRIPE_CURRENCY_REQUIRED",
+        },
+        { status: 409 }
+      );
+    }
 
-      if (marketReadiness.monetarySupport !== "supported") {
+    if (stripeRuntime.mode === "live") {
+      try {
+        await stripe.countrySpecs.retrieve(accountCountry);
+      } catch {
         return NextResponse.json(
           {
             error:
-              "Ce pays n'est pas encore pris en charge pour la configuration des paiements KLYX.",
+              "Stripe ne confirme pas actuellement la prise en charge de ce pays pour la configuration des paiements.",
             code: "KLYX_STRIPE_COUNTRY_UNSUPPORTED",
             countryCode: accountCountry,
           },
@@ -157,6 +168,7 @@ export async function POST(request: Request) {
           stripe,
           accountId: account.id,
           accountCountry,
+          currencyCode: accountCurrency,
           ownerUserId: user.id,
           email,
           idempotencyKey,

@@ -13,29 +13,40 @@ function readRoute() {
   return fs.readFileSync(routePath, "utf8");
 }
 
-describe("KLYX single checkout live market gates", () => {
-  it("uses the shared market policy for both payment participants", () => {
+describe("KLYX single checkout global market gate", () => {
+  it("uses payer country, execution country, currency and service policy", () => {
     const source = readRoute();
 
-    expect(source).toContain("assessKlyxStripeMarketAccess");
-    expect(source).toContain("profile.countryCode");
-    expect(source).toContain("getProfileAccountStripeConnectIdentity(providerId)");
+    expect(source).toContain("resolveKlyxMarketPaymentPolicy");
+    expect(source).toContain("payerCountryCode");
+    expect(source).toContain("executionCountryCode");
+    expect(source).toContain("presentmentCurrency");
+    expect(source).toContain("serviceSlug: service.slug");
+    expect(source).toContain(
+      "getProfileAccountStripeConnectIdentity(providerId)"
+    );
     expect(source).toContain("provider?.country_code");
-    expect(source).toContain('participant: "client"');
-    expect(source).toContain('participant: "provider"');
-    expect(source.match(/KLYX_CHECKOUT_MARKET_NOT_READY/g)?.length).toBe(2);
+    expect(source).not.toContain("assessKlyxStripeMarketAccess");
   });
 
-  it("checks both markets before creating a Checkout session", () => {
+  it("fails closed in LIVE before creating Checkout when policy is absent or blocked", () => {
     const source = readRoute();
-    const clientGate = source.indexOf("clientMarketAccess.allowed");
-    const providerGate = source.indexOf("providerMarketAccess.allowed");
-    const checkoutCreate = source.indexOf("stripe.checkout.sessions.create");
+    const policyResolve = source.indexOf(
+      "await resolveKlyxMarketPaymentPolicy"
+    );
+    const liveFailClosed = source.indexOf(
+      'stripeRuntime.mode === "live"'
+    );
+    const checkoutCreate = source.indexOf(
+      "stripe.checkout.sessions.create"
+    );
 
-    expect(clientGate).toBeGreaterThan(-1);
-    expect(providerGate).toBeGreaterThan(-1);
+    expect(policyResolve).toBeGreaterThan(-1);
+    expect(liveFailClosed).toBeGreaterThan(-1);
     expect(checkoutCreate).toBeGreaterThan(-1);
-    expect(clientGate).toBeLessThan(checkoutCreate);
-    expect(providerGate).toBeLessThan(checkoutCreate);
+    expect(policyResolve).toBeLessThan(checkoutCreate);
+    expect(liveFailClosed).toBeLessThan(checkoutCreate);
+    expect(source).toContain("KLYX_CHECKOUT_MARKET_NOT_READY");
+    expect(source).toContain("stripe_currency_capability");
   });
 });

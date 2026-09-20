@@ -22,7 +22,7 @@ const stripe =
   fs.readFileSync(
     path.join(
       root,
-      "app/api/stripe/create-checkout-session/route.ts"
+      "app/api/stripe/create-checkout-session/route-core.ts"
     ),
     "utf8"
   );
