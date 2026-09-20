@@ -368,15 +368,17 @@ export async function getAuthenticatedProfile(
   request: Request
 ): Promise<{
   user: AuthenticatedUser;
+  account: AuthenticatedAccount;
   profile: AuthenticatedProfile;
   profiles: AuthenticatedProfile[];
   canonicalProfile: AuthenticatedProfile;
 }> {
-  const { user, profile, profiles, canonicalProfile } =
+  const { user, account, profile, profiles, canonicalProfile } =
     await getAuthenticatedContext(request);
 
   return {
     user,
+    account,
     profile,
     profiles,
     canonicalProfile,
