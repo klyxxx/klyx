@@ -41,7 +41,7 @@ export type AppendFinancialLedgerEventInput = FinancialStripeObjectIds & {
   movementKey: string;
   eventKey: string;
   movementType: FinancialMovementType;
-  amountCents: number;
+  amountMinor: number;
   currency: string;
   bookingId: string;
   beneficiaryKind: FinancialBeneficiaryKind;
@@ -95,7 +95,7 @@ export async function appendFinancialLedgerEvent(
         "KLYX_FINANCIAL_LEDGER_EVENT_KEY_REQUIRED"
       ),
       p_movement_type: input.movementType,
-      p_amount_cents: nonNegativeInteger(input.amountCents),
+      p_amount_minor: nonNegativeInteger(input.amountMinor),
       p_currency: currencyCode(input.currency),
       p_booking_id: requiredText(
         input.bookingId,
@@ -247,7 +247,7 @@ export async function recordFinancialReconciliationDecision(input: {
 export async function recordObservedStripePayout(input: {
   bookingId: string;
   providerRef: string;
-  amountCents: number;
+  amountMinor: number;
   currency: string;
   stripeAccountId: string;
   stripePayoutId: string;
@@ -265,7 +265,7 @@ export async function recordObservedStripePayout(input: {
     movementKey: `booking:${input.bookingId}:payout:${payoutId}`,
     eventKey: `stripe-payout:${payoutId}:${input.bookingId}:${input.payoutState}`,
     movementType: "payout",
-    amountCents: input.amountCents,
+    amountMinor: input.amountMinor,
     currency: input.currency,
     bookingId: input.bookingId,
     beneficiaryKind: "provider",

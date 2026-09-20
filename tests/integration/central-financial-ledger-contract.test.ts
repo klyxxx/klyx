@@ -36,7 +36,10 @@ describe("KLYX central financial ledger", () => {
     expect(migration).toContain("public.financial_ledger_events");
     expect(migration).toContain("movement_key text not null");
     expect(migration).toContain("event_key text not null unique");
-    expect(migration).toContain("amount_cents bigint not null");
+    expect(migration).toContain("amount_minor bigint not null");
+    expect(migration).not.toContain("amount_cents bigint not null");
+    expect(migration).toContain("p_amount_minor bigint");
+    expect(server).toContain("amountMinor: number");
     expect(migration).toContain("currency text not null");
     expect(migration).toContain("booking_id uuid not null");
     expect(migration).toContain("beneficiary_kind text not null");
@@ -237,10 +240,10 @@ describe("KLYX central financial ledger", () => {
     );
 
     expect(reconciliation).not.toContain(
-      "payout.amount !== payoutRow.amount_cents"
+      "payout.amount !== payoutRow.amount_minor"
     );
     expect(reconciliation).not.toContain(
-      "refund.amount !== refundRow.amount_cents"
+      "refund.amount !== refundRow.amount_minor"
     );
   });
 

@@ -59,8 +59,8 @@ create table if not exists public.financial_ledger_events (
         'payout'
       )
     ),
-  amount_cents bigint not null
-    check (amount_cents >= 0),
+  amount_minor bigint not null
+    check (amount_minor >= 0),
   currency text not null
     check (currency ~ '^[A-Z]{3}$'),
   booking_id uuid not null
@@ -97,6 +97,9 @@ create table if not exists public.financial_ledger_events (
     check (jsonb_typeof(details) = 'object'),
   payload_hash text not null
 );
+
+comment on column public.financial_ledger_events.amount_minor is
+  'Canonical KLYX accounting amount in the minor unit of currency. Legacy *_cents fields are compatibility inputs only.';
 
 create index if not exists financial_ledger_events_booking_idx
   on public.financial_ledger_events(booking_id, occurred_at desc, recorded_at desc);
@@ -144,7 +147,7 @@ create or replace function public.klyx_financial_payload_hash(
   p_movement_key text,
   p_event_key text,
   p_movement_type text,
-  p_amount_cents bigint,
+  p_amount_minor bigint,
   p_currency text,
   p_booking_id uuid,
   p_beneficiary_kind text,
@@ -176,7 +179,7 @@ as $$
         coalesce(p_movement_key, ''),
         coalesce(p_event_key, ''),
         coalesce(p_movement_type, ''),
-        coalesce(p_amount_cents::text, ''),
+        coalesce(p_amount_minor::text, ''),
         coalesce(p_currency, ''),
         coalesce(p_booking_id::text, ''),
         coalesce(p_beneficiary_kind, ''),
@@ -488,7 +491,7 @@ create or replace function public.klyx_append_financial_ledger_event(
   p_movement_key text,
   p_event_key text,
   p_movement_type text,
-  p_amount_cents bigint,
+  p_amount_minor bigint,
   p_currency text,
   p_booking_id uuid,
   p_beneficiary_kind text,
@@ -528,7 +531,7 @@ begin
     raise exception 'KLYX_FINANCIAL_LEDGER_IDENTITY_REQUIRED';
   end if;
 
-  if p_amount_cents < 0 then
+  if p_amount_minor < 0 then
     raise exception 'KLYX_FINANCIAL_LEDGER_AMOUNT_INVALID';
   end if;
 
@@ -544,7 +547,7 @@ begin
     p_movement_key,
     p_event_key,
     p_movement_type,
-    p_amount_cents,
+    p_amount_minor,
     v_currency,
     p_booking_id,
     p_beneficiary_kind,
@@ -626,7 +629,7 @@ begin
     p_movement_key,
     p_event_key,
     p_movement_type,
-    p_amount_cents,
+    p_amount_minor,
     v_currency,
     p_booking_id,
     p_beneficiary_kind,
@@ -1100,7 +1103,7 @@ insert into public.financial_ledger_events (
   movement_key,
   event_key,
   movement_type,
-  amount_cents,
+  amount_minor,
   currency,
   booking_id,
   beneficiary_kind,
@@ -1184,7 +1187,7 @@ insert into public.financial_ledger_events (
   movement_key,
   event_key,
   movement_type,
-  amount_cents,
+  amount_minor,
   currency,
   booking_id,
   beneficiary_kind,
@@ -1267,7 +1270,7 @@ insert into public.financial_ledger_events (
   movement_key,
   event_key,
   movement_type,
-  amount_cents,
+  amount_minor,
   currency,
   booking_id,
   beneficiary_kind,
@@ -1353,7 +1356,7 @@ insert into public.financial_ledger_events (
   movement_key,
   event_key,
   movement_type,
-  amount_cents,
+  amount_minor,
   currency,
   booking_id,
   beneficiary_kind,
@@ -1444,7 +1447,7 @@ insert into public.financial_ledger_events (
   movement_key,
   event_key,
   movement_type,
-  amount_cents,
+  amount_minor,
   currency,
   booking_id,
   beneficiary_kind,
@@ -1535,7 +1538,7 @@ insert into public.financial_ledger_events (
   movement_key,
   event_key,
   movement_type,
-  amount_cents,
+  amount_minor,
   currency,
   booking_id,
   beneficiary_kind,
@@ -1613,7 +1616,7 @@ insert into public.financial_ledger_events (
   movement_key,
   event_key,
   movement_type,
-  amount_cents,
+  amount_minor,
   currency,
   booking_id,
   beneficiary_kind,
@@ -1703,7 +1706,7 @@ insert into public.financial_ledger_events (
   movement_key,
   event_key,
   movement_type,
-  amount_cents,
+  amount_minor,
   currency,
   booking_id,
   beneficiary_kind,
@@ -1775,7 +1778,7 @@ insert into public.financial_ledger_events (
   movement_key,
   event_key,
   movement_type,
-  amount_cents,
+  amount_minor,
   currency,
   booking_id,
   beneficiary_kind,

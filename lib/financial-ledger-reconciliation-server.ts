@@ -19,7 +19,7 @@ type LedgerRow = {
     | "reversal"
     | "refund"
     | "payout";
-  amount_cents: number;
+  amount_minor: number;
   currency: string;
   booking_id: string;
   beneficiary_kind: string;
@@ -186,7 +186,7 @@ function uniqueText(values: Array<string | null | undefined>): string[] {
 
 function sumAmounts(rows: LedgerRow[]): number {
   return rows.reduce(
-    (sum, row) => sum + Math.max(Number(row.amount_cents), 0),
+    (sum, row) => sum + Math.max(Number(row.amount_minor), 0),
     0
   );
 }
@@ -204,7 +204,7 @@ async function loadStripeObjectAllocations(
   const { data, error } = await supabaseAdmin
     .from("financial_ledger_current")
     .select(
-      "id, movement_key, movement_type, amount_cents, currency, booking_id, beneficiary_kind, beneficiary_ref, stripe_account_id, stripe_checkout_session_id, stripe_payment_intent_id, stripe_charge_id, stripe_transfer_id, stripe_transfer_reversal_id, stripe_refund_id, stripe_payout_id, cause, new_state, occurred_at"
+      "id, movement_key, movement_type, amount_minor, currency, booking_id, beneficiary_kind, beneficiary_ref, stripe_account_id, stripe_checkout_session_id, stripe_payment_intent_id, stripe_charge_id, stripe_transfer_id, stripe_transfer_reversal_id, stripe_refund_id, stripe_payout_id, cause, new_state, occurred_at"
     )
     .eq(field, objectIdValue)
     .eq("movement_type", movementType);
@@ -268,7 +268,7 @@ async function loadLocalTruth(bookingId: string): Promise<{
     supabaseAdmin
       .from("financial_ledger_current")
       .select(
-        "id, movement_key, movement_type, amount_cents, currency, booking_id, beneficiary_kind, beneficiary_ref, stripe_account_id, stripe_checkout_session_id, stripe_payment_intent_id, stripe_charge_id, stripe_transfer_id, stripe_transfer_reversal_id, stripe_refund_id, stripe_payout_id, cause, new_state, occurred_at"
+        "id, movement_key, movement_type, amount_minor, currency, booking_id, beneficiary_kind, beneficiary_ref, stripe_account_id, stripe_checkout_session_id, stripe_payment_intent_id, stripe_charge_id, stripe_transfer_id, stripe_transfer_reversal_id, stripe_refund_id, stripe_payout_id, cause, new_state, occurred_at"
       )
       .eq("booking_id", bookingId),
     supabaseAdmin
@@ -476,13 +476,13 @@ function compareLocalTruth(input: {
   if (charge) {
     pushMismatch(divergences, {
       mismatch:
-        charge.amount_cents !== gross ||
+        charge.amount_minor !== gross ||
         currency(charge.currency) !== bookingCurrency,
       dimension: "ledger",
       reasonCode: "charge_booking_economics_mismatch",
-      expected: { amountCents: gross, currency: bookingCurrency },
+      expected: { amountMinor: gross, currency: bookingCurrency },
       actual: {
-        amountCents: charge.amount_cents,
+        amountMinor: charge.amount_minor,
         currency: charge.currency,
       },
     });
@@ -493,20 +493,20 @@ function compareLocalTruth(input: {
     state: "reconciliation",
     dimension: "ledger",
     reasonCode: "paid_booking_missing_commission_movement",
-    expected: { amountCents: fee, currency: bookingCurrency },
+    expected: { amountMinor: fee, currency: bookingCurrency },
     actual: { commission: null },
   });
 
   if (commission) {
     pushMismatch(divergences, {
       mismatch:
-        commission.amount_cents !== fee ||
+        commission.amount_minor !== fee ||
         currency(commission.currency) !== bookingCurrency,
       dimension: "ledger",
       reasonCode: "commission_booking_economics_mismatch",
-      expected: { amountCents: fee, currency: bookingCurrency },
+      expected: { amountMinor: fee, currency: bookingCurrency },
       actual: {
-        amountCents: commission.amount_cents,
+        amountMinor: commission.amount_minor,
         currency: commission.currency,
       },
     });
@@ -517,20 +517,20 @@ function compareLocalTruth(input: {
     state: "reconciliation",
     dimension: "ledger",
     reasonCode: "paid_booking_missing_provider_liability_movement",
-    expected: { amountCents: provider, currency: bookingCurrency },
+    expected: { amountMinor: provider, currency: bookingCurrency },
     actual: { providerLiability: null },
   });
 
   if (liability) {
     pushMismatch(divergences, {
       mismatch:
-        liability.amount_cents !== provider ||
+        liability.amount_minor !== provider ||
         currency(liability.currency) !== bookingCurrency,
       dimension: "ledger",
       reasonCode: "provider_liability_booking_economics_mismatch",
-      expected: { amountCents: provider, currency: bookingCurrency },
+      expected: { amountMinor: provider, currency: bookingCurrency },
       actual: {
-        amountCents: liability.amount_cents,
+        amountMinor: liability.amount_minor,
         currency: liability.currency,
         state: liability.new_state,
       },
@@ -539,7 +539,7 @@ function compareLocalTruth(input: {
 
   const succeededRefundAmount = refunds
     .filter((row) => ["succeeded", "refunded"].includes(row.new_state))
-    .reduce((sum, row) => sum + Math.max(Number(row.amount_cents), 0), 0);
+    .reduce((sum, row) => sum + Math.max(Number(row.amount_minor), 0), 0);
 
   pushMismatch(divergences, {
     mismatch: succeededRefundAmount !== refunded,
@@ -678,7 +678,7 @@ function compareLocalTruth(input: {
             row.stripe_transfer_id === group.member?.stripe_transfer_id
         )
         .reduce(
-          (sum, row) => sum + Math.max(Number(row.amount_cents), 0),
+          (sum, row) => sum + Math.max(Number(row.amount_minor), 0),
           0
         );
 
@@ -688,10 +688,10 @@ function compareLocalTruth(input: {
         dimension: "settlement",
         reasonCode: "group_settlement_transfer_booking_allocation_mismatch",
         expected: {
-          amountCents: group.releasedAllocation,
+          amountMinor: group.releasedAllocation,
           stripeTransferId: group.member.stripe_transfer_id,
         },
-        actual: { amountCents: bookingTransferAmount },
+        actual: { amountMinor: bookingTransferAmount },
       });
     }
 
@@ -710,7 +710,7 @@ function compareLocalTruth(input: {
     });
 
     const bookingReversalAmount = reversals.reduce(
-      (sum, row) => sum + Math.max(Number(row.amount_cents), 0),
+      (sum, row) => sum + Math.max(Number(row.amount_minor), 0),
       0
     );
 
@@ -719,8 +719,8 @@ function compareLocalTruth(input: {
       state: "reconciliation",
       dimension: "settlement",
       reasonCode: "group_settlement_reversal_booking_allocation_mismatch",
-      expected: { amountCents: group.reversedAllocation },
-      actual: { amountCents: bookingReversalAmount },
+      expected: { amountMinor: group.reversedAllocation },
+      actual: { amountMinor: bookingReversalAmount },
     });
   }
 
@@ -773,13 +773,13 @@ async function compareStripeTruth(input: {
         dimension: "stripe",
         reasonCode: "stripe_payment_intent_ledger_aggregate_mismatch",
         expected: {
-          amountCents: allocationAmount,
+          amountMinor: allocationAmount,
           currency: allocationCurrencyCode,
           stripePaymentIntentId: paymentIntentId,
           bookingAllocations: allocations.length,
         },
         actual: {
-          amountCents: intent.amount,
+          amountMinor: intent.amount,
           currency: intent.currency,
           stripePaymentIntentId: intent.id,
         },
@@ -864,13 +864,13 @@ async function compareStripeTruth(input: {
         dimension: "stripe",
         reasonCode: "stripe_transfer_ledger_aggregate_mismatch",
         expected: {
-          amountCents: allocationAmount,
+          amountMinor: allocationAmount,
           currency: allocationCurrencyCode,
           stripeAccountIds: allocationAccounts,
           bookingAllocations: allocations.length,
         },
         actual: {
-          amountCents: transfer.amount,
+          amountMinor: transfer.amount,
           currency: transfer.currency,
           destination,
           stripeTransferId: transfer.id,
@@ -889,8 +889,8 @@ async function compareStripeTruth(input: {
           mismatch: transfer.amount !== settlementAmount,
           dimension: "settlement",
           reasonCode: "stripe_transfer_settlement_amount_mismatch",
-          expected: { amountCents: settlementAmount, stripeTransferId: transferId },
-          actual: { amountCents: transfer.amount },
+          expected: { amountMinor: settlementAmount, stripeTransferId: transferId },
+          actual: { amountMinor: transfer.amount },
         });
       }
     } catch (error) {
@@ -960,13 +960,13 @@ async function compareStripeTruth(input: {
         dimension: "stripe",
         reasonCode: "stripe_reversal_ledger_aggregate_mismatch",
         expected: {
-          amountCents: allocationAmount,
+          amountMinor: allocationAmount,
           currency: allocationCurrencyCode,
           stripeTransferReversalId: reversalId,
           bookingAllocations: allocations.length,
         },
         actual: {
-          amountCents: reversal?.amount ?? null,
+          amountMinor: reversal?.amount ?? null,
           stripeTransferReversalId: reversal?.id ?? null,
         },
       });
@@ -1018,13 +1018,13 @@ async function compareStripeTruth(input: {
         dimension: "stripe",
         reasonCode: "stripe_refund_ledger_aggregate_mismatch",
         expected: {
-          amountCents: allocationAmount,
+          amountMinor: allocationAmount,
           currency: allocationCurrencyCode,
           stripeRefundId: refundId,
           bookingAllocations: allocations.length,
         },
         actual: {
-          amountCents: refund.amount,
+          amountMinor: refund.amount,
           currency: refund.currency,
           stripeRefundId: refund.id,
         },
@@ -1092,14 +1092,14 @@ async function compareStripeTruth(input: {
         dimension: "stripe",
         reasonCode: "stripe_payout_ledger_aggregate_mismatch",
         expected: {
-          amountCents: allocationAmount,
+          amountMinor: allocationAmount,
           currency: allocationCurrencyCode,
           stripePayoutId: payoutId,
           stripeAccountId: allocationAccounts[0],
           bookingAllocations: allocations.length,
         },
         actual: {
-          amountCents: payout.amount,
+          amountMinor: payout.amount,
           currency: payout.currency,
           status: payout.status,
         },
