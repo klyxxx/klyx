@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import {
   apiErrorStatus,
-  getAuthenticatedProfile,
+  getAuthenticatedAccount,
   type AuthenticatedProfile,
 } from "@/lib/api-auth";
 import {
@@ -22,6 +22,7 @@ import {
   KLYX_CONFIRMATION_BOUNDARY,
   getKlyxGuidedQuestion,
 } from "@/lib/brain/guided-question";
+import { resolveAssistantWorkflow } from "@/lib/brain/orchestrator/assistant-workflow";
 import { withoutKlyxLlmShadow } from "@/lib/brain/llm/shadow";
 import { parseBrainRespondRequest } from "@/lib/brain/respond-http-boundary";
 import { generateKlyxAiReply } from "@/lib/klyx-ai";
@@ -269,6 +270,8 @@ async function serviceResponse(params: {
   request: Request;
   message: string;
   conversationId?: string;
+  accountId: string;
+  profileId: string;
 }): Promise<Response> {
   const capabilityRequest = jsonCapabilityRequest({
     request: params.request,
@@ -302,6 +305,26 @@ async function serviceResponse(params: {
   if (!deterministicReply) return response;
 
   const payload = responseBody.payload ?? {};
+  const resolvedConversationId =
+    text(responseBody.conversationId) ||
+    params.conversationId ||
+    null;
+  const workflow = resolvedConversationId
+    ? await resolveAssistantWorkflow({
+        accountId: params.accountId,
+        profileId: params.profileId,
+        conversationId: resolvedConversationId,
+        intent: "service_need",
+        context: {
+          serviceSlug: payload.serviceSlug ?? null,
+          city: payload.city ?? null,
+          date: payload.date ?? null,
+          time: payload.time ?? null,
+          budget: payload.budget ?? null,
+          ready: payload.ready === true,
+        },
+      })
+    : null;
 
   // Offer activation contains payment, legal and Trust & Safety decisions.
   // Those deterministic facts must never be reworded by Visible AI in a way
@@ -339,6 +362,7 @@ async function serviceResponse(params: {
       payload: {
         ...payload,
         assistantIntent: "service_need",
+        workflow,
       },
       reply: visibleReply.text,
       aiMode: visibleReply.mode,
@@ -366,8 +390,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { profiles, canonicalProfile } =
-      await getAuthenticatedProfile(request);
+    const { account, profiles, canonicalProfile } =
+      await getAuthenticatedAccount(request);
     const {
       conversationId: requestedConversationId,
       message,
@@ -397,6 +421,8 @@ export async function POST(request: Request) {
         request,
         message,
         conversationId: requestedConversationId,
+        accountId: account.id,
+        profileId: canonicalProfile.id,
       });
     }
 
@@ -450,6 +476,21 @@ export async function POST(request: Request) {
       reply =
         route.clarificationQuestion ??
         "Tu veux que KLYX trouve un service, cherche des missions rémunérées ou gère une mission existante ?";
+    }
+
+    const workflow = await resolveAssistantWorkflow({
+      accountId: account.id,
+      profileId: canonicalProfile.id,
+      conversationId: conversationState.conversationId,
+      intent: route.intent,
+      context: {
+        assistantIntent: route.intent,
+        intentConfidence: route.confidence,
+      },
+    });
+
+    if (workflow) {
+      payload.workflow = workflow;
     }
 
     await appendAssistantExchange({
