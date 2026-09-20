@@ -178,7 +178,7 @@ describe(
       () => {
         const source =
           read(
-            "app/api/stripe/create-checkout-session/route.ts"
+            "app/api/stripe/create-checkout-session/route-core.ts"
           );
 
         expect(
