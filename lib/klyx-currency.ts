@@ -230,7 +230,7 @@ export function calculateKlyxBasisPointsAmount(
 
   return roundKlyxRationalToSafeInteger(
     BigInt(amountMinor) * BigInt(basisPoints),
-    10_00BigInt(0)
+    BigInt(10_000)
   );
 }
 
