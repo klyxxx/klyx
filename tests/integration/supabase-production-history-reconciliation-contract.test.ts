@@ -104,10 +104,12 @@ describe("Supabase production migration-history reconciliation contract", () => 
     const approvedHistorical = bashArray("approved_historical_migrations");
 
     expect(approvedHistorical).toEqual([
-      "20260913003000_klyx_trust_review_resolution_rpc.sql",
-      "20260913004000_klyx_trust_latest_decision_enforcement.sql",
+      "20260914190000_klyx_account_stripe_connect_identity.sql",
+      "20260915110000_klyx_account_risk_engine.sql",
+      "20260915113000_klyx_transaction_risk_gate.sql",
     ]);
 
+    expect(approvedHistorical).toHaveLength(3);
     expect(workflow).toContain(
       "Refusing --include-all: historical migration set differs from the audited production gap."
     );
@@ -118,14 +120,22 @@ describe("Supabase production migration-history reconciliation contract", () => 
     const approvedBatch = bashArray("approved_reconciliation_batch");
 
     expect(approvedBatch).toEqual([
-      "20260913003000_klyx_trust_review_resolution_rpc.sql",
-      "20260913004000_klyx_trust_latest_decision_enforcement.sql",
-      "20260914121500_klyx_account_actor_capabilities.sql",
-      "20260914183000_klyx_account_post_booking_incidents.sql",
-      "20260914195500_klyx_provider_verification_account_capability_authority.sql",
-      "20260915134000_klyx_provider_verification_compatibility_profile_guard.sql",
+      "20260914190000_klyx_account_stripe_connect_identity.sql",
+      "20260915110000_klyx_account_risk_engine.sql",
+      "20260915113000_klyx_transaction_risk_gate.sql",
+      "20260915170000_klyx_booking_settlement_control.sql",
+      "20260915173000_klyx_refund_transaction_risk_gate.sql",
+      "20260915194500_klyx_platform_held_settlement_test.sql",
+      "20260915200500_klyx_platform_held_settlement_fail_closed.sql",
+      "20260916140000_klyx_platform_held_legacy_null_guard.sql",
+      "20260918130000_klyx_settlement_claim_sql_qualification.sql",
+      "20260918183500_klyx_settlement_recovery_reconciliation.sql",
+      "20260918211000_klyx_platform_held_group_multiexecutor_test.sql",
+      "20260918213000_klyx_platform_held_group_refund_hardening.sql",
+      "20260919190000_klyx_group_release_after_refund_hardening.sql",
     ]);
 
+    expect(approvedBatch).toHaveLength(13);
     expect(approvedBatch).not.toContain(
       "20260906140329_klyx_remove_duplicate_profiles_stripe_index.sql"
     );
