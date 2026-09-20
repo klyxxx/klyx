@@ -37,6 +37,8 @@ const capability: KlyxPaymentCurrencyCapability = {
   stripeChargeExponent: 2,
   stripeChargeIncrement: 1,
   stripePayoutIncrement: 1,
+  minimumChargeAmount: 50,
+  maximumChargeAmount: null,
   zeroDecimal: false,
   sourceRef: "stripe:test",
   sourceCheckedAt: "2026-09-20T00:00:00.000Z",
