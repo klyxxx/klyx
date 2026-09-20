@@ -665,7 +665,10 @@ begin
       'immutable_ledger_conflict'
     );
 
-    return v_existing.id;
+    -- Persist the divergence, but never report the conflicting append as a
+    -- successful idempotent write. The RPC completes so the human-review case
+    -- is committed; the server wrapper then fails closed on the NULL result.
+    return null;
   end if;
 
   insert into public.financial_ledger_events (
