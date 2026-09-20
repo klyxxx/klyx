@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import {
   apiErrorStatus,
-  getAuthenticatedAccount,
+  getAuthenticatedProfile,
   type AuthenticatedProfile,
 } from "@/lib/api-auth";
 import {
@@ -392,7 +392,7 @@ export async function POST(request: Request) {
 
   try {
     const { account, profiles, canonicalProfile } =
-      await getAuthenticatedAccount(request);
+      await getAuthenticatedProfile(request);
     const {
       conversationId: requestedConversationId,
       message,
