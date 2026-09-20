@@ -23,7 +23,11 @@ describe("Platform-Held group remote Stripe eligibility", () => {
     expect(stripeTruth).toContain("stripe.accounts.retrieve");
 
     const canonicalDestination = source.indexOf(
-      "await getProviderStripeDestination(member.provider_profile_id)"
+      "getProviderStripeDestination("
+    );
+    const canonicalProvider = source.indexOf(
+      "member.provider_profile_id",
+      canonicalDestination
     );
     const claim = source.indexOf(
       '"klyx_claim_platform_held_group_member_release"'
@@ -35,7 +39,8 @@ describe("Platform-Held group remote Stripe eligibility", () => {
     const create = source.indexOf("await stripe.transfers.create(", remoteTruth);
 
     expect(canonicalDestination).toBeGreaterThan(-1);
-    expect(claim).toBeGreaterThan(canonicalDestination);
+    expect(canonicalProvider).toBeGreaterThan(canonicalDestination);
+    expect(claim).toBeGreaterThan(canonicalProvider);
     expect(remoteTruth).toBeGreaterThan(claim);
     expect(create).toBeGreaterThan(remoteTruth);
 
