@@ -90,7 +90,7 @@ describe("Mission 13 Operations Foundation + Failure Domains", () => {
       "control.capability is null or control.capability = v_capability"
     );
     expect(doc).toContain(
-      "ENABLED never overrides another matching DISABLED control"
+      "`ENABLED` never overrides another matching `DISABLED` control"
     );
   });
 
