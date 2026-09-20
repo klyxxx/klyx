@@ -55,6 +55,7 @@ create table if not exists public.ops_durable_jobs (
   last_worker_id text,
 
   last_error_code text,
+  last_failure_retryable boolean,
   result_ref text,
 
   completed_at timestamptz,
@@ -166,6 +167,8 @@ comment on column public.ops_durable_jobs.payload is
   'Small operational payload containing stable references only; never a second canonical business object or secret store.';
 comment on column public.ops_durable_jobs.last_claim_token is
   'Last fencing token retained so terminal/retry acknowledgements can be retried idempotently.';
+comment on column public.ops_durable_jobs.last_failure_retryable is
+  'Retryability value bound to the last failure acknowledgement so contradictory replays fail closed.';
 
 create index if not exists ops_durable_jobs_ready_idx
   on public.ops_durable_jobs (priority asc, available_at asc, created_at asc)
@@ -222,6 +225,7 @@ select
   attempt_count,
   max_attempts,
   last_error_code,
+  last_failure_retryable,
   result_ref,
   dead_lettered_at,
   created_at,
@@ -579,6 +583,7 @@ begin
              lease_token = null,
              lease_expires_at = null,
              last_error_code = 'LEASE_EXPIRED',
+             last_failure_retryable = true,
              completed_at = coalesce(completed_at, now()),
              dead_lettered_at = now(),
              updated_at = now()
@@ -647,6 +652,7 @@ begin
              lease_token = null,
              lease_expires_at = null,
              last_error_code = 'LEASE_EXPIRED',
+             last_failure_retryable = true,
              updated_at = now()
        where id = v_job.id;
 
@@ -946,6 +952,10 @@ begin
     and v_job.last_claim_token is not distinct from p_lease_token
     and v_job.last_worker_id is not distinct from v_worker_id
   then
+    if v_job.result_ref is distinct from v_result_ref then
+      raise exception 'KLYX_DURABLE_JOB_ACK_CONFLICT';
+    end if;
+
     return query select v_job.status, v_job.attempt_count;
     return;
   end if;
@@ -1083,8 +1093,14 @@ begin
     v_job.status in ('retry_wait', 'dead_lettered')
     and v_job.last_claim_token is not distinct from p_lease_token
     and v_job.last_worker_id is not distinct from v_worker_id
-    and v_job.last_error_code is not distinct from v_error_code
   then
+    if
+      v_job.last_error_code is distinct from v_error_code
+      or v_job.last_failure_retryable is distinct from coalesce(p_retryable, true)
+    then
+      raise exception 'KLYX_DURABLE_JOB_ACK_CONFLICT';
+    end if;
+
     return query
     select
       v_job.status,
@@ -1115,6 +1131,7 @@ begin
            lease_token = null,
            lease_expires_at = null,
            last_error_code = v_error_code,
+           last_failure_retryable = coalesce(p_retryable, true),
            completed_at = coalesce(completed_at, now()),
            dead_lettered_at = now(),
            updated_at = now()
@@ -1193,6 +1210,7 @@ begin
          lease_token = null,
          lease_expires_at = null,
          last_error_code = v_error_code,
+         last_failure_retryable = coalesce(p_retryable, true),
          updated_at = now()
    where id = v_job.id
    returning * into v_job;

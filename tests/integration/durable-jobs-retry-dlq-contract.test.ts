@@ -83,6 +83,21 @@ describe("KLYX Mission 14 durable jobs contract", () => {
     );
   });
 
+  it("rejects contradictory acknowledgement replays for the same claim", () => {
+    expect(migration).toContain(
+      "KLYX_DURABLE_JOB_ACK_CONFLICT"
+    );
+    expect(migration).toContain(
+      "v_job.result_ref is distinct from v_result_ref"
+    );
+    expect(migration).toContain(
+      "last_failure_retryable boolean"
+    );
+    expect(migration).toContain(
+      "v_job.last_failure_retryable is distinct from coalesce(p_retryable, true)"
+    );
+  });
+
   it("reclaims expired leases with bounded capped exponential retry", () => {
     expect(migration).toContain(
       "create or replace function public.klyx_reap_expired_durable_jobs"

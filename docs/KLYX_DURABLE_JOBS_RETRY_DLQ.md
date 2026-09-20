@@ -106,6 +106,8 @@ Every claim:
 
 Completion, failure and lease extension are accepted only for the matching worker + token.
 
+Acknowledgement retries must also be semantically identical. A repeated completion with a different `result_ref`, or a repeated failure with a different error/retryability decision, fails closed with `KLYX_DURABLE_JOB_ACK_CONFLICT` instead of silently accepting contradictory worker output.
+
 Expired leases cannot be extended or finalized by stale workers.
 
 Long-running workers may explicitly extend a still-valid lease through `klyx_extend_durable_job_lease`.
