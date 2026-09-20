@@ -11,6 +11,7 @@ const workflow = fs.readFileSync(
   "utf8"
 );
 
+// Snapshot pinned to the production migration state observed before LIVE enablement.
 const approvedHistoricalMigrations = [
   "20260914190000_klyx_account_stripe_connect_identity.sql",
   "20260915110000_klyx_account_risk_engine.sql",
