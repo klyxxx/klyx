@@ -202,6 +202,8 @@ jobs:
           # This is a one-time, production-audited reconciliation allowlist.
           # Any historical file outside this exact set keeps the deployment
           # fail-closed instead of broadening --include-all implicitly.
+          # 2026-09-20 audit: production already contains later 09:15+ migrations;
+          # Mission 12 at 09:10 is therefore the sole historical insertion gap.
           approved_historical_migrations=(
             "20260920091000_klyx_orchestrator_foundation.sql"
           )
