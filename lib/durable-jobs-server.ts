@@ -138,7 +138,7 @@ export async function enqueueKlyxDurableJob(
       p_payload: input.payload ?? {},
       ...normalizeScope(input),
       p_priority: input.priority ?? 100,
-      p_available_at: optionalText(input.availableAt) ?? new Date().toISOString(),
+      p_available_at: optionalText(input.availableAt),
       p_max_attempts: input.maxAttempts ?? 5,
       p_backoff_base_seconds: input.backoffBaseSeconds ?? 30,
       p_backoff_max_seconds: input.backoffMaxSeconds ?? 3600,
