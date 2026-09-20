@@ -703,7 +703,7 @@ export async function POST(request: Request) {
           ? sourceUnitPriceMinor
           : roundKlyxRationalToSafeInteger(
               BigInt(sourceUnitPriceMinor) * BigInt(durationMinutes),
-              60n
+              BigInt(60)
             );
     }
 
@@ -740,7 +740,7 @@ export async function POST(request: Request) {
       pricingType === "fixed"
         ? estimatedAmountCents
         : roundKlyxRationalToSafeInteger(
-            BigInt(estimatedAmountCents) * 60n,
+            BigInt(estimatedAmountCents) * BigInt(60),
             BigInt(durationMinutes)
           );
 
