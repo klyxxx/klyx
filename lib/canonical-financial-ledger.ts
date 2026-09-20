@@ -440,6 +440,170 @@ export async function recordCanonicalRefund(input: {
   });
 }
 
+
+export async function recordCanonicalPaymentFromLegacyLedger(input: {
+  bookingId: string;
+  grossAmountCents: number;
+  platformFeeCents: number;
+  providerAmountCents: number | null;
+  currency: string;
+  paymentMode?: string | null;
+  stripeCheckoutSessionId?: string | null;
+  stripePaymentIntentId?: string | null;
+}): Promise<void> {
+  const booking = await loadBookingAccounting(input.bookingId);
+  const settlement = await loadSettlementAccounting(input.bookingId);
+  const providerProfileId =
+    settlement?.provider_profile_id ??
+    booking.provider_id ??
+    booking.babysitter_id;
+
+  if (!providerProfileId) {
+    throw new Error("KLYX_CANONICAL_LEDGER_PROVIDER_REQUIRED");
+  }
+
+  const providerAccountId = await profileAccountId(providerProfileId);
+  if (!providerAccountId) {
+    throw new Error("KLYX_CANONICAL_LEDGER_PROVIDER_ACCOUNT_REQUIRED");
+  }
+
+  const gross = positiveInteger(
+    settlement?.gross_amount_cents ?? input.grossAmountCents,
+    "KLYX_CANONICAL_LEDGER_GROSS_INVALID"
+  );
+  const fee = Number(
+    settlement?.platform_fee_cents ?? input.platformFeeCents ?? 0
+  );
+  const providerAmount = Number(
+    settlement?.provider_amount_cents ??
+      input.providerAmountCents ??
+      Math.max(gross - fee, 0)
+  );
+
+  if (
+    !Number.isSafeInteger(fee) ||
+    fee < 0 ||
+    !Number.isSafeInteger(providerAmount) ||
+    providerAmount < 0 ||
+    fee + providerAmount !== gross
+  ) {
+    throw new Error("KLYX_CANONICAL_LEDGER_ECONOMICS_DIVERGENCE");
+  }
+
+  const currency = normalizeCurrency(
+    settlement?.currency ?? input.currency ?? booking.currency
+  );
+  const checkoutSessionId =
+    input.stripeCheckoutSessionId ??
+    settlement?.stripe_checkout_session_id ??
+    booking.stripe_checkout_session_id;
+  const paymentIntentId =
+    input.stripePaymentIntentId ??
+    settlement?.stripe_payment_intent_id ??
+    booking.stripe_payment_intent_id;
+  const externalIdentity =
+    paymentIntentId ?? checkoutSessionId ?? input.bookingId;
+  const settlementReference = settlement
+    ? `booking_settlement:${input.bookingId}`
+    : null;
+  const paymentMode =
+    settlement?.payment_mode ?? input.paymentMode ?? booking.payment_mode;
+
+  await appendCanonicalFinancialMovement({
+    eventKey: `booking:${input.bookingId}:charge:${externalIdentity}`,
+    movementType: "charge",
+    amountCents: gross,
+    currency,
+    bookingId: input.bookingId,
+    beneficiaryType: "platform",
+    cause: "booking_payment_confirmed",
+    previousState: "payment_pending",
+    newState: "paid",
+    source: "payment",
+    stripeCheckoutSessionId: checkoutSessionId,
+    stripePaymentIntentId: paymentIntentId,
+    stripeChargeId: settlement?.stripe_charge_id ?? null,
+    settlementReference,
+    metadata: { paymentMode, bridge: "booking_financial_ledger" },
+  });
+
+  if (fee > 0) {
+    await appendCanonicalFinancialMovement({
+      eventKey: `booking:${input.bookingId}:commission:${externalIdentity}`,
+      movementType: "commission",
+      amountCents: fee,
+      currency,
+      bookingId: input.bookingId,
+      beneficiaryType: "platform",
+      cause: "klyx_commission_recognized",
+      previousState: "payment_pending",
+      newState: "paid",
+      source: "payment",
+      stripeCheckoutSessionId: checkoutSessionId,
+      stripePaymentIntentId: paymentIntentId,
+      stripeChargeId: settlement?.stripe_charge_id ?? null,
+      settlementReference,
+      metadata: { paymentMode, bridge: "booking_financial_ledger" },
+    });
+  }
+
+  if (providerAmount > 0) {
+    await appendCanonicalFinancialMovement({
+      eventKey: `booking:${input.bookingId}:provider-liability:${externalIdentity}`,
+      movementType: "provider_liability",
+      amountCents: providerAmount,
+      currency,
+      bookingId: input.bookingId,
+      beneficiaryType: "provider",
+      beneficiaryAccountId: providerAccountId,
+      beneficiaryProfileId: providerProfileId,
+      cause: "provider_liability_recognized",
+      previousState: "payment_pending",
+      newState: "paid",
+      source: "payment",
+      stripeCheckoutSessionId: checkoutSessionId,
+      stripePaymentIntentId: paymentIntentId,
+      stripeChargeId: settlement?.stripe_charge_id ?? null,
+      settlementReference,
+      metadata: { paymentMode, bridge: "booking_financial_ledger" },
+    });
+  }
+}
+
+export async function recordCanonicalRefundFromLegacyLedger(input: {
+  bookingId: string;
+  refundAmountCents: number;
+  currency: string;
+  stripePaymentIntentId?: string | null;
+  stripeRefundId: string;
+}): Promise<void> {
+  const booking = await loadBookingAccounting(input.bookingId);
+  const clientAccountId = await profileAccountId(booking.parent_id);
+
+  if (!clientAccountId) {
+    throw new Error("KLYX_CANONICAL_LEDGER_CLIENT_ACCOUNT_REQUIRED");
+  }
+
+  await appendCanonicalFinancialMovement({
+    eventKey: `booking:${input.bookingId}:refund:${input.stripeRefundId}`,
+    movementType: "refund",
+    amountCents: input.refundAmountCents,
+    currency: input.currency,
+    bookingId: input.bookingId,
+    beneficiaryType: "client",
+    beneficiaryAccountId: clientAccountId,
+    beneficiaryProfileId: booking.parent_id,
+    cause: "customer_refund_succeeded",
+    previousState: "paid",
+    newState: "refund_confirmed",
+    source: "refund",
+    stripePaymentIntentId:
+      input.stripePaymentIntentId ?? booking.stripe_payment_intent_id,
+    stripeRefundId: input.stripeRefundId,
+    metadata: { bridge: "booking_financial_ledger" },
+  });
+}
+
 export async function recordCanonicalPayoutAllocation(input: {
   bookingId: string;
   payoutId: string;
