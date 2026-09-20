@@ -52,6 +52,14 @@ describe("KLYX central financial ledger", () => {
     expect(migration).toContain("booking_id uuid not null");
     expect(migration).toContain("beneficiary_kind text not null");
     expect(migration).toContain("beneficiary_ref text not null");
+    expect(migration).toContain("klyx_financial_beneficiary_account_ref");
+    expect(migration).toContain("'authority', 'accounts.id'");
+    expect(migration).toContain("'beneficiary_account_unresolved'");
+    expect(migration).toContain("return concat('unresolved-profile:', v_profile_ref)");
+    expect(migration).not.toContain("v_provider_id::text");
+    expect(migration).not.toContain("v_client_id::text");
+    expect(groupSplitMigration).toContain("v_member.provider_account_id::text");
+    expect(groupSplitMigration).not.toContain("v_member.provider_profile_id::text");
     expect(migration).toContain("previous_state text");
     expect(migration).toContain("new_state text not null");
     expect(migration).toContain("occurred_at timestamptz not null");
