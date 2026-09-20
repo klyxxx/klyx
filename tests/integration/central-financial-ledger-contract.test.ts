@@ -235,6 +235,8 @@ describe("KLYX central financial ledger", () => {
     expect(server).toContain("recordObservedStripePayout");
     expect(server).toContain('movementType: "payout"');
     expect(server).toContain('source: "payout_observation"');
+    expect(server).toContain("previousState?: string | null");
+    expect(server).toContain("previousState: input.previousState ?? null");
     expect(server).not.toContain("stripe.payouts.create(");
     expect(server).not.toContain("stripe.transfers.create(");
     expect(server).not.toContain("stripe.refunds.create(");
