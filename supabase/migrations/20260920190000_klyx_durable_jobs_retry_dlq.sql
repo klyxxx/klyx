@@ -359,7 +359,6 @@ begin
     'capability', v_capability,
     'dependency', v_dependency,
     'priority', p_priority,
-    'available_at', p_available_at,
     'max_attempts', p_max_attempts,
     'backoff_base_seconds', p_backoff_base_seconds,
     'backoff_max_seconds', p_backoff_max_seconds
