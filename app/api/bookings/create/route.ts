@@ -2,11 +2,13 @@ import { after, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { isUserServiceApproved } from "@/lib/provider-skill-publication";
 import {
-  assertKlyxSameCurrency,
   resolveKlyxMoneyContext,
   resolveKlyxProfileMoney,
   toKlyxMinorUnits,
 } from "@/lib/klyx-money";
+import { convertKlyxMinorUnitsWithQuote } from "@/lib/klyx-fx";
+import { getKlyxFxQuote } from "@/lib/klyx-fx-server";
+import { roundKlyxRationalToSafeInteger } from "@/lib/klyx-currency";
 import {
   apiErrorStatus,
   getAuthenticatedProfile,
@@ -149,6 +151,7 @@ export async function POST(request: Request) {
       endTime?: string;
       message?: string;
       quoteId?: string;
+      fxQuoteId?: string;
     };
 
     const providerId = body.providerId?.trim();
@@ -159,6 +162,7 @@ export async function POST(request: Request) {
     const message =
       body.message?.trim().slice(0, 2000) || null;
     const quoteId = body.quoteId?.trim() || null;
+    const requestedFxQuoteId = body.fxQuoteId?.trim() || null;
 
     if (
       !providerId ||
@@ -372,15 +376,13 @@ export async function POST(request: Request) {
           providerMarket.currency_code,
       });
 
-    assertKlyxSameCurrency(
-      clientMoney.currencyCode,
-      providerMoney.currencyCode
-    );
-
-    // La reservation directe utilise le marche du client.
-    // Un devis accepte peut ensuite fournir son snapshot immuable.
-    let transactionMoney =
-      clientMoney;
+    // Payer country, execution country and presentment currency are
+    // independent dimensions. Provider profile currency may differ from the
+    // client's presentment currency; cross-currency pricing requires an
+    // explicit locked FX quote below.
+    const transactionMoney = clientMoney;
+    let pricingSourceMoney = providerMoney;
+    let appliedFxQuoteId: string | null = null;
 
     let acceptedQuote: AcceptedQuoteRow | null = null;
 
@@ -428,13 +430,7 @@ export async function POST(request: Request) {
           acceptedQuote.currency
         );
 
-      assertKlyxSameCurrency(
-        clientMoney.currencyCode,
-        quoteMoney.currencyCode
-      );
-
-      transactionMoney =
-        quoteMoney;
+      pricingSourceMoney = quoteMoney;
 
       if (acceptedQuote.status !== "accepted") {
         return NextResponse.json(
@@ -673,6 +669,7 @@ export async function POST(request: Request) {
     let pricingType: PricingType;
     let unitPriceCents: number;
     let estimatedAmountCents: number;
+    let sourceEstimatedAmountMinor: number;
 
     if (acceptedQuote) {
       pricingType =
@@ -680,44 +677,72 @@ export async function POST(request: Request) {
           ? "fixed"
           : "hourly";
 
-      // KLYX_MINOR_UNITS_FROM_TRANSACTION_14_24
-      estimatedAmountCents =
+      // The accepted quote price is the immutable source amount in the quote
+      // currency. Presentment may differ and then requires an exact FX quote.
+      sourceEstimatedAmountMinor =
         toKlyxMinorUnits(
-          Number(
-            acceptedQuote.provider_price
-          ),
-          transactionMoney.countryCode,
-          transactionMoney.currencyCode
+          Number(acceptedQuote.provider_price),
+          pricingSourceMoney.countryCode,
+          pricingSourceMoney.currencyCode
         );
-
-      unitPriceCents =
-        pricingType === "fixed"
-          ? estimatedAmountCents
-          : Math.round(
-              estimatedAmountCents /
-                (durationMinutes / 60)
-            );
     } else {
       pricingType =
         serviceProfile.pricing_type === "fixed"
           ? "fixed"
           : "hourly";
 
-      unitPriceCents =
+      const sourceUnitPriceMinor =
         toKlyxMinorUnits(
           Number(serviceProfile.price),
-          transactionMoney.countryCode,
-          transactionMoney.currencyCode
+          pricingSourceMoney.countryCode,
+          pricingSourceMoney.currencyCode
         );
 
-      estimatedAmountCents =
+      sourceEstimatedAmountMinor =
         pricingType === "fixed"
-          ? unitPriceCents
-          : Math.round(
-              unitPriceCents *
-                (durationMinutes / 60)
+          ? sourceUnitPriceMinor
+          : roundKlyxRationalToSafeInteger(
+              BigInt(sourceUnitPriceMinor) * BigInt(durationMinutes),
+              60n
             );
     }
+
+    if (
+      pricingSourceMoney.currencyCode ===
+      transactionMoney.currencyCode
+    ) {
+      estimatedAmountCents = sourceEstimatedAmountMinor;
+    } else {
+      if (!requestedFxQuoteId) {
+        throw new Error("KLYX_FX_QUOTE_REQUIRED");
+      }
+
+      const fxQuote = await getKlyxFxQuote(requestedFxQuoteId);
+
+      if (
+        fxQuote.sourceAmountMinor !== sourceEstimatedAmountMinor
+      ) {
+        throw new Error("KLYX_FX_QUOTE_AMOUNT_MISMATCH");
+      }
+
+      estimatedAmountCents =
+        convertKlyxMinorUnitsWithQuote({
+          amountMinor: sourceEstimatedAmountMinor,
+          sourceCurrency: pricingSourceMoney.currencyCode,
+          targetCurrency: transactionMoney.currencyCode,
+          quote: fxQuote,
+        });
+
+      appliedFxQuoteId = fxQuote.id;
+    }
+
+    unitPriceCents =
+      pricingType === "fixed"
+        ? estimatedAmountCents
+        : roundKlyxRationalToSafeInteger(
+            BigInt(estimatedAmountCents) * 60n,
+            BigInt(durationMinutes)
+          );
 
     if (
       unitPriceCents <= 0 ||
@@ -759,6 +784,16 @@ export async function POST(request: Request) {
             transactionMoney.countryCode,
           currency:
             transactionMoney.currencyCode,
+          payer_country_code:
+            clientMoney.countryCode,
+          execution_country_code:
+            providerMoney.countryCode,
+          presentment_currency:
+            transactionMoney.currencyCode,
+          subtotal_amount_minor:
+            estimatedAmountCents,
+          fx_quote_id:
+            appliedFxQuoteId,
           updated_at: new Date().toISOString(),
         })
         .select("id")
@@ -822,6 +857,11 @@ export async function POST(request: Request) {
     return NextResponse.json({
       bookingId: booking.id,
       estimatedAmountCents,
+      estimatedAmountMinor: estimatedAmountCents,
+      presentmentCurrency: transactionMoney.currencyCode,
+      payerCountryCode: clientMoney.countryCode,
+      executionCountryCode: providerMoney.countryCode,
+      fxQuoteId: appliedFxQuoteId,
       quoteApplied: Boolean(acceptedQuote),
       message: acceptedQuote
         ? "Réservation créée avec le prix du devis accepté."
