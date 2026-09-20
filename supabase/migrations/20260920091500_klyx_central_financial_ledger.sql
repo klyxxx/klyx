@@ -168,7 +168,7 @@ returns text
 language sql
 immutable
 set search_path = public, extensions
-as $
+as $$
   select encode(
     digest(
       concat_ws(
@@ -347,7 +347,7 @@ returns uuid
 language plpgsql
 security definer
 set search_path = public, extensions
-as $
+as $$
 declare
   v_id uuid;
   v_existing public.financial_reconciliation_events%rowtype;
@@ -470,7 +470,7 @@ begin
 
   raise exception 'KLYX_FINANCIAL_RECONCILIATION_EVENT_CONFLICT';
 end;
-$;
+$$;
 
 create or replace function public.klyx_append_financial_ledger_event(
   p_movement_key text,
