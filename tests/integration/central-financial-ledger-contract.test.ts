@@ -150,6 +150,18 @@ describe("KLYX central financial ledger", () => {
       "klyx_group_member_provider_allocations"
     );
     expect(groupSplitMigration).toContain(
+      "klyx_group_refund_booking_allocations"
+    );
+    expect(groupSplitMigration).toContain(
+      "klyx_group_reversal_booking_allocations"
+    );
+    expect(groupSplitMigration).toContain(
+      "v_prior_gross + v_allocation.gross_refund_cents"
+    );
+    expect(groupSplitMigration).toContain(
+      "v_prior_provider + v_reversal.amount_cents"
+    );
+    expect(groupSplitMigration).toContain(
       "group_member_booking_allocation_mismatch"
     );
     expect(groupSplitMigration).toContain(
