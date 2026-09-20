@@ -101,6 +101,9 @@ create table if not exists public.financial_ledger_events (
 comment on column public.financial_ledger_events.amount_minor is
   'Canonical KLYX accounting amount in the minor unit of currency. Legacy *_cents fields are compatibility inputs only.';
 
+comment on column public.financial_ledger_events.beneficiary_ref is
+  'For client/provider movements this is canonical public.accounts.id text. Profile ids are execution context only; unresolved-profile:* is explicit divergence requiring human review.';
+
 create index if not exists financial_ledger_events_booking_idx
   on public.financial_ledger_events(booking_id, occurred_at desc, recorded_at desc);
 
@@ -487,6 +490,70 @@ begin
 end;
 $$;
 
+create or replace function public.klyx_financial_beneficiary_account_ref(
+  p_profile_id uuid,
+  p_booking_id uuid,
+  p_beneficiary_kind text
+)
+returns text
+language plpgsql
+security definer
+set search_path = public, extensions
+as $
+declare
+  v_account_id uuid;
+  v_profile_ref text;
+begin
+  if p_beneficiary_kind not in ('client', 'provider') then
+    raise exception 'KLYX_FINANCIAL_BENEFICIARY_KIND_INVALID';
+  end if;
+
+  v_profile_ref := coalesce(p_profile_id::text, 'null');
+
+  if p_profile_id is not null then
+    select profile.account_id
+      into v_account_id
+      from public.profiles as profile
+     where profile.id = p_profile_id;
+  end if;
+
+  if v_account_id is not null then
+    return v_account_id::text;
+  end if;
+
+  perform public.klyx_open_financial_reconciliation_case(
+    concat(
+      'central-ledger:beneficiary:',
+      coalesce(p_booking_id::text, 'none'),
+      ':',
+      p_beneficiary_kind,
+      ':',
+      v_profile_ref
+    ),
+    p_booking_id,
+    'human_review',
+    'beneficiary',
+    'beneficiary_account_unresolved',
+    jsonb_build_object(
+      'authority', 'accounts.id',
+      'beneficiary_kind', p_beneficiary_kind
+    ),
+    jsonb_build_object(
+      'profile_id', p_profile_id,
+      'account_id', null
+    ),
+    'ledger_beneficiary_resolution'
+  );
+
+  return concat('unresolved-profile:', v_profile_ref);
+end;
+$;
+
+revoke all on function public.klyx_financial_beneficiary_account_ref(uuid, uuid, text)
+  from public, anon, authenticated;
+grant execute on function public.klyx_financial_beneficiary_account_ref(uuid, uuid, text)
+  to service_role;
+
 create or replace function public.klyx_append_financial_ledger_event(
   p_movement_key text,
   p_event_key text,
@@ -804,7 +871,7 @@ begin
         new.currency,
         new.booking_id,
         'provider',
-        v_provider_id::text,
+        public.klyx_financial_beneficiary_account_ref(v_provider_id, new.booking_id, 'provider'),
         'provider_liability_recognized',
         'payment_projection',
         v_previous_state,
@@ -830,7 +897,7 @@ begin
           new.currency,
           new.booking_id,
           'provider',
-          v_provider_id::text,
+          public.klyx_financial_beneficiary_account_ref(v_provider_id, new.booking_id, 'provider'),
           'legacy_destination_charge',
           'payment_projection',
           null,
@@ -855,7 +922,7 @@ begin
           new.currency,
           new.booking_id,
           'provider',
-          v_provider_id::text,
+          public.klyx_financial_beneficiary_account_ref(v_provider_id, new.booking_id, 'provider'),
           'legacy_destination_charge',
           'payment_projection',
           'recognized',
@@ -889,7 +956,7 @@ begin
       new.currency,
       new.booking_id,
       'client',
-      v_client_id::text,
+      public.klyx_financial_beneficiary_account_ref(v_client_id, new.booking_id, 'client'),
       new.entry_type,
       'refund',
       v_previous_state,
@@ -988,7 +1055,7 @@ begin
       new.currency,
       new.booking_id,
       'provider',
-      v_provider_id::text,
+      public.klyx_financial_beneficiary_account_ref(v_provider_id, new.booking_id, 'provider'),
       'settlement_release',
       'settlement',
       case when tg_op = 'UPDATE' then old.state else null end,
@@ -1013,7 +1080,7 @@ begin
       new.currency,
       new.booking_id,
       'provider',
-      v_provider_id::text,
+      public.klyx_financial_beneficiary_account_ref(v_provider_id, new.booking_id, 'provider'),
       'settlement_release',
       'settlement',
       'recognized',
@@ -1069,7 +1136,7 @@ begin
       new.currency,
       new.booking_id,
       'provider',
-      v_provider_id::text,
+      public.klyx_financial_beneficiary_account_ref(v_provider_id, new.booking_id, 'provider'),
       'provider_transfer_reversal',
       'settlement',
       'discharged',
@@ -1302,7 +1369,7 @@ select
   upper(l.currency),
   l.booking_id,
   'provider',
-  coalesce(b.provider_id, b.babysitter_id)::text,
+  public.klyx_financial_beneficiary_account_ref(coalesce(b.provider_id, b.babysitter_id), l.booking_id, 'provider'),
   l.stripe_checkout_session_id,
   l.stripe_payment_intent_id,
   'provider_liability_recognized',
@@ -1328,7 +1395,7 @@ select
     upper(l.currency),
     l.booking_id,
     'provider',
-    coalesce(b.provider_id, b.babysitter_id)::text,
+    public.klyx_financial_beneficiary_account_ref(coalesce(b.provider_id, b.babysitter_id), l.booking_id, 'provider'),
     null,
     l.stripe_checkout_session_id,
     l.stripe_payment_intent_id,
@@ -1388,7 +1455,7 @@ select
   upper(l.currency),
   l.booking_id,
   'provider',
-  coalesce(b.provider_id, b.babysitter_id)::text,
+  public.klyx_financial_beneficiary_account_ref(coalesce(b.provider_id, b.babysitter_id), l.booking_id, 'provider'),
   l.stripe_checkout_session_id,
   l.stripe_payment_intent_id,
   'legacy_destination_charge',
@@ -1414,7 +1481,7 @@ select
     upper(l.currency),
     l.booking_id,
     'provider',
-    coalesce(b.provider_id, b.babysitter_id)::text,
+    public.klyx_financial_beneficiary_account_ref(coalesce(b.provider_id, b.babysitter_id), l.booking_id, 'provider'),
     null,
     l.stripe_checkout_session_id,
     l.stripe_payment_intent_id,
@@ -1479,7 +1546,7 @@ select
   upper(l.currency),
   l.booking_id,
   'provider',
-  coalesce(b.provider_id, b.babysitter_id)::text,
+  public.klyx_financial_beneficiary_account_ref(coalesce(b.provider_id, b.babysitter_id), l.booking_id, 'provider'),
   l.stripe_checkout_session_id,
   l.stripe_payment_intent_id,
   'legacy_destination_charge',
@@ -1505,7 +1572,7 @@ select
     upper(l.currency),
     l.booking_id,
     'provider',
-    coalesce(b.provider_id, b.babysitter_id)::text,
+    public.klyx_financial_beneficiary_account_ref(coalesce(b.provider_id, b.babysitter_id), l.booking_id, 'provider'),
     null,
     l.stripe_checkout_session_id,
     l.stripe_payment_intent_id,
@@ -1567,7 +1634,7 @@ select
   upper(l.currency),
   l.booking_id,
   'client',
-  b.parent_id::text,
+  public.klyx_financial_beneficiary_account_ref(b.parent_id, l.booking_id, 'client'),
   l.stripe_checkout_session_id,
   l.stripe_payment_intent_id,
   l.stripe_refund_id,
@@ -1590,7 +1657,7 @@ select
     upper(l.currency),
     l.booking_id,
     'client',
-    b.parent_id::text,
+    public.klyx_financial_beneficiary_account_ref(b.parent_id, l.booking_id, 'client'),
     null,
     l.stripe_checkout_session_id,
     l.stripe_payment_intent_id,
@@ -1733,7 +1800,7 @@ select
   s.currency,
   s.booking_id,
   'provider',
-  s.provider_profile_id::text,
+  public.klyx_financial_beneficiary_account_ref(s.provider_profile_id, s.booking_id, 'provider'),
   s.stripe_account_id,
   s.stripe_checkout_session_id,
   s.stripe_payment_intent_id,
@@ -1754,7 +1821,7 @@ select
     s.currency,
     s.booking_id,
     'provider',
-    s.provider_profile_id::text,
+    public.klyx_financial_beneficiary_account_ref(s.provider_profile_id, s.booking_id, 'provider'),
     s.stripe_account_id,
     s.stripe_checkout_session_id,
     s.stripe_payment_intent_id,
