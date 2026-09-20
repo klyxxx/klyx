@@ -4,7 +4,7 @@ import type Stripe from "stripe";
 
 export type StripeSettlementRecipientTruth = {
   stripeAccountId: string;
-  livemode: boolean;
+  livemode: boolean | null;
   transferCapabilityActive: boolean;
   source: "accounts_v2" | "accounts_v1";
 };
@@ -36,7 +36,10 @@ export async function readStripeSettlementRecipientTruth(
 
       return {
         stripeAccountId: account.id,
-        livemode: Boolean(account.livemode),
+        // Stripe Accounts v1 does not expose a livemode field on Account.
+        // Settlement callers already construct a TEST-only Stripe client and
+        // reject sk_live_ before this helper is reachable.
+        livemode: null,
         transferCapabilityActive:
           transferStatus === "active" && account.payouts_enabled === true,
         source: "accounts_v1",
