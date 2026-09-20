@@ -4,7 +4,6 @@ import Stripe from "stripe";
 
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { apiErrorStatus, getAuthenticatedAccount } from "@/lib/api-auth";
-import { getKlyxMarketReadiness } from "@/lib/klyx-market-readiness";
 import {
   assertStripeConnectIdentityUsable,
   getAccountStripeConnectIdentity,
@@ -119,13 +118,13 @@ export async function POST(request: Request) {
     }
 
     if (stripeRuntime.mode === "live") {
-      const marketReadiness = getKlyxMarketReadiness(accountCountry);
-
-      if (marketReadiness.monetarySupport !== "supported") {
+      try {
+        await stripe.countrySpecs.retrieve(accountCountry);
+      } catch {
         return NextResponse.json(
           {
             error:
-              "Ce pays n'est pas encore pris en charge pour la configuration des paiements KLYX.",
+              "Stripe ne confirme pas actuellement la prise en charge de ce pays pour la configuration des paiements.",
             code: "KLYX_STRIPE_COUNTRY_UNSUPPORTED",
             countryCode: accountCountry,
           },
