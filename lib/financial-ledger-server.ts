@@ -233,6 +233,7 @@ export async function recordObservedStripePayout(input: {
   stripeAccountId: string;
   stripePayoutId: string;
   payoutState: string;
+  previousState?: string | null;
   occurredAt: string;
   cause?: string;
 }): Promise<string> {
@@ -252,7 +253,7 @@ export async function recordObservedStripePayout(input: {
     beneficiaryRef: input.providerRef,
     cause: input.cause ?? "stripe_payout_observed",
     source: "payout_observation",
-    previousState: null,
+    previousState: input.previousState ?? null,
     newState: input.payoutState,
     occurredAt: input.occurredAt,
     stripeAccountId: input.stripeAccountId,
