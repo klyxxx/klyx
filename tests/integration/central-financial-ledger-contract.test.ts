@@ -296,6 +296,13 @@ describe("KLYX central financial ledger", () => {
     expect(reconciliation).toContain("stripe.refunds.retrieve(");
     expect(reconciliation).toContain("stripe.payouts.retrieve(");
     expect(reconciliation).toContain("openFinancialReconciliationCase");
+    expect(reconciliation).toContain(
+      '.from("financial_reconciliation_current")'
+    );
+    expect(reconciliation).toContain(
+      '.in("state", ["reconciliation", "human_review"])'
+    );
+    expect(reconciliation).toContain("unresolvedCases");
     expect(reconciliation).toContain("client_beneficiary_account_mismatch");
     expect(reconciliation).toContain("provider_beneficiary_account_mismatch");
     expect(reconciliation).toContain("provider_beneficiary_account_unresolved");
