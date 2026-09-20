@@ -98,7 +98,9 @@ describe("Mission 16 observability + financial monitoring contract", () => {
     );
 
     expect(migration).toContain("'settlement_release_claimed'");
-    expect(migration).toContain("'info'::text as severity");
+    expect(migration).toContain("when s.state = 'review_required' then 'warning'");
+    expect(migration).toContain("else 'info'");
+    expect(migration).toContain("end::text as severity");
   });
 
   it("keeps settlement staleness a runtime monitoring policy, not SQL authority", () => {
