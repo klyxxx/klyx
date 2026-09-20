@@ -1287,6 +1287,37 @@ export async function reconcileCentralFinancialTruth(input: {
     });
   }
 
+  const { data: unresolvedCases, error: unresolvedCasesError } =
+    await supabaseAdmin
+      .from("financial_reconciliation_current")
+      .select("id, dimension, reason_code, state")
+      .eq("booking_id", input.bookingId)
+      .in("state", ["reconciliation", "human_review"]);
+
+  if (unresolvedCasesError) {
+    throw new Error(unresolvedCasesError.message);
+  }
+
+  for (const unresolved of unresolvedCases ?? []) {
+    if (
+      unresolved.state !== "reconciliation" &&
+      unresolved.state !== "human_review"
+    ) {
+      continue;
+    }
+
+    if (recorded.some((row) => row.caseId === unresolved.id)) {
+      continue;
+    }
+
+    recorded.push({
+      caseId: unresolved.id,
+      state: unresolved.state,
+      dimension: unresolved.dimension,
+      reasonCode: unresolved.reason_code,
+    });
+  }
+
   const status = recorded.some((row) => row.state === "human_review")
     ? "human_review"
     : recorded.length > 0
