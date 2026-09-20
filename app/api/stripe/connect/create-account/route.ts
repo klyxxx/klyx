@@ -45,6 +45,7 @@ async function createTestConnectedAccount(input: {
   stripe: Stripe;
   accountId: string;
   accountCountry: string;
+  currencyCode: string;
   ownerUserId: string;
   email: string;
   idempotencyKey: string;
@@ -73,7 +74,7 @@ async function createTestConnectedAccount(input: {
         },
       },
       defaults: {
-        currency: "eur",
+        currency: input.currencyCode.toLowerCase(),
         responsibilities: {
           fees_collector: "application",
           losses_collector: "application",
@@ -106,12 +107,23 @@ export async function POST(request: Request) {
     const stripeRuntime = assertStripeConnectRuntimeConfigured();
     const stripe = new Stripe(requiredEnv("STRIPE_SECRET_KEY"));
     const accountCountry = activeProfile.countryCode.trim().toUpperCase();
+    const accountCurrency = activeProfile.currencyCode.trim().toUpperCase();
 
     if (!/^[A-Z]{2}$/.test(accountCountry)) {
       return NextResponse.json(
         {
           error: "Configure ton pays KLYX avant de créer ton compte de paiement.",
           code: "KLYX_STRIPE_COUNTRY_REQUIRED",
+        },
+        { status: 409 }
+      );
+    }
+
+    if (!/^[A-Z]{3}$/.test(accountCurrency)) {
+      return NextResponse.json(
+        {
+          error: "Configure une devise ISO valide avant de créer ton compte de paiement.",
+          code: "KLYX_STRIPE_CURRENCY_REQUIRED",
         },
         { status: 409 }
       );
@@ -156,6 +168,7 @@ export async function POST(request: Request) {
           stripe,
           accountId: account.id,
           accountCountry,
+          currencyCode: accountCurrency,
           ownerUserId: user.id,
           email,
           idempotencyKey,
