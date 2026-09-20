@@ -202,31 +202,15 @@ jobs:
           # This is a one-time, production-audited reconciliation allowlist.
           # Any historical file outside this exact set keeps the deployment
           # fail-closed instead of broadening --include-all implicitly.
+          # 2026-09-20 audit: production already contains later 09:15+ migrations;
+          # Mission 12 at 09:10 is therefore the sole historical insertion gap.
           approved_historical_migrations=(
-            "20260914190000_klyx_account_stripe_connect_identity.sql"
-            "20260915110000_klyx_account_risk_engine.sql"
-            "20260915113000_klyx_transaction_risk_gate.sql"
+            "20260920091000_klyx_orchestrator_foundation.sql"
           )
 
           approved_reconciliation_batch=(
-            "20260914190000_klyx_account_stripe_connect_identity.sql"
-            "20260915110000_klyx_account_risk_engine.sql"
-            "20260915113000_klyx_transaction_risk_gate.sql"
-            "20260915170000_klyx_booking_settlement_control.sql"
-            "20260915173000_klyx_refund_transaction_risk_gate.sql"
-            "20260915194500_klyx_platform_held_settlement_test.sql"
-            "20260915200500_klyx_platform_held_settlement_fail_closed.sql"
-            "20260916140000_klyx_platform_held_legacy_null_guard.sql"
-            "20260918130000_klyx_settlement_claim_sql_qualification.sql"
-            "20260918183500_klyx_settlement_recovery_reconciliation.sql"
-            "20260918211000_klyx_platform_held_group_multiexecutor_test.sql"
-            "20260918213000_klyx_platform_held_group_refund_hardening.sql"
-            "20260919190000_klyx_group_release_after_refund_hardening.sql"
-            "20260920080000_klyx_global_money_market_policy.sql"
-            "20260920091500_klyx_central_financial_ledger.sql"
-            "20260920093000_klyx_economic_identity_foundation.sql"
-            "20260920094500_klyx_central_financial_ledger_group_split.sql"
-            "20260920110000_klyx_economic_settlement_eligibility.sql"
+            "20260920091000_klyx_orchestrator_foundation.sql"
+            "20260920174500_klyx_operations_failure_domains.sql"
           )
 
           historical_gap_message="Found local migration files to be inserted before the last migration on remote database."
