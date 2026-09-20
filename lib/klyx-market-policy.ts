@@ -31,6 +31,7 @@ export type KlyxMarketPaymentRule = {
 
 export type KlyxPaymentCurrencyCapability = {
   provider: "stripe";
+  countryCode: string;
   currencyCode: string;
   chargeEnabled: boolean;
   payoutEnabled: boolean;
@@ -90,6 +91,9 @@ export function assessKlyxMarketPaymentPolicy(params: {
   if (!capability) {
     blockers.push("stripe_currency_capability");
   } else {
+    if (normalizeKlyxCountryCode(capability.countryCode) !== execution) {
+      blockers.push("stripe_capability_country");
+    }
     if (normalizeKlyxCurrencyCode(capability.currencyCode) !== currency) {
       blockers.push("stripe_currency_mismatch");
     }
