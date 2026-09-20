@@ -39,6 +39,8 @@ export type KlyxPaymentCurrencyCapability = {
   stripeChargeExponent: number;
   stripeChargeIncrement: number;
   stripePayoutIncrement: number;
+  minimumChargeAmount: number | null;
+  maximumChargeAmount: number | null;
   zeroDecimal: boolean;
   sourceRef: string | null;
   sourceCheckedAt: string | null;
