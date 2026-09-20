@@ -22,6 +22,9 @@ on:
       - main
     paths:
       - ".github/workflows/klyx-golden-path.yml"
+      - ".github/workflows/klyx-stripe-split-settlement-network.yml"
+      - "tests/integration/platform-held-split-live-readiness-contract.test.ts"
+      - "docs/KLYX_LIVE_READINESS_GATE.md"
       - ".github/workflows/klyx-supabase-production-migrations.yml"
       - "tests/supabase-production-migration-workflow.test.ts"
       - "scripts/golden-path-*.mjs"
@@ -70,6 +73,9 @@ on:
       - main
     paths:
       - ".github/workflows/klyx-golden-path.yml"
+      - ".github/workflows/klyx-stripe-split-settlement-network.yml"
+      - "tests/integration/platform-held-split-live-readiness-contract.test.ts"
+      - "docs/KLYX_LIVE_READINESS_GATE.md"
       - ".github/workflows/klyx-supabase-production-migrations.yml"
       - "tests/supabase-production-migration-workflow.test.ts"
       - "scripts/golden-path-*.mjs"
