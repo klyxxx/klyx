@@ -297,6 +297,57 @@ export async function recordObservedStripePayout(input: {
     throw new Error("KLYX_FINANCIAL_LEDGER_PAYOUT_IDENTITY_MISMATCH");
   }
 
+  const { data: booking, error: bookingError } = await supabaseAdmin
+    .from("bookings")
+    .select("provider_id, babysitter_id")
+    .eq("id", input.bookingId)
+    .maybeSingle();
+
+  if (bookingError) throw new Error(bookingError.message);
+  if (!booking) {
+    throw new Error("KLYX_FINANCIAL_LEDGER_PAYOUT_BOOKING_NOT_FOUND");
+  }
+
+  const providerProfileId =
+    booking.provider_id ?? booking.babysitter_id ?? null;
+  let bookingProviderAccountId: string | null = null;
+
+  if (providerProfileId) {
+    const { data: providerProfile, error: providerProfileError } =
+      await supabaseAdmin
+        .from("profiles")
+        .select("account_id")
+        .eq("id", providerProfileId)
+        .maybeSingle();
+
+    if (providerProfileError) throw new Error(providerProfileError.message);
+    bookingProviderAccountId = providerProfile?.account_id ?? null;
+  }
+
+  if (bookingProviderAccountId !== providerAccountId) {
+    await openFinancialReconciliationCase({
+      caseKey: `financial:${input.bookingId}:beneficiary:payout:${payoutId}`,
+      bookingId: input.bookingId,
+      state: "human_review",
+      dimension: "beneficiary",
+      reasonCode: "payout_booking_provider_mismatch",
+      expected: {
+        providerAccountId: bookingProviderAccountId,
+        providerProfileId,
+      },
+      actual: {
+        providerAccountId,
+        stripeAccountId,
+        stripePayoutId: payoutId,
+      },
+      cause: "payout_observation_beneficiary_mismatch",
+    });
+
+    throw new Error(
+      "KLYX_FINANCIAL_LEDGER_PAYOUT_BENEFICIARY_MISMATCH"
+    );
+  }
+
   return appendFinancialLedgerEvent({
     movementKey: `booking:${input.bookingId}:payout:${payoutId}`,
     eventKey: `stripe-payout:${payoutId}:${input.bookingId}:${input.payoutState}`,
