@@ -58,6 +58,10 @@ export default function KlyxMarketSelect({
 
   const selected =
     getKlyxMarket(value);
+  const customCountryCode =
+    !selected && /^[A-Z]{2}$/.test(value.trim().toUpperCase())
+      ? value.trim().toUpperCase()
+      : null;
 
   const markets =
     useMemo(() => {
@@ -185,7 +189,9 @@ export default function KlyxMarketSelect({
         <span className="min-w-0 truncate">
           {selected
             ? `${selected.countryName} · ${selected.currencyCode}`
-            : "Choisir un pays"}
+            : customCountryCode
+              ? `${customCountryCode} · pays configuré`
+              : "Choisir un pays"}
         </span>
 
         <ChevronDown
@@ -214,7 +220,7 @@ export default function KlyxMarketSelect({
                     event.target.value
                   )
                 }
-                placeholder="Belgique, Canada, USD, EUR..."
+                placeholder="Pays, code ISO (JP, KE, BR...)..."
                 className="min-h-11 min-w-0 flex-1 bg-transparent text-sm outline-none"
               />
 
@@ -241,6 +247,23 @@ export default function KlyxMarketSelect({
           </div>
 
           <div className="klyx-scrollbar max-h-72 overflow-y-auto p-2">
+            {/^[a-zA-Z]{2}$/.test(query.trim()) &&
+              !getKlyxMarket(query.trim().toUpperCase()) && (
+                <button
+                  type="button"
+                  onClick={() => choose(query.trim().toUpperCase())}
+                  className="mb-1 flex w-full items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-left text-sm transition hover:bg-muted"
+                >
+                  <span>
+                    <span className="block font-semibold">
+                      Utiliser {query.trim().toUpperCase()}
+                    </span>
+                    <span className="block text-xs text-muted-foreground">
+                      Code pays ISO personnalisé · la disponibilité sera vérifiée côté serveur
+                    </span>
+                  </span>
+                </button>
+              )}
             {markets.map(
               (market) => {
                 const isSelected =
@@ -312,3 +335,4 @@ export default function KlyxMarketSelect({
 }
 
 // KLYX_COUNTRY_CURRENCY_AUTOMATIC_UI_14_21
+// KLYX_COUNTRY_LIST_NOT_PRODUCT_AUTHORITY_20260920

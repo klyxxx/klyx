@@ -35,7 +35,8 @@ describe("KLYX grouped booking transaction currency UI", () => {
 
   it("keeps ISO currency formatting explicit and fail-safe", () => {
     expect(formatter).toContain("KLYX_TRANSACTION_CURRENCY_DISPLAY_15_04");
-    expect(formatter).toContain("/^[A-Z]{3}$/");
-    expect(formatter).toContain("normalizedCurrency");
+    expect(formatter).toContain("/^[a-zA-Z]{3}$/");
+    expect(formatter).toContain("normalizeKlyxCurrencyCode");
+    expect(formatter).toContain("klyxMinorUnitsToDecimalString");
   });
 });

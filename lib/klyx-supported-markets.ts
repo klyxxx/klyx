@@ -1,3 +1,12 @@
+/**
+ * Historical UX catalogue only.
+ *
+ * It may suggest labels/default currencies for known markets, but MUST NOT be
+ * used as a permanent country allow-list or as payment/launch authority.
+ * Transactional availability lives in server-side market policy data.
+ */
+export const KLYX_LEGACY_MARKET_CATALOG_IS_AUTHORITY = false as const;
+
 export type KlyxCurrencyFamily =
   | "euro"
   | "dollar";

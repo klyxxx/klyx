@@ -35,7 +35,7 @@ describe("KLYX first-profile page i18n", () => {
         "Ce pays n’est pas encore pris en charge par KLYX.",
         "profileCreateFailed"
       )
-    ).toBe("This country is not supported by KLYX yet.");
+    ).toBe("The supplied country or currency is invalid.");
 
     expect(
       translateKlyxFirstProfileApiError(

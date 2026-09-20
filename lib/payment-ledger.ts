@@ -15,6 +15,14 @@ export type FinancialLedgerEntry = {
   platformFeeCents?: number | null;
   providerAmountCents?: number | null;
   refundAmountCents?: number | null;
+  grossAmountMinor?: number | null;
+  taxAmountMinor?: number | null;
+  commissionAmountMinor?: number | null;
+  platformFeeMinor?: number | null;
+  providerAmountMinor?: number | null;
+  refundAmountMinor?: number | null;
+  marketPaymentRuleId?: string | null;
+  fxQuoteId?: string | null;
   paymentMode?: string | null;
   stripeCheckoutSessionId?: string | null;
   stripePaymentIntentId?: string | null;
@@ -62,6 +70,28 @@ export async function upsertFinancialLedgerEntry(
             ? null
             : Math.max(entry.providerAmountCents, 0),
         refund_amount_cents: Math.max(entry.refundAmountCents ?? 0, 0),
+        gross_amount_minor:
+          entry.grossAmountMinor == null ? null : Math.max(entry.grossAmountMinor, 0),
+        tax_amount_minor:
+          entry.taxAmountMinor == null ? null : Math.max(entry.taxAmountMinor, 0),
+        commission_amount_minor:
+          entry.commissionAmountMinor == null
+            ? null
+            : Math.max(entry.commissionAmountMinor, 0),
+        platform_fee_minor:
+          entry.platformFeeMinor == null
+            ? null
+            : Math.max(entry.platformFeeMinor, 0),
+        provider_amount_minor:
+          entry.providerAmountMinor == null
+            ? null
+            : Math.max(entry.providerAmountMinor, 0),
+        refund_amount_minor:
+          entry.refundAmountMinor == null
+            ? null
+            : Math.max(entry.refundAmountMinor, 0),
+        market_payment_rule_id: entry.marketPaymentRuleId ?? null,
+        fx_quote_id: entry.fxQuoteId ?? null,
         payment_mode: entry.paymentMode ?? null,
         stripe_checkout_session_id: entry.stripeCheckoutSessionId ?? null,
         stripe_payment_intent_id: entry.stripePaymentIntentId ?? null,

@@ -29,7 +29,7 @@ function fullyProvenMarket(): KlyxMarketReadiness {
     countryCode: "BE",
     countryName: "Belgique",
     currencyCode: "EUR",
-    monetarySupport: "supported",
+    monetarySupport: "catalogued",
     stripeConnect: provenDimension(),
     kyc: provenDimension(),
     tax: provenDimension(),
@@ -43,10 +43,10 @@ function fullyProvenMarket(): KlyxMarketReadiness {
 }
 
 describe("KLYX market readiness governance", () => {
-  it("does not equate monetary support with commercial readiness", () => {
+  it("does not equate catalogue presence with commercial readiness", () => {
     const belgium = getKlyxMarketReadiness("BE");
 
-    expect(belgium.monetarySupport).toBe("supported");
+    expect(belgium.monetarySupport).toBe("catalogued");
     expect(belgium.currencyCode).toBe("EUR");
     expect(belgium.launchDecision.status).toBe("closed");
     expect(isKlyxMarketCommerciallyReady("BE")).toBe(false);
@@ -56,9 +56,10 @@ describe("KLYX market readiness governance", () => {
     const unknown = getKlyxMarketReadiness("ZZ");
     const assessment = assessKlyxMarketReadiness(unknown);
 
-    expect(unknown.monetarySupport).toBe("unsupported");
+    expect(unknown.monetarySupport).toBe("data_required");
     expect(assessment.ready).toBe(false);
-    expect(assessment.blockers).toContain("monetary_support");
+    expect(assessment.blockers).toContain("stripe_connect");
+    expect(assessment.blockers).toContain("launch_decision");
   });
 
   it("requires every readiness dimension plus an explicit launch decision", () => {
@@ -104,7 +105,7 @@ describe("KLYX market readiness governance", () => {
     const readiness = listKlyxMarketReadiness();
 
     expect(readiness).toHaveLength(KLYX_SUPPORTED_MARKETS.length);
-    expect(readiness.every((market) => market.monetarySupport === "supported")).toBe(true);
+    expect(readiness.every((market) => market.monetarySupport === "catalogued")).toBe(true);
     expect(readiness.every((market) => market.launchDecision.status === "closed")).toBe(true);
     expect(readiness.every((market) => !assessKlyxMarketReadiness(market).ready)).toBe(true);
   });

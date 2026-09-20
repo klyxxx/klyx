@@ -5,6 +5,10 @@ import {
   sendBookingPaymentSucceededEmails,
 } from "@/lib/email/payment-event-emails";
 import { upsertFinancialLedgerEntry } from "@/lib/payment-ledger";
+import {
+  formatKlyxMinorUnits,
+  fromKlyxStripeChargeAmount,
+} from "@/lib/klyx-currency";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 type BookingPaymentRow = {
@@ -15,6 +19,14 @@ type BookingPaymentRow = {
   payment_status: string | null;
   amount_total: number | null;
   currency: string | null;
+  presentment_currency: string | null;
+  total_amount_minor: number | null;
+  tax_amount_minor: number | null;
+  commission_amount_minor: number | null;
+  provider_amount_minor: number | null;
+  tax_liability: string | null;
+  market_payment_rule_id: string | null;
+  fx_quote_id: string | null;
   payment_mode: string | null;
   application_fee_amount: number | null;
   stripe_checkout_session_id: string | null;
@@ -34,7 +46,7 @@ type PaymentSuccessEconomics = {
 };
 
 const bookingSelection =
-  "id, parent_id, provider_id, babysitter_id, payment_status, amount_total, currency, payment_mode, application_fee_amount, stripe_checkout_session_id, stripe_payment_intent_id";
+  "id, parent_id, provider_id, babysitter_id, payment_status, amount_total, currency, presentment_currency, total_amount_minor, tax_amount_minor, commission_amount_minor, provider_amount_minor, tax_liability, market_payment_rule_id, fx_quote_id, payment_mode, application_fee_amount, stripe_checkout_session_id, stripe_payment_intent_id";
 
 const FAILURE_MESSAGES: Record<string, string> = {
   insufficient_funds:
@@ -133,25 +145,26 @@ function bookingCurrencyCode(
   booking: BookingPaymentRow
 ): string {
   return normalizeKlyxPaymentCurrency(
-    booking.currency
+    booking.presentment_currency ?? booking.currency
   );
 }
 
 function formatAmount(
-  amount: number,
+  stripeAmount: number,
   currency: string | null
 ): string {
-  return new Intl.NumberFormat(
-    "fr-BE",
-    {
-      style: "currency",
-      currency:
-        normalizeKlyxPaymentCurrency(
-          currency
-        ),
-    }
-  ).format(
-    amount / 100
+  const currencyCode =
+    normalizeKlyxPaymentCurrency(currency);
+  const accountingMinor =
+    fromKlyxStripeChargeAmount(
+      stripeAmount,
+      currencyCode
+    );
+
+  return formatKlyxMinorUnits(
+    accountingMinor,
+    currencyCode,
+    "fr-BE"
   );
 }
 
@@ -561,6 +574,47 @@ async function ensurePaymentSucceededLedger(
       economics.platformFeeAmount,
     providerAmountCents:
       economics.providerAmount,
+    grossAmountMinor:
+      booking.total_amount_minor ??
+      fromKlyxStripeChargeAmount(
+        economics.amountTotal,
+        bookingCurrencyCode(booking)
+      ),
+    taxAmountMinor:
+      booking.tax_amount_minor ?? 0,
+    commissionAmountMinor:
+      booking.commission_amount_minor ??
+      fromKlyxStripeChargeAmount(
+        economics.platformFeeAmount,
+        bookingCurrencyCode(booking)
+      ),
+    platformFeeMinor:
+      (
+        booking.commission_amount_minor ??
+        fromKlyxStripeChargeAmount(
+          economics.platformFeeAmount,
+          bookingCurrencyCode(booking)
+        )
+      ) +
+      (
+        booking.tax_liability === "platform"
+          ? booking.tax_amount_minor ?? 0
+          : 0
+      ),
+    providerAmountMinor:
+      booking.provider_amount_minor ??
+      (
+        economics.providerAmount == null
+          ? null
+          : fromKlyxStripeChargeAmount(
+              economics.providerAmount,
+              bookingCurrencyCode(booking)
+            )
+      ),
+    marketPaymentRuleId:
+      booking.market_payment_rule_id,
+    fxQuoteId:
+      booking.fx_quote_id,
     paymentMode:
       economics.paymentMode,
     stripeCheckoutSessionId:
@@ -875,6 +929,15 @@ export async function recordBookingPaymentFailure(
       ),
     grossAmountCents:
       intent.amount,
+    grossAmountMinor:
+      fromKlyxStripeChargeAmount(
+        intent.amount,
+        bookingCurrencyCode(booking)
+      ),
+    marketPaymentRuleId:
+      booking.market_payment_rule_id,
+    fxQuoteId:
+      booking.fx_quote_id,
     paymentMode:
       booking.payment_mode,
     stripeCheckoutSessionId:
@@ -1015,6 +1078,17 @@ export async function markBookingFailedFromSession(
       session.amount_total ??
       booking.amount_total ??
       0,
+    grossAmountMinor:
+      fromKlyxStripeChargeAmount(
+        session.amount_total ??
+          booking.amount_total ??
+          0,
+        bookingCurrencyCode(booking)
+      ),
+    marketPaymentRuleId:
+      booking.market_payment_rule_id,
+    fxQuoteId:
+      booking.fx_quote_id,
     paymentMode:
       booking.payment_mode,
     stripeCheckoutSessionId:

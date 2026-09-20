@@ -1,13 +1,10 @@
-import {
-  describe,
-  expect,
-  it,
-} from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
   assertKlyxSameCurrency,
   formatKlyxMoney,
   fromKlyxMinorUnits,
+  getKlyxMinorUnitExponent,
   getKlyxStripeCurrency,
   resolveKlyxMoneyContext,
   resolveKlyxProfileMoney,
@@ -15,227 +12,96 @@ import {
 } from "../../lib/klyx-money";
 
 // KLYX_MONEY_CONTRACT_TESTS_14_22
+describe("KLYX global money contract", () => {
+  it("uses an explicit currency without binding it to a country catalogue", () => {
+    const result = resolveKlyxMoneyContext("CA", "USD");
 
-describe(
-  "KLYX global money contract",
-  () => {
-    it(
-      "resolves Belgium to EUR",
-      () => {
-        const result =
-          resolveKlyxMoneyContext(
-            "BE",
-            "EUR"
-          );
+    expect(result.countryCode).toBe("CA");
+    expect(result.currencyCode).toBe("USD");
+    expect(result.stripeCurrency).toBe("usd");
+  });
 
-        expect(
-          result.currencyCode
-        ).toBe("EUR");
+  it("allows valid countries that are absent from the historical catalogue", () => {
+    const result = resolveKlyxMoneyContext("JP", "JPY");
 
-        expect(
-          result.stripeCurrency
-        ).toBe("eur");
-      }
+    expect(result.countryCode).toBe("JP");
+    expect(result.currencyCode).toBe("JPY");
+    expect(result.minorUnitExponent).toBe(0);
+  });
+
+  it("keeps legacy catalogue currency only as a compatibility default", () => {
+    const result = resolveKlyxMoneyContext("CA");
+
+    expect(result.currencyCode).toBe("CAD");
+  });
+
+  it("requires explicit currency when no compatibility default exists", () => {
+    expect(() => resolveKlyxMoneyContext("JP")).toThrow(
+      "KLYX_CURRENCY_REQUIRED"
     );
+  });
 
-    it(
-      "resolves United States to USD",
-      () => {
-        const result =
-          resolveKlyxMoneyContext(
-            "US",
-            "USD"
-          );
+  it("requires country and currency on transactional profiles", () => {
+    expect(() =>
+      resolveKlyxProfileMoney({
+        countryCode: null,
+        currencyCode: null,
+      })
+    ).toThrow("KLYX_PROFILE_MARKET_REQUIRED");
+  });
 
-        expect(
-          result.currencyCode
-        ).toBe("USD");
+  it("converts two-decimal currencies to minor units", () => {
+    expect(toKlyxMinorUnits(12.34, "BE", "EUR")).toBe(1234);
+  });
 
-        expect(
-          result.stripeCurrency
-        ).toBe("usd");
-      }
+  it("uses zero decimal minor units", () => {
+    expect(toKlyxMinorUnits(123, "JP", "JPY")).toBe(123);
+    expect(getKlyxMinorUnitExponent("JPY")).toBe(0);
+  });
+
+  it("uses three decimal minor units", () => {
+    expect(toKlyxMinorUnits(12.345, "KW", "KWD")).toBe(12345);
+    expect(getKlyxMinorUnitExponent("KWD")).toBe(3);
+  });
+
+  it("uses canonical half-up rounding instead of binary Math.round tricks", () => {
+    expect(toKlyxMinorUnits(10.005, "US", "USD")).toBe(1001);
+  });
+
+  it("converts minor units back to major units", () => {
+    expect(fromKlyxMinorUnits(12345, "KW", "KWD")).toBe(12.345);
+  });
+
+  it("returns lowercase Stripe currency", () => {
+    expect(getKlyxStripeCurrency("JP", "JPY")).toBe("jpy");
+  });
+
+  it("rejects cross-currency transactions unless an explicit FX path is used", () => {
+    expect(() => assertKlyxSameCurrency("EUR", "USD")).toThrow(
+      "KLYX_TRANSACTION_CURRENCY_MISMATCH"
     );
+  });
 
-    it(
-      "resolves Canada to CAD instead of generic USD",
-      () => {
-        const result =
-          resolveKlyxMoneyContext(
-            "CA",
-            "CAD"
-          );
+  it("accepts identical transaction currencies", () => {
+    expect(assertKlyxSameCurrency("eur", "EUR")).toBe("EUR");
+  });
 
-        expect(
-          result.currencyCode
-        ).toBe("CAD");
+  it("formats using the declared currency and caller locale", () => {
+    const formatted = formatKlyxMoney(25, "BE", "EUR", "fr-BE");
 
-        expect(
-          result.stripeCurrency
-        ).toBe("cad");
-      }
+    expect(formatted).toContain("25");
+    expect(formatted).toContain("€");
+  });
+
+  it("rejects invalid country codes instead of using a product country list", () => {
+    expect(() => resolveKlyxMoneyContext("ZZZ", "USD")).toThrow(
+      "KLYX_COUNTRY_CODE_INVALID"
     );
+  });
 
-    it(
-      "resolves Australia to AUD",
-      () => {
-        const result =
-          resolveKlyxMoneyContext(
-            "AU",
-            "AUD"
-          );
-
-        expect(
-          result.currencyCode
-        ).toBe("AUD");
-      }
+  it("rejects negative payment amounts", () => {
+    expect(() => toKlyxMinorUnits(-1, "BE", "EUR")).toThrow(
+      "KLYX_MONEY_AMOUNT_INVALID"
     );
-
-    it(
-      "rejects Canada with USD",
-      () => {
-        expect(
-          () =>
-            resolveKlyxMoneyContext(
-              "CA",
-              "USD"
-            )
-        ).toThrow(
-          "KLYX_CURRENCY_MARKET_MISMATCH"
-        );
-      }
-    );
-
-    it(
-      "rejects unsupported markets",
-      () => {
-        expect(
-          () =>
-            resolveKlyxMoneyContext(
-              "ZZ",
-              "USD"
-            )
-        ).toThrow(
-          "KLYX_MARKET_NOT_SUPPORTED"
-        );
-      }
-    );
-
-    it(
-      "requires country and currency on transactional profiles",
-      () => {
-        expect(
-          () =>
-            resolveKlyxProfileMoney({
-              countryCode: null,
-              currencyCode: null,
-            })
-        ).toThrow(
-          "KLYX_PROFILE_MARKET_REQUIRED"
-        );
-      }
-    );
-
-    it(
-      "converts EUR major units to minor units",
-      () => {
-        expect(
-          toKlyxMinorUnits(
-            12.34,
-            "BE",
-            "EUR"
-          )
-        ).toBe(1234);
-      }
-    );
-
-    it(
-      "converts minor units back to major units",
-      () => {
-        expect(
-          fromKlyxMinorUnits(
-            1234,
-            "BE",
-            "EUR"
-          )
-        ).toBe(12.34);
-      }
-    );
-
-    it(
-      "returns lowercase Stripe currency",
-      () => {
-        expect(
-          getKlyxStripeCurrency(
-            "CA",
-            "CAD"
-          )
-        ).toBe("cad");
-      }
-    );
-
-    it(
-      "rejects cross-currency transactions",
-      () => {
-        expect(
-          () =>
-            assertKlyxSameCurrency(
-              "EUR",
-              "USD"
-            )
-        ).toThrow(
-          "KLYX_TRANSACTION_CURRENCY_MISMATCH"
-        );
-      }
-    );
-
-    it(
-      "accepts identical transaction currencies",
-      () => {
-        expect(
-          assertKlyxSameCurrency(
-            "eur",
-            "EUR"
-          )
-        ).toBe("EUR");
-      }
-    );
-
-    it(
-      "formats using the market currency",
-      () => {
-        const formatted =
-          formatKlyxMoney(
-            25,
-            "BE",
-            "EUR",
-            "fr-BE"
-          );
-
-        expect(
-          formatted
-        ).toContain("25");
-
-        expect(
-          formatted
-        ).toContain("€");
-      }
-    );
-
-    it(
-      "rejects negative amounts",
-      () => {
-        expect(
-          () =>
-            toKlyxMinorUnits(
-              -1,
-              "BE",
-              "EUR"
-            )
-        ).toThrow(
-          "KLYX_MONEY_AMOUNT_INVALID"
-        );
-      }
-    );
-  }
-);
+  });
+});

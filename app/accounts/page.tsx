@@ -48,6 +48,7 @@ type ProfileForm = {
   lastName: string;
   city: string;
   countryCode: string;
+  currencyCode: string;
   accountType: AccountType;
   serviceId: string;
 };
@@ -62,6 +63,7 @@ const EMPTY_FORM: ProfileForm = {
   lastName: "",
   city: "",
   countryCode: "",
+  currencyCode: "",
   accountType: "client",
   serviceId: "",
 };
@@ -207,6 +209,7 @@ export default function AccountsPage() {
       lastName: profile.lastName,
       city: profile.city,
       countryCode: profile.countryCode ?? "",
+      currencyCode: profile.currencyCode ?? "",
       accountType: profile.accountType,
       serviceId: "",
     });
@@ -286,8 +289,9 @@ export default function AccountsPage() {
     const lastName = form.lastName.trim();
     const city = form.city.trim();
     const countryCode = form.countryCode.trim().toUpperCase();
+    const currencyCode = form.currencyCode.trim().toUpperCase();
 
-    if (!firstName || !lastName || !city || !countryCode) {
+    if (!firstName || !lastName || !city || !countryCode || !currencyCode) {
       setError({ key: "requiredFields" });
       return;
     }
@@ -312,6 +316,7 @@ export default function AccountsPage() {
           lastName,
           city,
           countryCode,
+          currencyCode,
           accountType: form.accountType,
           serviceId:
             form.accountType === "provider" ? form.serviceId : null,
@@ -335,6 +340,7 @@ export default function AccountsPage() {
         lastName,
         city,
         countryCode,
+        currencyCode,
         ...(avatarUrl !== undefined ? { avatarUrl } : {}),
       });
 
@@ -797,18 +803,41 @@ export default function AccountsPage() {
                 <KlyxMarketSelect
                   value={form.countryCode}
                   onChange={(countryCode) =>
-                    setForm((current) => ({ ...current, countryCode }))
+                    setForm((current) => {
+                      const suggestedCurrency =
+                        getKlyxMarket(countryCode)?.currencyCode ?? "";
+                      return {
+                        ...current,
+                        countryCode,
+                        currencyCode:
+                          suggestedCurrency || current.currencyCode,
+                      };
+                    })
                   }
                   required
                 />
-                {form.countryCode && (
-                  <span className="mt-2 block text-xs text-muted-foreground">
-                    {t("klyxCurrency", {
-                      currency:
-                        getKlyxMarket(form.countryCode)?.currencyCode ?? "—",
+                <div className="mt-3">
+                  <FormField
+                    label={t("klyxCurrency", {
+                      currency: form.currencyCode || "ISO",
                     })}
+                    value={form.currencyCode}
+                    onChange={(value) =>
+                      setForm((current) => ({
+                        ...current,
+                        currencyCode: value
+                          .replace(/[^a-zA-Z]/g, "")
+                          .slice(0, 3)
+                          .toUpperCase(),
+                      }))
+                    }
+                    autoComplete="off"
+                    maxLength={3}
+                  />
+                  <span className="mt-2 block text-xs text-muted-foreground">
+                    Devise de transaction ISO explicite. Le pays ne force pas une devise unique.
                   </span>
-                )}
+                </div>
               </label>
 
               {formMode === "create" && form.accountType === "provider" && (

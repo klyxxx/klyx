@@ -516,7 +516,6 @@ export async function POST(request: Request, context: RouteContext) {
   const startedAt = Date.now();
 
   try {
-    const stripeRuntime = assertStripeRuntimeReady();
     const { user, profile } = await getAuthenticatedProfile(request);
     requireAccountType(profile, "client");
 
@@ -529,6 +528,21 @@ export async function POST(request: Request, context: RouteContext) {
           automaticPayment: false,
         },
         { status: 400 }
+      );
+    }
+
+    const stripeRuntime = assertStripeRuntimeReady();
+
+    // Global Money migration safety: do not let legacy cents/commission
+    // semantics mutate LIVE money while this financial path is not yet
+    // migrated to canonical minor units + market policy.
+    if (stripeRuntime.mode === "live") {
+      return NextResponse.json(
+        {
+          error: "Les paiements split LIVE restent bloques jusqu au snapshot global money multi-prestataires.",
+          code: "KLYX_SPLIT_GLOBAL_MONEY_MIGRATION_REQUIRED",
+        },
+        { status: 409 }
       );
     }
 
