@@ -104,7 +104,7 @@ begin
         and upper(coalesce(currency, '')) = upper(v_member.currency)
         and provider_profile_id = v_member.provider_profile_id
     ), 0),
-    min(booking_id)
+    (array_agg(booking_id order by booking_id))[1]
     into
       v_resolved_count,
       v_client_count,
@@ -445,7 +445,7 @@ begin
         'group_settlement_charge_truth_observed',
         'settlement',
         null,
-        v_parent.state,
+        'succeeded',
         coalesce(v_parent.paid_at, v_parent.updated_at, now()),
         null,
         v_parent.stripe_checkout_session_id,
@@ -577,7 +577,7 @@ begin
         'group_settlement_release',
         'settlement',
         'release_claimed',
-        v_member.state,
+        'released',
         coalesce(v_member.released_at, v_member.updated_at, now()),
         v_member.stripe_account_id,
         v_parent.stripe_checkout_session_id,
