@@ -1256,6 +1256,188 @@ insert into public.financial_ledger_events (
   beneficiary_ref,
   stripe_checkout_session_id,
   stripe_payment_intent_id,
+  cause,
+  source,
+  previous_state,
+  new_state,
+  occurred_at,
+  details,
+  payload_hash
+)
+select
+  concat(
+    'booking:',
+    l.booking_id,
+    ':transfer:destination:',
+    coalesce(
+      nullif(trim(l.stripe_payment_intent_id), ''),
+      nullif(trim(l.stripe_checkout_session_id), ''),
+      l.entry_key
+    )
+  ),
+  concat('backfill:', l.entry_key, ':destination-transfer:succeeded'),
+  'transfer',
+  greatest(coalesce(l.provider_amount_cents, 0), 0),
+  upper(l.currency),
+  l.booking_id,
+  'provider',
+  coalesce(b.provider_id, b.babysitter_id)::text,
+  l.stripe_checkout_session_id,
+  l.stripe_payment_intent_id,
+  'legacy_destination_charge',
+  'historical_backfill',
+  null,
+  'succeeded',
+  coalesce(l.updated_at, l.created_at),
+  jsonb_build_object('legacy_entry_key', l.entry_key, 'payment_mode', l.payment_mode),
+  public.klyx_financial_payload_hash(
+    concat(
+      'booking:',
+      l.booking_id,
+      ':transfer:destination:',
+      coalesce(
+        nullif(trim(l.stripe_payment_intent_id), ''),
+        nullif(trim(l.stripe_checkout_session_id), ''),
+        l.entry_key
+      )
+    ),
+    concat('backfill:', l.entry_key, ':destination-transfer:succeeded'),
+    'transfer',
+    greatest(coalesce(l.provider_amount_cents, 0), 0),
+    upper(l.currency),
+    l.booking_id,
+    'provider',
+    coalesce(b.provider_id, b.babysitter_id)::text,
+    null,
+    l.stripe_checkout_session_id,
+    l.stripe_payment_intent_id,
+    null,
+    null,
+    null,
+    null,
+    null,
+    'legacy_destination_charge',
+    'historical_backfill',
+    null,
+    'succeeded',
+    coalesce(l.updated_at, l.created_at),
+    jsonb_build_object('legacy_entry_key', l.entry_key, 'payment_mode', l.payment_mode)
+  )
+from public.booking_financial_ledger as l
+join public.bookings as b
+  on b.id = l.booking_id
+where l.entry_type = 'payment_succeeded'
+  and l.status = 'succeeded'
+  and l.payment_mode in (
+    'connect_destination',
+    'connect_destination_group',
+    'connect_destination_split'
+  )
+  and coalesce(b.provider_id, b.babysitter_id) is not null
+on conflict (event_key) do nothing;
+
+insert into public.financial_ledger_events (
+  movement_key,
+  event_key,
+  movement_type,
+  amount_cents,
+  currency,
+  booking_id,
+  beneficiary_kind,
+  beneficiary_ref,
+  stripe_checkout_session_id,
+  stripe_payment_intent_id,
+  cause,
+  source,
+  previous_state,
+  new_state,
+  occurred_at,
+  details,
+  payload_hash
+)
+select
+  concat(
+    'booking:',
+    l.booking_id,
+    ':provider-liability:',
+    coalesce(
+      nullif(trim(l.stripe_payment_intent_id), ''),
+      nullif(trim(l.stripe_checkout_session_id), ''),
+      l.entry_key
+    )
+  ),
+  concat('backfill:', l.entry_key, ':provider-liability:discharged'),
+  'provider_liability',
+  greatest(coalesce(l.provider_amount_cents, 0), 0),
+  upper(l.currency),
+  l.booking_id,
+  'provider',
+  coalesce(b.provider_id, b.babysitter_id)::text,
+  l.stripe_checkout_session_id,
+  l.stripe_payment_intent_id,
+  'legacy_destination_charge',
+  'historical_backfill',
+  'recognized',
+  'discharged',
+  coalesce(l.updated_at, l.created_at),
+  jsonb_build_object('legacy_entry_key', l.entry_key, 'payment_mode', l.payment_mode),
+  public.klyx_financial_payload_hash(
+    concat(
+      'booking:',
+      l.booking_id,
+      ':provider-liability:',
+      coalesce(
+        nullif(trim(l.stripe_payment_intent_id), ''),
+        nullif(trim(l.stripe_checkout_session_id), ''),
+        l.entry_key
+      )
+    ),
+    concat('backfill:', l.entry_key, ':provider-liability:discharged'),
+    'provider_liability',
+    greatest(coalesce(l.provider_amount_cents, 0), 0),
+    upper(l.currency),
+    l.booking_id,
+    'provider',
+    coalesce(b.provider_id, b.babysitter_id)::text,
+    null,
+    l.stripe_checkout_session_id,
+    l.stripe_payment_intent_id,
+    null,
+    null,
+    null,
+    null,
+    null,
+    'legacy_destination_charge',
+    'historical_backfill',
+    'recognized',
+    'discharged',
+    coalesce(l.updated_at, l.created_at),
+    jsonb_build_object('legacy_entry_key', l.entry_key, 'payment_mode', l.payment_mode)
+  )
+from public.booking_financial_ledger as l
+join public.bookings as b
+  on b.id = l.booking_id
+where l.entry_type = 'payment_succeeded'
+  and l.status = 'succeeded'
+  and l.payment_mode in (
+    'connect_destination',
+    'connect_destination_group',
+    'connect_destination_split'
+  )
+  and coalesce(b.provider_id, b.babysitter_id) is not null
+on conflict (event_key) do nothing;
+
+insert into public.financial_ledger_events (
+  movement_key,
+  event_key,
+  movement_type,
+  amount_cents,
+  currency,
+  booking_id,
+  beneficiary_kind,
+  beneficiary_ref,
+  stripe_checkout_session_id,
+  stripe_payment_intent_id,
   stripe_refund_id,
   cause,
   source,
@@ -1321,6 +1503,96 @@ from public.booking_financial_ledger as l
 join public.bookings as b
   on b.id = l.booking_id
 where l.entry_type in ('refund_succeeded', 'refund_failed')
+on conflict (event_key) do nothing;
+
+insert into public.financial_ledger_events (
+  movement_key,
+  event_key,
+  movement_type,
+  amount_cents,
+  currency,
+  booking_id,
+  beneficiary_kind,
+  beneficiary_ref,
+  stripe_account_id,
+  stripe_checkout_session_id,
+  stripe_payment_intent_id,
+  stripe_charge_id,
+  stripe_transfer_id,
+  stripe_transfer_reversal_id,
+  cause,
+  source,
+  previous_state,
+  new_state,
+  occurred_at,
+  details,
+  payload_hash
+)
+select
+  concat(
+    'booking:',
+    s.booking_id,
+    ':charge:',
+    coalesce(
+      nullif(trim(s.stripe_payment_intent_id), ''),
+      nullif(trim(s.stripe_checkout_session_id), ''),
+      s.booking_id::text
+    )
+  ),
+  concat('backfill:settlement:', s.booking_id, ':charge:', s.stripe_charge_id),
+  'charge',
+  greatest(s.gross_amount_cents, 0),
+  s.currency,
+  s.booking_id,
+  'platform',
+  'klyx',
+  s.stripe_account_id,
+  s.stripe_checkout_session_id,
+  s.stripe_payment_intent_id,
+  s.stripe_charge_id,
+  s.stripe_transfer_id,
+  s.stripe_transfer_reversal_id,
+  'settlement_charge_truth_observed',
+  'historical_backfill',
+  null,
+  s.state,
+  coalesce(s.updated_at, s.created_at),
+  jsonb_build_object('transfer_group', s.transfer_group),
+  public.klyx_financial_payload_hash(
+    concat(
+      'booking:',
+      s.booking_id,
+      ':charge:',
+      coalesce(
+        nullif(trim(s.stripe_payment_intent_id), ''),
+        nullif(trim(s.stripe_checkout_session_id), ''),
+        s.booking_id::text
+      )
+    ),
+    concat('backfill:settlement:', s.booking_id, ':charge:', s.stripe_charge_id),
+    'charge',
+    greatest(s.gross_amount_cents, 0),
+    s.currency,
+    s.booking_id,
+    'platform',
+    'klyx',
+    s.stripe_account_id,
+    s.stripe_checkout_session_id,
+    s.stripe_payment_intent_id,
+    s.stripe_charge_id,
+    s.stripe_transfer_id,
+    s.stripe_transfer_reversal_id,
+    null,
+    null,
+    'settlement_charge_truth_observed',
+    'historical_backfill',
+    null,
+    s.state,
+    coalesce(s.updated_at, s.created_at),
+    jsonb_build_object('transfer_group', s.transfer_group)
+  )
+from public.booking_settlements as s
+where s.stripe_charge_id is not null
 on conflict (event_key) do nothing;
 
 insert into public.financial_ledger_events (
@@ -1482,7 +1754,7 @@ revoke all on function public.klyx_record_financial_reconciliation_decision(
 ) from public, anon, authenticated;
 
 revoke all on function public.klyx_append_financial_ledger_event(
-  text, text, text, bigint, text, uuid, text, text, text, text, text,
+  text, text, text, bigint, text, uuid, text, text, text, text, text, text,
   timestamptz, text, text, text, text, text, text, text, text, jsonb
 ) from public, anon, authenticated;
 
@@ -1495,7 +1767,7 @@ grant execute on function public.klyx_record_financial_reconciliation_decision(
 ) to service_role;
 
 grant execute on function public.klyx_append_financial_ledger_event(
-  text, text, text, bigint, text, uuid, text, text, text, text, text,
+  text, text, text, bigint, text, uuid, text, text, text, text, text, text,
   timestamptz, text, text, text, text, text, text, text, text, jsonb
 ) to service_role;
 
