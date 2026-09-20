@@ -402,7 +402,7 @@ export async function PATCH(request: Request) {
     }
 
     const profileInput = readProfileInput(body);
-    const marketInput = readProfileMarket(body.countryCode);
+    const marketInput = readProfileMarket(body.countryCode, body.currencyCode);
 
     const updatePayload: Record<string, string | null> = {
       first_name: profileInput.firstName,
