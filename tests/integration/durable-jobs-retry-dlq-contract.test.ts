@@ -30,7 +30,7 @@ describe("KLYX Mission 14 durable jobs contract", () => {
     expect(migration).toContain("'dead_lettered'");
   });
 
-  it("makes enqueue idempotent while binding only explicit scheduling intent", () => {
+  it("makes enqueue idempotent without timestamp-sensitive scheduling fingerprints", () => {
     expect(migration).toContain(
       "constraint ops_durable_jobs_unique_idempotency"
     );
@@ -48,11 +48,11 @@ describe("KLYX Mission 14 durable jobs contract", () => {
     const end = migration.indexOf(");", start);
     const fingerprint = migration.slice(start, end);
 
-    expect(fingerprint).toContain("'available_at', p_available_at");
+    expect(fingerprint).not.toContain("'available_at'");
     expect(server).toContain("p_available_at: optionalText(input.availableAt)");
     expect(server).not.toContain("p_available_at: new Date()");
     expect(doc).toContain(
-      "Explicit `available_at` is part of the fingerprint when supplied."
+      "Scheduling time is intentionally outside the fingerprint."
     );
   });
 
