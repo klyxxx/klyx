@@ -67,6 +67,70 @@ type SettlementRow = {
   state: string;
 };
 
+type GroupSettlementMemberRow = {
+  id: string;
+  group_settlement_id: string;
+  batch_id: string;
+  provider_profile_id: string;
+  provider_account_id: string;
+  stripe_account_id: string;
+  booking_ids: unknown;
+  currency: string;
+  gross_amount_cents: number;
+  platform_fee_cents: number;
+  provider_amount_cents: number;
+  state: string;
+  stripe_transfer_id: string | null;
+  released_amount_cents: number;
+  reversed_amount_cents: number;
+  refunded_gross_amount_cents: number;
+};
+
+type GroupSettlementParentRow = {
+  id: string;
+  batch_id: string;
+  client_profile_id: string;
+  currency: string;
+  gross_amount_cents: number;
+  platform_fee_cents: number;
+  provider_amount_cents: number;
+  stripe_checkout_session_id: string | null;
+  stripe_payment_intent_id: string | null;
+  stripe_charge_id: string | null;
+  state: string;
+};
+
+type GroupBookingEconomicsRow = {
+  booking_id: string;
+  client_profile_id: string;
+  provider_profile_id: string;
+  gross_amount_cents: number;
+  platform_fee_cents: number;
+  provider_amount_cents: number;
+};
+
+type GroupBookingAllocationRow = {
+  booking_id: string;
+  amount_cents: number;
+};
+
+type GroupTruth = {
+  matchCount: number;
+  member: GroupSettlementMemberRow | null;
+  parent: GroupSettlementParentRow | null;
+  economics: GroupBookingEconomicsRow | null;
+  releasedAllocation: number;
+  reversedAllocation: number;
+  refundedAllocation: number;
+};
+
+type StripeLedgerField =
+  | "stripe_payment_intent_id"
+  | "stripe_transfer_id"
+  | "stripe_transfer_reversal_id"
+  | "stripe_refund_id"
+  | "stripe_payout_id";
+
 type Divergence = {
   state: Exclude<FinancialReconciliationState, "resolved">;
   dimension: string;
@@ -110,6 +174,54 @@ function rowsOfType(rows: LedgerRow[], type: LedgerRow["movement_type"]) {
   return rows.filter((row) => row.movement_type === type);
 }
 
+function uniqueText(values: Array<string | null | undefined>): string[] {
+  return Array.from(
+    new Set(
+      values
+        .map((value) => value?.trim() ?? "")
+        .filter(Boolean)
+    )
+  );
+}
+
+function sumAmounts(rows: LedgerRow[]): number {
+  return rows.reduce(
+    (sum, row) => sum + Math.max(Number(row.amount_cents), 0),
+    0
+  );
+}
+
+function allocationCurrency(rows: LedgerRow[]): string | null {
+  const currencies = uniqueText(rows.map((row) => currency(row.currency)));
+  return currencies.length === 1 ? currencies[0] : null;
+}
+
+async function loadStripeObjectAllocations(
+  field: StripeLedgerField,
+  objectIdValue: string,
+  movementType: LedgerRow["movement_type"]
+): Promise<LedgerRow[]> {
+  const { data, error } = await supabaseAdmin
+    .from("financial_ledger_current")
+    .select(
+      "id, movement_key, movement_type, amount_cents, currency, booking_id, beneficiary_kind, beneficiary_ref, stripe_account_id, stripe_checkout_session_id, stripe_payment_intent_id, stripe_charge_id, stripe_transfer_id, stripe_transfer_reversal_id, stripe_refund_id, stripe_payout_id, cause, new_state, occurred_at"
+    )
+    .eq(field, objectIdValue)
+    .eq("movement_type", movementType);
+
+  if (error) throw new Error(error.message);
+  return (data ?? []) as LedgerRow[];
+}
+
+function bookingAllocation(
+  rows: GroupBookingAllocationRow[] | null | undefined,
+  bookingId: string
+): number {
+  return Number(
+    rows?.find((row) => row.booking_id === bookingId)?.amount_cents ?? 0
+  );
+}
+
 function pushMismatch(
   divergences: Divergence[],
   input: Omit<Divergence, "state"> & {
@@ -130,9 +242,15 @@ function pushMismatch(
 async function loadLocalTruth(bookingId: string): Promise<{
   booking: BookingRow;
   settlement: SettlementRow | null;
+  group: GroupTruth;
   ledger: LedgerRow[];
 }> {
-  const [bookingResult, settlementResult, ledgerResult] = await Promise.all([
+  const [
+    bookingResult,
+    settlementResult,
+    ledgerResult,
+    groupMemberResult,
+  ] = await Promise.all([
     supabaseAdmin
       .from("bookings")
       .select(
@@ -153,6 +271,13 @@ async function loadLocalTruth(bookingId: string): Promise<{
         "id, movement_key, movement_type, amount_cents, currency, booking_id, beneficiary_kind, beneficiary_ref, stripe_account_id, stripe_checkout_session_id, stripe_payment_intent_id, stripe_charge_id, stripe_transfer_id, stripe_transfer_reversal_id, stripe_refund_id, stripe_payout_id, cause, new_state, occurred_at"
       )
       .eq("booking_id", bookingId),
+    supabaseAdmin
+      .from("platform_held_group_settlement_members")
+      .select(
+        "id, group_settlement_id, batch_id, provider_profile_id, provider_account_id, stripe_account_id, booking_ids, currency, gross_amount_cents, platform_fee_cents, provider_amount_cents, state, stripe_transfer_id, released_amount_cents, reversed_amount_cents, refunded_gross_amount_cents"
+      )
+      .contains("booking_ids", [bookingId])
+      .limit(2),
   ]);
 
   if (bookingResult.error) throw new Error(bookingResult.error.message);
@@ -161,12 +286,97 @@ async function loadLocalTruth(bookingId: string): Promise<{
   }
   if (settlementResult.error) throw new Error(settlementResult.error.message);
   if (ledgerResult.error) throw new Error(ledgerResult.error.message);
+  if (groupMemberResult.error) throw new Error(groupMemberResult.error.message);
+
+  const groupMembers =
+    (groupMemberResult.data ?? []) as GroupSettlementMemberRow[];
+
+  let group: GroupTruth = {
+    matchCount: groupMembers.length,
+    member: null,
+    parent: null,
+    economics: null,
+    releasedAllocation: 0,
+    reversedAllocation: 0,
+    refundedAllocation: 0,
+  };
+
+  if (groupMembers.length === 1) {
+    const member = groupMembers[0];
+
+    const [
+      parentResult,
+      economicsResult,
+      releasedResult,
+      reversedResult,
+      refundedResult,
+    ] = await Promise.all([
+      supabaseAdmin
+        .from("platform_held_group_settlements")
+        .select(
+          "id, batch_id, client_profile_id, currency, gross_amount_cents, platform_fee_cents, provider_amount_cents, stripe_checkout_session_id, stripe_payment_intent_id, stripe_charge_id, state"
+        )
+        .eq("id", member.group_settlement_id)
+        .maybeSingle(),
+      supabaseAdmin.rpc("klyx_group_member_booking_economics", {
+        p_member_id: member.id,
+      }),
+      supabaseAdmin.rpc("klyx_group_member_provider_allocations", {
+        p_member_id: member.id,
+        p_total_amount_cents: Math.max(
+          Number(member.released_amount_cents ?? 0),
+          0
+        ),
+      }),
+      supabaseAdmin.rpc("klyx_group_member_provider_allocations", {
+        p_member_id: member.id,
+        p_total_amount_cents: Math.max(
+          Number(member.reversed_amount_cents ?? 0),
+          0
+        ),
+      }),
+      supabaseAdmin.rpc("klyx_group_member_amount_allocations", {
+        p_member_id: member.id,
+        p_total_amount_cents: Math.max(
+          Number(member.refunded_gross_amount_cents ?? 0),
+          0
+        ),
+      }),
+    ]);
+
+    if (parentResult.error) throw new Error(parentResult.error.message);
+    if (economicsResult.error) throw new Error(economicsResult.error.message);
+    if (releasedResult.error) throw new Error(releasedResult.error.message);
+    if (reversedResult.error) throw new Error(reversedResult.error.message);
+    if (refundedResult.error) throw new Error(refundedResult.error.message);
+
+    const economicsRows =
+      (economicsResult.data ?? []) as GroupBookingEconomicsRow[];
+    const releasedRows =
+      (releasedResult.data ?? []) as GroupBookingAllocationRow[];
+    const reversedRows =
+      (reversedResult.data ?? []) as GroupBookingAllocationRow[];
+    const refundedRows =
+      (refundedResult.data ?? []) as GroupBookingAllocationRow[];
+
+    group = {
+      matchCount: 1,
+      member,
+      parent: parentResult.data as GroupSettlementParentRow | null,
+      economics:
+        economicsRows.find((row) => row.booking_id === bookingId) ?? null,
+      releasedAllocation: bookingAllocation(releasedRows, bookingId),
+      reversedAllocation: bookingAllocation(reversedRows, bookingId),
+      refundedAllocation: bookingAllocation(refundedRows, bookingId),
+    };
+  }
 
   return {
     booking: bookingResult.data as BookingRow,
     settlement: settlementResult.data
       ? (settlementResult.data as SettlementRow)
       : null,
+    group,
     ledger: (ledgerResult.data ?? []) as LedgerRow[],
   };
 }
@@ -174,9 +384,10 @@ async function loadLocalTruth(bookingId: string): Promise<{
 function compareLocalTruth(input: {
   booking: BookingRow;
   settlement: SettlementRow | null;
+  group: GroupTruth;
   ledger: LedgerRow[];
 }): Divergence[] {
-  const { booking, settlement, ledger } = input;
+  const { booking, settlement, group, ledger } = input;
   const divergences: Divergence[] = [];
   const charge = firstOfType(ledger, "charge");
   const commission = firstOfType(ledger, "commission");
@@ -185,35 +396,106 @@ function compareLocalTruth(input: {
   const reversals = rowsOfType(ledger, "reversal");
   const refunds = rowsOfType(ledger, "refund");
 
-  const bookingCurrency = currency(booking.currency);
-  const gross = Math.max(Number(booking.amount_total ?? 0), 0);
-  const fee = Math.max(
-    Number(booking.platform_fee_amount ?? booking.application_fee_amount ?? 0),
-    0
-  );
-  const provider = Math.max(Number(booking.provider_amount ?? 0), 0);
-  const refunded = Math.max(Number(booking.refunded_amount_cents ?? 0), 0);
+  const groupMode = booking.payment_mode === "platform_held_group";
 
-  if (["paid", "refunded"].includes(booking.payment_status ?? "")) {
+  pushMismatch(divergences, {
+    mismatch: groupMode && group.matchCount !== 1,
+    state: "human_review",
+    dimension: "settlement",
+    reasonCode: "group_settlement_booking_membership_ambiguous",
+    expected: { groupMemberMatches: 1 },
+    actual: { groupMemberMatches: group.matchCount },
+  });
+
+  pushMismatch(divergences, {
+    mismatch:
+      !groupMode &&
+      group.matchCount > 0,
+    state: "human_review",
+    dimension: "settlement",
+    reasonCode: "group_settlement_payment_mode_mismatch",
+    expected: { paymentMode: booking.payment_mode },
+    actual: { groupMemberMatches: group.matchCount },
+  });
+
+  if (groupMode) {
     pushMismatch(divergences, {
-      mismatch: !charge,
-      state: "reconciliation",
-      dimension: "ledger",
-      reasonCode: "paid_booking_missing_charge_movement",
-      expected: { paymentStatus: booking.payment_status, gross, bookingCurrency },
-      actual: { charge: null },
+      mismatch: !group.parent || !group.economics,
+      state: "human_review",
+      dimension: "settlement",
+      reasonCode: "group_settlement_booking_economics_missing",
+      expected: { bookingId: booking.id },
+      actual: {
+        parentFound: Boolean(group.parent),
+        economicsFound: Boolean(group.economics),
+      },
     });
   }
+
+  const bookingCurrency = currency(
+    group.economics?.booking_id === booking.id
+      ? group.member?.currency
+      : booking.currency
+  );
+  const gross = Math.max(
+    Number(group.economics?.gross_amount_cents ?? booking.amount_total ?? 0),
+    0
+  );
+  const fee = Math.max(
+    Number(
+      group.economics?.platform_fee_cents ??
+        booking.platform_fee_amount ??
+        booking.application_fee_amount ??
+        0
+    ),
+    0
+  );
+  const provider = Math.max(
+    Number(
+      group.economics?.provider_amount_cents ??
+        booking.provider_amount ??
+        0
+    ),
+    0
+  );
+  const refunded = groupMode
+    ? Math.max(Number(group.refundedAllocation), 0)
+    : Math.max(Number(booking.refunded_amount_cents ?? 0), 0);
+
+  const paid = ["paid", "refunded"].includes(booking.payment_status ?? "");
+
+  pushMismatch(divergences, {
+    mismatch: paid && !charge,
+    state: "reconciliation",
+    dimension: "ledger",
+    reasonCode: "paid_booking_missing_charge_movement",
+    expected: { paymentStatus: booking.payment_status, gross, bookingCurrency },
+    actual: { charge: null },
+  });
 
   if (charge) {
     pushMismatch(divergences, {
-      mismatch: charge.amount_cents !== gross || currency(charge.currency) !== bookingCurrency,
+      mismatch:
+        charge.amount_cents !== gross ||
+        currency(charge.currency) !== bookingCurrency,
       dimension: "ledger",
       reasonCode: "charge_booking_economics_mismatch",
       expected: { amountCents: gross, currency: bookingCurrency },
-      actual: { amountCents: charge.amount_cents, currency: charge.currency },
+      actual: {
+        amountCents: charge.amount_cents,
+        currency: charge.currency,
+      },
     });
   }
+
+  pushMismatch(divergences, {
+    mismatch: paid && !commission,
+    state: "reconciliation",
+    dimension: "ledger",
+    reasonCode: "paid_booking_missing_commission_movement",
+    expected: { amountCents: fee, currency: bookingCurrency },
+    actual: { commission: null },
+  });
 
   if (commission) {
     pushMismatch(divergences, {
@@ -229,6 +511,15 @@ function compareLocalTruth(input: {
       },
     });
   }
+
+  pushMismatch(divergences, {
+    mismatch: paid && provider > 0 && !liability,
+    state: "reconciliation",
+    dimension: "ledger",
+    reasonCode: "paid_booking_missing_provider_liability_movement",
+    expected: { amountCents: provider, currency: bookingCurrency },
+    actual: { providerLiability: null },
+  });
 
   if (liability) {
     pushMismatch(divergences, {
@@ -321,7 +612,8 @@ function compareLocalTruth(input: {
     }
 
     pushMismatch(divergences, {
-      mismatch: settlement.state === "released" && !settlement.stripe_transfer_id,
+      mismatch:
+        settlement.state === "released" && !settlement.stripe_transfer_id,
       dimension: "settlement",
       reasonCode: "released_settlement_without_transfer_truth",
       expected: { state: "released", transferIdRequired: true },
@@ -346,6 +638,92 @@ function compareLocalTruth(input: {
     });
   }
 
+  if (group.member && group.parent && group.economics) {
+    pushMismatch(divergences, {
+      mismatch:
+        currency(group.member.currency) !== bookingCurrency ||
+        currency(group.parent.currency) !== bookingCurrency,
+      dimension: "settlement",
+      reasonCode: "group_settlement_booking_currency_mismatch",
+      expected: { currency: bookingCurrency },
+      actual: {
+        memberCurrency: group.member.currency,
+        parentCurrency: group.parent.currency,
+      },
+    });
+
+    if (group.parent.stripe_charge_id && charge) {
+      pushMismatch(divergences, {
+        mismatch:
+          charge.stripe_charge_id !== group.parent.stripe_charge_id ||
+          charge.stripe_payment_intent_id !==
+            group.parent.stripe_payment_intent_id,
+        dimension: "settlement",
+        reasonCode: "group_settlement_charge_missing_in_ledger",
+        expected: {
+          stripeChargeId: group.parent.stripe_charge_id,
+          stripePaymentIntentId: group.parent.stripe_payment_intent_id,
+        },
+        actual: {
+          stripeChargeId: charge.stripe_charge_id,
+          stripePaymentIntentId: charge.stripe_payment_intent_id,
+        },
+      });
+    }
+
+    if (group.member.stripe_transfer_id) {
+      const bookingTransferAmount = transfers
+        .filter(
+          (row) =>
+            row.stripe_transfer_id === group.member?.stripe_transfer_id
+        )
+        .reduce(
+          (sum, row) => sum + Math.max(Number(row.amount_cents), 0),
+          0
+        );
+
+      pushMismatch(divergences, {
+        mismatch: bookingTransferAmount !== group.releasedAllocation,
+        state: "reconciliation",
+        dimension: "settlement",
+        reasonCode: "group_settlement_transfer_booking_allocation_mismatch",
+        expected: {
+          amountCents: group.releasedAllocation,
+          stripeTransferId: group.member.stripe_transfer_id,
+        },
+        actual: { amountCents: bookingTransferAmount },
+      });
+    }
+
+    pushMismatch(divergences, {
+      mismatch:
+        Number(group.member.released_amount_cents) > 0 &&
+        !group.member.stripe_transfer_id,
+      state: "human_review",
+      dimension: "settlement",
+      reasonCode: "group_settlement_released_without_transfer_truth",
+      expected: {
+        releasedAmountCents: group.member.released_amount_cents,
+        transferIdRequired: true,
+      },
+      actual: { stripeTransferId: group.member.stripe_transfer_id },
+    });
+
+    const bookingReversalAmount = reversals.reduce(
+      (sum, row) => sum + Math.max(Number(row.amount_cents), 0),
+      0
+    );
+
+    pushMismatch(divergences, {
+      mismatch: bookingReversalAmount !== group.reversedAllocation,
+      state: "reconciliation",
+      dimension: "settlement",
+      reasonCode: "group_settlement_reversal_booking_allocation_mismatch",
+      expected: { amountCents: group.reversedAllocation },
+      actual: { amountCents: bookingReversalAmount },
+    });
+  }
+
   return divergences;
 }
 
@@ -353,16 +731,16 @@ async function compareStripeTruth(input: {
   stripe: Stripe;
   booking: BookingRow;
   settlement: SettlementRow | null;
+  group: GroupTruth;
   ledger: LedgerRow[];
 }): Promise<Divergence[]> {
-  const { stripe, booking, settlement, ledger } = input;
+  const { stripe, booking, settlement, group, ledger } = input;
   const divergences: Divergence[] = [];
-  const bookingCurrency = currency(booking.currency);
-  const gross = Math.max(Number(booking.amount_total ?? 0), 0);
 
   const chargeRows = rowsOfType(ledger, "charge");
   const paymentIntentId =
     settlement?.stripe_payment_intent_id ??
+    group.parent?.stripe_payment_intent_id ??
     booking.stripe_payment_intent_id ??
     chargeRows.find((row) => row.stripe_payment_intent_id)
       ?.stripe_payment_intent_id ??
@@ -370,27 +748,67 @@ async function compareStripeTruth(input: {
 
   if (paymentIntentId) {
     try {
-      const intent = await stripe.paymentIntents.retrieve(paymentIntentId, {
-        expand: ["latest_charge"],
-      });
+      const [intent, allocations] = await Promise.all([
+        stripe.paymentIntents.retrieve(paymentIntentId, {
+          expand: ["latest_charge"],
+        }),
+        loadStripeObjectAllocations(
+          "stripe_payment_intent_id",
+          paymentIntentId,
+          "charge"
+        ),
+      ]);
       const remoteChargeId = objectId(intent.latest_charge);
+      const allocationAmount = sumAmounts(allocations);
+      const allocationCurrencyCode = allocationCurrency(allocations);
+      const allocationChargeIds = uniqueText(
+        allocations.map((row) => row.stripe_charge_id)
+      );
 
       pushMismatch(divergences, {
         mismatch:
-          intent.amount !== gross ||
-          currency(intent.currency) !== bookingCurrency,
+          allocations.length === 0 ||
+          allocationAmount !== intent.amount ||
+          allocationCurrencyCode !== currency(intent.currency),
         dimension: "stripe",
-        reasonCode: "stripe_payment_intent_economics_mismatch",
-        expected: { amountCents: gross, currency: bookingCurrency },
-        actual: { amountCents: intent.amount, currency: intent.currency },
+        reasonCode: "stripe_payment_intent_ledger_aggregate_mismatch",
+        expected: {
+          amountCents: allocationAmount,
+          currency: allocationCurrencyCode,
+          stripePaymentIntentId: paymentIntentId,
+          bookingAllocations: allocations.length,
+        },
+        actual: {
+          amountCents: intent.amount,
+          currency: intent.currency,
+          stripePaymentIntentId: intent.id,
+        },
       });
 
-      if (settlement?.stripe_charge_id) {
+      if (remoteChargeId) {
         pushMismatch(divergences, {
-          mismatch: remoteChargeId !== settlement.stripe_charge_id,
+          mismatch:
+            allocationChargeIds.length > 1 ||
+            (allocationChargeIds.length === 1 &&
+              allocationChargeIds[0] !== remoteChargeId),
+          dimension: "stripe",
+          reasonCode: "stripe_charge_ledger_aggregate_id_mismatch",
+          expected: { stripeChargeIds: allocationChargeIds },
+          actual: { stripeChargeId: remoteChargeId },
+        });
+      }
+
+      const frozenChargeId =
+        settlement?.stripe_charge_id ??
+        group.parent?.stripe_charge_id ??
+        null;
+
+      if (frozenChargeId) {
+        pushMismatch(divergences, {
+          mismatch: remoteChargeId !== frozenChargeId,
           dimension: "stripe",
           reasonCode: "stripe_charge_settlement_id_mismatch",
-          expected: { stripeChargeId: settlement.stripe_charge_id },
+          expected: { stripeChargeId: frozenChargeId },
           actual: { stripeChargeId: remoteChargeId },
         });
       }
@@ -401,95 +819,209 @@ async function compareStripeTruth(input: {
         reasonCode: "stripe_payment_intent_unavailable",
         expected: { stripePaymentIntentId: paymentIntentId },
         actual: {
-          error: error instanceof Error ? error.message.slice(0, 240) : "unknown",
+          error:
+            error instanceof Error
+              ? error.message.slice(0, 240)
+              : "unknown",
         },
       });
     }
   }
 
-  if (settlement?.stripe_transfer_id) {
+  const transferIds = uniqueText([
+    settlement?.stripe_transfer_id,
+    group.member?.stripe_transfer_id,
+    ...rowsOfType(ledger, "transfer").map(
+      (row) => row.stripe_transfer_id
+    ),
+  ]);
+
+  for (const transferId of transferIds) {
     try {
-      const transfer = await stripe.transfers.retrieve(
-        settlement.stripe_transfer_id
+      const [transfer, allocations] = await Promise.all([
+        stripe.transfers.retrieve(transferId),
+        loadStripeObjectAllocations(
+          "stripe_transfer_id",
+          transferId,
+          "transfer"
+        ),
+      ]);
+      const allocationAmount = sumAmounts(allocations);
+      const allocationCurrencyCode = allocationCurrency(allocations);
+      const allocationAccounts = uniqueText(
+        allocations.map((row) => row.stripe_account_id)
       );
+      const destination = objectId(transfer.destination);
+
       pushMismatch(divergences, {
         mismatch:
-          transfer.amount !== settlement.provider_amount_cents ||
-          currency(transfer.currency) !== currency(settlement.currency) ||
-          objectId(transfer.destination) !== settlement.stripe_account_id,
+          allocations.length === 0 ||
+          allocationAmount !== transfer.amount ||
+          allocationCurrencyCode !== currency(transfer.currency) ||
+          allocationAccounts.length > 1 ||
+          (allocationAccounts.length === 1 &&
+            allocationAccounts[0] !== destination),
         dimension: "stripe",
-        reasonCode: "stripe_transfer_settlement_mismatch",
+        reasonCode: "stripe_transfer_ledger_aggregate_mismatch",
         expected: {
-          amountCents: settlement.provider_amount_cents,
-          currency: settlement.currency,
-          destination: settlement.stripe_account_id,
+          amountCents: allocationAmount,
+          currency: allocationCurrencyCode,
+          stripeAccountIds: allocationAccounts,
+          bookingAllocations: allocations.length,
         },
         actual: {
           amountCents: transfer.amount,
           currency: transfer.currency,
-          destination: objectId(transfer.destination),
+          destination,
+          stripeTransferId: transfer.id,
         },
       });
 
-      if (settlement.stripe_transfer_reversal_id) {
-        const reversals = await stripe.transfers.listReversals(transfer.id, {
-          limit: 100,
-        });
-        const reversal = reversals.data.find(
-          (row) => row.id === settlement.stripe_transfer_reversal_id
-        );
+      const settlementAmount =
+        settlement?.stripe_transfer_id === transferId
+          ? settlement.provider_amount_cents
+          : group.member?.stripe_transfer_id === transferId
+            ? Number(group.member.released_amount_cents)
+            : null;
+
+      if (settlementAmount != null) {
         pushMismatch(divergences, {
-          mismatch: !reversal,
-          state: "reconciliation",
-          dimension: "stripe",
-          reasonCode: "stripe_reversal_missing",
-          expected: {
-            stripeTransferReversalId:
-              settlement.stripe_transfer_reversal_id,
-          },
-          actual: {
-            reversalIds: reversals.data.map((row) => row.id),
-          },
+          mismatch: transfer.amount !== settlementAmount,
+          dimension: "settlement",
+          reasonCode: "stripe_transfer_settlement_amount_mismatch",
+          expected: { amountCents: settlementAmount, stripeTransferId: transferId },
+          actual: { amountCents: transfer.amount },
         });
-        if (reversal) {
-          pushMismatch(divergences, {
-            mismatch: reversal.amount !== settlement.provider_amount_cents,
-            dimension: "stripe",
-            reasonCode: "stripe_reversal_amount_mismatch",
-            expected: { amountCents: settlement.provider_amount_cents },
-            actual: { amountCents: reversal.amount },
-          });
-        }
       }
     } catch (error) {
       divergences.push({
         state: "reconciliation",
         dimension: "stripe",
         reasonCode: "stripe_transfer_unavailable",
-        expected: { stripeTransferId: settlement.stripe_transfer_id },
+        expected: { stripeTransferId: transferId },
         actual: {
-          error: error instanceof Error ? error.message.slice(0, 240) : "unknown",
+          error:
+            error instanceof Error
+              ? error.message.slice(0, 240)
+              : "unknown",
         },
       });
     }
   }
 
-  for (const refundRow of rowsOfType(ledger, "refund")) {
-    if (!refundRow.stripe_refund_id) continue;
+  const reversalIds = uniqueText([
+    settlement?.stripe_transfer_reversal_id,
+    ...rowsOfType(ledger, "reversal").map(
+      (row) => row.stripe_transfer_reversal_id
+    ),
+  ]);
+
+  for (const reversalId of reversalIds) {
+    const allocations = await loadStripeObjectAllocations(
+      "stripe_transfer_reversal_id",
+      reversalId,
+      "reversal"
+    );
+    const parentTransferIds = uniqueText(
+      allocations.map((row) => row.stripe_transfer_id)
+    );
+
+    if (parentTransferIds.length !== 1) {
+      divergences.push({
+        state: "human_review",
+        dimension: "stripe",
+        reasonCode: "stripe_reversal_parent_transfer_ambiguous",
+        expected: { parentTransferCount: 1 },
+        actual: {
+          parentTransferIds,
+          stripeTransferReversalId: reversalId,
+        },
+      });
+      continue;
+    }
+
     try {
-      const refund = await stripe.refunds.retrieve(refundRow.stripe_refund_id);
+      const reversals = await stripe.transfers.listReversals(
+        parentTransferIds[0],
+        { limit: 100 }
+      );
+      const reversal = reversals.data.find(
+        (row) => row.id === reversalId
+      );
+      const allocationAmount = sumAmounts(allocations);
+      const allocationCurrencyCode = allocationCurrency(allocations);
+
       pushMismatch(divergences, {
         mismatch:
-          refund.amount !== refundRow.amount_cents ||
-          (refund.currency
-            ? currency(refund.currency) !== currency(refundRow.currency)
-            : false),
+          !reversal ||
+          reversal.amount !== allocationAmount ||
+          allocationCurrencyCode == null,
+        state: reversal ? "human_review" : "reconciliation",
         dimension: "stripe",
-        reasonCode: "stripe_refund_ledger_mismatch",
+        reasonCode: "stripe_reversal_ledger_aggregate_mismatch",
         expected: {
-          amountCents: refundRow.amount_cents,
-          currency: refundRow.currency,
-          stripeRefundId: refundRow.stripe_refund_id,
+          amountCents: allocationAmount,
+          currency: allocationCurrencyCode,
+          stripeTransferReversalId: reversalId,
+          bookingAllocations: allocations.length,
+        },
+        actual: {
+          amountCents: reversal?.amount ?? null,
+          stripeTransferReversalId: reversal?.id ?? null,
+        },
+      });
+    } catch (error) {
+      divergences.push({
+        state: "reconciliation",
+        dimension: "stripe",
+        reasonCode: "stripe_reversal_unavailable",
+        expected: {
+          stripeTransferId: parentTransferIds[0],
+          stripeTransferReversalId: reversalId,
+        },
+        actual: {
+          error:
+            error instanceof Error
+              ? error.message.slice(0, 240)
+              : "unknown",
+        },
+      });
+    }
+  }
+
+  const refundIds = uniqueText(
+    rowsOfType(ledger, "refund").map(
+      (row) => row.stripe_refund_id
+    )
+  );
+
+  for (const refundId of refundIds) {
+    try {
+      const [refund, allocations] = await Promise.all([
+        stripe.refunds.retrieve(refundId),
+        loadStripeObjectAllocations(
+          "stripe_refund_id",
+          refundId,
+          "refund"
+        ),
+      ]);
+      const allocationAmount = sumAmounts(allocations);
+      const allocationCurrencyCode = allocationCurrency(allocations);
+
+      pushMismatch(divergences, {
+        mismatch:
+          allocations.length === 0 ||
+          refund.amount !== allocationAmount ||
+          (refund.currency
+            ? currency(refund.currency) !== allocationCurrencyCode
+            : allocationCurrencyCode == null),
+        dimension: "stripe",
+        reasonCode: "stripe_refund_ledger_aggregate_mismatch",
+        expected: {
+          amountCents: allocationAmount,
+          currency: allocationCurrencyCode,
+          stripeRefundId: refundId,
+          bookingAllocations: allocations.length,
         },
         actual: {
           amountCents: refund.amount,
@@ -502,31 +1034,69 @@ async function compareStripeTruth(input: {
         state: "reconciliation",
         dimension: "stripe",
         reasonCode: "stripe_refund_unavailable",
-        expected: { stripeRefundId: refundRow.stripe_refund_id },
+        expected: { stripeRefundId: refundId },
         actual: {
-          error: error instanceof Error ? error.message.slice(0, 240) : "unknown",
+          error:
+            error instanceof Error
+              ? error.message.slice(0, 240)
+              : "unknown",
         },
       });
     }
   }
 
-  for (const payoutRow of rowsOfType(ledger, "payout")) {
-    if (!payoutRow.stripe_payout_id || !payoutRow.stripe_account_id) continue;
+  const payoutIds = uniqueText(
+    rowsOfType(ledger, "payout").map(
+      (row) => row.stripe_payout_id
+    )
+  );
+
+  for (const payoutId of payoutIds) {
+    const allocations = await loadStripeObjectAllocations(
+      "stripe_payout_id",
+      payoutId,
+      "payout"
+    );
+    const allocationAccounts = uniqueText(
+      allocations.map((row) => row.stripe_account_id)
+    );
+
+    if (allocationAccounts.length !== 1) {
+      divergences.push({
+        state: "human_review",
+        dimension: "stripe",
+        reasonCode: "stripe_payout_account_ambiguous",
+        expected: { stripeAccountCount: 1 },
+        actual: {
+          stripePayoutId: payoutId,
+          stripeAccountIds: allocationAccounts,
+        },
+      });
+      continue;
+    }
+
     try {
       const payout = await stripe.payouts.retrieve(
-        payoutRow.stripe_payout_id,
+        payoutId,
         {},
-        { stripeAccount: payoutRow.stripe_account_id }
+        { stripeAccount: allocationAccounts[0] }
       );
+      const allocationAmount = sumAmounts(allocations);
+      const allocationCurrencyCode = allocationCurrency(allocations);
+
       pushMismatch(divergences, {
         mismatch:
-          payout.amount !== payoutRow.amount_cents ||
-          currency(payout.currency) !== currency(payoutRow.currency),
+          allocations.length === 0 ||
+          payout.amount !== allocationAmount ||
+          currency(payout.currency) !== allocationCurrencyCode,
         dimension: "stripe",
-        reasonCode: "stripe_payout_ledger_mismatch",
+        reasonCode: "stripe_payout_ledger_aggregate_mismatch",
         expected: {
-          amountCents: payoutRow.amount_cents,
-          currency: payoutRow.currency,
+          amountCents: allocationAmount,
+          currency: allocationCurrencyCode,
+          stripePayoutId: payoutId,
+          stripeAccountId: allocationAccounts[0],
+          bookingAllocations: allocations.length,
         },
         actual: {
           amountCents: payout.amount,
@@ -540,11 +1110,14 @@ async function compareStripeTruth(input: {
         dimension: "stripe",
         reasonCode: "stripe_payout_unavailable",
         expected: {
-          stripePayoutId: payoutRow.stripe_payout_id,
-          stripeAccountId: payoutRow.stripe_account_id,
+          stripePayoutId: payoutId,
+          stripeAccountId: allocationAccounts[0],
         },
         actual: {
-          error: error instanceof Error ? error.message.slice(0, 240) : "unknown",
+          error:
+            error instanceof Error
+              ? error.message.slice(0, 240)
+              : "unknown",
         },
       });
     }
@@ -574,6 +1147,7 @@ export async function reconcileCentralFinancialTruth(input: {
       stripe,
       booking: local.booking,
       settlement: local.settlement,
+      group: local.group,
       ledger: local.ledger,
     }))
   );
