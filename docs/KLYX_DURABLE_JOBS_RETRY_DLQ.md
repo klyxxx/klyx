@@ -79,9 +79,12 @@ The fingerprint binds the idempotency key to:
 - market / region / country / currency;
 - payment provider / capability / dependency;
 - priority;
+- explicit `available_at` when supplied;
 - attempt budget and backoff policy.
 
-Scheduling time is not part of the fingerprint. A duplicate enqueue never
+Explicit `available_at` is part of the fingerprint when supplied. When the
+caller omits it, the server sends `null` rather than manufacturing a current
+timestamp, so identical retries remain idempotent. A duplicate enqueue never
 silently changes the schedule of the existing job.
 
 This prevents the same idempotency key from being reused for semantically different work.
