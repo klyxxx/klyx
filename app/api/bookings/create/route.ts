@@ -717,7 +717,10 @@ export async function POST(request: Request) {
         throw new Error("KLYX_FX_QUOTE_REQUIRED");
       }
 
-      const fxQuote = await getKlyxFxQuote(requestedFxQuoteId);
+      const fxQuote = await getKlyxFxQuote(
+        requestedFxQuoteId,
+        profile.id
+      );
 
       if (
         fxQuote.sourceAmountMinor !== sourceEstimatedAmountMinor
