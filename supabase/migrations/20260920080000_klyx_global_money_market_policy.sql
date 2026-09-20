@@ -14,6 +14,8 @@ create table if not exists public.klyx_payment_currency_capabilities (
   stripe_charge_exponent smallint not null,
   stripe_charge_increment bigint not null default 1,
   stripe_payout_increment bigint not null default 1,
+  minimum_charge_amount bigint,
+  maximum_charge_amount bigint,
   zero_decimal boolean not null default false,
   source_ref text,
   source_checked_at timestamptz,
@@ -32,6 +34,16 @@ create table if not exists public.klyx_payment_currency_capabilities (
     check (
       stripe_charge_increment > 0
       and stripe_payout_increment > 0
+    ),
+  constraint klyx_payment_currency_charge_bounds_check
+    check (
+      (minimum_charge_amount is null or minimum_charge_amount > 0)
+      and (maximum_charge_amount is null or maximum_charge_amount > 0)
+      and (
+        minimum_charge_amount is null
+        or maximum_charge_amount is null
+        or maximum_charge_amount >= minimum_charge_amount
+      )
     )
 );
 
@@ -128,6 +140,9 @@ alter table public.bookings
   add column if not exists subtotal_amount_minor bigint,
   add column if not exists tax_amount_minor bigint,
   add column if not exists commission_bps integer,
+  add column if not exists commission_amount_minor bigint,
+  add column if not exists total_amount_minor bigint,
+  add column if not exists provider_amount_minor bigint,
   add column if not exists market_payment_rule_id uuid,
   add column if not exists fx_quote_id uuid;
 
@@ -173,6 +188,9 @@ begin
       check (
         (subtotal_amount_minor is null or subtotal_amount_minor >= 0)
         and (tax_amount_minor is null or tax_amount_minor >= 0)
+        and (commission_amount_minor is null or commission_amount_minor >= 0)
+        and (total_amount_minor is null or total_amount_minor >= 0)
+        and (provider_amount_minor is null or provider_amount_minor >= 0)
         and (commission_bps is null or commission_bps between 0 and 10000)
       );
   end if;
