@@ -359,6 +359,7 @@ begin
     'capability', v_capability,
     'dependency', v_dependency,
     'priority', p_priority,
+    'available_at', p_available_at,
     'max_attempts', p_max_attempts,
     'backoff_base_seconds', p_backoff_base_seconds,
     'backoff_max_seconds', p_backoff_max_seconds
@@ -579,6 +580,7 @@ begin
              lease_token = null,
              lease_expires_at = null,
              last_error_code = 'LEASE_EXPIRED',
+             completed_at = coalesce(completed_at, now()),
              dead_lettered_at = now(),
              updated_at = now()
        where id = v_job.id;
@@ -1114,6 +1116,7 @@ begin
            lease_token = null,
            lease_expires_at = null,
            last_error_code = v_error_code,
+           completed_at = coalesce(completed_at, now()),
            dead_lettered_at = now(),
            updated_at = now()
      where id = v_job.id
