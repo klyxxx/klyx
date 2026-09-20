@@ -3,6 +3,10 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import Stripe from "stripe";
 
+import {
+  recordCanonicalReversal,
+  recordCanonicalTransfer,
+} from "@/lib/canonical-financial-ledger";
 import { canReceiveSettlementForBooking } from "@/lib/economic-settlement-eligibility-server";
 import {
   getProviderStripeDestination,
@@ -356,6 +360,17 @@ export async function releasePlatformHeldBookingSettlement(
     });
 
     if (existingTransfer) {
+      await recordCanonicalTransfer({
+        bookingId,
+        transferId: existingTransfer.id,
+        amountCents: existingTransfer.amount,
+        currency: existingTransfer.currency,
+        providerProfileId: settlement.provider_profile_id,
+        stripeChargeId: chargeId,
+        stripePaymentIntentId: paymentIntentId,
+        reconciled: true,
+      });
+
       const reconciled = await reconcileReleaseFromStripeTruth({
         bookingId,
         transferId: existingTransfer.id,
@@ -603,6 +618,17 @@ export async function releasePlatformHeldBookingSettlement(
       stripeAcceptedTransfer = true;
     }
 
+    await recordCanonicalTransfer({
+      bookingId,
+      transferId: transfer.id,
+      amountCents: transfer.amount,
+      currency: transfer.currency,
+      providerProfileId: settlement.provider_profile_id,
+      stripeChargeId: claim.stripe_charge_id,
+      stripePaymentIntentId: settlement.stripe_payment_intent_id,
+      reconciled,
+    });
+
     await finalizeRelease({
       bookingId,
       claimToken,
@@ -756,6 +782,16 @@ export async function preparePlatformHeldBookingRefund(
       }
     );
   }
+
+  await recordCanonicalReversal({
+    bookingId,
+    transferId,
+    reversalId: reversal.id,
+    amountCents: reversal.amount,
+    currency: settlement.currency,
+    providerProfileId: settlement.provider_profile_id,
+    reconciled,
+  });
 
   await finalizeReversal({
     bookingId,
