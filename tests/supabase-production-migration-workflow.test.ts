@@ -12,22 +12,37 @@ const workflow = fs.readFileSync(
 );
 
 const approvedHistoricalMigrations = [
-  "20260913003000_klyx_trust_review_resolution_rpc.sql",
-  "20260913004000_klyx_trust_latest_decision_enforcement.sql",
+  "20260914190000_klyx_account_stripe_connect_identity.sql",
+  "20260915110000_klyx_account_risk_engine.sql",
+  "20260915113000_klyx_transaction_risk_gate.sql",
 ];
 
 const approvedReconciliationBatch = [
-  "20260913003000_klyx_trust_review_resolution_rpc.sql",
-  "20260913004000_klyx_trust_latest_decision_enforcement.sql",
-  "20260914121500_klyx_account_actor_capabilities.sql",
-  "20260914183000_klyx_account_post_booking_incidents.sql",
-  "20260914195500_klyx_provider_verification_account_capability_authority.sql",
-  "20260915134000_klyx_provider_verification_compatibility_profile_guard.sql",
+  "20260914190000_klyx_account_stripe_connect_identity.sql",
+  "20260915110000_klyx_account_risk_engine.sql",
+  "20260915113000_klyx_transaction_risk_gate.sql",
+  "20260915170000_klyx_booking_settlement_control.sql",
+  "20260915173000_klyx_refund_transaction_risk_gate.sql",
+  "20260915194500_klyx_platform_held_settlement_test.sql",
+  "20260915200500_klyx_platform_held_settlement_fail_closed.sql",
+  "20260916140000_klyx_platform_held_legacy_null_guard.sql",
+  "20260918130000_klyx_settlement_claim_sql_qualification.sql",
+  "20260918183500_klyx_settlement_recovery_reconciliation.sql",
+  "20260918211000_klyx_platform_held_group_multiexecutor_test.sql",
+  "20260918213000_klyx_platform_held_group_refund_hardening.sql",
+  "20260919190000_klyx_group_release_after_refund_hardening.sql",
+  "20260920080000_klyx_global_money_market_policy.sql",
+  "20260920091500_klyx_central_financial_ledger.sql",
+  "20260920093000_klyx_economic_identity_foundation.sql",
+  "20260920094500_klyx_central_financial_ledger_group_split.sql",
+  "20260920110000_klyx_economic_settlement_eligibility.sql",
 ];
 
 describe("Supabase production migration historical-gap recovery", () => {
   it("pins recovery to the exact audited KLYX historical migration set", () => {
     expect(workflow).toContain("approved_historical_migrations=(");
+
+    expect(approvedHistoricalMigrations).toHaveLength(3);
 
     for (const migration of approvedHistoricalMigrations) {
       expect(workflow).toContain(`"${migration}"`);
@@ -66,6 +81,8 @@ describe("Supabase production migration historical-gap recovery", () => {
     expect(workflow).toContain(
       "Refusing production write: second dry-run batch differs from the audited reconciliation batch."
     );
+
+    expect(approvedReconciliationBatch).toHaveLength(18);
 
     for (const migration of approvedReconciliationBatch) {
       expect(workflow).toContain(`"${migration}"`);
