@@ -131,12 +131,6 @@ create trigger klyx_workflow_events_immutable_update
 before update on public.klyx_workflow_events
 for each row execute function public.klyx_reject_workflow_event_mutation();
 
-drop trigger if exists klyx_workflow_events_immutable_delete
-  on public.klyx_workflow_events;
-create trigger klyx_workflow_events_immutable_delete
-before delete on public.klyx_workflow_events
-for each row execute function public.klyx_reject_workflow_event_mutation();
-
 create or replace function public.klyx_create_or_resume_workflow(
   p_account_id uuid,
   p_profile_id uuid,
@@ -388,7 +382,7 @@ begin
   v_new_status := case
     when (v_workflow.mode = 'request' and p_to_step = 'closure')
       or (v_workflow.mode = 'earn' and p_to_step = 'settlement')
-      then 'active'
+      then 'completed'
     else 'active'
   end;
 
@@ -396,6 +390,10 @@ begin
      set current_step = p_to_step,
          status = v_new_status,
          version = version + 1,
+         completed_at = case
+           when v_new_status = 'completed' then coalesce(completed_at, now())
+           else completed_at
+         end,
          updated_at = now()
    where id = v_workflow.id
    returning * into v_workflow;
