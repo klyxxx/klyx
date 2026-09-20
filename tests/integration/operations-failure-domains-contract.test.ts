@@ -11,7 +11,7 @@ function read(relativePath: string) {
 }
 
 const migration = read(
-  "supabase/migrations/20260920093000_klyx_operations_failure_domains.sql"
+  "supabase/migrations/20260920174500_klyx_operations_failure_domains.sql"
 );
 const opsServer = read("lib/ops-control-server.ts");
 const founderRoute = read(
