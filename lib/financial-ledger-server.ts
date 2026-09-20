@@ -65,6 +65,18 @@ function requiredText(value: string, code: string): string {
   return normalized;
 }
 
+function uuidText(value: string, code: string): string {
+  const normalized = requiredText(value, code);
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      normalized
+    )
+  ) {
+    throw new Error(code);
+  }
+  return normalized;
+}
+
 function currencyCode(value: string): string {
   const currency = value.trim().toUpperCase();
   if (!/^[A-Z]{3}$/.test(currency)) {
@@ -246,7 +258,7 @@ export async function recordFinancialReconciliationDecision(input: {
 
 export async function recordObservedStripePayout(input: {
   bookingId: string;
-  providerRef: string;
+  providerAccountId: string;
   amountMinor: number;
   currency: string;
   stripeAccountId: string;
@@ -260,6 +272,30 @@ export async function recordObservedStripePayout(input: {
     input.stripePayoutId,
     "KLYX_FINANCIAL_LEDGER_PAYOUT_ID_REQUIRED"
   );
+  const providerAccountId = uuidText(
+    input.providerAccountId,
+    "KLYX_FINANCIAL_LEDGER_PROVIDER_ACCOUNT_REQUIRED"
+  );
+  const stripeAccountId = requiredText(
+    input.stripeAccountId,
+    "KLYX_FINANCIAL_LEDGER_STRIPE_ACCOUNT_REQUIRED"
+  );
+
+  const { data: canonicalStripeIdentity, error: identityError } =
+    await supabaseAdmin
+      .from("account_stripe_connect_identities")
+      .select("stripe_account_id, identity_state")
+      .eq("account_id", providerAccountId)
+      .maybeSingle();
+
+  if (identityError) throw new Error(identityError.message);
+
+  if (
+    canonicalStripeIdentity?.identity_state !== "linked" ||
+    canonicalStripeIdentity.stripe_account_id !== stripeAccountId
+  ) {
+    throw new Error("KLYX_FINANCIAL_LEDGER_PAYOUT_IDENTITY_MISMATCH");
+  }
 
   return appendFinancialLedgerEvent({
     movementKey: `booking:${input.bookingId}:payout:${payoutId}`,
@@ -269,13 +305,13 @@ export async function recordObservedStripePayout(input: {
     currency: input.currency,
     bookingId: input.bookingId,
     beneficiaryKind: "provider",
-    beneficiaryRef: input.providerRef,
+    beneficiaryRef: providerAccountId,
     cause: input.cause ?? "stripe_payout_observed",
     source: "payout_observation",
     previousState: input.previousState ?? null,
     newState: input.payoutState,
     occurredAt: input.occurredAt,
-    stripeAccountId: input.stripeAccountId,
+    stripeAccountId,
     stripePayoutId: payoutId,
   });
 }
