@@ -222,6 +222,25 @@ export async function recordFinancialReconciliationDecision(input: {
     throw new Error("KLYX_FINANCIAL_RECONCILIATION_EVENT_NOT_WRITABLE");
   }
 
+  const { data: persistedEvent, error: persistedEventError } =
+    await supabaseAdmin
+      .from("financial_reconciliation_events")
+      .select("state, cause, actor_type")
+      .eq("id", data)
+      .maybeSingle();
+
+  if (persistedEventError) {
+    throw new Error(persistedEventError.message);
+  }
+
+  if (
+    persistedEvent?.state === "human_review" &&
+    persistedEvent.cause === "immutable_reconciliation_event_key_conflict" &&
+    persistedEvent.actor_type === "system"
+  ) {
+    throw new Error("KLYX_FINANCIAL_RECONCILIATION_EVENT_CONFLICT");
+  }
+
   return data;
 }
 
