@@ -46,6 +46,8 @@ describe("KLYX central financial ledger", () => {
     expect(migration).toContain("occurred_at timestamptz not null");
     expect(migration).toContain("payload_hash text not null");
     expect(migration).toContain("set search_path = public, extensions");
+    expect(migration).not.toMatch(/\nas \$\n/);
+    expect(migration).not.toMatch(/\n\$;\n/);
   });
 
   it("stores Stripe identifiers only as evidence on immutable KLYX events", () => {
