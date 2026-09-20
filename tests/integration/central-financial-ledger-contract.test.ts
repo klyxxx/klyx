@@ -45,8 +45,8 @@ describe("KLYX central financial ledger", () => {
       ),
       migration.indexOf("create or replace view public.financial_ledger_current")
     );
-    expect(appendFunction).toContain("movement_type,\\n    amount_minor,\\n    currency,");
-    expect(appendFunction).not.toContain("movement_type,\\n    amount_cents,\\n    currency,");
+    expect(appendFunction).toContain("movement_type,\n    amount_minor,\n    currency,");
+    expect(appendFunction).not.toContain("movement_type,\n    amount_cents,\n    currency,");
     expect(server).toContain("amountMinor: number");
     expect(migration).toContain("currency text not null");
     expect(migration).toContain("booking_id uuid not null");
