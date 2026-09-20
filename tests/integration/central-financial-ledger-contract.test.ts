@@ -11,6 +11,9 @@ describe("KLYX central financial ledger", () => {
   const migration = read(
     "supabase/migrations/20260920091500_klyx_central_financial_ledger.sql"
   );
+  const groupSplitMigration = read(
+    "supabase/migrations/20260920094500_klyx_central_financial_ledger_group_split.sql"
+  );
   const server = read("lib/financial-ledger-server.ts");
   const reconciliation = read(
     "lib/financial-ledger-reconciliation-server.ts"
@@ -124,6 +127,87 @@ describe("KLYX central financial ledger", () => {
     );
     expect(server).toContain("openFinancialReconciliationCase");
     expect(server).toContain("recordFinancialReconciliationDecision");
+  });
+
+  it("mirrors certified platform-held group/split truth without inventing booking allocations", () => {
+    for (const table of [
+      "platform_held_group_settlements",
+      "platform_held_group_settlement_members",
+      "platform_held_group_refunds",
+      "platform_held_group_refund_allocations",
+      "platform_held_group_member_reversals",
+    ]) {
+      expect(groupSplitMigration).toContain(table);
+    }
+
+    expect(groupSplitMigration).toContain(
+      "klyx_group_member_booking_economics"
+    );
+    expect(groupSplitMigration).toContain(
+      "klyx_group_member_amount_allocations"
+    );
+    expect(groupSplitMigration).toContain(
+      "klyx_group_member_provider_allocations"
+    );
+    expect(groupSplitMigration).toContain(
+      "group_member_booking_allocation_mismatch"
+    );
+    expect(groupSplitMigration).toContain(
+      "group_member_provider_allocation_invalid"
+    );
+    expect(groupSplitMigration).toContain("'human_review'");
+    expect(groupSplitMigration).toContain(
+      "platform_held_group_parent_central_ledger_mirror"
+    );
+    expect(groupSplitMigration).toContain(
+      "platform_held_group_member_central_ledger_mirror"
+    );
+    expect(groupSplitMigration).toContain(
+      "platform_held_group_refund_central_ledger_mirror"
+    );
+    expect(groupSplitMigration).toContain(
+      "platform_held_group_reversal_central_ledger_mirror"
+    );
+
+    expect(groupSplitMigration).not.toContain("stripe.transfers.create(");
+    expect(groupSplitMigration).not.toContain(
+      "stripe.transfers.createReversal("
+    );
+    expect(groupSplitMigration).not.toContain("stripe.refunds.create(");
+    expect(groupSplitMigration).not.toContain("stripe.payouts.create(");
+  });
+
+  it("reconciles shared Stripe objects from the aggregate of booking allocations", () => {
+    expect(reconciliation).toContain("loadStripeObjectAllocations");
+    expect(reconciliation).toContain("sumAmounts");
+    expect(reconciliation).toContain(
+      "stripe_payment_intent_ledger_aggregate_mismatch"
+    );
+    expect(reconciliation).toContain(
+      "stripe_transfer_ledger_aggregate_mismatch"
+    );
+    expect(reconciliation).toContain(
+      "stripe_reversal_ledger_aggregate_mismatch"
+    );
+    expect(reconciliation).toContain(
+      "stripe_refund_ledger_aggregate_mismatch"
+    );
+    expect(reconciliation).toContain(
+      "stripe_payout_ledger_aggregate_mismatch"
+    );
+    expect(reconciliation).toContain(
+      "group_settlement_transfer_booking_allocation_mismatch"
+    );
+    expect(reconciliation).toContain(
+      "group_settlement_reversal_booking_allocation_mismatch"
+    );
+
+    expect(reconciliation).not.toContain(
+      "payout.amount !== payoutRow.amount_cents"
+    );
+    expect(reconciliation).not.toContain(
+      "refund.amount !== refundRow.amount_cents"
+    );
   });
 
   it("supports payout observations without creating payouts", () => {
