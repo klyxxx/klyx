@@ -6,6 +6,9 @@ on:
       - main
     paths:
       - ".github/workflows/klyx-provider-storage-golden.yml"
+      - ".github/workflows/klyx-stripe-split-settlement-network.yml"
+      - "tests/integration/platform-held-split-live-readiness-contract.test.ts"
+      - "docs/KLYX_LIVE_READINESS_GATE.md"
       - "scripts/golden-path-provider-verification-storage.mjs"
       - "scripts/golden-path-bootstrap.mjs"
       - "scripts/golden-path-runtime.mjs"
@@ -18,6 +21,9 @@ on:
       - main
     paths:
       - ".github/workflows/klyx-provider-storage-golden.yml"
+      - ".github/workflows/klyx-stripe-split-settlement-network.yml"
+      - "tests/integration/platform-held-split-live-readiness-contract.test.ts"
+      - "docs/KLYX_LIVE_READINESS_GATE.md"
       - "scripts/golden-path-provider-verification-storage.mjs"
       - "scripts/golden-path-bootstrap.mjs"
       - "scripts/golden-path-runtime.mjs"
