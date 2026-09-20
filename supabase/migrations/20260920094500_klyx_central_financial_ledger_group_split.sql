@@ -290,6 +290,89 @@ begin
 end;
 $$;
 
+create or replace function public.klyx_group_member_provider_allocations(
+  p_member_id uuid,
+  p_total_amount_cents bigint
+)
+returns table (
+  booking_id uuid,
+  amount_cents bigint
+)
+language plpgsql
+security definer
+set search_path = public
+as $
+declare
+  v_member public.platform_held_group_settlement_members%rowtype;
+begin
+  select *
+    into v_member
+    from public.platform_held_group_settlement_members
+   where id = p_member_id;
+
+  if not found then
+    return;
+  end if;
+
+  if p_total_amount_cents < 0
+     or p_total_amount_cents > v_member.provider_amount_cents then
+    perform public.klyx_open_financial_reconciliation_case(
+      concat(
+        'central-ledger:group-member:',
+        p_member_id,
+        ':provider-allocation-invalid:',
+        p_total_amount_cents
+      ),
+      null,
+      'human_review',
+      'ledger',
+      'group_member_provider_allocation_invalid',
+      jsonb_build_object(
+        'maximum_provider_amount_cents', v_member.provider_amount_cents
+      ),
+      jsonb_build_object(
+        'requested_amount_cents', p_total_amount_cents
+      ),
+      'group_split_ledger_allocation'
+    );
+    return;
+  end if;
+
+  return query
+  with economics as (
+    select *
+      from public.klyx_group_member_booking_economics(p_member_id)
+  ),
+  running as (
+    select
+      economics.*,
+      sum(economics.provider_amount_cents) over (
+        order by economics.booking_id
+        rows between unbounded preceding and current row
+      ) as cumulative_provider,
+      sum(economics.provider_amount_cents) over () as total_provider
+    from economics
+  )
+  select
+    running.booking_id,
+    (
+      round(
+        p_total_amount_cents::numeric
+          * running.cumulative_provider::numeric
+          / running.total_provider::numeric
+      )::bigint
+      -
+      round(
+        p_total_amount_cents::numeric
+          * (running.cumulative_provider - running.provider_amount_cents)::numeric
+          / running.total_provider::numeric
+      )::bigint
+    ) as amount_cents
+  from running
+  where running.total_provider > 0;
+end;
+$;
+
 create or replace function public.klyx_sync_group_member_central_ledger(
   p_member_id uuid
 )
@@ -465,7 +548,7 @@ begin
   if v_member.stripe_transfer_id is not null then
     for v_amount in
       select *
-        from public.klyx_group_member_amount_allocations(
+        from public.klyx_group_member_provider_allocations(
           v_member.id,
           greatest(v_member.released_amount_cents, 0)
         )
@@ -575,7 +658,7 @@ begin
   loop
     for v_amount in
       select *
-        from public.klyx_group_member_amount_allocations(
+        from public.klyx_group_member_provider_allocations(
           v_member.id,
           v_reversal.amount_cents
         )
@@ -876,6 +959,8 @@ revoke all on function public.klyx_group_member_booking_economics(uuid)
   from public, anon, authenticated;
 revoke all on function public.klyx_group_member_amount_allocations(uuid, bigint)
   from public, anon, authenticated;
+revoke all on function public.klyx_group_member_provider_allocations(uuid, bigint)
+  from public, anon, authenticated;
 revoke all on function public.klyx_sync_group_member_central_ledger(uuid)
   from public, anon, authenticated;
 revoke all on function public.klyx_sync_group_central_ledger(uuid)
@@ -896,6 +981,9 @@ grant execute on function public.klyx_sync_group_central_ledger(uuid)
 
 comment on function public.klyx_group_member_booking_economics(uuid) is
   'Deterministic booking-level allocation of frozen group/split economics. Allocation mismatch opens human_review instead of inventing ledger truth.';
+
+comment on function public.klyx_group_member_provider_allocations(uuid, bigint) is
+  'Deterministically allocates provider-side movements such as Transfer and Reversal from frozen per-booking provider economics.';
 
 comment on function public.klyx_sync_group_member_central_ledger(uuid) is
   'Idempotently mirrors platform-held group/split charge, commission, provider liability, transfer, reversal and refund truth into the canonical append-only KLYX ledger.';
