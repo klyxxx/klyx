@@ -373,6 +373,139 @@ begin
 end;
 $;
 
+create or replace function public.klyx_group_refund_booking_allocations(
+  p_allocation_id uuid
+)
+returns table (
+  booking_id uuid,
+  amount_cents bigint
+)
+language plpgsql
+security definer
+set search_path = public
+as $
+declare
+  v_allocation public.platform_held_group_refund_allocations%rowtype;
+  v_refund public.platform_held_group_refunds%rowtype;
+  v_prior_gross bigint;
+begin
+  select *
+    into v_allocation
+    from public.platform_held_group_refund_allocations
+   where id = p_allocation_id;
+
+  if not found then
+    return;
+  end if;
+
+  select *
+    into v_refund
+    from public.platform_held_group_refunds
+   where id = v_allocation.refund_id;
+
+  if not found or v_refund.state <> 'succeeded' then
+    return;
+  end if;
+
+  select coalesce(sum(a.gross_refund_cents), 0)
+    into v_prior_gross
+    from public.platform_held_group_refund_allocations a
+    join public.platform_held_group_refunds r
+      on r.id = a.refund_id
+   where a.member_id = v_allocation.member_id
+     and r.state = 'succeeded'
+     and (
+       coalesce(r.completed_at, r.updated_at, r.created_at) <
+         coalesce(v_refund.completed_at, v_refund.updated_at, v_refund.created_at)
+       or (
+         coalesce(r.completed_at, r.updated_at, r.created_at) =
+           coalesce(v_refund.completed_at, v_refund.updated_at, v_refund.created_at)
+         and r.id < v_refund.id
+       )
+     );
+
+  return query
+  with cumulative as (
+    select *
+      from public.klyx_group_member_amount_allocations(
+        v_allocation.member_id,
+        v_prior_gross + v_allocation.gross_refund_cents
+      )
+  ),
+  prior as (
+    select *
+      from public.klyx_group_member_amount_allocations(
+        v_allocation.member_id,
+        v_prior_gross
+      )
+  )
+  select
+    cumulative.booking_id,
+    cumulative.amount_cents - coalesce(prior.amount_cents, 0)
+  from cumulative
+  left join prior using (booking_id);
+end;
+$;
+
+create or replace function public.klyx_group_reversal_booking_allocations(
+  p_reversal_id uuid
+)
+returns table (
+  booking_id uuid,
+  amount_cents bigint
+)
+language plpgsql
+security definer
+set search_path = public
+as $
+declare
+  v_reversal public.platform_held_group_member_reversals%rowtype;
+  v_prior_provider bigint;
+begin
+  select *
+    into v_reversal
+    from public.platform_held_group_member_reversals
+   where id = p_reversal_id;
+
+  if not found then
+    return;
+  end if;
+
+  select coalesce(sum(r.amount_cents), 0)
+    into v_prior_provider
+    from public.platform_held_group_member_reversals r
+   where r.member_id = v_reversal.member_id
+     and (
+       r.created_at < v_reversal.created_at
+       or (
+         r.created_at = v_reversal.created_at
+         and r.id < v_reversal.id
+       )
+     );
+
+  return query
+  with cumulative as (
+    select *
+      from public.klyx_group_member_provider_allocations(
+        v_reversal.member_id,
+        v_prior_provider + v_reversal.amount_cents
+      )
+  ),
+  prior as (
+    select *
+      from public.klyx_group_member_provider_allocations(
+        v_reversal.member_id,
+        v_prior_provider
+      )
+  )
+  select
+    cumulative.booking_id,
+    cumulative.amount_cents - coalesce(prior.amount_cents, 0)
+  from cumulative
+  left join prior using (booking_id);
+end;
+$;
+
 create or replace function public.klyx_sync_group_member_central_ledger(
   p_member_id uuid
 )
@@ -658,9 +791,8 @@ begin
   loop
     for v_amount in
       select *
-        from public.klyx_group_member_provider_allocations(
-          v_member.id,
-          v_reversal.amount_cents
+        from public.klyx_group_reversal_booking_allocations(
+          v_reversal.id
         )
     loop
       perform public.klyx_append_financial_ledger_event(
@@ -785,9 +917,8 @@ begin
   loop
     for v_amount in
       select *
-        from public.klyx_group_member_amount_allocations(
-          v_member.id,
-          v_refund_allocation.gross_refund_cents
+        from public.klyx_group_refund_booking_allocations(
+          v_refund_allocation.allocation_id
         )
     loop
       perform public.klyx_append_financial_ledger_event(
@@ -961,6 +1092,10 @@ revoke all on function public.klyx_group_member_amount_allocations(uuid, bigint)
   from public, anon, authenticated;
 revoke all on function public.klyx_group_member_provider_allocations(uuid, bigint)
   from public, anon, authenticated;
+revoke all on function public.klyx_group_refund_booking_allocations(uuid)
+  from public, anon, authenticated;
+revoke all on function public.klyx_group_reversal_booking_allocations(uuid)
+  from public, anon, authenticated;
 revoke all on function public.klyx_sync_group_member_central_ledger(uuid)
   from public, anon, authenticated;
 revoke all on function public.klyx_sync_group_central_ledger(uuid)
@@ -991,6 +1126,12 @@ comment on function public.klyx_group_member_booking_economics(uuid) is
 
 comment on function public.klyx_group_member_provider_allocations(uuid, bigint) is
   'Deterministically allocates provider-side movements such as Transfer and Reversal from frozen per-booking provider economics.';
+
+comment on function public.klyx_group_refund_booking_allocations(uuid) is
+  'Allocates each succeeded group refund as the delta between cumulative booking allocations before and after that refund, preventing rounding drift across partial refunds.';
+
+comment on function public.klyx_group_reversal_booking_allocations(uuid) is
+  'Allocates each Transfer reversal as the delta between cumulative provider allocations before and after that reversal, preventing rounding drift across partial reversals.';
 
 comment on function public.klyx_sync_group_member_central_ledger(uuid) is
   'Idempotently mirrors platform-held group/split charge, commission, provider liability, transfer, reversal and refund truth into the canonical append-only KLYX ledger.';
