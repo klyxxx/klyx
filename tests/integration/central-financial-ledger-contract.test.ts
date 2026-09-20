@@ -125,6 +125,15 @@ describe("KLYX central financial ledger", () => {
     expect(migration).toContain(
       "klyx_record_financial_reconciliation_decision"
     );
+    expect(migration).toContain(
+      "immutable_reconciliation_event_key_conflict"
+    );
+    expect(migration).toContain(
+      "KLYX_FINANCIAL_RECONCILIATION_EVENT_CONFLICT"
+    );
+    expect(migration).toContain(
+      "'human_review',\n    'immutable_reconciliation_event_key_conflict',\n    'system'"
+    );
     expect(server).toContain("openFinancialReconciliationCase");
     expect(server).toContain("recordFinancialReconciliationDecision");
   });
