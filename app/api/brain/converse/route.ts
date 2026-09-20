@@ -309,7 +309,8 @@ async function serviceResponse(params: {
     text(responseBody.conversationId) ||
     params.conversationId ||
     null;
-  const workflow = resolvedConversationId
+  const workflow =
+    resolvedConversationId && payload.intentMode !== "offer_services"
     ? await resolveAssistantWorkflow({
         accountId: params.accountId,
         profileId: params.profileId,
