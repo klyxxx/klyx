@@ -266,6 +266,11 @@ describe("KLYX central financial ledger", () => {
   it("supports payout observations without creating payouts", () => {
     expect(server).toContain("recordObservedStripePayout");
     expect(server).toContain('movementType: "payout"');
+    expect(server).toContain("providerAccountId: string");
+    expect(server).toContain('"account_stripe_connect_identities"');
+    expect(server).toContain('"KLYX_FINANCIAL_LEDGER_PAYOUT_IDENTITY_MISMATCH"');
+    expect(server).toContain("beneficiaryRef: providerAccountId");
+    expect(server).not.toContain("providerRef: string");
     expect(server).toContain('source: "payout_observation"');
     expect(server).toContain("previousState?: string | null");
     expect(server).toContain("previousState: input.previousState ?? null");
