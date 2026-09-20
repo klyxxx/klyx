@@ -346,10 +346,12 @@ create or replace function public.klyx_record_financial_reconciliation_decision(
 returns uuid
 language plpgsql
 security definer
-set search_path = public
-as $$
+set search_path = public, extensions
+as $
 declare
   v_id uuid;
+  v_existing public.financial_reconciliation_events%rowtype;
+  v_conflict_key text;
 begin
   if p_state not in ('reconciliation', 'human_review', 'resolved') then
     raise exception 'KLYX_FINANCIAL_RECONCILIATION_STATE_INVALID';
@@ -381,16 +383,94 @@ begin
   on conflict (event_key) do nothing
   returning id into v_id;
 
-  if v_id is null then
-    select id
-      into v_id
-      from public.financial_reconciliation_events
-     where event_key = p_event_key;
+  if v_id is not null then
+    return v_id;
   end if;
 
-  return v_id;
+  select *
+    into v_existing
+    from public.financial_reconciliation_events
+   where event_key = p_event_key;
+
+  if not found then
+    raise exception 'KLYX_FINANCIAL_RECONCILIATION_EVENT_NOT_WRITABLE';
+  end if;
+
+  if v_existing.case_id = p_case_id
+     and v_existing.state = p_state
+     and v_existing.cause = p_cause
+     and v_existing.actor_type = 'human'
+     and v_existing.actor_ref = p_actor_ref
+     and v_existing.details = coalesce(p_details, '{}'::jsonb) then
+    return v_existing.id;
+  end if;
+
+  v_conflict_key := concat(
+    'case:',
+    p_case_id::text,
+    ':human_review:immutable-reconciliation-event-key-conflict:',
+    encode(
+      digest(
+        concat_ws(
+          '|',
+          p_event_key,
+          v_existing.case_id::text,
+          v_existing.state,
+          v_existing.cause,
+          coalesce(v_existing.actor_ref, ''),
+          v_existing.details::text,
+          p_case_id::text,
+          p_state,
+          p_cause,
+          p_actor_ref,
+          coalesce(p_details, '{}'::jsonb)::text
+        ),
+        'sha256'
+      ),
+      'hex'
+    )
+  );
+
+  insert into public.financial_reconciliation_events (
+    case_id,
+    event_key,
+    state,
+    cause,
+    actor_type,
+    actor_ref,
+    details
+  ) values (
+    p_case_id,
+    v_conflict_key,
+    'human_review',
+    'immutable_reconciliation_event_key_conflict',
+    'system',
+    null,
+    jsonb_build_object(
+      'conflicting_event_key', p_event_key,
+      'existing', jsonb_build_object(
+        'case_id', v_existing.case_id,
+        'state', v_existing.state,
+        'cause', v_existing.cause,
+        'actor_type', v_existing.actor_type,
+        'actor_ref', v_existing.actor_ref,
+        'details', v_existing.details
+      ),
+      'incoming', jsonb_build_object(
+        'case_id', p_case_id,
+        'state', p_state,
+        'cause', p_cause,
+        'actor_type', 'human',
+        'actor_ref', p_actor_ref,
+        'details', coalesce(p_details, '{}'::jsonb)
+      )
+    )
+  )
+  on conflict (event_key) do nothing;
+
+  raise exception 'KLYX_FINANCIAL_RECONCILIATION_EVENT_CONFLICT';
 end;
-$$;
+$;
 
 create or replace function public.klyx_append_financial_ledger_event(
   p_movement_key text,
