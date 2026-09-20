@@ -126,18 +126,18 @@ export function roundKlyxRationalToSafeInteger(
   denominator: bigint,
   mode: KlyxRoundingMode = "half_up"
 ): number {
-  if (denominator <= 0n) {
+  if (denominator <= BigInt(0)) {
     throw new Error("KLYX_MONEY_DENOMINATOR_INVALID");
   }
   if (mode !== "half_up") {
     throw new Error("KLYX_MONEY_ROUNDING_MODE_INVALID");
   }
 
-  const negative = numerator < 0n;
+  const negative = numerator < BigInt(0);
   const absolute = negative ? -numerator : numerator;
   const whole = absolute / denominator;
   const remainder = absolute % denominator;
-  const rounded = remainder * 2n >= denominator ? whole + 1n : whole;
+  const rounded = remainder * BigInt(2) >= denominator ? whole + BigInt(1) : whole;
   const signed = negative ? -rounded : rounded;
 
   const asNumber = Number(signed);
@@ -169,7 +169,7 @@ export function decimalToKlyxMinorUnits(
   let absoluteMinor = BigInt(`${whole}${kept}` || "0");
 
   if (dropped && rounding === "half_up" && Number(dropped[0]) >= 5) {
-    absoluteMinor += 1n;
+    absoluteMinor += BigInt(1);
   }
 
   const signed = negative ? -absoluteMinor : absoluteMinor;
@@ -230,7 +230,7 @@ export function calculateKlyxBasisPointsAmount(
 
   return roundKlyxRationalToSafeInteger(
     BigInt(amountMinor) * BigInt(basisPoints),
-    10_000n
+    10_00BigInt(0)
   );
 }
 
