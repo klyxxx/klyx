@@ -123,6 +123,37 @@ export async function transitionWorkflow(params: {
   return snapshotFromRow(firstRpcRow(data));
 }
 
+export async function completeSettlementWorkflow(params: {
+  accountId: string;
+  workflow: WorkflowSnapshot;
+  eventType?: string;
+  actorType: "server" | "system" | "operator";
+  payload?: Record<string, unknown>;
+}): Promise<WorkflowSnapshot> {
+  if (
+    params.workflow.mode !== "earn" ||
+    params.workflow.currentStep !== "settlement"
+  ) {
+    throw new Error("KLYX_WORKFLOW_SETTLEMENT_COMPLETION_INVALID");
+  }
+
+  const { data, error } = await supabaseAdmin.rpc(
+    "klyx_complete_settlement_workflow",
+    {
+      p_workflow_id: params.workflow.id,
+      p_account_id: params.accountId,
+      p_expected_version: params.workflow.version,
+      p_event_type: params.eventType ?? "settlement_completed",
+      p_actor_type: params.actorType,
+      p_payload: params.payload ?? {},
+    }
+  );
+
+  if (error) throw new Error(error.message);
+
+  return snapshotFromRow(firstRpcRow(data));
+}
+
 export async function findLatestActiveWorkflow(params: {
   accountId: string;
   conversationId?: string | null;
