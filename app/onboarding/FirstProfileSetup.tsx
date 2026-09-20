@@ -11,15 +11,14 @@ import {
   UserRound,
 } from "lucide-react";
 
-import KlyxSelect from "@/app/components/KlyxSelect";
+import KlyxMarketSelect from "@/app/components/KlyxMarketSelect";
 import { useKlyxLocale } from "@/app/components/KlyxLocaleProvider";
 import {
-  resolveKlyxFirstProfileLocale,
   translateKlyxFirstProfile,
   translateKlyxFirstProfileApiError,
   type KlyxFirstProfileMessageKey,
 } from "@/lib/klyx-first-profile-i18n";
-import { KLYX_SUPPORTED_MARKETS } from "@/lib/klyx-supported-markets";
+import { getKlyxMarket } from "@/lib/klyx-supported-markets";
 import { completeKlyxFirstProfileAnalytics } from "./KlyxFirstProfileAnalytics";
 
 // KLYX_FIRST_PROFILE_HANDOFF_13_87
@@ -46,7 +45,6 @@ function splitName(fullName: string) {
 export default function FirstProfileSetup({ initialFullName }: Props) {
   const router = useRouter();
   const { locale } = useKlyxLocale();
-  const pageLocale = resolveKlyxFirstProfileLocale(locale);
   const t = (key: KlyxFirstProfileMessageKey) =>
     translateKlyxFirstProfile(locale, key);
   const initialName = useMemo(() => splitName(initialFullName), [initialFullName]);
@@ -55,28 +53,9 @@ export default function FirstProfileSetup({ initialFullName }: Props) {
   const [lastName, setLastName] = useState(initialName.lastName);
   const [city, setCity] = useState("");
   const [countryCode, setCountryCode] = useState("");
+  const [currencyCode, setCurrencyCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-
-  const marketOptions = useMemo(() => {
-    let displayNames: Intl.DisplayNames | null = null;
-
-    try {
-      displayNames = new Intl.DisplayNames([pageLocale], { type: "region" });
-    } catch {
-      displayNames = null;
-    }
-
-    return [...KLYX_SUPPORTED_MARKETS]
-      .map((market) => {
-        const localizedName = displayNames?.of(market.countryCode);
-        return {
-          value: market.countryCode,
-          label: `${localizedName && localizedName !== market.countryCode ? localizedName : market.countryName} · ${market.currencyCode}`,
-        };
-      })
-      .sort((left, right) => left.label.localeCompare(right.label, pageLocale));
-  }, [pageLocale]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -95,6 +74,11 @@ export default function FirstProfileSetup({ initialFullName }: Props) {
       return;
     }
 
+    if (!/^[A-Z]{3}$/.test(currencyCode)) {
+      setErrorMessage(t("currencyRequired"));
+      return;
+    }
+
     setSubmitting(true);
     setErrorMessage("");
 
@@ -107,6 +91,7 @@ export default function FirstProfileSetup({ initialFullName }: Props) {
           lastName: cleanLastName,
           city: cleanCity,
           countryCode,
+          currencyCode,
           // Transitional schema value only; account capability is authoritative.
           accountType: "client",
           serviceId: null,
@@ -208,18 +193,48 @@ export default function FirstProfileSetup({ initialFullName }: Props) {
                 <Globe2 size={17} />
                 {t("market")}
               </span>
-              <KlyxSelect
+              <KlyxMarketSelect
                 value={countryCode}
-                onChange={setCountryCode}
-                placeholder={t("marketPlaceholder")}
-                options={marketOptions}
-                ariaLabel={t("market")}
+                onChange={(nextCountryCode) => {
+                  setCountryCode(nextCountryCode);
+                  const suggestedCurrency =
+                    getKlyxMarket(nextCountryCode)?.currencyCode ?? "";
+                  if (suggestedCurrency) {
+                    setCurrencyCode(suggestedCurrency);
+                  }
+                }}
+                required
               />
               <p className="mt-2 text-xs leading-5 text-muted-foreground">
                 {t("marketHint")}
               </p>
             </div>
           </div>
+
+          <label className="mt-5 block">
+            <span className="mb-2 flex items-center gap-2 text-sm font-black">
+              <Globe2 size={17} />
+              {t("currency")}
+            </span>
+            <input
+              value={currencyCode}
+              onChange={(event) =>
+                setCurrencyCode(
+                  event.target.value
+                    .replace(/[^a-zA-Z]/g, "")
+                    .slice(0, 3)
+                    .toUpperCase()
+                )
+              }
+              maxLength={3}
+              className="klyx-input"
+              placeholder={t("currencyPlaceholder")}
+              autoCapitalize="characters"
+            />
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">
+              {t("currencyHint")}
+            </p>
+          </label>
 
           <div className="mt-6 flex items-start gap-3 rounded-2xl border border-border bg-background p-4 text-sm text-muted-foreground">
             <ShieldCheck className="mt-0.5 shrink-0" size={18} />
