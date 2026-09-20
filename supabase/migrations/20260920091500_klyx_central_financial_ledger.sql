@@ -199,7 +199,7 @@ as $$
         coalesce(p_source, ''),
         coalesce(p_previous_state, ''),
         coalesce(p_new_state, ''),
-        coalesce(p_occurred_at::text, ''),
+        coalesce(extract(epoch from p_occurred_at)::text, ''),
         coalesce(p_details, '{}'::jsonb)::text
       ),
       'sha256'
