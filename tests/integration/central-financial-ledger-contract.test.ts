@@ -133,13 +133,22 @@ describe("KLYX central financial ledger", () => {
       "immutable_reconciliation_event_key_conflict"
     );
     expect(migration).toContain(
-      "KLYX_FINANCIAL_RECONCILIATION_EVENT_CONFLICT"
+      "KLYX_FINANCIAL_RECONCILIATION_CONFLICT_NOT_WRITABLE"
+    );
+    expect(migration).not.toContain(
+      "raise exception 'KLYX_FINANCIAL_RECONCILIATION_EVENT_CONFLICT'"
     );
     expect(migration).toContain(
       "'human_review',\n    'immutable_reconciliation_event_key_conflict',\n    'system'"
     );
     expect(server).toContain("openFinancialReconciliationCase");
     expect(server).toContain("recordFinancialReconciliationDecision");
+    expect(server).toContain(
+      'from("financial_reconciliation_events")'
+    );
+    expect(server).toContain(
+      "KLYX_FINANCIAL_RECONCILIATION_EVENT_CONFLICT"
+    );
   });
 
   it("mirrors certified platform-held group/split truth without inventing booking allocations", () => {
