@@ -419,16 +419,27 @@ export async function reconcileCanonicalFinancialTruth(
     settlement?.stripe_transfer_id &&
     settlement.stripe_transfer_reversal_id
   ) {
-    const reversal = await stripe.transfers.retrieveReversal(
+    const reversals = await stripe.transfers.listReversals(
       settlement.stripe_transfer_id,
-      settlement.stripe_transfer_reversal_id
+      { limit: 100 }
     );
+    const reversal =
+      reversals.data.find(
+        (candidate) =>
+          candidate.id === settlement.stripe_transfer_reversal_id
+      ) ?? null;
 
-    stripeReversalSnapshot = {
-      reversalId: reversal.id,
-      amount: reversal.amount,
-      balanceTransactionId: stripeObjectId(reversal.balance_transaction),
-    };
+    if (!reversal) {
+      divergences.push({
+        code: "stripe_reversal_identity_missing",
+        detail: "Settlement reversal identity is absent from Stripe.",
+      });
+    } else {
+      stripeReversalSnapshot = {
+        reversalId: reversal.id,
+        amount: reversal.amount,
+        balanceTransactionId: stripeObjectId(reversal.balance_transaction),
+      };
 
     const reversalIds = idsForMovement(
       ledger,
@@ -442,12 +453,13 @@ export async function reconcileCanonicalFinancialTruth(
       "ledger_reversal_missing",
       "Settlement/Stripe reversal exists but canonical ledger has no matching reversal."
     );
-    add(
-      divergences,
-      sumMovement(ledger, "reversal") !== reversal.amount,
-      "ledger_reversal_amount_divergence",
-      "Canonical reversal amount differs from Stripe reversal amount."
-    );
+      add(
+        divergences,
+        sumMovement(ledger, "reversal") !== reversal.amount,
+        "ledger_reversal_amount_divergence",
+        "Canonical reversal amount differs from Stripe reversal amount."
+      );
+    }
   }
 
   let stripeRefundSnapshot: Record<string, unknown> = {};
