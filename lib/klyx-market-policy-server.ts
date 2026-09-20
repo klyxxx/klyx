@@ -42,6 +42,8 @@ type CurrencyCapabilityRow = {
   stripe_charge_exponent: number;
   stripe_charge_increment: number;
   stripe_payout_increment: number;
+  minimum_charge_amount: number | null;
+  maximum_charge_amount: number | null;
   zero_decimal: boolean;
   source_ref: string | null;
   source_checked_at: string | null;
@@ -86,6 +88,10 @@ function mapCapability(row: CurrencyCapabilityRow): KlyxPaymentCurrencyCapabilit
     stripeChargeExponent: row.stripe_charge_exponent,
     stripeChargeIncrement: row.stripe_charge_increment,
     stripePayoutIncrement: row.stripe_payout_increment,
+    minimumChargeAmount:
+      row.minimum_charge_amount == null ? null : Number(row.minimum_charge_amount),
+    maximumChargeAmount:
+      row.maximum_charge_amount == null ? null : Number(row.maximum_charge_amount),
     zeroDecimal: row.zero_decimal,
     sourceRef: row.source_ref,
     sourceCheckedAt: row.source_checked_at,
@@ -142,7 +148,7 @@ export async function resolveKlyxMarketPaymentPolicy(params: {
     supabaseAdmin
       .from("klyx_payment_currency_capabilities")
       .select(
-        "provider,currency_code,charge_enabled,payout_enabled,settlement_enabled,accounting_exponent,stripe_charge_exponent,stripe_charge_increment,stripe_payout_increment,zero_decimal,source_ref,source_checked_at"
+        "provider,currency_code,charge_enabled,payout_enabled,settlement_enabled,accounting_exponent,stripe_charge_exponent,stripe_charge_increment,stripe_payout_increment,minimum_charge_amount,maximum_charge_amount,zero_decimal,source_ref,source_checked_at"
       )
       .eq("provider", "stripe")
       .eq("currency_code", currencyCode)
