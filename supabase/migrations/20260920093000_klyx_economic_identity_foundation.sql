@@ -32,6 +32,7 @@ create table if not exists public.economic_identities (
   updated_at timestamptz not null default now(),
 
   constraint economic_identities_account_key unique (account_id),
+  constraint economic_identities_id_account_key unique (id, account_id),
   constraint economic_identities_status_check
     check (status in (
       'created',
@@ -118,6 +119,8 @@ create table if not exists public.economic_legal_entities (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
 
+  constraint economic_legal_entities_id_identity_key
+    unique (id, economic_identity_id),
   constraint economic_legal_entities_type_check
     check (entity_type in (
       'individual',
@@ -183,9 +186,7 @@ create table if not exists public.economic_persons (
   economic_identity_id uuid not null
     references public.economic_identities(id)
     on delete cascade,
-  legal_entity_id uuid
-    references public.economic_legal_entities(id)
-    on delete cascade,
+  legal_entity_id uuid,
   relationship text not null,
   is_primary boolean not null default false,
   source text not null default 'account',
@@ -197,6 +198,12 @@ create table if not exists public.economic_persons (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
 
+  constraint economic_persons_id_identity_key
+    unique (id, economic_identity_id),
+  constraint economic_persons_legal_entity_identity_fkey
+    foreign key (legal_entity_id, economic_identity_id)
+    references public.economic_legal_entities(id, economic_identity_id)
+    on delete cascade,
   constraint economic_persons_relationship_check
     check (relationship in (
       'self',
@@ -255,12 +262,8 @@ create table if not exists public.economic_verification_cases (
   economic_identity_id uuid not null
     references public.economic_identities(id)
     on delete cascade,
-  legal_entity_id uuid
-    references public.economic_legal_entities(id)
-    on delete set null,
-  economic_person_id uuid
-    references public.economic_persons(id)
-    on delete set null,
+  legal_entity_id uuid,
+  economic_person_id uuid,
   trust_verification_id uuid
     references public.trust_verifications(id)
     on delete set null,
@@ -284,6 +287,16 @@ create table if not exists public.economic_verification_cases (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
 
+  constraint economic_verification_cases_id_identity_key
+    unique (id, economic_identity_id),
+  constraint economic_verification_cases_legal_entity_identity_fkey
+    foreign key (legal_entity_id, economic_identity_id)
+    references public.economic_legal_entities(id, economic_identity_id)
+    on delete set null,
+  constraint economic_verification_cases_person_identity_fkey
+    foreign key (economic_person_id, economic_identity_id)
+    references public.economic_persons(id, economic_identity_id)
+    on delete set null,
   constraint economic_verification_cases_type_format_check
     check (
       char_length(verification_type) between 2 and 120
@@ -356,10 +369,12 @@ create unique index if not exists economic_verification_cases_external_requireme
 -- 4. STRIPE IS A PROVIDER PROJECTION, NEVER KLYX AUTHORITY
 -- ============================================================
 
+create unique index if not exists account_stripe_connect_account_stripe_pair_unique
+  on public.account_stripe_connect_identities (account_id, stripe_account_id);
+
 create table if not exists public.economic_stripe_account_projections (
-  economic_identity_id uuid primary key
-    references public.economic_identities(id)
-    on delete cascade,
+  economic_identity_id uuid primary key,
+  account_id uuid not null,
   stripe_account_id text not null,
   country_code text,
   business_type text,
@@ -376,6 +391,14 @@ create table if not exists public.economic_stripe_account_projections (
   provider_observed_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
 
+  constraint economic_stripe_projection_identity_account_fkey
+    foreign key (economic_identity_id, account_id)
+    references public.economic_identities(id, account_id)
+    on delete cascade,
+  constraint economic_stripe_projection_canonical_stripe_fkey
+    foreign key (account_id, stripe_account_id)
+    references public.account_stripe_connect_identities(account_id, stripe_account_id)
+    on delete cascade,
   constraint economic_stripe_projection_country_code_check
     check (
       country_code is null
@@ -413,9 +436,7 @@ create table if not exists public.economic_restrictions (
   economic_identity_id uuid not null
     references public.economic_identities(id)
     on delete cascade,
-  verification_case_id uuid
-    references public.economic_verification_cases(id)
-    on delete set null,
+  verification_case_id uuid,
   trust_case_id uuid
     references public.trust_cases(id)
     on delete set null,
@@ -435,6 +456,10 @@ create table if not exists public.economic_restrictions (
     on delete set null,
   created_at timestamptz not null default now(),
 
+  constraint economic_restrictions_verification_identity_fkey
+    foreign key (verification_case_id, economic_identity_id)
+    references public.economic_verification_cases(id, economic_identity_id)
+    on delete set null,
   constraint economic_restrictions_action_format_check
     check (
       char_length(restricted_action) between 2 and 120
@@ -841,6 +866,7 @@ begin
 
   insert into public.economic_stripe_account_projections (
     economic_identity_id,
+    account_id,
     stripe_account_id,
     country_code,
     business_type,
@@ -859,6 +885,7 @@ begin
   )
   values (
     v_economic_identity_id,
+    p_account_id,
     trim(p_stripe_account_id),
     nullif(upper(trim(coalesce(p_country_code, ''))), ''),
     nullif(trim(coalesce(p_business_type, '')), ''),
@@ -877,6 +904,7 @@ begin
   )
   on conflict (economic_identity_id) do update
   set
+    account_id = excluded.account_id,
     stripe_account_id = excluded.stripe_account_id,
     country_code = excluded.country_code,
     business_type = excluded.business_type,
@@ -912,6 +940,7 @@ begin
     null,
     coalesce(v_before, '{}'::jsonb),
     jsonb_build_object(
+      'account_id', p_account_id,
       'stripe_account_id', trim(p_stripe_account_id),
       'country_code', nullif(upper(trim(coalesce(p_country_code, ''))), ''),
       'business_type', nullif(trim(coalesce(p_business_type, '')), ''),
