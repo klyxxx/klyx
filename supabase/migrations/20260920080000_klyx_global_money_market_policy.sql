@@ -107,6 +107,7 @@ create index if not exists klyx_market_payment_rules_lookup_idx
 
 create table if not exists public.klyx_fx_quotes (
   id uuid primary key default gen_random_uuid(),
+  client_profile_id uuid not null references public.profiles(id) on delete cascade,
   provider text not null,
   provider_quote_id text,
   source_currency text not null,
@@ -129,6 +130,9 @@ create table if not exists public.klyx_fx_quotes (
   constraint klyx_fx_status_check
     check (status in ('usable', 'expired', 'consumed', 'revoked'))
 );
+
+create index if not exists klyx_fx_quotes_client_status_idx
+  on public.klyx_fx_quotes (client_profile_id, status, lock_expires_at);
 
 create unique index if not exists klyx_fx_quotes_provider_quote_uidx
   on public.klyx_fx_quotes (provider, provider_quote_id)
