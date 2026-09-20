@@ -139,6 +139,11 @@ alter table public.bookings
   add column if not exists presentment_currency text,
   add column if not exists subtotal_amount_minor bigint,
   add column if not exists tax_amount_minor bigint,
+  add column if not exists tax_mode text,
+  add column if not exists tax_rate_bps integer,
+  add column if not exists tax_inclusive boolean,
+  add column if not exists tax_liability text,
+  add column if not exists stripe_tax_code text,
   add column if not exists commission_bps integer,
   add column if not exists commission_amount_minor bigint,
   add column if not exists total_amount_minor bigint,
@@ -188,6 +193,9 @@ begin
       check (
         (subtotal_amount_minor is null or subtotal_amount_minor >= 0)
         and (tax_amount_minor is null or tax_amount_minor >= 0)
+        and (tax_rate_bps is null or tax_rate_bps between 0 and 10000)
+        and (tax_mode is null or tax_mode in ('none', 'fixed_rate', 'stripe_tax', 'external'))
+        and (tax_liability is null or tax_liability in ('provider', 'platform', 'stripe'))
         and (commission_amount_minor is null or commission_amount_minor >= 0)
         and (total_amount_minor is null or total_amount_minor >= 0)
         and (provider_amount_minor is null or provider_amount_minor >= 0)
@@ -196,6 +204,17 @@ begin
   end if;
 end
 $$;
+
+
+alter table public.booking_financial_ledger
+  add column if not exists gross_amount_minor bigint,
+  add column if not exists tax_amount_minor bigint,
+  add column if not exists commission_amount_minor bigint,
+  add column if not exists platform_fee_minor bigint,
+  add column if not exists provider_amount_minor bigint,
+  add column if not exists refund_amount_minor bigint,
+  add column if not exists market_payment_rule_id uuid,
+  add column if not exists fx_quote_id uuid;
 
 alter table public.klyx_payment_currency_capabilities enable row level security;
 alter table public.klyx_market_payment_rules enable row level security;
