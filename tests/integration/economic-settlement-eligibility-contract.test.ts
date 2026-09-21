@@ -43,6 +43,22 @@ describe("Mission 11 economic settlement eligibility contract", () => {
     );
   });
 
+  it("requires a verified primary legal subject and explicit KYC/KYB evidence before settlement", () => {
+    expect(eligibility).toContain('"economic_legal_entities"');
+    expect(eligibility).toContain('"economic_persons"');
+    expect(eligibility).toContain("ECONOMIC_LEGAL_SUBJECT_MISSING");
+    expect(eligibility).toContain("ECONOMIC_LEGAL_SUBJECT_NOT_VERIFIED");
+    expect(eligibility).toContain("ECONOMIC_LEGAL_SUBJECT_EXPIRED");
+    expect(eligibility).toContain("ECONOMIC_LEGAL_SUBJECT_RESTRICTED");
+    expect(eligibility).toContain("ECONOMIC_VERIFICATION_MISSING");
+  });
+
+  it("blocks a required missing qualification and jurisdiction restriction before settlement", () => {
+    expect(eligibility).toContain("ACCOUNT_QUALIFICATION_MISSING");
+    expect(eligibility).toContain("trustDecisionRequiresQualification");
+    expect(eligibility).toContain("ECONOMIC_COUNTRY_RESTRICTED");
+  });
+
   it("never treats Stripe payouts_enabled as sufficient authorization", () => {
     expect(eligibility).toContain("stripeProjection.payouts_enabled");
     expect(eligibility).toContain("ACCOUNT_OFFER_SERVICES_CAPABILITY_DENIED");
