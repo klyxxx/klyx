@@ -65,6 +65,7 @@ type FinancialCriticalSignalRow = {
 type TickCounters = {
   reconciliationEnqueued: number;
   alertsEnqueued: number;
+  sentinelEnqueued: number;
   claimed: number;
   completed: number;
   failed: number;
@@ -262,6 +263,40 @@ function criticalAlertPayload(input: {
   };
 }
 
+async function enqueueCriticalAlertSentinel(): Promise<number> {
+  const dayBucket = new Date().toISOString().slice(0, 10);
+  const deduplicationKey =
+    `klyx-critical-alert-sentinel:${dayBucket}`;
+
+  const result = await enqueueKlyxDurableJob({
+    jobType: CRITICAL_ALERT_JOB,
+    idempotencyKey: deduplicationKey,
+    payload: {
+      deduplicationKey,
+      signalType: "runtime_alert_delivery_sentinel",
+      sourceType: "financial_worker",
+      reasonCode: "SENTINEL",
+      dimension: "operations",
+      occurredAt: new Date().toISOString(),
+      sentinel: true,
+    },
+    domainType: "operations",
+    domainResourceType: "alert_delivery",
+    domainResourceId: "critical-alert-sentinel",
+    failureDomainType: "global",
+    failureDomainKey: "critical-alert-delivery",
+    paymentProvider: "stripe",
+    capability: "alerts",
+    dependency: "resend",
+    priority: 1,
+    maxAttempts: 8,
+    backoffBaseSeconds: 60,
+    backoffMaxSeconds: 3600,
+  });
+
+  return result.created ? 1 : 0;
+}
+
 async function enqueueCriticalAlertJobs(): Promise<number> {
   const [opsResult, financialResult] = await Promise.all([
     supabaseAdmin
@@ -407,6 +442,7 @@ async function processCriticalAlertJob(
   const reasonCode = payloadText(job.payload, "reasonCode");
   const dimension = payloadText(job.payload, "dimension");
   const occurredAt = payloadText(job.payload, "occurredAt");
+  const sentinel = job.payload.sentinel === true;
 
   if (
     !deduplicationKey ||
@@ -418,8 +454,17 @@ async function processCriticalAlertJob(
     throw new Error("KLYX_FINANCIAL_WORKER_ALERT_PAYLOAD_INVALID");
   }
 
-  const subject = `[KLYX CRITICAL] ${signalType}`;
-  const text = [
+  const subject = sentinel
+    ? "[KLYX OPS SENTINEL] canal d'alerte opérationnel"
+    : `[KLYX CRITICAL] ${signalType}`;
+  const text = sentinel
+    ? [
+        "Sentinel KLYX : le canal d'alerte critique est joignable.",
+        "",
+        `Occurred at: ${occurredAt}`,
+        "Aucune action n'est requise.",
+      ].join("\n")
+    : [
     "Une alerte critique KLYX est ouverte.",
     "",
     `Type: ${signalType}`,
@@ -434,7 +479,9 @@ async function processCriticalAlertJob(
 
   const result = await sendKlyxDeduplicatedEmail({
     deduplicationKey,
-    templateKey: "critical_operational_alert",
+    templateKey: sentinel
+      ? "critical_operational_alert_sentinel"
+      : "critical_operational_alert",
     to: alertEmail,
     subject,
     text,
@@ -550,6 +597,7 @@ export async function runFinancialRuntimeTick(): Promise<{
   const counters: TickCounters = {
     reconciliationEnqueued: 0,
     alertsEnqueued: 0,
+    sentinelEnqueued: 0,
     claimed: 0,
     completed: 0,
     failed: 0,
@@ -560,6 +608,7 @@ export async function runFinancialRuntimeTick(): Promise<{
   counters.reconciliationEnqueued =
     await enqueueFinancialReconciliationJobs();
   counters.alertsEnqueued = await enqueueCriticalAlertJobs();
+  counters.sentinelEnqueued = await enqueueCriticalAlertSentinel();
 
   const workerId =
     `financial-worker:${sourceSha}:${randomUUID()}`;
@@ -608,6 +657,7 @@ export async function runFinancialRuntimeTick(): Promise<{
       reconciliationEnqueued:
         counters.reconciliationEnqueued,
       alertsEnqueued: counters.alertsEnqueued,
+      sentinelEnqueued: counters.sentinelEnqueued,
     },
   });
 
