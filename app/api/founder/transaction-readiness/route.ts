@@ -6,6 +6,8 @@ import {
   requireKlyxFounder,
 } from "@/lib/founder-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { requireLiveFinancialMutationAuthorized } from "@/lib/live-financial-runtime-gate";
+import { inspectLiveFinancialStaticGate } from "@/lib/live-financial-runtime-policy";
 import { getKlyxOpsCapabilityDecision } from "@/lib/ops-control-server";
 import { logServerError } from "@/lib/server-log";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -71,6 +73,49 @@ export async function GET() {
     await requireKlyxFounder();
 
     const checks: Check[] = [];
+
+    const configuredStripeMode =
+      process.env.KLYX_STRIPE_MODE?.trim().toLowerCase() ?? "";
+
+    if (configuredStripeMode === "live") {
+      const liveGate = inspectLiveFinancialStaticGate();
+
+      for (const gateCheck of liveGate.checks) {
+        checks.push({
+          key: `live_${gateCheck.key}`,
+          label: `LIVE · ${gateCheck.key}`,
+          ok: gateCheck.ok,
+          detail: gateCheck.detail,
+          severity: "blocking",
+        });
+      }
+
+      try {
+        await requireLiveFinancialMutationAuthorized({
+          mutation: "checkout",
+        });
+
+        checks.push({
+          key: "live_operational_gate",
+          label: "LIVE · operational gate",
+          ok: true,
+          detail:
+            "Ops controls, ledger, reconciliation, DLQ and critical monitoring permit a LIVE mutation.",
+          severity: "blocking",
+        });
+      } catch (liveGateError) {
+        checks.push({
+          key: "live_operational_gate",
+          label: "LIVE · operational gate",
+          ok: false,
+          detail:
+            liveGateError instanceof Error
+              ? liveGateError.message
+              : "Le gate opérationnel LIVE est indisponible.",
+          severity: "blocking",
+        });
+      }
+    }
 
     checks.push({
       key: "stripe_secret",
