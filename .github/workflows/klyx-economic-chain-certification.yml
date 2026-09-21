@@ -1,4 +1,26 @@
-name: KLYX Economic Chain Stripe TEST Certification\n\non:\n  pull_request:\n    branches:\n      - main\n    paths:\n      - "lib/economic-settlement-eligibility-server.ts"\n      - "tests/integration/economic-chain-runtime-certification.test.ts"\n      - "tests/integration/economic-settlement-eligibility-contract.test.ts"\n      - "scripts/golden-path-economic-chain-settlement-network.mjs"\n      - ".github/workflows/klyx-economic-chain-certification.yml"\n      - "docs/economic-settlement-eligibility.md"\n\npermissions:\n  contents: read\n\nconcurrency:\n  group: klyx-economic-chain-pr\n  cancel-in-progress: false\n\njobs:\n  economic-chain:
+name: KLYX Economic Chain Stripe TEST Certification
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "lib/economic-settlement-eligibility-server.ts"
+      - "tests/integration/economic-chain-runtime-certification.test.ts"
+      - "tests/integration/economic-settlement-eligibility-contract.test.ts"
+      - "scripts/golden-path-economic-chain-settlement-network.mjs"
+      - ".github/workflows/klyx-economic-chain-certification.yml"
+      - "docs/economic-settlement-eligibility.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: klyx-economic-chain-pr
+  cancel-in-progress: false
+
+jobs:
+  economic-chain:
     name: Economic identity to Stripe TEST settlement proof
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-22.04
