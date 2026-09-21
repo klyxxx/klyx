@@ -75,7 +75,7 @@ describe("Mission 19 end-to-end autonomous KLYX contract", () => {
     expect(continuity).toContain("w.profile_id = p_profile_id");
     expect(continuity).toContain("w.conversation_id is null");
     expect(continuity).toContain("for update;");
-    expect(continuity).toContain("version = version + 1");
+    expect(continuity).toContain("version = workflow.version + 1");
     expect(continuity).toContain("'workflow_conversation_rebound'");
     expect(continuity).toContain("to service_role");
     expect(continuity).toContain("from public, anon, authenticated");
