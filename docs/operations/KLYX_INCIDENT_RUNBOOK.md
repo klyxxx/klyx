@@ -182,6 +182,12 @@ The sentinel:
 
 A failed scheduled workflow is an operational alert in GitHub Actions. External paging/notification services are intentionally not assumed or claimed by this repository.
 
+`KLYX Financial Operations Pulse` is the scheduled financial alert path. It
+runs the fenced financial reconciliation worker and then evaluates critical
+Mission 16 monitoring signals. A degraded worker or any critical signal makes
+the scheduled run fail. Its database heartbeat is written by the deployed KLYX
+runtime and is bound to that runtime's `VERCEL_GIT_COMMIT_SHA`.
+
 ## Closure record
 
 Before closing an incident, capture a sanitized summary:
