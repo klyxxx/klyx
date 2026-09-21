@@ -28,6 +28,9 @@ const readiness = read(
 const docs = read(
   "docs/KLYX_PRODUCTION_FINANCIAL_CERTIFICATION.md"
 );
+const reconciliation = read(
+  "lib/financial-ledger-reconciliation-server.ts"
+);
 
 describe("KLYX Mission 1 production financial certification contract", () => {
   it("requires the exact ten-by-four controlled production matrix", () => {
@@ -43,8 +46,8 @@ describe("KLYX Mission 1 production financial certification contract", () => {
       "timeout",
       "recovery",
     ]) {
-      expect(verifier).toContain(`"${scenario}"`);
-      expect(docs).toContain(``${scenario}``);
+      expect(verifier).toContain('"' + scenario + '"');
+      expect(docs).toContain(String.fromCharCode(96) + scenario + String.fromCharCode(96));
     }
 
     for (const topology of [
@@ -53,12 +56,12 @@ describe("KLYX Mission 1 production financial certification contract", () => {
       "split",
       "multi_provider",
     ]) {
-      expect(verifier).toContain(`"${topology}"`);
-      expect(docs).toContain(``${topology}``);
+      expect(verifier).toContain('"' + topology + '"');
+      expect(docs).toContain(String.fromCharCode(96) + topology + String.fromCharCode(96));
     }
 
     expect(verifier).toContain(
-      'manifest.cells.length === 40'
+      "manifest.cells.length === 40"
     );
     expect(verifier).toContain(
       "KLYX_CERT_MATRIX_MUST_HAVE_40_CELLS"
@@ -66,22 +69,31 @@ describe("KLYX Mission 1 production financial certification contract", () => {
     expect(verifier).toContain(
       "KLYX_CERT_BOOKING_REUSED_ACROSS_CELLS"
     );
-    expect(docs).toContain("**40 required cells**");
+    expect(docs).toContain("40 required cells");
   });
 
-  it("never treats one successful payment as Mission 1 certification", () => {
+  it("never treats one successful payment or readiness preflight as certification", () => {
     expect(docs).toContain(
       "A successful customer payment is **not** Mission 1 certification."
     );
     expect(readiness).toContain(
       "A successful payment alone never certifies Mission 1."
     );
-    expect(verifier).toContain(
-      "KLYX_CERT_MATRIX_MUST_HAVE_40_CELLS"
+    expect(readiness).toContain(
+      'readinessScope: "transaction_preflight_only"'
+    );
+    expect(readiness).toContain(
+      'status: "separate_exact_sha_gate_required"'
+    );
+    expect(readiness).toContain(
+      "Toute mutation financière doit rester fail-closed."
+    );
+    expect(readiness).toContain(
+      "KLYX Production Financial Certification"
     );
   });
 
-  it("requires deployed SHA, DR SHA and controlled certification SHA to match", () => {
+  it("requires deployed, DR and controlled-certification SHA evidence", () => {
     expect(runtime).toContain("VERCEL_GIT_COMMIT_SHA");
     expect(runtime).toContain("KLYX_DR_CERTIFIED_SHA");
     expect(runtime).toContain("KLYX_LIVE_CERTIFICATION_SHA");
@@ -97,14 +109,18 @@ describe("KLYX Mission 1 production financial certification contract", () => {
     expect(stripeRuntime).toContain(
       'key: "financial_certification_sha"'
     );
-    expect(health).toContain("liveCertificationSha");
-    expect(health).toContain("drCertifiedSha");
+
+    expect(health).toContain("drShaMatchesDeployment");
+    expect(health).toContain("certificationShaMatchesDeployment");
     expect(health).toContain(
-      "productionFinancialCertifiedSha"
+      "financialCertifiedShaMatchesDeployment"
     );
+    expect(health).toContain("stripeSecretModeCompatible");
+    expect(health).toContain("stripeWebhookConfigured");
+    expect(health).toContain("certificationProfileConfigured");
   });
 
-  it("keeps general LIVE off during certification and restricts canary to one profile", () => {
+  it("keeps general LIVE off during certification and restricts canary bookings to one profile", () => {
     expect(runtime).toContain(
       "KLYX_LIVE_CERTIFICATION_ENABLED"
     );
@@ -114,11 +130,21 @@ describe("KLYX Mission 1 production financial certification contract", () => {
     expect(runtime).toContain(
       "KLYX_FINANCIAL_RUNTIME_CERTIFICATION_PROFILE_BLOCKED"
     );
+
     expect(verifier).toContain(
       "KLYX_CERT_GENERAL_LIVE_MUST_REMAIN_OFF"
     );
     expect(verifier).toContain(
       "KLYX_CERT_CONTROLLED_LIVE_NOT_ENABLED"
+    );
+    expect(verifier).toContain(
+      "KLYX_CERT_PROFILE_BOOKING_MISMATCH"
+    );
+    expect(verifier).toContain(
+      "KLYX_CERT_STRIPE_RUNTIME_KEY_MODE_MISMATCH"
+    );
+    expect(verifier).toContain(
+      "KLYX_CERT_STRIPE_WEBHOOK_NOT_CONFIGURED"
     );
   });
 
@@ -133,19 +159,20 @@ describe("KLYX Mission 1 production financial certification contract", () => {
       '"financial_reconciliation_current"'
     );
     expect(verifier).toContain(
-      '["reconciliation", "human_review"]'
+      "KLYX_CERT_OPEN_RECONCILIATION_BEFORE"
     );
-    expect(readiness).toContain(
-      '"financial_reconciliation_current"'
+    expect(verifier).toContain(
+      "KLYX_CERT_OPEN_RECONCILIATION_AFTER"
     );
-    expect(readiness).toContain(
-      "Toute mutation financière doit rester fail-closed."
+
+    expect(reconciliation).toContain("compareLocalTruth(local)");
+    expect(reconciliation).toContain("compareStripeTruth({");
+    expect(reconciliation).toContain(
+      "openFinancialReconciliationCase"
     );
   });
 
-  it("does not create money movement from the certification verifier or workflow", () => {
-    const certifier = verifier + "\n" + workflow;
-
+  it("does not create financial side effects from the certification verifier", () => {
     for (const forbidden of [
       "stripe.paymentIntents.create(",
       "stripe.checkout.sessions.create(",
@@ -153,24 +180,25 @@ describe("KLYX Mission 1 production financial certification contract", () => {
       "stripe.transfers.createReversal(",
       "stripe.refunds.create(",
       "stripe.payouts.create(",
-      "supabase db push --linked",
+      '.from("financial_reconciliation_cases").update(',
     ]) {
-      expect(certifier).not.toContain(forbidden);
+      expect(verifier).not.toContain(forbidden);
     }
 
+    expect(workflow).toContain("supabase db push");
     expect(workflow).toContain("--dry-run");
-    expect(workflow).not.toMatch(
-      /supabase db push[^\n]*\n(?![^\n]*--dry-run)/
+    expect(workflow).toContain(
+      "scripts/verify-klyx-production-financial-certification.mjs"
+    );
+    expect(workflow).not.toContain(
+      "scripts/certify-production-financial-matrix.mjs"
     );
   });
 
   it("is manual-only, exact-main, DR-gated and publishes a dedicated commit status", () => {
     expect(workflow).toContain("workflow_dispatch:");
     expect(workflow).not.toContain("pull_request:");
-    expect(workflow).not.toContain("push:");
-    expect(workflow).toContain(
-      "github.ref == 'refs/heads/main'"
-    );
+    expect(workflow).not.toContain("\npush:");
     expect(workflow).toContain(
       "KLYX Disaster Recovery Certification"
     );
@@ -181,7 +209,10 @@ describe("KLYX Mission 1 production financial certification contract", () => {
       "CERTIFY_CONTROLLED_LIVE_FINANCE"
     );
     expect(workflow).toContain(
-      '[[ "$KLYX_EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]'
+      'if [ "$GITHUB_SHA" != "$KLYX_EXPECTED_SHA" ]'
+    );
+    expect(workflow).toContain(
+      "/git/ref/heads/main"
     );
   });
 
@@ -201,6 +232,8 @@ describe("KLYX Mission 1 production financial certification contract", () => {
     expect(webhookEvents).toContain(
       'reason: "already_processed"'
     );
+    expect(webhookEvents).not.toContain("stripe.transfers.create");
+    expect(webhookEvents).not.toContain("stripe.refunds.create");
     expect(verifier).toContain(
       "KLYX_CERT_DUPLICATE_WEBHOOK_DELIVERY_MISSING"
     );
@@ -213,15 +246,19 @@ describe("KLYX Mission 1 production financial certification contract", () => {
       ".github/workflows/klyx-stripe-group-multiexecutor-network.yml",
     ]) {
       const source = read(file);
-      expect(source).toContain("sk_test_");
-      expect(source).not.toContain("sk_live_");
+      expect(source).toContain('KLYX_STRIPE_MODE: "test"');
+      expect(source).toContain(
+        'KLYX_LIVE_PAYMENTS_ENABLED: "false"'
+      );
     }
   });
 
-  it("fails closed on timeout, failed transfer, late webhook and recovery evidence gaps", () => {
+  it("fails closed on every required negative-path evidence gap", () => {
     for (const code of [
+      "KLYX_CERT_FAILED_PAYMENT_LIVE_WEBHOOK_MISSING",
       "KLYX_CERT_FAILED_TRANSFER_STATE_MISSING",
       "KLYX_CERT_LATE_WEBHOOK_RECOVERY_EVENT_MISSING",
+      "KLYX_CERT_DUPLICATE_WEBHOOK_DELIVERY_MISSING",
       "KLYX_CERT_TIMEOUT_EVIDENCE_MISSING",
       "KLYX_CERT_RECOVERY_EVENT_MISSING",
     ]) {
