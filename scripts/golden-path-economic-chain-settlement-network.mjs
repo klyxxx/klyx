@@ -31,6 +31,19 @@ function v2TransferStatus(account) {
   );
 }
 
+function v2PayoutStatus(account) {
+  return (
+    account?.configuration?.recipient?.capabilities?.stripe_balance
+      ?.payouts?.status ?? null
+  );
+}
+
+function v2CurrentRequirementCount(account) {
+  return Array.isArray(account?.requirements?.entries)
+    ? account.requirements.entries.length
+    : 0;
+}
+
 async function requestJson({
   appOrigin,
   accessToken,
@@ -203,20 +216,12 @@ async function loadRealStripeRecipient(stripe, providerId) {
     "Stripe TEST transfer capability is not active."
   );
   assert(
-    legacy.details_submitted === true,
-    "Stripe TEST details_submitted is not green."
+    v2PayoutStatus(v2) === "active",
+    "Stripe TEST payout capability is not active."
   );
   assert(
-    legacy.payouts_enabled === true,
-    "Stripe TEST payouts_enabled is not green."
-  );
-  assert(
-    legacy.requirements?.currently_due?.length === 0,
-    "Stripe TEST still has currently_due requirements."
-  );
-  assert(
-    legacy.requirements?.past_due?.length === 0,
-    "Stripe TEST still has past_due requirements."
+    v2CurrentRequirementCount(v2) === 0,
+    "Stripe TEST recipient still has active requirements."
   );
 
   return {
@@ -474,6 +479,10 @@ async function bookingEconomicContext(admin, booking) {
 async function clearEconomicFacts(admin, accountId, identityId) {
   for (const operation of [
     admin
+      .from("economic_stripe_account_projections")
+      .delete()
+      .eq("economic_identity_id", identityId),
+    admin
       .from("economic_restrictions")
       .delete()
       .eq("economic_identity_id", identityId),
@@ -504,7 +513,6 @@ async function establishVerifiedEconomicChain({
   admin,
   accountId,
   providerId,
-  stripeAccount,
   booking,
 }) {
   const { data: identity, error: identityReadError } = await admin
@@ -643,37 +651,6 @@ async function establishVerifiedEconomicChain({
     });
   if (trustError) throw new Error(trustError.message);
 
-  const { error: projectionError } = await admin
-    .from("economic_stripe_account_projections")
-    .upsert(
-      {
-        economic_identity_id: identity.id,
-        account_id: accountId,
-        stripe_account_id: stripeAccount.id,
-        country_code: stripeAccount.country,
-        business_type: stripeAccount.business_type,
-        details_submitted: stripeAccount.details_submitted,
-        charges_enabled: stripeAccount.charges_enabled,
-        payouts_enabled: stripeAccount.payouts_enabled,
-        currently_due:
-          stripeAccount.requirements?.currently_due ?? [],
-        eventually_due:
-          stripeAccount.requirements?.eventually_due ?? [],
-        past_due: stripeAccount.requirements?.past_due ?? [],
-        pending_verification:
-          stripeAccount.requirements?.pending_verification ?? [],
-        requirement_errors:
-          stripeAccount.requirements?.errors ?? [],
-        disabled_reason:
-          stripeAccount.requirements?.disabled_reason ?? null,
-        capabilities: stripeAccount.capabilities ?? {},
-        provider_observed_at: now.toISOString(),
-        updated_at: now.toISOString(),
-      },
-      { onConflict: "economic_identity_id" }
-    );
-  if (projectionError) throw new Error(projectionError.message);
-
   return {
     identityId: identity.id,
     ...context,
@@ -770,6 +747,38 @@ async function progressToCompletion({
       note: "Economic-chain Stripe TEST certification.",
     },
   });
+}
+
+async function loadEconomicStripeProjection(
+  admin,
+  accountId,
+  stripeAccountId
+) {
+  const { data, error } = await admin
+    .from("economic_stripe_account_projections")
+    .select(
+      "account_id, stripe_account_id, details_submitted, payouts_enabled, currently_due, past_due, pending_verification, requirement_errors, disabled_reason, capabilities, provider_observed_at"
+    )
+    .eq("account_id", accountId)
+    .eq("stripe_account_id", stripeAccountId)
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+function projectionTransferStatus(projection) {
+  return (
+    projection?.capabilities?.stripe_balance?.stripe_transfers?.status ??
+    projection?.capabilities?.transfers ??
+    null
+  );
+}
+
+function projectionPayoutStatus(projection) {
+  return (
+    projection?.capabilities?.stripe_balance?.payouts?.status ??
+    null
+  );
 }
 
 async function latestEconomicDecision(admin, bookingId) {
@@ -928,7 +937,6 @@ async function main() {
       admin,
       accountId,
       providerId: provider.id,
-      stripeAccount: recipient.legacy,
       booking: blockedPayment.booking,
     });
     await addCountryRestriction(
@@ -963,9 +971,36 @@ async function main() {
       admin,
       blockedPayment.booking.id
     );
+    const blockedProjection = await loadEconomicStripeProjection(
+      admin,
+      accountId,
+      recipient.legacy.id
+    );
     const blockedAfter = await transferMatches(
       stripe,
       blockedPayment.settlement
+    );
+
+    assert(
+      blockedProjection.details_submitted === true &&
+        blockedProjection.payouts_enabled === true,
+      "Server-observed Stripe projection is not green."
+    );
+    assert(
+      (blockedProjection.currently_due ?? []).length === 0 &&
+        (blockedProjection.past_due ?? []).length === 0 &&
+        (blockedProjection.pending_verification ?? []).length === 0 &&
+        (blockedProjection.requirement_errors ?? []).length === 0 &&
+        blockedProjection.disabled_reason === null,
+      "Server-observed Stripe projection still contains blocking requirements."
+    );
+    assert(
+      projectionTransferStatus(blockedProjection) === "active",
+      "Server-observed Stripe transfer capability is not active."
+    );
+    assert(
+      projectionPayoutStatus(blockedProjection) === "active",
+      "Server-observed Stripe payout capability is not active."
     );
 
     assert(
@@ -1013,7 +1048,6 @@ async function main() {
       admin,
       accountId,
       providerId: provider.id,
-      stripeAccount: recipient.legacy,
       booking: verifiedPayment.booking,
     });
     await insertRiskAllow(
@@ -1095,11 +1129,18 @@ async function main() {
           ],
           stripeGreen: {
             accountId: recipient.legacy.id,
-            detailsSubmitted: true,
-            payoutsEnabled: true,
-            requirementsCurrentlyDue: 0,
-            requirementsPastDue: 0,
-            recipientTransferCapability: "active",
+            source: blockedProjection.capabilities?.source ?? "accounts_v2",
+            detailsSubmitted: blockedProjection.details_submitted,
+            payoutsEnabled: blockedProjection.payouts_enabled,
+            requirementsCurrentlyDue:
+              (blockedProjection.currently_due ?? []).length,
+            requirementsPastDue:
+              (blockedProjection.past_due ?? []).length,
+            recipientTransferCapability:
+              projectionTransferStatus(blockedProjection),
+            payoutCapability:
+              projectionPayoutStatus(blockedProjection),
+            providerObservedAt: blockedProjection.provider_observed_at,
           },
           blockedProof: {
             bookingId: blockedPayment.booking.id,
