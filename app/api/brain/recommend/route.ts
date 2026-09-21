@@ -15,6 +15,10 @@ import type {
   ProviderSearchItem,
   ProviderSearchResponse,
 } from "@/lib/provider-search";
+import {
+  getKlyxMarketLiquidity,
+  type KlyxMarketLiquidityResult,
+} from "@/lib/market-liquidity-server";
 
 type RecommendBody = {
   serviceSlug?: unknown;
@@ -51,6 +55,15 @@ type RecommendationResponse = {
   recommendation: RecommendationSolution | null;
   solutions: RecommendationSolution[];
   orchestration: ReturnType<typeof orchestrateServiceRequest>;
+  marketSignal: {
+    technicalSupport: KlyxMarketLiquidityResult["technicalSupport"]["status"];
+    liquidityState: KlyxMarketLiquidityResult["liquidity"]["liquidityState"];
+    actuallyLiquid: boolean;
+    fulfillmentProbabilityBps: number | null;
+    matureDemandCount: number;
+    windowDays: number;
+    reasons: string[];
+  };
 };
 
 function cleanString(value: unknown, maximumLength: number): string {
@@ -162,6 +175,29 @@ export async function POST(request: Request) {
       );
     }
 
+    const marketLiquidity = await getKlyxMarketLiquidity({
+      serviceSlug,
+      countryCode: profile.countryCode,
+      currencyCode: profile.currencyCode,
+      windowDays: 30,
+    });
+
+    if (marketLiquidity.technicalSupport.status === "unsupported") {
+      return NextResponse.json(
+        {
+          error:
+            "Ce service n’est pas techniquement activé dans ce marché KLYX.",
+          code: "KLYX_MARKET_SERVICE_TECHNICALLY_UNSUPPORTED",
+          marketSignal: {
+            technicalSupport: marketLiquidity.technicalSupport.status,
+            liquidityState: marketLiquidity.liquidity.liquidityState,
+            actuallyLiquid: false,
+          },
+        },
+        { status: 409 }
+      );
+    }
+
     const params = new URLSearchParams({
       service: serviceSlug,
       city,
@@ -172,6 +208,9 @@ export async function POST(request: Request) {
       analytics: "0",
     });
 
+    if (/^[A-Z]{2}$/.test(profile.countryCode.toUpperCase())) {
+      params.set("country", profile.countryCode.toUpperCase());
+    }
     if (pricingType !== "all") params.set("pricing", pricingType);
 
     // Le budget n'est volontairement pas envoyé à l'ancien filtre de recherche.
@@ -296,6 +335,17 @@ export async function POST(request: Request) {
       recommendation: primary,
       solutions,
       orchestration,
+      marketSignal: {
+        technicalSupport: marketLiquidity.technicalSupport.status,
+        liquidityState: marketLiquidity.liquidity.liquidityState,
+        actuallyLiquid: marketLiquidity.liquidity.actuallyLiquid,
+        fulfillmentProbabilityBps:
+          marketLiquidity.liquidity.metrics.fulfillmentProbabilityBps,
+        matureDemandCount:
+          marketLiquidity.liquidity.metrics.matureDemandCount,
+        windowDays: marketLiquidity.windowDays,
+        reasons: marketLiquidity.liquidity.reasons,
+      },
     };
 
     return NextResponse.json(result);
