@@ -1,3 +1,4 @@
+// MISSION19_CERTIFICATION_REPLAY: exact-SHA PR checks must execute this harness.
 import { randomUUID } from "node:crypto";
 
 import { createClient } from "@supabase/supabase-js";
