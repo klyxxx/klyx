@@ -501,6 +501,28 @@ async function processCriticalAlertJob(
   throw new Error("KLYX_FINANCIAL_WORKER_ALERT_DELIVERY_FAILED");
 }
 
+async function criticalAlertBacklogCount(): Promise<number> {
+  const { count, error } = await supabaseAdmin
+    .from("ops_durable_jobs")
+    .select("id", { count: "exact", head: true })
+    .eq("job_type", CRITICAL_ALERT_JOB)
+    .in("status", [
+      "queued",
+      "running",
+      "retry_wait",
+      "dead_lettered",
+    ]);
+
+  if (error) {
+    throw new Error(
+      "KLYX_FINANCIAL_WORKER_ALERT_BACKLOG_READ_FAILED",
+      { cause: error }
+    );
+  }
+
+  return count ?? 0;
+}
+
 async function processReconciliationJob(
   job: ClaimedKlyxDurableJob
 ): Promise<string> {
@@ -684,8 +706,11 @@ export async function runFinancialRuntimeTick(): Promise<{
   const alertConfigured =
     Boolean(alertEmail) &&
     Boolean(process.env.RESEND_API_KEY?.trim());
+  const alertBacklog = await criticalAlertBacklogCount();
   const alertStatus =
-    alertConfigured && counters.alertDeliveryFailures === 0
+    alertConfigured &&
+    counters.alertDeliveryFailures === 0 &&
+    alertBacklog === 0
       ? "healthy"
       : "degraded";
 
@@ -698,6 +723,7 @@ export async function runFinancialRuntimeTick(): Promise<{
       delivered: counters.alertDeliveries,
       failures: counters.alertDeliveryFailures,
       queued: counters.alertsEnqueued,
+      backlog: alertBacklog,
     },
   });
 
