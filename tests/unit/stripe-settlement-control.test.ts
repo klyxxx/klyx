@@ -5,6 +5,7 @@ import {
   getKlyxSettlementMode,
   KLYX_LEGACY_SETTLEMENT_MODE,
   KLYX_PLATFORM_HELD_SETTLEMENT_MODE,
+  KLYX_SETTLEMENT_LIVE_NOT_ARMED,
   KLYX_SETTLEMENT_LIVE_NOT_READY,
   KLYX_SETTLEMENT_MODE_INVALID,
   KLYX_SETTLEMENT_TEST_NOT_ARMED,
@@ -12,14 +13,23 @@ import {
 } from "@/lib/stripe-settlement-control";
 
 describe("KLYX settlement control mode", () => {
-  it("keeps the certified destination-charge mode by default", () => {
+  it("keeps the certified destination-charge mode only in TEST by default", () => {
     expect(
       getKlyxSettlementMode({
         KLYX_STRIPE_SETTLEMENT_MODE: undefined,
         KLYX_SETTLEMENT_CONTROL_TEST_READY: undefined,
-        STRIPE_SECRET_KEY: "sk_live_example",
+        STRIPE_SECRET_KEY: "sk_test_example",
       })
     ).toBe(KLYX_LEGACY_SETTLEMENT_MODE);
+  });
+
+  it("never falls back to destination-charge settlement in LIVE", () => {
+    expect(() =>
+      getKlyxSettlementMode({
+        KLYX_STRIPE_SETTLEMENT_MODE: undefined,
+        STRIPE_SECRET_KEY: "sk_live_example",
+      })
+    ).toThrow(KLYX_SETTLEMENT_LIVE_NOT_READY);
   });
 
   it("refuses unknown settlement modes", () => {
@@ -42,14 +52,24 @@ describe("KLYX settlement control mode", () => {
     ).toThrow(KLYX_SETTLEMENT_TEST_NOT_ARMED);
   });
 
-  it("hard-blocks platform-held mode with a live Stripe secret", () => {
+  it("requires explicit static LIVE capability for platform-held mode", () => {
     expect(() =>
       getKlyxSettlementMode({
         KLYX_STRIPE_SETTLEMENT_MODE: "platform_held",
-        KLYX_SETTLEMENT_CONTROL_TEST_READY: "true",
+        KLYX_SETTLEMENT_CONTROL_LIVE_READY: undefined,
         STRIPE_SECRET_KEY: "sk_live_example",
       })
-    ).toThrow(KLYX_SETTLEMENT_LIVE_NOT_READY);
+    ).toThrow(KLYX_SETTLEMENT_LIVE_NOT_ARMED);
+  });
+
+  it("makes platform-held LIVE code-capable only when explicitly enabled", () => {
+    expect(
+      getKlyxSettlementMode({
+        KLYX_STRIPE_SETTLEMENT_MODE: "platform_held",
+        KLYX_SETTLEMENT_CONTROL_LIVE_READY: "true",
+        STRIPE_SECRET_KEY: "sk_live_example",
+      })
+    ).toBe(KLYX_PLATFORM_HELD_SETTLEMENT_MODE);
   });
 
   it("allows the architecture only in explicitly armed Stripe TEST mode", () => {
