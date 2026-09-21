@@ -99,6 +99,26 @@ async function healthExactSha(productionUrl, expectedSha) {
     body?.environment === "production",
     `Vercel environment must be production, got ${body?.environment ?? "null"}.`
   );
+  assert(
+    body?.financialRuntime?.stripeMode === "live",
+    "Controlled production certification requires KLYX_STRIPE_MODE=live."
+  );
+  assert(
+    body?.financialRuntime?.generalLiveEnabled === false,
+    "General LIVE payments must remain OFF during controlled certification."
+  );
+  assert(
+    body?.financialRuntime?.controlledCertificationEnabled === true,
+    "Controlled LIVE certification switch is not enabled."
+  );
+  assert(
+    body?.financialRuntime?.drShaMatchesDeployment === true,
+    "Deployed SHA is not the configured DR-certified SHA."
+  );
+  assert(
+    body?.financialRuntime?.certificationShaMatchesDeployment === true,
+    "Deployed SHA is not the configured controlled-certification SHA."
+  );
 }
 
 async function reconcileBooking(productionUrl, secret, bookingId) {
