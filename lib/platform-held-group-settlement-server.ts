@@ -1461,10 +1461,7 @@ export async function reconcilePlatformHeldGroupRefundFromStripe(
   }
 
   const charge = await stripe.charges.retrieve(chargeId);
-  if (
-    stripeRefund.livemode !== expectedLive ||
-    charge.livemode !== expectedLive
-  ) {
+  if (charge.livemode !== expectedLive) {
     throw new Error("KLYX_GROUP_HELD_REFUND_LIVEMODE_MISMATCH");
   }
 
