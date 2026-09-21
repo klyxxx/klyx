@@ -6,6 +6,10 @@ import Stripe from "stripe";
 import type { AuthenticatedAccount } from "@/lib/api-auth";
 import { canReceiveSettlementForBooking } from "@/lib/economic-settlement-eligibility-server";
 import {
+  requireKlyxFinancialStripeObservationRuntime,
+  requireKlyxFinancialStripeRuntime,
+} from "@/lib/klyx-financial-stripe-runtime";
+import {
   assertAggregateTransferCapacity,
   calculateCumulativeGroupRefundDelta,
   validateExplicitGroupRefundAllocations,
@@ -14,6 +18,7 @@ import {
 } from "@/lib/group-multiexecutor-settlement-economics";
 import {
   getProviderStripeDestination,
+  getProviderStripeDestinationStrict,
   isStripeConnectIdentityReviewRequired,
 } from "@/lib/stripe-connect-account";
 import { readStripeSettlementRecipientTruth } from "@/lib/stripe-settlement-recipient-truth";
@@ -25,8 +30,6 @@ import {
 } from "@/lib/transaction-risk-server";
 
 const PAYMENT_MODE = "platform_held_group" as const;
-const LIVE_FORBIDDEN = "KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY";
-const TEST_KEY_REQUIRED = "KLYX_SETTLEMENT_STRIPE_TEST_KEY_REQUIRED";
 
 type ParentRow = {
   id: string;
@@ -139,15 +142,6 @@ export type GroupRefundResult =
       reconciled: boolean;
     };
 
-function testStripeClient(): Stripe {
-  const key = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
-
-  if (key.startsWith("sk_live_")) throw new Error(LIVE_FORBIDDEN);
-  if (!key.startsWith("sk_test_")) throw new Error(TEST_KEY_REQUIRED);
-
-  return new Stripe(key);
-}
-
 function stripeObjectId(
   value: string | { id: string } | null | undefined
 ): string | null {
@@ -242,13 +236,16 @@ function verifyMemberTransfer(input: {
   transfer: Stripe.Transfer;
   parent: ParentRow;
   member: MemberRow;
+  expectedLive: boolean;
   expectedAmountCents?: number;
 }) {
-  const { transfer, parent, member } = input;
+  const { transfer, parent, member, expectedLive } = input;
   const expectedAmountCents =
     input.expectedAmountCents ?? memberExpectedTransferAmount(member);
 
-  if (transfer.livemode) throw new Error(LIVE_FORBIDDEN);
+  if (transfer.livemode !== expectedLive) {
+    throw new Error("KLYX_GROUP_HELD_TRANSFER_LIVEMODE_MISMATCH");
+  }
   if (
     transfer.metadata?.payment_mode !== PAYMENT_MODE ||
     transfer.metadata?.split_batch_id !== parent.batch_id ||
@@ -268,7 +265,8 @@ function verifyMemberTransfer(input: {
 async function listAndValidateTransfers(
   stripe: Stripe,
   parent: ParentRow,
-  members: MemberRow[]
+  members: MemberRow[],
+  expectedLive: boolean
 ) {
   if (!parent.stripe_charge_id) {
     throw new Error("KLYX_GROUP_HELD_SOURCE_CHARGE_REQUIRED");
@@ -285,7 +283,9 @@ async function listAndValidateTransfers(
   let netTotal = 0;
 
   for (const transfer of listed.data) {
-    if (transfer.livemode) throw new Error(LIVE_FORBIDDEN);
+    if (transfer.livemode !== expectedLive) {
+      throw new Error("KLYX_GROUP_HELD_TRANSFER_LIVEMODE_MISMATCH");
+    }
 
     const memberId = transfer.metadata?.group_settlement_member_id?.trim() ?? "";
     const member = memberById.get(memberId);
@@ -302,7 +302,7 @@ async function listAndValidateTransfers(
       throw new Error("KLYX_GROUP_HELD_UNKNOWN_OR_DIVERGENT_TRANSFER");
     }
 
-    verifyMemberTransfer({ transfer, parent, member });
+    verifyMemberTransfer({ transfer, parent, member, expectedLive });
     grossTotal += transfer.amount;
     netTotal += Math.max(
       transfer.amount - Number(transfer.amount_reversed ?? 0),
@@ -453,9 +453,14 @@ async function failReleaseClaim(
 export async function releasePlatformHeldGroupMember(
   memberId: string
 ): Promise<GroupMemberReleaseResult> {
-  const stripe = testStripeClient();
   let member = await loadMember(memberId);
   const parent = await loadParent(member.group_settlement_id);
+  const financialRuntime = await requireKlyxFinancialStripeRuntime({
+    clientProfileId: parent.client_profile_id,
+    capability: "settlement_release",
+  });
+  const stripe = new Stripe(financialRuntime.key);
+  const expectedLive = financialRuntime.mode !== "test";
 
   if (
     !parent.stripe_charge_id ||
@@ -470,7 +475,7 @@ export async function releasePlatformHeldGroupMember(
 
   let remote;
   try {
-    remote = await listAndValidateTransfers(stripe, parent, members);
+    remote = await listAndValidateTransfers(stripe, parent, members, expectedLive);
   } catch (error) {
     await markParentReview(
       parent.id,
@@ -532,9 +537,12 @@ export async function releasePlatformHeldGroupMember(
   }
 
   try {
-    const destination = await getProviderStripeDestination(
-      member.provider_profile_id
-    );
+    const destination =
+      financialRuntime.mode === "test"
+        ? await getProviderStripeDestination(member.provider_profile_id)
+        : await getProviderStripeDestinationStrict(
+            member.provider_profile_id
+          );
 
     if (
       destination.accountId !== member.provider_account_id ||
@@ -601,7 +609,7 @@ export async function releasePlatformHeldGroupMember(
   try {
     member = await loadMember(member.id);
     members = await loadAllMembers(parent.id);
-    remote = await listAndValidateTransfers(stripe, parent, members);
+    remote = await listAndValidateTransfers(stripe, parent, members, expectedLive);
 
     const appeared = remote.byMember.get(member.id)?.[0] ?? null;
     if (appeared) {
@@ -647,19 +655,19 @@ export async function releasePlatformHeldGroupMember(
 
     if (
       stripeTruth.stripeAccountId !== member.stripe_account_id ||
-      stripeTruth.livemode ||
+      stripeTruth.livemode !== expectedLive ||
       !stripeTruth.transferCapabilityActive
     ) {
       await failReleaseClaim(
         member.id,
         claimToken,
         "stripe_recipient_not_ready_after_claim",
-        "Remote Stripe recipient truth does not permit a new TEST Transfer."
+        "Remote Stripe recipient truth does not permit the expected Transfer mode."
       );
       await markMemberReview(
         member.id,
         "stripe_recipient_not_ready_after_claim",
-        "Remote Stripe recipient truth does not permit a new TEST Transfer."
+        "Remote Stripe recipient truth does not permit the expected Transfer mode."
       );
       return { status: "review_required" };
     }
@@ -690,6 +698,7 @@ export async function releasePlatformHeldGroupMember(
       parent,
       member,
       expectedAmountCents: Number(claim.provider_amount_cents),
+      expectedLive,
     });
 
     const { data: finalized, error: finalizeError } = await supabaseAdmin.rpc(
@@ -1014,6 +1023,7 @@ async function processRequiredReversals(input: {
   parent: ParentRow;
   refund: RefundRow;
   allocations: AllocationRow[];
+  expectedLive: boolean;
 }) {
   let pending = false;
 
@@ -1033,7 +1043,12 @@ async function processRequiredReversals(input: {
     }
 
     const transfer = await input.stripe.transfers.retrieve(transferId);
-    verifyMemberTransfer({ transfer, parent: input.parent, member });
+    verifyMemberTransfer({
+      transfer,
+      parent: input.parent,
+      member,
+      expectedLive: input.expectedLive,
+    });
 
     const reversals = await input.stripe.transfers.listReversals(transferId, {
       limit: 100,
@@ -1179,8 +1194,13 @@ export async function refundPlatformHeldGroup(input: {
   requesterProfileId: string;
   request: GroupRefundRequest;
 }): Promise<GroupRefundResult> {
-  const stripe = testStripeClient();
   const parent = await loadParentByBatch(input.batchId);
+  const financialRuntime = await requireKlyxFinancialStripeRuntime({
+    clientProfileId: parent.client_profile_id,
+    capability: "refunds",
+  });
+  const stripe = new Stripe(financialRuntime.key);
+  const expectedLive = financialRuntime.mode !== "test";
 
   if (parent.client_profile_id !== input.requesterProfileId) {
     throw new Error("KLYX_GROUP_HELD_REFUND_FORBIDDEN");
@@ -1263,6 +1283,7 @@ export async function refundPlatformHeldGroup(input: {
     parent,
     refund,
     allocations,
+    expectedLive,
   });
 
   refund = await loadRefund(refund.id);
@@ -1421,9 +1442,11 @@ export async function reconcilePlatformHeldGroupRefundFromStripe(
     return false;
   }
 
-  const stripe = testStripeClient();
   const refund = await loadRefund(stripeRefund.metadata.group_refund_id);
   const parent = await loadParent(refund.group_settlement_id);
+  const financialRuntime = requireKlyxFinancialStripeObservationRuntime();
+  const stripe = new Stripe(financialRuntime.key);
+  const expectedLive = financialRuntime.mode !== "test";
   const chargeId = stripeObjectId(stripeRefund.charge);
 
   if (
@@ -1444,7 +1467,9 @@ export async function reconcilePlatformHeldGroupRefundFromStripe(
   }
 
   const charge = await stripe.charges.retrieve(chargeId);
-  if (charge.livemode) throw new Error(LIVE_FORBIDDEN);
+  if (charge.livemode !== expectedLive) {
+    throw new Error("KLYX_GROUP_HELD_REFUND_LIVEMODE_MISMATCH");
+  }
 
   if (stripeRefund.status === "succeeded") {
     await finalizeRefund(refund, stripeRefund);

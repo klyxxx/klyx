@@ -4,6 +4,7 @@ import type Stripe from "stripe";
 
 import {
   getAccountStripeConnectIdentity,
+  getAccountStripeConnectIdentityStrict,
   markAccountStripeConnectIdentityForReview,
   persistAccountStripeConnectIdentity,
   STRIPE_CONNECT_IDENTITY_CONFLICT,
@@ -136,6 +137,27 @@ async function readinessForCanonicalIdentity(
     chargesEnabled: allReady("stripe_charges_enabled"),
     payoutsEnabled: allReady("stripe_payouts_enabled"),
     statusUpdatedAt: null,
+  };
+}
+
+export async function getCanonicalStripeConnectStrict(
+  accountId: string
+): Promise<CanonicalStripeConnect> {
+  const identity = await getAccountStripeConnectIdentityStrict(accountId);
+  const readiness = await readinessForCanonicalIdentity(
+    accountId,
+    identity.sourceProfileIds
+  );
+
+  return {
+    accountId,
+    stripeAccountId:
+      identity.state === "linked" ? identity.stripeAccountId : null,
+    state:
+      identity.state === "conflict"
+        ? "review_required"
+        : identity.state,
+    ...readiness,
   };
 }
 
@@ -304,6 +326,55 @@ export async function updateCanonicalStripeAccountStatus(input: {
     .eq("account_id", input.accountId);
 
   if (error) throw new Error(error.message);
+}
+
+export async function getProviderStripeDestinationStrict(
+  profileId: string
+): Promise<ProviderStripeDestination> {
+  const { data: profileData, error: profileError } = await supabaseAdmin
+    .from("profiles")
+    .select("id, account_id, country_code, stripe_account_id")
+    .eq("id", profileId)
+    .maybeSingle();
+
+  if (profileError) throw new Error(profileError.message);
+  if (!profileData) throw new Error("Prestataire introuvable.");
+
+  const profile = profileData as ProviderProfileStripeRow;
+
+  if (!profile.account_id) {
+    throw new StripeConnectIdentityReviewRequiredError(
+      "Le prestataire n'est pas rattaché à un compte KLYX canonique."
+    );
+  }
+
+  const connect = await getCanonicalStripeConnectStrict(profile.account_id);
+
+  if (
+    connect.state !== "linked" ||
+    !connect.stripeAccountId
+  ) {
+    throw new StripeConnectIdentityReviewRequiredError();
+  }
+
+  const legacyStripeAccountId = profile.stripe_account_id?.trim() || null;
+
+  if (
+    legacyStripeAccountId &&
+    legacyStripeAccountId !== connect.stripeAccountId
+  ) {
+    throw new StripeConnectIdentityReviewRequiredError(
+      "La projection profil Stripe diverge de l'identité canonique KLYX."
+    );
+  }
+
+  return {
+    profileId: profile.id,
+    accountId: profile.account_id,
+    countryCode: profile.country_code,
+    legacyStripeAccountId,
+    connect,
+  };
 }
 
 export async function getProviderStripeDestination(

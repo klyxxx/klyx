@@ -2,21 +2,8 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { requireKlyxFinancialStripeRuntimeForBooking } from "@/lib/klyx-financial-stripe-runtime";
 import { POST as corePost } from "./route-platform-held-core";
-
-function testStripeClient(): Stripe {
-  const key = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
-
-  if (key.startsWith("sk_live_")) {
-    throw new Error("KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY");
-  }
-
-  if (!key.startsWith("sk_test_")) {
-    throw new Error("KLYX_SETTLEMENT_STRIPE_TEST_KEY_REQUIRED");
-  }
-
-  return new Stripe(key);
-}
 
 /**
  * Cross-mode migration guard.
@@ -53,7 +40,9 @@ export async function POST(request: Request) {
     Boolean(checkoutSessionId) && booking?.payment_mode !== "platform_held";
 
   if (isCrossModeCheckout) {
-    const stripe = testStripeClient();
+    const financialRuntime =
+      await requireKlyxFinancialStripeRuntimeForBooking(bookingId);
+    const stripe = new Stripe(financialRuntime.key);
     const existingSession = await stripe.checkout.sessions.retrieve(
       checkoutSessionId
     );

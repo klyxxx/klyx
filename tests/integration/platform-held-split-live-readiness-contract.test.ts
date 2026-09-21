@@ -57,22 +57,26 @@ describe("KLYX true Split Settlement + Live Readiness contract", () => {
     const engine = read("lib/platform-held-group-settlement-server.ts");
 
     expect(proof).toContain("idempotentTransferCount");
-    expect(engine).toContain("await listAndValidateTransfers(stripe, parent, members)");
+    expect(engine).toContain("await listAndValidateTransfers(stripe, parent, members, expectedLive)");
     expect(engine).toContain("await input.stripe.transfers.listReversals");
     expect(engine).toContain("await stripe.refunds.list({");
   });
 
-  it("keeps all new Split money movement TEST-only", () => {
+  it("keeps automated Split network proof TEST-only and app LIVE behind the canary gate", () => {
     const workflow = read(
       ".github/workflows/klyx-stripe-split-settlement-network.yml"
     );
     const engine = read("lib/platform-held-group-settlement-server.ts");
+    const runtime = read("lib/klyx-financial-stripe-runtime.ts");
 
     expect(workflow).toContain('KLYX_STRIPE_MODE: "test"');
     expect(workflow).toContain('KLYX_LIVE_PAYMENTS_ENABLED: "false"');
     expect(workflow).toContain("sk_test_*");
-    expect(engine).toContain('key.startsWith("sk_live_")');
-    expect(engine).toContain('key.startsWith("sk_test_")');
+    expect(engine).toContain("requireKlyxFinancialStripeRuntime");
+    expect(runtime).toContain('key.startsWith("sk_live_")');
+    expect(runtime).toContain('key.startsWith("sk_test_")');
+    expect(runtime).toContain("KLYX_LIVE_CERTIFICATION_SHA");
+    expect(runtime).toContain("KLYX_DR_CERTIFIED_SHA");
   });
 
   it("defines a fail-closed eight-part Live Readiness Gate", () => {
@@ -91,8 +95,8 @@ describe("KLYX true Split Settlement + Live Readiness contract", () => {
       expect(gate).toContain(component);
     }
 
-    expect(gate).toContain("Live is OFF");
-    expect(gate).toContain("Live remains OFF");
-    expect(gate).toContain("KLYX Stripe Live remains OFF");
+    expect(gate).toContain("General Live is OFF");
+    expect(gate).toContain("general Stripe Live remains OFF");
+    expect(gate).toContain("40 scenario/topology cells");
   });
 });

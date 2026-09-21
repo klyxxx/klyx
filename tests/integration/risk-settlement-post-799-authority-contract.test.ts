@@ -56,7 +56,7 @@ describe("post-#799 Risk/Settlement integration authority", () => {
     expect(dispatcher).toContain("return corePost(request)");
   });
 
-  it("keeps Platform-Held TEST-only and group/split disabled", () => {
+  it("keeps Platform-Held fail-closed and routes controlled LIVE through one runtime authority", () => {
     const heldRoute = source(
       "app/api/stripe/create-checkout-session/route-platform-held.ts"
     );
@@ -64,14 +64,18 @@ describe("post-#799 Risk/Settlement integration authority", () => {
       "app/api/stripe/create-checkout-session/route-platform-held-core.ts"
     );
     const settlement = source("lib/booking-settlement-server.ts");
+    const runtime = source("lib/klyx-financial-stripe-runtime.ts");
 
-    expect(heldRoute).toContain('key.startsWith("sk_live_")');
-    expect(heldRoute).toContain('key.startsWith("sk_test_")');
+    expect(heldRoute).toContain("requireKlyxFinancialStripeRuntimeForBooking");
+    expect(heldCore).toContain("requireKlyxFinancialStripeRuntime");
     expect(heldCore).toContain("KLYX_PLATFORM_HELD_GROUP_NOT_SUPPORTED");
     expect(heldCore).toContain("KLYX_PLATFORM_HELD_SPLIT_NOT_SUPPORTED");
 
-    expect(settlement).toContain('key.startsWith("sk_live_")');
-    expect(settlement).toContain('key.startsWith("sk_test_")');
+    expect(settlement).toContain("requireKlyxFinancialStripeRuntimeForBooking");
+    expect(runtime).toContain('key.startsWith("sk_test_")');
+    expect(runtime).toContain('key.startsWith("sk_live_")');
+    expect(runtime).toContain("KLYX_LIVE_CERTIFICATION_PROFILE_ID");
+    expect(runtime).toContain("KLYX_PRODUCTION_FINANCIAL_CERTIFIED_SHA");
     expect(settlement).toContain("stripe.transfers.create");
     expect(settlement).toContain("transfers.createReversal");
   });

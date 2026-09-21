@@ -37,8 +37,9 @@ export async function readStripeSettlementRecipientTruth(
       return {
         stripeAccountId: account.id,
         // Stripe Accounts v1 does not expose a livemode field on Account.
-        // Settlement callers already construct a TEST-only Stripe client and
-        // reject sk_live_ before this helper is reachable.
+        // Return null rather than guessing. Mutation callers compare this field
+        // with the expected runtime mode and therefore fail closed when v2
+        // livemode evidence is unavailable.
         livemode: null,
         transferCapabilityActive:
           transferStatus === "active" && account.payouts_enabled === true,

@@ -16,9 +16,10 @@ import {
 import { assessKlyxStripeMarketAccess } from "@/lib/klyx-stripe-market-access";
 import {
   getProviderStripeDestination,
+  getProviderStripeDestinationStrict,
   isStripeConnectIdentityReviewRequired,
 } from "@/lib/stripe-connect-account";
-import { assertStripeRuntimeReady } from "@/lib/stripe-runtime";
+import { requireKlyxFinancialStripeRuntime } from "@/lib/klyx-financial-stripe-runtime";
 import {
   getKlyxSettlementMode,
   KLYX_PLATFORM_HELD_SETTLEMENT_MODE,
@@ -191,19 +192,6 @@ function planHash(plan: CanonicalPlan): string {
   return createHash("sha256").update(JSON.stringify(plan)).digest("hex");
 }
 
-function requiredTestStripe(): Stripe {
-  const key = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
-
-  if (key.startsWith("sk_live_")) {
-    throw new Error("KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY");
-  }
-  if (!key.startsWith("sk_test_")) {
-    throw new Error("KLYX_SETTLEMENT_STRIPE_TEST_KEY_REQUIRED");
-  }
-
-  return new Stripe(key);
-}
-
 async function loadConfirmation(
   batchId: string,
   clientProfileId: string
@@ -255,7 +243,7 @@ async function claimCheckout(parentId: string, claimToken: string) {
 
 async function buildFrozenPlan(input: {
   confirmation: ConfirmationRow;
-  stripeRuntimeMode: ReturnType<typeof assertStripeRuntimeReady>["mode"];
+  stripeRuntimeMode: "test" | "live";
   stripe: Stripe;
 }) {
   const plan = parseCanonicalPlan(input.confirmation.payment_plan_snapshot);
@@ -276,7 +264,10 @@ async function buildFrozenPlan(input: {
   const executorInputs: GroupExecutorInput[] = [];
 
   for (const unit of plan.units) {
-    const destination = await getProviderStripeDestination(unit.providerId);
+    const destination =
+      input.stripeRuntimeMode === "test"
+        ? await getProviderStripeDestination(unit.providerId)
+        : await getProviderStripeDestinationStrict(unit.providerId);
 
     if (
       destination.connect.state !== "linked" ||
@@ -294,7 +285,7 @@ async function buildFrozenPlan(input: {
     );
 
     const transferReady = Boolean(
-      remoteAccount.livemode === false &&
+      remoteAccount.livemode === (input.stripeRuntimeMode === "live") &&
         remoteAccount.applied_configurations?.includes("recipient") === true &&
         remoteAccount.configuration?.recipient?.applied === true &&
         remoteAccount.configuration?.recipient?.capabilities?.stripe_balance
@@ -466,14 +457,19 @@ export async function POST(request: Request, context: RouteContext) {
       throw new Error("KLYX_PLATFORM_HELD_MODE_NOT_ACTIVE");
     }
 
-    const stripe = requiredTestStripe();
-    const stripeRuntime = assertStripeRuntimeReady();
     const { user, profile } = await getAuthenticatedProfile(request);
     requireAccountType(profile, "client");
 
+    const financialRuntime = await requireKlyxFinancialStripeRuntime({
+      clientProfileId: profile.id,
+    });
+    const stripe = new Stripe(financialRuntime.key);
+    const stripeMode =
+      financialRuntime.mode === "test" ? "test" : "live";
+
     const clientMarket = assessKlyxStripeMarketAccess(
       profile.countryCode,
-      stripeRuntime.mode
+      stripeMode
     );
     if (!clientMarket.allowed) {
       return NextResponse.json(
@@ -501,7 +497,7 @@ export async function POST(request: Request, context: RouteContext) {
     const confirmation = await loadConfirmation(batchId, profile.id);
     const { plan, economics } = await buildFrozenPlan({
       confirmation,
-      stripeRuntimeMode: stripeRuntime.mode,
+      stripeRuntimeMode: stripeMode,
       stripe,
     });
 
@@ -548,8 +544,8 @@ export async function POST(request: Request, context: RouteContext) {
         claim.checkout_session_id
       );
 
-      if (existing.livemode) {
-        throw new Error("KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY");
+      if (existing.livemode !== (financialRuntime.mode !== "test")) {
+        throw new Error("KLYX_GROUP_HELD_CHECKOUT_LIVEMODE_MISMATCH");
       }
 
       const sameFlow =
@@ -648,8 +644,8 @@ export async function POST(request: Request, context: RouteContext) {
       }
     );
 
-    if (session.livemode) {
-      throw new Error("KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY");
+    if (session.livemode !== (financialRuntime.mode !== "test")) {
+      throw new Error("KLYX_GROUP_HELD_CHECKOUT_LIVEMODE_MISMATCH");
     }
     if (!session.url) {
       throw new Error("KLYX_GROUP_HELD_CHECKOUT_URL_MISSING");
