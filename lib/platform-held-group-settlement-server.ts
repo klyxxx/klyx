@@ -5,6 +5,7 @@ import Stripe from "stripe";
 
 import type { AuthenticatedAccount } from "@/lib/api-auth";
 import { canReceiveSettlementForBooking } from "@/lib/economic-settlement-eligibility-server";
+import { requireKlyxFinancialStripeRuntime } from "@/lib/klyx-financial-stripe-runtime";
 import {
   assertAggregateTransferCapacity,
   calculateCumulativeGroupRefundDelta,
@@ -25,8 +26,6 @@ import {
 } from "@/lib/transaction-risk-server";
 
 const PAYMENT_MODE = "platform_held_group" as const;
-const LIVE_FORBIDDEN = "KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY";
-const TEST_KEY_REQUIRED = "KLYX_SETTLEMENT_STRIPE_TEST_KEY_REQUIRED";
 
 type ParentRow = {
   id: string;
@@ -138,15 +137,6 @@ export type GroupRefundResult =
       stripeRefundId: string;
       reconciled: boolean;
     };
-
-function testStripeClient(): Stripe {
-  const key = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
-
-  if (key.startsWith("sk_live_")) throw new Error(LIVE_FORBIDDEN);
-  if (!key.startsWith("sk_test_")) throw new Error(TEST_KEY_REQUIRED);
-
-  return new Stripe(key);
-}
 
 function stripeObjectId(
   value: string | { id: string } | null | undefined
@@ -453,9 +443,12 @@ async function failReleaseClaim(
 export async function releasePlatformHeldGroupMember(
   memberId: string
 ): Promise<GroupMemberReleaseResult> {
-  const stripe = testStripeClient();
   let member = await loadMember(memberId);
   const parent = await loadParent(member.group_settlement_id);
+  const financialRuntime = await requireKlyxFinancialStripeRuntime({
+    clientProfileId: parent.client_profile_id,
+  });
+  const stripe = new Stripe(financialRuntime.key);
 
   if (
     !parent.stripe_charge_id ||
@@ -1179,8 +1172,11 @@ export async function refundPlatformHeldGroup(input: {
   requesterProfileId: string;
   request: GroupRefundRequest;
 }): Promise<GroupRefundResult> {
-  const stripe = testStripeClient();
   const parent = await loadParentByBatch(input.batchId);
+  const financialRuntime = await requireKlyxFinancialStripeRuntime({
+    clientProfileId: parent.client_profile_id,
+  });
+  const stripe = new Stripe(financialRuntime.key);
 
   if (parent.client_profile_id !== input.requesterProfileId) {
     throw new Error("KLYX_GROUP_HELD_REFUND_FORBIDDEN");
@@ -1421,9 +1417,12 @@ export async function reconcilePlatformHeldGroupRefundFromStripe(
     return false;
   }
 
-  const stripe = testStripeClient();
   const refund = await loadRefund(stripeRefund.metadata.group_refund_id);
   const parent = await loadParent(refund.group_settlement_id);
+  const financialRuntime = await requireKlyxFinancialStripeRuntime({
+    clientProfileId: parent.client_profile_id,
+  });
+  const stripe = new Stripe(financialRuntime.key);
   const chargeId = stripeObjectId(stripeRefund.charge);
 
   if (
