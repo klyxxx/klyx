@@ -778,23 +778,9 @@ set search_path = ''
 as $$
 begin
   if tg_op = 'INSERT' then
-    -- A submitted offer is at least a proven supply match, even for legacy
-    -- single-slot paths that do not persist a candidate snapshot.
-    perform public.klyx_insert_market_liquidity_event(
-      'offer:' || new.id::text || ':match',
-      'match_found',
-      new.request_id,
-      new.provider_profile_id,
-      new.id,
-      null,
-      null,
-      null,
-      null,
-      null,
-      new.created_at,
-      jsonb_build_object('source', 'market_service_offer')
-    );
-
+    -- Quote telemetry never fabricates discovery telemetry. A market can only
+    -- claim match/availability when an actual discovery/candidate observation
+    -- has been persisted.
     perform public.klyx_insert_market_liquidity_event(
       'offer:' || new.id::text || ':quote',
       'quote_created',
