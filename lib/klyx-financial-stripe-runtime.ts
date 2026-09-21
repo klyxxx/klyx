@@ -1,5 +1,6 @@
 import "server-only";
 
+import { getKlyxObservabilityFinancialMonitoringSnapshot } from "@/lib/observability-financial-monitoring-server";
 import { requireKlyxOpsCapabilityAvailable } from "@/lib/ops-control-server";
 import {
   assertStripeObservationRuntimeConfigured,
@@ -11,6 +12,12 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA_RE = /^[0-9a-f]{40}$/;
+const LIVE_HEARTBEAT_MAX_AGE_MS = 3 * 60 * 1000;
+
+export type KlyxFinancialCapability =
+  | "payments"
+  | "settlement_release"
+  | "refunds";
 
 function env(name: string): string {
   return process.env[name]?.trim() ?? "";
@@ -28,9 +35,11 @@ function exactSha(name: string): string {
   return value;
 }
 
-async function requireOpsPayments(): Promise<void> {
+async function requireOpsCapability(
+  capability: KlyxFinancialCapability
+): Promise<void> {
   await requireKlyxOpsCapabilityAvailable({
-    capability: "payments",
+    capability,
     paymentProvider: "stripe",
   });
 }
@@ -47,6 +56,132 @@ function requireExactLiveShaBoundary(): {
   }
 
   return { deployedSha, drCertifiedSha };
+}
+
+async function requireLiveRuntimeHeartbeats(
+  deployedSha: string
+): Promise<void> {
+  const threshold = new Date(
+    Date.now() - LIVE_HEARTBEAT_MAX_AGE_MS
+  ).toISOString();
+
+  const { data, error } = await supabaseAdmin
+    .from("ops_runtime_heartbeats")
+    .select("component, status, source_sha, last_seen_at")
+    .in("component", [
+      "financial_durable_worker",
+      "critical_alert_delivery",
+    ]);
+
+  if (error) {
+    throw new Error("KLYX_FINANCIAL_RUNTIME_HEARTBEAT_READ_FAILED", {
+      cause: error,
+    });
+  }
+
+  const rows = (data ?? []) as Array<{
+    component: string;
+    status: string;
+    source_sha: string;
+    last_seen_at: string;
+  }>;
+
+  for (const component of [
+    "financial_durable_worker",
+    "critical_alert_delivery",
+  ] as const) {
+    const row = rows.find((candidate) => candidate.component === component);
+
+    if (
+      !row ||
+      row.status !== "healthy" ||
+      row.source_sha?.trim().toLowerCase() !== deployedSha ||
+      !row.last_seen_at ||
+      row.last_seen_at < threshold
+    ) {
+      throw new Error(
+        `KLYX_FINANCIAL_RUNTIME_${component.toUpperCase()}_NOT_READY`
+      );
+    }
+  }
+}
+
+async function requireCanonicalLedgerHealthy(): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from("financial_ledger_current")
+    .select("booking_id", { count: "exact", head: true });
+
+  if (error) {
+    throw new Error("KLYX_FINANCIAL_RUNTIME_LEDGER_UNAVAILABLE", {
+      cause: error,
+    });
+  }
+}
+
+async function requireNoOpenFinancialReconciliation(): Promise<void> {
+  const { count, error } = await supabaseAdmin
+    .from("financial_reconciliation_current")
+    .select("id", { count: "exact", head: true })
+    .in("state", ["reconciliation", "human_review"]);
+
+  if (error) {
+    throw new Error("KLYX_FINANCIAL_RUNTIME_RECONCILIATION_UNAVAILABLE", {
+      cause: error,
+    });
+  }
+
+  if ((count ?? 0) > 0) {
+    throw new Error("KLYX_FINANCIAL_RUNTIME_RECONCILIATION_OPEN");
+  }
+}
+
+async function requireFinancialDlqEmpty(): Promise<void> {
+  const { count, error } = await supabaseAdmin
+    .from("ops_durable_job_dlq")
+    .select("id", { count: "exact", head: true })
+    .or(
+      "payment_provider.eq.stripe,capability.in.(payments,settlement,settlement_release,refunds,payouts)"
+    );
+
+  if (error) {
+    throw new Error("KLYX_FINANCIAL_RUNTIME_DLQ_UNAVAILABLE", {
+      cause: error,
+    });
+  }
+
+  if ((count ?? 0) > 0) {
+    throw new Error("KLYX_FINANCIAL_RUNTIME_DLQ_NOT_EMPTY");
+  }
+}
+
+async function requireNoCriticalFinancialSignal(): Promise<void> {
+  const monitoring =
+    await getKlyxObservabilityFinancialMonitoringSnapshot({
+      signalLimit: 250,
+    });
+
+  if (monitoring.severityCounts.critical > 0) {
+    throw new Error("KLYX_FINANCIAL_RUNTIME_CRITICAL_SIGNAL_OPEN");
+  }
+}
+
+async function requireLiveOperationalReadiness(input: {
+  deployedSha: string;
+  capability: KlyxFinancialCapability;
+}): Promise<void> {
+  await requireOpsCapability("payments");
+
+  if (input.capability !== "payments") {
+    await requireOpsCapability(input.capability);
+  }
+
+  await Promise.all([
+    requireLiveRuntimeHeartbeats(input.deployedSha),
+    requireCanonicalLedgerHealthy(),
+    requireNoOpenFinancialReconciliation(),
+    requireFinancialDlqEmpty(),
+    requireNoCriticalFinancialSignal(),
+  ]);
 }
 
 export type KlyxFinancialStripeRuntime = {
@@ -101,9 +236,11 @@ export function requireKlyxFinancialStripeObservationRuntime(): KlyxFinancialStr
 
 export async function requireKlyxFinancialStripeRuntime(input: {
   clientProfileId: string;
+  capability?: KlyxFinancialCapability;
 }): Promise<KlyxFinancialStripeRuntime> {
   const key = env("STRIPE_SECRET_KEY");
   const stripeMode = env("KLYX_STRIPE_MODE").toLowerCase();
+  const capability = input.capability ?? "payments";
 
   if (!UUID_RE.test(input.clientProfileId)) {
     throw new Error("KLYX_FINANCIAL_RUNTIME_CLIENT_PROFILE_INVALID");
@@ -146,7 +283,10 @@ export async function requireKlyxFinancialStripeRuntime(input: {
       throw new Error("KLYX_FINANCIAL_RUNTIME_CERTIFIED_SHA_MISMATCH");
     }
 
-    await requireOpsPayments();
+    await requireLiveOperationalReadiness({
+      deployedSha,
+      capability,
+    });
 
     return {
       key,
@@ -174,7 +314,10 @@ export async function requireKlyxFinancialStripeRuntime(input: {
     throw new Error("KLYX_FINANCIAL_RUNTIME_CERTIFICATION_PROFILE_BLOCKED");
   }
 
-  await requireOpsPayments();
+  await requireLiveOperationalReadiness({
+    deployedSha,
+    capability,
+  });
 
   return {
     key,
@@ -184,7 +327,8 @@ export async function requireKlyxFinancialStripeRuntime(input: {
 }
 
 export async function requireKlyxFinancialStripeRuntimeForBooking(
-  bookingId: string
+  bookingId: string,
+  options?: { capability?: KlyxFinancialCapability }
 ): Promise<KlyxFinancialStripeRuntime> {
   if (!UUID_RE.test(bookingId)) {
     throw new Error("KLYX_FINANCIAL_RUNTIME_BOOKING_ID_INVALID");
@@ -209,5 +353,8 @@ export async function requireKlyxFinancialStripeRuntimeForBooking(
     throw new Error("KLYX_FINANCIAL_RUNTIME_BOOKING_OWNER_MISSING");
   }
 
-  return requireKlyxFinancialStripeRuntime({ clientProfileId });
+  return requireKlyxFinancialStripeRuntime({
+    clientProfileId,
+    capability: options?.capability,
+  });
 }
