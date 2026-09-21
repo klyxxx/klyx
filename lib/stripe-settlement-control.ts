@@ -59,9 +59,9 @@ function normalizedRequestedMode(
 }
 
 /**
- * Production remains on the certified destination-charge flow until a complete
- * held-funds release path has passed migration, Stripe TEST, Golden Path,
- * security, performance and E2E certification on one immutable SHA.
+ * TEST may retain the certified legacy destination-charge path for regression
+ * coverage. LIVE must never fall back to that legacy path: only the explicit
+ * platform-held flow can become LIVE-capable.
  *
  * LIVE capability is only a static code-path capability. It never authorizes
  * money movement by itself: every LIVE side effect must also pass the
@@ -73,12 +73,14 @@ export function getKlyxSettlementMode(
   env: SettlementEnvironment = runtimeSettlementEnvironment()
 ): KlyxSettlementMode {
   const requested = normalizedRequestedMode(env);
+  const secret = env.STRIPE_SECRET_KEY?.trim() ?? "";
 
   if (requested === KLYX_LEGACY_SETTLEMENT_MODE) {
+    if (secret.startsWith("sk_live_")) {
+      throw new Error(KLYX_SETTLEMENT_LIVE_NOT_READY);
+    }
     return requested;
   }
-
-  const secret = env.STRIPE_SECRET_KEY?.trim() ?? "";
 
   if (secret.startsWith("sk_live_")) {
     if (!envTrue(env.KLYX_SETTLEMENT_CONTROL_LIVE_READY)) {
