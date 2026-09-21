@@ -592,6 +592,7 @@ async function markHeldPaid({
       object: {
         id: settlement.stripe_checkout_session_id,
         object: "checkout.session",
+        livemode: false,
         amount_total: settlement.gross_amount_cents,
         currency: settlement.currency.toLowerCase(),
         metadata: {
