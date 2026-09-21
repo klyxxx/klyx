@@ -116,6 +116,11 @@ export async function GET() {
       "booking_tracking_events",
       "stripe_webhook_events",
       "booking_financial_ledger",
+      "financial_ledger_current",
+      "financial_reconciliation_current",
+      "booking_settlements",
+      "platform_held_group_settlements",
+      "platform_held_group_settlement_members",
       "ops_operations",
       "ops_events",
       "ops_capability_controls",
@@ -299,6 +304,115 @@ export async function GET() {
       });
     }
 
+    const {
+      data: reconciliationData,
+      error: reconciliationError,
+    } = await supabaseAdmin
+      .from("financial_reconciliation_current")
+      .select("state")
+      .in("state", ["reconciliation", "human_review"])
+      .limit(1000);
+
+    if (reconciliationError) {
+      logServerError({
+        error: reconciliationError,
+        event: "founder_transaction_canonical_reconciliation_audit_failed",
+        route: "/api/founder/transaction-readiness",
+        method: "GET",
+        status: 500,
+        code: "KLYX_FOUNDER_CANONICAL_RECONCILIATION_AUDIT_FAILED",
+        durationMs: Math.max(0, Date.now() - startedAt),
+      });
+
+      checks.push({
+        key: "canonical_reconciliation",
+        label: "Ledger ↔ Settlement ↔ Stripe",
+        ok: false,
+        detail: "La vérité de réconciliation canonique est indisponible.",
+        severity: "blocking",
+      });
+    } else {
+      const humanReviewCount = (reconciliationData ?? []).filter(
+        (row) => row.state === "human_review"
+      ).length;
+      const reconciliationCount = (reconciliationData ?? []).filter(
+        (row) => row.state === "reconciliation"
+      ).length;
+
+      checks.push({
+        key: "canonical_reconciliation",
+        label: "Ledger ↔ Settlement ↔ Stripe",
+        ok: humanReviewCount === 0 && reconciliationCount === 0,
+        detail:
+          humanReviewCount === 0 && reconciliationCount === 0
+            ? "Aucune divergence financière canonique ouverte."
+            : `${reconciliationCount} reconciliation(s) et ${humanReviewCount} human_review ouverte(s). Toute mutation financière doit rester fail-closed.`,
+        severity: "blocking",
+      });
+    }
+
+    const { data: unresolvedLedgerData, error: unresolvedLedgerError } =
+      await supabaseAdmin
+        .from("financial_ledger_current")
+        .select("booking_id")
+        .like("beneficiary_ref", "unresolved-profile:%")
+        .limit(1000);
+
+    checks.push({
+      key: "canonical_ledger_beneficiaries",
+      label: "Bénéficiaires ledger canoniques",
+      ok:
+        !unresolvedLedgerError &&
+        (unresolvedLedgerData ?? []).length === 0,
+      detail: unresolvedLedgerError
+        ? "Audit des bénéficiaires du ledger canonique indisponible."
+        : (unresolvedLedgerData ?? []).length === 0
+          ? "Aucun bénéficiaire financier non résolu."
+          : `${(unresolvedLedgerData ?? []).length} écriture(s) avec bénéficiaire non résolu.`,
+      severity: "blocking",
+    });
+
+    const deployedSha =
+      process.env.VERCEL_GIT_COMMIT_SHA?.trim().toLowerCase() ?? "";
+    const drCertifiedSha =
+      process.env.KLYX_DR_CERTIFIED_SHA?.trim().toLowerCase() ?? "";
+    const financialCertifiedSha =
+      process.env.KLYX_PRODUCTION_FINANCIAL_CERTIFIED_SHA
+        ?.trim()
+        .toLowerCase() ?? "";
+    const liveCertificationSha =
+      process.env.KLYX_LIVE_CERTIFICATION_SHA?.trim().toLowerCase() ?? "";
+    const shaValid = (value: string) => /^[0-9a-f]{40}$/.test(value);
+    const liveGeneral =
+      process.env.KLYX_LIVE_PAYMENTS_ENABLED?.trim().toLowerCase() ===
+      "true";
+    const liveCertification =
+      process.env.KLYX_LIVE_CERTIFICATION_ENABLED
+        ?.trim()
+        .toLowerCase() === "true";
+
+    if (process.env.KLYX_STRIPE_MODE?.trim() === "live") {
+      checks.push({
+        key: "financial_exact_sha",
+        label: "SHA financier exact",
+        ok: liveGeneral
+          ? shaValid(deployedSha) &&
+            deployedSha === drCertifiedSha &&
+            deployedSha === financialCertifiedSha
+          : liveCertification
+            ? shaValid(deployedSha) &&
+              deployedSha === drCertifiedSha &&
+              deployedSha === liveCertificationSha
+            : false,
+        detail: liveGeneral
+          ? "LIVE général exige SHA déployé = DR = certification financière."
+          : liveCertification
+            ? "Canary LIVE exige SHA déployé = DR = SHA de certification."
+            : "Mode Stripe LIVE sans activation financière autorisée.",
+        severity: "blocking",
+      });
+    }
+
     const { data: ledgerData, error: ledgerError } =
       await supabaseAdmin
         .from("booking_financial_ledger")
@@ -320,7 +434,7 @@ export async function GET() {
 
       checks.push({
         key: "payment_ledger_audit",
-        label: "Anti-double paiement ledger",
+        label: "Anti-double paiement · projection legacy",
         ok: false,
         detail: "Audit du ledger financier indisponible.",
         severity: "blocking",
@@ -347,9 +461,9 @@ export async function GET() {
         ok: duplicates === 0,
         detail:
           duplicates === 0
-            ? "Aucun booking avec plusieurs payment_succeeded dans le ledger."
-            : `${duplicates} réservation(s) ont plusieurs écritures payment_succeeded.`,
-        severity: "blocking",
+            ? "Projection legacy sans doublon payment_succeeded."
+            : `${duplicates} réservation(s) ont plusieurs écritures payment_succeeded dans la projection legacy.`,
+        severity: "warning",
       });
     }
 
@@ -369,17 +483,17 @@ export async function GET() {
       warnings,
       checks,
       flow: [
-        "Création réservation",
-        "Acceptation prestataire",
-        "Checkout Stripe",
-        "Webhook = paid",
-        "Suivi scheduled → en_route → arrived → in_progress",
-        "Prestataire déclare terminé",
-        "Client confirme",
-        "Mission completed",
-        "Avis vérifié",
-        "KLYX Score recalculé",
+        "Payment",
+        "Canonical Ledger",
+        "Booking",
+        "Commission",
+        "Provider liability",
+        "Settlement",
+        "Stripe Transfer",
+        "Ledger ↔ Settlement ↔ Stripe reconciliation",
       ],
+      financialCertification:
+        "A successful payment alone never certifies Mission 1.",
     });
   } catch (error) {
     const status = founderErrorStatus(error);
