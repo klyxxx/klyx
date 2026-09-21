@@ -13,7 +13,7 @@ $Repository = 'klyxxx/klyx'
 $VercelOrgId = 'team_QaRMiX8yTbmNx0NTzqfhrMDj'
 $VercelProjectId = 'prj_N6ZRVFs9ySP26csLhO0tXUiGVJW7'
 $ProductionOrigin = 'https://www.klyx.be'
-$RequiredMainPushWorkflows = @(
+$RequiredExactShaWorkflows = @(
   'KLYX Security Certification',
   'KLYX Golden Path',
   'KLYX E2E'
@@ -76,7 +76,7 @@ function Assert-ExactMainAndCleanTree {
   return $expected
 }
 
-function Assert-GreenMainPushChecks([string]$Sha) {
+function Assert-GreenExactShaChecks([string]$Sha) {
   $headers = @{
     'Accept' = 'application/vnd.github+json'
     'User-Agent' = 'KLYX-Deployment-Gate/1.0'
@@ -91,21 +91,25 @@ function Assert-GreenMainPushChecks([string]$Sha) {
     Fail "Unable to read GitHub Actions runs for exact main SHA $Sha: $($_.Exception.Message)"
   }
 
-  foreach ($workflowName in $RequiredMainPushWorkflows) {
+  foreach ($workflowName in $RequiredExactShaWorkflows) {
     $run = $payload.workflow_runs |
       Where-Object {
         $_.name -eq $workflowName -and
         $_.head_sha -eq $Sha -and
-        $_.event -eq 'push'
+        $_.event -in @('push', 'workflow_dispatch')
       } |
       Sort-Object -Property created_at -Descending |
       Select-Object -First 1
 
     if ($null -eq $run) {
-      Fail "Missing exact-main push run for '$workflowName' at $Sha."
+      Fail "Missing exact-SHA run for '$workflowName' at $Sha."
     }
     if ($run.status -ne 'completed' -or $run.conclusion -ne 'success') {
-      Fail "'$workflowName' is not green for exact main SHA $Sha (status=$($run.status), conclusion=$($run.conclusion))."
+      Fail "'$workflowName' is not green for exact main SHA $Sha (event=$($run.event), status=$($run.status), conclusion=$($run.conclusion))."
+    }
+
+    if ($run.event -eq 'workflow_dispatch') {
+      Write-Host "KLYX_DEPLOYMENT_GATE_EXACT_SHA_DISPATCH workflow='$workflowName' sha=$Sha run=$($run.id)"
     }
   }
 }
@@ -115,7 +119,7 @@ Push-Location $repoRoot
 
 try {
   $sha = Assert-ExactMainAndCleanTree
-  Assert-GreenMainPushChecks -Sha $sha
+  Assert-GreenExactShaChecks -Sha $sha
 
   # Pin the command to the known KLYX Vercel project rather than relying on
   # whichever project a local directory may previously have been linked to.
