@@ -9,6 +9,7 @@ import { assessKlyxStripeMarketAccess } from "@/lib/klyx-stripe-market-access";
 import { logServerInfo, logServerWarning } from "@/lib/server-log";
 import {
   getProviderStripeDestination,
+  getProviderStripeDestinationStrict,
   isStripeConnectIdentityReviewRequired,
 } from "@/lib/stripe-connect-account";
 import {
@@ -16,7 +17,7 @@ import {
   STRIPE_ACCOUNT_COUNTRY_MISMATCH,
 } from "@/lib/stripe-connect-country";
 import { markBookingPaidFromSession } from "@/lib/stripe-payments";
-import { assertStripeRuntimeReady } from "@/lib/stripe-runtime";
+import { requireKlyxFinancialStripeRuntime } from "@/lib/klyx-financial-stripe-runtime";
 import {
   buildPlatformHeldPaymentIntentPlan,
   getKlyxSettlementMode,
@@ -59,20 +60,6 @@ type ServiceProfileRow = {
   price: number | null;
   pricing_type: string | null;
 };
-
-function requiredTestStripeKey(): string {
-  const key = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
-
-  if (key.startsWith("sk_live_")) {
-    throw new Error("KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY");
-  }
-
-  if (!key.startsWith("sk_test_")) {
-    throw new Error("KLYX_SETTLEMENT_STRIPE_TEST_KEY_REQUIRED");
-  }
-
-  return key;
-}
 
 function timeToMinutes(value: string): number {
   const [hours, minutes] = value.slice(0, 5).split(":").map(Number);
@@ -237,10 +224,14 @@ export async function POST(request: Request) {
     const { user, profile } = await getAuthenticatedProfile(request);
     requireAccountType(profile, "client");
 
-    const stripeRuntime = assertStripeRuntimeReady();
+    const financialRuntime = await requireKlyxFinancialStripeRuntime({
+      clientProfileId: profile.id,
+    });
+    const stripeMode =
+      financialRuntime.mode === "test" ? "test" : "live";
     const clientMarketAccess = assessKlyxStripeMarketAccess(
       profile.countryCode,
-      stripeRuntime.mode
+      stripeMode
     );
 
     if (!clientMarketAccess.allowed) {
@@ -254,8 +245,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const stripeSecretKey = requiredTestStripeKey();
-    const stripe = new Stripe(stripeSecretKey);
+    const stripe = new Stripe(financialRuntime.key);
     const body = (await request.json()) as { bookingId?: string };
     const bookingId = body.bookingId?.trim();
 
@@ -323,10 +313,13 @@ export async function POST(request: Request) {
     const providerId = booking.provider_id ?? booking.babysitter_id;
     if (!providerId) throw new Error("Prestataire introuvable.");
 
-    const provider = await getProviderStripeDestination(providerId);
+    const provider =
+      financialRuntime.mode === "test"
+        ? await getProviderStripeDestination(providerId)
+        : await getProviderStripeDestinationStrict(providerId);
     const providerMarketAccess = assessKlyxStripeMarketAccess(
       provider.countryCode ?? "",
-      stripeRuntime.mode
+      stripeMode
     );
 
     if (!providerMarketAccess.allowed) {
@@ -373,9 +366,14 @@ export async function POST(request: Request) {
       canonicalStripeAccountId,
       { include: ["configuration.recipient", "identity", "requirements"] }
     );
+    const expectedLive = financialRuntime.mode !== "test";
+    const expectedProviderCountry =
+      provider.countryCode?.trim().toUpperCase() ?? "";
     const providerReady = Boolean(
-      providerRecipientAccount.livemode === false &&
-        providerRecipientAccount.identity?.country === "BE" &&
+      providerRecipientAccount.livemode === expectedLive &&
+        expectedProviderCountry.length === 2 &&
+        providerRecipientAccount.identity?.country?.trim().toUpperCase() ===
+          expectedProviderCountry &&
         providerRecipientAccount.applied_configurations?.includes("recipient") === true &&
         providerRecipientAccount.configuration?.recipient?.applied === true &&
         providerRecipientAccount.configuration?.recipient?.capabilities?.stripe_balance

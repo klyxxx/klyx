@@ -24,6 +24,7 @@ import {
   markStripeWebhookProcessed,
 } from "@/lib/stripe-webhook-events";
 import { reconcileStripeRefund } from "@/lib/stripe-refunds";
+import { requireKlyxFinancialStripeObservationRuntime } from "@/lib/klyx-financial-stripe-runtime";
 
 // KLYX_GROUP_WEBHOOK_12_86
 // KLYX_STRIPE_WEBHOOK_RETRY_LEASE_16_07
@@ -32,34 +33,15 @@ import { reconcileStripeRefund } from "@/lib/stripe-refunds";
 // KLYX_ACCOUNT_LEVEL_STRIPE_CONNECT_19_45
 
 function getStripeWebhookConfig() {
-  const stripeSecretKey = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
+  const financialRuntime = requireKlyxFinancialStripeObservationRuntime();
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET?.trim() ?? "";
-
-  if (!stripeSecretKey) {
-    throw new Error(
-      "STRIPE_SECRET_KEY manque dans les variables d environnement."
-    );
-  }
-
-  if (!webhookSecret) {
-    throw new Error(
-      "STRIPE_WEBHOOK_SECRET manque dans les variables d environnement."
-    );
-  }
-
-  if (
-    !stripeSecretKey.startsWith("sk_test_") &&
-    !stripeSecretKey.startsWith("sk_live_")
-  ) {
-    throw new Error("STRIPE_SECRET_KEY invalide.");
-  }
 
   if (!webhookSecret.startsWith("whsec_")) {
     throw new Error("STRIPE_WEBHOOK_SECRET doit commencer par whsec_.");
   }
 
   return {
-    stripe: new Stripe(stripeSecretKey),
+    stripe: new Stripe(financialRuntime.key),
     webhookSecret,
   };
 }

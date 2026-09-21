@@ -2,6 +2,8 @@ import "server-only";
 
 import Stripe from "stripe";
 
+import { requireKlyxFinancialStripeObservationRuntime } from "@/lib/klyx-financial-stripe-runtime";
+
 import {
   openFinancialReconciliationCase,
   type FinancialReconciliationState,
@@ -154,11 +156,8 @@ export type CentralFinancialReconciliationResult = {
 };
 
 function stripeClient(): Stripe {
-  const key = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
-  if (!key.startsWith("sk_test_") && !key.startsWith("sk_live_")) {
-    throw new Error("KLYX_FINANCIAL_RECONCILIATION_STRIPE_KEY_REQUIRED");
-  }
-  return new Stripe(key);
+  const runtime = requireKlyxFinancialStripeObservationRuntime();
+  return new Stripe(runtime.key);
 }
 
 function currency(value: string | null | undefined): string {

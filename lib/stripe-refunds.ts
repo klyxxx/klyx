@@ -1,7 +1,7 @@
 // KLYX_REFUND_CURRENCY_PHASE_5G
 // KLYX_REFUND_MONOTONE_RECONCILIATION_16_11
 // KLYX_REFUND_AGGREGATE_RECONCILIATION_16_12
-import type Stripe from "stripe";
+import Stripe from "stripe";
 import {
   sendBookingRefundConfirmedEmail,
   sendBookingRefundFailedEmail,
@@ -10,6 +10,7 @@ import {
   tryReconcileBookingGroupStripeRefund,
 } from "@/lib/stripe-group-refunds";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { requireKlyxFinancialStripeObservationRuntime } from "@/lib/klyx-financial-stripe-runtime";
 import { upsertFinancialLedgerEntry } from "@/lib/payment-ledger";
 
 type RefundBooking = {
@@ -28,6 +29,12 @@ type RefundAggregate = {
   succeededAmount: number;
   hasProcessing: boolean;
 };
+
+function stripeObjectId(
+  value: string | { id: string } | null | undefined
+): string | null {
+  return typeof value === "string" ? value : value?.id ?? null;
+}
 
 function paymentIntentId(
   refund: Stripe.Refund
@@ -265,6 +272,23 @@ export async function reconcileStripeRefund(
       refund.id
     );
     return;
+  }
+
+  if (booking.payment_mode === "platform_held") {
+    const runtime = requireKlyxFinancialStripeObservationRuntime();
+    const expectedLive = runtime.mode !== "test";
+    const chargeId = stripeObjectId(refund.charge);
+
+    if (!chargeId) {
+      throw new Error("KLYX_PLATFORM_HELD_REFUND_WEBHOOK_CHARGE_MISSING");
+    }
+
+    const stripe = new Stripe(runtime.key);
+    const charge = await stripe.charges.retrieve(chargeId);
+
+    if (charge.livemode !== expectedLive) {
+      throw new Error("KLYX_PLATFORM_HELD_REFUND_WEBHOOK_LIVEMODE_MISMATCH");
+    }
   }
 
   const incomingIntentId = paymentIntentId(refund);

@@ -1,5 +1,6 @@
 import { after, NextResponse } from "next/server";
 import Stripe from "stripe";
+import { requireKlyxFinancialStripeRuntime } from "@/lib/klyx-financial-stripe-runtime";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   apiErrorStatus,
@@ -149,6 +150,21 @@ function stripeClient(): Stripe {
   return new Stripe(key);
 }
 
+async function refundStripeClientForBooking(
+  booking: BookingRow
+): Promise<Stripe> {
+  if (booking.payment_mode !== "platform_held") {
+    return stripeClient();
+  }
+
+  const financialRuntime = await requireKlyxFinancialStripeRuntime({
+    clientProfileId: booking.parent_id,
+    capability: "refunds",
+  });
+
+  return new Stripe(financialRuntime.key);
+}
+
 // KLYX_REFUND_CREATE_SIDE_EFFECT_BOUNDARY_16_12
 async function recordRefundCreationFailure(params: {
   booking: BookingRow;
@@ -203,7 +219,7 @@ async function createStripeRefundOrRecordFailure(params: {
   const { booking, actorId } = params;
 
   try {
-    const stripe = stripeClient();
+    const stripe = await refundStripeClientForBooking(booking);
 
     const refundParameters: Stripe.RefundCreateParams = {
       payment_intent: booking.stripe_payment_intent_id ?? undefined,
