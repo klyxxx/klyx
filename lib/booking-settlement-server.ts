@@ -7,6 +7,7 @@ import { canReceiveSettlementForBooking } from "@/lib/economic-settlement-eligib
 import { requireKlyxFinancialStripeRuntimeForBooking } from "@/lib/klyx-financial-stripe-runtime";
 import {
   getProviderStripeDestination,
+  getProviderStripeDestinationStrict,
   isStripeConnectIdentityReviewRequired,
 } from "@/lib/stripe-connect-account";
 import { readStripeSettlementRecipientTruth } from "@/lib/stripe-settlement-recipient-truth";
@@ -313,7 +314,9 @@ export async function releasePlatformHeldBookingSettlement(
   }
 
   const financialRuntime =
-    await requireKlyxFinancialStripeRuntimeForBooking(bookingId);
+    await requireKlyxFinancialStripeRuntimeForBooking(bookingId, {
+      capability: "settlement_release",
+    });
   const stripe = new Stripe(financialRuntime.key);
   const expectedLive = financialRuntime.mode !== "test";
   const paymentIntentId = settlement.stripe_payment_intent_id;
@@ -387,9 +390,12 @@ export async function releasePlatformHeldBookingSettlement(
   let recipientAccountId: string;
 
   try {
-    const destination = await getProviderStripeDestination(
-      settlement.provider_profile_id
-    );
+    const destination =
+      financialRuntime.mode === "test"
+        ? await getProviderStripeDestination(settlement.provider_profile_id)
+        : await getProviderStripeDestinationStrict(
+            settlement.provider_profile_id
+          );
 
     if (
       destination.connect.state !== "linked" ||
@@ -702,7 +708,9 @@ export async function preparePlatformHeldBookingRefund(
   }
 
   const financialRuntime =
-    await requireKlyxFinancialStripeRuntimeForBooking(bookingId);
+    await requireKlyxFinancialStripeRuntimeForBooking(bookingId, {
+      capability: "refunds",
+    });
   const stripe = new Stripe(financialRuntime.key);
   const expectedLive = financialRuntime.mode !== "test";
   const parentTransfer = await stripe.transfers.retrieve(transferId);
