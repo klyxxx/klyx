@@ -39,7 +39,7 @@ describe("Mission 19 conversation-independent workflow continuity", () => {
 
   it("makes recovery atomic, versioned and auditable", () => {
     expect(migration).toContain("for update;");
-    expect(migration).toContain("version = version + 1");
+    expect(migration).toContain("version = workflow.version + 1");
     expect(migration).toContain("'workflow_conversation_rebound'");
     expect(migration).toContain("'conversation_continuity_recovery'");
     expect(foundation).toContain("KLYX_WORKFLOW_EVENT_IMMUTABLE");
