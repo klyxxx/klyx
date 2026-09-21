@@ -147,8 +147,10 @@ Before the matrix may be evaluated:
 - Supabase production schema is current;
 - Operations control plane does not block `payments` or the specific mutation capability;
 - Circuit breakers and incident engine are operational;
+- `ops_financial_runtime_scheduler.enabled=true` with a configured bearer-token hash and alert recipient;
 - `financial_durable_worker` heartbeat is `healthy`, fresh, and emitted by the deployed SHA;
 - `critical_alert_delivery` heartbeat is `healthy`, fresh, and emitted by the deployed SHA;
+- a `critical_operational_alert_sentinel` email is proven `sent` in the last 36 hours;
 - finance/Stripe DLQ is empty;
 - no critical operational or financial monitoring signal is open;
 - canonical financial ledger is readable;

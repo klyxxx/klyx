@@ -413,6 +413,133 @@ export async function GET() {
       });
     }
 
+    const schedulerThreshold = new Date(
+      Date.now() - 3 * 60 * 1000
+    ).toISOString();
+    const sentinelThreshold = new Date(
+      Date.now() - 36 * 60 * 60 * 1000
+    ).toISOString();
+
+    const [
+      schedulerResult,
+      heartbeatResult,
+      sentinelResult,
+    ] = await Promise.all([
+      supabaseAdmin
+        .from("ops_financial_runtime_scheduler")
+        .select("enabled, token_sha256, alert_email")
+        .eq("scheduler_key", "financial_runtime_tick")
+        .maybeSingle(),
+      supabaseAdmin
+        .from("ops_runtime_heartbeats")
+        .select("component, status, source_sha, last_seen_at")
+        .in("component", [
+          "financial_durable_worker",
+          "critical_alert_delivery",
+        ]),
+      supabaseAdmin
+        .from("transactional_email_deliveries")
+        .select("id, sent_at")
+        .eq("template_key", "critical_operational_alert_sentinel")
+        .eq("status", "sent")
+        .gte("sent_at", sentinelThreshold)
+        .order("sent_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+    const scheduler = schedulerResult.data;
+    const schedulerReady = Boolean(
+      !schedulerResult.error &&
+        scheduler?.enabled === true &&
+        typeof scheduler?.token_sha256 === "string" &&
+        /^[0-9a-f]{64}$/i.test(scheduler.token_sha256) &&
+        typeof scheduler?.alert_email === "string" &&
+        scheduler.alert_email.trim()
+    );
+
+    checks.push({
+      key: "financial_runtime_scheduler",
+      label: "Scheduler financier",
+      ok: schedulerReady,
+      detail: schedulerResult.error
+        ? "Configuration scheduler inaccessible."
+        : schedulerReady
+          ? "Scheduler minute-level activé avec hash d'auth et canal d'alerte."
+          : "Scheduler financier désactivé ou incomplet.",
+      severity: "blocking",
+    });
+
+    const heartbeatRows = heartbeatResult.data ?? [];
+    const workerHeartbeat = heartbeatRows.find(
+      (row) => row.component === "financial_durable_worker"
+    );
+    const alertHeartbeat = heartbeatRows.find(
+      (row) => row.component === "critical_alert_delivery"
+    );
+
+    const heartbeatHealthy = (
+      row:
+        | {
+            status: string;
+            source_sha: string;
+            last_seen_at: string;
+          }
+        | undefined
+    ) =>
+      Boolean(
+        row &&
+          row.status === "healthy" &&
+          row.source_sha?.trim().toLowerCase() === deployedSha &&
+          row.last_seen_at >= schedulerThreshold
+      );
+
+    checks.push({
+      key: "financial_worker_heartbeat",
+      label: "Worker financier",
+      ok:
+        !heartbeatResult.error &&
+        heartbeatHealthy(workerHeartbeat),
+      detail: heartbeatResult.error
+        ? "Heartbeat worker inaccessible."
+        : heartbeatHealthy(workerHeartbeat)
+          ? "Worker actif, sain et exécuté par le SHA déployé."
+          : "Worker absent, stale, dégradé ou sur un autre SHA.",
+      severity: "blocking",
+    });
+
+    checks.push({
+      key: "critical_alert_heartbeat",
+      label: "Alertes critiques",
+      ok:
+        !heartbeatResult.error &&
+        heartbeatHealthy(alertHeartbeat),
+      detail: heartbeatResult.error
+        ? "Heartbeat alertes inaccessible."
+        : heartbeatHealthy(alertHeartbeat)
+          ? "Canal d'alerte actif sur le SHA déployé."
+          : "Canal d'alerte absent, stale, dégradé ou sur un autre SHA.",
+      severity: "blocking",
+    });
+
+    const sentinelReady = Boolean(
+      !sentinelResult.error &&
+        sentinelResult.data?.id &&
+        sentinelResult.data?.sent_at
+    );
+
+    checks.push({
+      key: "critical_alert_sentinel",
+      label: "Sentinel alertes critiques",
+      ok: sentinelReady,
+      detail: sentinelResult.error
+        ? "Preuve sentinel indisponible."
+        : sentinelReady
+          ? "Un sentinel email a été livré dans les dernières 36 h."
+          : "Aucun sentinel email récent n'est prouvé.",
+      severity: "blocking",
+    });
+
     const { data: ledgerData, error: ledgerError } =
       await supabaseAdmin
         .from("booking_financial_ledger")
