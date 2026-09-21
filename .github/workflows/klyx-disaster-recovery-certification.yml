@@ -374,6 +374,13 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+      - name: Destroy decoded offsite certificate material
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          rm -rf -- "${RUNNER_TEMP}/klyx-offsite-certificate"
+
       - name: Publish final DR certification status
         if: always()
         shell: bash
