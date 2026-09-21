@@ -157,6 +157,13 @@ jobs:
             gh run watch "$run_id" --repo "$GH_REPO" --exit-status
           }
 
+          # Temporary diagnostic ordering on the certification branch only:
+          # run the failing Stripe TEST proof first so database diagnostics are
+          # available without waiting for already-green gates.
+          dispatch_and_wait \
+            klyx-stripe-network-test.yml \
+            -f confirm_stripe_test_network=true
+
           dispatch_and_wait klyx-security.yml
 
           dispatch_and_wait \
@@ -169,10 +176,6 @@ jobs:
             -f confirm_isolated_target=true
 
           dispatch_and_wait klyx-e2e.yml
-
-          dispatch_and_wait \
-            klyx-stripe-network-test.yml \
-            -f confirm_stripe_test_network=true
 
           trap - ERR
           report_status success "Exact settlement recovery certification passed"
