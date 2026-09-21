@@ -27,17 +27,29 @@ const webhookEvents = read("lib/stripe-webhook-events.ts");
 const opsRoute = read("app/api/ops/settlement-reconciliation/route.ts");
 
 describe("KLYX settlement recovery / reconciliation contract", () => {
-  it("is server-only, controlled-LIVE gated and contains no LLM financial mutation path", () => {
+  it("is server-only, observes Stripe truth outside mutation gates and contains no LLM financial mutation path", () => {
     const runtime = read("lib/klyx-financial-stripe-runtime.ts");
 
     expect(recovery).toContain('import "server-only"');
     expect(recovery).toContain(
+      "requireKlyxFinancialStripeObservationRuntime"
+    );
+    expect(recovery).not.toContain(
       "requireKlyxFinancialStripeRuntimeForBooking"
     );
-    expect(runtime).toContain('key.startsWith("sk_test_")');
-    expect(runtime).toContain('key.startsWith("sk_live_")');
-    expect(runtime).toContain("KLYX_LIVE_CERTIFICATION_PROFILE_ID");
+    expect(runtime).toContain(
+      "requireKlyxFinancialStripeObservationRuntime"
+    );
+    expect(runtime).toContain(
+      "KLYX_LIVE_CERTIFICATION_PROFILE_ID"
+    );
     expect(runtime).toContain("KLYX_DR_CERTIFIED_SHA");
+    expect(recovery).toContain(
+      "await releasePlatformHeldBookingSettlement("
+    );
+    expect(settlement).toContain(
+      "requireKlyxFinancialStripeRuntimeForBooking"
+    );
     expect(recovery).not.toContain("stripe.payouts.create");
     expect(recovery).not.toMatch(/from ["']@\/lib\/(brain|ai|llm)/);
     expect(recovery).not.toMatch(/openai/i);
