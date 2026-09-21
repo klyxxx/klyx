@@ -1,3 +1,4 @@
+import { assertLiveFinancialStaticGate, assertStripeFinancialObjectMode } from "@/lib/live-financial-runtime-policy";
 import { requireLiveFinancialMutationAuthorized } from "@/lib/live-financial-runtime-gate";
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
@@ -61,15 +62,16 @@ type ServiceProfileRow = {
   pricing_type: string | null;
 };
 
-function requiredTestStripeKey(): string {
+function requiredFinancialStripeKey(): string {
   const key = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
 
   if (key.startsWith("sk_live_")) {
-    throw new Error("KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY");
+    assertLiveFinancialStaticGate();
+    return key;
   }
 
   if (!key.startsWith("sk_test_")) {
-    throw new Error("KLYX_SETTLEMENT_STRIPE_TEST_KEY_REQUIRED");
+    throw new Error("KLYX_SETTLEMENT_STRIPE_KEY_REQUIRED");
   }
 
   return key;
@@ -255,7 +257,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const stripeSecretKey = requiredTestStripeKey();
+    const stripeSecretKey = requiredFinancialStripeKey();
     const stripe = new Stripe(stripeSecretKey);
     const body = (await request.json()) as { bookingId?: string };
     const bookingId = body.bookingId?.trim();
@@ -374,8 +376,9 @@ export async function POST(request: Request) {
       canonicalStripeAccountId,
       { include: ["configuration.recipient", "identity", "requirements"] }
     );
+    assertStripeFinancialObjectMode(providerRecipientAccount.livemode);
+
     const providerReady = Boolean(
-      providerRecipientAccount.livemode === false &&
         providerRecipientAccount.identity?.country === "BE" &&
         providerRecipientAccount.applied_configurations?.includes("recipient") === true &&
         providerRecipientAccount.configuration?.recipient?.applied === true &&
