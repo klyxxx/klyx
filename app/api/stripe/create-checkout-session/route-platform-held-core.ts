@@ -4,11 +4,17 @@ import Stripe from "stripe";
 
 import { apiErrorStatus, getAuthenticatedProfile, requireAccountType } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { canReceiveSettlementForBooking } from "@/lib/economic-settlement-eligibility-server";
+import {
+  assertFinancialStripeWriteAuthorized,
+  assertStripeObjectMode,
+  getFinancialStripeRuntime,
+  getProviderFinancialDestination,
+} from "@/lib/financial-stripe-runtime";
 import { calculateKlyxEconomics, getKlyxCommissionPercent } from "@/lib/klyx-economics";
 import { assessKlyxStripeMarketAccess } from "@/lib/klyx-stripe-market-access";
 import { logServerInfo, logServerWarning } from "@/lib/server-log";
 import {
-  getProviderStripeDestination,
   isStripeConnectIdentityReviewRequired,
 } from "@/lib/stripe-connect-account";
 import {
@@ -60,19 +66,6 @@ type ServiceProfileRow = {
   pricing_type: string | null;
 };
 
-function requiredTestStripeKey(): string {
-  const key = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
-
-  if (key.startsWith("sk_live_")) {
-    throw new Error("KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY");
-  }
-
-  if (!key.startsWith("sk_test_")) {
-    throw new Error("KLYX_SETTLEMENT_STRIPE_TEST_KEY_REQUIRED");
-  }
-
-  return key;
-}
 
 function timeToMinutes(value: string): number {
   const [hours, minutes] = value.slice(0, 5).split(":").map(Number);
@@ -254,8 +247,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const stripeSecretKey = requiredTestStripeKey();
-    const stripe = new Stripe(stripeSecretKey);
+    const financialStripe = getFinancialStripeRuntime();
+    const stripe = financialStripe.stripe;
+    if (financialStripe.mode !== stripeRuntime.mode) {
+      throw new Error("KLYX_FINANCIAL_STRIPE_MODE_MISMATCH");
+    }
     const body = (await request.json()) as { bookingId?: string };
     const bookingId = body.bookingId?.trim();
 
@@ -323,7 +319,10 @@ export async function POST(request: Request) {
     const providerId = booking.provider_id ?? booking.babysitter_id;
     if (!providerId) throw new Error("Prestataire introuvable.");
 
-    const provider = await getProviderStripeDestination(providerId);
+    const provider = await getProviderFinancialDestination(
+      providerId,
+      stripeRuntime.mode
+    );
     const providerMarketAccess = assessKlyxStripeMarketAccess(
       provider.countryCode ?? "",
       stripeRuntime.mode
@@ -374,8 +373,9 @@ export async function POST(request: Request) {
       { include: ["configuration.recipient", "identity", "requirements"] }
     );
     const providerReady = Boolean(
-      providerRecipientAccount.livemode === false &&
-        providerRecipientAccount.identity?.country === "BE" &&
+      providerRecipientAccount.livemode === financialStripe.livemode &&
+        providerRecipientAccount.identity?.country?.toUpperCase() ===
+          provider.countryCode?.toUpperCase() &&
         providerRecipientAccount.applied_configurations?.includes("recipient") === true &&
         providerRecipientAccount.configuration?.recipient?.applied === true &&
         providerRecipientAccount.configuration?.recipient?.capabilities?.stripe_balance
@@ -387,6 +387,28 @@ export async function POST(request: Request) {
         {
           error: "Le prestataire doit terminer la vérification Stripe avant ce paiement.",
           code: "KLYX_PLATFORM_HELD_PROVIDER_NOT_READY",
+        },
+        { status: 409 }
+      );
+    }
+
+    const economicEligibility = await canReceiveSettlementForBooking({
+      accountId: provider.accountId,
+      bookingId: booking.id,
+      expectedProviderProfileId: providerId,
+      expectedStripeAccountId: canonicalStripeAccountId,
+    });
+
+    if (!economicEligibility || economicEligibility.decision !== "allowed") {
+      return NextResponse.json(
+        {
+          error:
+            "Le prestataire n'est pas économiquement éligible à recevoir ce settlement.",
+          code: "KLYX_ECONOMIC_SETTLEMENT_ELIGIBILITY_REQUIRED",
+          decision: economicEligibility?.decision ?? "human_review",
+          reasonCodes: economicEligibility?.reasonCodes ?? [
+            "economic_settlement_context_missing",
+          ],
         },
         { status: 409 }
       );
@@ -426,6 +448,14 @@ export async function POST(request: Request) {
       amountTotal,
       getKlyxCommissionPercent()
     );
+    if (stripeRuntime.mode === "live") {
+      await assertFinancialStripeWriteAuthorized({
+        capability: "payments",
+        countryCode: profile.countryCode,
+        currency: checkoutCurrency.toUpperCase(),
+      });
+    }
+
     const plan = buildPlatformHeldPaymentIntentPlan({
       subjectType: "booking",
       subjectId: booking.id,
@@ -503,6 +533,7 @@ export async function POST(request: Request) {
       const existingSession = await stripe.checkout.sessions.retrieve(
         claim.checkout_session_id
       );
+      assertStripeObjectMode(existingSession.livemode, financialStripe);
 
       if (existingSession.payment_status === "paid") {
         await markBookingPaidFromSession(existingSession);
@@ -558,9 +589,19 @@ export async function POST(request: Request) {
       );
     }
 
+    if (stripeRuntime.mode === "live") {
+      await assertFinancialStripeWriteAuthorized({
+        capability: "payments",
+        countryCode: profile.countryCode,
+        currency: checkoutCurrency.toUpperCase(),
+      });
+    }
+
     const session = await stripe.checkout.sessions.create(sessionParams, {
       idempotencyKey: `klyx-booking-held-${booking.id}-attempt-${claim.attempt_number}`,
     });
+
+    assertStripeObjectMode(session.livemode, financialStripe);
 
     if (!session.url) {
       await expireOpenSession(stripe, session);
