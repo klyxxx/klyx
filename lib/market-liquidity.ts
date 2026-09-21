@@ -8,7 +8,9 @@ export type KlyxLiquidityRequestRow = {
   region_id: string | null;
   country_code: string | null;
   currency: string | null;
+  request_mode?: string | null;
   budget_max: number | string | null;
+  budget_total?: number | string | null;
   created_at: string;
 };
 
@@ -124,6 +126,7 @@ export type KlyxMarketLiquidityMetrics = {
   completionRate: number | null;
   cancellationRate: number | null;
   replacementSuccessRate: number | null;
+  replacementSelectionRate?: number | null;
   repeatUsageRate: number | null;
   providerUtilizationRate: number | null;
   availabilityRate: number | null;
@@ -182,12 +185,16 @@ export function requestFitsKlyxLiquidityPriceBand(
   if (!request.currency || request.currency.toUpperCase() !== band.currencyCode) {
     return false;
   }
-  if (request.budget_max == null) return false;
+  const budget =
+    request.request_mode === "multi_slot"
+      ? request.budget_total ?? request.budget_max
+      : request.budget_max ?? request.budget_total;
+  if (budget == null) return false;
 
   let amountMinor: number;
   try {
     amountMinor = decimalToKlyxMinorUnits(
-      String(request.budget_max),
+      String(budget),
       band.currencyCode
     );
   } catch {
@@ -313,8 +320,10 @@ export function buildKlyxMarketLiquidityMetrics(input: {
   const matchingQualities: number[] = [];
 
   const completedByClient = new Map<string, number>();
-  const discoveredProviders = new Set<string>();
-  const bookedProviders = new Set<string>();
+  const discoveredProviderOpportunities = new Set<string>();
+  const bookedProviderOpportunities = new Set<string>();
+  const providerOpportunityKey = (requestId: string, providerProfileId: string) =>
+    `${requestId}:${providerProfileId}`;
 
   for (const request of requests) {
     const started = timestamp(request.created_at);
@@ -405,7 +414,9 @@ export function buildKlyxMarketLiquidityMetrics(input: {
     if (requestCandidates.length > 0) {
       let best = 0;
       for (const candidate of requestCandidates) {
-        discoveredProviders.add(candidate.provider_profile_id);
+        discoveredProviderOpportunities.add(
+          providerOpportunityKey(request.id, candidate.provider_profile_id)
+        );
         const denominator = Math.max(1, Number(candidate.slot_count));
         best = Math.max(
           best,
@@ -416,24 +427,20 @@ export function buildKlyxMarketLiquidityMetrics(input: {
     }
 
     for (const offer of requestOffers) {
-      discoveredProviders.add(offer.provider_profile_id);
+      discoveredProviderOpportunities.add(
+        providerOpportunityKey(request.id, offer.provider_profile_id)
+      );
     }
     for (const quote of requestQuotes) {
-      discoveredProviders.add(quote.provider_profile_id);
+      discoveredProviderOpportunities.add(
+        providerOpportunityKey(request.id, quote.provider_profile_id)
+      );
     }
-    for (const group of requestGroups) {
-      discoveredProviders.add(group.provider_profile_id);
-    }
-    for (const item of splitItems) {
-      const itemRequestId = requestIdBySplitBatchId.get(item.batch_id);
-      if (itemRequestId === request.id) {
-        discoveredProviders.add(item.provider_profile_id);
-      }
-    }
-
     for (const booking of requestBookings) {
       const id = providerId(booking);
-      if (id) bookedProviders.add(id);
+      if (id) {
+        bookedProviderOpportunities.add(providerOpportunityKey(request.id, id));
+      }
     }
   }
 
@@ -465,9 +472,11 @@ export function buildKlyxMarketLiquidityMetrics(input: {
     (count) => count >= 2
   ).length;
 
-  let utilizedProviders = 0;
-  for (const id of bookedProviders) {
-    if (discoveredProviders.has(id)) utilizedProviders += 1;
+  let utilizedProviderOpportunities = 0;
+  for (const key of bookedProviderOpportunities) {
+    if (discoveredProviderOpportunities.has(key)) {
+      utilizedProviderOpportunities += 1;
+    }
   }
 
   return {
@@ -495,18 +504,22 @@ export function buildKlyxMarketLiquidityMetrics(input: {
     quoteProbability: ratio(quotedDemands, matchedDemands),
     fulfillmentProbability: ratio(completedDemands, requests.length),
     quoteAcceptanceRate: ratio(acceptedQuoteDemands, quotedDemands),
-    bookingConversionRate: ratio(bookedDemands, acceptedQuoteDemands),
+    bookingConversionRate:
+      bookedDemands <= acceptedQuoteDemands
+        ? ratio(bookedDemands, acceptedQuoteDemands)
+        : null,
     fillRate: ratio(bookedDemands, requests.length),
     completionRate: ratio(completedDemands, bookedDemands),
     cancellationRate: ratio(cancelledBookedDemands, bookedDemands),
-    replacementSuccessRate: ratio(
+    replacementSuccessRate: null,
+    replacementSelectionRate: ratio(
       replacementSelectedIds.size,
       replacementAttemptIds.size
     ),
     repeatUsageRate: ratio(repeatClients, completedClients),
     providerUtilizationRate: ratio(
-      utilizedProviders,
-      discoveredProviders.size
+      utilizedProviderOpportunities,
+      discoveredProviderOpportunities.size
     ),
     availabilityRate: ratio(availableDemands, requests.length),
   };

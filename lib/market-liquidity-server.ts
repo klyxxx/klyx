@@ -233,10 +233,12 @@ function resolveCapability(
   return (
     rows
       .filter((row) => isCurrent(row, at) && matchesScope(row, scope))
-      .sort(
-        (left, right) =>
-          scopeSpecificity(right, scope) - scopeSpecificity(left, scope)
-      )[0] ?? null
+      .sort((left, right) => {
+        const specificity =
+          scopeSpecificity(right, scope) - scopeSpecificity(left, scope);
+        if (specificity !== 0) return specificity;
+        return Date.parse(right.valid_from) - Date.parse(left.valid_from);
+      })[0] ?? null
   );
 }
 
@@ -266,10 +268,12 @@ function resolvePriceBand(
           row.currency_code === scope.currencyCode &&
           matchesScope(row, scope)
       )
-      .sort(
-        (left, right) =>
-          scopeSpecificity(right, scope) - scopeSpecificity(left, scope)
-      )[0] ?? null
+      .sort((left, right) => {
+        const specificity =
+          scopeSpecificity(right, scope) - scopeSpecificity(left, scope);
+        if (specificity !== 0) return specificity;
+        return Date.parse(right.valid_from) - Date.parse(left.valid_from);
+      })[0] ?? null
   );
 }
 
@@ -313,7 +317,9 @@ function resolvePolicy(
         left.price_band_key === scope.priceBandKey
           ? 1
           : 0);
-      return rightSpecificity - leftSpecificity;
+      const specificity = rightSpecificity - leftSpecificity;
+      if (specificity !== 0) return specificity;
+      return Date.parse(right.valid_from) - Date.parse(left.valid_from);
     })[0] ?? null
   );
 }
@@ -356,7 +362,7 @@ export async function getKlyxMarketLiquidityMetrics(
     priceBandKey: normalizeKey(input.priceBandKey),
   };
 
-  const now = Date.now();
+  const configurationAt = Math.min(Date.now(), to.getTime());
 
   const [capabilityResult, bandResult, policyResult] = await Promise.all([
     supabaseAdmin
@@ -383,12 +389,12 @@ export async function getKlyxMarketLiquidityMetrics(
   const capability = resolveCapability(
     (capabilityResult.data ?? []) as CapabilityRow[],
     scope,
-    now
+    configurationAt
   );
   const priceBandRow = resolvePriceBand(
     (bandResult.data ?? []) as PriceBandRow[],
     scope,
-    now
+    configurationAt
   );
   if (scope.priceBandKey && !priceBandRow) {
     throw new Error("KLYX_MARKET_LIQUIDITY_PRICE_BAND_NOT_FOUND");
@@ -396,14 +402,14 @@ export async function getKlyxMarketLiquidityMetrics(
   const policyRow = resolvePolicy(
     (policyResult.data ?? []) as PolicyRow[],
     scope,
-    now
+    configurationAt
   );
 
   const requests = await fetchPaged<KlyxLiquidityRequestRow>((rangeFrom, rangeTo) => {
     let query = supabaseAdmin
       .from("market_service_requests")
       .select(
-        "id,client_profile_id,service_id,market_id,region_id,country_code,currency,budget_max,created_at"
+        "id,client_profile_id,service_id,market_id,region_id,country_code,currency,request_mode,budget_max,budget_total,created_at"
       )
       .gte("created_at", from.toISOString())
       .lt("created_at", to.toISOString())
@@ -629,6 +635,7 @@ export async function getKlyxMarketLiquidityMetrics(
       serviceId: scope.serviceId,
       currencyCode: scope.currencyCode,
       priceBandKey: priceBand?.key ?? null,
+      configurationAsOf: new Date(configurationAt).toISOString(),
     },
     technicalSupport: {
       status: capability?.capability_status ?? "unknown",
@@ -647,11 +654,15 @@ export async function getKlyxMarketLiquidityMetrics(
       bookingConversion: "booked_demands / accepted_quote_demands",
       fillRate: "booked_demands / total_demands",
       providerUtilization:
-        "distinct_discovered_providers_booked / distinct_discovered_providers",
+        "distinct_booked_demand_provider_opportunities / distinct_discovered_demand_provider_opportunities",
       availability:
         "demands_with_full_coverage_candidate_or_offer / total_demands",
       matchingQuality:
         "mean_best_candidate_coverage_ratio_per_matched_demand",
+      replacementSuccess:
+        "unknown_until_canonical_replacement_booking_or_completion_success_is_persisted",
+      replacementSelection:
+        "incidents_with_replacement_selected / incidents_entering_replacement_flow",
     },
   };
 }

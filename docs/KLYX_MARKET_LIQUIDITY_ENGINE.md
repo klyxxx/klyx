@@ -54,7 +54,7 @@ Price bands are versioned data in:
 
 `klyx_market_liquidity_price_bands`
 
-They use canonical accounting minor units, so zero-decimal currencies are not treated as 2-decimal currencies.
+They use canonical accounting minor units, so zero-decimal currencies are not treated as 2-decimal currencies. Single requests use `budget_max`; multi-slot requests use `budget_total` (with legacy fallback only when one of those snapshots is missing).
 
 ## Technical capability
 
@@ -94,7 +94,7 @@ If no policy exists, liquidity is `unknown`.
 
 If the sample is smaller than `min_sample_size`, liquidity is `unknown`.
 
-If a configured metric cannot be measured for the cohort (for example no replacement attempt exists while a replacement-success threshold is required), liquidity is also `unknown`. Missing evidence is never converted into a synthetic 0% failure.
+If a configured metric cannot be measured for the cohort (for example replacement success has no canonical completion evidence, or accepted-proposal evidence is inconsistent with later booking evidence), liquidity is also `unknown`. Missing evidence is never converted into a synthetic success or 0% failure.
 
 Only a cohort that satisfies every configured threshold is `liquid`.
 
@@ -130,13 +130,20 @@ cancellation_rate
 = cancelled booked demands / booked demands
 
 replacement_success
+= unknown until KLYX persists canonical evidence that the replacement booking/mission actually succeeded
+
+replacement_selection (diagnostic only)
 = incidents with replacement_selected / incidents entering replacement flow
+
+A replacement selection is not replacement success. The current incident event explicitly records that selection does not create a booking, so Mission 19 fails closed instead of overstating recovery.
 
 repeat_usage
 = clients with >= 2 completed demands / clients with >= 1 completed demand
 
 provider_utilization
-= discovered providers that receive a booking / discovered providers
+= distinct discovered (demand, provider) opportunities that receive a booking / distinct discovered (demand, provider) opportunities
+
+This avoids the false 100% case where one provider appears in many demands but is booked only once.
 
 availability
 = demands with a full-coverage candidate or live offer / total demands
@@ -206,3 +213,13 @@ It must not:
 The Founder-only endpoint `GET /api/founder/market-liquidity` exposes the measurement engine for operational analysis. It accepts explicit cohort dimensions and never mutates market/domain state.
 
 The Orchestrator may consume liquidity results to explain market conditions or choose a workflow strategy, but domain mutations remain deterministic server authorities.
+
+
+## Versioned configuration resolution
+
+Capability, price-band and liquidity-policy rows are resolved deterministically:
+
+1. most specific matching scope;
+2. newest `valid_from` when specificity ties.
+
+For a historical cohort, configuration is evaluated as of the cohort end boundary (capped at the current time), and the API returns `configurationAsOf`. This prevents an arbitrary database row order from deciding whether a market is supported or liquid.

@@ -159,4 +159,28 @@ describe("Mission 19 Market & Liquidity Engine contract", () => {
     }
     expect(server).toContain('import "server-only"');
   });
+  it("fails closed on measurement semantics that lack canonical evidence", () => {
+    expect(server).toContain("request_mode,budget_max,budget_total");
+    expect(metrics).toContain('request.request_mode === "multi_slot"');
+    expect(metrics).toContain("request.budget_total ?? request.budget_max");
+    expect(metrics).toContain("discoveredProviderOpportunities");
+    expect(metrics).toContain("bookedProviderOpportunities");
+    expect(metrics).toContain("bookedDemands <= acceptedQuoteDemands");
+    expect(metrics).toContain("replacementSuccessRate: null");
+    expect(metrics).toContain("replacementSelectionRate: ratio(");
+    expect(doc).toContain("selection is not replacement success");
+  });
+
+  it("resolves versioned capability, band and policy rows deterministically", () => {
+    expect(
+      server.match(
+        /Date\.parse\(right\.valid_from\) - Date\.parse\(left\.valid_from\)/g
+      )
+    ).toHaveLength(3);
+    expect(server).toContain(
+      "const configurationAt = Math.min(Date.now(), to.getTime())"
+    );
+    expect(server).toContain("configurationAsOf:");
+  });
+
 });
