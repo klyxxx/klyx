@@ -352,7 +352,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          supabase --workdir "$KLYX_FULL_DR_LAB_ROOT" stop --no-backup
+          supabase --workdir "$KLYX_FULL_DR_LAB_ROOT" stop
 
           supabase --workdir "$KLYX_FULL_DR_LAB_ROOT" start             -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
 
