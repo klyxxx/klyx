@@ -95,8 +95,8 @@ describe("KLYX true Split Settlement + Live Readiness contract", () => {
       expect(gate).toContain(component);
     }
 
-    expect(gate).toContain("Live is OFF");
-    expect(gate).toContain("Live remains OFF");
-    expect(gate).toContain("KLYX Stripe Live remains OFF");
+    expect(gate).toContain("General Live is OFF");
+    expect(gate).toContain("general Stripe Live remains OFF");
+    expect(gate).toContain("40 scenario/topology cells");
   });
 });
