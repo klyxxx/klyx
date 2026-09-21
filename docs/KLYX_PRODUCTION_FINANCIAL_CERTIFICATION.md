@@ -66,6 +66,8 @@ scheduled run is the alert evidence visible in GitHub Actions.
 The runtime freshness budget is 15 minutes for a five-minute schedule. Missing,
 stale, degraded or wrong-SHA heartbeats keep LIVE mutations blocked.
 
+Protected Playwright browser verification remains a merge-required branch check; a cancelled run is never treated as certification evidence.
+
 ## Observation vs mutation authority
 
 KLYX deliberately separates two Stripe runtime authorities:
