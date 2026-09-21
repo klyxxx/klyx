@@ -63,7 +63,7 @@ describe("Mission 11 economic settlement eligibility contract", () => {
   });
 
   it("uses Accounts v2 recipient transfer capability instead of legacy payout booleans", () => {
-    expect(eligibility).toContain("stripeProjection.payouts_enabled");
+    expect(eligibility).toContain("payouts_enabled: boolean;");
     expect(eligibility).not.toContain('blocked.push("STRIPE_PAYOUTS_NOT_ENABLED")');
     expect(eligibility).not.toContain('blocked.push("STRIPE_DETAILS_NOT_SUBMITTED")');
     expect(eligibility).toContain("STRIPE_TRANSFER_CAPABILITY_INACTIVE");
