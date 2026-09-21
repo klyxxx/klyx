@@ -194,9 +194,12 @@ async function reconcileReleaseFromStripeTruth(input: {
 function verifyPaymentIntentTruth(
   settlement: SettlementRow,
   intent: Stripe.PaymentIntent,
-  chargeId: string
+  chargeId: string,
+  expectedLive: boolean
 ) {
-  if (intent.livemode) throw new Error(LIVE_FORBIDDEN);
+  if (intent.livemode !== expectedLive) {
+    throw new Error("KLYX_SETTLEMENT_PAYMENT_LIVEMODE_MISMATCH");
+  }
   if (intent.status !== "succeeded") {
     throw new Error("KLYX_SETTLEMENT_PAYMENT_INTENT_NOT_SUCCEEDED");
   }
@@ -228,11 +231,14 @@ function verifyTransferTruth(input: {
   transfer: Stripe.Transfer;
   settlement: SettlementRow;
   chargeId: string;
+  expectedLive: boolean;
 }) {
-  const { transfer, settlement, chargeId } = input;
+  const { transfer, settlement, chargeId, expectedLive } = input;
   const destinationId = stripeObjectId(transfer.destination);
 
-  if (transfer.livemode) throw new Error(LIVE_FORBIDDEN);
+  if (transfer.livemode !== expectedLive) {
+    throw new Error("KLYX_SETTLEMENT_TRANSFER_LIVEMODE_MISMATCH");
+  }
   if (transfer.amount !== settlement.provider_amount_cents) {
     throw new Error("KLYX_SETTLEMENT_EXISTING_TRANSFER_AMOUNT_MISMATCH");
   }
@@ -254,6 +260,7 @@ async function reconcileExistingTransfer(input: {
   stripe: Stripe;
   settlement: SettlementRow;
   chargeId: string;
+  expectedLive: boolean;
 }): Promise<Stripe.Transfer | null> {
   const listed = await input.stripe.transfers.list({
     transfer_group: input.settlement.transfer_group,
@@ -278,6 +285,7 @@ async function reconcileExistingTransfer(input: {
     transfer: existing,
     settlement: input.settlement,
     chargeId: input.chargeId,
+    expectedLive: input.expectedLive,
   });
 
   return existing;
@@ -304,8 +312,10 @@ export async function releasePlatformHeldBookingSettlement(
     return { status: "not_ready" };
   }
 
-  const financialRuntime = await requireKlyxFinancialStripeRuntimeForBooking(bookingId);
+  const financialRuntime =
+    await requireKlyxFinancialStripeRuntimeForBooking(bookingId);
   const stripe = new Stripe(financialRuntime.key);
+  const expectedLive = financialRuntime.mode !== "test";
   const paymentIntentId = settlement.stripe_payment_intent_id;
   const checkoutSessionId = settlement.stripe_checkout_session_id;
 
@@ -322,7 +332,7 @@ export async function releasePlatformHeldBookingSettlement(
     throw new Error("KLYX_SETTLEMENT_CHARGE_REQUIRED");
   }
 
-  verifyPaymentIntentTruth(settlement, intent, chargeId);
+  verifyPaymentIntentTruth(settlement, intent, chargeId, expectedLive);
   await attachStripeTruth({
     bookingId,
     checkoutSessionId,
@@ -338,6 +348,7 @@ export async function releasePlatformHeldBookingSettlement(
       stripe,
       settlement,
       chargeId,
+      expectedLive,
     });
 
     if (existingTransfer) {
@@ -493,6 +504,7 @@ export async function releasePlatformHeldBookingSettlement(
           stripe_charge_id: claim.stripe_charge_id,
         },
         chargeId: claim.stripe_charge_id,
+        expectedLive,
       });
     } catch (error) {
       await failClaim({
@@ -545,7 +557,7 @@ export async function releasePlatformHeldBookingSettlement(
 
       if (
         stripeTruth.stripeAccountId !== claim.stripe_account_id ||
-        stripeTruth.livemode ||
+        stripeTruth.livemode !== expectedLive ||
         !stripeTruth.transferCapabilityActive
       ) {
         await failClaim({
@@ -553,7 +565,7 @@ export async function releasePlatformHeldBookingSettlement(
           claimToken,
           code: "stripe_recipient_not_ready",
           message:
-            "Remote Stripe recipient truth does not permit a new TEST Transfer.",
+            "Remote Stripe recipient truth does not permit the expected Transfer mode.",
         });
         await markReviewRequired(bookingId, [
           "stripe_recipient_not_ready",
@@ -583,6 +595,7 @@ export async function releasePlatformHeldBookingSettlement(
         transfer,
         settlement,
         chargeId: claim.stripe_charge_id,
+        expectedLive,
       });
     } else {
       stripeAcceptedTransfer = true;
@@ -699,6 +712,7 @@ export async function preparePlatformHeldBookingRefund(
     transfer: parentTransfer,
     settlement,
     chargeId,
+    expectedLive,
   });
 
   const reversals = await stripe.transfers.listReversals(transferId, {
