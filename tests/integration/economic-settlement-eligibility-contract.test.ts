@@ -14,6 +14,9 @@ const single = read("lib/booking-settlement-server.ts");
 const group = read("lib/platform-held-group-settlement-server.ts");
 const stripeTruth = read("lib/stripe-settlement-recipient-truth.ts");
 const documentation = read("docs/economic-settlement-eligibility.md");
+const networkProof = read(
+  "scripts/golden-path-economic-chain-stripe-blocked.mjs"
+);
 
 describe("Mission 11 economic settlement eligibility contract", () => {
   it("creates one append-only decision ledger without creating parallel activity authorities", () => {
@@ -71,6 +74,25 @@ describe("Mission 11 economic settlement eligibility contract", () => {
     expect(eligibility).toContain("ECONOMIC_RESTRICTION_ACTIVE");
     expect(documentation).toContain("legacy compatibility evidence");
     expect(documentation).toContain("stripe_transfers");
+  });
+
+  it("proves Stripe Recipient green / KLYX blocked without relying on legacy payout flags", () => {
+    expect(networkProof).toContain("v2RecipientTransferReady(v2Account)");
+    expect(networkProof).toContain(
+      'stripeTransferStatus: v2TransferStatus(v2Account)'
+    );
+    expect(networkProof).toContain(
+      'code.startsWith("STRIPE_")'
+    );
+    expect(networkProof).toContain(
+      "STRIPE_OK_KLYX_BLOCKED_PREVENTS_BENEFICIARY_TRANSFER"
+    );
+    expect(networkProof).not.toContain(
+      'stripeAccount.payouts_enabled === true'
+    );
+    expect(networkProof).not.toContain(
+      'stripeAccount.details_submitted === true'
+    );
   });
 
   it("requires a fresh economic allow before the independent risk allow in both SQL claims", () => {
