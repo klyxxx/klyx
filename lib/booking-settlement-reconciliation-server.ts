@@ -10,16 +10,16 @@ import {
 import {
   assertStripeConnectIdentityUsable,
   getProfileAccountStripeConnectIdentity,
+  getProfileAccountStripeConnectIdentityStrict,
   STRIPE_CONNECT_IDENTITY_CONFLICT,
   STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED,
 } from "@/lib/stripe-connect-account-identity";
+import { getFinancialStripeRuntime } from "@/lib/financial-stripe-runtime";
 import { markBookingPaidFromSession } from "@/lib/stripe-payments";
 import { reconcileStripeRefund } from "@/lib/stripe-refunds";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 const PAYMENT_MODE = "platform_held" as const;
-const TEST_KEY_REQUIRED = "KLYX_SETTLEMENT_STRIPE_TEST_KEY_REQUIRED";
-const LIVE_FORBIDDEN = "KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY";
 const CLAIM_TTL_MS = 10 * 60 * 1000;
 
 export type SettlementReconciliationSource =
@@ -126,19 +126,6 @@ class SettlementTruthMismatchError extends Error {
   }
 }
 
-function testStripeClient(): Stripe {
-  const key = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
-
-  if (key.startsWith("sk_live_")) {
-    throw new Error(LIVE_FORBIDDEN);
-  }
-
-  if (!key.startsWith("sk_test_")) {
-    throw new Error(TEST_KEY_REQUIRED);
-  }
-
-  return new Stripe(key);
-}
 
 function stripeObjectId(
   value: string | { id: string } | null | undefined
@@ -364,9 +351,15 @@ async function assertCanonicalProviderIdentity(
   let canonicalStripeAccountId: string | null;
 
   try {
-    const identity = await getProfileAccountStripeConnectIdentity(
-      settlement.provider_profile_id
-    );
+    const runtime = getFinancialStripeRuntime();
+    const identity =
+      runtime.mode === "live"
+        ? await getProfileAccountStripeConnectIdentityStrict(
+            settlement.provider_profile_id
+          )
+        : await getProfileAccountStripeConnectIdentity(
+            settlement.provider_profile_id
+          );
     canonicalStripeAccountId = assertStripeConnectIdentityUsable(identity);
   } catch (error) {
     if (
@@ -397,7 +390,10 @@ function verifyCheckoutSession(
   settlement: SettlementRow,
   session: Stripe.Checkout.Session
 ): void {
-  mismatch(session.livemode, LIVE_FORBIDDEN);
+  mismatch(
+    session.livemode !== getFinancialStripeRuntime().livemode,
+    "stripe_mode_mismatch"
+  );
   mismatch(
     session.id !== settlement.stripe_checkout_session_id,
     "checkout_session_id_mismatch"
@@ -435,7 +431,10 @@ function verifyPaymentIntent(
   intent: Stripe.PaymentIntent,
   chargeId: string
 ): void {
-  mismatch(intent.livemode, LIVE_FORBIDDEN);
+  mismatch(
+    intent.livemode !== getFinancialStripeRuntime().livemode,
+    "stripe_mode_mismatch"
+  );
   mismatch(
     intent.status !== "succeeded",
     "payment_intent_not_succeeded"
@@ -475,7 +474,10 @@ function verifyTransfer(
   transfer: Stripe.Transfer,
   chargeId: string
 ): void {
-  mismatch(transfer.livemode, LIVE_FORBIDDEN);
+  mismatch(
+    transfer.livemode !== getFinancialStripeRuntime().livemode,
+    "stripe_mode_mismatch"
+  );
   mismatch(
     transfer.metadata?.booking_id !== settlement.booking_id,
     "transfer_booking_mismatch"
@@ -861,7 +863,7 @@ export async function reconcilePlatformHeldBookingSettlement(input: {
 
     await assertCanonicalProviderIdentity(context.settlement);
 
-    const stripe = testStripeClient();
+    const stripe = getFinancialStripeRuntime().stripe;
     context = await ensurePaymentTruth(
       stripe,
       context,
