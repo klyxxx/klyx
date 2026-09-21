@@ -1,3 +1,4 @@
+import { assertLiveFinancialStaticGate, assertStripeFinancialObjectMode } from "@/lib/live-financial-runtime-policy";
 import "server-only";
 
 import { randomUUID } from "node:crypto";
@@ -126,11 +127,12 @@ class SettlementTruthMismatchError extends Error {
   }
 }
 
-function testStripeClient(): Stripe {
+function financialStripeClient(): Stripe {
   const key = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
 
   if (key.startsWith("sk_live_")) {
-    throw new Error(LIVE_FORBIDDEN);
+    assertLiveFinancialStaticGate();
+    return new Stripe(key);
   }
 
   if (!key.startsWith("sk_test_")) {
@@ -397,7 +399,7 @@ function verifyCheckoutSession(
   settlement: SettlementRow,
   session: Stripe.Checkout.Session
 ): void {
-  mismatch(session.livemode, LIVE_FORBIDDEN);
+  assertStripeFinancialObjectMode(session.livemode);
   mismatch(
     session.id !== settlement.stripe_checkout_session_id,
     "checkout_session_id_mismatch"
@@ -435,7 +437,7 @@ function verifyPaymentIntent(
   intent: Stripe.PaymentIntent,
   chargeId: string
 ): void {
-  mismatch(intent.livemode, LIVE_FORBIDDEN);
+  assertStripeFinancialObjectMode(intent.livemode);
   mismatch(
     intent.status !== "succeeded",
     "payment_intent_not_succeeded"
@@ -475,7 +477,7 @@ function verifyTransfer(
   transfer: Stripe.Transfer,
   chargeId: string
 ): void {
-  mismatch(transfer.livemode, LIVE_FORBIDDEN);
+  assertStripeFinancialObjectMode(transfer.livemode);
   mismatch(
     transfer.metadata?.booking_id !== settlement.booking_id,
     "transfer_booking_mismatch"
@@ -861,7 +863,7 @@ export async function reconcilePlatformHeldBookingSettlement(input: {
 
     await assertCanonicalProviderIdentity(context.settlement);
 
-    const stripe = testStripeClient();
+    const stripe = financialStripeClient();
     context = await ensurePaymentTruth(
       stripe,
       context,
