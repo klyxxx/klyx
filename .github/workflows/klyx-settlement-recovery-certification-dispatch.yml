@@ -68,52 +68,76 @@ jobs:
 
           report_status pending "Exact settlement recovery certification running"
 
-          gh workflow run klyx-security.yml \
-            --repo "$GH_REPO" --ref "$KLYX_REF" \
-            -f expected_sha="$GITHUB_SHA"
+          wait_workflow_idle() {
+            local workflow="$1"
+            local active=""
 
-          gh workflow run klyx-golden-path.yml \
-            --repo "$GH_REPO" --ref "$KLYX_REF" \
-            -f expected_sha="$GITHUB_SHA" \
-            -f confirm_isolated_e2e=true
+            for attempt in $(seq 1 180); do
+              active="$(
+                gh run list \
+                  --repo "$GH_REPO" \
+                  --workflow "$workflow" \
+                  --limit 50 \
+                  --json status \
+                  --jq '[.[] | select(.status == "queued" or .status == "in_progress" or .status == "pending" or .status == "waiting" or .status == "requested")] | length'
+              )"
 
-          gh workflow run klyx-performance.yml \
-            --repo "$GH_REPO" --ref "$KLYX_REF" \
-            -f expected_sha="$GITHUB_SHA" \
-            -f profile=smoke \
-            -f confirm_isolated_target=true
+              if [ "$active" = "0" ]; then
+                return 0
+              fi
 
-          gh workflow run klyx-e2e.yml \
-            --repo "$GH_REPO" --ref "$KLYX_REF" \
-            -f expected_sha="$GITHUB_SHA"
+              echo "Waiting for $workflow concurrency queue to drain ($active active/pending run(s))."
+              sleep 5
+            done
 
-          gh workflow run klyx-stripe-network-test.yml \
-            --repo "$GH_REPO" --ref "$KLYX_REF" \
-            -f expected_sha="$GITHUB_SHA" \
-            -f confirm_stripe_test_network=true
+            echo "::error::Timed out waiting for $workflow concurrency queue to drain."
+            return 1
+          }
 
-          workflows=(
-            klyx-security.yml
-            klyx-golden-path.yml
-            klyx-performance.yml
-            klyx-e2e.yml
-            klyx-stripe-network-test.yml
-          )
+          dispatch_and_wait() {
+            local workflow="$1"
+            shift
 
-          for workflow in "${workflows[@]}"; do
-            run_id=""
+            wait_workflow_idle "$workflow"
+
+            local before_file
+            before_file="$(mktemp)"
+
+            gh run list \
+              --repo "$GH_REPO" \
+              --workflow "$workflow" \
+              --commit "$GITHUB_SHA" \
+              --event workflow_dispatch \
+              --limit 50 \
+              --json databaseId \
+              --jq '.[].databaseId' \
+              > "$before_file"
+
+            gh workflow run "$workflow" \
+              --repo "$GH_REPO" \
+              --ref "$KLYX_REF" \
+              -f expected_sha="$GITHUB_SHA" \
+              "$@"
+
+            local run_id=""
+            local candidate=""
 
             for attempt in $(seq 1 60); do
-              run_id="$(
+              while IFS= read -r candidate; do
+                if [ -n "$candidate" ] && ! grep -Fxq "$candidate" "$before_file"; then
+                  run_id="$candidate"
+                  break
+                fi
+              done < <(
                 gh run list \
                   --repo "$GH_REPO" \
                   --workflow "$workflow" \
                   --commit "$GITHUB_SHA" \
                   --event workflow_dispatch \
-                  --limit 10 \
+                  --limit 50 \
                   --json databaseId \
-                  --jq '.[0].databaseId // empty'
-              )"
+                  --jq '.[].databaseId'
+              )
 
               if [ -n "$run_id" ]; then
                 break
@@ -122,14 +146,33 @@ jobs:
               sleep 2
             done
 
+            rm -f "$before_file"
+
             if [ -z "$run_id" ]; then
-              echo "::error::No workflow_dispatch run found for $workflow at $GITHUB_SHA."
-              exit 1
+              echo "::error::No new workflow_dispatch run found for $workflow at $GITHUB_SHA."
+              return 1
             fi
 
-            echo "Awaiting $workflow run $run_id for $GITHUB_SHA"
+            echo "Awaiting exact $workflow run $run_id for $GITHUB_SHA"
             gh run watch "$run_id" --repo "$GH_REPO" --exit-status
-          done
+          }
+
+          dispatch_and_wait klyx-security.yml
+
+          dispatch_and_wait \
+            klyx-golden-path.yml \
+            -f confirm_isolated_e2e=true
+
+          dispatch_and_wait \
+            klyx-performance.yml \
+            -f profile=smoke \
+            -f confirm_isolated_target=true
+
+          dispatch_and_wait klyx-e2e.yml
+
+          dispatch_and_wait \
+            klyx-stripe-network-test.yml \
+            -f confirm_stripe_test_network=true
 
           trap - ERR
           report_status success "Exact settlement recovery certification passed"
