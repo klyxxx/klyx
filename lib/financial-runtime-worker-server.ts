@@ -663,9 +663,12 @@ export async function runFinancialRuntimeTick(): Promise<{
     }
   }
 
+  const workerStatus =
+    counters.failed > 0 ? "degraded" : "healthy";
+
   await recordRuntimeHeartbeat({
     component: "financial_durable_worker",
-    status: "healthy",
+    status: workerStatus,
     sourceSha,
     details: {
       claimed: counters.claimed,
