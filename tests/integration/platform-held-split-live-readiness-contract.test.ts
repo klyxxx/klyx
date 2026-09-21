@@ -57,7 +57,7 @@ describe("KLYX true Split Settlement + Live Readiness contract", () => {
     const engine = read("lib/platform-held-group-settlement-server.ts");
 
     expect(proof).toContain("idempotentTransferCount");
-    expect(engine).toContain("await listAndValidateTransfers(stripe, parent, members)");
+    expect(engine).toContain("await listAndValidateTransfers(stripe, parent, members, expectedLive)");
     expect(engine).toContain("await input.stripe.transfers.listReversals");
     expect(engine).toContain("await stripe.refunds.list({");
   });
