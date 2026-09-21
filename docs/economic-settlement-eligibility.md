@@ -44,7 +44,9 @@ An `allowed` decision also requires, among other applicable facts:
 - a linked canonical Stripe identity matching the frozen settlement destination;
 - a non-divergent economic Stripe projection with no current blocking requirements.
 
-Immediately before a new Transfer, KLYX re-evaluates economic eligibility and reads remote Stripe recipient capability/status again.
+Immediately before a new Transfer, KLYX refreshes the economic Stripe projection from the remote provider, re-evaluates economic eligibility, and reads remote Stripe recipient capability/status again.
+
+Accounts v2 is normalized directly: recipient `stripe_transfers` and `payouts` are distinct capabilities, current `requirements.entries` remain blocking evidence, and KLYX does not reinterpret missing Accounts v1 booleans as Accounts v2 truth. Historical Accounts v1 identities remain a compatibility fallback only when Accounts v2 retrieval itself is unavailable.
 
 For settlement, missing evidence is not success. Missing legal identity facts, missing KYC/KYB evidence, missing qualifications, stale verification timestamps and non-ready economic identities fail closed. A human-review state never creates a Transfer automatically.
 
