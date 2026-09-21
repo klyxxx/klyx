@@ -1,3 +1,4 @@
+import { requireLiveFinancialMutationAuthorized } from "@/lib/live-financial-runtime-gate";
 import { NextResponse } from "next/server";
 import { assertStripeRuntimeReady } from "@/lib/stripe-runtime";
 import { randomUUID } from "node:crypto";
@@ -699,6 +700,8 @@ export async function POST(request: Request) {
         { status: 409 }
       );
     }
+
+    await requireLiveFinancialMutationAuthorized({ mutation: "checkout" });
 
     const session = await stripe.checkout.sessions.create(sessionParams, {
       idempotencyKey: `klyx-booking-${booking.id}-attempt-${claim.attempt_number}`,
