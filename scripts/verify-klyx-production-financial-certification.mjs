@@ -623,27 +623,37 @@ async function main() {
     "KLYX_CERT_RUNTIME_NOT_LIVE"
   );
   assert(
-    health?.financialRuntime?.livePaymentsEnabled === false,
+    health?.financialRuntime?.generalLiveEnabled === false,
     "KLYX_CERT_GENERAL_LIVE_MUST_REMAIN_OFF"
   );
   assert(
-    health?.financialRuntime?.liveCertificationEnabled === true,
+    health?.financialRuntime?.controlledCertificationEnabled === true,
     "KLYX_CERT_CONTROLLED_LIVE_NOT_ENABLED"
   );
   assert(
-    health?.financialRuntime?.liveCertificationSha === expectedSha &&
-      health?.financialRuntime?.drCertifiedSha === expectedSha,
+    health?.financialRuntime?.drShaMatchesDeployment === true &&
+      health?.financialRuntime?.certificationShaMatchesDeployment === true,
     "KLYX_CERT_RUNTIME_SHA_CHAIN_MISMATCH"
   );
   assert(
     health?.financialRuntime?.certificationProfileConfigured === true,
     "KLYX_CERT_PROFILE_NOT_CONFIGURED"
   );
-
-  const stripeSecret = requiredEnv("STRIPE_SECRET_KEY");
   assert(
-    stripeSecret.startsWith("sk_live_"),
-    "KLYX_CERT_STRIPE_LIVE_SECRET_REQUIRED"
+    health?.financialRuntime?.stripeSecretModeCompatible === true,
+    "KLYX_CERT_STRIPE_RUNTIME_KEY_MODE_MISMATCH"
+  );
+  assert(
+    health?.financialRuntime?.stripeWebhookConfigured === true,
+    "KLYX_CERT_STRIPE_WEBHOOK_NOT_CONFIGURED"
+  );
+
+  const certificationProfileId = requiredEnv(
+    "KLYX_LIVE_CERTIFICATION_PROFILE_ID"
+  );
+  assert(
+    UUID_RE.test(certificationProfileId),
+    "KLYX_CERT_PROFILE_ID_INVALID"
   );
 
   const supabaseUrl = requiredEnv("NEXT_PUBLIC_SUPABASE_URL");
@@ -660,6 +670,13 @@ async function main() {
   for (const cell of manifest.cells) {
     const key = cell.scenario + ":" + cell.topology;
     const evidence = await loadEvidence(supabase, cell.bookingIds);
+
+    assert(
+      evidence.bookings.every(
+        (row) => row.parent_id === certificationProfileId
+      ),
+      "KLYX_CERT_PROFILE_BOOKING_MISMATCH:" + key
+    );
 
     validateTopology(cell, evidence);
     validateScenario(cell, evidence);
