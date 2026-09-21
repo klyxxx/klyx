@@ -973,7 +973,6 @@ async function buildPartialAllocations(
   validateExplicitGroupRefundAllocations({
     refundAmountCents: amountCents,
     allocations,
-    expectedLive,
   });
 
   return { amountCents, allocations };
