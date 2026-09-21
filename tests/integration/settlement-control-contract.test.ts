@@ -12,13 +12,14 @@ function compact(source: string) {
 }
 
 describe("KLYX settlement control phase-1 contract", () => {
-  it("keeps live platform-held settlement fail-closed", () => {
+  it("keeps live platform-held settlement fail-closed unless the explicit LIVE gate is ready", () => {
     const source = read("lib/stripe-settlement-control.ts");
 
     expect(source).toContain("KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY");
     expect(source).toContain('secret.startsWith("sk_live_")');
     expect(source).toContain("KLYX_SETTLEMENT_CONTROL_TEST_READY");
-    expect(source).not.toContain("KLYX_SETTLEMENT_CONTROL_LIVE_READY");
+    expect(source).toContain("KLYX_SETTLEMENT_CONTROL_LIVE_READY");
+    expect(source).toContain("inspectLiveFinancialStaticGate");
   });
 
   it("defines a server-only atomic settlement release plane", () => {
