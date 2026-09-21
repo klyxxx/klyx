@@ -85,12 +85,12 @@ begin
     raise exception 'KLYX_WORKFLOW_REBIND_TARGET_CONFLICT';
   end if;
 
-  update public.klyx_workflows
+  update public.klyx_workflows as workflow
      set conversation_id = p_conversation_id,
-         version = version + 1,
+         version = workflow.version + 1,
          updated_at = now()
-   where id = v_workflow.id
-   returning * into v_workflow;
+   where workflow.id = v_workflow.id
+   returning workflow.* into v_workflow;
 
   insert into public.klyx_workflow_events (
     workflow_id,
