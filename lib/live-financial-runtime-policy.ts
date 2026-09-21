@@ -207,21 +207,21 @@ export function assertLiveFinancialStaticGate(
 
 
 export function assertStripeFinancialObjectMode(
-  livemode: boolean,
+  livemode: boolean | null,
   env: LiveFinancialEnvironment = liveFinancialRuntimeEnvironment()
 ): void {
   const mode = env.KLYX_STRIPE_MODE?.trim().toLowerCase();
 
   if (mode === "live") {
     assertLiveFinancialStaticGate(env);
-    if (!livemode) {
+    if (livemode !== true) {
       throw new Error(KLYX_STRIPE_FINANCIAL_MODE_MISMATCH);
     }
     return;
   }
 
   if (mode === "test") {
-    if (livemode) {
+    if (livemode === true) {
       throw new Error(KLYX_STRIPE_FINANCIAL_MODE_MISMATCH);
     }
     return;
