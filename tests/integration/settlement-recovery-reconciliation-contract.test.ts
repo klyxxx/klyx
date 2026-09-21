@@ -27,11 +27,11 @@ const webhookEvents = read("lib/stripe-webhook-events.ts");
 const opsRoute = read("app/api/ops/settlement-reconciliation/route.ts");
 
 describe("KLYX settlement recovery / reconciliation contract", () => {
-  it("is server-only, TEST-only and contains no LLM financial mutation path", () => {
+  it("is server-only, mode-aware and contains no LLM financial mutation path", () => {
     expect(recovery).toContain('import "server-only"');
-    expect(recovery).toContain('key.startsWith("sk_live_")');
-    expect(recovery).toContain('key.startsWith("sk_test_")');
-    expect(recovery).toContain("KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY");
+    expect(recovery).toContain("getFinancialStripeRuntime");
+    expect(recovery).toContain("getProfileAccountStripeConnectIdentityStrict");
+    expect(recovery).not.toContain("testStripeClient");
     expect(recovery).not.toContain("stripe.payouts.create");
     expect(recovery).not.toMatch(/from ["']@\/lib\/(brain|ai|llm)/);
     expect(recovery).not.toMatch(/openai/i);
