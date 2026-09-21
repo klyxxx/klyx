@@ -1,6 +1,6 @@
 import "server-only";
 
-import { inspectLiveFinancialStaticGate } from "@/lib/live-financial-runtime-gate";
+import { inspectLiveFinancialStaticGate } from "@/lib/live-financial-runtime-policy";
 
 export type StripeRuntimeMode = "test" | "live";
 
