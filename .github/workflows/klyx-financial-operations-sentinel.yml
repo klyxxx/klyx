@@ -1,0 +1,178 @@
+name: KLYX Financial Operations Sentinel
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_run:
+    workflows:
+      - KLYX Supabase Production Migrations
+    types:
+      - completed
+
+permissions:
+  contents: read
+
+concurrency:
+  group: klyx-financial-operations-sentinel-${{ github.repository }}
+  cancel-in-progress: true
+
+jobs:
+  financial-control-plane:
+    name: Financial queue and critical-alert proof
+    if: >-
+      ${{
+        github.event_name != 'workflow_run' ||
+        github.event.workflow_run.conclusion == 'success'
+      }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+
+    steps:
+      - name: Validate production DB connection
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_DB_URL:-}" ]; then
+            echo "::error::SUPABASE_DB_URL is required."
+            exit 1
+          fi
+          psql --version
+
+      - name: Prove durable queue and financial surveillance
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "${SUPABASE_DB_URL}" --no-psqlrc --set=ON_ERROR_STOP=1 <<'SQL'
+          do $block$
+          declare
+            v_job record;
+            v_critical bigint;
+            v_dlq bigint;
+            v_reconciliation bigint;
+          begin
+            perform public.klyx_enqueue_durable_job(
+              p_job_type => 'financial_control_plane_heartbeat',
+              p_idempotency_key =>
+                'financial-control-plane-' ||
+                to_char(now() at time zone 'UTC', 'YYYYMMDDHH24MI'),
+              p_payload => jsonb_build_object(
+                'source',
+                'github_financial_operations_sentinel'
+              ),
+              p_failure_domain_type => 'financial_control_plane',
+              p_failure_domain_key => 'global',
+              p_payment_provider => 'stripe',
+              p_capability => 'payments',
+              p_priority => 1,
+              p_max_attempts => 2,
+              p_backoff_base_seconds => 30,
+              p_backoff_max_seconds => 60
+            );
+
+            select *
+              into v_job
+              from public.klyx_claim_durable_jobs(
+                'github-financial-operations-sentinel',
+                array['financial_control_plane_heartbeat'],
+                1,
+                60
+              )
+             limit 1;
+
+            if v_job.job_id is null then
+              raise exception 'KLYX_FINANCIAL_SENTINEL_QUEUE_CLAIM_FAILED';
+            end if;
+
+            perform public.klyx_complete_durable_job(
+              v_job.job_id,
+              v_job.lease_token,
+              'github-financial-operations-sentinel',
+              'financial-control-plane-ok'
+            );
+
+            select
+              (
+                select count(*)
+                  from public.ops_observability_signals_current
+                 where severity = 'critical'
+              )
+              +
+              (
+                select count(*)
+                  from public.financial_monitoring_signals_current
+                 where severity = 'critical'
+              )
+              into v_critical;
+
+            select count(*)
+              into v_dlq
+              from public.ops_durable_job_dlq
+             where payment_provider = 'stripe'
+                or capability in (
+                  'payments',
+                  'settlement_release',
+                  'refunds',
+                  'payouts'
+                );
+
+            select count(*)
+              into v_reconciliation
+              from public.financial_reconciliation_current
+             where state in ('reconciliation', 'human_review');
+
+            if v_critical > 0 then
+              raise exception
+                'KLYX_FINANCIAL_SENTINEL_CRITICAL_SIGNAL:%',
+                v_critical;
+            end if;
+
+            if v_dlq > 0 then
+              raise exception 'KLYX_FINANCIAL_SENTINEL_DLQ:%', v_dlq;
+            end if;
+
+            if v_reconciliation > 0 then
+              raise exception
+                'KLYX_FINANCIAL_SENTINEL_RECONCILIATION:%',
+                v_reconciliation;
+            end if;
+
+            perform public.klyx_record_financial_live_operational_proof(
+              'durable_jobs_worker',
+              'github_financial_operations_sentinel',
+              jsonb_build_object('job_id', v_job.job_id)
+            );
+
+            perform public.klyx_record_financial_live_operational_proof(
+              'critical_alerting',
+              'github_actions_failure_alert',
+              jsonb_build_object(
+                'critical_signals', v_critical,
+                'financial_dlq', v_dlq
+              )
+            );
+
+            perform public.klyx_record_financial_live_operational_proof(
+              'settlement_reconciliation',
+              'financial_reconciliation_watch',
+              jsonb_build_object('unresolved_cases', v_reconciliation)
+            );
+          end;
+          $block$;
+          SQL
+
+      - name: Write success summary
+        shell: bash
+        run: |
+          {
+            echo "## KLYX Financial Operations Sentinel"
+            echo
+            echo "- Durable queue enqueue/claim/complete: PASS"
+            echo "- Critical financial signals: 0"
+            echo "- Financial DLQ: 0"
+            echo "- Unresolved reconciliation: 0"
+            echo "- LIVE operational proofs refreshed: YES"
+            echo "- Timestamp (UTC): $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } >> "$GITHUB_STEP_SUMMARY"
