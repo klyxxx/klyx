@@ -30,7 +30,7 @@ export type KlyxMarketPaymentRule = {
 };
 
 export type KlyxPaymentCurrencyCapability = {
-  provider: "stripe";
+  provider: string;
   countryCode: string;
   currencyCode: string;
   chargeEnabled: boolean;
