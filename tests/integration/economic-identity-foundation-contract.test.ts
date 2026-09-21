@@ -162,6 +162,36 @@ describe("economic identity foundation contract", () => {
     expect(connectWebhook).toContain("correlationId");
   });
 
+  it("normalizes Accounts v2 recipient, transfer and payout capability truth", () => {
+    expect(economicServer).toContain(
+      "syncEconomicStripeProjectionFromStripeV2"
+    );
+    expect(economicServer).toContain(
+      "syncEconomicStripeProjectionFromRemoteStripe"
+    );
+    expect(economicServer).toContain(
+      "recipientBalance.stripe_transfers"
+    );
+    expect(economicServer).toContain("recipientBalance.payouts");
+    expect(economicServer).toContain('"accounts_v2"');
+    expect(economicServer).toContain(
+      'input.stripe.v2.core.accounts.retrieve('
+    );
+    expect(economicServer).toContain(
+      'input.stripe.accounts.retrieve('
+    );
+
+    const v2Index = economicServer.indexOf(
+      "input.stripe.v2.core.accounts.retrieve("
+    );
+    const v1Index = economicServer.indexOf(
+      "input.stripe.accounts.retrieve(",
+      v2Index
+    );
+    expect(v2Index).toBeGreaterThan(-1);
+    expect(v1Index).toBeGreaterThan(v2Index);
+  });
+
   it("fails closed into durable human review for canonical Stripe divergence", () => {
     expect(migration).toContain(
       "create or replace function public.klyx_mark_economic_identity_human_review"
