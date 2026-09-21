@@ -378,9 +378,14 @@ export async function POST(request: Request) {
     );
     assertStripeFinancialObjectMode(providerRecipientAccount.livemode);
 
+    const canonicalProviderCountry =
+      provider.countryCode?.trim().toUpperCase() ?? "";
     const providerReady = Boolean(
-        providerRecipientAccount.identity?.country === "BE" &&
-        providerRecipientAccount.applied_configurations?.includes("recipient") === true &&
+      canonicalProviderCountry &&
+        providerRecipientAccount.identity?.country?.trim().toUpperCase() ===
+          canonicalProviderCountry &&
+        providerRecipientAccount.applied_configurations?.includes("recipient") ===
+          true &&
         providerRecipientAccount.configuration?.recipient?.applied === true &&
         providerRecipientAccount.configuration?.recipient?.capabilities?.stripe_balance
           ?.stripe_transfers?.status === "active"
