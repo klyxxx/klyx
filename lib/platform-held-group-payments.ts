@@ -3,7 +3,7 @@ import "server-only";
 import Stripe from "stripe";
 
 import { reconcilePlatformHeldGroupRefundFromStripe } from "@/lib/platform-held-group-settlement-server";
-import { requireKlyxFinancialStripeRuntime } from "@/lib/klyx-financial-stripe-runtime";
+import { requireKlyxFinancialStripeObservationRuntime } from "@/lib/klyx-financial-stripe-runtime";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 const FLOW = "platform_held_group_multiexecutor" as const;
@@ -67,13 +67,10 @@ async function loadParent(parentId: string): Promise<ParentRow> {
   return data as ParentRow;
 }
 
-async function assertParentRuntime(
-  parent: ParentRow,
+function assertObservedStripeRuntime(
   observedLivemode: boolean
-): Promise<boolean> {
-  const runtime = await requireKlyxFinancialStripeRuntime({
-    clientProfileId: parent.client_profile_id,
-  });
+): boolean {
+  const runtime = requireKlyxFinancialStripeObservationRuntime();
   const expectedLive = runtime.mode !== "test";
 
   if (observedLivemode !== expectedLive) {
@@ -133,7 +130,7 @@ async function reconcilePaidSession(
 
   const parentId = groupSettlementId(session.metadata);
   const parent = await loadParent(parentId);
-  const expectedLive = await assertParentRuntime(parent, session.livemode);
+  const expectedLive = assertObservedStripeRuntime(session.livemode);
 
   if (
     session.metadata?.split_batch_id !== parent.batch_id ||
@@ -246,7 +243,7 @@ export async function handlePlatformHeldGroupStripeWebhookEvent(
     if (!isGroupHeldMetadata(session.metadata)) return false;
 
     const parent = await loadParent(groupSettlementId(session.metadata));
-    await assertParentRuntime(parent, session.livemode);
+    assertObservedStripeRuntime(session.livemode);
 
     await releaseFailedCheckout(parent.id, session.id);
     return true;
@@ -297,7 +294,7 @@ export async function handlePlatformHeldGroupStripeWebhookEvent(
     if (!isGroupHeldMetadata(intent.metadata)) return false;
 
     const parent = await loadParent(groupSettlementId(intent.metadata));
-    await assertParentRuntime(parent, intent.livemode);
+    assertObservedStripeRuntime(intent.livemode);
 
     const sessions = await stripe.checkout.sessions.list({
       payment_intent: intent.id,
