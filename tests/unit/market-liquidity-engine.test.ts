@@ -246,6 +246,20 @@ describe("KLYX Market & Liquidity Engine", () => {
     expect(metrics.fulfillmentProbabilityBps).toBe(10000);
   });
 
+  it("keeps booking conversion distinct from market fill rate", () => {
+    const metrics = computeKlyxLiquidityMetrics({
+      demandMaturitySeconds: 0,
+      now: new Date("2026-09-02T00:00:00Z"),
+      events: [
+        event("demand_created", "request-direct", "2026-09-01T10:00:00Z"),
+        event("booking_created", "request-direct", "2026-09-01T10:05:00Z"),
+      ],
+    });
+
+    expect(metrics.fillRateBps).toBe(10000);
+    expect(metrics.bookingConversionBps).toBeNull();
+  });
+
   it("uses request-level quote acceptance so multiple offers cannot inflate conversion", () => {
     const metrics = computeKlyxLiquidityMetrics({
       demandMaturitySeconds: 0,
