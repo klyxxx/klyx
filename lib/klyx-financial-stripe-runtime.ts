@@ -154,6 +154,35 @@ async function requireFinancialDlqEmpty(): Promise<void> {
   }
 }
 
+async function requireRecentCriticalAlertSentinel(): Promise<void> {
+  const threshold = new Date(
+    Date.now() - 36 * 60 * 60 * 1000
+  ).toISOString();
+
+  const { data, error } = await supabaseAdmin
+    .from("transactional_email_deliveries")
+    .select("id, sent_at")
+    .eq("template_key", "critical_operational_alert_sentinel")
+    .eq("status", "sent")
+    .gte("sent_at", threshold)
+    .order("sent_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      "KLYX_FINANCIAL_RUNTIME_ALERT_SENTINEL_READ_FAILED",
+      { cause: error }
+    );
+  }
+
+  if (!data?.id || !data.sent_at) {
+    throw new Error(
+      "KLYX_FINANCIAL_RUNTIME_ALERT_SENTINEL_NOT_READY"
+    );
+  }
+}
+
 async function requireNoCriticalFinancialSignal(): Promise<void> {
   const monitoring =
     await getKlyxObservabilityFinancialMonitoringSnapshot({
@@ -181,6 +210,7 @@ async function requireLiveOperationalReadiness(input: {
     requireNoOpenFinancialReconciliation(),
     requireFinancialDlqEmpty(),
     requireNoCriticalFinancialSignal(),
+    requireRecentCriticalAlertSentinel(),
   ]);
 }
 
