@@ -126,7 +126,12 @@ async function resumeOrphanedWorkflow(params: {
     }
   );
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    // Rolling-deploy compatibility: Vercel may briefly serve this code before
+    // the Mission 19 Supabase migration has exposed the new RPC.
+    if (error.code === "PGRST202") return null;
+    throw new Error(error.message);
+  }
 
   const row = optionalRpcRow(data);
   return row ? snapshotFromRow(row) : null;
