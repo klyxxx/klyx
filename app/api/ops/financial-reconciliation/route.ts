@@ -3,6 +3,7 @@ import "server-only";
 import { timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
 
+import { enqueueKlyxFinancialReconciliationJob } from "@/lib/financial-durable-worker-server";
 import { reconcileCentralFinancialTruth } from "@/lib/financial-ledger-reconciliation-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -96,10 +97,21 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
 
   let bookingId = "";
+  let durable = false;
+  let requestKey = "";
 
   try {
-    const body = (await request.json()) as { bookingId?: unknown };
-    bookingId = typeof body.bookingId === "string" ? body.bookingId.trim() : "";
+    const body = (await request.json()) as {
+      bookingId?: unknown;
+      durable?: unknown;
+      requestKey?: unknown;
+    };
+
+    bookingId =
+      typeof body.bookingId === "string" ? body.bookingId.trim() : "";
+    durable = body.durable === true;
+    requestKey =
+      typeof body.requestKey === "string" ? body.requestKey.trim() : "";
   } catch {
     bookingId = "";
   }
@@ -108,6 +120,29 @@ export async function POST(request: NextRequest): Promise<Response> {
     return noStore(400, {
       ok: false,
       code: "KLYX_FINANCIAL_RECONCILIATION_BOOKING_REQUIRED",
+    });
+  }
+
+  if (durable) {
+    if (!requestKey) {
+      return noStore(400, {
+        ok: false,
+        code: "KLYX_FINANCIAL_RECONCILIATION_REQUEST_KEY_REQUIRED",
+      });
+    }
+
+    const queued = await enqueueKlyxFinancialReconciliationJob({
+      bookingId,
+      requestKey,
+    });
+
+    return noStore(202, {
+      ok: true,
+      queued: true,
+      jobId: queued.jobId,
+      status: queued.status,
+      created: queued.created,
+      correlationId: queued.correlationId,
     });
   }
 
