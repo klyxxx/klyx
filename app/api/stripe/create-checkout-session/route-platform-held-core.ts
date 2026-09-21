@@ -315,7 +315,7 @@ export async function POST(request: Request) {
     const provider = await getProviderStripeDestination(providerId);
     const providerMarketAccess = assessKlyxStripeMarketAccess(
       provider.countryCode ?? "",
-      stripeRuntime.mode
+      stripeMode
     );
 
     if (!providerMarketAccess.allowed) {
