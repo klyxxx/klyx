@@ -308,7 +308,7 @@ async function main() {
   );
 
   const nonce = randomUUID().replaceAll("-", "").slice(0, 16);
-  const canonicalStripeAccountId = `acct_test_split_${nonce}`;
+  const canonicalStripeAccountId = `acct_testsplit${nonce}`;
   const providerTwoId = randomUUID();
   const now = new Date().toISOString();
 
