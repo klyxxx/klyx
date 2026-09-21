@@ -5,7 +5,12 @@ import Stripe from "stripe";
 
 import { canReceiveSettlementForBooking } from "@/lib/economic-settlement-eligibility-server";
 import {
-  getProviderStripeDestination,
+  assertFinancialStripeWriteAuthorized,
+  assertStripeObjectMode,
+  getFinancialStripeRuntime,
+  getProviderFinancialDestination,
+} from "@/lib/financial-stripe-runtime";
+import {
   isStripeConnectIdentityReviewRequired,
 } from "@/lib/stripe-connect-account";
 import { readStripeSettlementRecipientTruth } from "@/lib/stripe-settlement-recipient-truth";
@@ -16,8 +21,6 @@ import {
 } from "@/lib/transaction-risk-server";
 
 const PAYMENT_MODE = "platform_held" as const;
-const TEST_KEY_REQUIRED = "KLYX_SETTLEMENT_STRIPE_TEST_KEY_REQUIRED";
-const LIVE_FORBIDDEN = "KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY";
 
 export type SettlementReleaseResult =
   | { status: "not_applicable" }
@@ -90,19 +93,6 @@ export function isSettlementRefundPreparationError(
   return error instanceof SettlementRefundPreparationError;
 }
 
-function testStripeClient(): Stripe {
-  const key = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
-
-  if (key.startsWith("sk_live_")) {
-    throw new Error(LIVE_FORBIDDEN);
-  }
-
-  if (!key.startsWith("sk_test_")) {
-    throw new Error(TEST_KEY_REQUIRED);
-  }
-
-  return new Stripe(key);
-}
 
 async function findSettlement(bookingId: string): Promise<SettlementRow | null> {
   const { data, error } = await supabaseAdmin
@@ -212,7 +202,7 @@ function verifyPaymentIntentTruth(
   intent: Stripe.PaymentIntent,
   chargeId: string
 ) {
-  if (intent.livemode) throw new Error(LIVE_FORBIDDEN);
+  assertStripeObjectMode(intent.livemode, getFinancialStripeRuntime());
   if (intent.status !== "succeeded") {
     throw new Error("KLYX_SETTLEMENT_PAYMENT_INTENT_NOT_SUCCEEDED");
   }
@@ -248,7 +238,7 @@ function verifyTransferTruth(input: {
   const { transfer, settlement, chargeId } = input;
   const destinationId = stripeObjectId(transfer.destination);
 
-  if (transfer.livemode) throw new Error(LIVE_FORBIDDEN);
+  assertStripeObjectMode(transfer.livemode, getFinancialStripeRuntime());
   if (transfer.amount !== settlement.provider_amount_cents) {
     throw new Error("KLYX_SETTLEMENT_EXISTING_TRANSFER_AMOUNT_MISMATCH");
   }
@@ -320,7 +310,8 @@ export async function releasePlatformHeldBookingSettlement(
     return { status: "not_ready" };
   }
 
-  const stripe = testStripeClient();
+  const stripeRuntime = getFinancialStripeRuntime();
+  const stripe = stripeRuntime.stripe;
   const paymentIntentId = settlement.stripe_payment_intent_id;
   const checkoutSessionId = settlement.stripe_checkout_session_id;
 
@@ -389,10 +380,12 @@ export async function releasePlatformHeldBookingSettlement(
   }
 
   let recipientAccountId: string;
+  let recipientCountryCode: string | null = null;
 
   try {
-    const destination = await getProviderStripeDestination(
-      settlement.provider_profile_id
+    const destination = await getProviderFinancialDestination(
+      settlement.provider_profile_id,
+      stripeRuntime.mode
     );
 
     if (
@@ -406,6 +399,7 @@ export async function releasePlatformHeldBookingSettlement(
     }
 
     recipientAccountId = destination.accountId;
+    recipientCountryCode = destination.countryCode;
   } catch (error) {
     if (!isStripeConnectIdentityReviewRequired(error)) throw error;
 
@@ -560,7 +554,7 @@ export async function releasePlatformHeldBookingSettlement(
 
       if (
         stripeTruth.stripeAccountId !== claim.stripe_account_id ||
-        stripeTruth.livemode ||
+        stripeTruth.livemode !== stripeRuntime.livemode ||
         !stripeTruth.transferCapabilityActive
       ) {
         await failClaim({
@@ -568,13 +562,19 @@ export async function releasePlatformHeldBookingSettlement(
           claimToken,
           code: "stripe_recipient_not_ready",
           message:
-            "Remote Stripe recipient truth does not permit a new TEST Transfer.",
+            "Remote Stripe recipient truth does not permit a new Transfer in the current Stripe mode.",
         });
         await markReviewRequired(bookingId, [
           "stripe_recipient_not_ready",
         ]);
         return { status: "review_required" };
       }
+
+      await assertFinancialStripeWriteAuthorized({
+        capability: "settlement_release",
+        countryCode: recipientCountryCode,
+        currency: claim.currency,
+      });
 
       transfer = await stripe.transfers.create(
         {
@@ -703,7 +703,8 @@ export async function preparePlatformHeldBookingRefund(
     );
   }
 
-  const stripe = testStripeClient();
+  const stripeRuntime = getFinancialStripeRuntime();
+  const stripe = stripeRuntime.stripe;
   const parentTransfer = await stripe.transfers.retrieve(transferId);
 
   // Transfer is the authoritative object for livemode and immutable release
@@ -742,6 +743,11 @@ export async function preparePlatformHeldBookingRefund(
   }
 
   if (!reversal) {
+    await assertFinancialStripeWriteAuthorized({
+      capability: "refunds",
+      currency: settlement.currency,
+    });
+
     reversal = await stripe.transfers.createReversal(
       transferId,
       {
