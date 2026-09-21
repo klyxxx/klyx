@@ -1,3 +1,4 @@
+import { assertLiveFinancialStaticGate, assertStripeFinancialObjectMode } from "@/lib/live-financial-runtime-policy";
 import { requireLiveFinancialMutationAuthorized } from "@/lib/live-financial-runtime-gate";
 import "server-only";
 
@@ -91,11 +92,12 @@ export function isSettlementRefundPreparationError(
   return error instanceof SettlementRefundPreparationError;
 }
 
-function testStripeClient(): Stripe {
+function financialStripeClient(): Stripe {
   const key = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
 
   if (key.startsWith("sk_live_")) {
-    throw new Error(LIVE_FORBIDDEN);
+    assertLiveFinancialStaticGate();
+    return new Stripe(key);
   }
 
   if (!key.startsWith("sk_test_")) {
@@ -213,7 +215,7 @@ function verifyPaymentIntentTruth(
   intent: Stripe.PaymentIntent,
   chargeId: string
 ) {
-  if (intent.livemode) throw new Error(LIVE_FORBIDDEN);
+  assertStripeFinancialObjectMode(intent.livemode);
   if (intent.status !== "succeeded") {
     throw new Error("KLYX_SETTLEMENT_PAYMENT_INTENT_NOT_SUCCEEDED");
   }
@@ -249,7 +251,7 @@ function verifyTransferTruth(input: {
   const { transfer, settlement, chargeId } = input;
   const destinationId = stripeObjectId(transfer.destination);
 
-  if (transfer.livemode) throw new Error(LIVE_FORBIDDEN);
+  assertStripeFinancialObjectMode(transfer.livemode);
   if (transfer.amount !== settlement.provider_amount_cents) {
     throw new Error("KLYX_SETTLEMENT_EXISTING_TRANSFER_AMOUNT_MISMATCH");
   }
@@ -321,7 +323,7 @@ export async function releasePlatformHeldBookingSettlement(
     return { status: "not_ready" };
   }
 
-  const stripe = testStripeClient();
+  const stripe = financialStripeClient();
   const paymentIntentId = settlement.stripe_payment_intent_id;
   const checkoutSessionId = settlement.stripe_checkout_session_id;
 
@@ -559,9 +561,10 @@ export async function releasePlatformHeldBookingSettlement(
         claim.stripe_account_id
       );
 
+      assertStripeFinancialObjectMode(stripeTruth.livemode);
+
       if (
         stripeTruth.stripeAccountId !== claim.stripe_account_id ||
-        stripeTruth.livemode ||
         !stripeTruth.transferCapabilityActive
       ) {
         await failClaim({
@@ -706,7 +709,7 @@ export async function preparePlatformHeldBookingRefund(
     );
   }
 
-  const stripe = testStripeClient();
+  const stripe = financialStripeClient();
   const parentTransfer = await stripe.transfers.retrieve(transferId);
 
   // Transfer is the authoritative object for livemode and immutable release
