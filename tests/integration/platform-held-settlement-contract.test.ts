@@ -226,7 +226,7 @@ describe("KLYX platform-held settlement phase-2 contract", () => {
     );
   });
 
-  it("is TEST-only, server-only and never creates bank payouts", () => {
+  it("keeps automated proof TEST-only while controlled LIVE is exact-SHA/profile gated", () => {
     const heldWrapper = read(
       "app/api/stripe/create-checkout-session/route-platform-held.ts"
     );
@@ -234,18 +234,26 @@ describe("KLYX platform-held settlement phase-2 contract", () => {
       "app/api/stripe/create-checkout-session/route-platform-held-core.ts"
     );
     const release = read("lib/booking-settlement-server.ts");
+    const runtime = read("lib/klyx-financial-stripe-runtime.ts");
     const migration = compact(
       read(
         "supabase/migrations/20260915194500_klyx_platform_held_settlement_test.sql"
       )
     );
 
-    expect(heldWrapper).toContain('key.startsWith("sk_live_")');
-    expect(heldWrapper).toContain('key.startsWith("sk_test_")');
-    expect(heldCore).toContain('key.startsWith("sk_live_")');
-    expect(heldCore).toContain('key.startsWith("sk_test_")');
-    expect(release).toContain('key.startsWith("sk_live_")');
-    expect(release).toContain('key.startsWith("sk_test_")');
+    expect(heldWrapper).toContain(
+      "requireKlyxFinancialStripeRuntimeForBooking"
+    );
+    expect(heldCore).toContain("requireKlyxFinancialStripeRuntime");
+    expect(release).toContain(
+      "requireKlyxFinancialStripeRuntimeForBooking"
+    );
+    expect(runtime).toContain('key.startsWith("sk_test_")');
+    expect(runtime).toContain('key.startsWith("sk_live_")');
+    expect(runtime).toContain("KLYX_LIVE_CERTIFICATION_PROFILE_ID");
+    expect(runtime).toContain("KLYX_LIVE_CERTIFICATION_SHA");
+    expect(runtime).toContain("KLYX_DR_CERTIFIED_SHA");
+    expect(runtime).toContain("KLYX_PRODUCTION_FINANCIAL_CERTIFIED_SHA");
     expect(release).not.toContain("stripe.payouts.create");
     expect(heldWrapper).not.toContain("stripe.payouts.create");
     expect(heldCore).not.toContain("stripe.payouts.create");
