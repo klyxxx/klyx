@@ -209,7 +209,7 @@ describe("KLYX operational sentinel contract", () => {
     expect(runbook).toContain("liveness endpoint only");
     expect(runbook).toContain("KLYX is **not** disaster-recovery certified merely because these mechanisms exist or because CI is green.");
     expect(runbook).toContain("The final `KLYX Disaster Recovery Certification` workflow must succeed for the exact `main` SHA");
-    expect(runbook).toContain("does not claim full managed Auth/Storage object recovery");
+    expect(runbook).toContain("`KLYX Supabase Full Restore Drill` is the Mission 18 manual production-read-only drill for public DB + Auth + Storage.");
     expect(runbook).toContain("KLYX Stripe Network Test");
     expect(runbook).toContain("Do not manually mark a booking `paid` or `refunded` in the database.");
     expect(runbook).toContain("A failed scheduled workflow is an operational alert in GitHub Actions");
