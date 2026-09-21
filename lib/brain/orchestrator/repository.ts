@@ -53,6 +53,18 @@ function firstRpcRow(value: unknown): RpcWorkflowRow {
   return rows[0] as RpcWorkflowRow;
 }
 
+function optionalRpcRow(value: unknown): RpcWorkflowRow | null {
+  const rows = Array.isArray(value) ? value : [];
+
+  if (rows.length === 0) return null;
+
+  if (rows.length !== 1 || !rows[0] || typeof rows[0] !== "object") {
+    throw new Error("KLYX_WORKFLOW_RPC_INVALID_RESULT");
+  }
+
+  return rows[0] as RpcWorkflowRow;
+}
+
 function snapshotFromRow(row: RpcWorkflowRow | WorkflowRow): WorkflowSnapshot {
   const id = "workflow_id" in row ? row.workflow_id : row.id;
   const currentStep = row.current_step;
@@ -68,6 +80,58 @@ function snapshotFromRow(row: RpcWorkflowRow | WorkflowRow): WorkflowSnapshot {
   };
 }
 
+async function findActiveWorkflowForConversation(params: {
+  accountId: string;
+  profileId: string;
+  conversationId: string;
+  mode?: WorkflowMode;
+}): Promise<WorkflowSnapshot | null> {
+  let query = supabaseAdmin
+    .from("klyx_workflows")
+    .select(
+      "id, account_id, profile_id, conversation_id, mode, current_step, status, version, context, created_at, updated_at"
+    )
+    .eq("account_id", params.accountId)
+    .eq("profile_id", params.profileId)
+    .eq("conversation_id", params.conversationId)
+    .in("status", ["active", "waiting", "blocked"])
+    .order("updated_at", { ascending: false })
+    .limit(1);
+
+  if (params.mode) {
+    query = query.eq("mode", params.mode);
+  }
+
+  const { data, error } = await query.maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+
+  return snapshotFromRow(data as WorkflowRow);
+}
+
+async function resumeOrphanedWorkflow(params: {
+  accountId: string;
+  profileId: string;
+  conversationId: string;
+  mode?: WorkflowMode;
+}): Promise<WorkflowSnapshot | null> {
+  const { data, error } = await supabaseAdmin.rpc(
+    "klyx_resume_orphaned_workflow",
+    {
+      p_account_id: params.accountId,
+      p_profile_id: params.profileId,
+      p_conversation_id: params.conversationId,
+      p_mode: params.mode ?? null,
+    }
+  );
+
+  if (error) throw new Error(error.message);
+
+  const row = optionalRpcRow(data);
+  return row ? snapshotFromRow(row) : null;
+}
+
 export async function createOrResumeWorkflow(params: {
   accountId: string;
   profileId: string;
@@ -75,6 +139,26 @@ export async function createOrResumeWorkflow(params: {
   mode: WorkflowMode;
   context?: Record<string, unknown>;
 }): Promise<WorkflowSnapshot> {
+  if (params.conversationId) {
+    const current = await findActiveWorkflowForConversation({
+      accountId: params.accountId,
+      profileId: params.profileId,
+      conversationId: params.conversationId,
+      mode: params.mode,
+    });
+
+    if (current) return current;
+
+    const recovered = await resumeOrphanedWorkflow({
+      accountId: params.accountId,
+      profileId: params.profileId,
+      conversationId: params.conversationId,
+      mode: params.mode,
+    });
+
+    if (recovered) return recovered;
+  }
+
   const { data, error } = await supabaseAdmin.rpc(
     "klyx_create_or_resume_workflow",
     {
@@ -156,23 +240,36 @@ export async function completeSettlementWorkflow(params: {
 
 export async function findLatestActiveWorkflow(params: {
   accountId: string;
+  profileId: string;
   conversationId?: string | null;
 }): Promise<WorkflowSnapshot | null> {
-  let query = supabaseAdmin
+  if (params.conversationId) {
+    const current = await findActiveWorkflowForConversation({
+      accountId: params.accountId,
+      profileId: params.profileId,
+      conversationId: params.conversationId,
+    });
+
+    if (current) return current;
+
+    return resumeOrphanedWorkflow({
+      accountId: params.accountId,
+      profileId: params.profileId,
+      conversationId: params.conversationId,
+    });
+  }
+
+  const { data, error } = await supabaseAdmin
     .from("klyx_workflows")
     .select(
       "id, account_id, profile_id, conversation_id, mode, current_step, status, version, context, created_at, updated_at"
     )
     .eq("account_id", params.accountId)
+    .eq("profile_id", params.profileId)
     .in("status", ["active", "waiting", "blocked"])
     .order("updated_at", { ascending: false })
-    .limit(1);
-
-  if (params.conversationId) {
-    query = query.eq("conversation_id", params.conversationId);
-  }
-
-  const { data, error } = await query.maybeSingle();
+    .limit(1)
+    .maybeSingle();
 
   if (error) throw new Error(error.message);
   if (!data) return null;
