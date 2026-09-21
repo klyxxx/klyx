@@ -274,7 +274,7 @@ async function main() {
       provider_finished_at: now,
       client_confirmed_at: now,
       completed_at: now,
-      refund_status: "not_required",
+      refund_status: null,
       updated_at: now,
     })
     .eq("id", bookingId)
