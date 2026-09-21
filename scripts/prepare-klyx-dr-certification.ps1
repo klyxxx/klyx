@@ -112,6 +112,14 @@ if ($BackupAgeAtRestore.TotalHours -lt -0.05 -or $BackupAgeAtRestore.TotalHours 
 
 $CertificateHash = (Get-FileHash -LiteralPath $Resolved -Algorithm SHA256).Hash.ToLowerInvariant()
 
+$CertificateBase64 = [Convert]::ToBase64String(
+    [IO.File]::ReadAllBytes($Resolved)
+)
+
+if (-not $CertificateBase64) {
+    throw "Offsite DR certificate Base64 payload is empty."
+}
+
 Write-Host ""
 Write-Host "======================================"
 Write-Host "KLYX DR OFFSITE CERTIFICATE READY"
@@ -125,6 +133,9 @@ Write-Host "Production   : READ-ONLY"
 Write-Host "======================================"
 Write-Host ""
 Write-Host "Use these values for the GitHub DR certification workflow:"
+Write-Host "offsite_certificate_base64=$CertificateBase64"
+Write-Host ""
+Write-Host "Human-readable verification summary:"
 Write-Host "offsite_certificate_sha256=$CertificateHash"
 Write-Host "offsite_backup_commit=$BackupCommit"
 Write-Host "offsite_restore_verified_at=$($Created.ToString('o'))"
