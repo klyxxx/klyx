@@ -14,7 +14,7 @@ import {
   STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED,
 } from "@/lib/stripe-connect-account-identity";
 import { markBookingPaidFromSession } from "@/lib/stripe-payments";
-import { requireKlyxFinancialStripeRuntimeForBooking } from "@/lib/klyx-financial-stripe-runtime";
+import { requireKlyxFinancialStripeObservationRuntime } from "@/lib/klyx-financial-stripe-runtime";
 import { reconcileStripeRefund } from "@/lib/stripe-refunds";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -861,7 +861,7 @@ export async function reconcilePlatformHeldBookingSettlement(input: {
     await assertCanonicalProviderIdentity(context.settlement);
 
     const financialRuntime =
-      await requireKlyxFinancialStripeRuntimeForBooking(input.bookingId);
+      requireKlyxFinancialStripeObservationRuntime();
     const stripe = new Stripe(financialRuntime.key);
     const expectedLive = financialRuntime.mode !== "test";
     context = await ensurePaymentTruth(
