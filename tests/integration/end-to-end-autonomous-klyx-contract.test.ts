@@ -28,6 +28,9 @@ const eligibility = read(
 const latestEligibilityGate = read(
   "supabase/migrations/20260921180000_klyx_settlement_latest_eligibility_gate.sql"
 );
+const webhookLifecycle = read("scripts/golden-path-service-lifecycle.mjs");
+const settlementChaos = read("scripts/mission19-settlement-eligibility-chaos.mjs");
+const goldenPathWorkflow = read(".github/workflows/klyx-golden-path.yml");
 const documentation = read("docs/KLYX_END_TO_END_AUTONOMOUS_CERTIFICATION.md");
 
 describe("Mission 19 end-to-end autonomous KLYX contract", () => {
@@ -203,6 +206,33 @@ describe("Mission 19 end-to-end autonomous KLYX contract", () => {
     );
     expect(latestEligibilityGate).not.toContain(
       "select exists (\n    select 1\n      from public.economic_settlement_eligibility_decisions"
+    );
+  });
+
+  it("proves delayed webhook convergence and pre-settlement ineligibility at runtime", () => {
+    expect(webhookLifecycle).toContain(
+      "const delayedEventCreated = timestamp - 60 * 60"
+    );
+    expect(webhookLifecycle).toContain(
+      "Delayed Stripe webhook did not converge after a one-hour event delay."
+    );
+    expect(settlementChaos).toContain(
+      'decision: "allowed"'
+    );
+    expect(settlementChaos).toContain(
+      'decision: "blocked"'
+    );
+    expect(settlementChaos).toContain(
+      'blockedClaim.action === "not_ready"'
+    );
+    expect(settlementChaos).toContain(
+      'finalSettlement.stripe_transfer_id === null'
+    );
+    expect(goldenPathWorkflow).toContain(
+      "Verify Mission 19 beneficiary ineligibility before settlement"
+    );
+    expect(goldenPathWorkflow).toContain(
+      "node scripts/mission19-settlement-eligibility-chaos.mjs"
     );
   });
 
