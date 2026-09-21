@@ -1,0 +1,421 @@
+name: KLYX Supabase Full Restore Drill
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_production_read:
+        description: "Confirm read-only production snapshot and isolated full restore"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: klyx-supabase-full-restore-drill-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  full-restore-drill:
+    name: Verify DB + Auth + Storage recovery on isolated Supabase
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      KLYX_DR_SOURCE_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      KLYX_DR_SOURCE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - name: Checkout exact certification commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Refuse unsafe full restore drill trigger
+        shell: bash
+        env:
+          CONFIRM_PRODUCTION_READ: ${{ inputs.confirm_production_read }}
+        run: |
+          set -euo pipefail
+
+          if [ "$CONFIRM_PRODUCTION_READ" != "true" ]; then
+            echo "::error::Full restore drill requires explicit confirmation."
+            exit 1
+          fi
+
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Full restore certification may run only from main."
+            exit 1
+          fi
+
+          for name in SUPABASE_DB_URL KLYX_DR_SOURCE_SUPABASE_URL KLYX_DR_SOURCE_SERVICE_ROLE_KEY; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing required secret: ${name}"
+              exit 1
+            fi
+          done
+
+          effective_db_url="$(node <<'NODE'
+          const raw = process.env.SUPABASE_DB_URL ?? "";
+          const password = process.env.SUPABASE_DB_PASSWORD ?? "";
+
+          let url;
+          try {
+            url = new URL(raw);
+          } catch {
+            console.error("SUPABASE_DB_URL is not a valid URL.");
+            process.exit(2);
+          }
+
+          if (!["postgres:", "postgresql:"].includes(url.protocol)) {
+            console.error("SUPABASE_DB_URL must be PostgreSQL.");
+            process.exit(2);
+          }
+
+          const host = url.hostname.toLowerCase();
+          const valid =
+            host.endsWith(".supabase.co") ||
+            host.endsWith(".pooler.supabase.com");
+
+          if (!valid || ["127.0.0.1", "localhost", "[::1]"].includes(host)) {
+            console.error("Source database must be a non-loopback Supabase host.");
+            process.exit(3);
+          }
+
+          if (password) url.password = password;
+          if (!url.password) {
+            console.error("Source database password is missing.");
+            process.exit(4);
+          }
+
+          process.stdout.write(url.toString());
+          NODE
+          )"
+
+          node <<'NODE'
+          const raw = process.env.KLYX_DR_SOURCE_SUPABASE_URL ?? "";
+          let url;
+          try {
+            url = new URL(raw);
+          } catch {
+            console.error("NEXT_PUBLIC_SUPABASE_URL is invalid.");
+            process.exit(2);
+          }
+
+          const host = url.hostname.toLowerCase();
+          const valid =
+            url.protocol === "https:" &&
+            (host.endsWith(".supabase.co") || host.endsWith(".supabase.com"));
+
+          if (!valid || ["127.0.0.1", "localhost", "[::1]"].includes(host)) {
+            console.error("Source Supabase API must be production HTTPS.");
+            process.exit(3);
+          }
+          NODE
+
+          echo "::add-mask::$effective_db_url"
+          echo "::add-mask::$KLYX_DR_SOURCE_SERVICE_ROLE_KEY"
+          echo "KLYX_DR_SOURCE_DB_URL=$effective_db_url" >> "$GITHUB_ENV"
+
+          work_root="${RUNNER_TEMP}/klyx-full-dr-${GITHUB_RUN_ID}"
+          snapshot_root="${work_root}/snapshot"
+          storage_root="${snapshot_root}/storage"
+          db_root="${snapshot_root}/database"
+          lab_root="${work_root}/lab"
+
+          mkdir -p "$storage_root" "$db_root" "$lab_root"
+          chmod 700 "$work_root" "$snapshot_root" "$storage_root" "$db_root" "$lab_root"
+
+          {
+            echo "KLYX_FULL_DR_WORK_ROOT=$work_root"
+            echo "KLYX_FULL_DR_STORAGE_ROOT=$storage_root"
+            echo "KLYX_FULL_DR_DB_ROOT=$db_root"
+            echo "KLYX_FULL_DR_LAB_ROOT=$lab_root"
+          } >> "$GITHUB_ENV"
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
+        with:
+          version: 2.111.0
+
+      - name: Capture production Auth and Storage snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/backup-klyx-storage.mjs "$KLYX_FULL_DR_STORAGE_ROOT"
+
+          test -s "$KLYX_FULL_DR_STORAGE_ROOT/storage-manifest.json"
+          test -s "$KLYX_FULL_DR_STORAGE_ROOT/state-manifest.json"
+
+      - name: Capture production logical database snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          supabase db dump             --db-url "$KLYX_DR_SOURCE_DB_URL"             -f "$KLYX_FULL_DR_DB_ROOT/roles.sql"             --role-only
+
+          supabase db dump             --db-url "$KLYX_DR_SOURCE_DB_URL"             -f "$KLYX_FULL_DR_DB_ROOT/public-schema.sql"             --schema public
+
+          supabase db dump             --db-url "$KLYX_DR_SOURCE_DB_URL"             -f "$KLYX_FULL_DR_DB_ROOT/public-data.sql"             --schema public             --data-only             --use-copy
+
+          supabase db dump             --db-url "$KLYX_DR_SOURCE_DB_URL"             -f "$KLYX_FULL_DR_DB_ROOT/auth-data.sql"             --schema auth             --data-only             --use-copy
+
+          supabase db dump             --db-url "$KLYX_DR_SOURCE_DB_URL"             -f "$KLYX_FULL_DR_DB_ROOT/migration-history-schema.sql"             --schema supabase_migrations
+
+          supabase db dump             --db-url "$KLYX_DR_SOURCE_DB_URL"             -f "$KLYX_FULL_DR_DB_ROOT/migration-history-data.sql"             --schema supabase_migrations             --data-only             --use-copy
+
+          for file in             roles.sql             public-schema.sql             public-data.sql             auth-data.sql             migration-history-schema.sql             migration-history-data.sql; do
+            test -s "$KLYX_FULL_DR_DB_ROOT/$file"
+          done
+
+      - name: Capture private source public-table fingerprints
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          table_file="$KLYX_FULL_DR_WORK_ROOT/source-public-tables.txt"
+          count_file="$KLYX_FULL_DR_WORK_ROOT/source-public-counts.txt"
+
+          psql             --no-psqlrc             --tuples-only             --no-align             --set ON_ERROR_STOP=1             --dbname "$KLYX_DR_SOURCE_DB_URL"             --command "select tablename from pg_tables where schemaname = 'public' order by tablename;"             > "$table_file"
+
+          : > "$count_file"
+          while IFS= read -r table; do
+            [ -n "$table" ] || continue
+            count="$(psql               --no-psqlrc               --tuples-only               --no-align               --set ON_ERROR_STOP=1               --set table="$table"               --dbname "$KLYX_DR_SOURCE_DB_URL"               --command 'select count(*) from public.:"table";')"
+            printf '%s|%s\n' "$table" "$count" >> "$count_file"
+          done < "$table_file"
+
+          test -s "$table_file"
+          test -s "$count_file"
+
+      - name: Initialize isolated Supabase lab
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          supabase --workdir "$KLYX_FULL_DR_LAB_ROOT" init --force
+
+          if [ -f "$KLYX_FULL_DR_LAB_ROOT/supabase/.temp/project-ref" ]; then
+            echo "::error::Isolated restore lab must never be linked."
+            exit 1
+          fi
+
+      - name: Start isolated database only
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if docker ps --format '{{.Names}}' | grep -Eq '^supabase_'; then
+            echo "::error::Unexpected Supabase containers already running."
+            exit 1
+          fi
+
+          supabase --workdir "$KLYX_FULL_DR_LAB_ROOT" db start
+
+          mapfile -t db_containers < <(
+            docker ps --format '{{.Names}}' | grep '^supabase_db_' || true
+          )
+
+          if [ "${#db_containers[@]}" -ne 1 ]; then
+            echo "::error::Unable to identify one isolated Supabase DB container."
+            exit 1
+          fi
+
+          echo "KLYX_FULL_DR_DB_CONTAINER=${db_containers[0]}" >> "$GITHUB_ENV"
+
+      - name: Prepare portable role snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          node - "$KLYX_FULL_DR_DB_ROOT/roles.sql" "$KLYX_FULL_DR_DB_ROOT/roles.portable.sql" <<'NODE'
+          const fs = require("node:fs");
+
+          const inputPath = process.argv[2];
+          const outputPath = process.argv[3];
+          const source = fs.readFileSync(inputPath, "utf8");
+          const roleStatement = /\b(?:CREATE|ALTER) ROLE\b/;
+          const roleSetting =
+            /^ALTER ROLE (?:(?:"(?:[^"]|"")*")|(?:[^\s;]+)) (?:SET|RESET)\b.*;\s*$/;
+
+          const lines = source.split(/\r?\n/);
+          const portable = [];
+          let stripped = 0;
+
+          for (const line of lines) {
+            if (roleSetting.test(line) || /log_min_messages/i.test(line)) {
+              stripped += 1;
+              continue;
+            }
+            portable.push(line);
+          }
+
+          let output = portable.join("\n");
+          const hasPortableRoleStatements = roleStatement.test(output);
+
+          if (!hasPortableRoleStatements) {
+            if (stripped === 0) {
+              throw new Error("Role dump has no replayable statements.");
+            }
+
+            output = [
+              "-- KLYX full restore drill: keep existing local Supabase roles.",
+              "",
+            ].join("\n");
+          }
+
+          fs.writeFileSync(outputPath, output, { mode: 0o600 });
+          NODE
+
+          test -s "$KLYX_FULL_DR_DB_ROOT/roles.portable.sql"
+
+      - name: Copy restore files into isolated database
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker exec "$KLYX_FULL_DR_DB_CONTAINER" sh -lc 'mkdir -p /tmp/klyx-full-dr'
+
+          for file in             roles.portable.sql             public-schema.sql             public-data.sql             auth-data.sql             migration-history-schema.sql             migration-history-data.sql; do
+            docker cp               "$KLYX_FULL_DR_DB_ROOT/$file"               "$KLYX_FULL_DR_DB_CONTAINER:/tmp/klyx-full-dr/$file"
+          done
+
+      - name: Restore database and Auth into isolated database
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker exec "$KLYX_FULL_DR_DB_CONTAINER"             psql               --username postgres               --dbname postgres               --variable ON_ERROR_STOP=1               --command 'drop schema if exists public cascade;'               --command 'create schema public authorization postgres;'
+
+          docker exec "$KLYX_FULL_DR_DB_CONTAINER"             psql               --username postgres               --dbname postgres               --single-transaction               --variable ON_ERROR_STOP=1               --file /tmp/klyx-full-dr/roles.portable.sql               --file /tmp/klyx-full-dr/public-schema.sql               --command 'SET session_replication_role = replica;'               --file /tmp/klyx-full-dr/public-data.sql
+
+          expected_auth_users="$(node -e             'const fs=require("fs"); const s=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(String(s.authUserCount));'             "$KLYX_FULL_DR_STORAGE_ROOT/state-manifest.json")"
+
+          current_auth_users="$(docker exec "$KLYX_FULL_DR_DB_CONTAINER"             psql --username postgres --dbname postgres --tuples-only --no-align               --variable ON_ERROR_STOP=1               --command 'select count(*) from auth.users;')"
+
+          if [ "$expected_auth_users" != "$current_auth_users" ]; then
+            docker exec "$KLYX_FULL_DR_DB_CONTAINER"               psql                 --username postgres                 --dbname postgres                 --single-transaction                 --variable ON_ERROR_STOP=1                 --command 'SET session_replication_role = replica;'                 --file /tmp/klyx-full-dr/auth-data.sql
+          fi
+
+          final_auth_users="$(docker exec "$KLYX_FULL_DR_DB_CONTAINER"             psql --username postgres --dbname postgres --tuples-only --no-align               --variable ON_ERROR_STOP=1               --command 'select count(*) from auth.users;')"
+
+          if [ "$final_auth_users" != "$expected_auth_users" ]; then
+            echo "::error::Auth restore count mismatch."
+            exit 1
+          fi
+
+      - name: Restore migration history into isolated database
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker exec "$KLYX_FULL_DR_DB_CONTAINER"             psql               --username postgres               --dbname postgres               --single-transaction               --variable ON_ERROR_STOP=1               --file /tmp/klyx-full-dr/migration-history-schema.sql               --file /tmp/klyx-full-dr/migration-history-data.sql
+
+      - name: Verify every restored public-table row count
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          target_counts="$KLYX_FULL_DR_WORK_ROOT/target-public-counts.txt"
+          : > "$target_counts"
+
+          while IFS= read -r table; do
+            [ -n "$table" ] || continue
+            count="$(docker exec "$KLYX_FULL_DR_DB_CONTAINER"               psql                 --username postgres                 --dbname postgres                 --tuples-only                 --no-align                 --variable ON_ERROR_STOP=1                 --set table="$table"                 --command 'select count(*) from public.:"table";')"
+            printf '%s|%s\n' "$table" "$count" >> "$target_counts"
+          done < "$KLYX_FULL_DR_WORK_ROOT/source-public-tables.txt"
+
+          if ! cmp -s             "$KLYX_FULL_DR_WORK_ROOT/source-public-counts.txt"             "$target_counts"; then
+            echo "::error::Restored public-table row-count fingerprint mismatch."
+            exit 1
+          fi
+
+      - name: Restart isolated lab with Auth and Storage services
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          supabase --workdir "$KLYX_FULL_DR_LAB_ROOT" stop --no-backup
+
+          supabase --workdir "$KLYX_FULL_DR_LAB_ROOT" start             -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+
+          eval "$(supabase --workdir "$KLYX_FULL_DR_LAB_ROOT" status -o env)"
+
+          for name in API_URL SERVICE_ROLE_KEY; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Local Supabase status did not provide ${name}."
+              exit 1
+            fi
+          done
+
+          case "$API_URL" in
+            http://127.0.0.1:*|http://localhost:*) ;;
+            *)
+              echo "::error::Refusing non-loopback local Supabase API: $API_URL"
+              exit 1
+              ;;
+          esac
+
+          echo "::add-mask::$SERVICE_ROLE_KEY"
+          {
+            echo "KLYX_RESTORE_SUPABASE_URL=$API_URL"
+            echo "KLYX_RESTORE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+          } >> "$GITHUB_ENV"
+
+      - name: Restore and verify Storage plus Auth service
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/restore-klyx-storage.mjs "$KLYX_FULL_DR_STORAGE_ROOT"
+
+      - name: Create sanitized full recovery proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p full-restore-proof
+
+          printf '%s\n'             "commit=${GITHUB_SHA}"             "run=${GITHUB_RUN_ID}"             "scope=public_auth_storage_full_restore"             "source=production_read_only_snapshot"             "target=ephemeral_loopback_supabase"             "all_public_table_row_counts_match=true"             "auth_database_verified=true"             "auth_service_verified=true"             "storage_binary_sha256_verified=true"             "storage_service_verified=true"             "production_write=false"             "linked_restore_commands=false"             "sensitive_snapshot_uploaded=false"             "verified_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"             > full-restore-proof/proof.txt
+
+      - name: Upload sanitized full recovery proof
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: klyx-supabase-full-restore-proof-${{ github.run_id }}
+          path: full-restore-proof/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Destroy sensitive recovery material
+        if: always()
+        shell: bash
+        run: |
+          set +e
+
+          unset KLYX_DR_SOURCE_DB_URL
+          unset KLYX_DR_SOURCE_SERVICE_ROLE_KEY
+          unset KLYX_RESTORE_SERVICE_ROLE_KEY
+
+          if command -v supabase >/dev/null 2>&1 && [ -n "${KLYX_FULL_DR_LAB_ROOT:-}" ]; then
+            supabase --workdir "$KLYX_FULL_DR_LAB_ROOT" stop --no-backup || true
+          fi
+
+          if [ -n "${KLYX_FULL_DR_WORK_ROOT:-}" ] && [ -d "$KLYX_FULL_DR_WORK_ROOT" ]; then
+            rm -rf -- "$KLYX_FULL_DR_WORK_ROOT"
+          fi
