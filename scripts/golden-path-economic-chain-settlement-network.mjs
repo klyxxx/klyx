@@ -185,8 +185,15 @@ async function loadRealStripeRecipient(stripe, providerId) {
   );
   const legacy = await stripe.accounts.retrieve(handoff.accountId);
 
+  // Accounts v2 is the authoritative runtime-mode fact for this recipient.
+  // The v1 Account compatibility projection does not reliably expose a
+  // livemode field for Accounts v2-created recipients, so absence there must
+  // never be misclassified as LIVE. The process is also guarded by sk_test_*.
   assert(v2.livemode === false, "Recipient unexpectedly uses LIVE.");
-  assert(legacy.livemode === false, "Legacy recipient uses LIVE.");
+  assert(
+    legacy.id === handoff.accountId && v2.id === handoff.accountId,
+    "Stripe recipient projections disagree on the canonical account id."
+  );
   assert(
     v2?.configuration?.recipient?.applied === true,
     "Stripe TEST recipient configuration is not applied."
