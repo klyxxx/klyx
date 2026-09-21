@@ -37,9 +37,9 @@ export type KlyxPaymentCurrencyCapability = {
   payoutEnabled: boolean;
   settlementEnabled: boolean;
   accountingExponent: number;
-  stripeChargeExponent: number;
-  stripeChargeIncrement: number;
-  stripePayoutIncrement: number;
+  chargeExponent: number;
+  chargeIncrement: number;
+  payoutIncrement: number;
   minimumChargeAmount: number | null;
   maximumChargeAmount: number | null;
   zeroDecimal: boolean;
@@ -89,17 +89,17 @@ export function assessKlyxMarketPaymentPolicy(params: {
   }
 
   if (!capability) {
-    blockers.push("stripe_currency_capability");
+    blockers.push("payment_currency_capability");
   } else {
     if (normalizeKlyxCountryCode(capability.countryCode) !== execution) {
-      blockers.push("stripe_capability_country");
+      blockers.push("payment_capability_country");
     }
     if (normalizeKlyxCurrencyCode(capability.currencyCode) !== currency) {
-      blockers.push("stripe_currency_mismatch");
+      blockers.push("payment_currency_mismatch");
     }
-    if (!capability.chargeEnabled) blockers.push("stripe_charge_currency");
-    if (!capability.settlementEnabled) blockers.push("stripe_settlement_currency");
-    if (!capability.payoutEnabled) blockers.push("stripe_payout_currency");
+    if (!capability.chargeEnabled) blockers.push("payment_charge_currency");
+    if (!capability.settlementEnabled) blockers.push("payment_settlement_currency");
+    if (!capability.payoutEnabled) blockers.push("payment_payout_currency");
   }
 
   return {
