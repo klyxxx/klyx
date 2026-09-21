@@ -124,7 +124,7 @@ scripts/prepare-klyx-dr-certification.ps1
 
 validates exact commit, evidence age <= 24h, backup age at restore <= 24h RPO target, all recovery booleans, zero production write, zero linked command, and zero retained plaintext.
 
-It outputs only the offsite certificate SHA-256, offsite backup commit, and offsite restore verification timestamp.
+It outputs a Base64 encoding of the sanitized certificate for GitHub verification, plus a human-readable SHA-256 / commit / verification-time summary. The Base64 payload contains the same sanitized JSON certificate bytes and no backup archive, Auth rows, Storage object bytes, credentials or passphrases.
 
 ## Central certification gate
 
@@ -143,16 +143,14 @@ File:
 The operator supplies:
 
 - successful full restore run ID;
-- offsite certificate SHA-256;
-- offsite backup commit;
-- offsite restore timestamp;
+- the sanitized offsite certificate Base64 payload emitted by the helper;
 - explicit offsite-restore confirmation.
 
 The gate independently verifies through the GitHub Actions API that the full restore run is successful, manual, recent, exact-SHA, and has a valid sanitized artifact.
 
 It also finds a successful `KLYX Source Backup` for the exact SHA, downloads the source backup artifact, validates the archive, and verifies its embedded Git commit.
 
-The offsite certificate metadata must be recent and match the exact SHA.
+GitHub decodes the sanitized offsite certificate itself, rejects unknown fields, recalculates its SHA-256, and validates the exact main SHA, archive SHA-256 format, restore booleans, zero production write, zero linked commands, zero retained plaintext, certificate freshness <= 24h, and backup age at restore <= 24h.
 
 ## Certification result
 
@@ -192,7 +190,7 @@ Full restore snapshot data is destroyed from the GitHub runner.
 
 The offsite encrypted archive remains outside GitHub.
 
-GitHub receives only sanitized recovery proofs and the SHA-256 of the offsite certificate.
+GitHub receives only sanitized recovery proofs and the sanitized offsite certificate payload. It recalculates and records the certificate SHA-256 itself. The encrypted archive remains outside GitHub.
 
 ## What Mission 18 does not do
 
@@ -213,7 +211,7 @@ For the exact current `main` SHA:
    ```powershell
    .\scripts\prepare-klyx-dr-certification.ps1 -ExpectedCommit <MAIN_SHA>
    ```
-6. Run `KLYX Disaster Recovery Certification` with the full restore run ID and helper outputs.
+6. Run `KLYX Disaster Recovery Certification` with the full restore run ID, `offsite_certificate_base64`, and the explicit offsite-restore confirmation.
 7. Treat KLYX as DR-certified for that SHA only if the certification workflow succeeds.
 
 A later `main` commit requires a new certification.
