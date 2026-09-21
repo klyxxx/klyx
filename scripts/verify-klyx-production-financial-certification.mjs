@@ -159,14 +159,25 @@ async function loadEvidence(supabase, bookingIds) {
       )
     : [];
 
-  const groupMembers = await queryOrThrow(
-    supabase
-      .from("platform_held_group_settlement_members")
-      .select(
-        "id,group_settlement_id,batch_id,provider_profile_id,provider_account_id,booking_ids,currency,gross_amount_cents,platform_fee_cents,provider_amount_cents,state,stripe_transfer_id,reversed_amount_cents,refunded_gross_amount_cents,refunded_provider_amount_cents,last_error_code"
+  const groupMemberRows = await Promise.all(
+    bookingIds.map((bookingId) =>
+      queryOrThrow(
+        supabase
+          .from("platform_held_group_settlement_members")
+          .select(
+            "id,group_settlement_id,batch_id,provider_profile_id,provider_account_id,booking_ids,currency,gross_amount_cents,platform_fee_cents,provider_amount_cents,state,stripe_transfer_id,reversed_amount_cents,refunded_gross_amount_cents,refunded_provider_amount_cents,last_error_code"
+          )
+          .contains("booking_ids", [bookingId]),
+        "KLYX_CERT_GROUP_MEMBERS_READ_FAILED"
       )
-      .overlaps("booking_ids", bookingIds),
-    "KLYX_CERT_GROUP_MEMBERS_READ_FAILED"
+    )
+  );
+  const groupMembers = Array.from(
+    new Map(
+      groupMemberRows
+        .flat()
+        .map((row) => [String(row.id), row])
+    ).values()
   );
 
   const groupSettlementIds = unique(
