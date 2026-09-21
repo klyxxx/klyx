@@ -380,9 +380,13 @@ async function assertCanonicalProviderIdentity(
 
 function verifyCheckoutSession(
   settlement: SettlementRow,
-  session: Stripe.Checkout.Session
+  session: Stripe.Checkout.Session,
+  expectedLive: boolean
 ): void {
-  mismatch(session.livemode, LIVE_FORBIDDEN);
+  mismatch(
+    session.livemode !== expectedLive,
+    "checkout_session_livemode_mismatch"
+  );
   mismatch(
     session.id !== settlement.stripe_checkout_session_id,
     "checkout_session_id_mismatch"
@@ -418,9 +422,13 @@ function verifyCheckoutSession(
 function verifyPaymentIntent(
   settlement: SettlementRow,
   intent: Stripe.PaymentIntent,
-  chargeId: string
+  chargeId: string,
+  expectedLive: boolean
 ): void {
-  mismatch(intent.livemode, LIVE_FORBIDDEN);
+  mismatch(
+    intent.livemode !== expectedLive,
+    "payment_intent_livemode_mismatch"
+  );
   mismatch(
     intent.status !== "succeeded",
     "payment_intent_not_succeeded"
@@ -458,9 +466,13 @@ function verifyPaymentIntent(
 function verifyTransfer(
   settlement: SettlementRow,
   transfer: Stripe.Transfer,
-  chargeId: string
+  chargeId: string,
+  expectedLive: boolean
 ): void {
-  mismatch(transfer.livemode, LIVE_FORBIDDEN);
+  mismatch(
+    transfer.livemode !== expectedLive,
+    "transfer_livemode_mismatch"
+  );
   mismatch(
     transfer.metadata?.booking_id !== settlement.booking_id,
     "transfer_booking_mismatch"
@@ -559,7 +571,8 @@ function verifyRefund(
 async function findTransfer(
   stripe: Stripe,
   settlement: SettlementRow,
-  chargeId: string
+  chargeId: string,
+  expectedLive: boolean
 ): Promise<Stripe.Transfer | null> {
   const listed = await stripe.transfers.list({
     transfer_group: settlement.transfer_group,
@@ -585,7 +598,7 @@ async function findTransfer(
     const storedTransfer = await stripe.transfers.retrieve(
       settlement.stripe_transfer_id
     );
-    verifyTransfer(settlement, storedTransfer, chargeId);
+    verifyTransfer(settlement, storedTransfer, chargeId, expectedLive);
 
     if (transfer && transfer.id !== storedTransfer.id) {
       throw new SettlementTruthMismatchError(
@@ -597,7 +610,7 @@ async function findTransfer(
   }
 
   if (transfer) {
-    verifyTransfer(settlement, transfer, chargeId);
+    verifyTransfer(settlement, transfer, chargeId, expectedLive);
   }
 
   return transfer;
@@ -710,7 +723,8 @@ async function ensurePaymentTruth(
   stripe: Stripe,
   context: RecoveryContext,
   runId: string,
-  source: SettlementReconciliationSource
+  source: SettlementReconciliationSource,
+  expectedLive: boolean
 ): Promise<RecoveryContext> {
   let { settlement, booking } = context;
   const checkoutSessionId =
@@ -725,7 +739,7 @@ async function ensurePaymentTruth(
   }
 
   const session = await stripe.checkout.sessions.retrieve(checkoutSessionId);
-  verifyCheckoutSession(settlement, session);
+  verifyCheckoutSession(settlement, session, expectedLive);
 
   if (
     session.payment_status === "paid" &&
@@ -849,11 +863,13 @@ export async function reconcilePlatformHeldBookingSettlement(input: {
     const financialRuntime =
       await requireKlyxFinancialStripeRuntimeForBooking(input.bookingId);
     const stripe = new Stripe(financialRuntime.key);
+    const expectedLive = financialRuntime.mode !== "test";
     context = await ensurePaymentTruth(
       stripe,
       context,
       runId,
-      input.source
+      input.source,
+      expectedLive
     );
 
     let { settlement, booking } = context;
@@ -892,7 +908,7 @@ export async function reconcilePlatformHeldBookingSettlement(input: {
       );
     }
 
-    verifyPaymentIntent(settlement, intent, chargeId);
+    verifyPaymentIntent(settlement, intent, chargeId, expectedLive);
 
     if (!settlement.stripe_charge_id) {
       const checkoutSessionId =
@@ -923,7 +939,12 @@ export async function reconcilePlatformHeldBookingSettlement(input: {
       booking = refreshed.booking;
     }
 
-    const transfer = await findTransfer(stripe, settlement, chargeId);
+    const transfer = await findTransfer(
+      stripe,
+      settlement,
+      chargeId,
+      expectedLive
+    );
     const refund = await findRefund(stripe, settlement, booking);
     const refundIsActive =
       input.source === "refund" ||
