@@ -87,13 +87,13 @@ describe("Platform-Held multi-executor group settlement contract", () => {
     const migration = compact(read(migrationPath));
 
     const initialList = server.indexOf(
-      "await listAndValidateTransfers(stripe, parent, members)"
+      "await listAndValidateTransfers(stripe, parent, members, expectedLive)"
     );
     const claim = server.indexOf(
       '"klyx_claim_platform_held_group_member_release"'
     );
     const secondList = server.indexOf(
-      "await listAndValidateTransfers(stripe, parent, members)",
+      "await listAndValidateTransfers(stripe, parent, members, expectedLive)",
       initialList + 1
     );
     const capacity = server.indexOf(
