@@ -1,3 +1,4 @@
+import { requireLiveFinancialMutationAuthorized } from "@/lib/live-financial-runtime-gate";
 import "server-only";
 
 import { randomUUID } from "node:crypto";
@@ -664,6 +665,8 @@ export async function releasePlatformHeldGroupMember(
       return { status: "review_required" };
     }
 
+    await requireLiveFinancialMutationAuthorized({ mutation: "transfer" });
+
     stripeWriteAttempted = true;
     const transfer = await stripe.transfers.create(
       {
@@ -1065,6 +1068,8 @@ async function processRequiredReversals(input: {
 
     if (!reversal) {
       try {
+        await requireLiveFinancialMutationAuthorized({ mutation: "transfer_reversal" });
+
         reversal = await input.stripe.transfers.createReversal(
           transferId,
           {
@@ -1360,6 +1365,8 @@ export async function refundPlatformHeldGroup(input: {
   }
 
   try {
+    await requireLiveFinancialMutationAuthorized({ mutation: "refund" });
+
     stripeRefund = await stripe.refunds.create(
       {
         charge: parent.stripe_charge_id,
