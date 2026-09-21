@@ -3,6 +3,8 @@ import "server-only";
 export const dynamic = "force-dynamic";
 
 const SHA_RE = /^[0-9a-f]{40}$/;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function env(name: string): string {
   return process.env[name]?.trim() ?? "";
@@ -25,6 +27,20 @@ export async function GET(): Promise<Response> {
     "KLYX_PRODUCTION_FINANCIAL_CERTIFIED_SHA"
   );
   const stripeMode = env("KLYX_STRIPE_MODE").toLowerCase();
+  const stripeSecret = env("STRIPE_SECRET_KEY");
+  const expectedStripePrefix =
+    stripeMode === "live"
+      ? "sk_live_"
+      : stripeMode === "test"
+        ? "sk_test_"
+        : "";
+  const stripeSecretModeCompatible =
+    Boolean(expectedStripePrefix) &&
+    stripeSecret.startsWith(expectedStripePrefix);
+  const stripeWebhookConfigured =
+    env("STRIPE_WEBHOOK_SECRET").startsWith("whsec_");
+  const certificationProfileConfigured =
+    UUID_RE.test(env("KLYX_LIVE_CERTIFICATION_PROFILE_ID"));
 
   return Response.json(
     {
@@ -46,6 +62,9 @@ export async function GET(): Promise<Response> {
           Boolean(commitSha) && liveCertificationSha === commitSha,
         financialCertifiedShaMatchesDeployment:
           Boolean(commitSha) && financialCertifiedSha === commitSha,
+        stripeSecretModeCompatible,
+        stripeWebhookConfigured,
+        certificationProfileConfigured,
       },
     },
     {
