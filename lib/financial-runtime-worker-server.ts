@@ -523,6 +523,26 @@ async function processReconciliationJob(
   return `financial-reconciliation:${result.status}`;
 }
 
+function durableJobErrorCode(error: unknown): string {
+  const raw =
+    error instanceof Error && error.message
+      ? error.message
+      : "KLYX_FINANCIAL_WORKER_JOB_FAILED";
+  const normalized = raw
+    .toUpperCase()
+    .replace(/[^A-Z0-9_.:-]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 128);
+
+  if (!normalized) {
+    return "KLYX_FINANCIAL_WORKER_JOB_FAILED";
+  }
+
+  return /^[A-Z]/.test(normalized)
+    ? normalized
+    : `KLYX_${normalized}`.slice(0, 128);
+}
+
 async function processClaimedJob(input: {
   job: ClaimedKlyxDurableJob;
   workerId: string;
@@ -561,10 +581,7 @@ async function processClaimedJob(input: {
       alertFailed: false,
     };
   } catch (error) {
-    const code =
-      error instanceof Error && error.message
-        ? error.message.slice(0, 120).toUpperCase()
-        : "KLYX_FINANCIAL_WORKER_JOB_FAILED";
+    const code = durableJobErrorCode(error);
 
     const permanent =
       code.includes("PAYLOAD_INVALID") ||
