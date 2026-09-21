@@ -140,6 +140,30 @@ async function providerHasConflict(
   );
 }
 
+function stripeClient(): Stripe {
+  const key = process.env.STRIPE_SECRET_KEY?.trim();
+
+  if (!key) {
+    throw new Error("Variable manquante : STRIPE_SECRET_KEY");
+  }
+
+  return new Stripe(key);
+}
+
+async function refundStripeClientForBooking(
+  booking: BookingRow
+): Promise<Stripe> {
+  if (booking.payment_mode !== "platform_held") {
+    return stripeClient();
+  }
+
+  const financialRuntime = await requireKlyxFinancialStripeRuntime({
+    clientProfileId: booking.parent_id,
+  });
+
+  return new Stripe(financialRuntime.key);
+}
+
 // KLYX_REFUND_CREATE_SIDE_EFFECT_BOUNDARY_16_12
 async function recordRefundCreationFailure(params: {
   booking: BookingRow;
@@ -194,10 +218,7 @@ async function createStripeRefundOrRecordFailure(params: {
   const { booking, actorId } = params;
 
   try {
-    const financialRuntime = await requireKlyxFinancialStripeRuntime({
-      clientProfileId: booking.parent_id,
-    });
-    const stripe = new Stripe(financialRuntime.key);
+    const stripe = await refundStripeClientForBooking(booking);
 
     const refundParameters: Stripe.RefundCreateParams = {
       payment_intent: booking.stripe_payment_intent_id ?? undefined,
