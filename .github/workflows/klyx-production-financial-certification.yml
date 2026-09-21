@@ -45,6 +45,7 @@ jobs:
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       KLYX_FINANCIAL_RECONCILIATION_SECRET: ${{ secrets.KLYX_FINANCIAL_RECONCILIATION_SECRET }}
       KLYX_LIVE_CERTIFICATION_PROFILE_ID: ${{ secrets.KLYX_LIVE_CERTIFICATION_PROFILE_ID }}
+      KLYX_FINANCIAL_CERT_PROOF_PATH: production-financial-certification-proof/summary.json
 
     steps:
       - name: Publish pending certification status
@@ -150,6 +151,29 @@ jobs:
             *) echo "::error::Production URL must use HTTPS."; exit 1 ;;
           esac
 
+      - name: Decode private certification manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest_path="$RUNNER_TEMP/klyx-production-financial-manifest.json"
+          printf '%s' "$KLYX_PRODUCTION_FINANCIAL_MANIFEST_BASE64" |
+            base64 --decode > "$manifest_path"
+
+          node - "$manifest_path" <<'NODE'
+          const fs = require("fs");
+          const path = process.argv[2];
+          const manifest = JSON.parse(fs.readFileSync(path, "utf8"));
+          if (
+            manifest?.version !== 1 ||
+            !Array.isArray(manifest?.cells) ||
+            manifest.cells.length !== 40
+          ) {
+            process.exit(2);
+          }
+          NODE
+
+          echo "KLYX_FINANCIAL_CERT_MANIFEST_PATH=$manifest_path" >> "$GITHUB_ENV"
+
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
         with:
@@ -184,7 +208,7 @@ jobs:
           fi
 
       - name: Run 40-cell canonical financial certification
-        run: node scripts/certify-production-financial-matrix.mjs
+        run: node scripts/verify-klyx-production-financial-certification.mjs
 
       - name: Guard sanitized proof
         shell: bash
@@ -196,10 +220,13 @@ jobs:
           const proof = JSON.parse(fs.readFileSync(path, "utf8"));
           if (
             proof.overall !== "certified" ||
-            proof.requiredCells !== 40 ||
-            proof.certifiedCells !== 40 ||
-            proof.noSilentCorrection !== true ||
-            proof.equalityInvariant !== "klyx_ledger=settlement=stripe"
+            proof.matrixCells !== 40 ||
+            proof.invariants?.exactSha !== true ||
+            proof.invariants?.controlledLiveOnly !== true ||
+            proof.invariants?.canonicalLedger !== true ||
+            proof.invariants?.settlementTruth !== true ||
+            proof.invariants?.stripeTruthReconciled !== true ||
+            proof.invariants?.silentCorrection !== false
           ) {
             process.exit(2);
           }
