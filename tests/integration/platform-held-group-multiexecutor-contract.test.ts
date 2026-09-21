@@ -286,16 +286,22 @@ describe("Platform-Held multi-executor group settlement contract", () => {
     expect(proof).not.toContain("platformFeeRefundCents: feeRefund,\n          providerRefundCents:");
   });
 
-  it("is Stripe TEST-only for all new money movement", () => {
+  it("keeps network proof TEST-only while the app engine uses the controlled-LIVE gate", () => {
     const checkout = read(
       "app/api/bookings/split-missions/[id]/checkout/route-platform-held-core.ts"
     );
     const server = read("lib/platform-held-group-settlement-server.ts");
+    const runtime = read("lib/klyx-financial-stripe-runtime.ts");
+    const workflow = read(
+      ".github/workflows/klyx-stripe-group-multiexecutor-network.yml"
+    );
 
-    for (const source of [checkout, server]) {
-      expect(source).toContain('key.startsWith("sk_live_")');
-      expect(source).toContain('key.startsWith("sk_test_")');
-    }
+    expect(workflow).toContain('KLYX_STRIPE_MODE: "test"');
+    expect(workflow).toContain('KLYX_LIVE_PAYMENTS_ENABLED: "false"');
+    expect(checkout).toContain("requireKlyxFinancialStripeRuntime");
+    expect(server).toContain("requireKlyxFinancialStripeRuntime");
+    expect(runtime).toContain("KLYX_LIVE_CERTIFICATION_PROFILE_ID");
+    expect(runtime).toContain("KLYX_DR_CERTIFIED_SHA");
 
     expect(server).toContain("stripe.transfers.create(");
     expect(server).toContain("stripe.transfers.createReversal(");
