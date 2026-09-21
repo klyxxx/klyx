@@ -3,6 +3,7 @@ import "server-only";
 import { getKlyxBuildReleaseSha } from "@/lib/klyx-build-release";
 import { getKlyxObservabilityFinancialMonitoringSnapshot } from "@/lib/observability-financial-monitoring-server";
 import { getKlyxOpsCapabilityDecision } from "@/lib/ops-control-server";
+import { inspectStripeLiveInfrastructure } from "@/lib/stripe-live-infrastructure-server";
 import { inspectStripeRuntime } from "@/lib/stripe-runtime";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -262,6 +263,7 @@ export async function inspectLiveFinancialAuthorization(input?: {
     reconciliationCount,
     identityConflictCount,
     authoritiesAccessible,
+    stripeLiveInfrastructure,
     ...opsDecisions
   ] = await Promise.all([
     readAuthorization(),
@@ -271,6 +273,9 @@ export async function inspectLiveFinancialAuthorization(input?: {
     countUnresolvedFinancialReconciliation(),
     countCanonicalStripeConflicts(),
     canonicalAuthorityAccessible(),
+    stripeMode === "live"
+      ? inspectStripeLiveInfrastructure()
+      : Promise.resolve(null),
     ...FINANCIAL_CAPABILITIES.map((capability) =>
       getKlyxOpsCapabilityDecision({
         capability,
@@ -278,6 +283,36 @@ export async function inspectLiveFinancialAuthorization(input?: {
       })
     ),
   ]);
+
+  checks.push(
+    {
+      key: "stripe_platform_live",
+      label: "Stripe platform LIVE account",
+      ok: stripeLiveInfrastructure?.platformChargesEnabled === true,
+      severity: "blocking",
+      detail: stripeLiveInfrastructure
+        ? `account=${stripeLiveInfrastructure.platformAccountId ?? "unknown"} charges_enabled=${stripeLiveInfrastructure.platformChargesEnabled}`
+        : "Stripe LIVE infrastructure is not active.",
+    },
+    {
+      key: "stripe_payment_webhook_live",
+      label: "Stripe payment webhook LIVE",
+      ok: stripeLiveInfrastructure?.paymentWebhookReady === true,
+      severity: "blocking",
+      detail: stripeLiveInfrastructure
+        ? `url=${stripeLiveInfrastructure.expectedPaymentWebhookUrl ?? "missing"} missing_events=${stripeLiveInfrastructure.paymentWebhookMissingEvents.join(",") || "none"}`
+        : "Payment webhook LIVE proof unavailable.",
+    },
+    {
+      key: "stripe_connect_webhook_live",
+      label: "Stripe Connect webhook LIVE",
+      ok: stripeLiveInfrastructure?.connectWebhookReady === true,
+      severity: "blocking",
+      detail: stripeLiveInfrastructure
+        ? `url=${stripeLiveInfrastructure.expectedConnectWebhookUrl ?? "missing"} missing_events=${stripeLiveInfrastructure.connectWebhookMissingEvents.join(",") || "none"}`
+        : "Connect webhook LIVE proof unavailable.",
+    }
+  );
 
   for (let index = 0; index < FINANCIAL_CAPABILITIES.length; index += 1) {
     const capability = FINANCIAL_CAPABILITIES[index];
