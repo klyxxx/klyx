@@ -476,6 +476,7 @@ export async function getKlyxGlobalExpansionDecision(input: {
         executionCountryCode,
         serviceSlug,
         currencyCode,
+        paymentProvider: paymentProvider ?? "stripe",
         at: now,
       });
 
