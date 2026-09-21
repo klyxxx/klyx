@@ -72,6 +72,9 @@ describe("Mission 19 Market & Liquidity Engine contract", () => {
       "market_service_offers",
       "service_quotes",
       "bookings",
+      "booking_groups",
+      "split_booking_batches",
+      "split_booking_batch_items",
       "booking_incidents",
       "booking_incident_events",
     ]) {
@@ -97,6 +100,16 @@ describe("Mission 19 Market & Liquidity Engine contract", () => {
     ]) {
       expect(metrics).toContain(measure);
     }
+  });
+
+  it("covers single, group and split booking paths", () => {
+    expect(server).toContain('.from("booking_groups")');
+    expect(server).toContain('.from("split_booking_batches")');
+    expect(server).toContain('.from("split_booking_batch_items")');
+    expect(metrics).toContain("requestIdByGroupId");
+    expect(metrics).toContain("requestIdBySplitBookingId");
+    expect(metrics).toContain('group.status === "completed"');
+    expect(metrics).toContain('batch.status === "created"');
   });
 
   it("fails closed instead of declaring liquidity without policy or sample", () => {

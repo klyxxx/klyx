@@ -30,7 +30,9 @@ It derives from existing canonical facts:
 - supply discovery / live matching cache: `market_request_provider_candidates`;
 - provider proposals: `market_service_offers`;
 - quotes: `service_quotes`;
-- bookings / mission outcome: `bookings`;
+- simple booking / mission outcome: `bookings`;
+- single-provider group booking: `booking_groups` + child `bookings`;
+- multi-provider split booking: `split_booking_batches` + `split_booking_batch_items` + child `bookings`;
 - replacement attempts and outcomes: `booking_incidents` + `booking_incident_events`.
 
 The engine may read these sources. It does not mutate their lifecycle state.
@@ -107,19 +109,19 @@ time_to_first_match
 = first candidate/offer timestamp - demand timestamp
 
 time_to_quote
-= first quote timestamp - demand timestamp
+= first provider offer/quote timestamp - demand timestamp
 
 quote_probability
 = quoted demands / matched demands
 
 quote_acceptance
-= accepted quote demands / quoted demands
+= demands with an accepted provider offer or service quote / quoted demands
 
 booking_conversion
-= booked demands / accepted quote demands
+= demands with a canonical simple/group/split booking / accepted proposal demands
 
 fill_rate
-= booked demands / total demands
+= demands with a canonical simple/group/split booking / total demands
 
 completion_rate
 = completed demands / booked demands

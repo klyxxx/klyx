@@ -40,9 +40,32 @@ export type KlyxLiquidityQuoteRow = {
 export type KlyxLiquidityBookingRow = {
   id: string;
   quote_id: string | null;
+  booking_group_id?: string | null;
   provider_id: string | null;
   babysitter_id: string | null;
   status: string;
+  created_at: string;
+};
+
+export type KlyxLiquidityBookingGroupRow = {
+  id: string;
+  market_request_id: string;
+  provider_profile_id: string;
+  status: string;
+  created_at: string;
+};
+
+export type KlyxLiquiditySplitBatchRow = {
+  id: string;
+  market_request_id: string;
+  status: string;
+  created_at: string;
+};
+
+export type KlyxLiquiditySplitBatchItemRow = {
+  batch_id: string;
+  booking_id: string;
+  provider_profile_id: string;
   created_at: string;
 };
 
@@ -183,6 +206,9 @@ export function buildKlyxMarketLiquidityMetrics(input: {
   offers: KlyxLiquidityOfferRow[];
   quotes: KlyxLiquidityQuoteRow[];
   bookings: KlyxLiquidityBookingRow[];
+  bookingGroups?: KlyxLiquidityBookingGroupRow[];
+  splitBatches?: KlyxLiquiditySplitBatchRow[];
+  splitItems?: KlyxLiquiditySplitBatchItemRow[];
   incidents: KlyxLiquidityIncidentRow[];
   incidentEvents: KlyxLiquidityIncidentEventRow[];
   priceBand?: KlyxLiquidityPriceBand | null;
@@ -207,13 +233,42 @@ export function buildKlyxMarketLiquidityMetrics(input: {
     }
   }
 
-  const bookings = input.bookings.filter(
-    (row) => row.quote_id && requestIdByQuoteId.has(row.quote_id)
+  const bookingGroups = (input.bookingGroups ?? []).filter((row) =>
+    requestIds.has(row.market_request_id)
   );
+  const splitBatches = (input.splitBatches ?? []).filter((row) =>
+    requestIds.has(row.market_request_id)
+  );
+  const splitItems = input.splitItems ?? [];
+
+  const requestIdByGroupId = new Map(
+    bookingGroups.map((row) => [row.id, row.market_request_id] as const)
+  );
+  const requestIdBySplitBatchId = new Map(
+    splitBatches.map((row) => [row.id, row.market_request_id] as const)
+  );
+  const requestIdBySplitBookingId = new Map<string, string>();
+  for (const item of splitItems) {
+    const requestId = requestIdBySplitBatchId.get(item.batch_id);
+    if (requestId) requestIdBySplitBookingId.set(item.booking_id, requestId);
+  }
+
+  const bookings = input.bookings.filter((row) => {
+    if (row.quote_id && requestIdByQuoteId.has(row.quote_id)) return true;
+    if (row.booking_group_id && requestIdByGroupId.has(row.booking_group_id)) {
+      return true;
+    }
+    return requestIdBySplitBookingId.has(row.id);
+  });
+
   const requestIdByBookingId = new Map<string, string>();
   for (const booking of bookings) {
-    if (!booking.quote_id) continue;
-    const requestId = requestIdByQuoteId.get(booking.quote_id);
+    const requestId =
+      (booking.quote_id ? requestIdByQuoteId.get(booking.quote_id) : undefined) ??
+      (booking.booking_group_id
+        ? requestIdByGroupId.get(booking.booking_group_id)
+        : undefined) ??
+      requestIdBySplitBookingId.get(booking.id);
     if (requestId) requestIdByBookingId.set(booking.id, requestId);
   }
 
@@ -221,6 +276,8 @@ export function buildKlyxMarketLiquidityMetrics(input: {
   const offerByRequest = new Map<string, KlyxLiquidityOfferRow[]>();
   const quoteByRequest = new Map<string, KlyxLiquidityQuoteRow[]>();
   const bookingByRequest = new Map<string, KlyxLiquidityBookingRow[]>();
+  const groupByRequest = new Map<string, KlyxLiquidityBookingGroupRow[]>();
+  const splitBatchByRequest = new Map<string, KlyxLiquiditySplitBatchRow[]>();
 
   const push = <T>(map: Map<string, T[]>, key: string, row: T) => {
     const rows = map.get(key) ?? [];
@@ -236,6 +293,12 @@ export function buildKlyxMarketLiquidityMetrics(input: {
   for (const row of bookings) {
     const requestId = requestIdByBookingId.get(row.id);
     if (requestId) push(bookingByRequest, requestId, row);
+  }
+  for (const row of bookingGroups) {
+    push(groupByRequest, row.market_request_id, row);
+  }
+  for (const row of splitBatches) {
+    push(splitBatchByRequest, row.market_request_id, row);
   }
 
   let matchedDemands = 0;
@@ -259,6 +322,8 @@ export function buildKlyxMarketLiquidityMetrics(input: {
     const requestOffers = offerByRequest.get(request.id) ?? [];
     const requestQuotes = quoteByRequest.get(request.id) ?? [];
     const requestBookings = bookingByRequest.get(request.id) ?? [];
+    const requestGroups = groupByRequest.get(request.id) ?? [];
+    const requestSplitBatches = splitBatchByRequest.get(request.id) ?? [];
 
     const firstCandidate = firstTimestamp(requestCandidates);
     const firstOffer = firstTimestamp(requestOffers);
@@ -278,8 +343,11 @@ export function buildKlyxMarketLiquidityMetrics(input: {
       }
     }
 
-    const firstQuote = firstTimestamp(requestQuotes);
-    if (requestQuotes.length > 0) {
+    const firstQuote = firstTimestamp([
+      ...requestQuotes,
+      ...requestOffers,
+    ]);
+    if (requestQuotes.length > 0 || requestOffers.length > 0) {
       quotedDemands += 1;
       if (started != null && firstQuote != null && firstQuote >= started) {
         firstQuoteDurations.push((firstQuote - started) / 1000);
@@ -289,20 +357,42 @@ export function buildKlyxMarketLiquidityMetrics(input: {
     if (
       requestQuotes.some(
         (quote) => quote.status === "accepted" || Boolean(quote.accepted_at)
-      )
+      ) ||
+      requestOffers.some((offer) => offer.status === "accepted")
     ) {
       acceptedQuoteDemands += 1;
     }
 
-    if (requestBookings.length > 0) bookedDemands += 1;
-    if (requestBookings.some((booking) => booking.status === "completed")) {
+    const hasBooking = requestBookings.length > 0;
+    if (hasBooking) bookedDemands += 1;
+
+    const groupCompleted = requestGroups.some(
+      (group) => group.status === "completed"
+    );
+    const splitCreated = requestSplitBatches.some(
+      (batch) => batch.status === "created"
+    );
+    const splitCompleted =
+      splitCreated &&
+      requestBookings.length > 0 &&
+      requestBookings.every((booking) => booking.status === "completed");
+    const singleCompleted =
+      requestGroups.length === 0 &&
+      requestSplitBatches.length === 0 &&
+      requestBookings.some((booking) => booking.status === "completed");
+
+    if (groupCompleted || splitCompleted || singleCompleted) {
       completedDemands += 1;
       completedByClient.set(
         request.client_profile_id,
         (completedByClient.get(request.client_profile_id) ?? 0) + 1
       );
     }
-    if (requestBookings.some((booking) => booking.status === "cancelled")) {
+
+    if (
+      requestGroups.some((group) => group.status === "cancelled") ||
+      requestBookings.some((booking) => booking.status === "cancelled")
+    ) {
       cancelledBookedDemands += 1;
     }
 
@@ -330,6 +420,15 @@ export function buildKlyxMarketLiquidityMetrics(input: {
     }
     for (const quote of requestQuotes) {
       discoveredProviders.add(quote.provider_profile_id);
+    }
+    for (const group of requestGroups) {
+      discoveredProviders.add(group.provider_profile_id);
+    }
+    for (const item of splitItems) {
+      const itemRequestId = requestIdBySplitBatchId.get(item.batch_id);
+      if (itemRequestId === request.id) {
+        discoveredProviders.add(item.provider_profile_id);
+      }
     }
 
     for (const booking of requestBookings) {

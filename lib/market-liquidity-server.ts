@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   buildKlyxMarketLiquidityMetrics,
   evaluateKlyxMarketLiquidity,
+  type KlyxLiquidityBookingGroupRow,
   type KlyxLiquidityBookingRow,
   type KlyxLiquidityCandidateRow,
   type KlyxLiquidityIncidentEventRow,
@@ -12,6 +13,8 @@ import {
   type KlyxLiquidityPriceBand,
   type KlyxLiquidityQuoteRow,
   type KlyxLiquidityRequestRow,
+  type KlyxLiquiditySplitBatchItemRow,
+  type KlyxLiquiditySplitBatchRow,
   type KlyxMarketLiquidityPolicy,
 } from "@/lib/market-liquidity";
 
@@ -460,21 +463,104 @@ export async function getKlyxMarketLiquidityMetrics(
           ),
         };
 
-  const quoteIds = related.quotes.map((quote) => quote.id);
-  const bookings =
-    quoteIds.length === 0
+  const bookingGroups =
+    requestIds.length === 0
       ? []
-      : await fetchRelated<KlyxLiquidityBookingRow>(
-          quoteIds,
+      : await fetchRelated<KlyxLiquidityBookingGroupRow>(
+          requestIds,
           (ids, rangeFrom, rangeTo) =>
             supabaseAdmin
-              .from("bookings")
+              .from("booking_groups")
               .select(
-                "id,quote_id,provider_id,babysitter_id,status,created_at"
+                "id,market_request_id,provider_profile_id,status,created_at"
               )
-              .in("quote_id", ids)
-              .range(rangeFrom, rangeTo) as unknown as PageResult<KlyxLiquidityBookingRow>
+              .in("market_request_id", ids)
+              .range(rangeFrom, rangeTo) as unknown as PageResult<KlyxLiquidityBookingGroupRow>
         );
+
+  const splitBatches =
+    requestIds.length === 0
+      ? []
+      : await fetchRelated<KlyxLiquiditySplitBatchRow>(
+          requestIds,
+          (ids, rangeFrom, rangeTo) =>
+            supabaseAdmin
+              .from("split_booking_batches")
+              .select("id,market_request_id,status,created_at")
+              .in("market_request_id", ids)
+              .range(rangeFrom, rangeTo) as unknown as PageResult<KlyxLiquiditySplitBatchRow>
+        );
+
+  const splitBatchIds = splitBatches.map((batch) => batch.id);
+  const splitItems =
+    splitBatchIds.length === 0
+      ? []
+      : await fetchRelated<KlyxLiquiditySplitBatchItemRow>(
+          splitBatchIds,
+          (ids, rangeFrom, rangeTo) =>
+            supabaseAdmin
+              .from("split_booking_batch_items")
+              .select("batch_id,booking_id,provider_profile_id,created_at")
+              .in("batch_id", ids)
+              .range(rangeFrom, rangeTo) as unknown as PageResult<KlyxLiquiditySplitBatchItemRow>
+        );
+
+  const quoteIds = related.quotes.map((quote) => quote.id);
+  const groupIds = bookingGroups.map((group) => group.id);
+  const splitBookingIds = splitItems.map((item) => item.booking_id);
+  const bookingMap = new Map<string, KlyxLiquidityBookingRow>();
+
+  const bookingQueries: Promise<KlyxLiquidityBookingRow[]>[] = [];
+  if (quoteIds.length > 0) {
+    bookingQueries.push(
+      fetchRelated<KlyxLiquidityBookingRow>(
+        quoteIds,
+        (ids, rangeFrom, rangeTo) =>
+          supabaseAdmin
+            .from("bookings")
+            .select(
+              "id,quote_id,booking_group_id,provider_id,babysitter_id,status,created_at"
+            )
+            .in("quote_id", ids)
+            .range(rangeFrom, rangeTo) as unknown as PageResult<KlyxLiquidityBookingRow>
+      )
+    );
+  }
+  if (groupIds.length > 0) {
+    bookingQueries.push(
+      fetchRelated<KlyxLiquidityBookingRow>(
+        groupIds,
+        (ids, rangeFrom, rangeTo) =>
+          supabaseAdmin
+            .from("bookings")
+            .select(
+              "id,quote_id,booking_group_id,provider_id,babysitter_id,status,created_at"
+            )
+            .in("booking_group_id", ids)
+            .range(rangeFrom, rangeTo) as unknown as PageResult<KlyxLiquidityBookingRow>
+      )
+    );
+  }
+  if (splitBookingIds.length > 0) {
+    bookingQueries.push(
+      fetchRelated<KlyxLiquidityBookingRow>(
+        splitBookingIds,
+        (ids, rangeFrom, rangeTo) =>
+          supabaseAdmin
+            .from("bookings")
+            .select(
+              "id,quote_id,booking_group_id,provider_id,babysitter_id,status,created_at"
+            )
+            .in("id", ids)
+            .range(rangeFrom, rangeTo) as unknown as PageResult<KlyxLiquidityBookingRow>
+      )
+    );
+  }
+
+  for (const rows of await Promise.all(bookingQueries)) {
+    for (const row of rows) bookingMap.set(row.id, row);
+  }
+  const bookings = [...bookingMap.values()];
 
   const bookingIds = bookings.map((booking) => booking.id);
   const incidents =
@@ -522,6 +608,9 @@ export async function getKlyxMarketLiquidityMetrics(
     offers: related.offers,
     quotes: related.quotes,
     bookings,
+    bookingGroups,
+    splitBatches,
+    splitItems,
     incidents,
     incidentEvents,
     priceBand,
