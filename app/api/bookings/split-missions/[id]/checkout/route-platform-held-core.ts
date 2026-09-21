@@ -1,3 +1,4 @@
+import { requireLiveFinancialMutationAuthorized } from "@/lib/live-financial-runtime-gate";
 import { createHash, randomUUID } from "node:crypto";
 
 import { NextResponse } from "next/server";
@@ -616,6 +617,8 @@ export async function POST(request: Request, context: RouteContext) {
       settlement_transfer_group: parent.transfer_group,
       executor_count: String(economics.members.length),
     };
+
+    await requireLiveFinancialMutationAuthorized({ mutation: "checkout" });
 
     const session = await stripe.checkout.sessions.create(
       {
