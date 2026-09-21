@@ -30,6 +30,7 @@ export async function resolveAssistantWorkflow(params: {
 
     return findLatestActiveWorkflow({
       accountId: params.accountId,
+      profileId: params.profileId,
       conversationId: params.conversationId,
     });
   }
