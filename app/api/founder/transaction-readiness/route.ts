@@ -479,6 +479,17 @@ export async function GET() {
 
     return NextResponse.json({
       ready: blocking === 0,
+      readinessScope: "transaction_preflight_only",
+      mission1Certification: {
+        evaluatedHere: false,
+        status: "separate_exact_sha_gate_required",
+        rule: "A successful payment alone never certifies Mission 1.",
+        invariant: "KLYX Ledger = Settlement truth = Stripe truth",
+        divergencePolicy:
+          "Toute mutation financière doit rester fail-closed. Divergence -> reconciliation -> human_review.",
+        requiredCommitStatus:
+          "KLYX Production Financial Certification",
+      },
       blocking,
       warnings,
       checks,
