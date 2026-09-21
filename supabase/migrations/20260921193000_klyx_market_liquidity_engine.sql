@@ -724,7 +724,7 @@ begin
     null,
     null,
     null,
-    v_score,
+    null,
     null,
     null,
     new.created_at,
@@ -732,7 +732,8 @@ begin
       'coverage_count', new.coverage_count,
       'slot_count', new.slot_count,
       'full_coverage', new.full_coverage,
-      'source', 'market_request_provider_candidates'
+      'source', 'market_request_provider_candidates',
+      'matching_quality_measured', false
     )
   );
 
