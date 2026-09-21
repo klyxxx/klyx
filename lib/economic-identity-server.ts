@@ -24,7 +24,7 @@ type StripeRequirementsProjection = {
 type StripeV2AccountProjection = {
   id: string;
   livemode?: boolean | null;
-  applied_configurations?: string[] | null;
+  applied_configurations?: readonly string[] | null;
   configuration?: unknown;
   identity?: unknown;
   requirements?: unknown;
@@ -105,17 +105,15 @@ function normalizeV2RequirementDescriptions(value: unknown): string[] {
   const entries = asArray(asRecord(value).entries);
   return Array.from(
     new Set(
-      entries
-        .map((entry) => {
-          const record = asRecord(entry);
-          return (
-            stringValue(record.description) ??
-            stringValue(record.id) ??
-            stringValue(record.type) ??
-            ""
-          );
-        })
-        .filter(Boolean)
+      entries.map((entry, index) => {
+        const record = asRecord(entry);
+        return (
+          stringValue(record.description) ??
+          stringValue(record.id) ??
+          stringValue(record.type) ??
+          `stripe_requirement_${index + 1}`
+        );
+      })
     )
   ).sort();
 }
