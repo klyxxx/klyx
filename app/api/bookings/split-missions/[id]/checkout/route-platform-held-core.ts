@@ -540,8 +540,8 @@ export async function POST(request: Request, context: RouteContext) {
         claim.checkout_session_id
       );
 
-      if (existing.livemode) {
-        throw new Error("KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY");
+      if (existing.livemode !== (financialRuntime.mode !== "test")) {
+        throw new Error("KLYX_GROUP_HELD_CHECKOUT_LIVEMODE_MISMATCH");
       }
 
       const sameFlow =
@@ -640,8 +640,8 @@ export async function POST(request: Request, context: RouteContext) {
       }
     );
 
-    if (session.livemode) {
-      throw new Error("KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY");
+    if (session.livemode !== (financialRuntime.mode !== "test")) {
+      throw new Error("KLYX_GROUP_HELD_CHECKOUT_LIVEMODE_MISMATCH");
     }
     if (!session.url) {
       throw new Error("KLYX_GROUP_HELD_CHECKOUT_URL_MISSING");
