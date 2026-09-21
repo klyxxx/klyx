@@ -18,6 +18,7 @@ import {
 } from "@/lib/group-multiexecutor-settlement-economics";
 import {
   getProviderStripeDestination,
+  getProviderStripeDestinationStrict,
   isStripeConnectIdentityReviewRequired,
 } from "@/lib/stripe-connect-account";
 import { readStripeSettlementRecipientTruth } from "@/lib/stripe-settlement-recipient-truth";
@@ -456,6 +457,7 @@ export async function releasePlatformHeldGroupMember(
   const parent = await loadParent(member.group_settlement_id);
   const financialRuntime = await requireKlyxFinancialStripeRuntime({
     clientProfileId: parent.client_profile_id,
+    capability: "settlement_release",
   });
   const stripe = new Stripe(financialRuntime.key);
   const expectedLive = financialRuntime.mode !== "test";
@@ -535,9 +537,12 @@ export async function releasePlatformHeldGroupMember(
   }
 
   try {
-    const destination = await getProviderStripeDestination(
-      member.provider_profile_id
-    );
+    const destination =
+      financialRuntime.mode === "test"
+        ? await getProviderStripeDestination(member.provider_profile_id)
+        : await getProviderStripeDestinationStrict(
+            member.provider_profile_id
+          );
 
     if (
       destination.accountId !== member.provider_account_id ||
@@ -1192,6 +1197,7 @@ export async function refundPlatformHeldGroup(input: {
   const parent = await loadParentByBatch(input.batchId);
   const financialRuntime = await requireKlyxFinancialStripeRuntime({
     clientProfileId: parent.client_profile_id,
+    capability: "refunds",
   });
   const stripe = new Stripe(financialRuntime.key);
   const expectedLive = financialRuntime.mode !== "test";
