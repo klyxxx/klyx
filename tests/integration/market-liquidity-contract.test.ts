@@ -97,6 +97,19 @@ describe("KLYX Market & Liquidity Engine contract", () => {
     expect(policy).not.toMatch(/\.insert\(|\.update\(|\.delete\(/);
   });
 
+  it("does not label availability coverage as matching quality", () => {
+    const candidateStart = migration.indexOf(
+      "create or replace function public.klyx_liquidity_candidate_trigger"
+    );
+    const offerStart = migration.indexOf(
+      "create or replace function public.klyx_liquidity_offer_trigger"
+    );
+    const candidateTrigger = migration.slice(candidateStart, offerStart);
+
+    expect(candidateTrigger).toContain("'matching_quality_measured', false");
+    expect(candidateTrigger).toContain("'availability_confirmed'");
+  });
+
   it("never uses an offer/quote as a proxy for supply discovery", () => {
     const offerTriggerStart = migration.indexOf(
       "create or replace function public.klyx_liquidity_offer_trigger"
