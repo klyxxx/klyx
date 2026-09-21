@@ -68,7 +68,7 @@ export function requireKlyxFinancialStripeObservationRuntime(): KlyxFinancialStr
       throw new Error("KLYX_FINANCIAL_RUNTIME_TEST_MODE_MISMATCH");
     }
 
-    assertStripeRuntimeReady();
+    assertStripeObservationRuntimeConfigured();
 
     return {
       key,
