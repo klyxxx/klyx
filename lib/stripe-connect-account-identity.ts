@@ -193,6 +193,48 @@ export async function markAccountStripeConnectIdentityForReview(params: {
   });
 }
 
+export async function getAccountStripeConnectIdentityStrict(
+  accountId: string
+): Promise<AccountStripeConnectIdentity> {
+  const canonical = await readCanonicalIdentity(accountId);
+  const identity = normalizeIdentity(accountId, canonical);
+
+  if (identity.state === "conflict") {
+    return {
+      ...identity,
+      stripeAccountId: null,
+    };
+  }
+
+  if (
+    identity.state === "linked" &&
+    !identity.stripeAccountId?.startsWith("acct_")
+  ) {
+    throw new Error(STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED);
+  }
+
+  return identity;
+}
+
+export async function getProfileAccountStripeConnectIdentityStrict(
+  profileId: string
+): Promise<AccountStripeConnectIdentity> {
+  const { data, error } = await supabaseAdmin
+    .from("profiles")
+    .select("id, account_id")
+    .eq("id", profileId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+
+  const profile = (data as ProfileAccountRow | null) ?? null;
+  if (!profile?.account_id) {
+    throw new Error("KLYX_CANONICAL_ACCOUNT_REQUIRED");
+  }
+
+  return getAccountStripeConnectIdentityStrict(profile.account_id);
+}
+
 export async function getAccountStripeConnectIdentity(
   accountId: string
 ): Promise<AccountStripeConnectIdentity> {
