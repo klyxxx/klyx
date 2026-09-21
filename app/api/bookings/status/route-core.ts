@@ -159,6 +159,7 @@ async function refundStripeClientForBooking(
 
   const financialRuntime = await requireKlyxFinancialStripeRuntime({
     clientProfileId: booking.parent_id,
+    capability: "refunds",
   });
 
   return new Stripe(financialRuntime.key);
