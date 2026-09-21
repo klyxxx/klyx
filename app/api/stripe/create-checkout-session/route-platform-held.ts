@@ -1,18 +1,20 @@
+import { assertLiveFinancialStaticGate } from "@/lib/live-financial-runtime-policy";
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { POST as corePost } from "./route-platform-held-core";
 
-function testStripeClient(): Stripe {
+function financialStripeClient(): Stripe {
   const key = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
 
   if (key.startsWith("sk_live_")) {
-    throw new Error("KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY");
+    assertLiveFinancialStaticGate();
+    return new Stripe(key);
   }
 
   if (!key.startsWith("sk_test_")) {
-    throw new Error("KLYX_SETTLEMENT_STRIPE_TEST_KEY_REQUIRED");
+    throw new Error("KLYX_SETTLEMENT_STRIPE_KEY_REQUIRED");
   }
 
   return new Stripe(key);
@@ -53,7 +55,7 @@ export async function POST(request: Request) {
     Boolean(checkoutSessionId) && booking?.payment_mode !== "platform_held";
 
   if (isCrossModeCheckout) {
-    const stripe = testStripeClient();
+    const stripe = financialStripeClient();
     const existingSession = await stripe.checkout.sessions.retrieve(
       checkoutSessionId
     );
