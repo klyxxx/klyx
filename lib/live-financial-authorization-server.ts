@@ -1,5 +1,6 @@
 import "server-only";
 
+import { getKlyxBuildReleaseSha } from "@/lib/klyx-build-release";
 import { getKlyxObservabilityFinancialMonitoringSnapshot } from "@/lib/observability-financial-monitoring-server";
 import { getKlyxOpsCapabilityDecision } from "@/lib/ops-control-server";
 import { inspectStripeRuntime } from "@/lib/stripe-runtime";
@@ -9,7 +10,6 @@ export const KLYX_LIVE_FINANCIAL_CONTROL_KEY = "stripe_platform_held";
 export const KLYX_LIVE_FINANCIAL_NOT_AUTHORIZED =
   "KLYX_LIVE_FINANCIAL_NOT_AUTHORIZED";
 
-const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const FINANCIAL_CAPABILITIES = [
   "payments",
   "settlement_release",
@@ -69,12 +69,7 @@ function envTrue(name: string): boolean {
 }
 
 function validSha(value: string | null | undefined): value is string {
-  return Boolean(value && SHA_PATTERN.test(value));
-}
-
-export function getKlyxBuildReleaseSha(): string | null {
-  const value = env("KLYX_BUILD_RELEASE_SHA").toLowerCase();
-  return validSha(value) ? value : null;
+  return Boolean(value && /^[0-9a-f]{40}$/.test(value));
 }
 
 async function readAuthorization(): Promise<AuthorizationRow | null> {
@@ -206,6 +201,7 @@ function proofCheck(
 
 export async function inspectLiveFinancialAuthorization(input?: {
   requireArmed?: boolean;
+  candidateCertifiedSha?: string | null;
 }): Promise<LiveFinancialAuthorizationReport> {
   const requireArmed = input?.requireArmed ?? true;
   const now = Date.now();
@@ -347,7 +343,13 @@ export async function inspectLiveFinancialAuthorization(input?: {
   );
 
   const controlState = authorization?.state ?? "missing";
-  const certifiedSha = authorization?.certified_sha?.toLowerCase() ?? null;
+  const persistedCertifiedSha =
+    authorization?.certified_sha?.toLowerCase() ?? null;
+  const candidateCertifiedSha =
+    input?.candidateCertifiedSha?.trim().toLowerCase() ?? null;
+  const certifiedSha = validSha(candidateCertifiedSha)
+    ? candidateCertifiedSha
+    : persistedCertifiedSha;
   const armed = controlState === "armed";
 
   checks.push({
