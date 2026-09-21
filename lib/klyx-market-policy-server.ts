@@ -33,7 +33,7 @@ type MarketRuleRow = {
 };
 
 type CurrencyCapabilityRow = {
-  provider: "stripe";
+  provider: string;
   country_code: string;
   currency_code: string;
   charge_enabled: boolean;
@@ -127,6 +127,7 @@ export async function resolveKlyxMarketPaymentPolicy(params: {
   executionCountryCode: string;
   serviceSlug: string;
   currencyCode: string;
+  paymentProvider?: string;
   at?: Date;
 }): Promise<ResolvedKlyxMarketPaymentPolicy> {
   const payerCountryCode = normalizeKlyxCountryCode(params.payerCountryCode);
@@ -135,6 +136,8 @@ export async function resolveKlyxMarketPaymentPolicy(params: {
   );
   const currencyCode = normalizeKlyxCurrencyCode(params.currencyCode);
   const serviceSlug = params.serviceSlug.trim() || "*";
+  const paymentProvider =
+    params.paymentProvider?.trim().toLowerCase() || "stripe";
   const now = params.at ?? new Date();
 
   const [rulesResult, capabilityResult] = await Promise.all([
@@ -152,7 +155,7 @@ export async function resolveKlyxMarketPaymentPolicy(params: {
       .select(
         "provider,country_code,currency_code,charge_enabled,payout_enabled,settlement_enabled,accounting_exponent,stripe_charge_exponent,stripe_charge_increment,stripe_payout_increment,minimum_charge_amount,maximum_charge_amount,zero_decimal,source_ref,source_checked_at"
       )
-      .eq("provider", "stripe")
+      .eq("provider", paymentProvider)
       .eq("country_code", executionCountryCode)
       .eq("currency_code", currencyCode)
       .maybeSingle(),
