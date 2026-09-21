@@ -285,7 +285,7 @@ async function buildFrozenPlan(input: {
     );
 
     const transferReady = Boolean(
-      remoteAccount.livemode === false &&
+      remoteAccount.livemode === (input.stripeRuntimeMode === "live") &&
         remoteAccount.applied_configurations?.includes("recipient") === true &&
         remoteAccount.configuration?.recipient?.applied === true &&
         remoteAccount.configuration?.recipient?.capabilities?.stripe_balance
