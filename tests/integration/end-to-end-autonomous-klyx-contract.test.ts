@@ -30,6 +30,7 @@ const latestEligibilityGate = read(
 );
 const webhookLifecycle = read("scripts/golden-path-service-lifecycle.mjs");
 const settlementChaos = read("scripts/mission19-settlement-eligibility-chaos.mjs");
+const splitRefundFixture = read("scripts/golden-path-split-refund.mjs");
 const goldenPathWorkflow = read(".github/workflows/klyx-golden-path.yml");
 const documentation = read("docs/KLYX_END_TO_END_AUTONOMOUS_CERTIFICATION.md");
 
@@ -207,6 +208,11 @@ describe("Mission 19 end-to-end autonomous KLYX contract", () => {
     expect(latestEligibilityGate).not.toContain(
       "select exists (\n    select 1\n      from public.economic_settlement_eligibility_decisions"
     );
+  });
+
+  it("keeps local Stripe-shaped fixture identifiers constraint-valid", () => {
+    expect(splitRefundFixture).toContain("acct_testsplit");
+    expect(splitRefundFixture).not.toContain("acct_test_split_");
   });
 
   it("proves delayed webhook convergence and pre-settlement ineligibility at runtime", () => {
