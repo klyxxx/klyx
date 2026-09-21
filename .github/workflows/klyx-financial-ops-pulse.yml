@@ -1,0 +1,91 @@
+name: KLYX Financial Operations Pulse
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: "Canonical KLYX production origin override"
+        required: false
+        type: string
+
+  schedule:
+    - cron: "3-58/5 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: klyx-financial-ops-pulse-${{ github.repository }}
+  cancel-in-progress: true
+
+jobs:
+  financial-ops:
+    name: Financial worker + critical alert delivery
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    env:
+      KLYX_PRODUCTION_URL: ${{ inputs.target_url || 'https://www.klyx.be' }}
+      KLYX_FINANCIAL_OPS_SECRET: ${{ secrets.KLYX_FINANCIAL_RECONCILIATION_SECRET }}
+
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate production financial Ops configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${KLYX_FINANCIAL_OPS_SECRET:-}" ]; then
+            echo "::error::KLYX_FINANCIAL_RECONCILIATION_SECRET is required."
+            exit 1
+          fi
+
+          node <<'NODE'
+          const raw = process.env.KLYX_PRODUCTION_URL ?? "";
+          const url = new URL(raw);
+
+          if (
+            url.protocol !== "https:" ||
+            url.username ||
+            url.password ||
+            url.search ||
+            url.hash ||
+            (url.pathname !== "/" && url.pathname !== "")
+          ) {
+            throw new Error("KLYX_PRODUCTION_URL must be a canonical HTTPS origin.");
+          }
+          NODE
+
+      - name: Run financial durable worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          origin="${KLYX_PRODUCTION_URL%/}"
+
+          curl --fail-with-body --silent --show-error             --request POST             --header "Authorization: Bearer ${KLYX_FINANCIAL_OPS_SECRET}"             --header "Content-Type: application/json"             --data '{"limit":5}'             "${origin}/api/ops/financial-durable-worker"
+
+      - name: Deliver critical financial alert state
+        shell: bash
+        run: |
+          set -euo pipefail
+          origin="${KLYX_PRODUCTION_URL%/}"
+
+          curl --fail-with-body --silent --show-error             --request POST             --header "Authorization: Bearer ${KLYX_FINANCIAL_OPS_SECRET}"             --header "Content-Type: application/json"             --data '{}'             "${origin}/api/ops/critical-alert-delivery"
+
+      - name: Write success summary
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo "## KLYX Financial Operations Pulse"
+            echo
+            echo "- Financial durable worker: HEALTHY"
+            echo "- Critical financial alert delivery: HEALTHY"
+            echo "- Alert channel: GitHub Actions scheduled workflow failure"
+            echo "- Stripe mutation authority: unchanged"
+            echo "- Timestamp (UTC): $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } >> "$GITHUB_STEP_SUMMARY"
