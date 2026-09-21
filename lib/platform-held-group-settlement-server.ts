@@ -557,6 +557,13 @@ export async function releasePlatformHeldGroupMember(
     return { status: "review_required" };
   }
 
+  if (stripeRuntime.mode === "live") {
+    await assertFinancialStripeWriteAuthorized({
+      capability: "settlement_release",
+      currency: parent.currency,
+    });
+  }
+
   const claimToken = randomUUID();
   const { data: claimData, error: claimError } = await supabaseAdmin.rpc(
     "klyx_claim_platform_held_group_member_release",
@@ -1192,6 +1199,13 @@ export async function refundPlatformHeldGroup(input: {
 
   if (parent.client_profile_id !== input.requesterProfileId) {
     throw new Error("KLYX_GROUP_HELD_REFUND_FORBIDDEN");
+  }
+
+  if (stripeRuntime.mode === "live") {
+    await assertFinancialStripeWriteAuthorized({
+      capability: "refunds",
+      currency: parent.currency,
+    });
   }
 
   let refund = await loadExistingRefundByRequestKey(
