@@ -29,7 +29,8 @@
     "perf:ab": "powershell -ExecutionPolicy Bypass -File scripts/performance/ab-local.ps1",
     "ops:smoke": "node scripts/operations/check-public-production.mjs",
     "test:mission19": "vitest run tests/integration/end-to-end-autonomous-continuity-contract.test.ts tests/integration/end-to-end-autonomous-klyx-contract.test.ts",
-    "certify:mission19:continuity": "node scripts/mission19-autonomous-continuity.mjs"
+    "certify:mission19:continuity": "node scripts/mission19-autonomous-continuity.mjs",
+    "certify:mission19:settlement": "node scripts/mission19-settlement-eligibility-chaos.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
