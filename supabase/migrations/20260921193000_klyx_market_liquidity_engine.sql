@@ -157,7 +157,26 @@ create table if not exists public.klyx_market_geography_rules (
   updated_at timestamptz not null default now(),
 
   constraint klyx_market_geography_country_check
-    check (country_code ~ '^[A-Z]{2}create table if not exists public.klyx_market_price_bands (
+    check (country_code ~ '^[A-Z]{2}$'),
+  constraint klyx_market_geography_market_check
+    check (char_length(trim(market_key)) between 1 and 120),
+  constraint klyx_market_geography_region_check
+    check (char_length(trim(region_key)) between 1 and 160),
+  constraint klyx_market_geography_locality_check
+    check (char_length(trim(locality_key)) between 1 and 200),
+  constraint klyx_market_geography_validity_check
+    check (valid_until is null or valid_until > valid_from)
+);
+
+create index if not exists klyx_market_geography_lookup_idx
+  on public.klyx_market_geography_rules (
+    country_code,
+    locality_key,
+    priority desc,
+    valid_from desc
+  );
+
+create table if not exists public.klyx_market_price_bands (
   id uuid primary key default gen_random_uuid(),
   band_key text not null,
   market_key text not null default '*',
