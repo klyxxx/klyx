@@ -87,6 +87,9 @@ describe("Mission 11 economic settlement eligibility contract", () => {
     expect(networkProof).toContain(
       "STRIPE_OK_KLYX_BLOCKED_PREVENTS_BENEFICIARY_TRANSFER"
     );
+    expect(networkProof).toContain("insertSettlementRiskAllow");
+    expect(networkProof).toContain('action: "settlement_release"');
+    expect(networkProof).toContain('decision: "allow"');
     expect(networkProof).not.toContain(
       'stripeAccount.payouts_enabled === true'
     );
