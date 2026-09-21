@@ -9,13 +9,19 @@ import {
   requireAccountType,
 } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { canReceiveSettlementForBooking } from "@/lib/economic-settlement-eligibility-server";
+import {
+  assertFinancialStripeWriteAuthorized,
+  assertStripeObjectMode,
+  getFinancialStripeRuntime,
+  getProviderFinancialDestination,
+} from "@/lib/financial-stripe-runtime";
 import {
   freezeMultiExecutorGroupEconomics,
   type GroupExecutorInput,
 } from "@/lib/group-multiexecutor-settlement-economics";
 import { assessKlyxStripeMarketAccess } from "@/lib/klyx-stripe-market-access";
 import {
-  getProviderStripeDestination,
   isStripeConnectIdentityReviewRequired,
 } from "@/lib/stripe-connect-account";
 import { assertStripeRuntimeReady } from "@/lib/stripe-runtime";
@@ -191,18 +197,6 @@ function planHash(plan: CanonicalPlan): string {
   return createHash("sha256").update(JSON.stringify(plan)).digest("hex");
 }
 
-function requiredTestStripe(): Stripe {
-  const key = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
-
-  if (key.startsWith("sk_live_")) {
-    throw new Error("KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY");
-  }
-  if (!key.startsWith("sk_test_")) {
-    throw new Error("KLYX_SETTLEMENT_STRIPE_TEST_KEY_REQUIRED");
-  }
-
-  return new Stripe(key);
-}
 
 async function loadConfirmation(
   batchId: string,
@@ -276,7 +270,10 @@ async function buildFrozenPlan(input: {
   const executorInputs: GroupExecutorInput[] = [];
 
   for (const unit of plan.units) {
-    const destination = await getProviderStripeDestination(unit.providerId);
+    const destination = await getProviderFinancialDestination(
+      unit.providerId,
+      input.stripeRuntimeMode
+    );
 
     if (
       destination.connect.state !== "linked" ||
@@ -294,7 +291,7 @@ async function buildFrozenPlan(input: {
     );
 
     const transferReady = Boolean(
-      remoteAccount.livemode === false &&
+      remoteAccount.livemode === (input.stripeRuntimeMode === "live") &&
         remoteAccount.applied_configurations?.includes("recipient") === true &&
         remoteAccount.configuration?.recipient?.applied === true &&
         remoteAccount.configuration?.recipient?.capabilities?.stripe_balance
@@ -311,6 +308,21 @@ async function buildFrozenPlan(input: {
     );
     if (!market.allowed) {
       throw new Error("KLYX_GROUP_HELD_PROVIDER_MARKET_NOT_READY");
+    }
+
+    for (const bookingId of unit.bookingIds) {
+      const economicEligibility = await canReceiveSettlementForBooking({
+        accountId: destination.accountId,
+        bookingId,
+        expectedProviderProfileId: unit.providerId,
+        expectedStripeAccountId: destination.connect.stripeAccountId,
+      });
+
+      if (!economicEligibility || economicEligibility.decision !== "allowed") {
+        throw new Error(
+          `KLYX_ECONOMIC_SETTLEMENT_ELIGIBILITY_REQUIRED:${bookingId}:${economicEligibility?.decision ?? "human_review"}`
+        );
+      }
     }
 
     executorInputs.push({
@@ -466,8 +478,12 @@ export async function POST(request: Request, context: RouteContext) {
       throw new Error("KLYX_PLATFORM_HELD_MODE_NOT_ACTIVE");
     }
 
-    const stripe = requiredTestStripe();
     const stripeRuntime = assertStripeRuntimeReady();
+    const financialStripe = getFinancialStripeRuntime();
+    const stripe = financialStripe.stripe;
+    if (financialStripe.mode !== stripeRuntime.mode) {
+      throw new Error("KLYX_FINANCIAL_STRIPE_MODE_MISMATCH");
+    }
     const { user, profile } = await getAuthenticatedProfile(request);
     requireAccountType(profile, "client");
 
@@ -504,6 +520,14 @@ export async function POST(request: Request, context: RouteContext) {
       stripeRuntimeMode: stripeRuntime.mode,
       stripe,
     });
+
+    if (stripeRuntime.mode === "live") {
+      await assertFinancialStripeWriteAuthorized({
+        capability: "payments",
+        countryCode: profile.countryCode,
+        currency: economics.currency,
+      });
+    }
 
     const parent = await prepareParent({
       confirmation,
@@ -548,9 +572,7 @@ export async function POST(request: Request, context: RouteContext) {
         claim.checkout_session_id
       );
 
-      if (existing.livemode) {
-        throw new Error("KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY");
-      }
+      assertStripeObjectMode(existing.livemode, financialStripe);
 
       const sameFlow =
         existing.metadata?.klyx_flow ===
@@ -617,6 +639,14 @@ export async function POST(request: Request, context: RouteContext) {
       executor_count: String(economics.members.length),
     };
 
+    if (stripeRuntime.mode === "live") {
+      await assertFinancialStripeWriteAuthorized({
+        capability: "payments",
+        countryCode: profile.countryCode,
+        currency: economics.currency,
+      });
+    }
+
     const session = await stripe.checkout.sessions.create(
       {
         mode: "payment",
@@ -648,9 +678,7 @@ export async function POST(request: Request, context: RouteContext) {
       }
     );
 
-    if (session.livemode) {
-      throw new Error("KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY");
-    }
+    assertStripeObjectMode(session.livemode, financialStripe);
     if (!session.url) {
       throw new Error("KLYX_GROUP_HELD_CHECKOUT_URL_MISSING");
     }
