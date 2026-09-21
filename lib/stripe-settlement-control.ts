@@ -1,4 +1,4 @@
-import { inspectLiveFinancialStaticGate } from "@/lib/live-financial-runtime-gate";
+import { inspectLiveFinancialStaticGate } from "@/lib/live-financial-runtime-policy";
 
 export const KLYX_LEGACY_SETTLEMENT_MODE = "connect_destination" as const;
 export const KLYX_PLATFORM_HELD_SETTLEMENT_MODE = "platform_held" as const;
