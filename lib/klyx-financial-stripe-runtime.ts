@@ -61,9 +61,7 @@ function requireExactLiveShaBoundary(): {
 async function requireLiveRuntimeHeartbeats(
   deployedSha: string
 ): Promise<void> {
-  const threshold = new Date(
-    Date.now() - LIVE_HEARTBEAT_MAX_AGE_MS
-  ).toISOString();
+  const nowMs = Date.now();
 
   const { data, error } = await supabaseAdmin
     .from("ops_runtime_heartbeats")
@@ -92,12 +90,19 @@ async function requireLiveRuntimeHeartbeats(
   ] as const) {
     const row = rows.find((candidate) => candidate.component === component);
 
+    const lastSeenMs = row?.last_seen_at
+      ? Date.parse(row.last_seen_at)
+      : Number.NaN;
+    const heartbeatFresh =
+      Number.isFinite(lastSeenMs) &&
+      lastSeenMs <= nowMs + 60_000 &&
+      nowMs - lastSeenMs <= LIVE_HEARTBEAT_MAX_AGE_MS;
+
     if (
       !row ||
       row.status !== "healthy" ||
       row.source_sha?.trim().toLowerCase() !== deployedSha ||
-      !row.last_seen_at ||
-      row.last_seen_at < threshold
+      !heartbeatFresh
     ) {
       throw new Error(
         `KLYX_FINANCIAL_RUNTIME_${component.toUpperCase()}_NOT_READY`
