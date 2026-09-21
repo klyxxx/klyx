@@ -379,8 +379,11 @@ export async function syncEconomicStripeProjectionFromRemoteStripe(input: {
     correlationId: input.correlationId,
   });
 
+  let v2Account: StripeV2AccountProjection | null = null;
+  let v2ReadError: unknown = null;
+
   try {
-    const account = await input.stripe.v2.core.accounts.retrieve(
+    v2Account = await input.stripe.v2.core.accounts.retrieve(
       input.stripeAccountId,
       {
         include: [
@@ -388,31 +391,35 @@ export async function syncEconomicStripeProjectionFromRemoteStripe(input: {
           "configuration.recipient",
           "identity",
           "requirements",
-          "future_requirements",
         ],
       }
     );
+  } catch (error) {
+    v2ReadError = error;
+  }
 
+  if (v2Account) {
     await syncEconomicStripeProjectionFromStripeV2({
+      accountId: input.accountId,
+      stripeAccount: v2Account,
+      correlationId: input.correlationId,
+    });
+    return "accounts_v2";
+  }
+
+  try {
+    const account = await input.stripe.accounts.retrieve(
+      input.stripeAccountId
+    );
+
+    await syncEconomicStripeProjectionFromStripe({
       accountId: input.accountId,
       stripeAccount: account,
       correlationId: input.correlationId,
     });
-    return "accounts_v2";
-  } catch (v2Error) {
-    try {
-      const account = await input.stripe.accounts.retrieve(
-        input.stripeAccountId
-      );
-
-      await syncEconomicStripeProjectionFromStripe({
-        accountId: input.accountId,
-        stripeAccount: account,
-        correlationId: input.correlationId,
-      });
-      return "accounts_v1";
-    } catch {
-      throw v2Error;
-    }
+    return "accounts_v1";
+  } catch {
+    if (v2ReadError) throw v2ReadError;
+    throw new Error("KLYX_ECONOMIC_STRIPE_REMOTE_ACCOUNT_UNAVAILABLE");
   }
 }
