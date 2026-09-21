@@ -1,6 +1,6 @@
 import "server-only";
 
-import { inspectLiveFinancialStaticGate } from "@/lib/live-financial-runtime-policy";
+import { assertLiveFinancialStaticGate } from "@/lib/live-financial-runtime-policy";
 
 export type StripeRuntimeMode = "test" | "live";
 
@@ -144,19 +144,6 @@ export function inspectStripeRuntime(): StripeRuntimeReport {
     },
   ];
 
-  if (mode === "live") {
-    const liveGate = inspectLiveFinancialStaticGate();
-
-    for (const check of liveGate.checks) {
-      checks.push({
-        key: `live_${check.key}`,
-        label: `LIVE · ${check.key}`,
-        ok: check.ok,
-        detail: check.detail,
-      });
-    }
-  }
-
   return {
     mode,
     ready: checks.every((check) => check.ok),
@@ -209,14 +196,17 @@ export function assertStripeRuntimeConfiguredForDiagnostics(): StripeRuntimeRepo
 
   return assertStripeRuntimeChecks(
     report,
-    (check) =>
-      check.key !== "live_switch" &&
-      !check.key.startsWith("live_")
+    (check) => check.key !== "live_switch"
   );
 }
 
 export function assertStripeRuntimeReady(): StripeRuntimeReport {
   const report = inspectStripeRuntime();
+  const readyReport = assertStripeRuntimeChecks(report, () => true);
 
-  return assertStripeRuntimeChecks(report, () => true);
+  if (report.mode === "live") {
+    assertLiveFinancialStaticGate();
+  }
+
+  return readyReport;
 }
