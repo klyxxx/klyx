@@ -22,8 +22,8 @@ import {
 } from "@/lib/stripe-group-refunds";
 
 import {
-  assertStripeRuntimeReady,
-} from "@/lib/stripe-runtime";
+  requireKlyxFinancialStripeRuntime,
+} from "@/lib/klyx-financial-stripe-runtime";
 
 import {
   supabaseAdmin,
@@ -1054,12 +1054,12 @@ export async function POST(
       );
     }
 
-    assertStripeRuntimeReady();
+    const financialRuntime = await requireKlyxFinancialStripeRuntime({
+      clientProfileId: group.client_profile_id,
+      capability: "refunds",
+    });
 
-    const stripe =
-      new Stripe(
-        stripeKey()
-      );
+    const stripe = new Stripe(financialRuntime.key);
 
     try {
       const destinationCharge =
