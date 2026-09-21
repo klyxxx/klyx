@@ -366,9 +366,14 @@ export async function POST(request: Request) {
       canonicalStripeAccountId,
       { include: ["configuration.recipient", "identity", "requirements"] }
     );
+    const expectedLive = financialRuntime.mode !== "test";
+    const expectedProviderCountry =
+      provider.countryCode?.trim().toUpperCase() ?? "";
     const providerReady = Boolean(
-      providerRecipientAccount.livemode === false &&
-        providerRecipientAccount.identity?.country === "BE" &&
+      providerRecipientAccount.livemode === expectedLive &&
+        expectedProviderCountry.length === 2 &&
+        providerRecipientAccount.identity?.country?.trim().toUpperCase() ===
+          expectedProviderCountry &&
         providerRecipientAccount.applied_configurations?.includes("recipient") === true &&
         providerRecipientAccount.configuration?.recipient?.applied === true &&
         providerRecipientAccount.configuration?.recipient?.capabilities?.stripe_balance
