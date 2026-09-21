@@ -931,8 +931,8 @@ async function main() {
 
     stripeAccount = await stripe.accounts.retrieve(handoff.accountId);
     assert(
-      stripeAccount.livemode === false,
-      "Connected account unexpectedly uses LIVE mode."
+      v2Account.livemode === false,
+      "Accounts v2 recipient unexpectedly uses LIVE mode."
     );
     assert(
       stripeAccount.details_submitted === true &&
