@@ -50,9 +50,53 @@ function requireExactLiveShaBoundary(): {
 
 export type KlyxFinancialStripeRuntime = {
   key: string;
-  mode: "test" | "controlled_live_certification" | "certified_live";
+  mode:
+    | "test"
+    | "live_observation"
+    | "controlled_live_certification"
+    | "certified_live";
   deployedSha: string | null;
 };
+
+export function requireKlyxFinancialStripeObservationRuntime(): KlyxFinancialStripeRuntime {
+  const key = env("STRIPE_SECRET_KEY");
+  const stripeMode = env("KLYX_STRIPE_MODE").toLowerCase();
+
+  if (key.startsWith("sk_test_")) {
+    if (stripeMode !== "test") {
+      throw new Error("KLYX_FINANCIAL_RUNTIME_TEST_MODE_MISMATCH");
+    }
+
+    assertStripeRuntimeReady();
+
+    return {
+      key,
+      mode: "test",
+      deployedSha: null,
+    };
+  }
+
+  if (!key.startsWith("sk_live_")) {
+    throw new Error("KLYX_FINANCIAL_RUNTIME_STRIPE_KEY_INVALID");
+  }
+
+  if (stripeMode !== "live") {
+    throw new Error("KLYX_FINANCIAL_RUNTIME_LIVE_MODE_MISMATCH");
+  }
+
+  // Observation/reconciliation must survive kill-switches, canary shutdown and
+  // later deployments. Signed Stripe truth for already-created objects must
+  // always remain ingestible. This path performs no new Stripe money movement.
+  assertStripeRuntimeConfiguredForDiagnostics();
+
+  const deployedSha = env("VERCEL_GIT_COMMIT_SHA").toLowerCase();
+
+  return {
+    key,
+    mode: "live_observation",
+    deployedSha: SHA_RE.test(deployedSha) ? deployedSha : null,
+  };
+}
 
 export async function requireKlyxFinancialStripeRuntime(input: {
   clientProfileId: string;
