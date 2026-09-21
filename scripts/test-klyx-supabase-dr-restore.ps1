@@ -268,6 +268,15 @@ $ReportPath =
             ".json"
         )
 
+$CertificatePath =
+    Join-Path `
+        $ReportDirectory `
+        (
+            "KLYX_DR_CERTIFICATE_" +
+            $RunId +
+            ".json"
+        )
+
 $RestoreSucceeded =
     $false
 
@@ -1055,6 +1064,82 @@ try {
             -LiteralPath $ReportPath `
             -Encoding UTF8
 
+    $Certificate =
+        [ordered]@{
+            format =
+                "KLYX_DISASTER_RECOVERY_OFFSITE_CERTIFICATE"
+
+            version =
+                1
+
+            createdUtc =
+                (
+                    Get-Date
+                ).ToUniversalTime().ToString(
+                    "o"
+                )
+
+            backupGitCommit =
+                $BackupGitCommit
+
+            backupCreatedUtc =
+                [string]$DrManifest.createdUtc
+
+            expectedGitCommit =
+                if ($NormalizedExpectedCommit) {
+                    $NormalizedExpectedCommit
+                }
+                else {
+                    $null
+                }
+
+            exactCommitMatch =
+                (
+                    -not $NormalizedExpectedCommit -or
+                    $BackupGitCommit -eq $NormalizedExpectedCommit
+                )
+
+            encryptedArchiveSha256 =
+                $ActualEncryptedHash
+
+            isolatedLocalRestore =
+                $true
+
+            productionWrite =
+                $false
+
+            linkedCommands =
+                $false
+
+            publicDatabaseVerified =
+                $true
+
+            authDatabaseVerified =
+                $true
+
+            authServiceVerified =
+                $true
+
+            storageBinaryIntegrity =
+                $true
+
+            storageServiceVerified =
+                $true
+
+            plaintextRetained =
+                $false
+
+            restoreTested =
+                $true
+        }
+
+    $Certificate |
+        ConvertTo-Json `
+            -Depth 10 |
+        Set-Content `
+            -LiteralPath $CertificatePath `
+            -Encoding UTF8
+
     $RestoreSucceeded =
         $true
 
@@ -1074,6 +1159,7 @@ try {
     Write-Host "Linked command     : NO"
     Write-Host "Plaintext retained : NO"
     Write-Host "Restore tested     : YES"
+    Write-Host "Certificate        : $CertificatePath"
     Write-Host "======================================"
 }
 finally {
