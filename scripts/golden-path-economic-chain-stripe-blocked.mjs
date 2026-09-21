@@ -288,6 +288,7 @@ async function prepareEconomicBaseline({
   providerId,
   stripeAccount,
   stripeLivemode,
+  stripeTransferStatus,
   userServiceId,
   activityKey,
   jurisdictionCode,
@@ -480,24 +481,8 @@ async function prepareEconomicBaseline({
     "Stripe Accounts v2 truth unexpectedly uses LIVE mode."
   );
   assert(
-    stripeAccount.details_submitted === true,
-    "Stripe TEST account details are not submitted."
-  );
-  assert(
-    stripeAccount.payouts_enabled === true,
-    "Stripe TEST account payouts are not enabled."
-  );
-  assert(
-    stripeAccount.capabilities?.transfers === "active",
-    "Stripe TEST transfer capability is not active."
-  );
-  assert(
-    currentlyDue.length === 0 &&
-      pastDue.length === 0 &&
-      pendingVerification.length === 0 &&
-      requirementErrors.length === 0 &&
-      !requirements.disabled_reason,
-    "Stripe TEST account has unresolved requirements."
+    stripeTransferStatus === "active",
+    "Stripe Accounts v2 Recipient transfer capability is not active."
   );
 
   const { error: stripeProjectionError } = await admin
@@ -508,9 +493,9 @@ async function prepareEconomicBaseline({
       stripe_account_id: stripeAccount.id,
       country_code: stripeAccount.country ?? jurisdictionCode,
       business_type: stripeAccount.business_type ?? "individual",
-      details_submitted: true,
+      details_submitted: Boolean(stripeAccount.details_submitted),
       charges_enabled: Boolean(stripeAccount.charges_enabled),
-      payouts_enabled: true,
+      payouts_enabled: Boolean(stripeAccount.payouts_enabled),
       currently_due: currentlyDue,
       eventually_due: asStringArray(requirements.eventually_due),
       past_due: pastDue,
@@ -519,7 +504,11 @@ async function prepareEconomicBaseline({
       disabled_reason: requirements.disabled_reason ?? null,
       capabilities: {
         ...(stripeAccount.capabilities ?? {}),
-        transfers: "active",
+        stripe_balance: {
+          stripe_transfers: {
+            status: stripeTransferStatus,
+          },
+        },
       },
       provider_observed_at: now,
       updated_at: now,
@@ -936,10 +925,8 @@ async function main() {
       "Accounts v2 recipient unexpectedly uses LIVE mode."
     );
     assert(
-      stripeAccount.details_submitted === true &&
-        stripeAccount.payouts_enabled === true &&
-        stripeAccount.capabilities?.transfers === "active",
-      "Stripe TEST connected account is not fully recipient-ready."
+      stripeAccount.id === v2Account.id,
+      "Stripe Accounts v1/v2 projection id mismatch."
     );
 
     await bindCanonicalStripeAccount({
@@ -1027,6 +1014,7 @@ async function main() {
       providerId: provider.id,
       stripeAccount,
       stripeLivemode: v2Account.livemode,
+      stripeTransferStatus: v2TransferStatus(v2Account),
       userServiceId,
       activityKey,
       jurisdictionCode,
@@ -1097,14 +1085,23 @@ async function main() {
       "Economic decision did not bind the real Stripe TEST account."
     );
     assert(
-      blockedDecision.evidence_snapshot?.stripeProjectionPayoutsEnabled ===
-        true,
-      "Proof did not record Stripe payouts_enabled=true."
-    );
-    assert(
       blockedDecision.evidence_snapshot?.stripeTransferCapabilityStatus ===
         "active",
-      "Proof did not record active Stripe transfer capability."
+      "Proof did not record active Stripe Recipient transfer capability."
+    );
+    assert(
+      blockedDecision.evidence_snapshot?.stripeTransferCapabilityActive ===
+        true,
+      "Proof did not record Stripe Recipient transfer readiness."
+    );
+    assert(
+      Array.isArray(blockedDecision.reason_codes) &&
+        !blockedDecision.reason_codes.some(
+          (code) =>
+            typeof code === "string" &&
+            code.startsWith("STRIPE_")
+        ),
+      "Proof must isolate a KLYX-only block while Stripe Recipient transfer authority is green."
     );
 
     const afterTransfers = await stripe.transfers.list({
@@ -1146,9 +1143,10 @@ async function main() {
           refundId: refund.id,
           stripeAccountId: stripeAccount.id,
           stripeRecipientTransferCapability: v2TransferStatus(v2Account),
+          stripeSettlementRecipientReady: v2RecipientTransferReady(v2Account),
           stripeDetailsSubmitted: stripeAccount.details_submitted,
           stripePayoutsEnabled: stripeAccount.payouts_enabled,
-          stripeTransfersCapability: stripeAccount.capabilities?.transfers,
+          stripeLegacyTransfersCapability: stripeAccount.capabilities?.transfers,
           klyxDecision: blockedDecision.decision,
           klyxReasonCodes: blockedDecision.reason_codes,
           settlementState: finalSettlement.state,
