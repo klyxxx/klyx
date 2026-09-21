@@ -5,6 +5,7 @@ import {
   sendBookingPaymentSucceededEmails,
 } from "@/lib/email/payment-event-emails";
 import { upsertFinancialLedgerEntry } from "@/lib/payment-ledger";
+import { requireKlyxFinancialStripeRuntimeForBooking } from "@/lib/klyx-financial-stripe-runtime";
 import {
   formatKlyxMinorUnits,
   fromKlyxStripeChargeAmount,
@@ -47,6 +48,23 @@ type PaymentSuccessEconomics = {
 
 const bookingSelection =
   "id, parent_id, provider_id, babysitter_id, payment_status, amount_total, currency, presentment_currency, total_amount_minor, tax_amount_minor, commission_amount_minor, provider_amount_minor, tax_liability, market_payment_rule_id, fx_quote_id, payment_mode, application_fee_amount, stripe_checkout_session_id, stripe_payment_intent_id";
+
+async function assertPlatformHeldWebhookRuntime(input: {
+  booking: BookingPaymentRow;
+  observedLivemode: boolean;
+}) {
+  if (input.booking.payment_mode !== "platform_held") {
+    return;
+  }
+
+  const runtime =
+    await requireKlyxFinancialStripeRuntimeForBooking(input.booking.id);
+  const expectedLive = runtime.mode !== "test";
+
+  if (input.observedLivemode !== expectedLive) {
+    throw new Error("KLYX_PLATFORM_HELD_WEBHOOK_LIVEMODE_MISMATCH");
+  }
+}
 
 const FAILURE_MESSAGES: Record<string, string> = {
   insufficient_funds:
@@ -683,6 +701,11 @@ export async function markBookingPaidFromSession(
     session
   );
 
+  await assertPlatformHeldWebhookRuntime({
+    booking,
+    observedLivemode: session.livemode,
+  });
+
   if (
     session.payment_status !==
     "paid"
@@ -872,6 +895,11 @@ export async function recordBookingPaymentFailure(
     intent
   );
 
+  await assertPlatformHeldWebhookRuntime({
+    booking,
+    observedLivemode: intent.livemode,
+  });
+
   const failure =
     getPaymentFailureDetails(
       intent
@@ -986,6 +1014,11 @@ export async function markBookingFailedFromSession(
     booking,
     session
   );
+
+  await assertPlatformHeldWebhookRuntime({
+    booking,
+    observedLivemode: session.livemode,
+  });
 
   if (
     booking.payment_status ===
