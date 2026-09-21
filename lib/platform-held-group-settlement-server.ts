@@ -1274,6 +1274,7 @@ export async function refundPlatformHeldGroup(input: {
     parent,
     refund,
     allocations,
+    expectedLive,
   });
 
   refund = await loadRefund(refund.id);
