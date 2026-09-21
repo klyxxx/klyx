@@ -29,7 +29,7 @@ The economic decision is necessary but not sufficient. The independent transacti
 
 ## Stripe is evidence, not authority
 
-`payouts_enabled=true` is necessary evidence when present in the canonical provider projection, but it is never sufficient to authorize settlement.
+`payouts_enabled` and `details_submitted` are legacy compatibility evidence for Accounts v1 and payout-rail operations. For an Accounts v2 Recipient settlement, the Stripe authorization signal is the Recipient `stripe_transfers` capability. A legacy payout boolean is never sufficient and must not veto an active Recipient Transfer capability.
 
 An `allowed` decision also requires, among other applicable facts:
 
@@ -41,7 +41,7 @@ An `allowed` decision also requires, among other applicable facts:
 - an applicable non-expired Trust & Safety activity-eligibility decision;
 - no applicable Trust & Safety payout/platform restriction;
 - a linked canonical Stripe identity matching the frozen settlement destination;
-- a non-divergent economic Stripe projection with no current blocking requirements.
+- a non-divergent economic Stripe projection whose Recipient `stripe_transfers` capability is active; capability-scoped requirements must be satisfied.
 
 Immediately before a new Transfer, KLYX re-evaluates economic eligibility and reads remote Stripe recipient capability/status again.
 
@@ -102,8 +102,9 @@ against ephemeral Supabase:
 - restricted → `blocked`;
 - required qualification missing → `blocked`;
 - jurisdiction/country restriction → `blocked`;
-- Stripe payouts disabled → `blocked`;
-- Stripe requirements currently due → `blocked`;
+- Stripe payouts disabled while Recipient `stripe_transfers` remains active → `allowed` for settlement Transfer; the bank-payout rail is a separate concern;
+- Stripe Recipient transfer capability inactive → `blocked`;
+- Stripe transfer requirements currently due with the capability non-active → `blocked`;
 - human review → `human_review`.
 
 The network proof then uses a real Stripe TEST connected recipient and a real
