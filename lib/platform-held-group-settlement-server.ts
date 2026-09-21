@@ -5,7 +5,10 @@ import Stripe from "stripe";
 
 import type { AuthenticatedAccount } from "@/lib/api-auth";
 import { canReceiveSettlementForBooking } from "@/lib/economic-settlement-eligibility-server";
-import { requireKlyxFinancialStripeRuntime } from "@/lib/klyx-financial-stripe-runtime";
+import {
+  requireKlyxFinancialStripeObservationRuntime,
+  requireKlyxFinancialStripeRuntime,
+} from "@/lib/klyx-financial-stripe-runtime";
 import {
   assertAggregateTransferCapacity,
   calculateCumulativeGroupRefundDelta,
@@ -1435,9 +1438,7 @@ export async function reconcilePlatformHeldGroupRefundFromStripe(
 
   const refund = await loadRefund(stripeRefund.metadata.group_refund_id);
   const parent = await loadParent(refund.group_settlement_id);
-  const financialRuntime = await requireKlyxFinancialStripeRuntime({
-    clientProfileId: parent.client_profile_id,
-  });
+  const financialRuntime = requireKlyxFinancialStripeObservationRuntime();
   const stripe = new Stripe(financialRuntime.key);
   const expectedLive = financialRuntime.mode !== "test";
   const chargeId = stripeObjectId(stripeRefund.charge);
