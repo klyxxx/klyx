@@ -260,3 +260,178 @@ async function main() {
     .eq("id", bookingId)
     .eq("payment_status", "unpaid");
   if (paidError) throw new Error(paidError.message);
+
+  let { data: economicIdentity, error: economicIdentityError } = await admin
+    .from("economic_identities")
+    .select("id")
+    .eq("account_id", accountId)
+    .maybeSingle();
+  if (economicIdentityError) throw new Error(economicIdentityError.message);
+
+  if (!economicIdentity) {
+    const { data: insertedIdentity, error } = await admin
+      .from("economic_identities")
+      .insert({ account_id: accountId })
+      .select("id")
+      .single();
+    if (error) throw new Error(error.message);
+    economicIdentity = insertedIdentity;
+  }
+
+  const { data: trustDecision, error: trustDecisionError } = await admin
+    .from("trust_eligibility_decisions")
+    .insert({
+      account_id: accountId,
+      target_type: "booking",
+      target_ref: bookingId,
+      category_key: String(relation.slug).toLowerCase(),
+      jurisdiction_code: "BE",
+      decision: "eligible",
+      human_review_required: false,
+      review_status: "not_required",
+      reason_codes: [],
+      required_actions: [],
+      explanation: "Mission 19 local settlement eligibility proof.",
+      input_snapshot: { mission19: true, booking_id: bookingId },
+    })
+    .select("id")
+    .single();
+  if (trustDecisionError) throw new Error(trustDecisionError.message);
+
+  const allowedAt = new Date(Date.now() - 2_000);
+  const { error: allowedError } = await admin
+    .from("economic_settlement_eligibility_decisions")
+    .insert({
+      account_id: accountId,
+      economic_identity_id: economicIdentity.id,
+      source_trust_decision_id: trustDecision.id,
+      stripe_account_id: stripeAccountId,
+      subject_type: "booking",
+      subject_id: bookingId,
+      activity_key: String(relation.slug).toLowerCase(),
+      jurisdiction_code: "BE",
+      decision: "allowed",
+      reason_codes: ["mission19_allowed_before_block"],
+      evidence_snapshot: { mission19: true, phase: "allowed" },
+      decision_source: "deterministic_rule",
+      evaluated_at: allowedAt.toISOString(),
+      expires_at: new Date(allowedAt.getTime() + 240_000).toISOString(),
+    });
+  if (allowedError) throw new Error(allowedError.message);
+
+  const { error: riskError } = await admin
+    .from("transaction_risk_decisions")
+    .insert({
+      account_id: accountId,
+      action: "settlement_release",
+      participant: "settlement_recipient",
+      decision: "allow",
+      reason_codes: ["mission19_local_test"],
+      risk_score: 0,
+      risk_level: "low",
+      risk_assessed_at: new Date().toISOString(),
+      subject_type: "booking",
+      subject_id: bookingId,
+      deduplication_key: `mission19:settlement-risk:${bookingId}:${nonce}`,
+    });
+  if (riskError) throw new Error(riskError.message);
+
+  const { data: allowedClaimData, error: allowedClaimError } = await admin.rpc(
+    "klyx_claim_booking_settlement_release",
+    {
+      p_booking_id: bookingId,
+      p_claim_token: randomUUID(),
+    }
+  );
+  if (allowedClaimError) throw new Error(allowedClaimError.message);
+  const allowedClaim = rpcRow(allowedClaimData, "allowed settlement claim");
+  invariant(
+    allowedClaim.action === "create",
+    `Allowed beneficiary was not claimable: ${allowedClaim.action}.`
+  );
+
+  const { error: resetError } = await admin
+    .from("booking_settlements")
+    .update({
+      state: "held",
+      release_claim_token: null,
+      release_claimed_at: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("booking_id", bookingId)
+    .eq("state", "release_claimed")
+    .is("stripe_transfer_id", null);
+  if (resetError) throw new Error(resetError.message);
+
+  const blockedAt = new Date();
+  const { error: blockedError } = await admin
+    .from("economic_settlement_eligibility_decisions")
+    .insert({
+      account_id: accountId,
+      economic_identity_id: economicIdentity.id,
+      source_trust_decision_id: null,
+      stripe_account_id: stripeAccountId,
+      subject_type: "booking",
+      subject_id: bookingId,
+      activity_key: String(relation.slug).toLowerCase(),
+      jurisdiction_code: "BE",
+      decision: "blocked",
+      reason_codes: ["mission19_beneficiary_became_ineligible"],
+      evidence_snapshot: { mission19: true, phase: "blocked" },
+      decision_source: "deterministic_rule",
+      evaluated_at: blockedAt.toISOString(),
+      expires_at: new Date(blockedAt.getTime() + 240_000).toISOString(),
+    });
+  if (blockedError) throw new Error(blockedError.message);
+
+  const { data: blockedClaimData, error: blockedClaimError } = await admin.rpc(
+    "klyx_claim_booking_settlement_release",
+    {
+      p_booking_id: bookingId,
+      p_claim_token: randomUUID(),
+    }
+  );
+  if (blockedClaimError) throw new Error(blockedClaimError.message);
+  const blockedClaim = rpcRow(blockedClaimData, "blocked settlement claim");
+  invariant(
+    blockedClaim.action === "not_ready",
+    `Blocked beneficiary still received a new release claim: ${blockedClaim.action}.`
+  );
+
+  const { data: finalSettlement, error: finalSettlementError } = await admin
+    .from("booking_settlements")
+    .select("state, release_attempt_number, release_claim_token, stripe_transfer_id")
+    .eq("booking_id", bookingId)
+    .single();
+  if (finalSettlementError) throw new Error(finalSettlementError.message);
+
+  invariant(
+    finalSettlement.state === "held" &&
+      Number(finalSettlement.release_attempt_number) ===
+        Number(allowedClaim.attempt_number) &&
+      finalSettlement.release_claim_token === null &&
+      finalSettlement.stripe_transfer_id === null,
+    "Blocked eligibility changed settlement truth or created transfer truth."
+  );
+
+  await userClient.auth.signOut();
+
+  process.stdout.write(
+    `${JSON.stringify({
+      settlementEligibilityChaosPassed: true,
+      bookingId,
+      allowedClaimAction: allowedClaim.action,
+      blockedClaimAction: blockedClaim.action,
+      releaseAttemptNumber: finalSettlement.release_attempt_number,
+      stripeTransferId: finalSettlement.stripe_transfer_id,
+    })}\n`
+  );
+}
+
+main().catch((error) => {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(
+    `KLYX Mission 19 settlement eligibility chaos proof failed: ${message}`
+  );
+  process.exitCode = 1;
+});
