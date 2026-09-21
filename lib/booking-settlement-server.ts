@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import Stripe from "stripe";
 
 import { canReceiveSettlementForBooking } from "@/lib/economic-settlement-eligibility-server";
+import { requireKlyxFinancialStripeRuntimeForBooking } from "@/lib/klyx-financial-stripe-runtime";
 import {
   getProviderStripeDestination,
   isStripeConnectIdentityReviewRequired,
@@ -16,9 +17,6 @@ import {
 } from "@/lib/transaction-risk-server";
 
 const PAYMENT_MODE = "platform_held" as const;
-const TEST_KEY_REQUIRED = "KLYX_SETTLEMENT_STRIPE_TEST_KEY_REQUIRED";
-const LIVE_FORBIDDEN = "KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY";
-
 export type SettlementReleaseResult =
   | { status: "not_applicable" }
   | { status: "not_ready" | "busy" | "review_required" }
@@ -88,20 +86,6 @@ export function isSettlementRefundPreparationError(
   error: unknown
 ): error is SettlementRefundPreparationError {
   return error instanceof SettlementRefundPreparationError;
-}
-
-function testStripeClient(): Stripe {
-  const key = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
-
-  if (key.startsWith("sk_live_")) {
-    throw new Error(LIVE_FORBIDDEN);
-  }
-
-  if (!key.startsWith("sk_test_")) {
-    throw new Error(TEST_KEY_REQUIRED);
-  }
-
-  return new Stripe(key);
 }
 
 async function findSettlement(bookingId: string): Promise<SettlementRow | null> {
@@ -320,7 +304,8 @@ export async function releasePlatformHeldBookingSettlement(
     return { status: "not_ready" };
   }
 
-  const stripe = testStripeClient();
+  const financialRuntime = await requireKlyxFinancialStripeRuntimeForBooking(bookingId);
+  const stripe = new Stripe(financialRuntime.key);
   const paymentIntentId = settlement.stripe_payment_intent_id;
   const checkoutSessionId = settlement.stripe_checkout_session_id;
 
@@ -703,7 +688,8 @@ export async function preparePlatformHeldBookingRefund(
     );
   }
 
-  const stripe = testStripeClient();
+  const financialRuntime = await requireKlyxFinancialStripeRuntimeForBooking(bookingId);
+  const stripe = new Stripe(financialRuntime.key);
   const parentTransfer = await stripe.transfers.retrieve(transferId);
 
   // Transfer is the authoritative object for livemode and immutable release
