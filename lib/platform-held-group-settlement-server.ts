@@ -232,13 +232,16 @@ function verifyMemberTransfer(input: {
   transfer: Stripe.Transfer;
   parent: ParentRow;
   member: MemberRow;
+  expectedLive: boolean;
   expectedAmountCents?: number;
 }) {
-  const { transfer, parent, member } = input;
+  const { transfer, parent, member, expectedLive } = input;
   const expectedAmountCents =
     input.expectedAmountCents ?? memberExpectedTransferAmount(member);
 
-  if (transfer.livemode) throw new Error(LIVE_FORBIDDEN);
+  if (transfer.livemode !== expectedLive) {
+    throw new Error("KLYX_GROUP_HELD_TRANSFER_LIVEMODE_MISMATCH");
+  }
   if (
     transfer.metadata?.payment_mode !== PAYMENT_MODE ||
     transfer.metadata?.split_batch_id !== parent.batch_id ||
@@ -258,7 +261,8 @@ function verifyMemberTransfer(input: {
 async function listAndValidateTransfers(
   stripe: Stripe,
   parent: ParentRow,
-  members: MemberRow[]
+  members: MemberRow[],
+  expectedLive: boolean
 ) {
   if (!parent.stripe_charge_id) {
     throw new Error("KLYX_GROUP_HELD_SOURCE_CHARGE_REQUIRED");
@@ -275,7 +279,9 @@ async function listAndValidateTransfers(
   let netTotal = 0;
 
   for (const transfer of listed.data) {
-    if (transfer.livemode) throw new Error(LIVE_FORBIDDEN);
+    if (transfer.livemode !== expectedLive) {
+      throw new Error("KLYX_GROUP_HELD_TRANSFER_LIVEMODE_MISMATCH");
+    }
 
     const memberId = transfer.metadata?.group_settlement_member_id?.trim() ?? "";
     const member = memberById.get(memberId);
@@ -292,7 +298,7 @@ async function listAndValidateTransfers(
       throw new Error("KLYX_GROUP_HELD_UNKNOWN_OR_DIVERGENT_TRANSFER");
     }
 
-    verifyMemberTransfer({ transfer, parent, member });
+    verifyMemberTransfer({ transfer, parent, member, expectedLive });
     grossTotal += transfer.amount;
     netTotal += Math.max(
       transfer.amount - Number(transfer.amount_reversed ?? 0),
@@ -449,6 +455,7 @@ export async function releasePlatformHeldGroupMember(
     clientProfileId: parent.client_profile_id,
   });
   const stripe = new Stripe(financialRuntime.key);
+  const expectedLive = financialRuntime.mode !== "test";
 
   if (
     !parent.stripe_charge_id ||
@@ -463,7 +470,7 @@ export async function releasePlatformHeldGroupMember(
 
   let remote;
   try {
-    remote = await listAndValidateTransfers(stripe, parent, members);
+    remote = await listAndValidateTransfers(stripe, parent, members, expectedLive);
   } catch (error) {
     await markParentReview(
       parent.id,
@@ -594,7 +601,7 @@ export async function releasePlatformHeldGroupMember(
   try {
     member = await loadMember(member.id);
     members = await loadAllMembers(parent.id);
-    remote = await listAndValidateTransfers(stripe, parent, members);
+    remote = await listAndValidateTransfers(stripe, parent, members, expectedLive);
 
     const appeared = remote.byMember.get(member.id)?.[0] ?? null;
     if (appeared) {
@@ -640,19 +647,19 @@ export async function releasePlatformHeldGroupMember(
 
     if (
       stripeTruth.stripeAccountId !== member.stripe_account_id ||
-      stripeTruth.livemode ||
+      stripeTruth.livemode !== expectedLive ||
       !stripeTruth.transferCapabilityActive
     ) {
       await failReleaseClaim(
         member.id,
         claimToken,
         "stripe_recipient_not_ready_after_claim",
-        "Remote Stripe recipient truth does not permit a new TEST Transfer."
+        "Remote Stripe recipient truth does not permit the expected Transfer mode."
       );
       await markMemberReview(
         member.id,
         "stripe_recipient_not_ready_after_claim",
-        "Remote Stripe recipient truth does not permit a new TEST Transfer."
+        "Remote Stripe recipient truth does not permit the expected Transfer mode."
       );
       return { status: "review_required" };
     }
@@ -683,6 +690,7 @@ export async function releasePlatformHeldGroupMember(
       parent,
       member,
       expectedAmountCents: Number(claim.provider_amount_cents),
+      expectedLive,
     });
 
     const { data: finalized, error: finalizeError } = await supabaseAdmin.rpc(
@@ -965,6 +973,7 @@ async function buildPartialAllocations(
   validateExplicitGroupRefundAllocations({
     refundAmountCents: amountCents,
     allocations,
+    expectedLive,
   });
 
   return { amountCents, allocations };
@@ -1007,6 +1016,7 @@ async function processRequiredReversals(input: {
   parent: ParentRow;
   refund: RefundRow;
   allocations: AllocationRow[];
+  expectedLive: boolean;
 }) {
   let pending = false;
 
@@ -1026,7 +1036,12 @@ async function processRequiredReversals(input: {
     }
 
     const transfer = await input.stripe.transfers.retrieve(transferId);
-    verifyMemberTransfer({ transfer, parent: input.parent, member });
+    verifyMemberTransfer({
+      transfer,
+      parent: input.parent,
+      member,
+      expectedLive: input.expectedLive,
+    });
 
     const reversals = await input.stripe.transfers.listReversals(transferId, {
       limit: 100,
@@ -1177,6 +1192,7 @@ export async function refundPlatformHeldGroup(input: {
     clientProfileId: parent.client_profile_id,
   });
   const stripe = new Stripe(financialRuntime.key);
+  const expectedLive = financialRuntime.mode !== "test";
 
   if (parent.client_profile_id !== input.requesterProfileId) {
     throw new Error("KLYX_GROUP_HELD_REFUND_FORBIDDEN");
@@ -1423,6 +1439,7 @@ export async function reconcilePlatformHeldGroupRefundFromStripe(
     clientProfileId: parent.client_profile_id,
   });
   const stripe = new Stripe(financialRuntime.key);
+  const expectedLive = financialRuntime.mode !== "test";
   const chargeId = stripeObjectId(stripeRefund.charge);
 
   if (
@@ -1443,7 +1460,12 @@ export async function reconcilePlatformHeldGroupRefundFromStripe(
   }
 
   const charge = await stripe.charges.retrieve(chargeId);
-  if (charge.livemode) throw new Error(LIVE_FORBIDDEN);
+  if (
+    stripeRefund.livemode !== expectedLive ||
+    charge.livemode !== expectedLive
+  ) {
+    throw new Error("KLYX_GROUP_HELD_REFUND_LIVEMODE_MISMATCH");
+  }
 
   if (stripeRefund.status === "succeeded") {
     await finalizeRefund(refund, stripeRefund);
