@@ -111,6 +111,7 @@ function Assert-GreenMainPushChecks([string]$Sha) {
 }
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..')
+$previousReleaseSha = $env:KLYX_RELEASE_SHA
 Push-Location $repoRoot
 
 try {
@@ -123,6 +124,11 @@ try {
   $env:VERCEL_PROJECT_ID = $VercelProjectId
 
   Invoke-Checked npx vercel pull --yes --environment=production
+
+  # KLYX_RELEASE_SHA is injected into Next.js at build time as
+  # KLYX_BUILD_RELEASE_SHA. It binds the prebuilt artifact to this exact,
+  # already-certified main commit; a mutable Vercel alias cannot replace it.
+  $env:KLYX_RELEASE_SHA = $sha
   Invoke-Checked npx vercel build --prod
 
   if (-not $ExecuteDeploy) {
@@ -160,6 +166,19 @@ try {
   $env:KLYX_PRODUCTION_URL = $ProductionOrigin
   Invoke-Checked npm run ops:smoke
 
+  foreach ($healthOrigin in @($deploymentUrl, $ProductionOrigin)) {
+    try {
+      $health = Invoke-RestMethod -Method Get -Uri "$healthOrigin/api/health"
+    }
+    catch {
+      Fail "Unable to verify release SHA from $healthOrigin/api/health: $($_.Exception.Message)"
+    }
+
+    if ($health.releaseSha -ne $sha) {
+      Fail "Release SHA mismatch at $healthOrigin: expected $sha, got '$($health.releaseSha)'."
+    }
+  }
+
   [pscustomobject]@{
     status = 'KLYX_DEPLOYMENT_GATE_OK'
     mainSha = $sha
@@ -170,5 +189,11 @@ try {
   } | ConvertTo-Json -Compress | Write-Host
 }
 finally {
+  if ($null -eq $previousReleaseSha) {
+    Remove-Item Env:KLYX_RELEASE_SHA -ErrorAction SilentlyContinue
+  }
+  else {
+    $env:KLYX_RELEASE_SHA = $previousReleaseSha
+  }
   Pop-Location
 }
