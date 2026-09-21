@@ -599,7 +599,7 @@ describe.skipIf(!enabled)(
       expect(result.reasonCodes).toContain("ECONOMIC_COUNTRY_RESTRICTED");
     });
 
-    it("Stripe payouts disabled -> blocked", async () => {
+    it("Stripe payouts disabled remains payout-rail evidence when recipient transfers are active", async () => {
       const result = await runCase({
         name: "stripe-payouts-disabled",
         prepare: async () => {
@@ -611,15 +611,37 @@ describe.skipIf(!enabled)(
                 updated_at: nowIso(),
               })
               .eq("economic_identity_id", economicIdentityId),
-            "disable Stripe payouts"
+            "disable legacy Stripe payouts flag"
+          );
+        },
+      });
+      expect(result.decision).toBe("allowed");
+      expect(result.reasonCodes).not.toContain("STRIPE_PAYOUTS_NOT_ENABLED");
+    });
+
+    it("Stripe transfer capability inactive -> blocked", async () => {
+      const result = await runCase({
+        name: "stripe-transfer-inactive",
+        prepare: async () => {
+          await must(
+            admin
+              .from("economic_stripe_account_projections")
+              .update({
+                capabilities: { transfers: "inactive" },
+                updated_at: nowIso(),
+              })
+              .eq("economic_identity_id", economicIdentityId),
+            "disable Stripe recipient transfer capability"
           );
         },
       });
       expect(result.decision).toBe("blocked");
-      expect(result.reasonCodes).toContain("STRIPE_PAYOUTS_NOT_ENABLED");
+      expect(result.reasonCodes).toContain(
+        "STRIPE_TRANSFER_CAPABILITY_INACTIVE"
+      );
     });
 
-    it("Stripe requirements due -> blocked", async () => {
+    it("Stripe transfer requirements due -> blocked", async () => {
       const result = await runCase({
         name: "stripe-requirements-due",
         prepare: async () => {
@@ -627,17 +649,21 @@ describe.skipIf(!enabled)(
             admin
               .from("economic_stripe_account_projections")
               .update({
-                currently_due: ["individual.verification.document"],
+                currently_due: ["recipient.stripe_transfers.requirement"],
+                capabilities: { transfers: "pending" },
                 updated_at: nowIso(),
               })
               .eq("economic_identity_id", economicIdentityId),
-            "set Stripe requirements due"
+            "set Stripe transfer requirements due"
           );
         },
       });
       expect(result.decision).toBe("blocked");
       expect(result.reasonCodes).toContain(
         "STRIPE_REQUIREMENTS_CURRENTLY_DUE"
+      );
+      expect(result.reasonCodes).toContain(
+        "STRIPE_TRANSFER_CAPABILITY_INACTIVE"
       );
     });
 
