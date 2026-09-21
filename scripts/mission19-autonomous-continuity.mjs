@@ -245,7 +245,7 @@ async function main() {
   const actionRecord = {
     workflow_id: created.workflow_id,
     account_id: account.id,
-    action_type: "confirm_booking",
+    action_type: "create_booking",
     mutation_class: "sensitive",
     requires_confirmation: true,
     proposed_by: "assistant",
@@ -478,7 +478,7 @@ async function main() {
 
   process.stdout.write(
     `${JSON.stringify({
-      certified: true,
+      continuityProofPassed: true,
       workflowId: created.workflow_id,
       actionId: action.id,
       durableJobId: enqueue1.job_id,
