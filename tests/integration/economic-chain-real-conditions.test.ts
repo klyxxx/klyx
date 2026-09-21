@@ -254,7 +254,7 @@ describe.skipIf(!enabled)(
     async function runCase(input: {
       name: string;
       prepare?: () => Promise<void>;
-      trust?: Parameters<typeof seedTrustDecision>[0];
+      trust?: Omit<Parameters<typeof seedTrustDecision>[0], "subjectId">;
     }): Promise<EligibilityResult> {
       await resetBaseline();
       if (input.prepare) await input.prepare();
@@ -352,6 +352,9 @@ describe.skipIf(!enabled)(
           .single(),
         "load service slug"
       );
+      if (!service) {
+        throw new Error("Service row is missing after lookup.");
+      }
       activityKey = String(service.slug).trim().toLowerCase();
       if (!activityKey) throw new Error("Service activity key is missing.");
 
@@ -363,6 +366,9 @@ describe.skipIf(!enabled)(
           .single(),
         "load economic identity"
       );
+      if (!identity) {
+        throw new Error("Economic identity row is missing after lookup.");
+      }
       economicIdentityId = String(identity.id);
 
       stripeAccountId = `acct_cert_${accountId.replaceAll("-", "").slice(0, 20)}`;
@@ -408,6 +414,9 @@ describe.skipIf(!enabled)(
           .single(),
         "create primary legal entity"
       );
+      if (!legalEntity) {
+        throw new Error("Primary legal entity row is missing after insert.");
+      }
       legalEntityId = String(legalEntity.id);
 
       const person = await must(
@@ -426,6 +435,9 @@ describe.skipIf(!enabled)(
           .single(),
         "create primary economic person"
       );
+      if (!person) {
+        throw new Error("Primary economic person row is missing after insert.");
+      }
       economicPersonId = String(person.id);
 
       const verification = await must(
@@ -452,6 +464,9 @@ describe.skipIf(!enabled)(
           .single(),
         "create KYC/KYB verification case"
       );
+      if (!verification) {
+        throw new Error("Verification case row is missing after insert.");
+      }
       verificationCaseId = String(verification.id);
 
       await resetBaseline();
