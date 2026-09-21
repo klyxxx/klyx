@@ -4,6 +4,8 @@ export const KLYX_LIVE_FINANCIAL_SHA_MISMATCH =
   "KLYX_LIVE_FINANCIAL_SHA_MISMATCH";
 export const KLYX_LIVE_FINANCIAL_RUNTIME_NOT_READY =
   "KLYX_LIVE_FINANCIAL_RUNTIME_NOT_READY";
+export const KLYX_STRIPE_FINANCIAL_MODE_MISMATCH =
+  "KLYX_STRIPE_FINANCIAL_MODE_MISMATCH";
 
 export type LiveFinancialEnvironment = {
   KLYX_STRIPE_MODE?: string;
@@ -201,4 +203,29 @@ export function assertLiveFinancialStaticGate(
   }
 
   return report;
+}
+
+
+export function assertStripeFinancialObjectMode(
+  livemode: boolean,
+  env: LiveFinancialEnvironment = liveFinancialRuntimeEnvironment()
+): void {
+  const mode = env.KLYX_STRIPE_MODE?.trim().toLowerCase();
+
+  if (mode === "live") {
+    assertLiveFinancialStaticGate(env);
+    if (!livemode) {
+      throw new Error(KLYX_STRIPE_FINANCIAL_MODE_MISMATCH);
+    }
+    return;
+  }
+
+  if (mode === "test") {
+    if (livemode) {
+      throw new Error(KLYX_STRIPE_FINANCIAL_MODE_MISMATCH);
+    }
+    return;
+  }
+
+  throw new Error(KLYX_LIVE_FINANCIAL_RUNTIME_NOT_READY);
 }
