@@ -436,7 +436,117 @@ async function createRealHeldCharge({ stripe, settlement, bookingId, providerId 
   return { intent: refreshed, charge };
 }
 
+async function diagnoseHeldWebhookFailure({
+  admin,
+  bookingId,
+  eventId,
+}) {
+  const [
+    bookingResult,
+    settlementResult,
+    compatibilityLedgerResult,
+    centralLedgerResult,
+    webhookResult,
+    notificationResult,
+  ] = await Promise.all([
+    admin
+      .from("bookings")
+      .select(
+        "status, payment_status, payment_mode, stripe_checkout_session_id, stripe_payment_intent_id"
+      )
+      .eq("id", bookingId)
+      .maybeSingle(),
+    admin
+      .from("booking_settlements")
+      .select(
+        "state, stripe_checkout_session_id, stripe_payment_intent_id, stripe_charge_id, stripe_transfer_id"
+      )
+      .eq("booking_id", bookingId)
+      .maybeSingle(),
+    admin
+      .from("booking_financial_ledger")
+      .select(
+        "entry_type, status, payment_mode, stripe_checkout_session_id, stripe_payment_intent_id"
+      )
+      .eq("booking_id", bookingId)
+      .order("created_at", { ascending: true }),
+    admin
+      .from("financial_ledger_events")
+      .select("movement_type, new_state, source")
+      .eq("booking_id", bookingId)
+      .order("recorded_at", { ascending: true }),
+    admin
+      .from("stripe_webhook_events")
+      .select("status, attempt_count, delivery_count")
+      .eq("stripe_event_id", eventId)
+      .maybeSingle(),
+    admin
+      .from("user_notifications")
+      .select("type")
+      .eq("booking_id", bookingId),
+  ]);
+
+  const summarizeError = (error) =>
+    error
+      ? {
+          code: error.code ?? null,
+          message: String(error.message ?? "query_failed").slice(0, 180),
+        }
+      : null;
+
+  const booking = bookingResult.data;
+  const settlement = settlementResult.data;
+
+  return {
+    booking: {
+      queryError: summarizeError(bookingResult.error),
+      status: booking?.status ?? null,
+      paymentStatus: booking?.payment_status ?? null,
+      paymentMode: booking?.payment_mode ?? null,
+      hasCheckoutSession: Boolean(booking?.stripe_checkout_session_id),
+      hasPaymentIntent: Boolean(booking?.stripe_payment_intent_id),
+    },
+    settlement: {
+      queryError: summarizeError(settlementResult.error),
+      state: settlement?.state ?? null,
+      hasCheckoutSession: Boolean(settlement?.stripe_checkout_session_id),
+      hasPaymentIntent: Boolean(settlement?.stripe_payment_intent_id),
+      hasCharge: Boolean(settlement?.stripe_charge_id),
+      hasTransfer: Boolean(settlement?.stripe_transfer_id),
+    },
+    compatibilityLedger: {
+      queryError: summarizeError(compatibilityLedgerResult.error),
+      rows: (compatibilityLedgerResult.data ?? []).map((row) => ({
+        entryType: row.entry_type,
+        status: row.status,
+        paymentMode: row.payment_mode,
+        hasCheckoutSession: Boolean(row.stripe_checkout_session_id),
+        hasPaymentIntent: Boolean(row.stripe_payment_intent_id),
+      })),
+    },
+    centralLedger: {
+      queryError: summarizeError(centralLedgerResult.error),
+      rows: (centralLedgerResult.data ?? []).map((row) => ({
+        movementType: row.movement_type,
+        newState: row.new_state,
+        source: row.source,
+      })),
+    },
+    webhook: {
+      queryError: summarizeError(webhookResult.error),
+      status: webhookResult.data?.status ?? null,
+      attemptCount: webhookResult.data?.attempt_count ?? null,
+      deliveryCount: webhookResult.data?.delivery_count ?? null,
+    },
+    notifications: {
+      queryError: summarizeError(notificationResult.error),
+      types: (notificationResult.data ?? []).map((row) => row.type),
+    },
+  };
+}
+
 async function markHeldPaid({
+  admin,
   appOrigin,
   webhookSecret,
   bookingId,
@@ -473,7 +583,21 @@ async function markHeldPaid({
     type: "checkout.session.completed",
   };
 
-  const webhook = await postSignedWebhook({ appOrigin, webhookSecret, event });
+  let webhook;
+  try {
+    webhook = await postSignedWebhook({ appOrigin, webhookSecret, event });
+  } catch (error) {
+    const diagnostic = await diagnoseHeldWebhookFailure({
+      admin,
+      bookingId,
+      eventId: event.id,
+    });
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Held payment webhook failed. diagnostic=${JSON.stringify(diagnostic)} request=${message}`
+    );
+  }
+
   assert(webhook.payload?.received === true, "KLYX did not accept the held payment webhook.");
   assert(webhook.payload?.duplicate === false, "Held payment webhook was unexpectedly marked duplicate.");
 }
@@ -536,6 +660,7 @@ async function runRefundBeforeReleaseScenario({
     providerId: provider.id,
   });
   await markHeldPaid({
+    admin,
     appOrigin,
     webhookSecret,
     bookingId: booking.id,
@@ -786,6 +911,7 @@ async function runReleaseRetryReversalScenario({
     providerId: provider.id,
   });
   await markHeldPaid({
+    admin,
     appOrigin,
     webhookSecret,
     bookingId: booking.id,
