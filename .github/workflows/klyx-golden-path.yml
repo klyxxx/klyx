@@ -38,6 +38,9 @@ on:
       - ".github/workflows/klyx-supabase-production-migrations.yml"
       - "tests/supabase-production-migration-workflow.test.ts"
       - "scripts/golden-path-*.mjs"
+      - "scripts/mission19-autonomous-continuity.mjs"
+      - "docs/KLYX_END_TO_END_AUTONOMOUS_CERTIFICATION.md"
+      - "tests/integration/end-to-end-autonomous-*.test.ts"
       - "supabase/migrations/**"
       - "proxy.ts"
       - "app/messages/**"
@@ -406,6 +409,9 @@ jobs:
 
       - name: Verify client quote and booking lifecycle
         run: node scripts/golden-path-client-lifecycle.mjs
+
+      - name: Verify Mission 19 autonomous continuity chaos scenarios
+        run: node scripts/mission19-autonomous-continuity.mjs
 
       - name: Verify direct-message database abuse guard
         run: node scripts/golden-path-message-rate-limit.mjs
