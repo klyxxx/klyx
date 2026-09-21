@@ -777,6 +777,30 @@ function yesterdayIsoDate() {
     .slice(0, 10);
 }
 
+async function insertSettlementRiskAllow(admin, accountId, bookingId) {
+  const now = new Date().toISOString();
+  const { error } = await admin.from("transaction_risk_decisions").insert({
+    account_id: accountId,
+    action: "settlement_release",
+    participant: "settlement_recipient",
+    decision: "allow",
+    reason_codes: [],
+    risk_score: 0,
+    risk_level: "low",
+    risk_assessed_at: now,
+    subject_type: "booking",
+    subject_id: bookingId,
+    deduplication_key:
+      `economic-chain:settlement-release:${bookingId}:${randomUUID()}`,
+  });
+
+  if (error) {
+    throw new Error(
+      `Unable to persist settlement_release risk allow: ${error.message}`
+    );
+  }
+}
+
 async function prepareClientConfirmation(admin, bookingId) {
   const now = new Date().toISOString();
   const { data, error } = await admin
@@ -1003,6 +1027,7 @@ async function main() {
       bookingId,
     });
 
+    await insertSettlementRiskAllow(admin, accountId, bookingId);
     await prepareClientConfirmation(admin, bookingId);
 
     const completion = await requestJson({
