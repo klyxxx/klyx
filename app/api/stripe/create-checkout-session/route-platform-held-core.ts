@@ -9,6 +9,7 @@ import { assessKlyxStripeMarketAccess } from "@/lib/klyx-stripe-market-access";
 import { logServerInfo, logServerWarning } from "@/lib/server-log";
 import {
   getProviderStripeDestination,
+  getProviderStripeDestinationStrict,
   isStripeConnectIdentityReviewRequired,
 } from "@/lib/stripe-connect-account";
 import {
@@ -312,7 +313,10 @@ export async function POST(request: Request) {
     const providerId = booking.provider_id ?? booking.babysitter_id;
     if (!providerId) throw new Error("Prestataire introuvable.");
 
-    const provider = await getProviderStripeDestination(providerId);
+    const provider =
+      financialRuntime.mode === "test"
+        ? await getProviderStripeDestination(providerId)
+        : await getProviderStripeDestinationStrict(providerId);
     const providerMarketAccess = assessKlyxStripeMarketAccess(
       provider.countryCode ?? "",
       stripeMode
