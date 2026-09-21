@@ -75,24 +75,33 @@ Therefore the certification matrix contains exactly **40 required cells**. Missi
 
 ## Evidence manifest
 
-The manual certification workflow accepts a sanitized JSON manifest encoded in Base64.
-
-Each matrix cell contains:
+The manual certification workflow accepts a **private** JSON manifest encoded
+in Base64. The manifest is decoded only on the runner and is never uploaded as
+the certification artifact.
 
 ```json
 {
-  "scenario": "happy_path",
-  "topology": "single",
-  "bookingIds": ["00000000-0000-0000-0000-000000000000"],
-  "evidenceRefs": [
-    { "authority": "ledger", "id": "uuid" },
-    { "authority": "settlement", "id": "booking-uuid" },
-    { "authority": "webhook", "id": "uuid" }
+  "version": 1,
+  "certificationSha": "0123456789abcdef0123456789abcdef01234567",
+  "cells": [
+    {
+      "scenario": "happy_path",
+      "topology": "single",
+      "bookingIds": ["00000000-0000-0000-0000-000000000000"]
+    }
   ]
 }
 ```
 
-The manifest is not financial authority. References are independently re-read from production canonical tables and every booking is re-run through the existing central reconciliation engine.
+The manifest is not financial authority and contains no asserted Ledger,
+Settlement or Stripe result. For every booking, the verifier independently
+re-reads production canonical tables, validates the requested topology/scenario,
+checks that the booking belongs to the dedicated certification profile, and
+re-runs the existing central reconciliation engine against Stripe truth.
+
+A booking cannot be reused in another matrix cell. The uploaded 90-day proof is
+sanitized: it contains scenario/topology names and booking counts, never booking
+IDs or Stripe object IDs.
 
 ## Exact-SHA prerequisites
 
@@ -109,8 +118,10 @@ A different or unprovable deployed SHA blocks certification.
 
 Before the matrix may be evaluated:
 
-- Stripe runtime is LIVE and explicitly enabled;
-- Stripe secret and publishable keys are LIVE keys;
+- Stripe runtime is LIVE;
+- **general LIVE payments remain disabled** during certification;
+- the controlled certification canary is explicitly enabled for the exact SHA;
+- Stripe secret and publishable keys match LIVE mode;
 - LIVE webhook secret is configured;
 - canonical Connect identity is available;
 - Supabase production schema is current;
