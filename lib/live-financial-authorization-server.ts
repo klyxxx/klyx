@@ -17,9 +17,9 @@ const FINANCIAL_CAPABILITIES = [
 ] as const;
 
 const OPERATIONAL_PROOF_MAX_AGE_MS: Record<string, number> = {
-  durable_jobs_worker: 10 * 60 * 1000,
-  critical_alerting: 10 * 60 * 1000,
-  settlement_reconciliation: 15 * 60 * 1000,
+  durable_jobs_worker: 20 * 60 * 1000,
+  critical_alerting: 20 * 60 * 1000,
+  settlement_reconciliation: 30 * 60 * 1000,
 };
 
 type AuthorizationRow = {
