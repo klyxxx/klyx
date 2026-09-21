@@ -26,6 +26,22 @@ create table if not exists public.financial_live_authorizations (
     check (version >= 1)
 );
 
+create table if not exists public.financial_live_operational_proofs (
+  proof_key text primary key,
+  observed_at timestamptz not null,
+  source text not null,
+  details jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now(),
+  constraint financial_live_operational_proofs_key_check
+    check (
+      proof_key in (
+        'durable_jobs_worker',
+        'critical_alerting',
+        'settlement_reconciliation'
+      )
+    )
+);
+
 create table if not exists public.financial_live_authorization_events (
   id uuid primary key default gen_random_uuid(),
   control_key text not null,
@@ -59,14 +75,18 @@ create index if not exists financial_live_authorization_events_control_idx
 
 alter table public.financial_live_authorizations enable row level security;
 alter table public.financial_live_authorization_events enable row level security;
+alter table public.financial_live_operational_proofs enable row level security;
 
 revoke all privileges on table public.financial_live_authorizations
   from anon, authenticated, public;
 revoke all privileges on table public.financial_live_authorization_events
   from anon, authenticated, public;
+revoke all privileges on table public.financial_live_operational_proofs
+  from anon, authenticated, public;
 
 grant select on table public.financial_live_authorizations to service_role;
 grant select on table public.financial_live_authorization_events to service_role;
+grant select, insert, update on table public.financial_live_operational_proofs to service_role;
 
 create or replace function public.klyx_financial_live_authorization_events_immutable()
 returns trigger
@@ -250,9 +270,70 @@ grant execute on function public.klyx_set_financial_live_authorization(
   text, text, uuid, text, bigint
 ) to service_role;
 
+create or replace function public.klyx_record_financial_live_operational_proof(
+  p_proof_key text,
+  p_source text,
+  p_details jsonb default '{}'::jsonb
+)
+returns timestamptz
+language plpgsql
+security definer
+set search_path = public
+as $
+declare
+  v_key text := lower(trim(coalesce(p_proof_key, '')));
+  v_source text := trim(coalesce(p_source, ''));
+  v_now timestamptz := now();
+begin
+  if v_key not in (
+    'durable_jobs_worker',
+    'critical_alerting',
+    'settlement_reconciliation'
+  ) then
+    raise exception 'KLYX_FINANCIAL_LIVE_PROOF_KEY_INVALID';
+  end if;
+
+  if v_source = '' then
+    raise exception 'KLYX_FINANCIAL_LIVE_PROOF_SOURCE_REQUIRED';
+  end if;
+
+  insert into public.financial_live_operational_proofs (
+    proof_key,
+    observed_at,
+    source,
+    details,
+    updated_at
+  )
+  values (
+    v_key,
+    v_now,
+    v_source,
+    coalesce(p_details, '{}'::jsonb),
+    v_now
+  )
+  on conflict (proof_key)
+  do update
+     set observed_at = excluded.observed_at,
+         source = excluded.source,
+         details = excluded.details,
+         updated_at = excluded.updated_at;
+
+  return v_now;
+end;
+$;
+
+revoke all on function public.klyx_record_financial_live_operational_proof(
+  text, text, jsonb
+) from public, anon, authenticated;
+grant execute on function public.klyx_record_financial_live_operational_proof(
+  text, text, jsonb
+) to service_role;
+
 comment on table public.financial_live_authorizations is
   'Explicit KLYX financial LIVE authorization state. Stripe mode alone never authorizes money movement.';
 comment on table public.financial_live_authorization_events is
   'Immutable audit trail for KLYX financial LIVE arm/disarm transitions.';
+comment on table public.financial_live_operational_proofs is
+  'Freshness proofs for the financial worker, critical-alert sentinel, and settlement reconciliation. LIVE readiness fails closed when these proofs are stale.';
 
 commit;
