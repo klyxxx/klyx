@@ -59,15 +59,18 @@ describe("Mission 11 economic settlement eligibility contract", () => {
     expect(eligibility).toContain("ECONOMIC_COUNTRY_RESTRICTED");
   });
 
-  it("never treats Stripe payouts_enabled as sufficient authorization", () => {
+  it("uses Accounts v2 recipient transfer capability instead of legacy payout booleans", () => {
     expect(eligibility).toContain("stripeProjection.payouts_enabled");
+    expect(eligibility).not.toContain('blocked.push("STRIPE_PAYOUTS_NOT_ENABLED")');
+    expect(eligibility).not.toContain('blocked.push("STRIPE_DETAILS_NOT_SUBMITTED")');
+    expect(eligibility).toContain("STRIPE_TRANSFER_CAPABILITY_INACTIVE");
+    expect(eligibility).toContain("transferCapabilityActive");
     expect(eligibility).toContain("ACCOUNT_OFFER_SERVICES_CAPABILITY_DENIED");
     expect(eligibility).toContain("TRUST_ACTIVITY_ELIGIBILITY_MISSING");
     expect(eligibility).toContain("ECONOMIC_VERIFICATION_NOT_SATISFIED");
     expect(eligibility).toContain("ECONOMIC_RESTRICTION_ACTIVE");
-    expect(documentation).toContain("payouts_enabled");
-    expect(documentation).toContain("necessary evidence");
-    expect(documentation).toContain("never sufficient");
+    expect(documentation).toContain("legacy compatibility evidence");
+    expect(documentation).toContain("stripe_transfers");
   });
 
   it("requires a fresh economic allow before the independent risk allow in both SQL claims", () => {
