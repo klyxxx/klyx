@@ -1,5 +1,7 @@
 import "server-only";
 
+import { inspectLiveFinancialStaticGate } from "@/lib/live-financial-runtime-gate";
+
 export type StripeRuntimeMode = "test" | "live";
 
 export type StripeRuntimeReport = {
@@ -141,6 +143,19 @@ export function inspectStripeRuntime(): StripeRuntimeReport {
           : "Non requis en mode test.",
     },
   ];
+
+  if (mode === "live") {
+    const liveGate = inspectLiveFinancialStaticGate();
+
+    for (const check of liveGate.checks) {
+      checks.push({
+        key: `live_${check.key}`,
+        label: `LIVE · ${check.key}`,
+        ok: check.ok,
+        detail: check.detail,
+      });
+    }
+  }
 
   return {
     mode,
