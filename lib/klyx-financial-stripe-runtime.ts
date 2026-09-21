@@ -1,6 +1,10 @@
 import "server-only";
 
 import { requireKlyxOpsCapabilityAvailable } from "@/lib/ops-control-server";
+import {
+  assertStripeRuntimeConfiguredForDiagnostics,
+  assertStripeRuntimeReady,
+} from "@/lib/stripe-runtime";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 const UUID_RE =
@@ -65,6 +69,8 @@ export async function requireKlyxFinancialStripeRuntime(input: {
       throw new Error("KLYX_FINANCIAL_RUNTIME_TEST_MODE_MISMATCH");
     }
 
+    assertStripeRuntimeReady();
+
     return {
       key,
       mode: "test",
@@ -80,9 +86,13 @@ export async function requireKlyxFinancialStripeRuntime(input: {
     throw new Error("KLYX_FINANCIAL_RUNTIME_LIVE_MODE_MISMATCH");
   }
 
+  assertStripeRuntimeConfiguredForDiagnostics();
+
   const { deployedSha } = requireExactLiveShaBoundary();
 
   if (envTrue("KLYX_LIVE_PAYMENTS_ENABLED")) {
+    assertStripeRuntimeReady();
+
     const certifiedSha = exactSha(
       "KLYX_PRODUCTION_FINANCIAL_CERTIFIED_SHA"
     );
