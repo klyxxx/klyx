@@ -4,6 +4,7 @@ import type Stripe from "stripe";
 
 import {
   getAccountStripeConnectIdentity,
+  getAccountStripeConnectIdentityStrict,
   markAccountStripeConnectIdentityForReview,
   persistAccountStripeConnectIdentity,
   STRIPE_CONNECT_IDENTITY_CONFLICT,
@@ -143,6 +144,27 @@ export async function getCanonicalStripeConnect(
   accountId: string
 ): Promise<CanonicalStripeConnect> {
   const identity = await getAccountStripeConnectIdentity(accountId);
+  const readiness = await readinessForCanonicalIdentity(
+    accountId,
+    identity.sourceProfileIds
+  );
+
+  return {
+    accountId,
+    stripeAccountId:
+      identity.state === "linked" ? identity.stripeAccountId : null,
+    state:
+      identity.state === "conflict"
+        ? "review_required"
+        : identity.state,
+    ...readiness,
+  };
+}
+
+export async function getCanonicalStripeConnectStrict(
+  accountId: string
+): Promise<CanonicalStripeConnect> {
+  const identity = await getAccountStripeConnectIdentityStrict(accountId);
   const readiness = await readinessForCanonicalIdentity(
     accountId,
     identity.sourceProfileIds
@@ -304,6 +326,49 @@ export async function updateCanonicalStripeAccountStatus(input: {
     .eq("account_id", input.accountId);
 
   if (error) throw new Error(error.message);
+}
+
+export async function getProviderStripeDestinationStrict(
+  profileId: string
+): Promise<ProviderStripeDestination> {
+  const { data: profileData, error: profileError } = await supabaseAdmin
+    .from("profiles")
+    .select("id, account_id, country_code")
+    .eq("id", profileId)
+    .maybeSingle();
+
+  if (profileError) throw new Error(profileError.message);
+  if (!profileData) throw new Error("Prestataire introuvable.");
+
+  const profile = profileData as Pick<
+    ProviderProfileStripeRow,
+    "id" | "account_id" | "country_code"
+  >;
+
+  if (!profile.account_id) {
+    throw new StripeConnectIdentityReviewRequiredError(
+      "Le prestataire n'est pas rattaché à un compte KLYX canonique."
+    );
+  }
+
+  const connect = await getCanonicalStripeConnectStrict(profile.account_id);
+
+  if (
+    connect.state !== "linked" ||
+    !connect.stripeAccountId?.startsWith("acct_")
+  ) {
+    throw new StripeConnectIdentityReviewRequiredError(
+      "L'identité Stripe Connect canonique doit être explicitement liée avant toute mutation financière LIVE."
+    );
+  }
+
+  return {
+    profileId: profile.id,
+    accountId: profile.account_id,
+    countryCode: profile.country_code,
+    legacyStripeAccountId: null,
+    connect,
+  };
 }
 
 export async function getProviderStripeDestination(
