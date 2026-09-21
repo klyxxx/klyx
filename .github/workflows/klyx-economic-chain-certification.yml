@@ -58,8 +58,23 @@ jobs:
             exit 1
           fi
 
-      - name: Checkout repository
+      - name: Checkout exact pull-request head
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Verify exact pull-request head SHA
+        shell: bash
+        env:
+          KLYX_EXPECTED_PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          actual_sha="$(git rev-parse HEAD)"
+          if [ "$actual_sha" != "$KLYX_EXPECTED_PR_HEAD" ]; then
+            echo "::error::Economic-chain certification SHA mismatch: expected $KLYX_EXPECTED_PR_HEAD, got $actual_sha."
+            exit 1
+          fi
+          echo "Certified branch SHA: $actual_sha"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
