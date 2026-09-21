@@ -207,7 +207,8 @@ describe("KLYX operational sentinel contract", () => {
   it("documents incident boundaries without claiming unproved backups or external proofs", () => {
     expect(runbook).toContain("Source-code backups are **not** database backups.");
     expect(runbook).toContain("liveness endpoint only");
-    expect(runbook).toContain("must not be described as completed until a real manual run has succeeded");
+    expect(runbook).toContain("KLYX is **not** disaster-recovery certified merely because these mechanisms exist or because CI is green.");
+    expect(runbook).toContain("The final `KLYX Disaster Recovery Certification` workflow must succeed for the exact `main` SHA");
     expect(runbook).toContain("does not claim full managed Auth/Storage object recovery");
     expect(runbook).toContain("KLYX Stripe Network Test");
     expect(runbook).toContain("Do not manually mark a booking `paid` or `refunded` in the database.");
