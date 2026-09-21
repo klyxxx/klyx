@@ -2,6 +2,7 @@ import "server-only";
 
 import { requireKlyxOpsCapabilityAvailable } from "@/lib/ops-control-server";
 import {
+  assertStripeObservationRuntimeConfigured,
   assertStripeRuntimeConfiguredForDiagnostics,
   assertStripeRuntimeReady,
 } from "@/lib/stripe-runtime";
@@ -87,7 +88,7 @@ export function requireKlyxFinancialStripeObservationRuntime(): KlyxFinancialStr
   // Observation/reconciliation must survive kill-switches, canary shutdown and
   // later deployments. Signed Stripe truth for already-created objects must
   // always remain ingestible. This path performs no new Stripe money movement.
-  assertStripeRuntimeConfiguredForDiagnostics();
+  assertStripeObservationRuntimeConfigured();
 
   const deployedSha = env("VERCEL_GIT_COMMIT_SHA").toLowerCase();
 
