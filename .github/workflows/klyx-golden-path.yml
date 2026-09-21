@@ -22,6 +22,16 @@ on:
       - main
     paths:
       - ".github/workflows/klyx-golden-path.yml"
+      - ".github/workflows/klyx-disaster-recovery-certification.yml"
+      - ".github/workflows/klyx-supabase-full-restore-drill.yml"
+      - "scripts/check-klyx-backup.ps1"
+      - "scripts/prepare-klyx-dr-certification.ps1"
+      - "scripts/test-klyx-supabase-dr-restore.ps1"
+      - "scripts/backup-klyx-storage.mjs"
+      - "docs/KLYX_DISASTER_RECOVERY_CERTIFICATION.md"
+      - "docs/operations/KLYX_INCIDENT_RUNBOOK.md"
+      - "tests/integration/disaster-recovery-certification-contract.test.ts"
+      - "tests/integration/operational-sentinel-contract.test.ts"
       - ".github/workflows/klyx-stripe-split-settlement-network.yml"
       - "tests/integration/platform-held-split-live-readiness-contract.test.ts"
       - "docs/KLYX_LIVE_READINESS_GATE.md"
@@ -73,6 +83,16 @@ on:
       - main
     paths:
       - ".github/workflows/klyx-golden-path.yml"
+      - ".github/workflows/klyx-disaster-recovery-certification.yml"
+      - ".github/workflows/klyx-supabase-full-restore-drill.yml"
+      - "scripts/check-klyx-backup.ps1"
+      - "scripts/prepare-klyx-dr-certification.ps1"
+      - "scripts/test-klyx-supabase-dr-restore.ps1"
+      - "scripts/backup-klyx-storage.mjs"
+      - "docs/KLYX_DISASTER_RECOVERY_CERTIFICATION.md"
+      - "docs/operations/KLYX_INCIDENT_RUNBOOK.md"
+      - "tests/integration/disaster-recovery-certification-contract.test.ts"
+      - "tests/integration/operational-sentinel-contract.test.ts"
       - ".github/workflows/klyx-stripe-split-settlement-network.yml"
       - "tests/integration/platform-held-split-live-readiness-contract.test.ts"
       - "docs/KLYX_LIVE_READINESS_GATE.md"
