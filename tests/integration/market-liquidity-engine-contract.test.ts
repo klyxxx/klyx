@@ -8,7 +8,7 @@ const read = (file: string) =>
   fs.readFileSync(path.join(root, file), "utf8").replace(/\r\n/g, "\n");
 
 const migration = read(
-  "supabase/migrations/20260921173000_klyx_market_liquidity_engine.sql"
+  "supabase/migrations/20260921174500_klyx_market_liquidity_engine.sql"
 );
 const server = read("lib/market-liquidity-server.ts");
 const metrics = read("lib/market-liquidity.ts");
