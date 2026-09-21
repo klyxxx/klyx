@@ -32,11 +32,27 @@ type EconomicIdentityRow = {
   review_reason_code: string | null;
 };
 
+type EconomicLegalEntityRow = {
+  id: string;
+  verification_status: string;
+  verified_at: string | null;
+  expires_at: string | null;
+};
+
+type EconomicPersonRow = {
+  id: string;
+  verification_status: string;
+  verified_at: string | null;
+  expires_at: string | null;
+};
+
 type VerificationCaseRow = {
   id: string;
   verification_type: string;
   status: string;
   human_review_required: boolean;
+  verified_at: string | null;
+  expires_at: string | null;
 };
 
 type EconomicRestrictionRow = {
@@ -276,6 +292,22 @@ function qualificationApplies(
   return Boolean(
     qualification.activity_key || qualification.jurisdiction_code
   );
+}
+
+function verifiedFactStatus(
+  statusValue: string,
+  expiresAt: string | null,
+  nowMs: number
+): "ok" | "review" | "blocked" {
+  if (expiresAt) {
+    const expires = Date.parse(expiresAt);
+    if (Number.isFinite(expires) && expires <= nowMs) return "blocked";
+  }
+
+  const status = statusValue.trim().toLowerCase();
+  if (status === "verified" || status === "not_required") return "ok";
+  if (status === "human_review") return "review";
+  return "blocked";
 }
 
 function qualificationStatus(
@@ -527,6 +559,8 @@ export async function canReceiveSettlement(input: {
     canonicalStripeResult,
     trustRestrictionsResult,
     trustDecisionsResult,
+    legalEntityResult,
+    economicPersonsResult,
     verificationResult,
     economicRestrictionsResult,
     stripeProjectionResult,
@@ -567,8 +601,22 @@ export async function canReceiveSettlement(input: {
       .order("created_at", { ascending: false })
       .limit(20),
     supabaseAdmin
+      .from("economic_legal_entities")
+      .select("id, verification_status, verified_at, expires_at")
+      .eq("economic_identity_id", identity.id)
+      .eq("is_primary", true)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("economic_persons")
+      .select("id, verification_status, verified_at, expires_at")
+      .eq("economic_identity_id", identity.id)
+      .eq("is_primary", true)
+      .limit(2),
+    supabaseAdmin
       .from("economic_verification_cases")
-      .select("id, verification_type, status, human_review_required")
+      .select(
+        "id, verification_type, status, human_review_required, verified_at, expires_at"
+      )
       .eq("economic_identity_id", identity.id),
     supabaseAdmin
       .from("economic_restrictions")
@@ -592,6 +640,8 @@ export async function canReceiveSettlement(input: {
     canonicalStripeResult,
     trustRestrictionsResult,
     trustDecisionsResult,
+    legalEntityResult,
+    economicPersonsResult,
     verificationResult,
     economicRestrictionsResult,
     stripeProjectionResult,
@@ -606,6 +656,10 @@ export async function canReceiveSettlement(input: {
   const trustRestrictions =
     (trustRestrictionsResult.data ?? []) as TrustRestrictionRow[];
   const trustDecisions = (trustDecisionsResult.data ?? []) as TrustDecisionRow[];
+  const legalEntity =
+    (legalEntityResult.data as EconomicLegalEntityRow | null) ?? null;
+  const economicPersons =
+    (economicPersonsResult.data ?? []) as EconomicPersonRow[];
   const verificationCases =
     (verificationResult.data ?? []) as VerificationCaseRow[];
   const economicRestrictions =
@@ -619,11 +673,44 @@ export async function canReceiveSettlement(input: {
 
   if (identity.status === "closed" || identity.status === "restricted") {
     blocked.push("ECONOMIC_IDENTITY_RESTRICTED");
-  }
-  if (identity.status === "human_review" || identity.human_review_required) {
+  } else if (identity.status === "human_review" || identity.human_review_required) {
     review.push(
       identity.review_reason_code || "ECONOMIC_IDENTITY_HUMAN_REVIEW_REQUIRED"
     );
+  } else if (identity.status !== "ready") {
+    blocked.push("ECONOMIC_IDENTITY_NOT_READY");
+  }
+
+  if (!legalEntity) {
+    blocked.push("ECONOMIC_LEGAL_ENTITY_MISSING");
+  } else {
+    const status = verifiedFactStatus(
+      legalEntity.verification_status,
+      legalEntity.expires_at,
+      nowMs
+    );
+    if (status === "blocked") {
+      blocked.push("ECONOMIC_LEGAL_ENTITY_NOT_VERIFIED");
+    } else if (status === "review") {
+      review.push("ECONOMIC_LEGAL_ENTITY_HUMAN_REVIEW_REQUIRED");
+    }
+  }
+
+  if (economicPersons.length === 0) {
+    blocked.push("ECONOMIC_PERSON_MISSING");
+  } else if (economicPersons.length > 1) {
+    review.push("ECONOMIC_PRIMARY_PERSON_AMBIGUOUS");
+  } else {
+    const status = verifiedFactStatus(
+      economicPersons[0].verification_status,
+      economicPersons[0].expires_at,
+      nowMs
+    );
+    if (status === "blocked") {
+      blocked.push("ECONOMIC_PERSON_NOT_VERIFIED");
+    } else if (status === "review") {
+      review.push("ECONOMIC_PERSON_HUMAN_REVIEW_REQUIRED");
+    }
   }
 
   for (const verification of verificationCases) {
@@ -635,17 +722,16 @@ export async function canReceiveSettlement(input: {
       continue;
     }
 
-    if (
-      [
-        "required",
-        "pending",
-        "pending_external_review",
-        "failed",
-        "expired",
-        "restricted",
-      ].includes(verification.status)
-    ) {
+    const status = verifiedFactStatus(
+      verification.status,
+      verification.expires_at,
+      nowMs
+    );
+
+    if (status === "blocked") {
       blocked.push("ECONOMIC_VERIFICATION_NOT_SATISFIED");
+    } else if (status === "review") {
+      review.push("ECONOMIC_VERIFICATION_HUMAN_REVIEW_REQUIRED");
     }
   }
 
@@ -656,6 +742,10 @@ export async function canReceiveSettlement(input: {
       userServiceId: input.userServiceId,
     })
   );
+
+  if (applicableQualifications.length === 0) {
+    blocked.push("ACCOUNT_QUALIFICATION_MISSING");
+  }
 
   for (const qualification of applicableQualifications) {
     const status = qualificationStatus(qualification, nowMs);
@@ -829,6 +919,8 @@ export async function canReceiveSettlement(input: {
     evidenceSnapshot: {
       accountCapabilityEnabled: capability?.enabled === true,
       economicIdentityStatus: identity.status,
+      legalEntityId: legalEntity?.id ?? null,
+      economicPersonIds: economicPersons.map((row) => row.id),
       verificationCaseIds: verificationCases.map((row) => row.id),
       applicableQualificationIds: applicableQualifications.map((row) => row.id),
       economicRestrictionIds: applicableEconomicRestrictions.map((row) => row.id),
