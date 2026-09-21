@@ -196,17 +196,24 @@ begin
   end if;
 
   select coalesce((
-    select
+    select bool_and(
       d.decision = 'allowed'
       and d.stripe_account_id is not distinct from v_settlement.stripe_account_id
       and d.expires_at > now()
+    )
       from public.economic_settlement_eligibility_decisions as d
      where d.account_id = v_account_id
        and d.subject_type = 'booking'
        and d.subject_id = p_booking_id::text
        and d.evaluated_at >= now() - interval '5 minutes'
-     order by d.evaluated_at desc, d.id desc
-     limit 1
+       and d.evaluated_at = (
+         select max(latest.evaluated_at)
+           from public.economic_settlement_eligibility_decisions as latest
+          where latest.account_id = v_account_id
+            and latest.subject_type = 'booking'
+            and latest.subject_id = p_booking_id::text
+            and latest.evaluated_at >= now() - interval '5 minutes'
+       )
   ), false) into v_economic_allowed;
 
   if not v_economic_allowed then
@@ -398,17 +405,24 @@ begin
     into v_economic_missing
     from jsonb_array_elements_text(v_member.booking_ids) as booking_id
    where not coalesce((
-    select
+    select bool_and(
       d.decision = 'allowed'
       and d.stripe_account_id is not distinct from v_member.stripe_account_id
       and d.expires_at > now()
+    )
       from public.economic_settlement_eligibility_decisions as d
      where d.account_id = v_member.provider_account_id
        and d.subject_type = 'booking'
        and d.subject_id = booking_id
        and d.evaluated_at >= now() - interval '5 minutes'
-     order by d.evaluated_at desc, d.id desc
-     limit 1
+       and d.evaluated_at = (
+         select max(latest.evaluated_at)
+           from public.economic_settlement_eligibility_decisions as latest
+          where latest.account_id = v_member.provider_account_id
+            and latest.subject_type = 'booking'
+            and latest.subject_id = booking_id
+            and latest.evaluated_at >= now() - interval '5 minutes'
+       )
   ), false);
 
   if v_economic_missing > 0 then
