@@ -437,7 +437,6 @@ async function createRealHeldCharge({ stripe, settlement, bookingId, providerId 
 }
 
 async function markHeldPaid({
-  admin,
   appOrigin,
   webhookSecret,
   bookingId,
@@ -454,6 +453,7 @@ async function markHeldPaid({
       object: {
         id: settlement.stripe_checkout_session_id,
         object: "checkout.session",
+        livemode: false,
         amount_total: settlement.gross_amount_cents,
         currency: settlement.currency.toLowerCase(),
         metadata: {
@@ -474,47 +474,7 @@ async function markHeldPaid({
     type: "checkout.session.completed",
   };
 
-  let webhook;
-  try {
-    webhook = await postSignedWebhook({ appOrigin, webhookSecret, event });
-  } catch (error) {
-    const [{ data: booking }, { data: settlementRow }, { data: ledger }, { data: webhookAudit }] =
-      await Promise.all([
-        admin
-          .from("bookings")
-          .select("payment_status, payment_mode, stripe_checkout_session_id, stripe_payment_intent_id")
-          .eq("id", bookingId)
-          .maybeSingle(),
-        admin
-          .from("booking_settlements")
-          .select("state, stripe_checkout_session_id, stripe_payment_intent_id, stripe_charge_id")
-          .eq("booking_id", bookingId)
-          .maybeSingle(),
-        admin
-          .from("booking_financial_ledger")
-          .select("entry_type, status, gross_amount_cents, platform_fee_cents, provider_amount_cents, payment_mode, stripe_payment_intent_id")
-          .eq("booking_id", bookingId)
-          .order("created_at", { ascending: false })
-          .limit(5),
-        admin
-          .from("stripe_webhook_events")
-          .select("status, attempt_count, last_error")
-          .eq("stripe_event_id", event.id)
-          .maybeSingle(),
-      ]);
-
-    console.error(
-      "KLYX_PLATFORM_HELD_WEBHOOK_DIAGNOSTIC",
-      JSON.stringify({
-        booking,
-        settlement: settlementRow,
-        ledger,
-        webhookAudit,
-      })
-    );
-    throw error;
-  }
-
+  const webhook = await postSignedWebhook({ appOrigin, webhookSecret, event });
   assert(webhook.payload?.received === true, "KLYX did not accept the held payment webhook.");
   assert(webhook.payload?.duplicate === false, "Held payment webhook was unexpectedly marked duplicate.");
 }
@@ -577,7 +537,6 @@ async function runRefundBeforeReleaseScenario({
     providerId: provider.id,
   });
   await markHeldPaid({
-    admin,
     appOrigin,
     webhookSecret,
     bookingId: booking.id,
@@ -828,7 +787,6 @@ async function runReleaseRetryReversalScenario({
     providerId: provider.id,
   });
   await markHeldPaid({
-    admin,
     appOrigin,
     webhookSecret,
     bookingId: booking.id,
