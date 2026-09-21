@@ -1,3 +1,4 @@
+import { assertStripeFinancialObjectMode } from "@/lib/live-financial-runtime-policy";
 import "server-only";
 
 import Stripe from "stripe";
@@ -108,7 +109,7 @@ async function reconcilePaidSession(
   stripe: Stripe,
   session: Stripe.Checkout.Session
 ) {
-  if (session.livemode) throw new Error(LIVE_FORBIDDEN);
+  assertStripeFinancialObjectMode(session.livemode);
   if (!isGroupHeldMetadata(session.metadata)) {
     throw new Error("KLYX_GROUP_HELD_SESSION_METADATA_INVALID");
   }
@@ -138,7 +139,7 @@ async function reconcilePaidSession(
     expand: ["latest_charge"],
   });
 
-  if (intent.livemode) throw new Error(LIVE_FORBIDDEN);
+  assertStripeFinancialObjectMode(intent.livemode);
   if (
     intent.status !== "succeeded" ||
     !isGroupHeldMetadata(intent.metadata) ||
@@ -159,8 +160,9 @@ async function reconcilePaidSession(
       ? await stripe.charges.retrieve(latestCharge)
       : latestCharge;
 
+  assertStripeFinancialObjectMode(charge.livemode);
+
   if (
-    charge.livemode ||
     !charge.paid ||
     charge.amount !== Number(parent.gross_amount_cents) ||
     charge.currency.toUpperCase() !== parent.currency
@@ -226,7 +228,7 @@ export async function handlePlatformHeldGroupStripeWebhookEvent(
   ) {
     const session = event.data.object as Stripe.Checkout.Session;
     if (!isGroupHeldMetadata(session.metadata)) return false;
-    if (session.livemode) throw new Error(LIVE_FORBIDDEN);
+    assertStripeFinancialObjectMode(session.livemode);
 
     await releaseFailedCheckout(
       groupSettlementId(session.metadata),
@@ -238,7 +240,7 @@ export async function handlePlatformHeldGroupStripeWebhookEvent(
   if (event.type === "payment_intent.succeeded") {
     const intent = event.data.object as Stripe.PaymentIntent;
     if (!isGroupHeldMetadata(intent.metadata)) return false;
-    if (intent.livemode) throw new Error(LIVE_FORBIDDEN);
+    assertStripeFinancialObjectMode(intent.livemode);
 
     const sessions = await stripe.checkout.sessions.list({
       payment_intent: intent.id,
@@ -279,7 +281,7 @@ export async function handlePlatformHeldGroupStripeWebhookEvent(
   if (event.type === "payment_intent.payment_failed") {
     const intent = event.data.object as Stripe.PaymentIntent;
     if (!isGroupHeldMetadata(intent.metadata)) return false;
-    if (intent.livemode) throw new Error(LIVE_FORBIDDEN);
+    assertStripeFinancialObjectMode(intent.livemode);
 
     const sessions = await stripe.checkout.sessions.list({
       payment_intent: intent.id,
