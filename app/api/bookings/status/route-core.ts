@@ -1,5 +1,6 @@
 import { after, NextResponse } from "next/server";
 import Stripe from "stripe";
+import { requireKlyxFinancialStripeRuntime } from "@/lib/klyx-financial-stripe-runtime";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   apiErrorStatus,
@@ -139,16 +140,6 @@ async function providerHasConflict(
   );
 }
 
-function stripeClient(): Stripe {
-  const key = process.env.STRIPE_SECRET_KEY?.trim();
-
-  if (!key) {
-    throw new Error("Variable manquante : STRIPE_SECRET_KEY");
-  }
-
-  return new Stripe(key);
-}
-
 // KLYX_REFUND_CREATE_SIDE_EFFECT_BOUNDARY_16_12
 async function recordRefundCreationFailure(params: {
   booking: BookingRow;
@@ -203,7 +194,10 @@ async function createStripeRefundOrRecordFailure(params: {
   const { booking, actorId } = params;
 
   try {
-    const stripe = stripeClient();
+    const financialRuntime = await requireKlyxFinancialStripeRuntime({
+      clientProfileId: booking.parent_id,
+    });
+    const stripe = new Stripe(financialRuntime.key);
 
     const refundParameters: Stripe.RefundCreateParams = {
       payment_intent: booking.stripe_payment_intent_id ?? undefined,
