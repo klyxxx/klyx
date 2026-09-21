@@ -47,11 +47,26 @@ describe("Mission 11 economic settlement eligibility contract", () => {
     expect(eligibility).toContain("stripeProjection.payouts_enabled");
     expect(eligibility).toContain("ACCOUNT_OFFER_SERVICES_CAPABILITY_DENIED");
     expect(eligibility).toContain("TRUST_ACTIVITY_ELIGIBILITY_MISSING");
+    expect(eligibility).toContain("ECONOMIC_IDENTITY_NOT_READY");
+    expect(eligibility).toContain("ECONOMIC_LEGAL_ENTITY_MISSING");
+    expect(eligibility).toContain("ECONOMIC_PERSON_MISSING");
+    expect(eligibility).toContain("ECONOMIC_VERIFICATION_MISSING");
     expect(eligibility).toContain("ECONOMIC_VERIFICATION_NOT_SATISFIED");
+    expect(eligibility).toContain("ACCOUNT_QUALIFICATION_MISSING");
     expect(eligibility).toContain("ECONOMIC_RESTRICTION_ACTIVE");
     expect(documentation).toContain("payouts_enabled");
     expect(documentation).toContain("necessary evidence");
     expect(documentation).toContain("never sufficient");
+  });
+
+  it("fails closed on legal identity, KYC expiry and qualification absence", () => {
+    expect(eligibility).toContain('"economic_legal_entities"');
+    expect(eligibility).toContain('"economic_persons"');
+    expect(eligibility).toContain("verifiedFactStatus(");
+    expect(eligibility).toContain("verification.verified_at");
+    expect(eligibility).toContain("verification.expires_at");
+    expect(eligibility).toContain("applicableQualifications.length === 0");
+    expect(eligibility).toContain("ACCOUNT_QUALIFICATION_MISSING");
   });
 
   it("requires a fresh economic allow before the independent risk allow in both SQL claims", () => {
