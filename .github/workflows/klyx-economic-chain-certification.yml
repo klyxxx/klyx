@@ -6,6 +6,9 @@ on:
       - main
     paths:
       - "lib/economic-settlement-eligibility-server.ts"
+      - "lib/economic-identity-server.ts"
+      - "lib/booking-settlement-server.ts"
+      - "tests/integration/economic-identity-foundation-contract.test.ts"
       - "tests/integration/economic-chain-runtime-certification.test.ts"
       - "tests/integration/economic-settlement-eligibility-contract.test.ts"
       - "scripts/golden-path-economic-chain-settlement-network.mjs"
