@@ -5,6 +5,11 @@ import {
 import Stripe from "stripe";
 
 import {
+  assertFinancialStripeWriteAuthorized,
+  getFinancialStripeRuntime,
+} from "@/lib/financial-stripe-runtime";
+
+import {
   apiErrorStatus,
   getAuthenticatedProfile,
 } from "@/lib/api-auth";
@@ -392,20 +397,6 @@ async function notify(
   }
 }
 
-function stripeKey() {
-  const value =
-    process.env
-      .STRIPE_SECRET_KEY
-      ?.trim();
-
-  if (!value) {
-    throw new Error(
-      "STRIPE_SECRET_KEY manquante."
-    );
-  }
-
-  return value;
-}
 
 export async function GET(
   request: Request,
@@ -1056,10 +1047,23 @@ export async function POST(
 
     assertStripeRuntimeReady();
 
+    const stripeRuntime =
+      getFinancialStripeRuntime();
+
+    if (
+      stripeRuntime.mode ===
+      "live"
+    ) {
+      await assertFinancialStripeWriteAuthorized({
+        capability:
+          "refunds",
+        currency:
+          group.currency,
+      });
+    }
+
     const stripe =
-      new Stripe(
-        stripeKey()
-      );
+      stripeRuntime.stripe;
 
     try {
       const destinationCharge =
