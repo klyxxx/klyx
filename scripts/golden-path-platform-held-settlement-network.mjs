@@ -440,6 +440,7 @@ async function diagnoseHeldWebhookFailure({
   admin,
   bookingId,
   eventId,
+  paymentIntentId,
 }) {
   const [
     bookingResult,
@@ -497,6 +498,33 @@ async function diagnoseHeldWebhookFailure({
   const booking = bookingResult.data;
   const settlement = settlementResult.data;
 
+  const probeResult = await admin
+    .from("bookings")
+    .update({
+      payment_status: "paid",
+      stripe_payment_intent_id: paymentIntentId,
+      paid_at: new Date().toISOString(),
+    })
+    .eq("id", bookingId)
+    .select("id")
+    .maybeSingle();
+
+  const transitionProbe = probeResult.error
+    ? {
+        ok: false,
+        code: probeResult.error.code ?? null,
+        message: String(probeResult.error.message ?? "query_failed").slice(0, 300),
+        details: probeResult.error.details ?? null,
+        hint: probeResult.error.hint ?? null,
+      }
+    : {
+        ok: true,
+        code: null,
+        message: null,
+        details: null,
+        hint: null,
+      };
+
   return {
     booking: {
       queryError: summarizeError(bookingResult.error),
@@ -542,6 +570,7 @@ async function diagnoseHeldWebhookFailure({
       queryError: summarizeError(notificationResult.error),
       types: (notificationResult.data ?? []).map((row) => row.type),
     },
+    transitionProbe,
   };
 }
 
@@ -591,6 +620,7 @@ async function markHeldPaid({
       admin,
       bookingId,
       eventId: event.id,
+      paymentIntentId: intent.id,
     });
     const message = error instanceof Error ? error.message : String(error);
     throw new Error(
