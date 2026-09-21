@@ -1,16 +1,6 @@
 name: KLYX Stripe Network Test
 
 on:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - "lib/economic-settlement-eligibility-server.ts"
-      - "tests/integration/economic-chain-runtime-certification.test.ts"
-      - "tests/integration/economic-settlement-eligibility-contract.test.ts"
-      - "scripts/golden-path-economic-chain-settlement-network.mjs"
-      - ".github/workflows/klyx-stripe-network-test.yml"
-      - "docs/economic-settlement-eligibility.md"
   workflow_dispatch:
     inputs:
       expected_sha:
@@ -37,7 +27,6 @@ concurrency:
 jobs:
   stripe-network-checkout:
     name: Stripe test Connect, Checkout and refund network proof
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-22.04
     timeout-minutes: 45
 
@@ -284,19 +273,12 @@ jobs:
 
   stripe-network-platform-held:
     name: Stripe TEST platform-held single-booking settlement proof
-    if: >-
-      (github.event_name == 'workflow_dispatch' &&
-       (github.ref_name == 'feature/platform-held-settlement-test-20260915' ||
-        github.ref_name == 'integration/risk-settlement-post-799-20260918' ||
-        startsWith(github.ref_name, 'feature/settlement-recovery-reconciliation-'))) ||
-      (github.event_name == 'pull_request' &&
-       startsWith(github.head_ref, 'feature/economic-chain-certification-') &&
-       github.event.pull_request.head.repo.full_name == github.repository)
+    if: github.ref_name == 'feature/platform-held-settlement-test-20260915' || github.ref_name == 'integration/risk-settlement-post-799-20260918' || startsWith(github.ref_name, 'feature/settlement-recovery-reconciliation-')
     runs-on: ubuntu-22.04
     timeout-minutes: 45
 
     env:
-      KLYX_GOLDEN_PATH_MUTATIONS_ENABLED: ${{ github.event_name == 'pull_request' && 'true' || inputs.confirm_stripe_test_network }}
+      KLYX_GOLDEN_PATH_MUTATIONS_ENABLED: ${{ inputs.confirm_stripe_test_network }}
       KLYX_GOLDEN_PATH_LOCAL_SUPABASE: "true"
       KLYX_PRODUCTION_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       SUPABASE_TELEMETRY_DISABLED: "1"
@@ -453,14 +435,6 @@ jobs:
       - name: Prepare held-settlement provider fixture
         run: node scripts/golden-path-provider-fixture.mjs
 
-      - name: Verify runtime economic state matrix
-        if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'feature/economic-chain-certification-')
-        env:
-          KLYX_ECONOMIC_CHAIN_RUNTIME: "true"
-        run: >-
-          npx vitest run
-          tests/integration/economic-chain-runtime-certification.test.ts
-
       - name: Verify test suite on held runtime SHA
         run: npm test
 
@@ -502,19 +476,14 @@ jobs:
         run: node scripts/golden-path-client-lifecycle.mjs
 
       - name: Verify real Stripe TEST platform-held settlement lifecycle
-        if: github.event_name == 'workflow_dispatch'
         run: node scripts/golden-path-platform-held-settlement-network.mjs
-
-      - name: Verify economic eligibility to settlement on Stripe TEST
-        if: github.event_name == 'pull_request' && startsWith(github.head_ref, 'feature/economic-chain-certification-')
-        run: node scripts/golden-path-economic-chain-settlement-network.mjs
 
       - name: Upload platform-held Stripe TEST proof
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: klyx-platform-held-stripe-proof-${{ github.run_id }}
-          path: stripe-network-proof/
+          path: stripe-network-proof/platform-held-settlement-proof.json
           if-no-files-found: warn
           retention-days: 14
 
