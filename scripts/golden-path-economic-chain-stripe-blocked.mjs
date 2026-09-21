@@ -1051,7 +1051,7 @@ async function main() {
 
     const finalSettlement = await loadSettlement(admin, bookingId);
     assert(
-      finalSettlement.state === "review_required",
+      finalSettlement.state === "human_review",
       `KLYX did not stop settlement: ${finalSettlement.state}.`
     );
     assert(
