@@ -5,7 +5,7 @@ import {
   sendBookingPaymentSucceededEmails,
 } from "@/lib/email/payment-event-emails";
 import { upsertFinancialLedgerEntry } from "@/lib/payment-ledger";
-import { requireKlyxFinancialStripeRuntimeForBooking } from "@/lib/klyx-financial-stripe-runtime";
+import { requireKlyxFinancialStripeObservationRuntime } from "@/lib/klyx-financial-stripe-runtime";
 import {
   formatKlyxMinorUnits,
   fromKlyxStripeChargeAmount,
@@ -57,8 +57,7 @@ async function assertPlatformHeldWebhookRuntime(input: {
     return;
   }
 
-  const runtime =
-    await requireKlyxFinancialStripeRuntimeForBooking(input.booking.id);
+  const runtime = requireKlyxFinancialStripeObservationRuntime();
   const expectedLive = runtime.mode !== "test";
 
   if (input.observedLivemode !== expectedLive) {
