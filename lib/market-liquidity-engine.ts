@@ -384,6 +384,11 @@ export function computeKlyxLiquidityMetrics(params: {
   const booked = demandTimelines.filter(
     (timeline) => timeline.bookingAt !== null
   );
+  const acceptedAndBooked = demandTimelines.filter(
+    (timeline) =>
+      timeline.quoteAcceptedAt !== null &&
+      timeline.bookingAt !== null
+  );
   const matureBooked = mature.filter(
     (timeline) => timeline.bookingAt !== null
   );
@@ -453,7 +458,7 @@ export function computeKlyxLiquidityMetrics(params: {
     ),
     quoteProbabilityBps: bps(quoted.length, mature.length),
     quoteAcceptanceBps: bps(accepted.length, quoted.length),
-    bookingConversionBps: bps(booked.length, mature.length),
+    bookingConversionBps: bps(acceptedAndBooked.length, accepted.length),
     fillRateBps: bps(matureBooked.length, mature.length),
     completionRateBps: bps(completedBookings.length, terminalBookings.length),
     cancellationRateBps: bps(cancelledBookings.length, terminalBookings.length),
