@@ -287,6 +287,7 @@ async function prepareEconomicBaseline({
   accountId,
   providerId,
   stripeAccount,
+  stripeLivemode,
   userServiceId,
   activityKey,
   jurisdictionCode,
@@ -475,8 +476,8 @@ async function prepareEconomicBaseline({
     : [];
 
   assert(
-    stripeAccount.livemode === false,
-    "Stripe account unexpectedly uses LIVE mode."
+    stripeLivemode === false,
+    "Stripe Accounts v2 truth unexpectedly uses LIVE mode."
   );
   assert(
     stripeAccount.details_submitted === true,
@@ -1025,6 +1026,7 @@ async function main() {
       accountId,
       providerId: provider.id,
       stripeAccount,
+      stripeLivemode: v2Account.livemode,
       userServiceId,
       activityKey,
       jurisdictionCode,
