@@ -42,6 +42,18 @@ export function inspectStripeRuntime(): StripeRuntimeReport {
   const appUrl = env("NEXT_PUBLIC_APP_URL");
   const commission = Number(env("KLYX_COMMISSION_PERCENT") || "15");
   const liveEnabled = envTrue("KLYX_LIVE_PAYMENTS_ENABLED");
+  const deployedSha = env("VERCEL_GIT_COMMIT_SHA").toLowerCase();
+  const drCertifiedSha = env("KLYX_DR_CERTIFIED_SHA").toLowerCase();
+  const financialCertifiedSha = env(
+    "KLYX_PRODUCTION_FINANCIAL_CERTIFIED_SHA"
+  ).toLowerCase();
+  const exactSha = (value: string) => /^[0-9a-f]{40}$/.test(value);
+  const liveCertificationChainOk =
+    mode === "test" ||
+    !liveEnabled ||
+    (exactSha(deployedSha) &&
+      deployedSha === drCertifiedSha &&
+      deployedSha === financialCertifiedSha);
   const platformOnlyTest = envTrue(
     "KLYX_ALLOW_PLATFORM_ONLY_TEST_PAYMENTS"
   );
@@ -128,6 +140,17 @@ export function inspectStripeRuntime(): StripeRuntimeReport {
         mode === "live" && platformOnlyTest
           ? "KLYX_ALLOW_PLATFORM_ONLY_TEST_PAYMENTS doit etre false en live."
           : "Configuration compatible.",
+    },
+    {
+      key: "financial_certification_sha",
+      label: "Certification financiere exacte",
+      ok: liveCertificationChainOk,
+      detail:
+        mode !== "live" || !liveEnabled
+          ? "Non requise tant que le LIVE general reste desactive."
+          : liveCertificationChainOk
+            ? "SHA deploye = DR certifie = certification financiere."
+            : "Le LIVE general exige VERCEL_GIT_COMMIT_SHA = KLYX_DR_CERTIFIED_SHA = KLYX_PRODUCTION_FINANCIAL_CERTIFIED_SHA.",
     },
     {
       key: "live_switch",
