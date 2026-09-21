@@ -1,0 +1,551 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  buildKlyxMarketLiquidityMetrics,
+  evaluateKlyxMarketLiquidity,
+} from "@/lib/market-liquidity";
+
+describe("KLYX Market & Liquidity metrics", () => {
+  it("measures the demand-to-fulfillment funnel without making it domain truth", () => {
+    const metrics = buildKlyxMarketLiquidityMetrics({
+      requests: [
+        {
+          id: "r1",
+          client_profile_id: "c1",
+          service_id: "s1",
+          market_id: "m1",
+          region_id: "reg1",
+          country_code: "XX",
+          currency: "EUR",
+          budget_max: 100,
+          created_at: "2026-01-01T10:00:00.000Z",
+        },
+        {
+          id: "r2",
+          client_profile_id: "c1",
+          service_id: "s1",
+          market_id: "m1",
+          region_id: "reg1",
+          country_code: "XX",
+          currency: "EUR",
+          budget_max: 120,
+          created_at: "2026-01-02T10:00:00.000Z",
+        },
+      ],
+      candidates: [
+        {
+          market_request_id: "r1",
+          provider_profile_id: "p1",
+          coverage_count: 1,
+          slot_count: 1,
+          full_coverage: true,
+          created_at: "2026-01-01T10:01:00.000Z",
+        },
+        {
+          market_request_id: "r2",
+          provider_profile_id: "p1",
+          coverage_count: 1,
+          slot_count: 1,
+          full_coverage: true,
+          created_at: "2026-01-02T10:02:00.000Z",
+        },
+      ],
+      offers: [],
+      quotes: [
+        {
+          id: "q1",
+          market_request_id: "r1",
+          provider_profile_id: "p1",
+          status: "accepted",
+          created_at: "2026-01-01T10:03:00.000Z",
+          accepted_at: "2026-01-01T10:04:00.000Z",
+        },
+        {
+          id: "q2",
+          market_request_id: "r2",
+          provider_profile_id: "p1",
+          status: "accepted",
+          created_at: "2026-01-02T10:04:00.000Z",
+          accepted_at: "2026-01-02T10:05:00.000Z",
+        },
+      ],
+      bookings: [
+        {
+          id: "b1",
+          quote_id: "q1",
+          provider_id: "p1",
+          babysitter_id: null,
+          status: "completed",
+          created_at: "2026-01-01T10:06:00.000Z",
+        },
+        {
+          id: "b2",
+          quote_id: "q2",
+          provider_id: "p1",
+          babysitter_id: null,
+          status: "completed",
+          created_at: "2026-01-02T10:06:00.000Z",
+        },
+      ],
+      incidents: [{ id: "i1", booking_id: "b1" }],
+      incidentEvents: [
+        {
+          incident_id: "i1",
+          event_type: "replacement_search_started",
+          created_at: "2026-01-01T10:07:00.000Z",
+        },
+        {
+          incident_id: "i1",
+          event_type: "replacement_selected",
+          created_at: "2026-01-01T10:08:00.000Z",
+        },
+      ],
+    });
+
+    expect(metrics.sampleSize).toBe(2);
+    expect(metrics.timeToFirstMatchSeconds.p50).toBe(60);
+    expect(metrics.timeToFirstMatchSeconds.p90).toBe(120);
+    expect(metrics.timeToQuoteSeconds.p50).toBe(180);
+    expect(metrics.timeToQuoteSeconds.p90).toBe(240);
+    expect(metrics.quoteProbability).toBe(1);
+    expect(metrics.quoteAcceptanceRate).toBe(1);
+    expect(metrics.bookingConversionRate).toBe(1);
+    expect(metrics.fillRate).toBe(1);
+    expect(metrics.completionRate).toBe(1);
+    expect(metrics.cancellationRate).toBe(0);
+    expect(metrics.replacementSuccessRate).toBeNull();
+    expect(metrics.replacementSelectionRate).toBe(1);
+    expect(metrics.repeatUsageRate).toBe(1);
+    expect(metrics.providerUtilizationRate).toBe(1);
+    expect(metrics.availabilityRate).toBe(1);
+    expect(metrics.matchingQuality).toBe(1);
+    expect(metrics.matchingQualitySampleSize).toBe(2);
+    expect(metrics.fulfillmentProbability).toBe(1);
+  });
+
+  it("never labels a cohort liquid without policy and sufficient sample", () => {
+    const metrics = {
+      sampleSize: 2,
+      matchedDemands: 2,
+      quotedDemands: 2,
+      acceptedQuoteDemands: 2,
+      bookedDemands: 2,
+      completedDemands: 2,
+      cancelledBookedDemands: 0,
+      timeToFirstMatchSeconds: { p50: 60, p90: 120 },
+      timeToQuoteSeconds: { p50: 180, p90: 240 },
+      matchingQuality: 1,
+      matchingQualitySampleSize: 2,
+      quoteProbability: 1,
+      fulfillmentProbability: 1,
+      quoteAcceptanceRate: 1,
+      bookingConversionRate: 1,
+      fillRate: 1,
+      completionRate: 1,
+      cancellationRate: 0,
+      replacementSuccessRate: 1,
+      repeatUsageRate: 1,
+      providerUtilizationRate: 1,
+      availabilityRate: 1,
+    };
+
+    expect(evaluateKlyxMarketLiquidity(metrics, null).state).toBe("unknown");
+
+    expect(
+      evaluateKlyxMarketLiquidity(metrics, {
+        id: "policy",
+        minSampleSize: 3,
+        maxTimeToFirstMatchSeconds: 300,
+        maxTimeToQuoteSeconds: null,
+        minQuoteAcceptanceBps: null,
+        minBookingConversionBps: null,
+        minFillRateBps: 5000,
+        minCompletionRateBps: null,
+        maxCancellationRateBps: null,
+        minReplacementSuccessBps: null,
+        minRepeatUsageBps: null,
+        minProviderUtilizationBps: null,
+        minAvailabilityBps: null,
+        minMatchingQualityBps: null,
+      }).state
+    ).toBe("unknown");
+
+    expect(
+      evaluateKlyxMarketLiquidity(metrics, {
+        id: "policy",
+        minSampleSize: 2,
+        maxTimeToFirstMatchSeconds: 300,
+        maxTimeToQuoteSeconds: 300,
+        minQuoteAcceptanceBps: 5000,
+        minBookingConversionBps: 5000,
+        minFillRateBps: 5000,
+        minCompletionRateBps: 5000,
+        maxCancellationRateBps: 3000,
+        minReplacementSuccessBps: null,
+        minRepeatUsageBps: null,
+        minProviderUtilizationBps: null,
+        minAvailabilityBps: 5000,
+        minMatchingQualityBps: 5000,
+      }).state
+    ).toBe("liquid");
+  });
+
+  it("includes group and split booking paths in the same market funnel", () => {
+    const metrics = buildKlyxMarketLiquidityMetrics({
+      requests: [
+        {
+          id: "group-request",
+          client_profile_id: "c1",
+          service_id: "s1",
+          market_id: "m1",
+          region_id: null,
+          country_code: "XX",
+          currency: "EUR",
+          budget_max: 200,
+          created_at: "2026-01-03T10:00:00.000Z",
+        },
+        {
+          id: "split-request",
+          client_profile_id: "c2",
+          service_id: "s1",
+          market_id: "m1",
+          region_id: null,
+          country_code: "XX",
+          currency: "EUR",
+          budget_max: 300,
+          created_at: "2026-01-04T10:00:00.000Z",
+        },
+      ],
+      candidates: [],
+      offers: [
+        {
+          request_id: "group-request",
+          provider_profile_id: "p1",
+          status: "accepted",
+          created_at: "2026-01-03T10:01:00.000Z",
+        },
+        {
+          request_id: "split-request",
+          provider_profile_id: "p2",
+          status: "accepted",
+          created_at: "2026-01-04T10:01:00.000Z",
+        },
+      ],
+      quotes: [],
+      bookingGroups: [
+        {
+          id: "g1",
+          market_request_id: "group-request",
+          provider_profile_id: "p1",
+          status: "completed",
+          created_at: "2026-01-03T10:02:00.000Z",
+        },
+      ],
+      splitBatches: [
+        {
+          id: "sb1",
+          market_request_id: "split-request",
+          status: "created",
+          created_at: "2026-01-04T10:02:00.000Z",
+        },
+      ],
+      splitItems: [
+        {
+          batch_id: "sb1",
+          booking_id: "bs1",
+          provider_profile_id: "p2",
+          created_at: "2026-01-04T10:02:10.000Z",
+        },
+        {
+          batch_id: "sb1",
+          booking_id: "bs2",
+          provider_profile_id: "p3",
+          created_at: "2026-01-04T10:02:20.000Z",
+        },
+      ],
+      bookings: [
+        {
+          id: "bg1",
+          quote_id: null,
+          booking_group_id: "g1",
+          provider_id: "p1",
+          babysitter_id: null,
+          status: "completed",
+          created_at: "2026-01-03T10:02:00.000Z",
+        },
+        {
+          id: "bs1",
+          quote_id: null,
+          booking_group_id: null,
+          provider_id: "p2",
+          babysitter_id: null,
+          status: "completed",
+          created_at: "2026-01-04T10:02:10.000Z",
+        },
+        {
+          id: "bs2",
+          quote_id: null,
+          booking_group_id: null,
+          provider_id: "p3",
+          babysitter_id: null,
+          status: "completed",
+          created_at: "2026-01-04T10:02:20.000Z",
+        },
+      ],
+      incidents: [],
+      incidentEvents: [],
+    });
+
+    expect(metrics.sampleSize).toBe(2);
+    expect(metrics.quotedDemands).toBe(2);
+    expect(metrics.acceptedQuoteDemands).toBe(2);
+    expect(metrics.bookedDemands).toBe(2);
+    expect(metrics.completedDemands).toBe(2);
+    expect(metrics.quoteProbability).toBe(1);
+    expect(metrics.bookingConversionRate).toBe(1);
+    expect(metrics.fillRate).toBe(1);
+    expect(metrics.fulfillmentProbability).toBe(1);
+  });
+
+  it("does not fabricate matching quality from an offer-only historical signal", () => {
+    const metrics = buildKlyxMarketLiquidityMetrics({
+      requests: [
+        {
+          id: "r1",
+          client_profile_id: "c1",
+          service_id: "s1",
+          market_id: null,
+          region_id: null,
+          country_code: "XX",
+          currency: "EUR",
+          budget_max: 100,
+          created_at: "2026-01-01T10:00:00.000Z",
+        },
+      ],
+      candidates: [],
+      offers: [
+        {
+          request_id: "r1",
+          provider_profile_id: "p1",
+          status: "sent",
+          created_at: "2026-01-01T10:02:00.000Z",
+        },
+      ],
+      quotes: [],
+      bookings: [],
+      incidents: [],
+      incidentEvents: [],
+    });
+
+    expect(metrics.matchedDemands).toBe(1);
+    expect(metrics.timeToFirstMatchSeconds.p50).toBe(120);
+    expect(metrics.matchingQuality).toBeNull();
+    expect(metrics.matchingQualitySampleSize).toBe(0);
+  });
+
+  it("returns unknown when a configured threshold has no measurable evidence", () => {
+    const metrics = {
+      sampleSize: 20,
+      matchedDemands: 20,
+      quotedDemands: 20,
+      acceptedQuoteDemands: 10,
+      bookedDemands: 10,
+      completedDemands: 9,
+      cancelledBookedDemands: 1,
+      timeToFirstMatchSeconds: { p50: 60, p90: 120 },
+      timeToQuoteSeconds: { p50: 180, p90: 240 },
+      matchingQuality: 0.8,
+      matchingQualitySampleSize: 20,
+      quoteProbability: 1,
+      fulfillmentProbability: 0.45,
+      quoteAcceptanceRate: 0.5,
+      bookingConversionRate: 1,
+      fillRate: 0.5,
+      completionRate: 0.9,
+      cancellationRate: 0.1,
+      replacementSuccessRate: null,
+      repeatUsageRate: 0.2,
+      providerUtilizationRate: 0.5,
+      availabilityRate: 0.8,
+    };
+
+    const result = evaluateKlyxMarketLiquidity(metrics, {
+      id: "policy",
+      minSampleSize: 20,
+      maxTimeToFirstMatchSeconds: null,
+      maxTimeToQuoteSeconds: null,
+      minQuoteAcceptanceBps: null,
+      minBookingConversionBps: null,
+      minFillRateBps: null,
+      minCompletionRateBps: null,
+      maxCancellationRateBps: null,
+      minReplacementSuccessBps: 5000,
+      minRepeatUsageBps: null,
+      minProviderUtilizationBps: null,
+      minAvailabilityBps: null,
+      minMatchingQualityBps: null,
+    });
+
+    expect(result.state).toBe("unknown");
+    expect(result.reasons).toContain("replacement_success_unavailable");
+  });
+  it("uses multi-slot total budget for data-driven price bands", () => {
+    const metrics = buildKlyxMarketLiquidityMetrics({
+      requests: [
+        {
+          id: "multi",
+          client_profile_id: "c1",
+          service_id: "s1",
+          market_id: "m1",
+          region_id: "r1",
+          country_code: "XX",
+          currency: "EUR",
+          request_mode: "multi_slot",
+          budget_max: null,
+          budget_total: 250,
+          created_at: "2026-01-05T10:00:00.000Z",
+        },
+      ],
+      candidates: [],
+      offers: [],
+      quotes: [],
+      bookings: [],
+      incidents: [],
+      incidentEvents: [],
+      priceBand: {
+        key: "250-eur",
+        currencyCode: "EUR",
+        minAmountMinor: 20000,
+        maxAmountMinor: 30000,
+      },
+    });
+
+    expect(metrics.sampleSize).toBe(1);
+  });
+
+  it("measures provider utilization per demand-provider opportunity, not per distinct provider", () => {
+    const metrics = buildKlyxMarketLiquidityMetrics({
+      requests: [
+        {
+          id: "r1",
+          client_profile_id: "c1",
+          service_id: "s1",
+          market_id: "m1",
+          region_id: null,
+          country_code: "XX",
+          currency: "EUR",
+          budget_max: 100,
+          created_at: "2026-01-01T10:00:00.000Z",
+        },
+        {
+          id: "r2",
+          client_profile_id: "c2",
+          service_id: "s1",
+          market_id: "m1",
+          region_id: null,
+          country_code: "XX",
+          currency: "EUR",
+          budget_max: 100,
+          created_at: "2026-01-02T10:00:00.000Z",
+        },
+      ],
+      candidates: [
+        {
+          market_request_id: "r1",
+          provider_profile_id: "p1",
+          coverage_count: 1,
+          slot_count: 1,
+          full_coverage: true,
+          created_at: "2026-01-01T10:01:00.000Z",
+        },
+        {
+          market_request_id: "r2",
+          provider_profile_id: "p1",
+          coverage_count: 1,
+          slot_count: 1,
+          full_coverage: true,
+          created_at: "2026-01-02T10:01:00.000Z",
+        },
+      ],
+      offers: [],
+      quotes: [
+        {
+          id: "q1",
+          market_request_id: "r1",
+          provider_profile_id: "p1",
+          status: "accepted",
+          created_at: "2026-01-01T10:02:00.000Z",
+          accepted_at: "2026-01-01T10:03:00.000Z",
+        },
+      ],
+      bookings: [
+        {
+          id: "b1",
+          quote_id: "q1",
+          provider_id: "p1",
+          babysitter_id: null,
+          status: "completed",
+          created_at: "2026-01-01T10:04:00.000Z",
+        },
+      ],
+      incidents: [],
+      incidentEvents: [],
+    });
+
+    expect(metrics.providerUtilizationRate).toBe(0.5);
+  });
+
+  it("does not infer accepted-proposal conversion backwards from a booking", () => {
+    const metrics = buildKlyxMarketLiquidityMetrics({
+      requests: [
+        {
+          id: "r1",
+          client_profile_id: "c1",
+          service_id: "s1",
+          market_id: null,
+          region_id: null,
+          country_code: "XX",
+          currency: "EUR",
+          budget_max: 100,
+          created_at: "2026-01-01T10:00:00.000Z",
+        },
+      ],
+      candidates: [],
+      offers: [
+        {
+          request_id: "r1",
+          provider_profile_id: "p1",
+          status: "sent",
+          created_at: "2026-01-01T10:01:00.000Z",
+        },
+      ],
+      quotes: [
+        {
+          id: "q1",
+          market_request_id: "r1",
+          provider_profile_id: "p1",
+          status: "sent",
+          created_at: "2026-01-01T10:01:00.000Z",
+          accepted_at: null,
+        },
+      ],
+      bookings: [
+        {
+          id: "b1",
+          quote_id: "q1",
+          provider_id: "p1",
+          babysitter_id: null,
+          status: "completed",
+          created_at: "2026-01-01T10:02:00.000Z",
+        },
+      ],
+      incidents: [],
+      incidentEvents: [],
+    });
+
+    expect(metrics.acceptedQuoteDemands).toBe(0);
+    expect(metrics.bookedDemands).toBe(1);
+    expect(metrics.bookingConversionRate).toBeNull();
+  });
+
+});
