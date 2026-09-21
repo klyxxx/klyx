@@ -1,3 +1,4 @@
+import { assertLiveFinancialStaticGate, assertStripeFinancialObjectMode } from "@/lib/live-financial-runtime-policy";
 import { requireLiveFinancialMutationAuthorized } from "@/lib/live-financial-runtime-gate";
 import { createHash, randomUUID } from "node:crypto";
 
@@ -192,14 +193,15 @@ function planHash(plan: CanonicalPlan): string {
   return createHash("sha256").update(JSON.stringify(plan)).digest("hex");
 }
 
-function requiredTestStripe(): Stripe {
+function requiredFinancialStripe(): Stripe {
   const key = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
 
   if (key.startsWith("sk_live_")) {
-    throw new Error("KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY");
+    assertLiveFinancialStaticGate();
+    return new Stripe(key);
   }
   if (!key.startsWith("sk_test_")) {
-    throw new Error("KLYX_SETTLEMENT_STRIPE_TEST_KEY_REQUIRED");
+    throw new Error("KLYX_SETTLEMENT_STRIPE_KEY_REQUIRED");
   }
 
   return new Stripe(key);
@@ -294,8 +296,9 @@ async function buildFrozenPlan(input: {
       }
     );
 
+    assertStripeFinancialObjectMode(remoteAccount.livemode);
+
     const transferReady = Boolean(
-      remoteAccount.livemode === false &&
         remoteAccount.applied_configurations?.includes("recipient") === true &&
         remoteAccount.configuration?.recipient?.applied === true &&
         remoteAccount.configuration?.recipient?.capabilities?.stripe_balance
@@ -467,7 +470,7 @@ export async function POST(request: Request, context: RouteContext) {
       throw new Error("KLYX_PLATFORM_HELD_MODE_NOT_ACTIVE");
     }
 
-    const stripe = requiredTestStripe();
+    const stripe = requiredFinancialStripe();
     const stripeRuntime = assertStripeRuntimeReady();
     const { user, profile } = await getAuthenticatedProfile(request);
     requireAccountType(profile, "client");
@@ -549,9 +552,7 @@ export async function POST(request: Request, context: RouteContext) {
         claim.checkout_session_id
       );
 
-      if (existing.livemode) {
-        throw new Error("KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY");
-      }
+      assertStripeFinancialObjectMode(existing.livemode);
 
       const sameFlow =
         existing.metadata?.klyx_flow ===
@@ -651,9 +652,7 @@ export async function POST(request: Request, context: RouteContext) {
       }
     );
 
-    if (session.livemode) {
-      throw new Error("KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY");
-    }
+    assertStripeFinancialObjectMode(session.livemode);
     if (!session.url) {
       throw new Error("KLYX_GROUP_HELD_CHECKOUT_URL_MISSING");
     }
