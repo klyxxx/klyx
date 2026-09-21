@@ -146,6 +146,35 @@ describe("KLYX financial Stripe observation vs mutation authority", () => {
     }
   });
 
+  it("keeps recipient readiness mode-aware and country-agnostic", () => {
+    const singleCheckout = read(
+      "app/api/stripe/create-checkout-session/route-platform-held-core.ts"
+    );
+    const splitCheckout = read(
+      "app/api/bookings/split-missions/[id]/checkout/route-platform-held-core.ts"
+    );
+
+    expect(singleCheckout).toContain(
+      'const expectedLive = financialRuntime.mode !== "test"'
+    );
+    expect(singleCheckout).toContain(
+      "expectedProviderCountry"
+    );
+    expect(singleCheckout).toContain(
+      "providerRecipientAccount.livemode === expectedLive"
+    );
+    expect(singleCheckout).not.toContain(
+      'providerRecipientAccount.identity?.country === "BE"'
+    );
+
+    expect(splitCheckout).toContain(
+      'remoteAccount.livemode === (input.stripeRuntimeMode === "live")'
+    );
+    expect(splitCheckout).not.toContain(
+      "remoteAccount.livemode === false"
+    );
+  });
+
   it("never lets observation helpers create Stripe money movement", () => {
     for (const file of [
       "app/api/stripe/webhook/route.ts",
