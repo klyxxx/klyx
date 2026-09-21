@@ -443,6 +443,14 @@ export async function releasePlatformHeldBookingSettlement(
     return { status: "review_required" };
   }
 
+  if (stripeRuntime.mode === "live") {
+    await assertFinancialStripeWriteAuthorized({
+      capability: "settlement_release",
+      countryCode: recipientCountryCode,
+      currency: settlement.currency,
+    });
+  }
+
   const claimToken = randomUUID();
   const { data: claimData, error: claimError } = await supabaseAdmin.rpc(
     "klyx_claim_booking_settlement_release",
@@ -657,6 +665,14 @@ export async function preparePlatformHeldBookingRefund(
 
   if (!settlement || settlement.payment_mode !== PAYMENT_MODE) {
     return { status: "not_applicable" };
+  }
+
+  const refundRuntime = getFinancialStripeRuntime();
+  if (refundRuntime.mode === "live") {
+    await assertFinancialStripeWriteAuthorized({
+      capability: "refunds",
+      currency: settlement.currency,
+    });
   }
 
   const { data, error } = await supabaseAdmin.rpc(
