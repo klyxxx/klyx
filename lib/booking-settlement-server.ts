@@ -701,8 +701,10 @@ export async function preparePlatformHeldBookingRefund(
     );
   }
 
-  const financialRuntime = await requireKlyxFinancialStripeRuntimeForBooking(bookingId);
+  const financialRuntime =
+    await requireKlyxFinancialStripeRuntimeForBooking(bookingId);
   const stripe = new Stripe(financialRuntime.key);
+  const expectedLive = financialRuntime.mode !== "test";
   const parentTransfer = await stripe.transfers.retrieve(transferId);
 
   // Transfer is the authoritative object for livemode and immutable release
