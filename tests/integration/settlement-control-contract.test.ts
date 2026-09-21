@@ -12,13 +12,18 @@ function compact(source: string) {
 }
 
 describe("KLYX settlement control phase-1 contract", () => {
-  it("keeps live platform-held settlement fail-closed", () => {
+  it("separates LIVE code capability from explicit financial authorization", () => {
     const source = read("lib/stripe-settlement-control.ts");
+    const liveGate = read("lib/live-financial-authorization-server.ts");
 
     expect(source).toContain("KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY");
     expect(source).toContain('secret.startsWith("sk_live_")');
     expect(source).toContain("KLYX_SETTLEMENT_CONTROL_TEST_READY");
-    expect(source).not.toContain("KLYX_SETTLEMENT_CONTROL_LIVE_READY");
+    expect(source).toContain("KLYX_SETTLEMENT_CONTROL_LIVE_READY");
+    expect(source).toContain("if (requested === KLYX_LEGACY_SETTLEMENT_MODE)");
+    expect(liveGate).toContain("KLYX_LIVE_FINANCIAL_NOT_AUTHORIZED");
+    expect(liveGate).toContain("certified_sha_matches_build");
+    expect(liveGate).toContain("proof_durable_jobs_worker");
   });
 
   it("defines a server-only atomic settlement release plane", () => {
@@ -69,7 +74,7 @@ describe("KLYX settlement control phase-1 contract", () => {
     expect(split).toContain("application_fee_amount");
   });
 
-  it("documents that phase 1 performs no Stripe transfer or payout side effect", () => {
+  it("keeps transfer/payout side effects out of the settlement mode selector", () => {
     const control = read("lib/stripe-settlement-control.ts");
     const migration = read(
       "supabase/migrations/20260915170000_klyx_booking_settlement_control.sql"
@@ -80,8 +85,6 @@ describe("KLYX settlement control phase-1 contract", () => {
     expect(control).not.toContain("stripe.payouts.create");
     expect(migration).not.toContain("stripe.transfers.create");
     expect(migration).not.toContain("stripe.payouts.create");
-    expect(documentation).toContain("does **not**");
-    expect(documentation).toContain("enable `platform_held` in Stripe live mode");
     expect(documentation).toContain("change Express payout schedules");
   });
 });
