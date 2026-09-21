@@ -39,6 +39,20 @@ type VerificationCaseRow = {
   human_review_required: boolean;
 };
 
+type LegalEntityRow = {
+  id: string;
+  is_primary: boolean;
+  verification_status: string;
+  expires_at: string | null;
+};
+
+type EconomicPersonRow = {
+  id: string;
+  is_primary: boolean;
+  verification_status: string;
+  expires_at: string | null;
+};
+
 type EconomicRestrictionRow = {
   id: string;
   restricted_action: string;
@@ -308,6 +322,50 @@ function qualificationStatus(
   return "review";
 }
 
+function legalSubjectStatus(
+  subject: Pick<LegalEntityRow | EconomicPersonRow, "verification_status" | "expires_at">,
+  nowMs: number
+): "ok" | "review" | "blocked" {
+  if (subject.expires_at) {
+    const expiresAt = Date.parse(subject.expires_at);
+    if (Number.isFinite(expiresAt) && expiresAt <= nowMs) {
+      return "blocked";
+    }
+  }
+
+  const status = subject.verification_status.trim().toLowerCase();
+  if (status === "verified") return "ok";
+  if (status === "human_review") return "review";
+  return "blocked";
+}
+
+function requiredActionCodes(value: unknown): string[] {
+  return asArray(value)
+    .map((item) => {
+      if (typeof item === "string") return item.trim();
+      const record = asRecord(item);
+      return typeof record.code === "string" ? record.code.trim() : "";
+    })
+    .filter(Boolean);
+}
+
+function trustDecisionRequiresQualification(
+  decision: TrustDecisionRow | null
+): boolean {
+  if (!decision) return false;
+
+  const markers = [
+    ...strings(decision.reason_codes),
+    ...requiredActionCodes(decision.required_actions),
+  ];
+
+  return markers.some((value) =>
+    /(qualification|credential|licen[cs]e|certification|professional[_ -]?proof)/i.test(
+      value
+    )
+  );
+}
+
 function selectTrustDecision(
   decisions: TrustDecisionRow[],
   input: {
@@ -527,6 +585,8 @@ export async function canReceiveSettlement(input: {
     canonicalStripeResult,
     trustRestrictionsResult,
     trustDecisionsResult,
+    legalEntitiesResult,
+    economicPersonsResult,
     verificationResult,
     economicRestrictionsResult,
     stripeProjectionResult,
@@ -567,6 +627,14 @@ export async function canReceiveSettlement(input: {
       .order("created_at", { ascending: false })
       .limit(20),
     supabaseAdmin
+      .from("economic_legal_entities")
+      .select("id, is_primary, verification_status, expires_at")
+      .eq("economic_identity_id", identity.id),
+    supabaseAdmin
+      .from("economic_persons")
+      .select("id, is_primary, verification_status, expires_at")
+      .eq("economic_identity_id", identity.id),
+    supabaseAdmin
       .from("economic_verification_cases")
       .select("id, verification_type, status, human_review_required")
       .eq("economic_identity_id", identity.id),
@@ -592,6 +660,8 @@ export async function canReceiveSettlement(input: {
     canonicalStripeResult,
     trustRestrictionsResult,
     trustDecisionsResult,
+    legalEntitiesResult,
+    economicPersonsResult,
     verificationResult,
     economicRestrictionsResult,
     stripeProjectionResult,
@@ -606,6 +676,10 @@ export async function canReceiveSettlement(input: {
   const trustRestrictions =
     (trustRestrictionsResult.data ?? []) as TrustRestrictionRow[];
   const trustDecisions = (trustDecisionsResult.data ?? []) as TrustDecisionRow[];
+  const legalEntities =
+    (legalEntitiesResult.data ?? []) as LegalEntityRow[];
+  const economicPersons =
+    (economicPersonsResult.data ?? []) as EconomicPersonRow[];
   const verificationCases =
     (verificationResult.data ?? []) as VerificationCaseRow[];
   const economicRestrictions =
@@ -624,6 +698,42 @@ export async function canReceiveSettlement(input: {
     review.push(
       identity.review_reason_code || "ECONOMIC_IDENTITY_HUMAN_REVIEW_REQUIRED"
     );
+  }
+
+  const primaryLegalEntities = legalEntities.filter((row) => row.is_primary);
+  const primaryEconomicPersons = economicPersons.filter((row) => row.is_primary);
+  const primaryLegalSubjects = [
+    ...primaryLegalEntities,
+    ...primaryEconomicPersons,
+  ];
+
+  if (primaryLegalSubjects.length === 0) {
+    blocked.push("ECONOMIC_LEGAL_SUBJECT_MISSING");
+  }
+
+  for (const subject of primaryLegalSubjects) {
+    const status = legalSubjectStatus(subject, nowMs);
+    const normalizedStatus = subject.verification_status.trim().toLowerCase();
+    const expiresAt = subject.expires_at ? Date.parse(subject.expires_at) : Number.NaN;
+    const expired =
+      normalizedStatus === "expired" ||
+      (Number.isFinite(expiresAt) && expiresAt <= nowMs);
+
+    if (status === "review") {
+      review.push("ECONOMIC_LEGAL_SUBJECT_HUMAN_REVIEW_REQUIRED");
+    } else if (status === "blocked") {
+      blocked.push(
+        expired
+          ? "ECONOMIC_LEGAL_SUBJECT_EXPIRED"
+          : normalizedStatus === "restricted"
+            ? "ECONOMIC_LEGAL_SUBJECT_RESTRICTED"
+            : "ECONOMIC_LEGAL_SUBJECT_NOT_VERIFIED"
+      );
+    }
+  }
+
+  if (verificationCases.length === 0) {
+    blocked.push("ECONOMIC_VERIFICATION_MISSING");
   }
 
   for (const verification of verificationCases) {
@@ -656,6 +766,19 @@ export async function canReceiveSettlement(input: {
       userServiceId: input.userServiceId,
     })
   );
+  const qualificationRequired =
+    trustDecisionRequiresQualification(
+      selectTrustDecision(trustDecisions, {
+        subjectType: input.subjectType,
+        subjectId: input.subjectId,
+        activityKey,
+        userServiceId: input.userServiceId,
+      })
+    );
+
+  if (qualificationRequired && applicableQualifications.length === 0) {
+    blocked.push("ACCOUNT_QUALIFICATION_MISSING");
+  }
 
   for (const qualification of applicableQualifications) {
     const status = qualificationStatus(qualification, nowMs);
@@ -681,6 +804,12 @@ export async function canReceiveSettlement(input: {
       review.push("ECONOMIC_RESTRICTION_HUMAN_REVIEW_REQUIRED");
     } else {
       blocked.push("ECONOMIC_RESTRICTION_ACTIVE");
+      if (
+        restriction.scope_type === "jurisdiction" ||
+        restriction.scope_type === "activity_jurisdiction"
+      ) {
+        blocked.push("ECONOMIC_COUNTRY_RESTRICTED");
+      }
     }
   }
 
@@ -774,31 +903,30 @@ export async function canReceiveSettlement(input: {
       stripeProjection.capabilities
     );
 
-    if (!stripeProjection.details_submitted) {
-      blocked.push("STRIPE_DETAILS_NOT_SUBMITTED");
-    }
-    if (!stripeProjection.payouts_enabled) {
-      blocked.push("STRIPE_PAYOUTS_NOT_ENABLED");
-    }
-    if (asArray(stripeProjection.currently_due).length > 0) {
-      blocked.push("STRIPE_REQUIREMENTS_CURRENTLY_DUE");
-    }
-    if (asArray(stripeProjection.past_due).length > 0) {
-      blocked.push("STRIPE_REQUIREMENTS_PAST_DUE");
-    }
-    if (asArray(stripeProjection.pending_verification).length > 0) {
-      blocked.push("STRIPE_REQUIREMENTS_PENDING_VERIFICATION");
-    }
-    if (asArray(stripeProjection.requirement_errors).length > 0) {
-      blocked.push("STRIPE_REQUIREMENT_ERRORS");
-    }
-    if (stripeProjection.disabled_reason?.trim()) {
-      blocked.push("STRIPE_ACCOUNT_DISABLED");
-    }
-    if (
-      transferCapabilityStatus &&
-      !["active", "enabled"].includes(transferCapabilityStatus)
-    ) {
+    const transferCapabilityActive =
+      transferCapabilityStatus !== null &&
+      ["active", "enabled"].includes(transferCapabilityStatus);
+
+    // Accounts v2 Recipient settlement authority is the recipient
+    // stripe_transfers capability. Legacy v1 details_submitted /
+    // payouts_enabled and generic payout requirements remain evidence only;
+    // they must not veto an otherwise-active Recipient Transfer capability.
+    if (!transferCapabilityActive) {
+      if (asArray(stripeProjection.currently_due).length > 0) {
+        blocked.push("STRIPE_REQUIREMENTS_CURRENTLY_DUE");
+      }
+      if (asArray(stripeProjection.past_due).length > 0) {
+        blocked.push("STRIPE_REQUIREMENTS_PAST_DUE");
+      }
+      if (asArray(stripeProjection.pending_verification).length > 0) {
+        blocked.push("STRIPE_REQUIREMENTS_PENDING_VERIFICATION");
+      }
+      if (asArray(stripeProjection.requirement_errors).length > 0) {
+        blocked.push("STRIPE_REQUIREMENT_ERRORS");
+      }
+      if (stripeProjection.disabled_reason?.trim()) {
+        blocked.push("STRIPE_ACCOUNT_DISABLED");
+      }
       blocked.push("STRIPE_TRANSFER_CAPABILITY_INACTIVE");
     }
   }
@@ -829,7 +957,10 @@ export async function canReceiveSettlement(input: {
     evidenceSnapshot: {
       accountCapabilityEnabled: capability?.enabled === true,
       economicIdentityStatus: identity.status,
+      primaryLegalEntityIds: primaryLegalEntities.map((row) => row.id),
+      primaryEconomicPersonIds: primaryEconomicPersons.map((row) => row.id),
       verificationCaseIds: verificationCases.map((row) => row.id),
+      qualificationRequired,
       applicableQualificationIds: applicableQualifications.map((row) => row.id),
       economicRestrictionIds: applicableEconomicRestrictions.map((row) => row.id),
       trustRestrictionIds: applicableTrustRestrictions.map((row) => row.id),
@@ -849,6 +980,9 @@ export async function canReceiveSettlement(input: {
         stripeProjection?.requirement_errors
       ).length,
       stripeTransferCapabilityStatus: transferCapabilityStatus,
+      stripeTransferCapabilityActive:
+        transferCapabilityStatus !== null &&
+        ["active", "enabled"].includes(transferCapabilityStatus),
     },
     evaluatedAt,
   });
