@@ -296,18 +296,25 @@ function qualificationApplies(
 
 function verifiedFactStatus(
   statusValue: string,
+  verifiedAt: string | null,
   expiresAt: string | null,
   nowMs: number
 ): "ok" | "review" | "blocked" {
+  const status = statusValue.trim().toLowerCase();
+
+  if (status === "not_required") return "ok";
+  if (status === "human_review") return "review";
+  if (status !== "verified") return "blocked";
+
+  const verified = verifiedAt ? Date.parse(verifiedAt) : Number.NaN;
+  if (!Number.isFinite(verified) || verified > nowMs) return "blocked";
+
   if (expiresAt) {
     const expires = Date.parse(expiresAt);
-    if (Number.isFinite(expires) && expires <= nowMs) return "blocked";
+    if (!Number.isFinite(expires) || expires <= nowMs) return "blocked";
   }
 
-  const status = statusValue.trim().toLowerCase();
-  if (status === "verified" || status === "not_required") return "ok";
-  if (status === "human_review") return "review";
-  return "blocked";
+  return "ok";
 }
 
 function qualificationStatus(
@@ -686,6 +693,7 @@ export async function canReceiveSettlement(input: {
   } else {
     const status = verifiedFactStatus(
       legalEntity.verification_status,
+      legalEntity.verified_at,
       legalEntity.expires_at,
       nowMs
     );
@@ -703,6 +711,7 @@ export async function canReceiveSettlement(input: {
   } else {
     const status = verifiedFactStatus(
       economicPersons[0].verification_status,
+      economicPersons[0].verified_at,
       economicPersons[0].expires_at,
       nowMs
     );
@@ -711,6 +720,10 @@ export async function canReceiveSettlement(input: {
     } else if (status === "review") {
       review.push("ECONOMIC_PERSON_HUMAN_REVIEW_REQUIRED");
     }
+  }
+
+  if (verificationCases.length === 0) {
+    blocked.push("ECONOMIC_VERIFICATION_MISSING");
   }
 
   for (const verification of verificationCases) {
@@ -724,6 +737,7 @@ export async function canReceiveSettlement(input: {
 
     const status = verifiedFactStatus(
       verification.status,
+      verification.verified_at,
       verification.expires_at,
       nowMs
     );
