@@ -16,6 +16,7 @@ import {
 import { assessKlyxStripeMarketAccess } from "@/lib/klyx-stripe-market-access";
 import {
   getProviderStripeDestination,
+  getProviderStripeDestinationStrict,
   isStripeConnectIdentityReviewRequired,
 } from "@/lib/stripe-connect-account";
 import { requireKlyxFinancialStripeRuntime } from "@/lib/klyx-financial-stripe-runtime";
@@ -263,7 +264,10 @@ async function buildFrozenPlan(input: {
   const executorInputs: GroupExecutorInput[] = [];
 
   for (const unit of plan.units) {
-    const destination = await getProviderStripeDestination(unit.providerId);
+    const destination =
+      input.stripeRuntimeMode === "test"
+        ? await getProviderStripeDestination(unit.providerId)
+        : await getProviderStripeDestinationStrict(unit.providerId);
 
     if (
       destination.connect.state !== "linked" ||
