@@ -207,6 +207,23 @@ export function assertStripeConnectRuntimeConfigured(): StripeRuntimeReport {
 }
 
 /**
+ * Stripe truth observation/reconciliation only.
+ *
+ * Incoming signed webhooks and read-only reconciliation must remain available
+ * even when LIVE mutations are killed or the certification canary is disabled.
+ * Only the server secret must match the configured Stripe mode. A webhook
+ * route must still verify its own whsec_ signature before trusting payloads.
+ */
+export function assertStripeObservationRuntimeConfigured(): StripeRuntimeReport {
+  const report = inspectStripeRuntime();
+
+  return assertStripeRuntimeChecks(
+    report,
+    (check) => check.key === "secret_key"
+  );
+}
+
+/**
  * Diagnostic/read-only surfaces only.
  * Validates the full Stripe configuration while deliberately leaving the
  * live-payment switch observable so the UI can explain that real payments are
