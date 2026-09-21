@@ -127,6 +127,8 @@ describe("Mission 18 disaster recovery certification contract", () => {
       "backup did not meet the 24h RPO target"
     );
     expect(offsitePrepare).toContain("Get-FileHash");
+    expect(offsitePrepare).toContain("[Convert]::ToBase64String");
+    expect(offsitePrepare).toContain("offsite_certificate_base64=");
     expect(offsitePrepare).toContain("offsite_certificate_sha256=");
   });
 
@@ -148,11 +150,33 @@ describe("Mission 18 disaster recovery certification contract", () => {
     expect(certification).toContain(
       '-ExpectedCommit "$GITHUB_SHA"'
     );
+    expect(certification).toContain("offsite_certificate_base64");
+    expect(certification).toContain(
+      'certificate.format !== "KLYX_DISASTER_RECOVERY_OFFSITE_CERTIFICATE"'
+    );
+    expect(certification).toContain(
+      "Unexpected field in sanitized offsite certificate"
+    );
+    expect(certification).toContain(
+      "backupCommit !== expectedCommit"
+    );
+    expect(certification).toContain(
+      "certificate.productionWrite !== false"
+    );
+    expect(certification).toContain(
+      "certificate.plaintextRetained !== false"
+    );
+    expect(certification).toContain(
+      'normalized_hash="$(sha256sum "$certificate_file"'
+    );
     expect(certification).toContain("overall=certified");
   });
 
   it("fails closed on stale evidence and publishes a commit status", () => {
     expect(certification).toContain("must be no older than 24 hours");
+    expect(certification).toContain(
+      "Offsite DR backup did not meet the 24h RPO target at restore time."
+    );
     expect(certification).toContain("statuses: write");
     expect(certification).toContain('state="failure"');
     expect(certification).toContain('state="success"');
@@ -165,6 +189,10 @@ describe("Mission 18 disaster recovery certification contract", () => {
     expect(doc).toContain("NOT CERTIFIED");
     expect(doc).toContain(
       "A later `main` commit requires a new certification."
+    );
+    expect(doc).toContain("offsite_certificate_base64");
+    expect(doc).toContain(
+      "GitHub decodes the sanitized offsite certificate itself"
     );
   });
 
