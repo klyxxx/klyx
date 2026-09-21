@@ -26,7 +26,7 @@ const eligibility = read(
   "supabase/migrations/20260920110000_klyx_economic_settlement_eligibility.sql"
 );
 const latestEligibilityGate = read(
-  "supabase/migrations/20260921180000_klyx_settlement_latest_eligibility_gate.sql"
+  "supabase/migrations/20260921180500_klyx_settlement_latest_eligibility_gate.sql"
 );
 const webhookLifecycle = read("scripts/golden-path-service-lifecycle.mjs");
 const settlementChaos = read("scripts/mission19-settlement-eligibility-chaos.mjs");
