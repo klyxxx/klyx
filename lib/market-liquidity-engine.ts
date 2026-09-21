@@ -657,10 +657,17 @@ export function assessKlyxMarketLiquidity(params: {
 
   let liquidityState: KlyxLiquidityState = "thin";
 
-  if (
-    metrics.fillRateBps === 0 ||
-    metrics.quoteProbabilityBps === 0
-  ) {
+  const dryFailure =
+    (
+      reasons.some((reason) => reason.startsWith("fill_rate")) &&
+      metrics.fillRateBps === 0
+    ) ||
+    (
+      reasons.some((reason) => reason.startsWith("quote_probability")) &&
+      metrics.quoteProbabilityBps === 0
+    );
+
+  if (dryFailure) {
     liquidityState = "dry";
   } else if (
     reasons.some(
