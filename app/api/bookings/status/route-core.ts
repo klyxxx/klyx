@@ -1,3 +1,4 @@
+import { requireLiveFinancialMutationAuthorized } from "@/lib/live-financial-runtime-gate";
 import { after, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -219,6 +220,8 @@ async function createStripeRefundOrRecordFailure(params: {
       refundParameters.reverse_transfer = true;
       refundParameters.refund_application_fee = true;
     }
+
+    await requireLiveFinancialMutationAuthorized({ mutation: "refund" });
 
     const refund = await stripe.refunds.create(
       refundParameters,
