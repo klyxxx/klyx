@@ -27,6 +27,11 @@ const founderRoute = fs.readFileSync(
   "utf8"
 );
 
+const marketPolicyServer = fs.readFileSync(
+  path.join(process.cwd(), "lib/klyx-market-policy-server.ts"),
+  "utf8"
+);
+
 const documentation = fs.readFileSync(
   path.join(
     process.cwd(),
@@ -74,6 +79,13 @@ describe("KLYX Global Expansion Control Plane", () => {
 
   it("composes existing payment authority instead of copying tax or payment truth", () => {
     expect(server).toContain("resolveKlyxMarketPaymentPolicy");
+    expect(server).toContain("paymentProvider: paymentProvider");
+    expect(marketPolicyServer).toContain(
+      '.eq("provider", paymentProvider)'
+    );
+    expect(marketPolicyServer).toContain(
+      'params.paymentProvider?.trim().toLowerCase() || "stripe"'
+    );
     expect(server).toContain("payment:");
     expect(migration).not.toContain("stripe_account_id");
     expect(migration).not.toContain("payment_intent");
