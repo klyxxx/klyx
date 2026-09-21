@@ -32,6 +32,40 @@ block
 → human_review
 ```
 
+## Financial Operations Pulse
+
+The LIVE heartbeat gate is backed by real scheduled producers, not manually
+seeded database rows.
+
+```text
+GitHub Actions every 5 minutes
+  -> POST /api/ops/financial-durable-worker
+     -> claim fenced Durable Jobs
+     -> execute only financial_reconciliation_booking
+     -> complete/fail through Mission 14 RPCs
+     -> heartbeat financial_durable_worker
+
+  -> POST /api/ops/critical-alert-delivery
+     -> read Mission 16 monitoring
+     -> critical signal => HTTP 503
+     -> scheduled GitHub Actions run fails
+     -> heartbeat critical_alert_delivery = degraded
+```
+
+The heartbeat writer derives `source_sha` only from
+`VERCEL_GIT_COMMIT_SHA`. A scheduler or caller cannot claim another SHA.
+
+The worker cannot create Checkout, Transfer, TransferReversal, Refund or
+Payout objects. Financial mutations remain in the deterministic domain
+engines and their existing Risk / Eligibility / Operations / exact-SHA gates.
+
+The scheduled workflow is the repository's documented operational alert
+channel. It does not claim external paging or email delivery. A failed
+scheduled run is the alert evidence visible in GitHub Actions.
+
+The runtime freshness budget is 15 minutes for a five-minute schedule. Missing,
+stale, degraded or wrong-SHA heartbeats keep LIVE mutations blocked.
+
 ## Observation vs mutation authority
 
 KLYX deliberately separates two Stripe runtime authorities:
