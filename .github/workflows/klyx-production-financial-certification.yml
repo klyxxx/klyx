@@ -4,16 +4,16 @@ on:
   workflow_dispatch:
     inputs:
       expected_sha:
-        description: "Exact 40-char main SHA to certify"
+        description: "Exact 40-char current main SHA to certify"
         required: true
         type: string
       production_url:
-        description: "Exact public production origin"
+        description: "Canonical public production origin"
         required: true
         default: "https://klyx.be"
         type: string
       evidence_manifest_base64:
-        description: "Base64 sanitized 40-cell evidence manifest"
+        description: "Base64 sanitized 40-cell Mission 1 evidence manifest"
         required: true
         type: string
       confirm_controlled_live:
@@ -32,19 +32,19 @@ concurrency:
 jobs:
   certify:
     name: Certify KLYX production financial truth
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     env:
       KLYX_EXPECTED_SHA: ${{ inputs.expected_sha }}
       KLYX_PRODUCTION_URL: ${{ inputs.production_url }}
+      KLYX_PRODUCTION_FINANCIAL_MANIFEST_BASE64: ${{ inputs.evidence_manifest_base64 }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      KLYX_FINANCIAL_RECONCILIATION_SECRET: ${{ secrets.KLYX_FINANCIAL_RECONCILIATION_SECRET }}
-      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      KLYX_FINANCIAL_RECONCILIATION_SECRET: ${{ secrets.KLYX_FINANCIAL_RECONCILIATION_SECRET }}
+      KLYX_LIVE_CERTIFICATION_PROFILE_ID: ${{ secrets.KLYX_LIVE_CERTIFICATION_PROFILE_ID }}
 
     steps:
       - name: Publish pending certification status
@@ -54,7 +54,7 @@ jobs:
         run: |
           set -euo pipefail
           payload="$(jq -n             --arg state "pending"             --arg context "KLYX Production Financial Certification"             --arg description "Validating controlled LIVE financial truth"             --arg target_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"             '{state:$state,context:$context,description:$description,target_url:$target_url}')"
-          curl --fail-with-body --silent --show-error             --request POST             --header "Accept: application/vnd.github+json"             --header "Authorization: Bearer ${GH_TOKEN}"             --header "X-GitHub-Api-Version: 2022-11-28"             "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}"             --data "${payload}"
+          curl --fail-with-body --silent --show-error             --request POST             --header "Accept: application/vnd.github+json"             --header "Authorization: Bearer ${GH_TOKEN}"             --header "X-GitHub-Api-Version: 2022-11-28"             "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}"             --data "${payload}" >/dev/null
 
       - name: Verify explicit controlled-LIVE confirmation
         shell: bash
@@ -65,16 +65,35 @@ jobs:
             exit 1
           fi
 
-      - name: Verify immutable main SHA
+      - name: Verify immutable current main SHA
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+
           if ! [[ "$KLYX_EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::Invalid expected SHA."
             exit 1
           fi
+
+          if [ "$GITHUB_REF_NAME" != "main" ]; then
+            echo "::error::Production financial certification is main-only."
+            exit 1
+          fi
+
           if [ "$GITHUB_SHA" != "$KLYX_EXPECTED_SHA" ]; then
             echo "::error::Certification SHA mismatch."
+            exit 1
+          fi
+
+          main_sha="$(
+            curl --fail-with-body --silent --show-error               --header "Accept: application/vnd.github+json"               --header "Authorization: Bearer ${GH_TOKEN}"               --header "X-GitHub-Api-Version: 2022-11-28"               "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/git/ref/heads/main" |
+              jq -r '.object.sha'
+          )"
+
+          if [ "$main_sha" != "$KLYX_EXPECTED_SHA" ]; then
+            echo "::error::main moved: expected $KLYX_EXPECTED_SHA, current $main_sha."
             exit 1
           fi
 
@@ -84,14 +103,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          response="$(curl --fail-with-body --silent --show-error             --header "Accept: application/vnd.github+json"             --header "Authorization: Bearer ${GH_TOKEN}"             --header "X-GitHub-Api-Version: 2022-11-28"             "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/status")"
+          response="$(
+            curl --fail-with-body --silent --show-error               --header "Accept: application/vnd.github+json"               --header "Authorization: Bearer ${GH_TOKEN}"               --header "X-GitHub-Api-Version: 2022-11-28"               "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/commits/${KLYX_EXPECTED_SHA}/statuses?per_page=100"
+          )"
+
           if ! printf '%s' "$response" | jq -e '
-            [.statuses[] |
-              select(
-                .context == "KLYX Disaster Recovery Certification" and
-                .state == "success"
-              )
-            ] | length > 0
+            any(
+              .[];
+              .context == "KLYX Disaster Recovery Certification"
+              and .state == "success"
+            )
           ' >/dev/null; then
             echo "::error::Exact SHA is not DR-certified."
             exit 1
@@ -100,6 +121,7 @@ jobs:
       - name: Checkout exact repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          ref: ${{ inputs.expected_sha }}
           persist-credentials: false
 
       - name: Setup Node.js
@@ -115,17 +137,18 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for variable in             NEXT_PUBLIC_SUPABASE_URL             SUPABASE_SERVICE_ROLE_KEY             KLYX_FINANCIAL_RECONCILIATION_SECRET             STRIPE_SECRET_KEY             SUPABASE_DB_URL
+          for variable in             NEXT_PUBLIC_SUPABASE_URL             SUPABASE_SERVICE_ROLE_KEY             SUPABASE_DB_URL             KLYX_FINANCIAL_RECONCILIATION_SECRET             KLYX_LIVE_CERTIFICATION_PROFILE_ID
           do
             if [ -z "${!variable:-}" ]; then
               echo "::error::Missing certification secret: ${variable}"
               exit 1
             fi
           done
-          if [[ "$STRIPE_SECRET_KEY" != sk_live_* ]]; then
-            echo "::error::Certification requires a Stripe LIVE secret."
-            exit 1
-          fi
+
+          case "$KLYX_PRODUCTION_URL" in
+            https://*) ;;
+            *) echo "::error::Production URL must use HTTPS."; exit 1 ;;
+          esac
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
@@ -151,37 +174,17 @@ jobs:
           NODE
           )"
           echo "::add-mask::$effective_db_url"
-          mkdir -p certification-proof
-          supabase db push             --db-url "$effective_db_url"             --dry-run 2>&1 | tee certification-proof/supabase-dry-run.txt
-          if grep -Fqi "Would push these migrations" certification-proof/supabase-dry-run.txt; then
+          mkdir -p production-financial-certification-proof
+          supabase db push             --db-url "$effective_db_url"             --dry-run 2>&1 |
+            tee production-financial-certification-proof/supabase-dry-run.txt
+
+          if grep -Fqi "Would push these migrations" production-financial-certification-proof/supabase-dry-run.txt; then
             echo "::error::Production Supabase has pending migrations."
             exit 1
           fi
 
-      - name: Decode sanitized evidence manifest
-        shell: bash
-        env:
-          MANIFEST_BASE64: ${{ inputs.evidence_manifest_base64 }}
-        run: |
-          set -euo pipefail
-          mkdir -p certification-input certification-proof
-          printf '%s' "$MANIFEST_BASE64" | base64 --decode > certification-input/manifest.json
-          node -e '
-            const fs=require("fs");
-            const p="certification-input/manifest.json";
-            const s=fs.statSync(p).size;
-            if (s < 10 || s > 65536) process.exit(2);
-            JSON.parse(fs.readFileSync(p,"utf8"));
-          '
-
       - name: Run 40-cell canonical financial certification
-        shell: bash
-        env:
-          KLYX_FINANCIAL_CERT_MANIFEST_PATH: certification-input/manifest.json
-          KLYX_FINANCIAL_CERT_PROOF_PATH: certification-proof/result.json
-        run: |
-          set -euo pipefail
-          node scripts/verify-klyx-production-financial-certification.mjs
+        run: node scripts/certify-production-financial-matrix.mjs
 
       - name: Guard sanitized proof
         shell: bash
@@ -189,12 +192,18 @@ jobs:
           set -euo pipefail
           node <<'NODE'
           const fs = require("fs");
-          const proof = JSON.parse(
-            fs.readFileSync("certification-proof/result.json", "utf8")
-          );
-          if (proof.overall !== "certified" || proof.matrixCells !== 40) {
+          const path = "production-financial-certification-proof/summary.json";
+          const proof = JSON.parse(fs.readFileSync(path, "utf8"));
+          if (
+            proof.overall !== "certified" ||
+            proof.requiredCells !== 40 ||
+            proof.certifiedCells !== 40 ||
+            proof.noSilentCorrection !== true ||
+            proof.equalityInvariant !== "klyx_ledger=settlement=stripe"
+          ) {
             process.exit(2);
           }
+
           const raw = JSON.stringify(proof);
           for (const forbidden of [
             "sk_live_",
@@ -203,17 +212,20 @@ jobs:
             "bookingIds",
             "stripe_payment_intent_id",
             "stripe_transfer_id",
-            "stripe_refund_id"
+            "stripe_refund_id",
+            "parent_id",
+            "provider_account_id"
           ]) {
             if (raw.includes(forbidden)) process.exit(3);
           }
           NODE
 
       - name: Upload sanitized certification proof
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: klyx-production-financial-certification-${{ github.sha }}
-          path: certification-proof/result.json
+          path: production-financial-certification-proof/summary.json
           if-no-files-found: error
           retention-days: 90
 
@@ -226,19 +238,21 @@ jobs:
         run: |
           set -euo pipefail
           state="failure"
-          description="Mission 1 financial certification failed"
+          description="Mission 1 NOT CERTIFIED: production financial gate failed"
+
           if [ "$JOB_STATUS" = "success" ]; then
             state="success"
-            description="40/40 LIVE financial truth cells certified"
+            description="40/40 LIVE cells coherent: Ledger = Settlement = Stripe"
           elif [ "$JOB_STATUS" = "cancelled" ]; then
             state="error"
             description="Mission 1 certification cancelled"
           fi
-          payload="$(jq -n             --arg state "$state"             --arg context "KLYX Production Financial Certification"             --arg description "$description"             --arg target_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"             '{state:$state,context:$context,description:$description,target_url:$target_url}')"
-          curl --fail-with-body --silent --show-error             --request POST             --header "Accept: application/vnd.github+json"             --header "Authorization: Bearer ${GH_TOKEN}"             --header "X-GitHub-Api-Version: 2022-11-28"             "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}"             --data "${payload}"
 
-      - name: Destroy raw manifest
-        if: always()
-        shell: bash
-        run: |
-          rm -rf certification-input
+          target_sha="${KLYX_EXPECTED_SHA:-$GITHUB_SHA}"
+          if ! [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            target_sha="$GITHUB_SHA"
+          fi
+
+          payload="$(jq -n             --arg state "$state"             --arg context "KLYX Production Financial Certification"             --arg description "$description"             --arg target_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"             '{state:$state,context:$context,description:$description,target_url:$target_url}')"
+
+          curl --fail-with-body --silent --show-error             --request POST             --header "Accept: application/vnd.github+json"             --header "Authorization: Bearer ${GH_TOKEN}"             --header "X-GitHub-Api-Version: 2022-11-28"             "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/statuses/${target_sha}"             --data "${payload}" >/dev/null
