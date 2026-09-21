@@ -31,11 +31,15 @@ describe("KLYX Vercel deployment gate", () => {
     expect(script).toContain("KLYX Security Certification");
     expect(script).toContain("KLYX Golden Path");
     expect(script).toContain("KLYX E2E");
+    expect(script).toContain("KLYX_RELEASE_SHA");
+    expect(script).toContain("KLYX_BUILD_RELEASE_SHA");
     expect(script).toContain("vercel build --prod");
     expect(script).toContain("vercel deploy --prebuilt --prod");
     expect(script).toContain('klyxMainSha=$sha');
     expect(script).toContain("central-klyx-chat");
     expect(script).toContain("npm run ops:smoke");
+    expect(script).toContain("health.releaseSha");
+    expect(script).toContain("Release SHA mismatch");
     expect(script).toContain("https://www.klyx.be");
   });
 
