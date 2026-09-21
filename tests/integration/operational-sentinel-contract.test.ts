@@ -95,6 +95,7 @@ describe("KLYX operational sentinel contract", () => {
       status: "ok",
       service: "klyx",
       check: "liveness",
+      releaseSha: null,
     });
 
     const head = HEAD();
