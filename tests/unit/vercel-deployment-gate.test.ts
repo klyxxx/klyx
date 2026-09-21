@@ -31,6 +31,10 @@ describe("KLYX Vercel deployment gate", () => {
     expect(script).toContain("KLYX Security Certification");
     expect(script).toContain("KLYX Golden Path");
     expect(script).toContain("KLYX E2E");
+    expect(script).toContain("Assert-GreenExactShaChecks");
+    expect(script).toContain("workflow_dispatch");
+    expect(script).toContain("head_sha -eq $Sha");
+    expect(script).toContain("KLYX_DEPLOYMENT_GATE_EXACT_SHA_DISPATCH");
     expect(script).toContain("vercel build --prod");
     expect(script).toContain("vercel deploy --prebuilt --prod");
     expect(script).toContain('klyxMainSha=$sha');
@@ -47,6 +51,9 @@ describe("KLYX Vercel deployment gate", () => {
     expect(contract).toContain("must not create Vercel production or preview deployments");
     expect(contract).toContain("Vercel Deploy Hooks must not be created or invoked");
     expect(contract).toContain("Only the central KLYX chat is authorized");
+    expect(contract).toContain("workflow_dispatch");
+    expect(contract).toContain("head_sha");
+    expect(contract).toContain("current exact `main` SHA");
     expect(contract).toContain("klyxMainSha");
     expect(contract).toContain("/api/health");
     expect(contract).toContain("vercel rollback");
