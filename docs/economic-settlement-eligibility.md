@@ -34,16 +34,35 @@ The economic decision is necessary but not sufficient. The independent transacti
 An `allowed` decision also requires, among other applicable facts:
 
 - canonical `accounts.id` with `offer_services` enabled;
-- no blocking or human-review economic identity state;
-- satisfied KYC/KYB/regulatory verification cases;
+- an economic identity in the explicit `ready` state;
+- one primary legal entity and one unambiguous primary economic person with current verified evidence;
+- at least one satisfied, non-expired KYC/KYB/regulatory verification case;
 - no applicable economic restriction;
-- no contradictory applicable account qualification;
+- at least one applicable account qualification, with no contradiction or pending review;
 - an applicable non-expired Trust & Safety activity-eligibility decision;
 - no applicable Trust & Safety payout/platform restriction;
 - a linked canonical Stripe identity matching the frozen settlement destination;
 - a non-divergent economic Stripe projection with no current blocking requirements.
 
 Immediately before a new Transfer, KLYX re-evaluates economic eligibility and reads remote Stripe recipient capability/status again.
+
+For settlement, missing evidence is not success. Missing legal identity facts, missing KYC/KYB evidence, missing qualifications, stale verification timestamps and non-ready economic identities fail closed. A human-review state never creates a Transfer automatically.
+
+## Runtime certification matrix
+
+The dedicated economic-chain certification runs against ephemeral Supabase and Stripe TEST network objects. It covers:
+
+- verified → `allowed`;
+- pending → `blocked`;
+- expired → `blocked`;
+- restricted → `blocked`;
+- qualification missing → `blocked`;
+- jurisdiction/country restriction → `blocked`;
+- Stripe payouts disabled → `blocked`;
+- Stripe requirements currently due → `blocked`;
+- human review → `human_review`.
+
+The critical network proof additionally requires a real Stripe TEST recipient that is transfer-ready while a KLYX jurisdiction restriction is active. KLYX must persist a blocked economic decision and create zero Stripe Transfers.
 
 ## Group settlements
 
