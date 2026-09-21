@@ -242,7 +242,7 @@ async function claimCheckout(parentId: string, claimToken: string) {
 
 async function buildFrozenPlan(input: {
   confirmation: ConfirmationRow;
-  stripeRuntimeMode: ReturnType<typeof assertStripeRuntimeReady>["mode"];
+  stripeRuntimeMode: "test" | "live";
   stripe: Stripe;
 }) {
   const plan = parseCanonicalPlan(input.confirmation.payment_plan_snapshot);
@@ -493,7 +493,7 @@ export async function POST(request: Request, context: RouteContext) {
     const confirmation = await loadConfirmation(batchId, profile.id);
     const { plan, economics } = await buildFrozenPlan({
       confirmation,
-      stripeRuntimeMode: stripeRuntime.mode,
+      stripeRuntimeMode: stripeMode,
       stripe,
     });
 
