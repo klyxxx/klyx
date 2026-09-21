@@ -85,8 +85,12 @@ describe("KLYX Stripe webhook retry lease contract", () => {
     expect(route).toMatch(
       /markStripeWebhookProcessed\(\s*event\.id,\s*attemptCount/
     );
+    expect(route).toMatch(/const internalFailureCode =/);
     expect(route).toMatch(
-      /markStripeWebhookFailed\(\s*event\.id,\s*claimAttemptCount,\s*"stripe_webhook_processing_failed"/
+      /`stripe_webhook_processing_failed_\$\{error\.message\}`/
+    );
+    expect(route).toMatch(
+      /markStripeWebhookFailed\(\s*event\.id,\s*claimAttemptCount,\s*internalFailureCode/
     );
     expect(route).toMatch(
       /failureMarkResult ===[\s\S]*"superseded"[\s\S]*return supersededClaimResponse/
