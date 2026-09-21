@@ -9,12 +9,15 @@ export const KLYX_SETTLEMENT_LIVE_NOT_READY =
   "KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY";
 export const KLYX_SETTLEMENT_TEST_NOT_ARMED =
   "KLYX_SETTLEMENT_CONTROL_TEST_NOT_ARMED";
+export const KLYX_SETTLEMENT_LIVE_NOT_ARMED =
+  "KLYX_SETTLEMENT_CONTROL_LIVE_NOT_ARMED";
 export const KLYX_SETTLEMENT_MODE_INVALID =
   "KLYX_SETTLEMENT_MODE_INVALID";
 
 export type SettlementEnvironment = {
   KLYX_STRIPE_SETTLEMENT_MODE?: string;
   KLYX_SETTLEMENT_CONTROL_TEST_READY?: string;
+  KLYX_SETTLEMENT_CONTROL_LIVE_READY?: string;
   STRIPE_SECRET_KEY?: string;
 };
 
@@ -33,6 +36,8 @@ function runtimeSettlementEnvironment(): SettlementEnvironment {
     KLYX_STRIPE_SETTLEMENT_MODE: process.env.KLYX_STRIPE_SETTLEMENT_MODE,
     KLYX_SETTLEMENT_CONTROL_TEST_READY:
       process.env.KLYX_SETTLEMENT_CONTROL_TEST_READY,
+    KLYX_SETTLEMENT_CONTROL_LIVE_READY:
+      process.env.KLYX_SETTLEMENT_CONTROL_LIVE_READY,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
   };
 }
@@ -58,9 +63,11 @@ function normalizedRequestedMode(
  * held-funds release path has passed migration, Stripe TEST, Golden Path,
  * security, performance and E2E certification on one immutable SHA.
  *
- * This guard intentionally has no live override in phase 1. Adding one before
- * the release side effect exists would let KLYX collect provider funds without
- * a certified way to settle them.
+ * LIVE capability is only a static code-path capability. It never authorizes
+ * money movement by itself: every LIVE side effect must also pass the
+ * asynchronous KLYX financial LIVE authorization gate (exact release SHA,
+ * explicit DB arm state, operational proofs, circuit breakers, ledger and
+ * Economic Eligibility).
  */
 export function getKlyxSettlementMode(
   env: SettlementEnvironment = runtimeSettlementEnvironment()
@@ -74,6 +81,13 @@ export function getKlyxSettlementMode(
   const secret = env.STRIPE_SECRET_KEY?.trim() ?? "";
 
   if (secret.startsWith("sk_live_")) {
+    if (!envTrue(env.KLYX_SETTLEMENT_CONTROL_LIVE_READY)) {
+      throw new Error(KLYX_SETTLEMENT_LIVE_NOT_ARMED);
+    }
+    return KLYX_PLATFORM_HELD_SETTLEMENT_MODE;
+  }
+
+  if (!secret.startsWith("sk_test_")) {
     throw new Error(KLYX_SETTLEMENT_LIVE_NOT_READY);
   }
 
