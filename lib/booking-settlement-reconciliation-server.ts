@@ -14,12 +14,11 @@ import {
   STRIPE_CONNECT_IDENTITY_REVIEW_REQUIRED,
 } from "@/lib/stripe-connect-account-identity";
 import { markBookingPaidFromSession } from "@/lib/stripe-payments";
+import { requireKlyxFinancialStripeRuntimeForBooking } from "@/lib/klyx-financial-stripe-runtime";
 import { reconcileStripeRefund } from "@/lib/stripe-refunds";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 const PAYMENT_MODE = "platform_held" as const;
-const TEST_KEY_REQUIRED = "KLYX_SETTLEMENT_STRIPE_TEST_KEY_REQUIRED";
-const LIVE_FORBIDDEN = "KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY";
 const CLAIM_TTL_MS = 10 * 60 * 1000;
 
 export type SettlementReconciliationSource =
@@ -124,20 +123,6 @@ class SettlementTruthMismatchError extends Error {
     this.name = "SettlementTruthMismatchError";
     this.code = code;
   }
-}
-
-function testStripeClient(): Stripe {
-  const key = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
-
-  if (key.startsWith("sk_live_")) {
-    throw new Error(LIVE_FORBIDDEN);
-  }
-
-  if (!key.startsWith("sk_test_")) {
-    throw new Error(TEST_KEY_REQUIRED);
-  }
-
-  return new Stripe(key);
 }
 
 function stripeObjectId(
@@ -861,7 +846,9 @@ export async function reconcilePlatformHeldBookingSettlement(input: {
 
     await assertCanonicalProviderIdentity(context.settlement);
 
-    const stripe = testStripeClient();
+    const financialRuntime =
+      await requireKlyxFinancialStripeRuntimeForBooking(input.bookingId);
+    const stripe = new Stripe(financialRuntime.key);
     context = await ensurePaymentTruth(
       stripe,
       context,
