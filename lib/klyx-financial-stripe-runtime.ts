@@ -12,7 +12,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA_RE = /^[0-9a-f]{40}$/;
-const LIVE_HEARTBEAT_MAX_AGE_MS = 3 * 60 * 1000;
+const LIVE_HEARTBEAT_MAX_AGE_MS = 15 * 60 * 1000;
 
 export type KlyxFinancialCapability =
   | "payments"
