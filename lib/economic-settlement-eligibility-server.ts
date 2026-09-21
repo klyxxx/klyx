@@ -903,31 +903,30 @@ export async function canReceiveSettlement(input: {
       stripeProjection.capabilities
     );
 
-    if (!stripeProjection.details_submitted) {
-      blocked.push("STRIPE_DETAILS_NOT_SUBMITTED");
-    }
-    if (!stripeProjection.payouts_enabled) {
-      blocked.push("STRIPE_PAYOUTS_NOT_ENABLED");
-    }
-    if (asArray(stripeProjection.currently_due).length > 0) {
-      blocked.push("STRIPE_REQUIREMENTS_CURRENTLY_DUE");
-    }
-    if (asArray(stripeProjection.past_due).length > 0) {
-      blocked.push("STRIPE_REQUIREMENTS_PAST_DUE");
-    }
-    if (asArray(stripeProjection.pending_verification).length > 0) {
-      blocked.push("STRIPE_REQUIREMENTS_PENDING_VERIFICATION");
-    }
-    if (asArray(stripeProjection.requirement_errors).length > 0) {
-      blocked.push("STRIPE_REQUIREMENT_ERRORS");
-    }
-    if (stripeProjection.disabled_reason?.trim()) {
-      blocked.push("STRIPE_ACCOUNT_DISABLED");
-    }
-    if (
-      transferCapabilityStatus &&
-      !["active", "enabled"].includes(transferCapabilityStatus)
-    ) {
+    const transferCapabilityActive =
+      transferCapabilityStatus !== null &&
+      ["active", "enabled"].includes(transferCapabilityStatus);
+
+    // Accounts v2 Recipient settlement authority is the recipient
+    // stripe_transfers capability. Legacy v1 details_submitted /
+    // payouts_enabled and generic payout requirements remain evidence only;
+    // they must not veto an otherwise-active Recipient Transfer capability.
+    if (!transferCapabilityActive) {
+      if (asArray(stripeProjection.currently_due).length > 0) {
+        blocked.push("STRIPE_REQUIREMENTS_CURRENTLY_DUE");
+      }
+      if (asArray(stripeProjection.past_due).length > 0) {
+        blocked.push("STRIPE_REQUIREMENTS_PAST_DUE");
+      }
+      if (asArray(stripeProjection.pending_verification).length > 0) {
+        blocked.push("STRIPE_REQUIREMENTS_PENDING_VERIFICATION");
+      }
+      if (asArray(stripeProjection.requirement_errors).length > 0) {
+        blocked.push("STRIPE_REQUIREMENT_ERRORS");
+      }
+      if (stripeProjection.disabled_reason?.trim()) {
+        blocked.push("STRIPE_ACCOUNT_DISABLED");
+      }
       blocked.push("STRIPE_TRANSFER_CAPABILITY_INACTIVE");
     }
   }
@@ -981,6 +980,9 @@ export async function canReceiveSettlement(input: {
         stripeProjection?.requirement_errors
       ).length,
       stripeTransferCapabilityStatus: transferCapabilityStatus,
+      stripeTransferCapabilityActive:
+        transferCapabilityStatus !== null &&
+        ["active", "enabled"].includes(transferCapabilityStatus),
     },
     evaluatedAt,
   });
