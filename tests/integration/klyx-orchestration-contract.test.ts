@@ -50,7 +50,7 @@ describe("KLYX orchestration contract", () => {
     expect(server).toContain('.from("service_profiles")');
     expect(server).toContain('.from("availability_slots")');
     expect(server).toContain('.from("provider_service_zones")');
-    expect(server).toContain("providerZonesCoverBelgianLocality");
+    expect(server).toContain("providerZonesCoverLocation");
     expect(server).toContain("distanceBetweenLocalitiesKm");
     expect(server).toContain("confirmedMissions");
   });

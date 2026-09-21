@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { providerZonesCoverBelgianLocality } from "@/lib/provider-search-zone-coverage";
+import {
+  providerZonesCoverBelgianLocality,
+  providerZonesCoverLocation,
+} from "@/lib/provider-search-zone-coverage";
 
 const brusselsZone = {
   countryCode: "BE",
@@ -46,7 +49,45 @@ describe("provider search canonical zone coverage", () => {
     expect(providerZonesCoverBelgianLocality([brusselsZone], "Invented City")).toBe(false);
   });
 
-  it("fails closed for non-BE, inactive, ungeocoded, and invalid-radius zones", () => {
+  it("supports exact canonical locality matching outside Belgium without a country allow-list", () => {
+    expect(
+      providerZonesCoverLocation(
+        [
+          {
+            countryCode: "FR",
+            locality: "Paris",
+            postalCode: "75001",
+            radiusKm: 10,
+            isActive: true,
+          },
+        ],
+        {
+          locality: "Paris",
+          countryCode: "FR",
+        }
+      )
+    ).toBe(true);
+
+    expect(
+      providerZonesCoverLocation(
+        [
+          {
+            countryCode: "FR",
+            locality: "Paris",
+            postalCode: "75001",
+            radiusKm: 10,
+            isActive: true,
+          },
+        ],
+        {
+          locality: "Paris",
+          countryCode: "BE",
+        }
+      )
+    ).toBe(false);
+  });
+
+  it("fails closed for non-BE legacy calls, inactive, ungeocoded, and invalid-radius zones", () => {
     expect(
       providerZonesCoverBelgianLocality(
         [{ ...brusselsZone, countryCode: "FR" }],
