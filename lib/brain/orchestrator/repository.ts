@@ -152,16 +152,14 @@ export async function createOrResumeWorkflow(params: {
       mode: params.mode,
     });
 
-    if (current) return current;
-
-    const recovered = await resumeOrphanedWorkflow({
-      accountId: params.accountId,
-      profileId: params.profileId,
-      conversationId: params.conversationId,
-      mode: params.mode,
-    });
-
-    if (recovered) return recovered;
+    if (!current) {
+      await resumeOrphanedWorkflow({
+        accountId: params.accountId,
+        profileId: params.profileId,
+        conversationId: params.conversationId,
+        mode: params.mode,
+      });
+    }
   }
 
   const { data, error } = await supabaseAdmin.rpc(
