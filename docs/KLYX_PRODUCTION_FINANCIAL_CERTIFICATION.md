@@ -143,10 +143,16 @@ Before the matrix may be evaluated:
 - the controlled certification canary is explicitly enabled for the exact SHA;
 - Stripe secret and publishable keys match LIVE mode;
 - LIVE webhook secret is configured;
-- canonical Connect identity is available;
+- canonical Connect identity is available from `account_stripe_connect_identities` with no LIVE bootstrap from `profiles.stripe_account_id`;
 - Supabase production schema is current;
-- Operations control plane does not block payments;
+- Operations control plane does not block `payments` or the specific mutation capability;
 - Circuit breakers and incident engine are operational;
+- `financial_durable_worker` heartbeat is `healthy`, fresh, and emitted by the deployed SHA;
+- `critical_alert_delivery` heartbeat is `healthy`, fresh, and emitted by the deployed SHA;
+- finance/Stripe DLQ is empty;
+- no critical operational or financial monitoring signal is open;
+- canonical financial ledger is readable;
+- no `financial_reconciliation_current` row remains in `reconciliation` or `human_review`;
 - central financial reconciliation is configured;
 - DR is certified for the exact SHA.
 
