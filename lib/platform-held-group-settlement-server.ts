@@ -1,3 +1,4 @@
+import { assertLiveFinancialStaticGate, assertStripeFinancialObjectMode } from "@/lib/live-financial-runtime-policy";
 import { requireLiveFinancialMutationAuthorized } from "@/lib/live-financial-runtime-gate";
 import "server-only";
 
@@ -140,10 +141,13 @@ export type GroupRefundResult =
       reconciled: boolean;
     };
 
-function testStripeClient(): Stripe {
+function financialStripeClient(): Stripe {
   const key = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
 
-  if (key.startsWith("sk_live_")) throw new Error(LIVE_FORBIDDEN);
+  if (key.startsWith("sk_live_")) {
+    assertLiveFinancialStaticGate();
+    return new Stripe(key);
+  }
   if (!key.startsWith("sk_test_")) throw new Error(TEST_KEY_REQUIRED);
 
   return new Stripe(key);
@@ -249,7 +253,7 @@ function verifyMemberTransfer(input: {
   const expectedAmountCents =
     input.expectedAmountCents ?? memberExpectedTransferAmount(member);
 
-  if (transfer.livemode) throw new Error(LIVE_FORBIDDEN);
+  assertStripeFinancialObjectMode(transfer.livemode);
   if (
     transfer.metadata?.payment_mode !== PAYMENT_MODE ||
     transfer.metadata?.split_batch_id !== parent.batch_id ||
@@ -286,7 +290,7 @@ async function listAndValidateTransfers(
   let netTotal = 0;
 
   for (const transfer of listed.data) {
-    if (transfer.livemode) throw new Error(LIVE_FORBIDDEN);
+    assertStripeFinancialObjectMode(transfer.livemode);
 
     const memberId = transfer.metadata?.group_settlement_member_id?.trim() ?? "";
     const member = memberById.get(memberId);
@@ -454,7 +458,7 @@ async function failReleaseClaim(
 export async function releasePlatformHeldGroupMember(
   memberId: string
 ): Promise<GroupMemberReleaseResult> {
-  const stripe = testStripeClient();
+  const stripe = financialStripeClient();
   let member = await loadMember(memberId);
   const parent = await loadParent(member.group_settlement_id);
 
@@ -646,9 +650,10 @@ export async function releasePlatformHeldGroupMember(
       member.stripe_account_id
     );
 
+    assertStripeFinancialObjectMode(stripeTruth.livemode);
+
     if (
       stripeTruth.stripeAccountId !== member.stripe_account_id ||
-      stripeTruth.livemode ||
       !stripeTruth.transferCapabilityActive
     ) {
       await failReleaseClaim(
@@ -1184,7 +1189,7 @@ export async function refundPlatformHeldGroup(input: {
   requesterProfileId: string;
   request: GroupRefundRequest;
 }): Promise<GroupRefundResult> {
-  const stripe = testStripeClient();
+  const stripe = financialStripeClient();
   const parent = await loadParentByBatch(input.batchId);
 
   if (parent.client_profile_id !== input.requesterProfileId) {
@@ -1428,7 +1433,7 @@ export async function reconcilePlatformHeldGroupRefundFromStripe(
     return false;
   }
 
-  const stripe = testStripeClient();
+  const stripe = financialStripeClient();
   const refund = await loadRefund(stripeRefund.metadata.group_refund_id);
   const parent = await loadParent(refund.group_settlement_id);
   const chargeId = stripeObjectId(stripeRefund.charge);
@@ -1451,7 +1456,7 @@ export async function reconcilePlatformHeldGroupRefundFromStripe(
   }
 
   const charge = await stripe.charges.retrieve(chargeId);
-  if (charge.livemode) throw new Error(LIVE_FORBIDDEN);
+  assertStripeFinancialObjectMode(charge.livemode);
 
   if (stripeRefund.status === "succeeded") {
     await finalizeRefund(refund, stripeRefund);
