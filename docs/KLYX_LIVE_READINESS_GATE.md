@@ -5,8 +5,10 @@
 This gate is the final fail-closed checklist before any future Stripe Live
 activation of Platform-Held settlement.
 
-**Live is OFF.** This document does not activate Live, relax any `sk_live_*`
-guard, change any payout behavior, or authorize production money movement.
+**General Live is OFF.** The automated network proofs in this document remain
+strictly TEST-only. Mission 1 may arm a separate controlled LIVE certification
+canary for one exact deployed/DR-certified SHA and one dedicated client profile;
+that canary does not authorize general production financial traffic.
 
 The gate is conjunctive:
 
@@ -51,7 +53,8 @@ head:
 - no reversal for an unreleased beneficiary;
 - Stripe truth lookup before Transfer, reversal or refund creation;
 - retry/reconciliation that does not mint duplicate Stripe side effects;
-- TEST-only runtime with `sk_live_*` hard-blocked.
+- TEST-only runtime in the automated Split proof; the proof workflow never uses
+  `sk_live_*`.
 
 ## Final decision rule
 
@@ -66,11 +69,14 @@ head is green for:
 - UX / Visual Certification;
 - dedicated Stripe TEST true Split Settlement network proof.
 
-Even after that certification and merge:
+Even after TEST certification and merge:
 
-**KLYX Stripe Live remains OFF.**
+**KLYX general Stripe Live remains OFF.**
 
-A future Live-enablement change must be a separate mission and may proceed only
-after re-validating every row of this gate against the then-current `main`,
-Stripe account configuration, production migration state, operational alerts,
-runbooks, and rollback controls.
+Mission 1 production certification is a separate, fail-closed gate. It requires
+the exact deployed SHA to be DR-certified, general LIVE to remain disabled
+during the canary, a dedicated certification profile, current production
+migrations, and all 40 scenario/topology cells to satisfy
+`KLYX Ledger = Settlement truth = Stripe truth`. Only a later explicit
+general-LIVE activation for that same certified SHA may remove the canary-only
+restriction.
