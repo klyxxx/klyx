@@ -72,3 +72,56 @@ Mission 11 does not:
 - replace Trust & Safety activity eligibility;
 - add a country-specific product boundary;
 - deploy to Vercel.
+
+
+## Real-conditions economic-chain certification
+
+The settlement authority must be exercised as one end-to-end chain:
+
+```text
+account
+→ economic identity
+→ primary legal person/entity
+→ KYC/KYB verification
+→ canonical Stripe projection
+→ account qualifications
+→ activity eligibility
+→ economic settlement eligibility
+→ settlement claim
+→ remote Stripe truth
+→ Stripe Transfer
+```
+
+A new beneficiary money movement is fail-closed unless every applicable KLYX
+authority is satisfied. The certification matrix executes the following states
+against ephemeral Supabase:
+
+- verified → `allowed`;
+- pending → `blocked`;
+- expired → `blocked`;
+- restricted → `blocked`;
+- required qualification missing → `blocked`;
+- jurisdiction/country restriction → `blocked`;
+- Stripe payouts disabled → `blocked`;
+- Stripe requirements currently due → `blocked`;
+- human review → `human_review`.
+
+The network proof then uses a real Stripe TEST connected recipient and a real
+platform-held TEST charge. Stripe is deliberately kept recipient-ready while
+KLYX injects a jurisdiction restriction. Mission completion remains durable,
+but settlement becomes `review_required` and the Stripe transfer count for the
+booking remains zero.
+
+**Invariant:**
+
+```text
+Stripe recipient ready
++
+KLYX economic eligibility != allowed
+=
+NO NEW BENEFICIARY TRANSFER
+```
+
+Reconciliation of an already-existing Stripe Transfer remains a separate
+external-truth recovery operation; this invariant governs creation of new money
+movement.
