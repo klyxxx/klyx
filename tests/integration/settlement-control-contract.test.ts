@@ -12,12 +12,17 @@ function compact(source: string) {
 }
 
 describe("KLYX settlement control phase-1 contract", () => {
-  it("keeps live platform-held settlement fail-closed", () => {
+  it("keeps platform-held LIVE fail-closed behind exact-SHA certification gates", () => {
     const source = read("lib/stripe-settlement-control.ts");
 
     expect(source).toContain("KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY");
     expect(source).toContain('secret.startsWith("sk_live_")');
     expect(source).toContain("KLYX_SETTLEMENT_CONTROL_TEST_READY");
+    expect(source).toContain("KLYX_LIVE_CERTIFICATION_ENABLED");
+    expect(source).toContain("KLYX_LIVE_CERTIFICATION_SHA");
+    expect(source).toContain("KLYX_DR_CERTIFIED_SHA");
+    expect(source).toContain("KLYX_PRODUCTION_FINANCIAL_CERTIFIED_SHA");
+    expect(source).toContain("VERCEL_GIT_COMMIT_SHA");
     expect(source).not.toContain("KLYX_SETTLEMENT_CONTROL_LIVE_READY");
   });
 
@@ -80,8 +85,8 @@ describe("KLYX settlement control phase-1 contract", () => {
     expect(control).not.toContain("stripe.payouts.create");
     expect(migration).not.toContain("stripe.transfers.create");
     expect(migration).not.toContain("stripe.payouts.create");
-    expect(documentation).toContain("does **not**");
-    expect(documentation).toContain("enable `platform_held` in Stripe live mode");
+    expect(documentation).toContain("controlled LIVE certification canary");
+    expect(documentation).toContain("general LIVE");
     expect(documentation).toContain("change Express payout schedules");
   });
 });

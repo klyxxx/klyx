@@ -15,6 +15,12 @@ export const KLYX_SETTLEMENT_MODE_INVALID =
 export type SettlementEnvironment = {
   KLYX_STRIPE_SETTLEMENT_MODE?: string;
   KLYX_SETTLEMENT_CONTROL_TEST_READY?: string;
+  KLYX_LIVE_PAYMENTS_ENABLED?: string;
+  KLYX_LIVE_CERTIFICATION_ENABLED?: string;
+  KLYX_LIVE_CERTIFICATION_SHA?: string;
+  KLYX_DR_CERTIFIED_SHA?: string;
+  KLYX_PRODUCTION_FINANCIAL_CERTIFIED_SHA?: string;
+  VERCEL_GIT_COMMIT_SHA?: string;
   STRIPE_SECRET_KEY?: string;
 };
 
@@ -33,6 +39,18 @@ function runtimeSettlementEnvironment(): SettlementEnvironment {
     KLYX_STRIPE_SETTLEMENT_MODE: process.env.KLYX_STRIPE_SETTLEMENT_MODE,
     KLYX_SETTLEMENT_CONTROL_TEST_READY:
       process.env.KLYX_SETTLEMENT_CONTROL_TEST_READY,
+    KLYX_LIVE_PAYMENTS_ENABLED:
+      process.env.KLYX_LIVE_PAYMENTS_ENABLED,
+    KLYX_LIVE_CERTIFICATION_ENABLED:
+      process.env.KLYX_LIVE_CERTIFICATION_ENABLED,
+    KLYX_LIVE_CERTIFICATION_SHA:
+      process.env.KLYX_LIVE_CERTIFICATION_SHA,
+    KLYX_DR_CERTIFIED_SHA:
+      process.env.KLYX_DR_CERTIFIED_SHA,
+    KLYX_PRODUCTION_FINANCIAL_CERTIFIED_SHA:
+      process.env.KLYX_PRODUCTION_FINANCIAL_CERTIFIED_SHA,
+    VERCEL_GIT_COMMIT_SHA:
+      process.env.VERCEL_GIT_COMMIT_SHA,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
   };
 }
@@ -54,13 +72,14 @@ function normalizedRequestedMode(
 }
 
 /**
- * Production remains on the certified destination-charge flow until a complete
- * held-funds release path has passed migration, Stripe TEST, Golden Path,
- * security, performance and E2E certification on one immutable SHA.
+ * Platform-held settlement remains fail-closed.
  *
- * This guard intentionally has no live override in phase 1. Adding one before
- * the release side effect exists would let KLYX collect provider funds without
- * a certified way to settle them.
+ * TEST requires the historical explicit TEST arm.
+ * LIVE requires one immutable deployed SHA that is also the DR-certified SHA.
+ * Before Mission 1 certification, only the controlled certification canary may
+ * arm the mode. General LIVE additionally requires the exact financial
+ * certification SHA. Per-profile canary authorization is enforced again at
+ * every Stripe mutation boundary by klyx-financial-stripe-runtime.
  */
 export function getKlyxSettlementMode(
   env: SettlementEnvironment = runtimeSettlementEnvironment()
@@ -74,10 +93,46 @@ export function getKlyxSettlementMode(
   const secret = env.STRIPE_SECRET_KEY?.trim() ?? "";
 
   if (secret.startsWith("sk_live_")) {
+    const deployedSha =
+      env.VERCEL_GIT_COMMIT_SHA?.trim().toLowerCase() ?? "";
+    const drSha =
+      env.KLYX_DR_CERTIFIED_SHA?.trim().toLowerCase() ?? "";
+    const certificationSha =
+      env.KLYX_LIVE_CERTIFICATION_SHA?.trim().toLowerCase() ?? "";
+    const financialCertifiedSha =
+      env.KLYX_PRODUCTION_FINANCIAL_CERTIFIED_SHA
+        ?.trim()
+        .toLowerCase() ?? "";
+    const validSha = /^[0-9a-f]{40}$/;
+
+    if (
+      !validSha.test(deployedSha) ||
+      drSha !== deployedSha
+    ) {
+      throw new Error(KLYX_SETTLEMENT_LIVE_NOT_READY);
+    }
+
+    if (envTrue(env.KLYX_LIVE_PAYMENTS_ENABLED)) {
+      if (financialCertifiedSha !== deployedSha) {
+        throw new Error(KLYX_SETTLEMENT_LIVE_NOT_READY);
+      }
+      return KLYX_PLATFORM_HELD_SETTLEMENT_MODE;
+    }
+
+    if (
+      envTrue(env.KLYX_LIVE_CERTIFICATION_ENABLED) &&
+      certificationSha === deployedSha
+    ) {
+      return KLYX_PLATFORM_HELD_SETTLEMENT_MODE;
+    }
+
     throw new Error(KLYX_SETTLEMENT_LIVE_NOT_READY);
   }
 
-  if (!envTrue(env.KLYX_SETTLEMENT_CONTROL_TEST_READY)) {
+  if (
+    !secret.startsWith("sk_test_") ||
+    !envTrue(env.KLYX_SETTLEMENT_CONTROL_TEST_READY)
+  ) {
     throw new Error(KLYX_SETTLEMENT_TEST_NOT_ARMED);
   }
 

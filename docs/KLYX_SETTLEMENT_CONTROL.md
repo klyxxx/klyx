@@ -20,9 +20,14 @@ This is a settlement gate, not an escrow product. Product copy and internal docu
 
 ## Current production boundary
 
-Production remains on `connect_destination` until the controlled release path is complete and certified. In the existing flow, `payment_intent_data.transfer_data.destination` moves the provider amount into the connected Stripe account as part of the charge. That is too late for a KLYX pre-transfer risk decision.
+General production financial traffic remains fail-closed until Mission 1 is certified. The legacy `connect_destination` flow is still available as a compatibility path, but the durable target is `platform_held`.
 
-`lib/stripe-settlement-control.ts` therefore fails closed if `platform_held` is requested with a live Stripe secret. There is intentionally no live override in phase 1.
+Mission 1 introduces a **controlled LIVE certification canary**, not a general LIVE override. `platform_held` with a LIVE Stripe secret is permitted only when the deployed Git SHA is also the DR-certified SHA and either:
+
+- the exact SHA is explicitly armed for controlled certification, with every financial mutation restricted again to `KLYX_LIVE_CERTIFICATION_PROFILE_ID`; or
+- Mission 1 has already produced `KLYX Production Financial Certification = success` for that exact SHA and general LIVE is explicitly enabled.
+
+A missing/mismatched SHA, disabled canary, wrong client profile, unavailable Operations control plane, or absent financial certification remains fail-closed.
 
 ## Phase-1 database control plane
 
@@ -77,19 +82,21 @@ The following order is mandatory:
 5. reconcile refunds before release and transfer reversals after release;
 6. certify TEST network behavior, Golden Path, Security, Performance, E2E and UX on one SHA;
 7. extend the same invariant to booking groups and split-payment units;
-8. perform a legal/accounting review of business-of-record, funds-flow and country constraints;
-9. only then add an explicit live activation mechanism.
+8. perform the required legal/accounting review of business-of-record, funds-flow and country constraints;
+9. certify Operations, durable jobs, human review, observability, circuit breakers and Disaster Recovery;
+10. deploy one exact SHA with general LIVE still OFF;
+11. arm only the dedicated controlled-certification profile for that exact SHA;
+12. certify all 40 Mission 1 production financial cells with `Ledger = Settlement = Stripe`;
+13. only after that exact-SHA certification may general LIVE be enabled explicitly.
 
-No production migration, Stripe payout-schedule mutation or Vercel deployment belongs to phase 1.
+## Permanent non-goals
 
-## Non-goals of phase 1
+The settlement control plane does **not**:
 
-Phase 1 does **not**:
-
-- enable `platform_held` in Stripe live mode;
-- create Stripe Transfers;
-- change existing Checkout Session parameters;
-- change Express payout schedules;
+- silently enable general Stripe LIVE;
+- treat one successful payment as certification;
+- change Express payout schedules as part of settlement certification;
 - claim KLYX controls bank payouts;
-- apply the migration to production;
-- deploy to Vercel.
+- bypass Economic Eligibility, Risk, Operations or reconciliation;
+- silently repair financial divergence;
+- certify a SHA different from the deployed and DR-certified SHA.

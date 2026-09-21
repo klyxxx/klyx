@@ -142,9 +142,14 @@ describe("Mission 11 economic settlement eligibility contract", () => {
     expect(groupTransfer).toBeGreaterThan(groupStripeTruth);
   });
 
-  it("keeps LIVE activation forbidden and does not touch refunds or reversal authority", () => {
-    expect(single).toContain("KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY");
-    expect(group).toContain("KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY");
+  it("keeps economic eligibility independent from the controlled LIVE runtime", () => {
+    const runtime = read("lib/klyx-financial-stripe-runtime.ts");
+
+    expect(single).toContain("requireKlyxFinancialStripeRuntimeForBooking");
+    expect(group).toContain("requireKlyxFinancialStripeRuntime");
+    expect(runtime).toContain("KLYX_LIVE_CERTIFICATION_PROFILE_ID");
+    expect(runtime).toContain("KLYX_LIVE_CERTIFICATION_SHA");
+    expect(runtime).toContain("KLYX_DR_CERTIFIED_SHA");
     expect(stripeTruth).not.toContain("transfers.create");
     expect(migration).not.toContain("refunds.create");
     expect(migration).not.toContain("reversals.create");

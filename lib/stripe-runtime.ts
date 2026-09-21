@@ -42,6 +42,18 @@ export function inspectStripeRuntime(): StripeRuntimeReport {
   const appUrl = env("NEXT_PUBLIC_APP_URL");
   const commission = Number(env("KLYX_COMMISSION_PERCENT") || "15");
   const liveEnabled = envTrue("KLYX_LIVE_PAYMENTS_ENABLED");
+  const deployedSha = env("VERCEL_GIT_COMMIT_SHA").toLowerCase();
+  const drCertifiedSha = env("KLYX_DR_CERTIFIED_SHA").toLowerCase();
+  const financialCertifiedSha = env(
+    "KLYX_PRODUCTION_FINANCIAL_CERTIFIED_SHA"
+  ).toLowerCase();
+  const exactSha = (value: string) => /^[0-9a-f]{40}$/.test(value);
+  const liveCertificationChainOk =
+    mode === "test" ||
+    !liveEnabled ||
+    (exactSha(deployedSha) &&
+      deployedSha === drCertifiedSha &&
+      deployedSha === financialCertifiedSha);
   const platformOnlyTest = envTrue(
     "KLYX_ALLOW_PLATFORM_ONLY_TEST_PAYMENTS"
   );
@@ -130,6 +142,17 @@ export function inspectStripeRuntime(): StripeRuntimeReport {
           : "Configuration compatible.",
     },
     {
+      key: "financial_certification_sha",
+      label: "Certification financiere exacte",
+      ok: liveCertificationChainOk,
+      detail:
+        mode !== "live" || !liveEnabled
+          ? "Non requise tant que le LIVE general reste desactive."
+          : liveCertificationChainOk
+            ? "SHA deploye = DR certifie = certification financiere."
+            : "Le LIVE general exige VERCEL_GIT_COMMIT_SHA = KLYX_DR_CERTIFIED_SHA = KLYX_PRODUCTION_FINANCIAL_CERTIFIED_SHA.",
+    },
+    {
       key: "live_switch",
       label: "Activation des paiements reels",
       ok: mode === "test" || liveEnabled,
@@ -175,6 +198,23 @@ function assertStripeRuntimeChecks(
  * provider from completing regulated KYC and payout-bank setup first.
  */
 export function assertStripeConnectRuntimeConfigured(): StripeRuntimeReport {
+  const report = inspectStripeRuntime();
+
+  return assertStripeRuntimeChecks(
+    report,
+    (check) => check.key === "secret_key"
+  );
+}
+
+/**
+ * Stripe truth observation/reconciliation only.
+ *
+ * Incoming signed webhooks and read-only reconciliation must remain available
+ * even when LIVE mutations are killed or the certification canary is disabled.
+ * Only the server secret must match the configured Stripe mode. A webhook
+ * route must still verify its own whsec_ signature before trusting payloads.
+ */
+export function assertStripeObservationRuntimeConfigured(): StripeRuntimeReport {
   const report = inspectStripeRuntime();
 
   return assertStripeRuntimeChecks(
