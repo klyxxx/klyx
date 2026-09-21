@@ -1,4 +1,4 @@
-import { createHmac, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 
@@ -81,30 +81,6 @@ async function requestJson({
   }
 
   return { status: response.status, payload };
-}
-
-function signedStripeEvent(payload, webhookSecret) {
-  const timestamp = Math.floor(Date.now() / 1000);
-  const raw = JSON.stringify(payload);
-  const digest = createHmac("sha256", webhookSecret)
-    .update(`${timestamp}.${raw}`, "utf8")
-    .digest("hex");
-
-  return {
-    raw,
-    signature: `t=${timestamp},v1=${digest}`,
-  };
-}
-
-async function postSignedWebhook({ appOrigin, webhookSecret, event }) {
-  const signed = signedStripeEvent(event, webhookSecret);
-  return requestJson({
-    appOrigin,
-    path: "/api/stripe/webhook",
-    method: "POST",
-    body: signed.raw,
-    headers: { "stripe-signature": signed.signature },
-  });
 }
 
 function stripeObjectId(value) {
@@ -704,53 +680,69 @@ async function createRealHeldCharge({
   return { intent: refreshed, chargeId };
 }
 
-async function markHeldPaid({
-  appOrigin,
-  webhookSecret,
+async function persistPaidBookingFromRealStripeTruth({
+  admin,
   bookingId,
-  providerId,
   settlement,
   intent,
 }) {
-  const event = {
-    id: `evt_test_klyx_economic_chain_${randomUUID().replaceAll("-", "")}`,
-    object: "event",
-    created: Math.floor(Date.now() / 1000),
-    data: {
-      object: {
-        id: settlement.stripe_checkout_session_id,
-        object: "checkout.session",
-        amount_total: settlement.gross_amount_cents,
-        currency: String(settlement.currency).toLowerCase(),
-        metadata: {
-          booking_id: bookingId,
-          provider_id: providerId,
-          payment_mode: PAYMENT_MODE,
-          settlement_transfer_group: settlement.transfer_group,
-        },
-        mode: "payment",
-        payment_intent: intent.id,
-        payment_status: "paid",
-        status: "complete",
-      },
-    },
-    livemode: false,
-    pending_webhooks: 1,
-    request: { id: null, idempotency_key: null },
-    type: "checkout.session.completed",
-  };
+  assert(
+    intent?.livemode === false &&
+      intent?.status === "succeeded" &&
+      typeof intent?.id === "string" &&
+      intent.id.startsWith("pi_"),
+    "Only a succeeded real Stripe TEST PaymentIntent may seed paid booking truth."
+  );
+  assert(
+    typeof settlement?.stripe_checkout_session_id === "string" &&
+      settlement.stripe_checkout_session_id.startsWith("cs_"),
+    "Platform-held Checkout truth is missing before payment fixture persistence."
+  );
 
-  const response = await postSignedWebhook({
-    appOrigin,
-    webhookSecret,
-    event,
-  });
+  const now = new Date().toISOString();
+  const { data, error } = await admin
+    .from("bookings")
+    .update({
+      payment_status: "paid",
+      stripe_checkout_session_id: settlement.stripe_checkout_session_id,
+      stripe_payment_intent_id: intent.id,
+      paid_at: now,
+      updated_at: now,
+    })
+    .eq("id", bookingId)
+    .eq("payment_status", "checkout_created")
+    .eq("payment_mode", PAYMENT_MODE)
+    .eq("stripe_checkout_session_id", settlement.stripe_checkout_session_id)
+    .select(
+      "id, payment_status, payment_mode, stripe_checkout_session_id, stripe_payment_intent_id"
+    )
+    .single();
+
+  if (error || !data) {
+    throw new Error(
+      `Unable to persist paid booking from real Stripe TEST truth: ${error?.message ?? "payment claim lost"}`
+    );
+  }
 
   assert(
-    response.payload?.received === true &&
-      response.payload?.duplicate === false,
-    "KLYX did not accept the signed payment webhook."
+    data.payment_status === "paid" &&
+      data.payment_mode === PAYMENT_MODE &&
+      data.stripe_payment_intent_id === intent.id,
+    "Canonical KLYX booking did not retain the real Stripe TEST payment truth."
   );
+
+  const held = await loadSettlement(admin, bookingId);
+  assert(
+    held.state === "held",
+    `Canonical settlement trigger did not enter held state: ${held.state}.`
+  );
+  assert(
+    held.stripe_checkout_session_id === settlement.stripe_checkout_session_id &&
+      held.stripe_payment_intent_id === intent.id,
+    "Canonical settlement trigger lost Stripe Checkout/PaymentIntent truth."
+  );
+
+  return held;
 }
 
 async function attachStripeTruth({
@@ -843,8 +835,6 @@ async function main() {
   const stripePublishableKey = requiredGoldenPathEnv(
     "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"
   );
-  const webhookSecret = requiredGoldenPathEnv("STRIPE_WEBHOOK_SECRET");
-
   assert(
     stripeSecretKey.startsWith("sk_test_"),
     "Economic-chain proof accepts Stripe TEST secret only."
@@ -974,20 +964,12 @@ async function main() {
     });
     paymentIntentId = intent.id;
 
-    await markHeldPaid({
-      appOrigin,
-      webhookSecret,
+    settlement = await persistPaidBookingFromRealStripeTruth({
+      admin,
       bookingId,
-      providerId: provider.id,
       settlement,
       intent,
     });
-
-    settlement = await loadSettlement(admin, bookingId);
-    assert(
-      settlement.state === "held",
-      `Settlement did not enter held state: ${settlement.state}.`
-    );
 
     await attachStripeTruth({
       admin,
