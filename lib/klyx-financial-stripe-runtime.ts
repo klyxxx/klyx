@@ -58,6 +58,40 @@ function requireExactLiveShaBoundary(): {
   return { deployedSha, drCertifiedSha };
 }
 
+async function requireFinancialRuntimeSchedulerEnabled(): Promise<void> {
+  const { data, error } = await supabaseAdmin
+    .from("ops_financial_runtime_scheduler")
+    .select("enabled, token_sha256, alert_email")
+    .eq("scheduler_key", "financial_runtime_tick")
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      "KLYX_FINANCIAL_RUNTIME_SCHEDULER_READ_FAILED",
+      { cause: error }
+    );
+  }
+
+  const tokenHash =
+    typeof data?.token_sha256 === "string"
+      ? data.token_sha256.trim()
+      : "";
+  const alertEmail =
+    typeof data?.alert_email === "string"
+      ? data.alert_email.trim()
+      : "";
+
+  if (
+    data?.enabled !== true ||
+    !/^[0-9a-f]{64}$/i.test(tokenHash) ||
+    !alertEmail
+  ) {
+    throw new Error(
+      "KLYX_FINANCIAL_RUNTIME_SCHEDULER_NOT_READY"
+    );
+  }
+}
+
 async function requireLiveRuntimeHeartbeats(
   deployedSha: string
 ): Promise<void> {
@@ -205,6 +239,7 @@ async function requireLiveOperationalReadiness(input: {
   }
 
   await Promise.all([
+    requireFinancialRuntimeSchedulerEnabled(),
     requireLiveRuntimeHeartbeats(input.deployedSha),
     requireCanonicalLedgerHealthy(),
     requireNoOpenFinancialReconciliation(),
