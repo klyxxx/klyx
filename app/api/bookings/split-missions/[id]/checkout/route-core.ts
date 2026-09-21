@@ -1,3 +1,4 @@
+import { requireLiveFinancialMutationAuthorized } from "@/lib/live-financial-runtime-gate";
 import { createHash, randomUUID } from "node:crypto";
 
 import { NextResponse } from "next/server";
@@ -397,6 +398,8 @@ async function createCheckoutSession(params: {
     split_payment_confirmation_id: confirmationId,
     provider_id: planUnit.providerId,
   };
+
+  await requireLiveFinancialMutationAuthorized({ mutation: "checkout" });
 
   return stripe.checkout.sessions.create(
     {
