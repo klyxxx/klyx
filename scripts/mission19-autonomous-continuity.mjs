@@ -334,12 +334,16 @@ async function main() {
   const claimA = rpcRow(claimAData, "durable job first claim");
   invariant(claimA.job_id === enqueue1.job_id, "Worker A claimed wrong job.");
 
-  // Test harness only: simulate process death by expiring the lease in local DB.
-  const { error: expireLeaseError } = await reopenedAdmin
-    .from("ops_durable_jobs")
-    .update({ lease_expires_at: new Date(Date.now() - 5_000).toISOString() })
-    .eq("id", enqueue1.job_id);
-  if (expireLeaseError) throw new Error(expireLeaseError.message);
+  // Simulate a real worker crash: do not mutate durable queue internals.
+  // Let the canonical lease expire, then let the canonical reaper schedule retry.
+  const leaseExpiresAt = new Date(claimA.lease_expires_at).getTime();
+  invariant(
+    Number.isFinite(leaseExpiresAt),
+    "Worker A returned an invalid lease expiration."
+  );
+
+  const leaseWaitMs = Math.max(0, leaseExpiresAt - Date.now() + 1_500);
+  await new Promise((resolve) => setTimeout(resolve, leaseWaitMs));
 
   const { data: reapedCount, error: reapError } = await reopenedAdmin.rpc(
     "klyx_reap_expired_durable_jobs",
@@ -348,12 +352,9 @@ async function main() {
   if (reapError) throw new Error(reapError.message);
   invariant(Number(reapedCount) >= 1, "Expired worker lease was not reaped.");
 
-  const { error: makeRetryReadyError } = await reopenedAdmin
-    .from("ops_durable_jobs")
-    .update({ available_at: new Date(Date.now() - 1_000).toISOString() })
-    .eq("id", enqueue1.job_id)
-    .eq("status", "retry_wait");
-  if (makeRetryReadyError) throw new Error(makeRetryReadyError.message);
+  // This job uses a one-second capped backoff. Wait for the real availability
+  // boundary instead of rewriting queue state from the test harness.
+  await new Promise((resolve) => setTimeout(resolve, 1_500));
 
   const { data: claimBData, error: claimBError } = await reopenedAdmin.rpc(
     "klyx_claim_durable_jobs",
