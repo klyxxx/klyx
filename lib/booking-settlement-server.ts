@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import Stripe from "stripe";
 
 import { canReceiveSettlementForBooking } from "@/lib/economic-settlement-eligibility-server";
+import { syncEconomicStripeProjectionFromRemoteStripe } from "@/lib/economic-identity-server";
 import {
   getProviderStripeDestination,
   isStripeConnectIdentityReviewRequired,
@@ -416,6 +417,21 @@ export async function releasePlatformHeldBookingSettlement(
     return { status: "review_required" };
   }
 
+  try {
+    await syncEconomicStripeProjectionFromRemoteStripe({
+      stripe,
+      accountId: recipientAccountId,
+      stripeAccountId: settlement.stripe_account_id,
+      correlationId: `settlement-preflight:${bookingId}`,
+    });
+  } catch (error) {
+    await markReviewRequired(bookingId, [
+      "economic_stripe_projection_refresh_failed",
+      error instanceof Error ? error.message : "stripe_projection_refresh_error",
+    ]);
+    return { status: "review_required" };
+  }
+
   const economicEligibility = await canReceiveSettlementForBooking({
     accountId: recipientAccountId,
     bookingId,
@@ -526,6 +542,29 @@ export async function releasePlatformHeldBookingSettlement(
     const reconciled = Boolean(transfer);
 
     if (!transfer) {
+      try {
+        await syncEconomicStripeProjectionFromRemoteStripe({
+          stripe,
+          accountId: recipientAccountId,
+          stripeAccountId: claim.stripe_account_id,
+          correlationId: `settlement-post-claim:${bookingId}:${claim.attempt_number}`,
+        });
+      } catch (error) {
+        await failClaim({
+          bookingId,
+          claimToken,
+          code: "economic_stripe_projection_refresh_failed",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Stripe economic projection refresh failed after claim.",
+        });
+        await markReviewRequired(bookingId, [
+          "economic_stripe_projection_refresh_failed",
+        ]);
+        return { status: "review_required" };
+      }
+
       const revalidatedEligibility = await canReceiveSettlementForBooking({
         accountId: recipientAccountId,
         bookingId,
