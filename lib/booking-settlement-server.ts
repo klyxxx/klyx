@@ -1,3 +1,4 @@
+import { requireLiveFinancialMutationAuthorized } from "@/lib/live-financial-runtime-gate";
 import "server-only";
 
 import { randomUUID } from "node:crypto";
@@ -576,6 +577,8 @@ export async function releasePlatformHeldBookingSettlement(
         return { status: "review_required" };
       }
 
+      await requireLiveFinancialMutationAuthorized({ mutation: "transfer" });
+
       transfer = await stripe.transfers.create(
         {
           amount: claim.provider_amount_cents,
@@ -742,6 +745,8 @@ export async function preparePlatformHeldBookingRefund(
   }
 
   if (!reversal) {
+    await requireLiveFinancialMutationAuthorized({ mutation: "transfer_reversal" });
+
     reversal = await stripe.transfers.createReversal(
       transferId,
       {
