@@ -1,3 +1,4 @@
+import { requireLiveFinancialMutationAuthorized } from "@/lib/live-financial-runtime-gate";
 import {
   NextResponse,
 } from "next/server";
@@ -1065,6 +1066,8 @@ export async function POST(
       const destinationCharge =
         group.payment_mode ===
         "connect_destination";
+
+      await requireLiveFinancialMutationAuthorized({ mutation: "refund" });
 
       const refund =
         await stripe.refunds.create(
