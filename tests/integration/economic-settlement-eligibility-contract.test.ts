@@ -119,12 +119,23 @@ describe("Mission 11 economic settlement eligibility contract", () => {
     expect(documentation).toContain("already-existing Stripe Transfer");
   });
 
-  it("revalidates economic authority and remote Stripe truth after the atomic claim before a new Transfer", () => {
+  it("refreshes provider truth before eligibility and revalidates after the atomic claim before a new Transfer", () => {
+    const firstProjectionRefresh = single.indexOf(
+      "syncEconomicStripeProjectionFromRemoteStripe({"
+    );
+    const firstEconomicEligibility = single.indexOf(
+      "const economicEligibility = await canReceiveSettlementForBooking"
+    );
     const singleClaim = single.indexOf(
       '"klyx_claim_booking_settlement_release"'
     );
+    const secondProjectionRefresh = single.indexOf(
+      "syncEconomicStripeProjectionFromRemoteStripe({",
+      singleClaim
+    );
     const singleRevalidation = single.indexOf(
-      "const revalidatedEligibility = await canReceiveSettlementForBooking"
+      "const revalidatedEligibility = await canReceiveSettlementForBooking",
+      secondProjectionRefresh
     );
     const singleStripeTruth = single.indexOf(
       "readStripeSettlementRecipientTruth",
@@ -134,7 +145,12 @@ describe("Mission 11 economic settlement eligibility contract", () => {
       "stripe.transfers.create",
       singleStripeTruth
     );
-    expect(singleRevalidation).toBeGreaterThan(singleClaim);
+
+    expect(firstProjectionRefresh).toBeGreaterThan(-1);
+    expect(firstEconomicEligibility).toBeGreaterThan(firstProjectionRefresh);
+    expect(singleClaim).toBeGreaterThan(firstEconomicEligibility);
+    expect(secondProjectionRefresh).toBeGreaterThan(singleClaim);
+    expect(singleRevalidation).toBeGreaterThan(secondProjectionRefresh);
     expect(singleStripeTruth).toBeGreaterThan(singleRevalidation);
     expect(singleTransfer).toBeGreaterThan(singleStripeTruth);
 
