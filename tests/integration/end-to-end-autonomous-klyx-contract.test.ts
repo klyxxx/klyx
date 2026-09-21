@@ -88,6 +88,11 @@ describe("Mission 19 end-to-end autonomous KLYX contract", () => {
     expect(repository).toContain(
       '"klyx_resume_orphaned_workflow"'
     );
+    expect(repository).toContain(
+      '"klyx_create_or_resume_workflow"'
+    );
+    expect(repository).toContain("if (!current) {");
+    expect(repository).not.toContain("if (current) return current;");
     expect(assistantWorkflow).toContain(
       "profileId: params.profileId"
     );
