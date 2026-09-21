@@ -87,9 +87,9 @@ function mapCapability(row: CurrencyCapabilityRow): KlyxPaymentCurrencyCapabilit
     payoutEnabled: row.payout_enabled,
     settlementEnabled: row.settlement_enabled,
     accountingExponent: row.accounting_exponent,
-    stripeChargeExponent: row.stripe_charge_exponent,
-    stripeChargeIncrement: row.stripe_charge_increment,
-    stripePayoutIncrement: row.stripe_payout_increment,
+    chargeExponent: row.stripe_charge_exponent,
+    chargeIncrement: row.stripe_charge_increment,
+    payoutIncrement: row.stripe_payout_increment,
     minimumChargeAmount:
       row.minimum_charge_amount == null ? null : Number(row.minimum_charge_amount),
     maximumChargeAmount:
