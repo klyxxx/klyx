@@ -10,7 +10,7 @@ import {
   tryReconcileBookingGroupStripeRefund,
 } from "@/lib/stripe-group-refunds";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { requireKlyxFinancialStripeRuntimeForBooking } from "@/lib/klyx-financial-stripe-runtime";
+import { requireKlyxFinancialStripeObservationRuntime } from "@/lib/klyx-financial-stripe-runtime";
 import { upsertFinancialLedgerEntry } from "@/lib/payment-ledger";
 
 type RefundBooking = {
@@ -269,8 +269,7 @@ export async function reconcileStripeRefund(
   }
 
   if (booking.payment_mode === "platform_held") {
-    const runtime =
-      await requireKlyxFinancialStripeRuntimeForBooking(booking.id);
+    const runtime = requireKlyxFinancialStripeObservationRuntime();
     const expectedLive = runtime.mode !== "test";
 
     if (refund.livemode !== expectedLive) {
