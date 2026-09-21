@@ -1,5 +1,6 @@
 param(
-    [string]$ArchivePath = ""
+    [string]$ArchivePath = "",
+    [string]$ExpectedCommit = ""
 )
 
 Set-StrictMode -Version Latest
@@ -267,6 +268,15 @@ $ReportPath =
             ".json"
         )
 
+$CertificatePath =
+    Join-Path `
+        $ReportDirectory `
+        (
+            "KLYX_DR_CERTIFICATE_" +
+            $RunId +
+            ".json"
+        )
+
 $RestoreSucceeded =
     $false
 
@@ -333,6 +343,74 @@ try {
         Join-Path `
             $Extracted `
             "storage"
+
+    $ManifestPath =
+        Join-Path `
+            $Extracted `
+            "KLYX_DR_MANIFEST.json"
+
+    if (
+        -not (
+            Test-Path `
+                -LiteralPath $ManifestPath `
+                -PathType Leaf
+        )
+    ) {
+        throw "KLYX DR manifest missing."
+    }
+
+    $DrManifest =
+        Get-Content `
+            -LiteralPath $ManifestPath `
+            -Raw |
+        ConvertFrom-Json
+
+    if (
+        $DrManifest.format -ne
+        "KLYX_SUPABASE_DR_BACKUP"
+    ) {
+        throw "Unexpected KLYX DR manifest format."
+    }
+
+    if (
+        [int]$DrManifest.version -ne 1
+    ) {
+        throw "Unsupported KLYX DR manifest version."
+    }
+
+    $BackupGitCommit =
+        ([string]$DrManifest.git.commit).Trim().ToLowerInvariant()
+
+    if (
+        $BackupGitCommit -notmatch
+        '^[a-f0-9]{40}$'
+    ) {
+        throw "KLYX DR manifest Git commit is invalid."
+    }
+
+    $NormalizedExpectedCommit =
+        $ExpectedCommit.Trim().ToLowerInvariant()
+
+    if ($NormalizedExpectedCommit) {
+        if (
+            $NormalizedExpectedCommit -notmatch
+            '^[a-f0-9]{40}$'
+        ) {
+            throw "ExpectedCommit must be a full 40-character Git SHA."
+        }
+
+        if (
+            $BackupGitCommit -ne
+            $NormalizedExpectedCommit
+        ) {
+            throw (
+                "KLYX DR backup commit mismatch. Expected " +
+                $NormalizedExpectedCommit +
+                ", got " +
+                $BackupGitCommit
+            )
+        }
+    }
 
     $StatePath =
         Join-Path `
@@ -970,6 +1048,26 @@ try {
             encryptedSha256 =
                 $ActualEncryptedHash
 
+            backupGitCommit =
+                $BackupGitCommit
+
+            backupCreatedUtc =
+                [string]$DrManifest.createdUtc
+
+            expectedGitCommit =
+                if ($NormalizedExpectedCommit) {
+                    $NormalizedExpectedCommit
+                }
+                else {
+                    $null
+                }
+
+            exactCommitMatch =
+                (
+                    -not $NormalizedExpectedCommit -or
+                    $BackupGitCommit -eq $NormalizedExpectedCommit
+                )
+
             isolatedLocalRestore =
                 $true
 
@@ -1014,6 +1112,82 @@ try {
             -LiteralPath $ReportPath `
             -Encoding UTF8
 
+    $Certificate =
+        [ordered]@{
+            format =
+                "KLYX_DISASTER_RECOVERY_OFFSITE_CERTIFICATE"
+
+            version =
+                1
+
+            createdUtc =
+                (
+                    Get-Date
+                ).ToUniversalTime().ToString(
+                    "o"
+                )
+
+            backupGitCommit =
+                $BackupGitCommit
+
+            backupCreatedUtc =
+                [string]$DrManifest.createdUtc
+
+            expectedGitCommit =
+                if ($NormalizedExpectedCommit) {
+                    $NormalizedExpectedCommit
+                }
+                else {
+                    $null
+                }
+
+            exactCommitMatch =
+                (
+                    -not $NormalizedExpectedCommit -or
+                    $BackupGitCommit -eq $NormalizedExpectedCommit
+                )
+
+            encryptedArchiveSha256 =
+                $ActualEncryptedHash
+
+            isolatedLocalRestore =
+                $true
+
+            productionWrite =
+                $false
+
+            linkedCommands =
+                $false
+
+            publicDatabaseVerified =
+                $true
+
+            authDatabaseVerified =
+                $true
+
+            authServiceVerified =
+                $true
+
+            storageBinaryIntegrity =
+                $true
+
+            storageServiceVerified =
+                $true
+
+            plaintextRetained =
+                $false
+
+            restoreTested =
+                $true
+        }
+
+    $Certificate |
+        ConvertTo-Json `
+            -Depth 10 |
+        Set-Content `
+            -LiteralPath $CertificatePath `
+            -Encoding UTF8
+
     $RestoreSucceeded =
         $true
 
@@ -1033,6 +1207,7 @@ try {
     Write-Host "Linked command     : NO"
     Write-Host "Plaintext retained : NO"
     Write-Host "Restore tested     : YES"
+    Write-Host "Certificate        : $CertificatePath"
     Write-Host "======================================"
 }
 finally {

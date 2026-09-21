@@ -1,0 +1,404 @@
+name: KLYX Disaster Recovery Certification
+
+on:
+  workflow_dispatch:
+    inputs:
+      full_restore_run_id:
+        description: "Successful KLYX Supabase Full Restore Drill run ID for this exact main SHA"
+        required: true
+        type: string
+      offsite_certificate_base64:
+        description: "Base64 of the sanitized KLYX offsite DR certificate emitted by prepare-klyx-dr-certification.ps1"
+        required: true
+        type: string
+      confirm_offsite_restore_verified:
+        description: "Confirm the offsite .klyxdr full restore certificate was produced by the local isolated drill"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+permissions:
+  contents: read
+  actions: read
+  statuses: write
+
+concurrency:
+  group: klyx-disaster-recovery-certification-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  certify:
+    name: Certify exact-main disaster recovery evidence
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+
+    env:
+      GH_TOKEN: ${{ github.token }}
+      FULL_RESTORE_RUN_ID: ${{ inputs.full_restore_run_id }}
+      CONFIRM_OFFSITE_RESTORE_VERIFIED: ${{ inputs.confirm_offsite_restore_verified }}
+
+    steps:
+      - name: Publish pending DR certification status
+        shell: bash
+        run: |
+          set -euo pipefail
+          payload="$(jq -n --arg state "pending" --arg context "KLYX Disaster Recovery Certification" --arg description "Validating exact-main source, cloud restore and offsite restore evidence" --arg target_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" '{state:$state,context:$context,description:$description,target_url:$target_url}')"
+          gh api --method POST "/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" --input - <<<"$payload" >/dev/null
+
+      - name: Checkout exact certification commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Validate offsite certificate payload
+        shell: bash
+        env:
+          OFFSITE_CERTIFICATE_BASE64: ${{ inputs.offsite_certificate_base64 }}
+        run: |
+          set -euo pipefail
+
+          if [ "$CONFIRM_OFFSITE_RESTORE_VERIFIED" != "true" ]; then
+            echo "::error::Offsite full restore requires explicit confirmation."
+            exit 1
+          fi
+
+          if ! [[ "$FULL_RESTORE_RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo "::error::full_restore_run_id must be numeric."
+            exit 1
+          fi
+
+          if [ -z "$OFFSITE_CERTIFICATE_BASE64" ]; then
+            echo "::error::offsite_certificate_base64 is required."
+            exit 1
+          fi
+
+          certificate_root="${RUNNER_TEMP}/klyx-offsite-certificate"
+          certificate_file="${certificate_root}/certificate.json"
+          mkdir -p "$certificate_root"
+          chmod 700 "$certificate_root"
+
+          if ! printf '%s' "$OFFSITE_CERTIFICATE_BASE64" | base64 --decode > "$certificate_file"; then
+            echo "::error::offsite_certificate_base64 is not valid Base64."
+            exit 1
+          fi
+          chmod 600 "$certificate_file"
+
+          if [ ! -s "$certificate_file" ]; then
+            echo "::error::Decoded offsite certificate is empty."
+            exit 1
+          fi
+
+          certificate_size="$(wc -c < "$certificate_file" | tr -d '[:space:]')"
+          if [ "$certificate_size" -gt 16384 ]; then
+            echo "::error::Decoded offsite certificate is unexpectedly large."
+            exit 1
+          fi
+
+          node - "$certificate_file" "$GITHUB_SHA" <<'NODE'
+          const fs = require("node:fs");
+
+          const certificatePath = process.argv[2];
+          const expectedCommit = (process.argv[3] ?? "").toLowerCase();
+          const raw = fs.readFileSync(certificatePath, "utf8");
+
+          let certificate;
+          try {
+            certificate = JSON.parse(raw);
+          } catch {
+            console.error("Offsite DR certificate is not valid JSON.");
+            process.exit(2);
+          }
+
+          const allowedFields = new Set([
+            "format",
+            "version",
+            "createdUtc",
+            "backupGitCommit",
+            "backupCreatedUtc",
+            "expectedGitCommit",
+            "exactCommitMatch",
+            "encryptedArchiveSha256",
+            "isolatedLocalRestore",
+            "productionWrite",
+            "linkedCommands",
+            "publicDatabaseVerified",
+            "authDatabaseVerified",
+            "authServiceVerified",
+            "storageBinaryIntegrity",
+            "storageServiceVerified",
+            "plaintextRetained",
+            "restoreTested",
+          ]);
+
+          for (const key of Object.keys(certificate)) {
+            if (!allowedFields.has(key)) {
+              console.error(`Unexpected field in sanitized offsite certificate: ${key}`);
+              process.exit(3);
+            }
+          }
+
+          if (certificate.format !== "KLYX_DISASTER_RECOVERY_OFFSITE_CERTIFICATE") {
+            console.error("Unexpected offsite DR certificate format.");
+            process.exit(4);
+          }
+          if (certificate.version !== 1) {
+            console.error("Unsupported offsite DR certificate version.");
+            process.exit(5);
+          }
+
+          const backupCommit = String(certificate.backupGitCommit ?? "").toLowerCase();
+          const declaredExpected = String(certificate.expectedGitCommit ?? "").toLowerCase();
+          const archiveSha = String(certificate.encryptedArchiveSha256 ?? "").toLowerCase();
+
+          if (!/^[a-f0-9]{40}$/.test(expectedCommit)) {
+            console.error("Current main SHA is invalid.");
+            process.exit(6);
+          }
+          if (backupCommit !== expectedCommit) {
+            console.error("Offsite DR certificate backup commit does not match this exact main SHA.");
+            process.exit(7);
+          }
+          if (declaredExpected !== expectedCommit) {
+            console.error("Offsite DR certificate expectedGitCommit does not match this exact main SHA.");
+            process.exit(8);
+          }
+          if (!/^[a-f0-9]{64}$/.test(archiveSha)) {
+            console.error("Offsite DR certificate encrypted archive SHA256 is invalid.");
+            process.exit(9);
+          }
+
+          const requiredTrue = [
+            "exactCommitMatch",
+            "isolatedLocalRestore",
+            "publicDatabaseVerified",
+            "authDatabaseVerified",
+            "authServiceVerified",
+            "storageBinaryIntegrity",
+            "storageServiceVerified",
+            "restoreTested",
+          ];
+
+          for (const field of requiredTrue) {
+            if (certificate[field] !== true) {
+              console.error(`Offsite DR certificate field must be true: ${field}`);
+              process.exit(10);
+            }
+          }
+
+          if (certificate.productionWrite !== false) {
+            console.error("Offsite DR certificate reports a production write.");
+            process.exit(11);
+          }
+          if (certificate.linkedCommands !== false) {
+            console.error("Offsite DR certificate reports linked production commands.");
+            process.exit(12);
+          }
+          if (certificate.plaintextRetained !== false) {
+            console.error("Offsite DR certificate reports retained plaintext.");
+            process.exit(13);
+          }
+
+          const createdAt = Date.parse(String(certificate.createdUtc ?? ""));
+          const backupCreatedAt = Date.parse(String(certificate.backupCreatedUtc ?? ""));
+
+          if (!Number.isFinite(createdAt) || !Number.isFinite(backupCreatedAt)) {
+            console.error("Offsite DR certificate timestamps are invalid.");
+            process.exit(14);
+          }
+
+          const now = Date.now();
+          const evidenceAgeMs = now - createdAt;
+          if (evidenceAgeMs < -5 * 60 * 1000 || evidenceAgeMs > 24 * 60 * 60 * 1000) {
+            console.error("Offsite restore certificate must be no older than 24 hours.");
+            process.exit(15);
+          }
+
+          const backupAgeAtRestoreMs = createdAt - backupCreatedAt;
+          if (
+            backupAgeAtRestoreMs < -5 * 60 * 1000 ||
+            backupAgeAtRestoreMs > 24 * 60 * 60 * 1000
+          ) {
+            console.error("Offsite DR backup did not meet the 24h RPO target at restore time.");
+            process.exit(16);
+          }
+          NODE
+
+          normalized_hash="$(sha256sum "$certificate_file" | awk '{print tolower($1)}')"
+          normalized_commit="$(jq -r '.backupGitCommit' "$certificate_file" | tr '[:upper:]' '[:lower:]')"
+          verified_at="$(jq -r '.createdUtc' "$certificate_file")"
+
+          {
+            echo "KLYX_DR_OFFSITE_CERTIFICATE_SHA256=$normalized_hash"
+            echo "KLYX_DR_OFFSITE_BACKUP_COMMIT=$normalized_commit"
+            echo "KLYX_DR_OFFSITE_RESTORE_VERIFIED_AT=$verified_at"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify exact-main full cloud restore run
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          run_json="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${FULL_RESTORE_RUN_ID}")"
+
+          name="$(jq -r '.name // ""' <<<"$run_json")"
+          status="$(jq -r '.status // ""' <<<"$run_json")"
+          conclusion="$(jq -r '.conclusion // ""' <<<"$run_json")"
+          event="$(jq -r '.event // ""' <<<"$run_json")"
+          head_sha="$(jq -r '.head_sha // ""' <<<"$run_json")"
+          head_branch="$(jq -r '.head_branch // ""' <<<"$run_json")"
+          updated_at="$(jq -r '.updated_at // ""' <<<"$run_json")"
+
+          if [ "$name" != "KLYX Supabase Full Restore Drill" ] ||
+             [ "$status" != "completed" ] ||
+             [ "$conclusion" != "success" ] ||
+             [ "$event" != "workflow_dispatch" ] ||
+             [ "$head_sha" != "$GITHUB_SHA" ] ||
+             [ "$head_branch" != "main" ]; then
+            echo "::error::Full restore run does not certify this exact main SHA."
+            exit 1
+          fi
+
+          node - "$updated_at" <<'NODE'
+          const t = Date.parse(process.argv[2] ?? "");
+          if (!Number.isFinite(t)) process.exit(2);
+          const age = Date.now() - t;
+          if (age < -5 * 60 * 1000 || age > 24 * 60 * 60 * 1000) {
+            console.error("Full cloud restore evidence must be no older than 24 hours.");
+            process.exit(3);
+          }
+          NODE
+
+          artifacts="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${FULL_RESTORE_RUN_ID}/artifacts?per_page=100")"
+          artifact_id="$(jq -r --arg expected "klyx-supabase-full-restore-proof-${FULL_RESTORE_RUN_ID}" '.artifacts[] | select(.name == $expected and .expired == false) | .id' <<<"$artifacts" | head -n1)"
+
+          if [ -z "$artifact_id" ]; then
+            echo "::error::Sanitized full restore proof artifact is missing or expired."
+            exit 1
+          fi
+
+          proof_root="${RUNNER_TEMP}/klyx-full-restore-proof"
+          mkdir -p "$proof_root"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" > "$proof_root/proof.zip"
+          unzip -q "$proof_root/proof.zip" -d "$proof_root/unpacked"
+
+          proof_file="$proof_root/unpacked/proof.txt"
+          test -s "$proof_file"
+
+          grep -Fx "commit=${GITHUB_SHA}" "$proof_file" >/dev/null
+          grep -Fx "run=${FULL_RESTORE_RUN_ID}" "$proof_file" >/dev/null
+          grep -Fx "scope=public_auth_storage_full_restore" "$proof_file" >/dev/null
+          grep -Fx "all_public_table_row_counts_match=true" "$proof_file" >/dev/null
+          grep -Fx "auth_database_verified=true" "$proof_file" >/dev/null
+          grep -Fx "auth_service_verified=true" "$proof_file" >/dev/null
+          grep -Fx "storage_binary_sha256_verified=true" "$proof_file" >/dev/null
+          grep -Fx "storage_service_verified=true" "$proof_file" >/dev/null
+          grep -Fx "production_write=false" "$proof_file" >/dev/null
+          grep -Fx "sensitive_snapshot_uploaded=false" "$proof_file" >/dev/null
+
+          echo "KLYX_DR_FULL_RESTORE_ARTIFACT_ID=$artifact_id" >> "$GITHUB_ENV"
+
+      - name: Verify exact-main source backup
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          runs="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${GITHUB_SHA}&status=success&per_page=100")"
+
+          source_run_id="$(jq -r '.workflow_runs[] | select(.name == "KLYX Source Backup" and .conclusion == "success") | .id' <<<"$runs" | head -n1)"
+
+          if [ -z "$source_run_id" ]; then
+            echo "::error::No successful KLYX Source Backup exists for this exact main SHA."
+            exit 1
+          fi
+
+          source_run="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${source_run_id}")"
+          source_head="$(jq -r '.head_sha // ""' <<<"$source_run")"
+          source_updated="$(jq -r '.updated_at // ""' <<<"$source_run")"
+
+          if [ "$source_head" != "$GITHUB_SHA" ]; then
+            echo "::error::Source backup run SHA mismatch."
+            exit 1
+          fi
+
+          node - "$source_updated" <<'NODE'
+          const t = Date.parse(process.argv[2] ?? "");
+          if (!Number.isFinite(t)) process.exit(2);
+          const age = Date.now() - t;
+          if (age < -5 * 60 * 1000 || age > 24 * 60 * 60 * 1000) {
+            console.error("Source backup evidence must be no older than 24 hours.");
+            process.exit(3);
+          }
+          NODE
+
+          artifacts="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${source_run_id}/artifacts?per_page=100")"
+          artifact_id="$(jq -r --arg expected "klyx-source-backup-${source_run_id}" '.artifacts[] | select(.name == $expected and .expired == false) | .id' <<<"$artifacts" | head -n1)"
+
+          if [ -z "$artifact_id" ]; then
+            echo "::error::Source backup artifact is missing or expired."
+            exit 1
+          fi
+
+          backup_root="${RUNNER_TEMP}/klyx-source-backup"
+          mkdir -p "$backup_root"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" > "$backup_root/artifact.zip"
+          unzip -q "$backup_root/artifact.zip" -d "$backup_root/unpacked"
+
+          mapfile -t archives < <(find "$backup_root/unpacked" -maxdepth 2 -type f -name '*.zip')
+          if [ "${#archives[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one KLYX source backup archive."
+            exit 1
+          fi
+
+          pwsh -NoProfile -File ./scripts/check-klyx-backup.ps1 -ArchivePath "${archives[0]}" -ExpectedCommit "$GITHUB_SHA"
+
+          echo "KLYX_DR_SOURCE_BACKUP_RUN_ID=$source_run_id" >> "$GITHUB_ENV"
+          echo "KLYX_DR_SOURCE_BACKUP_ARTIFACT_ID=$artifact_id" >> "$GITHUB_ENV"
+
+      - name: Create sanitized DR certification proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dr-certification-proof
+
+          printf '%s\n'             "commit=${GITHUB_SHA}"             "run=${GITHUB_RUN_ID}"             "overall=certified"             "source_backup_run=${KLYX_DR_SOURCE_BACKUP_RUN_ID}"             "full_restore_run=${FULL_RESTORE_RUN_ID}"             "offsite_backup_commit=${KLYX_DR_OFFSITE_BACKUP_COMMIT}"             "offsite_certificate_sha256=${KLYX_DR_OFFSITE_CERTIFICATE_SHA256}"             "offsite_restore_verified_at=${KLYX_DR_OFFSITE_RESTORE_VERIFIED_AT}"             "rpo_target_hours=24"             "source_backup_exact_commit=true"             "cloud_db_auth_storage_restore=true"             "offsite_archive_full_restore_attested=true"             "production_write=false"             "verified_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"             > dr-certification-proof/proof.txt
+
+      - name: Upload sanitized DR certification proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: klyx-disaster-recovery-certification-${{ github.run_id }}
+          path: dr-certification-proof/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Destroy decoded offsite certificate material
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          rm -rf -- "${RUNNER_TEMP}/klyx-offsite-certificate"
+
+      - name: Publish final DR certification status
+        if: always()
+        shell: bash
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+
+          state="failure"
+          description="KLYX disaster recovery certification failed"
+
+          if [ "$JOB_STATUS" = "success" ]; then
+            state="success"
+            description="Exact-main source, cloud restore and offsite restore are certified"
+          elif [ "$JOB_STATUS" = "cancelled" ]; then
+            state="error"
+            description="KLYX disaster recovery certification was cancelled"
+          fi
+
+          payload="$(jq -n --arg state "$state" --arg context "KLYX Disaster Recovery Certification" --arg description "$description" --arg target_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" '{state:$state,context:$context,description:$description,target_url:$target_url}')"
+          gh api --method POST "/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" --input - <<<"$payload" >/dev/null

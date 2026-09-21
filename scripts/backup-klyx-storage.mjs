@@ -101,9 +101,11 @@ const env =
   );
 
 const supabaseUrl =
+  process.env.KLYX_DR_SOURCE_SUPABASE_URL ??
   env.NEXT_PUBLIC_SUPABASE_URL;
 
 const serviceRole =
+  process.env.KLYX_DR_SOURCE_SERVICE_ROLE_KEY ??
   env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (

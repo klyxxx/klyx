@@ -97,9 +97,15 @@ Source-code backups are **not** database backups.
 
 `KLYX Source Backup` protects repository source artifacts only.
 
-`KLYX Supabase Restore Drill` is a separate manual proof that performs a read-only logical production dump and restores it into ephemeral local Supabase. It must not be described as completed until a real manual run has succeeded with the required secrets/DB password.
+`KLYX Supabase Restore Drill` remains the narrower public-schema/data recovery proof. It must not be described as full project disaster recovery.
 
-The current drill explicitly does not claim full managed Auth/Storage object recovery.
+`KLYX Supabase Full Restore Drill` is the Mission 18 manual production-read-only drill for public DB + Auth + Storage. It restores only into an isolated loopback Supabase lab, verifies every public-table row count, verifies Auth through local GoTrue, restores Storage objects, re-downloads them, and verifies SHA-256 integrity. Sensitive snapshot material is destroyed after the run.
+
+The encrypted offsite `.klyxdr` path remains an independent recovery domain. A full offsite restore must be executed with `test-klyx-supabase-dr-restore.ps1 -ExpectedCommit <MAIN_SHA>` and must emit a sanitized exact-commit certificate.
+
+KLYX is **not** disaster-recovery certified merely because these mechanisms exist or because CI is green. The final `KLYX Disaster Recovery Certification` workflow must succeed for the exact `main` SHA using recent source-backup, full-cloud-restore, and offsite-restore evidence.
+
+See `docs/KLYX_DISASTER_RECOVERY_CERTIFICATION.md` for the complete fail-closed certification procedure.
 
 ## Scenario: Stripe/payment/webhook anomaly
 

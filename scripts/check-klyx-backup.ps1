@@ -1,6 +1,8 @@
 param(
     [Parameter(Mandatory = $true)]
-    [string]$ArchivePath
+    [string]$ArchivePath,
+
+    [string]$ExpectedCommit = ""
 )
 
 Set-StrictMode -Version Latest
@@ -117,6 +119,40 @@ try {
         [int]$manifest.version -gt 2
     ) {
         throw "Unsupported KLYX backup version."
+    }
+
+    $BackupCommit =
+        ([string]$manifest.commit).Trim().ToLowerInvariant()
+
+    if (
+        $BackupCommit -notmatch
+        '^[a-f0-9]{40}$'
+    ) {
+        throw "Backup manifest Git commit is invalid."
+    }
+
+    $NormalizedExpectedCommit =
+        $ExpectedCommit.Trim().ToLowerInvariant()
+
+    if ($NormalizedExpectedCommit) {
+        if (
+            $NormalizedExpectedCommit -notmatch
+            '^[a-f0-9]{40}$'
+        ) {
+            throw "ExpectedCommit must be a full 40-character Git SHA."
+        }
+
+        if (
+            $BackupCommit -ne
+            $NormalizedExpectedCommit
+        ) {
+            throw (
+                "Source backup commit mismatch. Expected " +
+                $NormalizedExpectedCommit +
+                ", got " +
+                $BackupCommit
+            )
+        }
     }
 
     $requiredFiles =
