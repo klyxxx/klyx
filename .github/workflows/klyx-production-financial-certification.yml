@@ -1,0 +1,244 @@
+name: KLYX Production Financial Certification
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: "Exact 40-char main SHA to certify"
+        required: true
+        type: string
+      production_url:
+        description: "Exact public production origin"
+        required: true
+        default: "https://klyx.be"
+        type: string
+      evidence_manifest_base64:
+        description: "Base64 sanitized 40-cell evidence manifest"
+        required: true
+        type: string
+      confirm_controlled_live:
+        description: "Type CERTIFY_CONTROLLED_LIVE_FINANCE"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  statuses: write
+
+concurrency:
+  group: klyx-production-financial-certification
+  cancel-in-progress: false
+
+jobs:
+  certify:
+    name: Certify KLYX production financial truth
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+
+    env:
+      KLYX_EXPECTED_SHA: ${{ inputs.expected_sha }}
+      KLYX_PRODUCTION_URL: ${{ inputs.production_url }}
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      KLYX_FINANCIAL_RECONCILIATION_SECRET: ${{ secrets.KLYX_FINANCIAL_RECONCILIATION_SECRET }}
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+    steps:
+      - name: Publish pending certification status
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          payload="$(jq -n             --arg state "pending"             --arg context "KLYX Production Financial Certification"             --arg description "Validating controlled LIVE financial truth"             --arg target_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"             '{state:$state,context:$context,description:$description,target_url:$target_url}')"
+          curl --fail-with-body --silent --show-error             --request POST             --header "Accept: application/vnd.github+json"             --header "Authorization: Bearer ${GH_TOKEN}"             --header "X-GitHub-Api-Version: 2022-11-28"             "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}"             --data "${payload}"
+
+      - name: Verify explicit controlled-LIVE confirmation
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.confirm_controlled_live }}" != "CERTIFY_CONTROLLED_LIVE_FINANCE" ]; then
+            echo "::error::Explicit controlled-LIVE confirmation is missing."
+            exit 1
+          fi
+
+      - name: Verify immutable main SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! [[ "$KLYX_EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Invalid expected SHA."
+            exit 1
+          fi
+          if [ "$GITHUB_SHA" != "$KLYX_EXPECTED_SHA" ]; then
+            echo "::error::Certification SHA mismatch."
+            exit 1
+          fi
+
+      - name: Verify DR certification on exact SHA
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          response="$(curl --fail-with-body --silent --show-error             --header "Accept: application/vnd.github+json"             --header "Authorization: Bearer ${GH_TOKEN}"             --header "X-GitHub-Api-Version: 2022-11-28"             "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/status")"
+          if ! printf '%s' "$response" | jq -e '
+            [.statuses[] |
+              select(
+                .context == "KLYX Disaster Recovery Certification" and
+                .state == "success"
+              )
+            ] | length > 0
+          ' >/dev/null; then
+            echo "::error::Exact SHA is not DR-certified."
+            exit 1
+          fi
+
+      - name: Checkout exact repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Verify certification secrets without printing them
+        shell: bash
+        run: |
+          set -euo pipefail
+          for variable in             NEXT_PUBLIC_SUPABASE_URL             SUPABASE_SERVICE_ROLE_KEY             KLYX_FINANCIAL_RECONCILIATION_SECRET             STRIPE_SECRET_KEY             SUPABASE_DB_URL
+          do
+            if [ -z "${!variable:-}" ]; then
+              echo "::error::Missing certification secret: ${variable}"
+              exit 1
+            fi
+          done
+          if [[ "$STRIPE_SECRET_KEY" != sk_live_* ]]; then
+            echo "::error::Certification requires a Stripe LIVE secret."
+            exit 1
+          fi
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
+        with:
+          version: 2.111.0
+
+      - name: Prove production migrations have no pending write
+        shell: bash
+        run: |
+          set -euo pipefail
+          effective_db_url="$(node <<'NODE'
+          const raw = process.env.SUPABASE_DB_URL ?? "";
+          const password = process.env.SUPABASE_DB_PASSWORD ?? "";
+          const url = new URL(raw);
+          if (!["postgres:", "postgresql:"].includes(url.protocol)) process.exit(2);
+          if (
+            !url.hostname.endsWith(".supabase.co") &&
+            !url.hostname.endsWith(".pooler.supabase.com")
+          ) process.exit(3);
+          if (password) url.password = password;
+          if (!url.password) process.exit(4);
+          process.stdout.write(url.toString());
+          NODE
+          )"
+          echo "::add-mask::$effective_db_url"
+          mkdir -p certification-proof
+          supabase db push             --db-url "$effective_db_url"             --dry-run 2>&1 | tee certification-proof/supabase-dry-run.txt
+          if grep -Fqi "Would push these migrations" certification-proof/supabase-dry-run.txt; then
+            echo "::error::Production Supabase has pending migrations."
+            exit 1
+          fi
+
+      - name: Decode sanitized evidence manifest
+        shell: bash
+        env:
+          MANIFEST_BASE64: ${{ inputs.evidence_manifest_base64 }}
+        run: |
+          set -euo pipefail
+          mkdir -p certification-input certification-proof
+          printf '%s' "$MANIFEST_BASE64" | base64 --decode > certification-input/manifest.json
+          node -e '
+            const fs=require("fs");
+            const p="certification-input/manifest.json";
+            const s=fs.statSync(p).size;
+            if (s < 10 || s > 65536) process.exit(2);
+            JSON.parse(fs.readFileSync(p,"utf8"));
+          '
+
+      - name: Run 40-cell canonical financial certification
+        shell: bash
+        env:
+          KLYX_FINANCIAL_CERT_MANIFEST_PATH: certification-input/manifest.json
+          KLYX_FINANCIAL_CERT_PROOF_PATH: certification-proof/result.json
+        run: |
+          set -euo pipefail
+          node scripts/verify-klyx-production-financial-certification.mjs
+
+      - name: Guard sanitized proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require("fs");
+          const proof = JSON.parse(
+            fs.readFileSync("certification-proof/result.json", "utf8")
+          );
+          if (proof.overall !== "certified" || proof.matrixCells !== 40) {
+            process.exit(2);
+          }
+          const raw = JSON.stringify(proof);
+          for (const forbidden of [
+            "sk_live_",
+            "whsec_",
+            "service_role",
+            "bookingIds",
+            "stripe_payment_intent_id",
+            "stripe_transfer_id",
+            "stripe_refund_id"
+          ]) {
+            if (raw.includes(forbidden)) process.exit(3);
+          }
+          NODE
+
+      - name: Upload sanitized certification proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: klyx-production-financial-certification-${{ github.sha }}
+          path: certification-proof/result.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish final certification status
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          state="failure"
+          description="Mission 1 financial certification failed"
+          if [ "$JOB_STATUS" = "success" ]; then
+            state="success"
+            description="40/40 LIVE financial truth cells certified"
+          elif [ "$JOB_STATUS" = "cancelled" ]; then
+            state="error"
+            description="Mission 1 certification cancelled"
+          fi
+          payload="$(jq -n             --arg state "$state"             --arg context "KLYX Production Financial Certification"             --arg description "$description"             --arg target_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"             '{state:$state,context:$context,description:$description,target_url:$target_url}')"
+          curl --fail-with-body --silent --show-error             --request POST             --header "Accept: application/vnd.github+json"             --header "Authorization: Bearer ${GH_TOKEN}"             --header "X-GitHub-Api-Version: 2022-11-28"             "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}"             --data "${payload}"
+
+      - name: Destroy raw manifest
+        if: always()
+        shell: bash
+        run: |
+          rm -rf certification-input
