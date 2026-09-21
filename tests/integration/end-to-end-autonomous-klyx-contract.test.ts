@@ -25,6 +25,9 @@ const splitCheckout = read(
 const eligibility = read(
   "supabase/migrations/20260920110000_klyx_economic_settlement_eligibility.sql"
 );
+const latestEligibilityGate = read(
+  "supabase/migrations/20260921180000_klyx_settlement_latest_eligibility_gate.sql"
+);
 const documentation = read("docs/KLYX_END_TO_END_AUTONOMOUS_CERTIFICATION.md");
 
 describe("Mission 19 end-to-end autonomous KLYX contract", () => {
@@ -187,6 +190,19 @@ describe("Mission 19 end-to-end autonomous KLYX contract", () => {
     );
     expect(documentation).toContain(
       "If KLYX eligibility becomes blocked before a new Transfer, release must remain blocked."
+    );
+  });
+
+  it("fails closed when the newest eligibility timestamp contains conflicting decisions", () => {
+    expect(latestEligibilityGate).toContain("select bool_and(");
+    expect(latestEligibilityGate).toContain(
+      "select max(latest.evaluated_at)"
+    );
+    expect(latestEligibilityGate).not.toContain(
+      "order by d.evaluated_at desc, d.id desc"
+    );
+    expect(latestEligibilityGate).not.toContain(
+      "select exists (\n    select 1\n      from public.economic_settlement_eligibility_decisions"
     );
   });
 
