@@ -44,6 +44,8 @@ Requests may now carry optional structured keys:
 
 They are free structured text keys, not enums and not foreign keys to a permanent country/category catalogue.
 
+These keys are **not accepted from the public market-request POST body**. Until KLYX has a canonical geo/market resolver, they are populated only by trusted server-side ingestion or controlled backfill. This prevents clients from polluting liquidity cohorts with arbitrary market labels.
+
 Country, service and currency remain canonical existing dimensions.
 
 Price bands are versioned data in:
@@ -198,5 +200,7 @@ It must not:
 - activate Stripe LIVE;
 - mutate Vercel;
 - apply production migrations.
+
+The Founder-only endpoint `GET /api/founder/market-liquidity` exposes the measurement engine for operational analysis. It accepts explicit cohort dimensions and never mutates market/domain state.
 
 The Orchestrator may consume liquidity results to explain market conditions or choose a workflow strategy, but domain mutations remain deterministic server authorities.

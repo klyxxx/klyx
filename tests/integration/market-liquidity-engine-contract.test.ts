@@ -13,6 +13,7 @@ const migration = read(
 const server = read("lib/market-liquidity-server.ts");
 const metrics = read("lib/market-liquidity.ts");
 const route = read("app/api/market/requests/route.ts");
+const founderRoute = read("app/api/founder/market-liquidity/route.ts");
 const doc = read("docs/KLYX_MARKET_LIQUIDITY_ENGINE.md");
 
 describe("Mission 19 Market & Liquidity Engine contract", () => {
@@ -47,10 +48,11 @@ describe("Mission 19 Market & Liquidity Engine contract", () => {
     );
     expect(migration).toContain("add column if not exists market_id text");
     expect(migration).toContain("add column if not exists region_id text");
-    expect(route).toContain("marketId?: unknown");
-    expect(route).toContain("regionId?: unknown");
-    expect(route).toContain("market_id: marketId");
-    expect(route).toContain("region_id: regionId");
+    expect(route).not.toContain("marketId?: unknown");
+    expect(route).not.toContain("regionId?: unknown");
+    expect(route).not.toContain("market_id: marketId");
+    expect(route).not.toContain("region_id: regionId");
+    expect(doc).toContain("not accepted from the public market-request POST body");
   });
 
   it("supports versioned data-driven price bands in accounting minor units", () => {
@@ -119,6 +121,14 @@ describe("Mission 19 Market & Liquidity Engine contract", () => {
       expect(mission).not.toContain(forbidden);
     }
     expect(doc).toContain("Mission 19 is analytical.");
+  });
+
+  it("exposes liquidity analysis only through the founder boundary", () => {
+    expect(founderRoute).toContain("await requireKlyxFounder()");
+    expect(founderRoute).toContain("getKlyxMarketLiquidityMetrics");
+    expect(founderRoute).toContain('"Cache-Control": "private, no-store, max-age=0"');
+    expect(founderRoute).not.toContain("POST");
+    expect(founderRoute).not.toContain("PATCH");
   });
 
   it("keeps policy tables server-only", () => {

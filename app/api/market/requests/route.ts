@@ -349,8 +349,6 @@ export async function POST(request: Request) {
       requestedDate?: unknown;
       requestedTime?: unknown;
       budgetMax?: unknown;
-      marketId?: unknown;
-      regionId?: unknown;
     };
 
     try {
@@ -368,21 +366,6 @@ export async function POST(request: Request) {
     const city = clean(body.city, 100);
     const requestedDate = clean(body.requestedDate, 10) || null;
     const requestedTime = clean(body.requestedTime, 5) || null;
-    const marketId = clean(body.marketId, 128) || null;
-    const regionId = clean(body.regionId, 128) || null;
-
-    if (
-      (marketId && !/^[A-Za-z0-9_.:-]+$/.test(marketId)) ||
-      (regionId && !/^[A-Za-z0-9_.:-]+$/.test(regionId))
-    ) {
-      return NextResponse.json(
-        {
-          error: "Identifiant de marché ou de région invalide.",
-          code: "KLYX_MARKET_SCOPE_KEY_INVALID",
-        },
-        { status: 400 }
-      );
-    }
 
     const budgetRaw =
       body.budgetMax === null ||
@@ -456,14 +439,12 @@ export async function POST(request: Request) {
         requested_date: requestedDate,
         requested_time: requestedTime ? `${requestedTime}:00` : null,
         budget_max: budgetMax,
-        market_id: marketId,
-        region_id: regionId,
         country_code: marketCountry,
         currency: marketCurrency,
         status: "open",
       })
       .select(
-        "id, title, description, city, requested_date, requested_time, budget_max, market_id, region_id, country_code, currency, status, created_at"
+        "id, title, description, city, requested_date, requested_time, budget_max, country_code, currency, status, created_at"
       )
       .single();
 
