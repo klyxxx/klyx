@@ -118,6 +118,7 @@ describe("KLYX Market & Liquidity metrics", () => {
     expect(metrics.providerUtilizationRate).toBe(1);
     expect(metrics.availabilityRate).toBe(1);
     expect(metrics.matchingQuality).toBe(1);
+    expect(metrics.matchingQualitySampleSize).toBe(2);
     expect(metrics.fulfillmentProbability).toBe(1);
   });
 
@@ -133,6 +134,7 @@ describe("KLYX Market & Liquidity metrics", () => {
       timeToFirstMatchSeconds: { p50: 60, p90: 120 },
       timeToQuoteSeconds: { p50: 180, p90: 240 },
       matchingQuality: 1,
+      matchingQualitySampleSize: 2,
       quoteProbability: 1,
       fulfillmentProbability: 1,
       quoteAcceptanceRate: 1,
@@ -185,5 +187,88 @@ describe("KLYX Market & Liquidity metrics", () => {
         minMatchingQualityBps: 5000,
       }).state
     ).toBe("liquid");
+  });
+
+  it("does not fabricate matching quality from an offer-only historical signal", () => {
+    const metrics = buildKlyxMarketLiquidityMetrics({
+      requests: [
+        {
+          id: "r1",
+          client_profile_id: "c1",
+          service_id: "s1",
+          market_id: null,
+          region_id: null,
+          country_code: "XX",
+          currency: "EUR",
+          budget_max: 100,
+          created_at: "2026-01-01T10:00:00.000Z",
+        },
+      ],
+      candidates: [],
+      offers: [
+        {
+          request_id: "r1",
+          provider_profile_id: "p1",
+          status: "sent",
+          created_at: "2026-01-01T10:02:00.000Z",
+        },
+      ],
+      quotes: [],
+      bookings: [],
+      incidents: [],
+      incidentEvents: [],
+    });
+
+    expect(metrics.matchedDemands).toBe(1);
+    expect(metrics.timeToFirstMatchSeconds.p50).toBe(120);
+    expect(metrics.matchingQuality).toBeNull();
+    expect(metrics.matchingQualitySampleSize).toBe(0);
+  });
+
+  it("returns unknown when a configured threshold has no measurable evidence", () => {
+    const metrics = {
+      sampleSize: 20,
+      matchedDemands: 20,
+      quotedDemands: 20,
+      acceptedQuoteDemands: 10,
+      bookedDemands: 10,
+      completedDemands: 9,
+      cancelledBookedDemands: 1,
+      timeToFirstMatchSeconds: { p50: 60, p90: 120 },
+      timeToQuoteSeconds: { p50: 180, p90: 240 },
+      matchingQuality: 0.8,
+      matchingQualitySampleSize: 20,
+      quoteProbability: 1,
+      fulfillmentProbability: 0.45,
+      quoteAcceptanceRate: 0.5,
+      bookingConversionRate: 1,
+      fillRate: 0.5,
+      completionRate: 0.9,
+      cancellationRate: 0.1,
+      replacementSuccessRate: null,
+      repeatUsageRate: 0.2,
+      providerUtilizationRate: 0.5,
+      availabilityRate: 0.8,
+    };
+
+    const result = evaluateKlyxMarketLiquidity(metrics, {
+      id: "policy",
+      minSampleSize: 20,
+      maxTimeToFirstMatchSeconds: null,
+      maxTimeToQuoteSeconds: null,
+      minQuoteAcceptanceBps: null,
+      minBookingConversionBps: null,
+      minFillRateBps: null,
+      minCompletionRateBps: null,
+      maxCancellationRateBps: null,
+      minReplacementSuccessBps: 5000,
+      minRepeatUsageBps: null,
+      minProviderUtilizationBps: null,
+      minAvailabilityBps: null,
+      minMatchingQualityBps: null,
+    });
+
+    expect(result.state).toBe("unknown");
+    expect(result.reasons).toContain("replacement_success_unavailable");
   });
 });

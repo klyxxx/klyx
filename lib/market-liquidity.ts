@@ -92,6 +92,7 @@ export type KlyxMarketLiquidityMetrics = {
   timeToFirstMatchSeconds: { p50: number | null; p90: number | null };
   timeToQuoteSeconds: { p50: number | null; p90: number | null };
   matchingQuality: number | null;
+  matchingQualitySampleSize: number;
   quoteProbability: number | null;
   fulfillmentProbability: number | null;
   quoteAcceptanceRate: number | null;
@@ -261,12 +262,14 @@ export function buildKlyxMarketLiquidityMetrics(input: {
 
     const firstCandidate = firstTimestamp(requestCandidates);
     const firstOffer = firstTimestamp(requestOffers);
+    const firstQuoteSignal = firstTimestamp(requestQuotes);
+    const firstMatchSignals = [
+      firstCandidate,
+      firstOffer,
+      firstQuoteSignal,
+    ].filter((value): value is number => value != null);
     const firstMatch =
-      firstCandidate == null
-        ? firstOffer
-        : firstOffer == null
-          ? firstCandidate
-          : Math.min(firstCandidate, firstOffer);
+      firstMatchSignals.length === 0 ? null : Math.min(...firstMatchSignals);
 
     if (firstMatch != null) {
       matchedDemands += 1;
@@ -305,7 +308,8 @@ export function buildKlyxMarketLiquidityMetrics(input: {
 
     const fullCoverage =
       requestCandidates.some((candidate) => candidate.full_coverage) ||
-      requestOffers.length > 0;
+      requestOffers.length > 0 ||
+      requestQuotes.length > 0;
     if (fullCoverage) availableDemands += 1;
 
     if (requestCandidates.length > 0) {
@@ -319,11 +323,13 @@ export function buildKlyxMarketLiquidityMetrics(input: {
         );
       }
       matchingQualities.push(best);
-    } else if (requestOffers.length > 0) {
-      for (const offer of requestOffers) {
-        discoveredProviders.add(offer.provider_profile_id);
-      }
-      matchingQualities.push(1);
+    }
+
+    for (const offer of requestOffers) {
+      discoveredProviders.add(offer.provider_profile_id);
+    }
+    for (const quote of requestQuotes) {
+      discoveredProviders.add(quote.provider_profile_id);
     }
 
     for (const booking of requestBookings) {
@@ -386,6 +392,7 @@ export function buildKlyxMarketLiquidityMetrics(input: {
         ? null
         : matchingQualities.reduce((sum, value) => sum + value, 0) /
           matchingQualities.length,
+    matchingQualitySampleSize: matchingQualities.length,
     quoteProbability: ratio(quotedDemands, matchedDemands),
     fulfillmentProbability: ratio(completedDemands, requests.length),
     quoteAcceptanceRate: ratio(acceptedQuoteDemands, quotedDemands),
@@ -427,13 +434,18 @@ export function evaluateKlyxMarketLiquidity(
   }
 
   const failures: string[] = [];
+  const unavailable: string[] = [];
   const requireAtMost = (
     key: string,
     value: number | null,
     maximum: number | null
   ) => {
     if (maximum == null) return;
-    if (value == null || value > maximum) failures.push(key);
+    if (value == null) {
+      unavailable.push(`${key}_unavailable`);
+      return;
+    }
+    if (value > maximum) failures.push(key);
   };
   const requireAtLeastBps = (
     key: string,
@@ -442,7 +454,11 @@ export function evaluateKlyxMarketLiquidity(
   ) => {
     if (minimum == null) return;
     const actual = bps(value);
-    if (actual == null || actual < minimum) failures.push(key);
+    if (actual == null) {
+      unavailable.push(`${key}_unavailable`);
+      return;
+    }
+    if (actual < minimum) failures.push(key);
   };
   const requireAtMostBps = (
     key: string,
@@ -451,7 +467,11 @@ export function evaluateKlyxMarketLiquidity(
   ) => {
     if (maximum == null) return;
     const actual = bps(value);
-    if (actual == null || actual > maximum) failures.push(key);
+    if (actual == null) {
+      unavailable.push(`${key}_unavailable`);
+      return;
+    }
+    if (actual > maximum) failures.push(key);
   };
 
   requireAtMost(
@@ -510,6 +530,14 @@ export function evaluateKlyxMarketLiquidity(
     metrics.matchingQuality,
     policy.minMatchingQualityBps
   );
+
+  if (unavailable.length > 0) {
+    return {
+      state: "unknown",
+      policyId: policy.id,
+      reasons: unavailable,
+    };
+  }
 
   return {
     state: failures.length === 0 ? "liquid" : "illiquid",

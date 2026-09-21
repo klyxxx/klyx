@@ -89,6 +89,7 @@ describe("Mission 19 Market & Liquidity Engine contract", () => {
       "providerUtilizationRate",
       "availabilityRate",
       "matchingQuality",
+      "matchingQualitySampleSize",
       "quoteProbability",
       "fulfillmentProbability",
     ]) {
@@ -100,6 +101,7 @@ describe("Mission 19 Market & Liquidity Engine contract", () => {
     expect(metrics).toContain('state: "unknown"');
     expect(metrics).toContain('"liquidity_policy_missing"');
     expect(metrics).toContain('"sample_size_insufficient"');
+    expect(metrics).toContain('unavailable.push(`${key}_unavailable`)');
     expect(metrics).toContain('state: failures.length === 0 ? "liquid" : "illiquid"');
   });
 

@@ -90,6 +90,8 @@ If no policy exists, liquidity is `unknown`.
 
 If the sample is smaller than `min_sample_size`, liquidity is `unknown`.
 
+If a configured metric cannot be measured for the cohort (for example no replacement attempt exists while a replacement-success threshold is required), liquidity is also `unknown`. Missing evidence is never converted into a synthetic 0% failure.
+
 Only a cohort that satisfies every configured threshold is `liquid`.
 
 Anything that fails a configured threshold is `illiquid`.
@@ -176,9 +178,9 @@ Each price band stores lower/upper canonical minor-unit bounds and version valid
 
 Historical `market_request_provider_candidates` is strongest for flows where KLYX persisted discovery candidates.
 
-For legacy requests where discovery was not persisted, an actual provider offer is accepted as the first observable match signal.
+For legacy requests where discovery was not persisted, an actual provider offer or quote is accepted as the first observable match signal.
 
-This is deliberately explicit: the engine does not fabricate an earlier discovery timestamp.
+This is deliberately explicit: the engine does not fabricate an earlier discovery timestamp. An offer/quote fallback proves that a match existed by that time, but it does **not** receive a fabricated 100% matching-quality score. Matching quality is computed only when candidate coverage evidence exists.
 
 ## Authority boundary
 
