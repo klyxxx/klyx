@@ -32,6 +32,26 @@ block
 → human_review
 ```
 
+## Observation vs mutation authority
+
+KLYX deliberately separates two Stripe runtime authorities:
+
+```text
+Stripe truth observation / webhook ingestion / reconciliation
+≠
+new financial mutation authorization
+```
+
+Signed webhook ingestion and read-only reconciliation must continue while an
+Operations kill-switch is active, while the controlled canary is disabled, or
+after a later deployment. Otherwise KLYX could lose external Stripe truth
+precisely during an incident.
+
+Creating Checkout, Transfer, TransferReversal or Refund remains subject to the
+full mutation gate: Operations capability, exact LIVE SHA, DR evidence,
+controlled certification profile before Mission 1, and exact financial
+certification before general LIVE.
+
 ## Happy-path chain
 
 Every topology must prove:
