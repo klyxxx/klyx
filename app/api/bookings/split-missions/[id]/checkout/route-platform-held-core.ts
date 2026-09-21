@@ -18,7 +18,7 @@ import {
   getProviderStripeDestination,
   isStripeConnectIdentityReviewRequired,
 } from "@/lib/stripe-connect-account";
-import { assertStripeRuntimeReady } from "@/lib/stripe-runtime";
+import { requireKlyxFinancialStripeRuntime } from "@/lib/klyx-financial-stripe-runtime";
 import {
   getKlyxSettlementMode,
   KLYX_PLATFORM_HELD_SETTLEMENT_MODE,
@@ -189,19 +189,6 @@ function parseCanonicalPlan(value: unknown): CanonicalPlan | null {
 
 function planHash(plan: CanonicalPlan): string {
   return createHash("sha256").update(JSON.stringify(plan)).digest("hex");
-}
-
-function requiredTestStripe(): Stripe {
-  const key = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
-
-  if (key.startsWith("sk_live_")) {
-    throw new Error("KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY");
-  }
-  if (!key.startsWith("sk_test_")) {
-    throw new Error("KLYX_SETTLEMENT_STRIPE_TEST_KEY_REQUIRED");
-  }
-
-  return new Stripe(key);
 }
 
 async function loadConfirmation(
@@ -466,14 +453,19 @@ export async function POST(request: Request, context: RouteContext) {
       throw new Error("KLYX_PLATFORM_HELD_MODE_NOT_ACTIVE");
     }
 
-    const stripe = requiredTestStripe();
-    const stripeRuntime = assertStripeRuntimeReady();
     const { user, profile } = await getAuthenticatedProfile(request);
     requireAccountType(profile, "client");
 
+    const financialRuntime = await requireKlyxFinancialStripeRuntime({
+      clientProfileId: profile.id,
+    });
+    const stripe = new Stripe(financialRuntime.key);
+    const stripeMode =
+      financialRuntime.mode === "test" ? "test" : "live";
+
     const clientMarket = assessKlyxStripeMarketAccess(
       profile.countryCode,
-      stripeRuntime.mode
+      stripeMode
     );
     if (!clientMarket.allowed) {
       return NextResponse.json(
