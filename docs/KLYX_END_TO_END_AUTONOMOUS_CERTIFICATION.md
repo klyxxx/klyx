@@ -178,6 +178,49 @@ canonical account/activity
 
 A previously-created remote Transfer discovered during recovery is reconciled; reconciliation is not a second money movement.
 
+## Executable Mission 19 runtime evidence
+
+The Golden Path now requires both Mission 19 chaos harnesses on the same candidate SHA.
+
+```text
+scripts/mission19-autonomous-continuity.mjs
+-> browser close/reopen
+-> LLM replacement
+-> conversation deletion/rebind
+-> double click/action replay
+-> worker crash/lease recovery
+-> retry/ack replay
+-> price drift snapshot preservation
+```
+
+The signed Stripe lifecycle uses an event whose Stripe `event.created` is one hour older than delivery. KLYX must still process it once, persist the paid booking/ledger state, and reject replay idempotently.
+
+```text
+old Stripe event.created
+-> signed delivery now
+-> webhook claim
+-> canonical payment state
+-> processed event record
+-> duplicate replay rejected
+```
+
+The final local-only settlement harness creates no Stripe object and performs no external money movement. It proves the authorization boundary directly:
+
+```text
+fresh economic ALLOWED
++ fresh risk ALLOW
+-> release claim = create
+
+same booking
+-> claim reset before any remote side effect
+-> newer economic BLOCKED
+-> release claim = not_ready
+-> release_attempt_number unchanged
+-> stripe_transfer_id remains NULL
+```
+
+This final harness runs after the normal payment, finance, refund and split-reconciliation proofs so its isolated fixture cannot contaminate those validations.
+
 ## Certification rule
 
 Mission 19 is certified only when the exact candidate SHA passes:
