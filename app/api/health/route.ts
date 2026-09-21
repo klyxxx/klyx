@@ -1,3 +1,5 @@
+import { getKlyxBuildReleaseSha } from "@/lib/klyx-build-release";
+
 export const dynamic = "force-dynamic";
 
 const responseHeaders = {
@@ -11,6 +13,7 @@ export function GET(): Response {
       status: "ok",
       service: "klyx",
       check: "liveness",
+      releaseSha: getKlyxBuildReleaseSha(),
     },
     {
       status: 200,
