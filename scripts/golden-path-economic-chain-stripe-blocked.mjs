@@ -783,7 +783,7 @@ async function prepareClientConfirmation(admin, bookingId) {
     .from("bookings")
     .update({
       booking_date: yesterdayIsoDate(),
-      start_time: "00:00",
+      start_time: "10:00",
       service_status: "in_progress",
       provider_finished_at: now,
       provider_finish_note:
