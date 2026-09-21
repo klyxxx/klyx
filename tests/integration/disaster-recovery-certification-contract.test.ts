@@ -142,7 +142,10 @@ describe("Mission 18 disaster recovery certification contract", () => {
     );
     expect(certification).toContain("KLYX Source Backup");
     expect(certification).toContain(
-      'if [ "$normalized_commit" != "$expected_commit" ]'
+      "backupCommit !== expectedCommit"
+    );
+    expect(certification).toContain(
+      "declaredExpected !== expectedCommit"
     );
     expect(certification).toContain(
       'grep -Fx "commit=${GITHUB_SHA}"'
