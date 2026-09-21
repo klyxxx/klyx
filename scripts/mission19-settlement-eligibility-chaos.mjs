@@ -196,13 +196,33 @@ async function main() {
     .maybeSingle();
   if (canonicalIdentityError) throw new Error(canonicalIdentityError.message);
 
-  if (canonicalIdentity) {
-    invariant(
-      canonicalIdentity.identity_state === "linked" &&
-        typeof canonicalIdentity.stripe_account_id === "string",
-      "Mission 19 canonical Stripe identity is not linked."
-    );
+  if (
+    canonicalIdentity?.identity_state === "linked" &&
+    typeof canonicalIdentity.stripe_account_id === "string" &&
+    /^acct_[A-Za-z0-9]+$/.test(canonicalIdentity.stripe_account_id)
+  ) {
     stripeAccountId = canonicalIdentity.stripe_account_id;
+  } else if (canonicalIdentity) {
+    // Local-only fixture repair. Legacy/dev account ids may contain extra
+    // separators that the settlement control plane intentionally rejects.
+    // Remove only the dedicated user's provider projection before replacing
+    // the canonical TEST identity; no Stripe object or money movement exists.
+    const { error: projectionDeleteError } = await admin
+      .from("economic_stripe_account_projections")
+      .delete()
+      .eq("account_id", accountId);
+    if (projectionDeleteError) throw new Error(projectionDeleteError.message);
+
+    const { error: identityUpdateError } = await admin
+      .from("account_stripe_connect_identities")
+      .update({
+        stripe_account_id: stripeAccountId,
+        identity_state: "linked",
+        conflicting_stripe_account_ids: [],
+        updated_at: new Date().toISOString(),
+      })
+      .eq("account_id", accountId);
+    if (identityUpdateError) throw new Error(identityUpdateError.message);
   } else {
     const { error } = await admin
       .from("account_stripe_connect_identities")
