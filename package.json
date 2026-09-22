@@ -31,7 +31,8 @@
     "test:mission19": "vitest run tests/integration/end-to-end-autonomous-continuity-contract.test.ts tests/integration/end-to-end-autonomous-klyx-contract.test.ts tests/integration/mission19-durable-job-claim-regression.test.ts tests/integration/mission19-exact-dispatch-serialization.test.ts",
     "certify:mission19:continuity": "node scripts/mission19-autonomous-continuity.mjs",
     "certify:mission19:settlement": "node scripts/mission19-settlement-eligibility-chaos.mjs",
-    "certify:mission19:earn": "node scripts/mission19-earn-lifecycle.mjs"
+    "certify:mission19:earn": "node scripts/mission19-earn-lifecycle.mjs",
+    "certify:mission19:earn:stripe": "node scripts/golden-path-platform-held-settlement-network.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
