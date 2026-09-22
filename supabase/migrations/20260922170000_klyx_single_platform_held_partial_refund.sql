@@ -873,6 +873,195 @@ begin
 end;
 $$;
 
+-- Replace the historical Single Settlement ledger mirror so partial
+-- pre-release refunds cannot overstate Transfer/provider-liability discharge.
+-- New refund reversals are appended by the server state machine and therefore
+-- suppress the legacy one-reversal mirror to prevent double counting.
+create or replace function public.klyx_mirror_booking_settlement_to_central()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_provider_id uuid;
+  v_payment_identity text;
+  v_occurred_at timestamptz := coalesce(new.updated_at, now());
+  v_released_provider_amount bigint;
+begin
+  select coalesce(b.provider_id, b.babysitter_id)
+    into v_provider_id
+    from public.bookings as b
+   where b.id = new.booking_id;
+
+  if v_provider_id is null then
+    v_provider_id := new.provider_profile_id;
+  end if;
+
+  v_payment_identity := coalesce(
+    nullif(trim(new.stripe_payment_intent_id), ''),
+    nullif(trim(new.stripe_checkout_session_id), ''),
+    new.booking_id::text
+  );
+
+  v_released_provider_amount := case
+    when coalesce(new.released_provider_amount_cents, 0) > 0
+      then new.released_provider_amount_cents
+    else new.provider_amount_cents
+  end;
+
+  if new.stripe_charge_id is not null
+     and (
+       tg_op = 'INSERT'
+       or old.stripe_charge_id is distinct from new.stripe_charge_id
+     ) then
+    perform public.klyx_append_financial_ledger_event(
+      concat('booking:', new.booking_id, ':charge:', v_payment_identity),
+      concat('settlement:', new.booking_id, ':charge:', new.stripe_charge_id),
+      'charge',
+      greatest(new.gross_amount_cents, 0),
+      new.currency,
+      new.booking_id,
+      'platform',
+      'klyx',
+      'settlement_charge_truth_observed',
+      'settlement',
+      case when tg_op = 'UPDATE' then old.state else null end,
+      new.state,
+      v_occurred_at,
+      new.stripe_account_id,
+      new.stripe_checkout_session_id,
+      new.stripe_payment_intent_id,
+      new.stripe_charge_id,
+      new.stripe_transfer_id,
+      new.stripe_transfer_reversal_id,
+      null,
+      null,
+      '{}'::jsonb
+    );
+  end if;
+
+  if new.stripe_transfer_id is not null
+     and (
+       tg_op = 'INSERT'
+       or old.stripe_transfer_id is distinct from new.stripe_transfer_id
+     ) then
+    perform public.klyx_append_financial_ledger_event(
+      concat('booking:', new.booking_id, ':transfer:', new.stripe_transfer_id),
+      concat('settlement:', new.booking_id, ':transfer:', new.stripe_transfer_id),
+      'transfer',
+      greatest(v_released_provider_amount, 0),
+      new.currency,
+      new.booking_id,
+      'provider',
+      public.klyx_financial_beneficiary_account_ref(v_provider_id, new.booking_id, 'provider'),
+      'settlement_release',
+      'settlement',
+      case when tg_op = 'UPDATE' then old.state else null end,
+      new.state,
+      v_occurred_at,
+      new.stripe_account_id,
+      new.stripe_checkout_session_id,
+      new.stripe_payment_intent_id,
+      new.stripe_charge_id,
+      new.stripe_transfer_id,
+      new.stripe_transfer_reversal_id,
+      null,
+      null,
+      jsonb_build_object('transfer_group', new.transfer_group)
+    );
+
+    perform public.klyx_append_financial_ledger_event(
+      concat('booking:', new.booking_id, ':provider-liability:', v_payment_identity),
+      concat('settlement:', new.booking_id, ':provider-liability:released:', new.stripe_transfer_id),
+      'provider_liability',
+      greatest(v_released_provider_amount, 0),
+      new.currency,
+      new.booking_id,
+      'provider',
+      public.klyx_financial_beneficiary_account_ref(v_provider_id, new.booking_id, 'provider'),
+      'settlement_release',
+      'settlement',
+      'recognized',
+      'discharged',
+      v_occurred_at,
+      new.stripe_account_id,
+      new.stripe_checkout_session_id,
+      new.stripe_payment_intent_id,
+      new.stripe_charge_id,
+      new.stripe_transfer_id,
+      null,
+      null,
+      null,
+      jsonb_build_object('transfer_group', new.transfer_group)
+    );
+  end if;
+
+  if new.stripe_transfer_reversal_id is not null
+     and (
+       tg_op = 'INSERT'
+       or old.stripe_transfer_reversal_id is distinct from new.stripe_transfer_reversal_id
+     )
+     and not exists (
+       select 1
+         from public.platform_held_booking_refund_reversals r
+        where r.booking_id = new.booking_id
+     ) then
+    perform public.klyx_append_financial_ledger_event(
+      concat('booking:', new.booking_id, ':reversal:', new.stripe_transfer_reversal_id),
+      concat('settlement:', new.booking_id, ':reversal:', new.stripe_transfer_reversal_id),
+      'reversal',
+      greatest(v_released_provider_amount, 0),
+      new.currency,
+      new.booking_id,
+      'platform',
+      'klyx',
+      'provider_transfer_reversal',
+      'settlement',
+      case when tg_op = 'UPDATE' then old.state else null end,
+      new.state,
+      v_occurred_at,
+      new.stripe_account_id,
+      new.stripe_checkout_session_id,
+      new.stripe_payment_intent_id,
+      new.stripe_charge_id,
+      new.stripe_transfer_id,
+      new.stripe_transfer_reversal_id,
+      null,
+      null,
+      jsonb_build_object('transfer_group', new.transfer_group)
+    );
+
+    perform public.klyx_append_financial_ledger_event(
+      concat('booking:', new.booking_id, ':provider-liability:', v_payment_identity),
+      concat('settlement:', new.booking_id, ':provider-liability:reversed:', new.stripe_transfer_reversal_id),
+      'provider_liability',
+      greatest(v_released_provider_amount, 0),
+      new.currency,
+      new.booking_id,
+      'provider',
+      public.klyx_financial_beneficiary_account_ref(v_provider_id, new.booking_id, 'provider'),
+      'provider_transfer_reversal',
+      'settlement',
+      'discharged',
+      'reversed',
+      v_occurred_at,
+      new.stripe_account_id,
+      new.stripe_checkout_session_id,
+      new.stripe_payment_intent_id,
+      new.stripe_charge_id,
+      new.stripe_transfer_id,
+      new.stripe_transfer_reversal_id,
+      null,
+      null,
+      jsonb_build_object('transfer_group', new.transfer_group)
+    );
+  end if;
+
+  return new;
+end;
+$$;
+
 revoke all on function public.klyx_create_platform_held_booking_refund_plan(
   uuid, text, bigint, text
 ) from public, anon, authenticated;
