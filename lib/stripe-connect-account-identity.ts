@@ -193,6 +193,13 @@ export async function markAccountStripeConnectIdentityForReview(params: {
   });
 }
 
+export async function getAccountStripeConnectIdentityStrict(
+  accountId: string
+): Promise<AccountStripeConnectIdentity> {
+  const canonical = await readCanonicalIdentity(accountId);
+  return normalizeIdentity(accountId, canonical);
+}
+
 export async function getAccountStripeConnectIdentity(
   accountId: string
 ): Promise<AccountStripeConnectIdentity> {
@@ -285,6 +292,25 @@ export async function getAccountStripeConnectIdentity(
   }
 
   return normalizeIdentity(accountId, canonical);
+}
+
+export async function getProfileAccountStripeConnectIdentityStrict(
+  profileId: string
+): Promise<AccountStripeConnectIdentity> {
+  const { data, error } = await supabaseAdmin
+    .from("profiles")
+    .select("id, account_id")
+    .eq("id", profileId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+
+  const profile = (data as ProfileAccountRow | null) ?? null;
+  if (!profile?.account_id) {
+    throw new Error("KLYX_CANONICAL_ACCOUNT_REQUIRED");
+  }
+
+  return getAccountStripeConnectIdentityStrict(profile.account_id);
 }
 
 export async function getProfileAccountStripeConnectIdentity(

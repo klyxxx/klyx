@@ -70,6 +70,10 @@ async function requestJson({
   return { status: response.status, payload };
 }
 
+function invariantDelayedWebhook(value, message) {
+  if (!value) throw new Error(message);
+}
+
 function stripeSignature(payload, webhookSecret, timestamp) {
   const digest = createHmac("sha256", webhookSecret)
     .update(`${timestamp}.${payload}`, "utf8")
@@ -213,10 +217,11 @@ async function main() {
   const sessionId = `cs_test_klyx_${nonce}`;
   const paymentIntentId = `pi_klyx_${nonce}`;
   const timestamp = Math.floor(Date.now() / 1000);
+  const delayedEventCreated = timestamp - 60 * 60;
   const event = {
     id: eventId,
     object: "event",
-    created: timestamp,
+    created: delayedEventCreated,
     data: {
       object: {
         id: sessionId,
@@ -340,7 +345,7 @@ async function main() {
   const { data: webhookRecord, error: webhookRecordError } = await admin
     .from("stripe_webhook_events")
     .select(
-      "stripe_event_id, event_type, object_id, livemode, status, attempt_count"
+      "stripe_event_id, event_type, object_id, livemode, status, attempt_count, received_at"
     )
     .eq("stripe_event_id", eventId)
     .single();
@@ -360,6 +365,14 @@ async function main() {
   ) {
     throw new Error("Golden-path webhook processing record is invalid.");
   }
+
+  const webhookReceivedAtSeconds =
+    Date.parse(webhookRecord.received_at) / 1000;
+  invariantDelayedWebhook(
+    Number.isFinite(webhookReceivedAtSeconds) &&
+      webhookReceivedAtSeconds - delayedEventCreated >= 60 * 59,
+    "Delayed Stripe webhook did not converge after a one-hour event delay."
+  );
 
   const paymentNotificationKeys = [
     `booking:${booking.id}:payment-success:client`,

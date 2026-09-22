@@ -24,7 +24,7 @@ describe("provider search canonical zone contract", () => {
   });
 
   it("uses canonical zones instead of legacy service-profile text for location matching", () => {
-    expect(searchCore).toContain("providerZonesCoverBelgianLocality(candidate.zones, city)");
+    expect(searchCore).toContain("providerZonesCoverLocation(candidate.zones, {");
     expect(searchCore).not.toContain("normalizeLocation(city)");
     expect(searchCore).not.toContain("[candidate.city, ...candidate.serviceArea]");
   });
@@ -36,12 +36,14 @@ describe("provider search canonical zone contract", () => {
     expect(searchCore).toContain("travelRadiusKm: Number(serviceProfile.travel_radius_km ?? 10)");
   });
 
-  it("keeps canonical matching Belgium-only and fail-closed", () => {
+  it("keeps country coverage universal while country-specific radius adapters fail closed", () => {
+    expect(zoneCoverage).toContain("providerZonesCoverLocation");
+    expect(zoneCoverage).toContain("exactTextCoverage");
+    expect(zoneCoverage).toContain("belgianRadiusCoverage");
     expect(zoneCoverage).toContain("BELGIAN_LOCALITIES_COUNTRY_CODE");
-    expect(zoneCoverage).toContain("findBelgianLocality(requestedLocalityInput)");
-    expect(zoneCoverage).toContain("if (!requestedLocality) return false");
     expect(zoneCoverage).toContain("distanceBetweenLocalitiesKm");
     expect(zoneCoverage).toContain("coverageStatus(distanceKm, zone.radiusKm).covered");
     expect(zoneCoverage).toContain("value >= 1 && value <= 100");
+    expect(zoneCoverage).toContain("never permanent market allow-lists");
   });
 });

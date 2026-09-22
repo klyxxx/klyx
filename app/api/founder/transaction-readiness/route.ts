@@ -116,6 +116,11 @@ export async function GET() {
       "booking_tracking_events",
       "stripe_webhook_events",
       "booking_financial_ledger",
+      "financial_ledger_current",
+      "financial_reconciliation_current",
+      "booking_settlements",
+      "platform_held_group_settlements",
+      "platform_held_group_settlement_members",
       "ops_operations",
       "ops_events",
       "ops_capability_controls",
@@ -299,6 +304,242 @@ export async function GET() {
       });
     }
 
+    const {
+      data: reconciliationData,
+      error: reconciliationError,
+    } = await supabaseAdmin
+      .from("financial_reconciliation_current")
+      .select("state")
+      .in("state", ["reconciliation", "human_review"])
+      .limit(1000);
+
+    if (reconciliationError) {
+      logServerError({
+        error: reconciliationError,
+        event: "founder_transaction_canonical_reconciliation_audit_failed",
+        route: "/api/founder/transaction-readiness",
+        method: "GET",
+        status: 500,
+        code: "KLYX_FOUNDER_CANONICAL_RECONCILIATION_AUDIT_FAILED",
+        durationMs: Math.max(0, Date.now() - startedAt),
+      });
+
+      checks.push({
+        key: "canonical_reconciliation",
+        label: "Ledger ↔ Settlement ↔ Stripe",
+        ok: false,
+        detail: "La vérité de réconciliation canonique est indisponible.",
+        severity: "blocking",
+      });
+    } else {
+      const humanReviewCount = (reconciliationData ?? []).filter(
+        (row) => row.state === "human_review"
+      ).length;
+      const reconciliationCount = (reconciliationData ?? []).filter(
+        (row) => row.state === "reconciliation"
+      ).length;
+
+      checks.push({
+        key: "canonical_reconciliation",
+        label: "Ledger ↔ Settlement ↔ Stripe",
+        ok: humanReviewCount === 0 && reconciliationCount === 0,
+        detail:
+          humanReviewCount === 0 && reconciliationCount === 0
+            ? "Aucune divergence financière canonique ouverte."
+            : `${reconciliationCount} reconciliation(s) et ${humanReviewCount} human_review ouverte(s). Toute mutation financière doit rester fail-closed.`,
+        severity: "blocking",
+      });
+    }
+
+    const { data: unresolvedLedgerData, error: unresolvedLedgerError } =
+      await supabaseAdmin
+        .from("financial_ledger_current")
+        .select("booking_id")
+        .like("beneficiary_ref", "unresolved-profile:%")
+        .limit(1000);
+
+    checks.push({
+      key: "canonical_ledger_beneficiaries",
+      label: "Bénéficiaires ledger canoniques",
+      ok:
+        !unresolvedLedgerError &&
+        (unresolvedLedgerData ?? []).length === 0,
+      detail: unresolvedLedgerError
+        ? "Audit des bénéficiaires du ledger canonique indisponible."
+        : (unresolvedLedgerData ?? []).length === 0
+          ? "Aucun bénéficiaire financier non résolu."
+          : `${(unresolvedLedgerData ?? []).length} écriture(s) avec bénéficiaire non résolu.`,
+      severity: "blocking",
+    });
+
+    const deployedSha =
+      process.env.VERCEL_GIT_COMMIT_SHA?.trim().toLowerCase() ?? "";
+    const drCertifiedSha =
+      process.env.KLYX_DR_CERTIFIED_SHA?.trim().toLowerCase() ?? "";
+    const financialCertifiedSha =
+      process.env.KLYX_PRODUCTION_FINANCIAL_CERTIFIED_SHA
+        ?.trim()
+        .toLowerCase() ?? "";
+    const liveCertificationSha =
+      process.env.KLYX_LIVE_CERTIFICATION_SHA?.trim().toLowerCase() ?? "";
+    const shaValid = (value: string) => /^[0-9a-f]{40}$/.test(value);
+    const liveGeneral =
+      process.env.KLYX_LIVE_PAYMENTS_ENABLED?.trim().toLowerCase() ===
+      "true";
+    const liveCertification =
+      process.env.KLYX_LIVE_CERTIFICATION_ENABLED
+        ?.trim()
+        .toLowerCase() === "true";
+
+    if (process.env.KLYX_STRIPE_MODE?.trim() === "live") {
+      checks.push({
+        key: "financial_exact_sha",
+        label: "SHA financier exact",
+        ok: liveGeneral
+          ? shaValid(deployedSha) &&
+            deployedSha === drCertifiedSha &&
+            deployedSha === financialCertifiedSha
+          : liveCertification
+            ? shaValid(deployedSha) &&
+              deployedSha === drCertifiedSha &&
+              deployedSha === liveCertificationSha
+            : false,
+        detail: liveGeneral
+          ? "LIVE général exige SHA déployé = DR = certification financière."
+          : liveCertification
+            ? "Canary LIVE exige SHA déployé = DR = SHA de certification."
+            : "Mode Stripe LIVE sans activation financière autorisée.",
+        severity: "blocking",
+      });
+    }
+
+    const schedulerThreshold = new Date(
+      Date.now() - 3 * 60 * 1000
+    ).toISOString();
+    const sentinelThreshold = new Date(
+      Date.now() - 36 * 60 * 60 * 1000
+    ).toISOString();
+
+    const [
+      schedulerResult,
+      heartbeatResult,
+      sentinelResult,
+    ] = await Promise.all([
+      supabaseAdmin
+        .from("ops_financial_runtime_scheduler")
+        .select("enabled, token_sha256, alert_email")
+        .eq("scheduler_key", "financial_runtime_tick")
+        .maybeSingle(),
+      supabaseAdmin
+        .from("ops_runtime_heartbeats")
+        .select("component, status, source_sha, last_seen_at")
+        .in("component", [
+          "financial_durable_worker",
+          "critical_alert_delivery",
+        ]),
+      supabaseAdmin
+        .from("transactional_email_deliveries")
+        .select("id, sent_at")
+        .eq("template_key", "critical_operational_alert_sentinel")
+        .eq("status", "sent")
+        .gte("sent_at", sentinelThreshold)
+        .order("sent_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+    const scheduler = schedulerResult.data;
+    const schedulerReady = Boolean(
+      !schedulerResult.error &&
+        scheduler?.enabled === true &&
+        typeof scheduler?.token_sha256 === "string" &&
+        /^[0-9a-f]{64}$/i.test(scheduler.token_sha256) &&
+        typeof scheduler?.alert_email === "string" &&
+        scheduler.alert_email.trim()
+    );
+
+    checks.push({
+      key: "financial_runtime_scheduler",
+      label: "Scheduler financier",
+      ok: schedulerReady,
+      detail: schedulerResult.error
+        ? "Configuration scheduler inaccessible."
+        : schedulerReady
+          ? "Scheduler minute-level activé avec hash d'auth et canal d'alerte."
+          : "Scheduler financier désactivé ou incomplet.",
+      severity: "blocking",
+    });
+
+    const heartbeatRows = heartbeatResult.data ?? [];
+    const workerHeartbeat = heartbeatRows.find(
+      (row) => row.component === "financial_durable_worker"
+    );
+    const alertHeartbeat = heartbeatRows.find(
+      (row) => row.component === "critical_alert_delivery"
+    );
+
+    const heartbeatHealthy = (
+      row:
+        | {
+            status: string;
+            source_sha: string;
+            last_seen_at: string;
+          }
+        | undefined
+    ) =>
+      Boolean(
+        row &&
+          row.status === "healthy" &&
+          row.source_sha?.trim().toLowerCase() === deployedSha &&
+          row.last_seen_at >= schedulerThreshold
+      );
+
+    checks.push({
+      key: "financial_worker_heartbeat",
+      label: "Worker financier",
+      ok:
+        !heartbeatResult.error &&
+        heartbeatHealthy(workerHeartbeat),
+      detail: heartbeatResult.error
+        ? "Heartbeat worker inaccessible."
+        : heartbeatHealthy(workerHeartbeat)
+          ? "Worker actif, sain et exécuté par le SHA déployé."
+          : "Worker absent, stale, dégradé ou sur un autre SHA.",
+      severity: "blocking",
+    });
+
+    checks.push({
+      key: "critical_alert_heartbeat",
+      label: "Alertes critiques",
+      ok:
+        !heartbeatResult.error &&
+        heartbeatHealthy(alertHeartbeat),
+      detail: heartbeatResult.error
+        ? "Heartbeat alertes inaccessible."
+        : heartbeatHealthy(alertHeartbeat)
+          ? "Canal d'alerte actif sur le SHA déployé."
+          : "Canal d'alerte absent, stale, dégradé ou sur un autre SHA.",
+      severity: "blocking",
+    });
+
+    const sentinelReady = Boolean(
+      !sentinelResult.error &&
+        sentinelResult.data?.id &&
+        sentinelResult.data?.sent_at
+    );
+
+    checks.push({
+      key: "critical_alert_sentinel",
+      label: "Sentinel alertes critiques",
+      ok: sentinelReady,
+      detail: sentinelResult.error
+        ? "Preuve sentinel indisponible."
+        : sentinelReady
+          ? "Un sentinel email a été livré dans les dernières 36 h."
+          : "Aucun sentinel email récent n'est prouvé.",
+      severity: "blocking",
+    });
+
     const { data: ledgerData, error: ledgerError } =
       await supabaseAdmin
         .from("booking_financial_ledger")
@@ -320,7 +561,7 @@ export async function GET() {
 
       checks.push({
         key: "payment_ledger_audit",
-        label: "Anti-double paiement ledger",
+        label: "Anti-double paiement · projection legacy",
         ok: false,
         detail: "Audit du ledger financier indisponible.",
         severity: "blocking",
@@ -347,9 +588,9 @@ export async function GET() {
         ok: duplicates === 0,
         detail:
           duplicates === 0
-            ? "Aucun booking avec plusieurs payment_succeeded dans le ledger."
-            : `${duplicates} réservation(s) ont plusieurs écritures payment_succeeded.`,
-        severity: "blocking",
+            ? "Projection legacy sans doublon payment_succeeded."
+            : `${duplicates} réservation(s) ont plusieurs écritures payment_succeeded dans la projection legacy.`,
+        severity: "warning",
       });
     }
 
@@ -365,21 +606,32 @@ export async function GET() {
 
     return NextResponse.json({
       ready: blocking === 0,
+      readinessScope: "transaction_preflight_only",
+      mission1Certification: {
+        evaluatedHere: false,
+        status: "separate_exact_sha_gate_required",
+        rule: "A successful payment alone never certifies Mission 1.",
+        invariant: "KLYX Ledger = Settlement truth = Stripe truth",
+        divergencePolicy:
+          "Toute mutation financière doit rester fail-closed. Divergence -> reconciliation -> human_review.",
+        requiredCommitStatus:
+          "KLYX Production Financial Certification",
+      },
       blocking,
       warnings,
       checks,
       flow: [
-        "Création réservation",
-        "Acceptation prestataire",
-        "Checkout Stripe",
-        "Webhook = paid",
-        "Suivi scheduled → en_route → arrived → in_progress",
-        "Prestataire déclare terminé",
-        "Client confirme",
-        "Mission completed",
-        "Avis vérifié",
-        "KLYX Score recalculé",
+        "Payment",
+        "Canonical Ledger",
+        "Booking",
+        "Commission",
+        "Provider liability",
+        "Settlement",
+        "Stripe Transfer",
+        "Ledger ↔ Settlement ↔ Stripe reconciliation",
       ],
+      financialCertification:
+        "A successful payment alone never certifies Mission 1.",
     });
   } catch (error) {
     const status = founderErrorStatus(error);

@@ -29,7 +29,7 @@ The economic decision is necessary but not sufficient. The independent transacti
 
 ## Stripe is evidence, not authority
 
-`payouts_enabled=true` is necessary evidence when present in the canonical provider projection, but it is never sufficient to authorize settlement.
+`payouts_enabled` and `details_submitted` are legacy compatibility evidence for Accounts v1 and payout-rail operations. For an Accounts v2 Recipient settlement, the Stripe authorization signal is the Recipient `stripe_transfers` capability. A legacy payout boolean is never sufficient and must not veto an active Recipient Transfer capability.
 
 An `allowed` decision also requires, among other applicable facts:
 
@@ -41,7 +41,7 @@ An `allowed` decision also requires, among other applicable facts:
 - an applicable non-expired Trust & Safety activity-eligibility decision;
 - no applicable Trust & Safety payout/platform restriction;
 - a linked canonical Stripe identity matching the frozen settlement destination;
-- a non-divergent economic Stripe projection with no current blocking requirements.
+- a non-divergent economic Stripe projection whose Recipient `stripe_transfers` capability is active; capability-scoped requirements must be satisfied.
 
 Immediately before a new Transfer, KLYX re-evaluates economic eligibility and reads remote Stripe recipient capability/status again.
 
@@ -72,3 +72,57 @@ Mission 11 does not:
 - replace Trust & Safety activity eligibility;
 - add a country-specific product boundary;
 - deploy to Vercel.
+
+
+## Real-conditions economic-chain certification
+
+The settlement authority must be exercised as one end-to-end chain:
+
+```text
+account
+→ economic identity
+→ primary legal person/entity
+→ KYC/KYB verification
+→ canonical Stripe projection
+→ account qualifications
+→ activity eligibility
+→ economic settlement eligibility
+→ settlement claim
+→ remote Stripe truth
+→ Stripe Transfer
+```
+
+A new beneficiary money movement is fail-closed unless every applicable KLYX
+authority is satisfied. The certification matrix executes the following states
+against ephemeral Supabase:
+
+- verified → `allowed`;
+- pending → `blocked`;
+- expired → `blocked`;
+- restricted → `blocked`;
+- required qualification missing → `blocked`;
+- jurisdiction/country restriction → `blocked`;
+- Stripe payouts disabled while Recipient `stripe_transfers` remains active → `allowed` for settlement Transfer; the bank-payout rail is a separate concern;
+- Stripe Recipient transfer capability inactive → `blocked`;
+- Stripe transfer requirements currently due with the capability non-active → `blocked`;
+- human review → `human_review`.
+
+The network proof then uses a real Stripe TEST connected recipient and a real
+platform-held TEST charge. Stripe is deliberately kept recipient-ready while
+KLYX injects a jurisdiction restriction. Mission completion remains durable,
+but settlement becomes `review_required` and the Stripe transfer count for the
+booking remains zero.
+
+**Invariant:**
+
+```text
+Stripe recipient ready
++
+KLYX economic eligibility != allowed
+=
+NO NEW BENEFICIARY TRANSFER
+```
+
+Reconciliation of an already-existing Stripe Transfer remains a separate
+external-truth recovery operation; this invariant governs creation of new money
+movement.

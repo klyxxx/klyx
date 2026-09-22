@@ -3,11 +3,11 @@ import "server-only";
 import Stripe from "stripe";
 
 import { reconcilePlatformHeldGroupRefundFromStripe } from "@/lib/platform-held-group-settlement-server";
+import { requireKlyxFinancialStripeObservationRuntime } from "@/lib/klyx-financial-stripe-runtime";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 const FLOW = "platform_held_group_multiexecutor" as const;
 const PAYMENT_MODE = "platform_held_group" as const;
-const LIVE_FORBIDDEN = "KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY";
 
 type ParentRow = {
   id: string;
@@ -67,6 +67,19 @@ async function loadParent(parentId: string): Promise<ParentRow> {
   return data as ParentRow;
 }
 
+function assertObservedStripeRuntime(
+  observedLivemode: boolean
+): boolean {
+  const runtime = requireKlyxFinancialStripeObservationRuntime();
+  const expectedLive = runtime.mode !== "test";
+
+  if (observedLivemode !== expectedLive) {
+    throw new Error("KLYX_GROUP_HELD_WEBHOOK_LIVEMODE_MISMATCH");
+  }
+
+  return expectedLive;
+}
+
 async function markChildBookingsPaid(parentId: string) {
   const { data, error } = await supabaseAdmin
     .from("platform_held_group_settlement_members")
@@ -108,7 +121,6 @@ async function reconcilePaidSession(
   stripe: Stripe,
   session: Stripe.Checkout.Session
 ) {
-  if (session.livemode) throw new Error(LIVE_FORBIDDEN);
   if (!isGroupHeldMetadata(session.metadata)) {
     throw new Error("KLYX_GROUP_HELD_SESSION_METADATA_INVALID");
   }
@@ -118,6 +130,7 @@ async function reconcilePaidSession(
 
   const parentId = groupSettlementId(session.metadata);
   const parent = await loadParent(parentId);
+  const expectedLive = assertObservedStripeRuntime(session.livemode);
 
   if (
     session.metadata?.split_batch_id !== parent.batch_id ||
@@ -138,7 +151,9 @@ async function reconcilePaidSession(
     expand: ["latest_charge"],
   });
 
-  if (intent.livemode) throw new Error(LIVE_FORBIDDEN);
+  if (intent.livemode !== expectedLive) {
+    throw new Error("KLYX_GROUP_HELD_PAYMENT_INTENT_LIVEMODE_MISMATCH");
+  }
   if (
     intent.status !== "succeeded" ||
     !isGroupHeldMetadata(intent.metadata) ||
@@ -160,7 +175,7 @@ async function reconcilePaidSession(
       : latestCharge;
 
   if (
-    charge.livemode ||
+    charge.livemode !== expectedLive ||
     !charge.paid ||
     charge.amount !== Number(parent.gross_amount_cents) ||
     charge.currency.toUpperCase() !== parent.currency
@@ -226,19 +241,17 @@ export async function handlePlatformHeldGroupStripeWebhookEvent(
   ) {
     const session = event.data.object as Stripe.Checkout.Session;
     if (!isGroupHeldMetadata(session.metadata)) return false;
-    if (session.livemode) throw new Error(LIVE_FORBIDDEN);
 
-    await releaseFailedCheckout(
-      groupSettlementId(session.metadata),
-      session.id
-    );
+    const parent = await loadParent(groupSettlementId(session.metadata));
+    assertObservedStripeRuntime(session.livemode);
+
+    await releaseFailedCheckout(parent.id, session.id);
     return true;
   }
 
   if (event.type === "payment_intent.succeeded") {
     const intent = event.data.object as Stripe.PaymentIntent;
     if (!isGroupHeldMetadata(intent.metadata)) return false;
-    if (intent.livemode) throw new Error(LIVE_FORBIDDEN);
 
     const sessions = await stripe.checkout.sessions.list({
       payment_intent: intent.id,
@@ -279,16 +292,15 @@ export async function handlePlatformHeldGroupStripeWebhookEvent(
   if (event.type === "payment_intent.payment_failed") {
     const intent = event.data.object as Stripe.PaymentIntent;
     if (!isGroupHeldMetadata(intent.metadata)) return false;
-    if (intent.livemode) throw new Error(LIVE_FORBIDDEN);
+
+    const parent = await loadParent(groupSettlementId(intent.metadata));
+    assertObservedStripeRuntime(intent.livemode);
 
     const sessions = await stripe.checkout.sessions.list({
       payment_intent: intent.id,
       limit: 1,
     });
-    await releaseFailedCheckout(
-      groupSettlementId(intent.metadata),
-      sessions.data[0]?.id ?? null
-    );
+    await releaseFailedCheckout(parent.id, sessions.data[0]?.id ?? null);
     return true;
   }
 

@@ -9,7 +9,7 @@ import {
   type ProviderSearchSort,
 } from "@/lib/provider-search";
 import {
-  providerZonesCoverBelgianLocality,
+  providerZonesCoverLocation,
   type ProviderSearchZoneCoverageInput,
 } from "@/lib/provider-search-zone-coverage";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -91,6 +91,7 @@ type Candidate = Omit<ProviderSearchItem, "availabilitySummary" | "isExactMatch"
 type Filters = {
   serviceSlug: string;
   city: string;
+  countryCode: string;
   date: string;
   startTime: string;
   endTime: string;
@@ -137,6 +138,7 @@ function validDate(value: string): string {
 function parseFilters(request: Request): Filters {
   const params = new URL(request.url).searchParams;
   const requestedService = cleanText(params.get("service"), 40);
+  const requestedCountry = cleanText(params.get("country"), 2).toUpperCase();
   const requestedPricing = cleanText(params.get("pricing"), 20);
   const requestedSort = cleanText(params.get("sort"), 30) as ProviderSearchSort;
   const legacyTime = cleanText(params.get("time"), 5);
@@ -159,6 +161,9 @@ function parseFilters(request: Request): Filters {
   return {
     serviceSlug: requestedService || "all",
     city: cleanText(params.get("city"), 80),
+    countryCode: /^[A-Z]{2}$/.test(requestedCountry)
+      ? requestedCountry
+      : "",
     date: validDate(cleanText(params.get("date"), 10)),
     startTime: startMinutes === null ? "" : requestedStart,
     endTime:
@@ -174,8 +179,11 @@ function parseFilters(request: Request): Filters {
   };
 }
 
-function locationMatches(candidate: Candidate, city: string): boolean {
-  return providerZonesCoverBelgianLocality(candidate.zones, city);
+function locationMatches(candidate: Candidate, filters: Filters): boolean {
+  return providerZonesCoverLocation(candidate.zones, {
+    locality: filters.city,
+    countryCode: filters.countryCode || null,
+  });
 }
 
 function availabilityMatches(candidate: Candidate, filters: Filters): boolean {
@@ -211,7 +219,7 @@ function availabilityMatches(candidate: Candidate, filters: Filters): boolean {
 
 function matchState(candidate: Candidate, filters: Filters): MatchState {
   return {
-    location: locationMatches(candidate, filters.city),
+    location: locationMatches(candidate, filters),
     budget:
       filters.budgetMax === null ||
       (candidate.price !== null && candidate.price <= filters.budgetMax),

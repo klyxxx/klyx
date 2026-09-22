@@ -42,7 +42,7 @@ describe("KLYX settlement control mode", () => {
     ).toThrow(KLYX_SETTLEMENT_TEST_NOT_ARMED);
   });
 
-  it("hard-blocks platform-held mode with a live Stripe secret", () => {
+  it("hard-blocks platform-held LIVE without exact DR/certification SHA evidence", () => {
     expect(() =>
       getKlyxSettlementMode({
         KLYX_STRIPE_SETTLEMENT_MODE: "platform_held",
@@ -52,7 +52,50 @@ describe("KLYX settlement control mode", () => {
     ).toThrow(KLYX_SETTLEMENT_LIVE_NOT_READY);
   });
 
-  it("allows the architecture only in explicitly armed Stripe TEST mode", () => {
+  it("allows controlled LIVE certification only on one exact deployed and DR-certified SHA", () => {
+    const sha = "a".repeat(40);
+
+    expect(
+      getKlyxSettlementMode({
+        KLYX_STRIPE_SETTLEMENT_MODE: "platform_held",
+        KLYX_LIVE_CERTIFICATION_ENABLED: "true",
+        KLYX_LIVE_CERTIFICATION_SHA: sha,
+        KLYX_DR_CERTIFIED_SHA: sha,
+        VERCEL_GIT_COMMIT_SHA: sha,
+        STRIPE_SECRET_KEY: "sk_live_example",
+      })
+    ).toBe(KLYX_PLATFORM_HELD_SETTLEMENT_MODE);
+  });
+
+  it("rejects controlled LIVE when the deployed SHA differs from DR evidence", () => {
+    expect(() =>
+      getKlyxSettlementMode({
+        KLYX_STRIPE_SETTLEMENT_MODE: "platform_held",
+        KLYX_LIVE_CERTIFICATION_ENABLED: "true",
+        KLYX_LIVE_CERTIFICATION_SHA: "a".repeat(40),
+        KLYX_DR_CERTIFIED_SHA: "b".repeat(40),
+        VERCEL_GIT_COMMIT_SHA: "a".repeat(40),
+        STRIPE_SECRET_KEY: "sk_live_example",
+      })
+    ).toThrow(KLYX_SETTLEMENT_LIVE_NOT_READY);
+  });
+
+  it("allows general LIVE only when the exact deployed SHA is financially certified", () => {
+    const sha = "c".repeat(40);
+
+    expect(
+      getKlyxSettlementMode({
+        KLYX_STRIPE_SETTLEMENT_MODE: "platform_held",
+        KLYX_LIVE_PAYMENTS_ENABLED: "true",
+        KLYX_DR_CERTIFIED_SHA: sha,
+        KLYX_PRODUCTION_FINANCIAL_CERTIFIED_SHA: sha,
+        VERCEL_GIT_COMMIT_SHA: sha,
+        STRIPE_SECRET_KEY: "sk_live_example",
+      })
+    ).toBe(KLYX_PLATFORM_HELD_SETTLEMENT_MODE);
+  });
+
+  it("allows the architecture in explicitly armed Stripe TEST mode", () => {
     expect(
       getKlyxSettlementMode({
         KLYX_STRIPE_SETTLEMENT_MODE: "platform_held",

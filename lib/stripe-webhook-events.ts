@@ -70,7 +70,9 @@ export async function claimStripeWebhookEvent(
       api_version: event.api_version ?? null,
       status: "processing",
       attempt_count: 1,
+      delivery_count: 1,
       received_at: now,
+      last_received_at: now,
       updated_at: now,
     });
 
@@ -84,6 +86,18 @@ export async function claimStripeWebhookEvent(
 
   if (insertError.code !== "23505") {
     throw new Error(insertError.message);
+  }
+
+  const { error: redeliveryError } = await supabaseAdmin.rpc(
+    "klyx_record_stripe_webhook_redelivery",
+    {
+      p_stripe_event_id: event.id,
+      p_received_at: now,
+    }
+  );
+
+  if (redeliveryError) {
+    throw new Error(redeliveryError.message);
   }
 
   const { data, error } = await supabaseAdmin
