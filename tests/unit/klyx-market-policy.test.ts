@@ -71,7 +71,7 @@ describe("KLYX market payment policy", () => {
     expect(result.blockers).toContain("market_rule");
   });
 
-  it("fails closed when Stripe charge support is not reviewed/enabled", () => {
+  it("fails closed when payment-rail charge support is not reviewed/enabled", () => {
     const result = assessKlyxMarketPaymentPolicy({
       rule,
       currencyCapability: { ...capability, chargeEnabled: false },
@@ -81,7 +81,7 @@ describe("KLYX market payment policy", () => {
     });
 
     expect(result.allowed).toBe(false);
-    expect(result.blockers).toContain("stripe_charge_currency");
+    expect(result.blockers).toContain("payment_charge_currency");
   });
 
   it("computes market commission and tax in minor units", () => {
