@@ -34,6 +34,9 @@ const earnCompletion = read(
 const webhookLifecycle = read("scripts/golden-path-service-lifecycle.mjs");
 const settlementChaos = read("scripts/mission19-settlement-eligibility-chaos.mjs");
 const earnLifecycle = read("scripts/mission19-earn-lifecycle.mjs");
+const stripeHeldNetwork = read(
+  "scripts/golden-path-platform-held-settlement-network.mjs"
+);
 const splitRefundFixture = read("scripts/golden-path-split-refund.mjs");
 const goldenPathWorkflow = read(".github/workflows/klyx-golden-path.yml");
 const documentation = read("docs/KLYX_END_TO_END_AUTONOMOUS_CERTIFICATION.md");
@@ -286,6 +289,42 @@ describe("Mission 19 end-to-end autonomous KLYX contract", () => {
     );
     expect(goldenPathWorkflow).toContain(
       "node scripts/mission19-earn-lifecycle.mjs"
+    );
+  });
+
+  it("binds earn settlement completion to a real Stripe TEST Transfer", () => {
+    expect(stripeHeldNetwork).toContain(
+      "createPlatformHeldEarnWorkflow"
+    );
+    expect(stripeHeldNetwork).toContain(
+      'toStep: "mission"'
+    );
+    expect(stripeHeldNetwork).toContain(
+      'toStep: "completion"'
+    );
+    expect(stripeHeldNetwork).toContain(
+      'toStep: "settlement"'
+    );
+    expect(stripeHeldNetwork).toContain(
+      "stripe.transfers.create(transferParams"
+    );
+    expect(stripeHeldNetwork).toContain(
+      "injectPostTransferSettlementRestriction"
+    );
+    expect(stripeHeldNetwork).toContain(
+      'recoveryResult?.status === "released"'
+    );
+    expect(stripeHeldNetwork).toContain(
+      "completePlatformHeldEarnWorkflow"
+    );
+    expect(stripeHeldNetwork).toContain(
+      'p_event_type: "mission19_earn_settlement_reconciled"'
+    );
+    expect(stripeHeldNetwork).toContain(
+      'settlement_truth: "released"'
+    );
+    expect(stripeHeldNetwork).toContain(
+      "mission19EarnWorkflow: earnProof"
     );
   });
 
