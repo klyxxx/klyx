@@ -6,7 +6,7 @@ Production deployment is a privileged release action, not a consequence of Git a
 
 The invariant is:
 
-`exact main SHA -> green checks -> exact build -> manual production deploy -> production verification`
+`exact main SHA -> green checks -> remote staged build -> staged verification -> manual promotion -> production verification`
 
 The following rules are mandatory:
 
@@ -68,7 +68,7 @@ Any additional required repository check applicable to the SHA must also be gree
 
 `KLYX Performance Certification` is PR/path-triggered rather than a universal `main` push check. When it is required by the change set, its successful PR-head evidence is also required before merge; it must not be invented as an exact-main run when the workflow does not trigger on `main`.
 
-### 3. Build the exact source against production Vercel settings
+### 3. Certify the exact source before creating a Vercel candidate
 
 Use the fail-closed script from the exact `main` checkout:
 
@@ -77,11 +77,11 @@ $env:KLYX_PRODUCTION_DEPLOY_AUTHORITY = "central-klyx-chat"
 .\scripts\operations\deploy-production-manual.ps1 -ExpectedMainSha $MAIN_SHA
 ```
 
-Without `-ExecuteDeploy`, the script performs the source/check gate and the exact Vercel production build, but does not deploy.
+Without `-ExecuteDeploy`, the script performs the source/check gate only and creates no Vercel deployment. The universal exact-main CI already includes the KLYX build, TypeScript, security, Golden Path, and browser gates.
 
-Review the build result before authorizing production.
+KLYX intentionally does not use local `vercel build --prod` as a release prerequisite. On Windows, Vercel's Build Output packaging can require symlink creation and fail with `EPERM` even after the Next.js application build itself succeeded.
 
-### 4. Deploy manually
+### 4. Build remotely, verify staged, then promote
 
 Only the central KLYX chat may execute:
 
@@ -89,14 +89,17 @@ Only the central KLYX chat may execute:
 .\scripts\operations\deploy-production-manual.ps1 -ExpectedMainSha $MAIN_SHA -ExecuteDeploy
 ```
 
-The script uses an explicit prebuilt production deployment and attaches:
+The script:
 
-- `klyxMainSha=$MAIN_SHA`;
-- `klyxReleaseSource=central-klyx-chat`.
+1. creates a production-targeted Vercel deployment with `--skip-domain`, so the candidate builds remotely but does not receive the production domains;
+2. attaches `klyxMainSha=$MAIN_SHA` and `klyxReleaseSource=central-klyx-chat`;
+3. verifies the immutable deployment metadata;
+4. checks the staged candidate's `/api/health` and home page using authenticated `vercel curl`;
+5. re-fetches `origin/main` immediately before promotion and aborts if `main` moved;
+6. promotes the exact verified deployment with `vercel promote`;
+7. runs the canonical production smoke test.
 
-It does not use a Git-triggered deployment or Deploy Hook.
-
-After Vercel returns the deployment, inspect it and independently confirm that the deployment metadata contains the same `klyxMainSha` that was resolved from the true `main` immediately before the build. If metadata is absent or differs, the release is invalid even if the site responds.
+It does not use a Git-triggered deployment or Deploy Hook. A candidate that fails staged verification remains unpromoted, so the existing production deployment continues serving traffic.
 
 ### 5. Verify production
 

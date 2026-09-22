@@ -122,12 +122,15 @@ try {
   $env:VERCEL_ORG_ID = $VercelOrgId
   $env:VERCEL_PROJECT_ID = $VercelProjectId
 
+  # Remote Vercel builds are intentional. Local `vercel build --prod` requires
+  # symlink creation on Windows and can fail with EPERM even when the KLYX build
+  # itself is valid. Exact source safety is provided by the clean exact-main gate
+  # above and by immutable deployment metadata.
   Invoke-Checked npx vercel pull --yes --environment=production
-  Invoke-Checked npx vercel build --prod
 
   if (-not $ExecuteDeploy) {
-    Write-Host "KLYX_DEPLOYMENT_GATE_BUILD_OK sha=$sha project=$VercelProjectId deploy=false"
-    Write-Host 'No production deployment was created. Re-run with -ExecuteDeploy only from the central KLYX chat after reviewing the build.'
+    Write-Host "KLYX_DEPLOYMENT_GATE_READY sha=$sha project=$VercelProjectId deploy=false"
+    Write-Host 'Exact main and required checks are green. No Vercel deployment was created.'
     exit 0
   }
 
@@ -135,10 +138,9 @@ try {
     Fail 'KLYX_PRODUCTION_DEPLOY_AUTHORITY must equal central-klyx-chat for a production deployment.'
   }
 
-  # A prebuilt deployment prevents a second source checkout/build from silently
-  # changing what was reviewed. Metadata binds the immutable Vercel deployment
-  # to the exact main SHA selected above.
-  $deployOutput = Invoke-CheckedCapture npx vercel deploy --prebuilt --prod --yes `
+  # Build remotely on Vercel but keep the candidate staged. --skip-domain
+  # prevents the production domains from moving before candidate verification.
+  $deployOutput = Invoke-CheckedCapture npx vercel deploy --prod --skip-domain --yes `
     --meta "klyxMainSha=$sha" `
     --meta 'klyxReleaseSource=central-klyx-chat'
 
@@ -148,14 +150,44 @@ try {
     Select-Object -Last 1
 
   if ([string]::IsNullOrWhiteSpace($deploymentUrl)) {
-    Fail 'Vercel deployment completed without an immutable deployment URL in CLI output.'
+    Fail 'Vercel staged deployment completed without an immutable deployment URL in CLI output.'
   }
 
   # Filter by the exact release metadata. A failed query invalidates the release.
   $metadataLookup = Invoke-CheckedCapture npx vercel list --prod --meta "klyxMainSha=$sha"
   if (($metadataLookup -join [Environment]::NewLine) -notmatch [regex]::Escape(($deploymentUrl -replace '^https://', ''))) {
-    Fail "Could not verify klyxMainSha metadata for deployment $deploymentUrl. Inspect the deployment before treating it as valid."
+    Fail "Could not verify klyxMainSha metadata for staged deployment $deploymentUrl."
   }
+
+  # Vercel CLI authentication lets this check work even when the immutable
+  # deployment URL is protected. Fail on any HTTP 4xx/5xx before promotion.
+  $healthOutput = Invoke-CheckedCapture npx vercel curl "$deploymentUrl/api/health" --fail-with-body --silent --show-error
+  $healthText = ($healthOutput -join [Environment]::NewLine).Trim()
+  try {
+    $healthPayload = $healthText | ConvertFrom-Json
+  }
+  catch {
+    Fail "Staged /api/health did not return valid JSON: $healthText"
+  }
+
+  if (
+    $healthPayload.status -ne 'ok' -or
+    $healthPayload.service -ne 'klyx' -or
+    $healthPayload.check -ne 'liveness'
+  ) {
+    Fail "Staged /api/health payload is invalid: $healthText"
+  }
+
+  [void](Invoke-CheckedCapture npx vercel curl "$deploymentUrl/" --fail-with-body --silent --show-error)
+
+  # A build can take long enough for main to move. Re-fetch immediately before
+  # promotion; if main changed, leave the candidate staged and abort.
+  $shaBeforePromotion = Assert-ExactMainAndCleanTree
+  if ($shaBeforePromotion -ne $sha) {
+    Fail "Main moved during the staged deployment build. Expected $sha, got $shaBeforePromotion."
+  }
+
+  Invoke-Checked npx vercel promote $deploymentUrl --yes
 
   $env:KLYX_PRODUCTION_URL = $ProductionOrigin
   Invoke-Checked npm run ops:smoke
@@ -166,6 +198,8 @@ try {
     deploymentUrl = $deploymentUrl
     productionOrigin = $ProductionOrigin
     shaMetadata = 'verified'
+    stagedHealth = 'verified'
+    promotion = 'verified'
     health = 'verified'
   } | ConvertTo-Json -Compress | Write-Host
 }
