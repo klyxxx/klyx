@@ -290,6 +290,7 @@ jobs:
       NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.KLYX_STRIPE_TEST_PUBLISHABLE_KEY }}
       KLYX_ALLOW_PLATFORM_ONLY_TEST_PAYMENTS: "false"
       KLYX_LIVE_PAYMENTS_ENABLED: "false"
+      KLYX_SETTLEMENT_RECONCILIATION_SECRET: "klyx-test-reconcile-${{ github.run_id }}"
       NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100"
 
     steps:
