@@ -52,11 +52,19 @@ describe("KLYX golden path workflow safety", () => {
     }
   });
 
-  it("runs on internal PRs, filtered main pushes, or confirmed manual dispatches", () => {
+  it("runs on internal PRs, every main push, or confirmed manual dispatches", () => {
     expect(workflow).toContain("workflow_dispatch:");
     expect(workflow).toContain("pull_request:");
     expect(workflow).toContain("push:");
     expect(workflow).toContain("      - main");
+    const pushSection = workflow.slice(
+      workflow.indexOf("\n  push:"),
+      workflow.indexOf("\n\npermissions:")
+    );
+    expect(pushSection).not.toContain("paths:");
+    expect(workflow).toContain(
+      "group: klyx-golden-path-${{ github.repository }}-${{ github.event_name == 'push' && 'main' || github.event_name }}"
+    );
     expect(workflow).toContain(
       '      - ".github/workflows/klyx-golden-path.yml"'
     );
