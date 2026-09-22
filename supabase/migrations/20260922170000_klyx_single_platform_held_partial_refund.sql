@@ -174,8 +174,27 @@ revoke all privileges on table public.platform_held_booking_refund_reversals
 
 grant select, insert, update, delete on table public.platform_held_booking_refunds
   to service_role;
-grant select, insert, update, delete on table public.platform_held_booking_refund_reversals
+grant select, insert on table public.platform_held_booking_refund_reversals
   to service_role;
+
+create or replace function public.klyx_immutable_single_booking_refund_reversal()
+returns trigger
+language plpgsql
+set search_path = public
+as $
+begin
+  raise exception 'KLYX_SINGLE_HELD_REFUND_REVERSAL_IMMUTABLE';
+end;
+$;
+
+drop trigger if exists platform_held_booking_refund_reversals_immutable
+  on public.platform_held_booking_refund_reversals;
+create trigger platform_held_booking_refund_reversals_immutable
+before update or delete on public.platform_held_booking_refund_reversals
+for each row execute function public.klyx_immutable_single_booking_refund_reversal();
+
+revoke all on function public.klyx_immutable_single_booking_refund_reversal()
+  from public, anon, authenticated;
 
 create or replace function public.klyx_create_platform_held_booking_refund_plan(
   p_booking_id uuid,
