@@ -12,17 +12,22 @@ const workflow = fs.readFileSync(
 );
 
 const approvedHistoricalMigrations = [
-  "20260920091000_klyx_orchestrator_foundation.sql",
+  "20260921173000_klyx_end_to_end_autonomous_continuity.sql",
+  "20260921174500_klyx_durable_job_claim_ambiguity_fix.sql",
+  "20260921180500_klyx_settlement_latest_eligibility_gate.sql",
 ];
 
 const approvedReconciliationBatch = [
-  "20260920091000_klyx_orchestrator_foundation.sql",
-  "20260920174500_klyx_operations_failure_domains.sql",
+  "20260921173000_klyx_end_to_end_autonomous_continuity.sql",
+  "20260921174500_klyx_durable_job_claim_ambiguity_fix.sql",
+  "20260921180500_klyx_settlement_latest_eligibility_gate.sql",
 ];
 
 describe("Supabase production migration historical-gap recovery", () => {
   it("pins recovery to the exact audited KLYX historical migration set", () => {
     expect(workflow).toContain("approved_historical_migrations=(");
+
+    expect(approvedHistoricalMigrations).toHaveLength(3);
 
     for (const migration of approvedHistoricalMigrations) {
       expect(workflow).toContain(`"${migration}"`);
@@ -61,6 +66,8 @@ describe("Supabase production migration historical-gap recovery", () => {
     expect(workflow).toContain(
       "Refusing production write: second dry-run batch differs from the audited reconciliation batch."
     );
+
+    expect(approvedReconciliationBatch).toHaveLength(3);
 
     for (const migration of approvedReconciliationBatch) {
       expect(workflow).toContain(`"${migration}"`);
