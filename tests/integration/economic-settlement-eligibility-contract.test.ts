@@ -13,6 +13,7 @@ const eligibility = read("lib/economic-settlement-eligibility-server.ts");
 const single = read("lib/booking-settlement-server.ts");
 const group = read("lib/platform-held-group-settlement-server.ts");
 const stripeTruth = read("lib/stripe-settlement-recipient-truth.ts");
+const beneficiaryTransferGateway = read("lib/beneficiary-transfer-gateway.ts");
 const documentation = read("docs/economic-settlement-eligibility.md");
 const networkProof = read(
   "scripts/golden-path-economic-chain-stripe-blocked.mjs"
@@ -193,59 +194,54 @@ describe("Mission 11 economic settlement eligibility contract", () => {
     expect(documentation).toContain("already-existing Stripe Transfer");
   });
 
-  it("revalidates economic authority and remote Stripe truth after the atomic claim before a new Transfer", () => {
+  it("routes every new beneficiary Transfer through one gateway that revalidates KLYX and Stripe after the claim", () => {
     const singleClaim = single.indexOf(
       '"klyx_claim_booking_settlement_release"'
     );
-    const singleRevalidation = single.indexOf(
-      "const revalidatedEligibility = await canReceiveSettlementForBooking"
+    const singleGateway = single.indexOf(
+      "createEconomicallyAuthorizedBeneficiaryTransfer",
+      singleClaim
     );
-    const singleStripeTruth = single.indexOf(
-      "readStripeSettlementRecipientTruth",
-      singleRevalidation
-    );
-    const singleTransfer = single.indexOf(
-      "stripe.transfers.create",
-      singleStripeTruth
-    );
-    expect(singleRevalidation).toBeGreaterThan(singleClaim);
-    expect(singleStripeTruth).toBeGreaterThan(singleRevalidation);
-    expect(singleTransfer).toBeGreaterThan(singleStripeTruth);
+    expect(singleGateway).toBeGreaterThan(singleClaim);
 
     const groupClaim = group.indexOf(
       '"klyx_claim_platform_held_group_member_release"'
     );
-    const groupRevalidation = group.indexOf(
-      "const revalidatedEconomicEligibility"
+    const groupGateway = group.indexOf(
+      "createEconomicallyAuthorizedBeneficiaryTransfer",
+      groupClaim
     );
-    const groupStripeTruth = group.indexOf(
+    expect(groupGateway).toBeGreaterThan(groupClaim);
+
+    const gatewayEconomic = beneficiaryTransferGateway.indexOf(
+      "canReceiveSettlementForBooking"
+    );
+    const gatewayStripeTruth = beneficiaryTransferGateway.indexOf(
       "readStripeSettlementRecipientTruth",
-      groupRevalidation
+      gatewayEconomic
     );
-    const groupTransfer = group.indexOf(
+    const gatewayTransfer = beneficiaryTransferGateway.indexOf(
       "stripe.transfers.create",
-      groupStripeTruth
+      gatewayStripeTruth
     );
-    expect(groupRevalidation).toBeGreaterThan(groupClaim);
-    expect(groupStripeTruth).toBeGreaterThan(groupRevalidation);
-    expect(groupTransfer).toBeGreaterThan(groupStripeTruth);
+
+    expect(gatewayEconomic).toBeGreaterThan(-1);
+    expect(gatewayStripeTruth).toBeGreaterThan(gatewayEconomic);
+    expect(gatewayTransfer).toBeGreaterThan(gatewayStripeTruth);
+    expect(single).not.toContain("stripe.transfers.create(");
+    expect(group).not.toContain("stripe.transfers.create(");
   });
 
-  it("forbids any production Stripe Transfer writer outside the economic eligibility authority boundary", () => {
+  it("forbids any production Stripe Transfer writer outside the canonical beneficiary gateway", () => {
     const writers = directStripeTransferWriters();
 
     expect(writers).toEqual([
-      "lib/booking-settlement-server.ts",
-      "lib/platform-held-group-settlement-server.ts",
+      "lib/beneficiary-transfer-gateway.ts",
     ]);
-
-    for (const writer of writers) {
-      const source = read(writer);
-
-      expect(source).toContain("canReceiveSettlementForBooking");
-      expect(source).toContain("readStripeSettlementRecipientTruth");
-      expect(source).toContain("economic_settlement_eligibility_changed");
-    }
+    expect(beneficiaryTransferGateway).toContain("canReceiveSettlementForBooking");
+    expect(beneficiaryTransferGateway).toContain("readStripeSettlementRecipientTruth");
+    expect(beneficiaryTransferGateway).toContain("BeneficiaryTransferAuthorizationError");
+    expect(beneficiaryTransferGateway).toContain("onStripeWriteAttempt");
   });
 
   it("keeps economic eligibility independent from the controlled LIVE runtime", () => {

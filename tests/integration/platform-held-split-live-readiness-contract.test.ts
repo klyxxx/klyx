@@ -13,11 +13,13 @@ describe("KLYX true Split Settlement + Live Readiness contract", () => {
       "scripts/golden-path-platform-held-group-multiexecutor-network.mjs"
     );
     const engine = read("lib/platform-held-group-settlement-server.ts");
+    const gateway = read("lib/beneficiary-transfer-gateway.ts");
 
     expect(proof).toContain("executorCount: 2");
     expect(proof).toContain("childBookingCount: 3");
     expect(proof).toContain("onePlatformCharge: true");
-    expect(engine).toContain("stripe.transfers.create(");
+    expect(engine).toContain("createEconomicallyAuthorizedBeneficiaryTransfer");
+    expect(gateway).toContain("stripe.transfers.create(");
     expect(engine).toContain("stripe.transfers.createReversal(");
     expect(engine).toContain("stripe.refunds.create(");
   });
