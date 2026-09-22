@@ -18,7 +18,8 @@ const networkProof = read(
   "scripts/golden-path-economic-chain-stripe-blocked.mjs"
 );
 
-const runtimeSourceRoots = ["app", "lib", "hooks", "payload"] as const;
+const runtimeSourceRoots = ["app", "lib", "hooks", "payload", "supabase"] as const;
+const runtimeTopLevelSources = ["instrumentation.ts", "proxy.ts", "next.config.ts"] as const;
 const runtimeSourceExtensions = new Set([
   ".ts",
   ".tsx",
@@ -54,8 +55,10 @@ function runtimeSourceFiles(relativeDir: string): string[] {
 function directStripeTransferWriters(): string[] {
   const transferMutation = /\.transfers\s*\.\s*create\s*\(/;
 
-  return runtimeSourceRoots
-    .flatMap((sourceRoot) => runtimeSourceFiles(sourceRoot))
+  return [
+    ...runtimeSourceRoots.flatMap((sourceRoot) => runtimeSourceFiles(sourceRoot)),
+    ...runtimeTopLevelSources.filter((file) => fs.existsSync(path.join(root, file))),
+  ]
     .filter((file) => transferMutation.test(read(file)))
     .sort();
 }
