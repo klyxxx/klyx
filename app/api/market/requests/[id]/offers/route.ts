@@ -79,7 +79,7 @@ export async function PATCH(
   request: Request,
   context: OfferRouteContext
 ) {
-  return runWithLegacyProfileCapability("offer", async () => {
+  return runWithLegacyProfileCapability("request", async () => {
     const startedAt = Date.now();
 
     try {
