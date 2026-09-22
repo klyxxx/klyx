@@ -13,6 +13,7 @@ type IdentityRow = {
   identity_state: "linked" | "conflict";
   source_profile_ids: string[] | null;
   conflicting_stripe_account_ids: string[] | null;
+  manually_resolved: boolean;
 };
 
 type HistoricalProfileRow = {
@@ -31,6 +32,7 @@ export type AccountStripeConnectIdentity = {
   stripeAccountId: string | null;
   sourceProfileIds: string[];
   conflictingStripeAccountIds: string[];
+  manuallyResolved: boolean;
 };
 
 function uniqueSorted(values: Array<string | null | undefined>): string[] {
@@ -54,6 +56,7 @@ function normalizeIdentity(
       stripeAccountId: null,
       sourceProfileIds: [],
       conflictingStripeAccountIds: [],
+      manuallyResolved: false,
     };
   }
 
@@ -63,6 +66,7 @@ function normalizeIdentity(
     stripeAccountId: row.stripe_account_id,
     sourceProfileIds: row.source_profile_ids ?? [],
     conflictingStripeAccountIds: row.conflicting_stripe_account_ids ?? [],
+    manuallyResolved: Boolean(row.manually_resolved),
   };
 }
 
@@ -72,7 +76,7 @@ async function readCanonicalIdentity(
   const { data, error } = await supabaseAdmin
     .from("account_stripe_connect_identities")
     .select(
-      "account_id, stripe_account_id, identity_state, source_profile_ids, conflicting_stripe_account_ids"
+      "account_id, stripe_account_id, identity_state, source_profile_ids, conflicting_stripe_account_ids, manually_resolved"
     )
     .eq("account_id", accountId)
     .maybeSingle();
@@ -123,6 +127,11 @@ async function writeConflictIdentity(params: {
         identity_state: "conflict",
         source_profile_ids: uniqueSorted(params.sourceProfileIds),
         conflicting_stripe_account_ids: stripeAccountIds,
+        manually_resolved: false,
+        resolved_at: null,
+        resolved_by_user_id: null,
+        resolution_reason_code: null,
+        resolution_evidence: {},
         updated_at: new Date().toISOString(),
       },
       { onConflict: "account_id" }
@@ -237,7 +246,15 @@ export async function getAccountStripeConnectIdentity(
       stripeAccountId: null,
       sourceProfileIds,
       conflictingStripeAccountIds: conflicts,
+      manuallyResolved: false,
     };
+  }
+
+  if (
+    canonical?.identity_state === "linked" &&
+    canonical.manually_resolved === true
+  ) {
+    return normalizeIdentity(accountId, canonical);
   }
 
   const canonicalStripeId = canonical?.stripe_account_id?.trim() || null;
@@ -288,6 +305,7 @@ export async function getAccountStripeConnectIdentity(
       stripeAccountId,
       sourceProfileIds,
       conflictingStripeAccountIds: [],
+      manuallyResolved: Boolean(canonical?.manually_resolved),
     };
   }
 
