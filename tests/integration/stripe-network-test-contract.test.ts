@@ -21,6 +21,9 @@ const proof = readRepoFile(
 const connectProof = readRepoFile(
   "scripts/golden-path-stripe-connect-network.mjs"
 );
+const heldProof = readRepoFile(
+  "scripts/golden-path-platform-held-settlement-network.mjs"
+);
 
 describe("KLYX Stripe network proof", () => {
   it("keeps the Checkout and Connect network proof scripts syntactically valid", () => {
@@ -151,6 +154,18 @@ describe("KLYX Stripe network proof", () => {
     expect(connectProof).toContain("stripe_payouts_enabled: false");
     expect(connectProof).toContain("accountClosedAfterProof: true");
     expect(connectProof).toContain("localStateResetAfterProof: true");
+  });
+
+  it("preserves immutable economic eligibility audit during platform-held fixture cleanup", () => {
+    expect(heldProof).toContain(
+      "Do not delete local canonical Stripe identity or compatibility"
+    );
+    expect(heldProof).not.toMatch(
+      /account_stripe_connect_identities"[\s\S]{0,160}\.delete\(\)/
+    );
+    expect(heldProof).not.toContain(
+      "Unable to reset local canonical Stripe identity"
+    );
   });
 
   it("does not claim provider onboarding completion or payout from a fresh Connect account", () => {
