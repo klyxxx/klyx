@@ -39,6 +39,25 @@ describe("KLYX Vercel deployment gate", () => {
     expect(script).toContain("https://www.klyx.be");
   });
 
+  it("keeps exact-main release certifications isolated from PR concurrency", () => {
+    const e2e = read(".github/workflows/klyx-e2e.yml");
+    const golden = read(".github/workflows/klyx-golden-path.yml");
+
+    expect(e2e).toContain(
+      "group: klyx-e2e-${{ github.repository }}-${{ github.event_name == 'push' && 'main' || github.event_name }}"
+    );
+    expect(golden).toContain(
+      "group: klyx-golden-path-${{ github.repository }}-${{ github.event_name == 'push' && 'main' || github.event_name }}"
+    );
+
+    const goldenPush = golden.slice(
+      golden.indexOf("\n  push:"),
+      golden.indexOf("\n\npermissions:")
+    );
+    expect(goldenPush).toContain("      - main");
+    expect(goldenPush).not.toContain("paths:");
+  });
+
   it("documents the no-auto-deploy and rollback contract", () => {
     const contract = read("docs/operations/KLYX_DEPLOYMENT_GATE.md");
 
