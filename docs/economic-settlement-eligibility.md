@@ -34,16 +34,30 @@ The economic decision is necessary but not sufficient. The independent transacti
 An `allowed` decision also requires, among other applicable facts:
 
 - canonical `accounts.id` with `offer_services` enabled;
-- no blocking or human-review economic identity state;
-- satisfied KYC/KYB/regulatory verification cases;
+- economic identity in a settlement-ready state;
+- a verified primary legal person/entity that is not expired or restricted;
+- at least one satisfied, non-expired KYC/KYB/regulatory verification case;
 - no applicable economic restriction;
-- no contradictory applicable account qualification;
+- at least one applicable, satisfied, non-expired account qualification;
 - an applicable non-expired Trust & Safety activity-eligibility decision;
 - no applicable Trust & Safety payout/platform restriction;
 - a linked canonical Stripe identity matching the frozen settlement destination;
 - a non-divergent economic Stripe projection with no current blocking requirements.
 
 Immediately before a new Transfer, KLYX re-evaluates economic eligibility and reads remote Stripe recipient capability/status again.
+
+The certification invariant is explicit:
+
+```text
+Stripe recipient = ready
+KLYX economic eligibility = blocked | human_review
+        ↓
+no release claim
+no Stripe Transfer
+no beneficiary payment
+```
+
+A provider being operationally ready at Stripe never overrides KLYX legal, qualification, jurisdiction, Trust & Safety, or economic restrictions.
 
 ## Group settlements
 
