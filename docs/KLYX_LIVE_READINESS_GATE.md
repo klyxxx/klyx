@@ -26,7 +26,7 @@ immutable SHA than the certification being accepted, **Live remains OFF**.
 | group | #817 multi-executor Group Booking settlement merged as `80ae8f09eefefab1733e0e0d20ef10911472c3e8` | proven in TEST |
 | refunds | single + multi-executor refund/reversal engines, including partial + total refunds and reversal-before-refund | proven in TEST |
 | Trust & Safety | deterministic account-level transaction risk gates and human-review outcomes; no LLM financial mutation | present |
-| Stripe identity | canonical account-first Connect identity via `account_stripe_connect_identities`; legacy profile Stripe id is not authority | present |
+| Stripe identity | canonical account-first Connect identity via `account_stripe_connect_identities`; zero unresolved conflicts; any manual resolution is Stripe-LIVE verified, append-only audited and `manually_resolved`; legacy profile Stripe id is not authority | present |
 | reconciliation | #813 Stripe-truth-first recovery plus group member/refund reconciliation before new writes | proven in TEST |
 
 ## Split certification in this PR
