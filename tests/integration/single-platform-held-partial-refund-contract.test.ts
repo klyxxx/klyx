@@ -220,7 +220,9 @@ describe("single Platform-Held partial refund contract", () => {
     );
   });
 
-  it("releases only the remaining provider liability after a pre-release refund", () => {
+  it("releases only the remaining provider liability through the canonical Transfer gateway", () => {
+    const gateway = read("lib/beneficiary-transfer-gateway.ts");
+
     expect(migration).toContain(
       "klyx_booking_settlement_remaining_provider_amount"
     );
@@ -231,13 +233,56 @@ describe("single Platform-Held partial refund contract", () => {
       "const releaseAmountCents = Number(remainingProviderAmount)"
     );
     expect(release).toContain(
+      "createEconomicallyAuthorizedBeneficiaryTransfer"
+    );
+    expect(release).toContain(
       "amount: releaseAmountCents"
     );
     expect(release).toContain(
       "expectedAmountCents: releaseAmountCents"
     );
+    expect(release).not.toContain("stripe.transfers.create(");
+    expect(gateway).toContain("stripe.transfers.create(");
+    expect(gateway).toContain("canReceiveSettlementForBooking");
+    expect(gateway).toContain("readStripeSettlementRecipientTruth");
     expect(migration).toContain(
       "released_provider_amount_cents ="
+    );
+  });
+
+  it("mirrors actual released amount and suppresses legacy reversal double counting", () => {
+    expect(migration).toContain(
+      "create or replace function public.klyx_mirror_booking_settlement_to_central"
+    );
+    expect(migration).toContain(
+      "v_released_provider_amount"
+    );
+    expect(migration).toContain(
+      "greatest(v_released_provider_amount, 0)"
+    );
+    expect(migration).toContain(
+      "platform_held_booking_refund_reversals"
+    );
+    expect(migration).toContain(
+      "and not exists ("
+    );
+  });
+
+  it("reconstructs actual released amount during both Transfer recovery paths", () => {
+    expect(migration).toContain(
+      "create or replace function public.klyx_reconcile_booking_settlement_release("
+    );
+    expect(migration).toContain(
+      "create or replace function public.klyx_reconcile_booking_settlement_released("
+    );
+    expect(migration).toContain(
+      "v_settlement.provider_amount_cents"
+    );
+    expect(migration).toContain(
+      "- v_settlement.refunded_provider_amount_cents"
+    );
+    expect(migration).toContain(
+      "released_provider_amount_cents = v_release_amount"
     );
   });
 
