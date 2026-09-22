@@ -755,6 +755,167 @@ async function insertSettlementRiskAllow(admin, accountId, bookingId) {
   if (error) throw new Error(`Unable to persist settlement_release allow decision: ${error.message}`);
 }
 
+async function insertEconomicSettlementAllow({
+  admin,
+  accountId,
+  bookingId,
+  providerProfileId,
+  stripeAccountId,
+}) {
+  const { data: booking, error: bookingError } = await admin
+    .from("bookings")
+    .select("id, provider_id, babysitter_id, user_service_id, service_id, country_code")
+    .eq("id", bookingId)
+    .single();
+
+  if (bookingError) {
+    throw new Error(
+      `Unable to load booking context for economic eligibility: ${bookingError.message}`
+    );
+  }
+
+  const bookingProviderId = booking.provider_id ?? booking.babysitter_id;
+  assert(
+    bookingProviderId === providerProfileId,
+    "Economic eligibility fixture provider mismatch."
+  );
+
+  let serviceId = booking.service_id ?? null;
+  if (!serviceId && booking.user_service_id) {
+    const { data: userService, error: userServiceError } = await admin
+      .from("user_services")
+      .select("service_id")
+      .eq("id", booking.user_service_id)
+      .single();
+
+    if (userServiceError) {
+      throw new Error(
+        `Unable to resolve economic eligibility service: ${userServiceError.message}`
+      );
+    }
+
+    serviceId = userService.service_id;
+  }
+
+  assert(serviceId, "Economic eligibility fixture service is missing.");
+
+  const { data: service, error: serviceError } = await admin
+    .from("services")
+    .select("slug")
+    .eq("id", serviceId)
+    .single();
+
+  if (serviceError) {
+    throw new Error(
+      `Unable to resolve economic eligibility activity: ${serviceError.message}`
+    );
+  }
+
+  const activityKey = String(service.slug ?? "").trim().toLowerCase();
+  const jurisdictionCode = String(booking.country_code ?? "").trim().toUpperCase();
+
+  assert(activityKey.length > 0, "Economic eligibility activity key is missing.");
+  assert(
+    jurisdictionCode.length >= 2,
+    "Economic eligibility jurisdiction is missing."
+  );
+
+  let { data: economicIdentity, error: identityError } = await admin
+    .from("economic_identities")
+    .select("id")
+    .eq("account_id", accountId)
+    .maybeSingle();
+
+  if (identityError) {
+    throw new Error(
+      `Unable to load economic identity: ${identityError.message}`
+    );
+  }
+
+  if (!economicIdentity) {
+    const { data: createdIdentity, error: createdIdentityError } = await admin
+      .from("economic_identities")
+      .insert({
+        account_id: accountId,
+        primary_country_code: jurisdictionCode.slice(0, 2),
+      })
+      .select("id")
+      .single();
+
+    if (createdIdentityError) {
+      throw new Error(
+        `Unable to create economic identity fixture: ${createdIdentityError.message}`
+      );
+    }
+
+    economicIdentity = createdIdentity;
+  }
+
+  const { data: trustDecision, error: trustError } = await admin
+    .from("trust_eligibility_decisions")
+    .insert({
+      account_id: accountId,
+      target_type: "booking",
+      target_ref: bookingId,
+      category_key: activityKey,
+      jurisdiction_code: jurisdictionCode,
+      decision: "eligible",
+      legal_pathway: "undetermined",
+      decision_source: "policy_engine",
+      human_review_required: false,
+      review_status: "not_required",
+      reason_codes: ["stripe_network_certification_fixture"],
+      required_actions: [],
+      explanation:
+        "Stripe TEST network certification fixture for the exact booking under test.",
+      input_snapshot: {
+        certification: "stripe_test_network",
+        booking_id: bookingId,
+        provider_profile_id: providerProfileId,
+      },
+      expires_at: new Date(Date.now() + 4 * 60 * 1000).toISOString(),
+    })
+    .select("id")
+    .single();
+
+  if (trustError) {
+    throw new Error(
+      `Unable to persist trust eligibility fixture: ${trustError.message}`
+    );
+  }
+
+  const evaluatedAt = new Date();
+  const { error: economicError } = await admin
+    .from("economic_settlement_eligibility_decisions")
+    .insert({
+      account_id: accountId,
+      economic_identity_id: economicIdentity.id,
+      source_trust_decision_id: trustDecision.id,
+      stripe_account_id: stripeAccountId,
+      subject_type: "booking",
+      subject_id: bookingId,
+      activity_key: activityKey,
+      jurisdiction_code: jurisdictionCode,
+      decision: "allowed",
+      reason_codes: ["stripe_network_certification_fixture"],
+      evidence_snapshot: {
+        certification: "stripe_test_network",
+        booking_id: bookingId,
+        provider_profile_id: providerProfileId,
+        stripe_identity_state: "linked",
+      },
+      decision_source: "deterministic_rule",
+      evaluated_at: evaluatedAt.toISOString(),
+      expires_at: new Date(evaluatedAt.getTime() + 4 * 60 * 1000).toISOString(),
+    });
+
+  if (economicError) {
+    throw new Error(
+      `Unable to persist economic settlement eligibility fixture: ${economicError.message}`
+    );
+  }
+}
+
 async function claimRelease(admin, bookingId, claimToken) {
   const { data, error } = await admin.rpc("klyx_claim_booking_settlement_release", {
     p_booking_id: bookingId,
@@ -824,6 +985,13 @@ async function runReleaseRetryReversalScenario({
   });
   await markBookingCompletedForSettlement(admin, booking.id);
   await insertSettlementRiskAllow(admin, accountId, booking.id);
+  await insertEconomicSettlementAllow({
+    admin,
+    accountId,
+    bookingId: booking.id,
+    providerProfileId: provider.id,
+    stripeAccountId: held.stripe_account_id,
+  });
 
   const firstToken = randomUUID();
   const competingToken = randomUUID();
