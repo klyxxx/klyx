@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 const migration = fs.readFileSync(
   path.join(
     process.cwd(),
-    "supabase/migrations/20260921173000_klyx_global_expansion_control_plane.sql"
+    "supabase/migrations/20260922160000_klyx_global_expansion_control_plane.sql"
   ),
   "utf8"
 );
