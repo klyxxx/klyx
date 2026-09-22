@@ -1062,6 +1062,163 @@ begin
 end;
 $$;
 
+create or replace function public.klyx_reconcile_booking_settlement_release(
+  p_booking_id uuid,
+  p_stripe_transfer_id text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_updated integer;
+  v_settlement public.booking_settlements%rowtype;
+  v_release_amount bigint;
+begin
+  if coalesce(trim(p_stripe_transfer_id), '') !~ '^tr_[A-Za-z0-9]+$' then
+    raise exception 'KLYX_SETTLEMENT_TRANSFER_ID_INVALID';
+  end if;
+
+  select *
+    into v_settlement
+    from public.booking_settlements
+   where booking_id = p_booking_id
+   for update;
+
+  if not found then
+    return false;
+  end if;
+
+  v_release_amount :=
+    v_settlement.provider_amount_cents
+      - v_settlement.refunded_provider_amount_cents;
+
+  if v_release_amount <= 0 then
+    return false;
+  end if;
+
+  if v_settlement.stripe_transfer_id is not null then
+    if v_settlement.stripe_transfer_id <> p_stripe_transfer_id then
+      return false;
+    end if;
+
+    update public.booking_settlements
+       set released_provider_amount_cents = v_release_amount,
+           updated_at = now()
+     where booking_id = p_booking_id
+       and released_provider_amount_cents is distinct from v_release_amount;
+
+    return true;
+  end if;
+
+  update public.booking_settlements
+     set state = 'released',
+         stripe_transfer_id = p_stripe_transfer_id,
+         released_provider_amount_cents = v_release_amount,
+         released_at = now(),
+         release_claim_token = null,
+         release_claimed_at = null,
+         last_error_code = null,
+         last_error_message = null,
+         updated_at = now()
+   where booking_id = p_booking_id
+     and state = 'release_claimed';
+
+  get diagnostics v_updated = row_count;
+  return v_updated = 1;
+end;
+$$;
+
+create or replace function public.klyx_reconcile_booking_settlement_released(
+  p_booking_id uuid,
+  p_stripe_transfer_id text
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_settlement public.booking_settlements%rowtype;
+  v_booking record;
+  v_release_amount bigint;
+begin
+  if coalesce(trim(p_stripe_transfer_id), '') !~ '^tr_[A-Za-z0-9]+$' then
+    raise exception 'KLYX_SETTLEMENT_TRANSFER_ID_INVALID';
+  end if;
+
+  select s.*
+    into v_settlement
+    from public.booking_settlements as s
+   where s.booking_id = p_booking_id
+   for update;
+
+  if not found then
+    return false;
+  end if;
+
+  select
+    b.status,
+    b.payment_status,
+    b.refund_status,
+    b.payment_mode,
+    b.booking_group_id
+    into v_booking
+    from public.bookings as b
+   where b.id = p_booking_id;
+
+  if not found then
+    return false;
+  end if;
+
+  if v_settlement.stripe_transfer_id is distinct from p_stripe_transfer_id then
+    return false;
+  end if;
+
+  if v_settlement.state in ('human_review', 'refund_pending', 'refunded')
+     or coalesce(v_booking.refund_status, '') in ('processing', 'succeeded')
+     or coalesce(v_booking.payment_status, '') = 'refunded' then
+    return false;
+  end if;
+
+  if coalesce(v_booking.status, '') <> 'completed'
+     or coalesce(v_booking.payment_status, '') <> 'paid'
+     or coalesce(v_booking.payment_mode, '') <> 'platform_held'
+     or v_booking.booking_group_id is not null
+     or v_settlement.state not in (
+       'held',
+       'release_claimed',
+       'release_failed',
+       'released'
+     ) then
+    return false;
+  end if;
+
+  v_release_amount :=
+    v_settlement.provider_amount_cents
+      - v_settlement.refunded_provider_amount_cents;
+
+  if v_release_amount <= 0 then
+    return false;
+  end if;
+
+  update public.booking_settlements
+     set state = 'released',
+         released_provider_amount_cents = v_release_amount,
+         released_at = coalesce(released_at, now()),
+         release_claim_token = null,
+         release_claimed_at = null,
+         last_error_code = null,
+         last_error_message = null,
+         last_reconciled_at = now(),
+         updated_at = now()
+   where booking_id = p_booking_id;
+
+  return true;
+end;
+$$;
+
 revoke all on function public.klyx_create_platform_held_booking_refund_plan(
   uuid, text, bigint, text
 ) from public, anon, authenticated;
