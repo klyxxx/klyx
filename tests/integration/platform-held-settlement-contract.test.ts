@@ -98,6 +98,7 @@ describe("KLYX platform-held settlement phase-2 contract", () => {
 
   it("gates provider release before the executable reconciliation call and Stripe Transfer", () => {
     const release = read("lib/booking-settlement-server.ts");
+    const gateway = read("lib/beneficiary-transfer-gateway.ts");
     const risk = read("lib/transaction-risk-server.ts");
 
     const releaseFunctionIndex = release.indexOf(
@@ -116,7 +117,7 @@ describe("KLYX platform-held settlement phase-2 contract", () => {
       claimIndex
     );
     const createIndex = release.indexOf(
-      "transfer = await stripe.transfers.create(",
+      "transfer = await createEconomicallyAuthorizedBeneficiaryTransfer({",
       reconcileCallIndex
     );
 
@@ -126,8 +127,10 @@ describe("KLYX platform-held settlement phase-2 contract", () => {
     expect(reconcileCallIndex).toBeGreaterThan(claimIndex);
     expect(createIndex).toBeGreaterThan(reconcileCallIndex);
     expect(release).toContain("stripe.transfers.list({");
-    expect(release).toContain("source_transaction: claim.stripe_charge_id");
-    expect(release).toContain("transfer_group: claim.transfer_group");
+    expect(release).toContain("sourceTransaction: claim.stripe_charge_id");
+    expect(release).toContain("transferGroup: claim.transfer_group");
+    expect(gateway).toContain("source_transaction: input.sourceTransaction");
+    expect(gateway).toContain("transfer_group: input.transferGroup");
     expect(release).toContain("klyx-booking-settlement-${bookingId}");
     expect(release).toContain("KLYX_SETTLEMENT_MULTIPLE_TRANSFERS_RECONCILIATION_REQUIRED");
     expect(risk).toContain('action: "settlement_release"');
