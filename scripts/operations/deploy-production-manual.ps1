@@ -72,6 +72,33 @@ function Invoke-CheckedCapture {
   return @($output | ForEach-Object { $_.ToString() })
 }
 
+function Convert-LastJsonObject {
+  param(
+    [Parameter(Mandatory = $true)][string[]]$Lines,
+    [Parameter(Mandatory = $true)][string]$Context
+  )
+
+  for ($index = $Lines.Count - 1; $index -ge 0; $index--) {
+    $candidate = $Lines[$index].Trim()
+    if ([string]::IsNullOrWhiteSpace($candidate)) {
+      continue
+    }
+
+    try {
+      $payload = $candidate | ConvertFrom-Json
+      if ($null -ne $payload) {
+        return $payload
+      }
+    }
+    catch {
+      continue
+    }
+  }
+
+  $rendered = ($Lines -join [Environment]::NewLine).Trim()
+  Fail "$Context did not contain a valid JSON object: $rendered"
+}
+
 function Assert-ExactMainAndCleanTree {
   Invoke-Checked git fetch --prune origin main
 
@@ -184,19 +211,14 @@ try {
   # Vercel CLI authentication lets this check work even when the immutable
   # deployment URL is protected. Fail on any HTTP 4xx/5xx before promotion.
   $healthOutput = Invoke-CheckedCapture npx vercel curl "$deploymentUrl/api/health" --fail-with-body --silent --show-error
-  $healthText = ($healthOutput -join [Environment]::NewLine).Trim()
-  try {
-    $healthPayload = $healthText | ConvertFrom-Json
-  }
-  catch {
-    Fail "Staged /api/health did not return valid JSON: $healthText"
-  }
+  $healthPayload = Convert-LastJsonObject -Lines $healthOutput -Context 'Staged /api/health'
 
   if (
     $healthPayload.status -ne 'ok' -or
     $healthPayload.service -ne 'klyx' -or
     $healthPayload.check -ne 'liveness'
   ) {
+    $healthText = ($healthOutput -join [Environment]::NewLine).Trim()
     Fail "Staged /api/health payload is invalid: $healthText"
   }
 
