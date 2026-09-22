@@ -540,6 +540,13 @@ async function runRefundBeforeReleaseScenario({
   provider,
 }) {
   const booking = await latestAcceptedUnpaidBooking(admin, client.id, provider.id);
+  const earn = await createPlatformHeldEarnWorkflow({
+    admin,
+    accountId,
+    providerId: provider.id,
+    bookingId: booking.id,
+  });
+
   await createHeldCheckout({ appOrigin, accessToken, clientId: client.id, bookingId: booking.id });
 
   const pendingSettlement = await loadSettlement(admin, booking.id);
@@ -1346,7 +1353,35 @@ async function runReleaseRetryReversalScenario({
     paymentIntentId: intent.id,
     chargeId: charge.id,
   });
+
+  earn.workflow = await transitionEarnWorkflow({
+    admin,
+    accountId,
+    workflow: earn.workflow,
+    toStep: "mission",
+    eventType: "mission19_earn_mission_started",
+    payload: {
+      booking_id: booking.id,
+      payment_status: "paid",
+      stripe_payment_intent_id: intent.id,
+      stripe_charge_id: charge.id,
+    },
+  });
+
   await markBookingCompletedForSettlement(admin, booking.id);
+
+  earn.workflow = await transitionEarnWorkflow({
+    admin,
+    accountId,
+    workflow: earn.workflow,
+    toStep: "completion",
+    eventType: "mission19_earn_mission_completed",
+    payload: {
+      booking_id: booking.id,
+      booking_status: "completed",
+      service_status: "completed",
+    },
+  });
   await insertSettlementRiskAllow(admin, accountId, booking.id);
   await insertEconomicSettlementAllow({
     admin,
@@ -1354,6 +1389,20 @@ async function runReleaseRetryReversalScenario({
     bookingId: booking.id,
     providerProfileId: provider.id,
     stripeAccountId: held.stripe_account_id,
+  });
+
+  earn.workflow = await transitionEarnWorkflow({
+    admin,
+    accountId,
+    workflow: earn.workflow,
+    toStep: "settlement",
+    eventType: "mission19_earn_settlement_authorized",
+    payload: {
+      booking_id: booking.id,
+      economic_eligibility: "allowed",
+      transaction_risk: "allow",
+      stripe_account_id: held.stripe_account_id,
+    },
   });
 
   const firstToken = randomUUID();
@@ -1459,6 +1508,14 @@ async function runReleaseRetryReversalScenario({
     released.release_attempt_number === 1,
     "Existing-Transfer recovery must not mint a second release attempt."
   );
+
+  const earnProof = await completePlatformHeldEarnWorkflow({
+    admin,
+    accountId,
+    earn,
+    bookingId: booking.id,
+    transferId: acceptedTransfer.id,
+  });
 
   const { data: recoveryEvents, error: recoveryEventsError } = await admin
     .from("booking_settlement_reconciliation_events")
@@ -1662,6 +1719,7 @@ async function runReleaseRetryReversalScenario({
     settlementState: terminalSettlement.state,
     recoveryViaKlyxOps: true,
     recoveryAuditAction: "transfer_db_reconciled",
+    mission19EarnWorkflow: earnProof,
     postTransferRestrictionId: restriction.restrictionId,
     postTransferRestrictedJurisdiction: restriction.jurisdictionCode,
   };
