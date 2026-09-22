@@ -63,6 +63,12 @@ describe("Mission 19 earn runtime certification contract", () => {
       "advanceMission19EarnToSettlement(admin, earnHandoff, booking.id)"
     );
     expect(stripeNetwork).toContain(
+      "assertMission19EarnCompletionBlockedBeforeRelease"
+    );
+    expect(stripeNetwork).toContain(
+      "KLYX_WORKFLOW_SETTLEMENT_PROOF_REQUIRED"
+    );
+    expect(stripeNetwork).toContain(
       "completeMission19EarnFromReleasedSettlement"
     );
     expect(stripeNetwork).toContain(
