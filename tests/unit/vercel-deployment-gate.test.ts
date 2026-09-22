@@ -45,6 +45,10 @@ describe("KLYX Vercel deployment gate", () => {
     expect(script).toContain("$previousErrorActionPreference = $ErrorActionPreference");
     expect(script).toContain("$ErrorActionPreference = 'Continue'");
     expect(script).toContain("$exitCode = $LASTEXITCODE");
+    expect(
+      script.match(/\$ErrorActionPreference = \$previousErrorActionPreference/g)
+        ?.length
+    ).toBe(2);
     expect(script).toContain("exact main SHA ${Sha}:");
     expect(script).not.toContain("exact main SHA $Sha:");
   });
