@@ -18,12 +18,18 @@ const reconciliationPath =
   "supabase/migrations/20260913001700_klyx_profiles_stripe_unique_index_reconciliation.sql";
 const workflowPath =
   ".github/workflows/klyx-supabase-production-migrations.yml";
+const mission19HistoricalPaths = [
+  "supabase/migrations/20260921173000_klyx_end_to_end_autonomous_continuity.sql",
+  "supabase/migrations/20260921174500_klyx_durable_job_claim_ambiguity_fix.sql",
+  "supabase/migrations/20260921180500_klyx_settlement_latest_eligibility_gate.sql",
+];
 
 const preflight = read(preflightPath);
 const cleanup = read(cleanupPath);
 const orphan = read(orphanPath);
 const reconciliation = read(reconciliationPath);
 const workflow = read(workflowPath);
+const mission19Historical = mission19HistoricalPaths.map(read);
 
 function executableSql(sql: string) {
   return sql
@@ -98,6 +104,27 @@ describe("Supabase production migration-history reconciliation contract", () => 
       .toBeLessThan(
         reconciliation.indexOf("drop index public.profiles_stripe_account_id_key")
       );
+  });
+
+  it("keeps the Mission 19 historical insertion non-destructive at the schema boundary", () => {
+    for (const sql of mission19Historical) {
+      expect(executableSql(sql)).not.toMatch(
+        /\b(?:drop\s+(?:table|schema|column|function)|truncate\s+table)\b/i
+      );
+    }
+
+    expect(mission19Historical[0]).toContain(
+      "create or replace function public.klyx_resume_orphaned_workflow"
+    );
+    expect(mission19Historical[1]).toContain(
+      "create or replace function public.klyx_claim_durable_jobs"
+    );
+    expect(mission19Historical[2]).toContain(
+      "create or replace function public.klyx_claim_booking_settlement_release"
+    );
+    expect(mission19Historical[2]).toContain(
+      "create or replace function public.klyx_claim_platform_held_group_member_release"
+    );
   });
 
   it("allows include-all only for the exact audited historical production gap", () => {
