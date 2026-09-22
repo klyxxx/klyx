@@ -12,12 +12,16 @@ const workflow = fs.readFileSync(
 );
 
 const approvedHistoricalMigrations = [
-  "20260920091000_klyx_orchestrator_foundation.sql",
+  "20260921173000_klyx_end_to_end_autonomous_continuity.sql",
+  "20260921174500_klyx_durable_job_claim_ambiguity_fix.sql",
+  "20260921180500_klyx_settlement_latest_eligibility_gate.sql",
 ];
 
 const approvedReconciliationBatch = [
-  "20260920091000_klyx_orchestrator_foundation.sql",
-  "20260920174500_klyx_operations_failure_domains.sql",
+  "20260921173000_klyx_end_to_end_autonomous_continuity.sql",
+  "20260921174500_klyx_durable_job_claim_ambiguity_fix.sql",
+  "20260921180500_klyx_settlement_latest_eligibility_gate.sql",
+  "20260922160000_klyx_global_expansion_control_plane.sql",
 ];
 
 describe("Supabase production migration historical-gap recovery", () => {
