@@ -81,70 +81,13 @@ on:
   push:
     branches:
       - main
-    paths:
-      - ".github/workflows/klyx-golden-path.yml"
-      - ".github/workflows/klyx-disaster-recovery-certification.yml"
-      - ".github/workflows/klyx-supabase-full-restore-drill.yml"
-      - "scripts/check-klyx-backup.ps1"
-      - "scripts/prepare-klyx-dr-certification.ps1"
-      - "scripts/test-klyx-supabase-dr-restore.ps1"
-      - "scripts/backup-klyx-storage.mjs"
-      - "docs/KLYX_DISASTER_RECOVERY_CERTIFICATION.md"
-      - "docs/operations/KLYX_INCIDENT_RUNBOOK.md"
-      - "tests/integration/disaster-recovery-certification-contract.test.ts"
-      - "tests/integration/operational-sentinel-contract.test.ts"
-      - ".github/workflows/klyx-stripe-split-settlement-network.yml"
-      - "tests/integration/platform-held-split-live-readiness-contract.test.ts"
-      - "docs/KLYX_LIVE_READINESS_GATE.md"
-      - ".github/workflows/klyx-supabase-production-migrations.yml"
-      - "tests/supabase-production-migration-workflow.test.ts"
-      - "scripts/golden-path-*.mjs"
-      - "supabase/migrations/**"
-      - "proxy.ts"
-      - "app/messages/**"
-      - "app/agent/**"
-      - "app/request/photo/**"
-      - "app/api/agent/**"
-      - "app/api/ai/respond/**"
-      - "app/api/requests/analyze/**"
-      - "app/api/requests/photo/**"
-      - "app/api/search/providers/**"
-      - "app/api/bookings/**"
-      - "app/api/quotes/**"
-      - "app/api/reviews/**"
-      - "app/api/stripe/create-checkout-session/**"
-      - "app/api/stripe/create-group-checkout-session/**"
-      - "app/api/stripe/connect/**"
-      - "app/api/stripe/webhook/**"
-      - "app/api/provider/studio/**"
-      - "app/api/provider/zones/**"
-      - "app/api/provider/finance/**"
-      - "lib/client-agent.ts"
-      - "lib/api-rate-limit.ts"
-      - "lib/photo-service-analysis.ts"
-      - "lib/photo-vision-analysis.ts"
-      - "lib/supabase/middleware.ts"
-      - "lib/universal-service-request.ts"
-      - "lib/location-intent.ts"
-      - "lib/catalog-service-matcher.ts"
-      - "lib/provider-search.ts"
-      - "lib/provider-studio.ts"
-      - "lib/provider-skill-publication.ts"
-      - "lib/active-profile.ts"
-      - "lib/supabase/server.ts"
-      - "lib/booking-tracking-time.ts"
-      - "lib/stripe-payments.ts"
-      - "lib/split-stripe-payments.ts"
-      - "lib/stripe-webhook-events.ts"
-      - "lib/payment-ledger.ts"
-      - "lib/api-auth.ts"
 
 permissions:
   contents: read
 
 # Mutation-heavy launch proof must never race with itself.
 concurrency:
-  group: klyx-golden-path-${{ github.repository }}
+  group: klyx-golden-path-${{ github.repository }}-${{ github.event_name == 'push' && 'main' || github.event_name }}
   cancel-in-progress: false
 
 jobs:
