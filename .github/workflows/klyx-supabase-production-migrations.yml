@@ -202,7 +202,8 @@ jobs:
           # This is a one-time, production-audited reconciliation allowlist.
           # Any historical file outside this exact set keeps the deployment
           # fail-closed instead of broadening --include-all implicitly.
-          # 2026-09-22 audit: production already contains later 18:30+ and 19:30 migrations;
+          # 2026-09-22 audit: production run 35736934172 observed exactly this gap.
+          # Production already contains later 18:30+ and 19:30 migrations;
           # Mission 19 continuity, durable-claim ambiguity hardening, and the latest
           # settlement eligibility gate are the exact historical insertion gap.
           approved_historical_migrations=(
