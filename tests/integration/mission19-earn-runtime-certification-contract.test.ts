@@ -13,6 +13,9 @@ const stripeNetwork = read(
 const authorityMigration = read(
   "supabase/migrations/20260922171500_klyx_earn_settlement_completion_authority.sql"
 );
+const ambiguityFix = read(
+  "supabase/migrations/20260922173000_klyx_orchestrator_output_column_ambiguity_fix.sql"
+);
 const goldenWorkflow = read(".github/workflows/klyx-golden-path.yml");
 
 describe("Mission 19 earn runtime certification contract", () => {
@@ -76,6 +79,33 @@ describe("Mission 19 earn runtime certification contract", () => {
     );
     expect(stripeNetwork).toContain(
       '"klyx_complete_settlement_workflow"'
+    );
+  });
+
+  it("keeps orchestrator SQL unambiguous under RETURNS TABLE output names", () => {
+    expect(ambiguityFix).toContain(
+      "update public.klyx_workflow_steps as s"
+    );
+    expect(ambiguityFix).toContain(
+      "where s.workflow_id = v_workflow.id"
+    );
+    expect(ambiguityFix).toContain(
+      "update public.klyx_workflows as w"
+    );
+    expect(ambiguityFix).toContain(
+      "version = w.version + 1"
+    );
+    expect(ambiguityFix).not.toContain(
+      "where workflow_id = v_workflow.id"
+    );
+    expect(ambiguityFix).not.toContain(
+      "version = version + 1"
+    );
+    expect(ambiguityFix).toContain(
+      "KLYX_WORKFLOW_SETTLEMENT_PROOF_REQUIRED"
+    );
+    expect(ambiguityFix).toContain(
+      "'settlement_authority', 'booking_settlements'"
     );
   });
 
