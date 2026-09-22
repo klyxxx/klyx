@@ -10,6 +10,9 @@ const migration = read(
   "supabase/migrations/20260920091000_klyx_orchestrator_foundation.sql"
 );
 const repository = read("lib/brain/orchestrator/repository.ts");
+const earnCompletion = read(
+  "supabase/migrations/20260922213000_klyx_earn_completion_workflow.sql"
+);
 
 describe("KLYX orchestrator settlement terminal contract", () => {
   it("keeps settlement as a persistent step instead of completing on entry", () => {
@@ -18,6 +21,18 @@ describe("KLYX orchestrator settlement terminal contract", () => {
     );
     expect(migration).not.toContain(
       "v_workflow.mode = 'earn' and p_to_step = 'settlement'"
+    );
+  });
+
+  it("requires completion before entering settlement", () => {
+    expect(earnCompletion).toContain(
+      "when 'mission' then p_to_step = 'completion'"
+    );
+    expect(earnCompletion).toContain(
+      "when 'completion' then p_to_step = 'settlement'"
+    );
+    expect(earnCompletion).not.toContain(
+      "when 'mission' then p_to_step = 'settlement'"
     );
   });
 
