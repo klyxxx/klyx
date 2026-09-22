@@ -14,6 +14,12 @@ const single = read("lib/booking-settlement-server.ts");
 const group = read("lib/platform-held-group-settlement-server.ts");
 const stripeTruth = read("lib/stripe-settlement-recipient-truth.ts");
 const documentation = read("docs/economic-settlement-eligibility.md");
+const networkProof = read(
+  "scripts/golden-path-platform-held-settlement-network.mjs"
+);
+const stripeNetworkWorkflow = read(
+  ".github/workflows/klyx-stripe-network-test.yml"
+);
 
 describe("Mission 11 economic settlement eligibility contract", () => {
   it("creates one append-only decision ledger without creating parallel activity authorities", () => {
@@ -47,11 +53,48 @@ describe("Mission 11 economic settlement eligibility contract", () => {
     expect(eligibility).toContain("stripeProjection.payouts_enabled");
     expect(eligibility).toContain("ACCOUNT_OFFER_SERVICES_CAPABILITY_DENIED");
     expect(eligibility).toContain("TRUST_ACTIVITY_ELIGIBILITY_MISSING");
+    expect(eligibility).toContain("ECONOMIC_IDENTITY_NOT_READY");
+    expect(eligibility).toContain('"economic_legal_entities"');
+    expect(eligibility).toContain("ECONOMIC_LEGAL_ENTITY_MISSING");
+    expect(eligibility).toContain("ECONOMIC_LEGAL_ENTITY_EXPIRED");
+    expect(eligibility).toContain("ECONOMIC_VERIFICATION_MISSING");
     expect(eligibility).toContain("ECONOMIC_VERIFICATION_NOT_SATISFIED");
+    expect(eligibility).toContain("ECONOMIC_VERIFICATION_EXPIRED");
+    expect(eligibility).toContain("ACCOUNT_QUALIFICATION_MISSING");
     expect(eligibility).toContain("ECONOMIC_RESTRICTION_ACTIVE");
     expect(documentation).toContain("payouts_enabled");
     expect(documentation).toContain("necessary evidence");
     expect(documentation).toContain("never sufficient");
+  });
+
+  it("certifies Stripe-ready but KLYX-blocked as zero beneficiary Transfer through the real reconciliation path", () => {
+    expect(stripeNetworkWorkflow).toContain(
+      'KLYX_SETTLEMENT_RECONCILIATION_SECRET: "klyx-test-reconcile-'
+    );
+    expect(networkProof).toContain(
+      'path: "/api/ops/settlement-reconciliation"'
+    );
+    expect(networkProof).toContain(
+      "assertStripeOkForEconomicChain"
+    );
+    expect(networkProof).toContain(
+      '"ECONOMIC_RESTRICTION_ACTIVE"'
+    );
+    expect(networkProof).toContain(
+      "blockedSettlement.release_attempt_number"
+    );
+    expect(networkProof).toContain(
+      "providerTransferCountBefore"
+    );
+    expect(networkProof).toContain(
+      "providerTransferCountAfter"
+    );
+    expect(networkProof).toContain(
+      "beneficiaryPaymentPrevented: true"
+    );
+    expect(networkProof).toContain(
+      "afterTransfers.data.length === 0"
+    );
   });
 
   it("requires a fresh economic allow before the independent risk allow in both SQL claims", () => {
