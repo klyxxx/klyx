@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { canReceiveSettlement } from "@/lib/economic-settlement-eligibility-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -12,7 +12,7 @@ const runtimeDescribe = runtimeEnabled ? describe.sequential : describe.skip;
 const ACTIVITY_KEY = "cleaning";
 const JURISDICTION_CODE = "BE";
 const QUALIFICATION_KEY = "economic.chain.certification";
-const STRIPE_ACCOUNT_ID = "acct_klyx_economic_chain_runtime";
+let stripeAccountId = "";
 
 let authUserId = "";
 let accountId = "";
@@ -221,7 +221,7 @@ async function resetVerifiedBaseline(subjectId: string): Promise<void> {
       })
       .eq("economic_identity_id", economicIdentityId)
       .eq("account_id", accountId)
-      .eq("stripe_account_id", STRIPE_ACCOUNT_ID),
+      .eq("stripe_account_id", stripeAccountId),
     "Unable to reset Stripe projection"
   );
 
@@ -239,7 +239,7 @@ async function evaluate(
     jurisdictionCode: JURISDICTION_CODE,
     subjectType: "booking",
     subjectId,
-    expectedStripeAccountId: STRIPE_ACCOUNT_ID,
+    expectedStripeAccountId: stripeAccountId,
   });
 
   expect(result.decision).toBe(expectedDecision);
@@ -304,6 +304,7 @@ runtimeDescribe("economic chain real runtime certification", () => {
     }
 
     authUserId = created.user.id;
+    stripeAccountId = `acct_klyx_economic_chain_${randomUUID().replaceAll("-", "")}`;
 
     const { data: account, error: accountError } = await supabaseAdmin
       .from("accounts")
@@ -340,7 +341,7 @@ runtimeDescribe("economic chain real runtime certification", () => {
     await requireNoError(
       supabaseAdmin.from("account_stripe_connect_identities").insert({
         account_id: accountId,
-        stripe_account_id: STRIPE_ACCOUNT_ID,
+        stripe_account_id: stripeAccountId,
         identity_state: "linked",
         source_profile_ids: [],
         conflicting_stripe_account_ids: [],
@@ -352,7 +353,7 @@ runtimeDescribe("economic chain real runtime certification", () => {
       supabaseAdmin.from("economic_stripe_account_projections").insert({
         economic_identity_id: economicIdentityId,
         account_id: accountId,
-        stripe_account_id: STRIPE_ACCOUNT_ID,
+        stripe_account_id: stripeAccountId,
         country_code: JURISDICTION_CODE,
         business_type: "individual",
         details_submitted: true,
@@ -371,17 +372,6 @@ runtimeDescribe("economic chain real runtime certification", () => {
       }),
       "Unable to create isolated Stripe projection"
     );
-  }, 20_000);
-
-  afterAll(async () => {
-    if (!authUserId) return;
-
-    const { error } = await supabaseAdmin.auth.admin.deleteUser(authUserId);
-    if (error) {
-      throw new Error(
-        `Unable to destroy isolated economic-chain user: ${error.message}`
-      );
-    }
   }, 20_000);
 
   it("allows the complete verified chain", async () => {
