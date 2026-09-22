@@ -40,6 +40,9 @@ describe("KLYX canonical Stripe Connect manual resolution", () => {
     expect(migration).toContain(
       "KLYX_STRIPE_CONNECT_RESOLUTION_ACCOUNT_ALREADY_OWNED"
     );
+    expect(migration).toContain(
+      "v_selected = any(other.conflicting_stripe_account_ids)"
+    );
     expect(migration).toContain("for update");
   });
 
