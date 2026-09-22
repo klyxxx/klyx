@@ -56,6 +56,18 @@ describe("KLYX settlement recovery / reconciliation contract", () => {
     expect(recovery).not.toMatch(/openai/i);
   });
 
+  it("serializes recovery certification dispatches by branch so stale pushes cannot steal exact-SHA runs", () => {
+    const dispatcher = read(
+      ".github/workflows/klyx-settlement-recovery-certification-dispatch.yml"
+    );
+
+    expect(dispatcher).toContain(
+      "group: klyx-settlement-recovery-certification-${{ github.ref }}"
+    );
+    expect(dispatcher).toContain("cancel-in-progress: true");
+    expect(dispatcher).toContain('if [ "$checked_out_sha" != "$GITHUB_SHA" ]');
+  });
+
   it("network-certifies crash recovery through the real KLYX ops reconciler without a second Transfer", () => {
     const proof = read("scripts/golden-path-platform-held-settlement-network.mjs");
     const workflow = read(".github/workflows/klyx-stripe-network-test.yml");
