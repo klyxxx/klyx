@@ -712,11 +712,13 @@ begin
              v_settlement.release_attempt_number,
              v_settlement.provider_profile_id,
              v_settlement.stripe_account_id,
-             case
-               when v_settlement.released_amount_cents > 0
-                 then v_settlement.released_amount_cents
-               else v_settlement.provider_amount_cents
-             end,
+             (
+               case
+                 when v_settlement.released_amount_cents > 0
+                   then v_settlement.released_amount_cents
+                 else v_settlement.provider_amount_cents::bigint
+               end
+             )::integer,
              v_settlement.currency,
              v_settlement.stripe_payment_intent_id,
              v_settlement.stripe_charge_id,
