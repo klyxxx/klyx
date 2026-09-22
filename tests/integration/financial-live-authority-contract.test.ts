@@ -24,6 +24,12 @@ describe("KLYX canonical financial LIVE authority contract", () => {
       "KLYX_FINANCIAL_LIVE_VERSION_CONFLICT"
     );
     expect(migration).toContain(
+      "KLYX_FINANCIAL_LIVE_DISABLE_BEFORE_SHA_CHANGE"
+    );
+    expect(migration).toContain(
+      "KLYX_FINANCIAL_LIVE_DISABLE_BEFORE_PROFILE_CHANGE"
+    );
+    expect(migration).toContain(
       "ops_financial_live_authority_events"
     );
     expect(migration).toContain(
