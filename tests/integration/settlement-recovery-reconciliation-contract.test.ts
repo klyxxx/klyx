@@ -26,6 +26,8 @@ const statusRoute = read("app/api/bookings/status/route.ts");
 const identity = read("lib/stripe-connect-account-identity.ts");
 const webhookEvents = read("lib/stripe-webhook-events.ts");
 const opsRoute = read("app/api/ops/settlement-reconciliation/route.ts");
+const networkProof = read("scripts/golden-path-platform-held-settlement-network.mjs");
+const stripeNetworkWorkflow = read(".github/workflows/klyx-stripe-network-test.yml");
 
 describe("KLYX settlement recovery / reconciliation contract", () => {
   it("is server-only, observes Stripe truth outside mutation gates and contains no LLM financial mutation path", () => {
@@ -75,6 +77,23 @@ describe("KLYX settlement recovery / reconciliation contract", () => {
     expect(beneficiaryTransferGateway).toContain("readStripeSettlementRecipientTruth");
     expect(settlement).toContain(
       "klyx-booking-settlement-${bookingId}"
+    );
+  });
+
+  it("proves the real KLYX recovery engine reconciles an existing Stripe Transfer without a second write", () => {
+    expect(networkProof).toContain('path: "/api/ops/settlement-reconciliation"');
+    expect(networkProof).toContain("KLYX_SETTLEMENT_RECONCILIATION_SECRET");
+    expect(networkProof).toContain("network_recovery_post_transfer_ineligible");
+    expect(networkProof).toContain('"transfer_db_reconciled"');
+    expect(networkProof).toContain("recoveryThroughKlyxReconciliationEngine: true");
+    expect(networkProof).toContain(
+      "postTransferIneligibilityReconcilesExistingTruthOnly: true"
+    );
+    expect(networkProof).not.toContain(
+      '"klyx_finalize_booking_settlement_release"'
+    );
+    expect(stripeNetworkWorkflow).toContain(
+      "KLYX_SETTLEMENT_RECONCILIATION_SECRET=$reconciliation_secret"
     );
   });
 
