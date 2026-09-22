@@ -6,16 +6,12 @@ import {
   requireAccountType,
 } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
-import { reconcilePlatformHeldBookingSettlement } from "@/lib/booking-settlement-reconciliation-server";
 import {
   refundSinglePlatformHeldBooking,
   type SinglePlatformHeldRefundRequest,
 } from "@/lib/platform-held-booking-refund-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import {
-  enforceRefundTransactionRisk,
-  isTransactionRiskGateError,
-} from "@/lib/transaction-risk-server";
+import { isTransactionRiskGateError } from "@/lib/transaction-risk-server";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -181,40 +177,6 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
-    await enforceRefundTransactionRisk({
-      requesterAccount: account,
-      refundRecipientProfileId: booking.parent_id,
-      subjectType: "booking",
-      subjectId: bookingId,
-    });
-
-    const recovery = await reconcilePlatformHeldBookingSettlement({
-      bookingId,
-      source: "refund",
-    });
-
-    if (
-      recovery.status === "human_review" ||
-      recovery.status === "failed" ||
-      recovery.status === "pending_release" ||
-      recovery.status === "refund_pending"
-    ) {
-      return NextResponse.json(
-        {
-          error:
-            recovery.status === "human_review"
-              ? "Le remboursement nécessite une vérification financière humaine."
-              : "Le remboursement attend une réconciliation financière.",
-          code:
-            recovery.status === "human_review"
-              ? "KLYX_SETTLEMENT_HUMAN_REVIEW"
-              : "KLYX_SETTLEMENT_REFUND_RECONCILIATION_PENDING",
-          reasonCode: recovery.reasonCode ?? null,
-        },
-        { status: 409 }
-      );
-    }
-
     let refundRequest: SinglePlatformHeldRefundRequest;
 
     if (kind === "total") {
@@ -244,6 +206,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     const result = await refundSinglePlatformHeldBooking({
       bookingId,
+      requesterAccount: account,
       requesterProfileId: profile.id,
       request: refundRequest,
     });
