@@ -664,9 +664,15 @@ async function provisionConnectedAccount({ stripe, providerId }) {
     "Platform-held provider fixture metadata provider mismatch."
   );
 
+  const economicStripeReadiness = assertStripeOkForEconomicChain(
+    legacyAccount,
+    v2Account
+  );
+
   return {
     account: legacyAccount,
     v2Account,
+    economicStripeReadiness,
     createdForProof: handoff.created,
   };
 }
