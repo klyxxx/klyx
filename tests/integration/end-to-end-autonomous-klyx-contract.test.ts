@@ -28,8 +28,12 @@ const eligibility = read(
 const latestEligibilityGate = read(
   "supabase/migrations/20260921180500_klyx_settlement_latest_eligibility_gate.sql"
 );
+const earnCompletion = read(
+  "supabase/migrations/20260922213000_klyx_earn_completion_workflow.sql"
+);
 const webhookLifecycle = read("scripts/golden-path-service-lifecycle.mjs");
 const settlementChaos = read("scripts/mission19-settlement-eligibility-chaos.mjs");
+const earnLifecycle = read("scripts/mission19-earn-lifecycle.mjs");
 const splitRefundFixture = read("scripts/golden-path-split-refund.mjs");
 const goldenPathWorkflow = read(".github/workflows/klyx-golden-path.yml");
 const documentation = read("docs/KLYX_END_TO_END_AUTONOMOUS_CERTIFICATION.md");
@@ -57,6 +61,7 @@ describe("Mission 19 end-to-end autonomous KLYX contract", () => {
       "proposal",
       "acceptance",
       "mission",
+      "completion",
       "settlement",
     ]) {
       expect(stateMachine).toContain(`"${step}"`);
@@ -66,6 +71,21 @@ describe("Mission 19 end-to-end autonomous KLYX contract", () => {
       "assistantMayExecuteActionDirectly"
     );
     expect(stateMachine).toContain("return false;");
+  });
+
+  it("requires explicit earn completion before settlement", () => {
+    expect(stateMachine).toContain('"completion"');
+    expect(stateMachine).toContain('mission: ["completion"]');
+    expect(stateMachine).toContain('completion: ["settlement"]');
+    expect(earnCompletion).toContain(
+      "when 'mission' then p_to_step = 'completion'"
+    );
+    expect(earnCompletion).toContain(
+      "when 'completion' then p_to_step = 'settlement'"
+    );
+    expect(earnCompletion).not.toContain(
+      "when 'mission' then p_to_step = 'settlement'"
+    );
   });
 
   it("survives conversation deletion by rebinding only an orphaned workflow for the same account/profile", () => {
@@ -239,6 +259,33 @@ describe("Mission 19 end-to-end autonomous KLYX contract", () => {
     );
     expect(goldenPathWorkflow).toContain(
       "node scripts/mission19-settlement-eligibility-chaos.mjs"
+    );
+  });
+
+  it("proves the full earn lifecycle against real completed booking truth", () => {
+    expect(earnLifecycle).toContain('capability", "offer_services"');
+    expect(earnLifecycle).toContain('.eq("status", "completed")');
+    expect(earnLifecycle).toContain('.eq("payment_status", "paid")');
+    expect(earnLifecycle).toContain('.eq("service_status", "completed")');
+    for (const step of [
+      "skill",
+      "opportunities",
+      "eligibility",
+      "proposal",
+      "acceptance",
+      "mission",
+      "completion",
+      "settlement",
+    ]) {
+      expect(earnLifecycle).toContain(`"${step}"`);
+    }
+    expect(earnLifecycle).toContain('"klyx_complete_settlement_workflow"');
+    expect(earnLifecycle).toContain('completed.status === "completed"');
+    expect(goldenPathWorkflow).toContain(
+      "Verify Mission 19 earn lifecycle"
+    );
+    expect(goldenPathWorkflow).toContain(
+      "node scripts/mission19-earn-lifecycle.mjs"
     );
   });
 
