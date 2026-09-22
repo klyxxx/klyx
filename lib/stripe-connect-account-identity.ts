@@ -280,6 +280,7 @@ export async function getAccountStripeConnectIdentity(
       stripeAccountId: null,
       sourceProfileIds,
       conflictingStripeAccountIds: evidence,
+      manuallyResolved: false,
     };
   }
 
