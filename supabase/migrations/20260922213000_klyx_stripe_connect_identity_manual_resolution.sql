@@ -126,7 +126,10 @@ begin
     select 1
     from public.account_stripe_connect_identities other
     where other.account_id <> p_account_id
-      and other.stripe_account_id = v_selected
+      and (
+        other.stripe_account_id = v_selected
+        or v_selected = any(other.conflicting_stripe_account_ids)
+      )
   ) then
     raise exception 'KLYX_STRIPE_CONNECT_RESOLUTION_ACCOUNT_ALREADY_OWNED';
   end if;
