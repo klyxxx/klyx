@@ -221,6 +221,32 @@ same booking
 
 This final harness runs after the normal payment, finance, refund and split-reconciliation proofs so its isolated fixture cannot contaminate those validations.
 
+## GAGNER runtime proof
+
+Mission 19 does not treat the earn state machine as proof by itself. The provider path must be backed by real product authorities:
+
+```text
+active provider skill
+-> real market request visible in /api/provider/jobs
+-> provider eligibility facts
+-> real market_service_offer
+-> client acceptance
+-> accepted service_quote
+-> explicit booking creation
+-> explicit provider mission acceptance
+-> paid/completed booking
+-> economic eligibility + risk
+-> canonical booking settlement
+-> real Stripe TEST Transfer
+-> earn workflow completion
+```
+
+`scripts/mission19-earn-market-lifecycle.mjs` creates the market-to-mission half using public KLYX APIs. It also proves that accepting an offer does not automatically create a booking.
+
+The Stripe TEST platform-held proof consumes that exact booking. After mission completion, the workflow enters `settlement`. A premature terminal-completion call must fail with `KLYX_WORKFLOW_SETTLEMENT_PROOF_REQUIRED`. The same workflow may become `completed` only after `booking_settlements.state = released`, `released_at` is present, and canonical `stripe_transfer_id` is a real `tr_*` identifier for the same provider booking.
+
+This makes the workflow a projection over business/financial truth, never an authority that can manufacture settlement completion.
+
 ## Certification rule
 
 Mission 19 is certified only when the exact candidate SHA passes:
