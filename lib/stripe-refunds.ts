@@ -362,15 +362,19 @@ export async function reconcileStripeRefund(
 
   const fullyRefunded = succeededAmount >= grossAmount;
 
-  const refundStatus: "processing" | "succeeded" | "failed" =
+  const refundStatus:
+    | "processing"
+    | "partially_refunded"
+    | "succeeded"
+    | "failed" =
     fullyRefunded
       ? "succeeded"
-      : succeededAmount > 0 ||
-          aggregate.hasProcessing ||
-          stripeRefundStatus === "processing" ||
-          stripeRefundStatus === "succeeded"
-        ? "processing"
-        : "failed";
+      : succeededAmount > 0
+        ? "partially_refunded"
+        : aggregate.hasProcessing ||
+            stripeRefundStatus === "processing"
+          ? "processing"
+          : "failed";
 
   const emailStateChanged =
     booking.refund_status !== refundStatus;
