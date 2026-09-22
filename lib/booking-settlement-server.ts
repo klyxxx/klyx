@@ -625,6 +625,7 @@ export async function releasePlatformHeldBookingSettlement(
         settlement,
         chargeId: claim.stripe_charge_id,
         expectedLive,
+        expectedAmountCents: claim.provider_amount_cents,
       });
     } else {
       stripeAcceptedTransfer = true;
