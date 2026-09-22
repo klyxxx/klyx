@@ -77,7 +77,7 @@ describe("KLYX true Split Settlement + Live Readiness contract", () => {
     expect(engine).toContain("requireKlyxFinancialStripeRuntime");
     expect(runtime).toContain('key.startsWith("sk_live_")');
     expect(runtime).toContain('key.startsWith("sk_test_")');
-    expect(runtime).toContain("KLYX_LIVE_CERTIFICATION_SHA");
+    expect(runtime).toContain("requireKlyxFinancialLiveAuthority");
     expect(runtime).toContain("KLYX_DR_CERTIFIED_SHA");
   });
 
