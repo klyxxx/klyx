@@ -181,11 +181,11 @@ create or replace function public.klyx_immutable_single_booking_refund_reversal(
 returns trigger
 language plpgsql
 set search_path = public
-as $
+as $$
 begin
   raise exception 'KLYX_SINGLE_HELD_REFUND_REVERSAL_IMMUTABLE';
 end;
-$;
+$$;
 
 drop trigger if exists platform_held_booking_refund_reversals_immutable
   on public.platform_held_booking_refund_reversals;
