@@ -4,7 +4,8 @@ import { requireKlyxFinancialStripeRuntime } from "@/lib/klyx-financial-stripe-r
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   apiErrorStatus,
-  getAuthenticatedProfile,
+  getAuthenticatedAccount,
+  type AuthenticatedAccount,
 } from "@/lib/api-auth";
 import {
   secureApiErrorResponse,
@@ -18,6 +19,7 @@ import {
   refundConfirmedEmail,
   refundStartedEmail,
 } from "@/lib/email/templates";
+import { refundPlatformHeldBooking } from "@/lib/platform-held-booking-refund-server";
 import { upsertFinancialLedgerEntry } from "@/lib/payment-ledger";
 import {
   logServerError,
@@ -277,15 +279,40 @@ async function createStripeRefundOrRecordFailure(params: {
 async function refundPaidBooking(params: {
   booking: BookingRow;
   actorId: string;
+  requesterAccount: AuthenticatedAccount;
   reason: string;
 }) {
-  const { booking, actorId, reason } = params;
+  const { booking, actorId, requesterAccount, reason } = params;
 
   if (booking.refund_status === "succeeded") {
     return {
       refundId: booking.stripe_refund_id,
       amount: booking.amount_total ?? 0,
       alreadyRefunded: true,
+    };
+  }
+
+  if (booking.payment_mode === "platform_held") {
+    const result = await refundPlatformHeldBooking({
+      bookingId: booking.id,
+      requesterAccount,
+      requesterProfileId: actorId,
+      request: {
+        kind: "total",
+        requestKey: `cancellation:${booking.id}`,
+      },
+    });
+
+    if (result.status === "review_required") {
+      throw new Error("KLYX_SINGLE_REFUND_REVIEW_REQUIRED");
+    }
+
+    return {
+      refundId:
+        result.status === "refunded" ? result.stripeRefundId : null,
+      amount: booking.amount_total ?? 0,
+      alreadyRefunded:
+        result.status === "refunded" && result.reconciled,
     };
   }
 
@@ -394,7 +421,7 @@ export async function POST(request: Request) {
   const startedAt = Date.now();
 
   try {
-    const { profile } = await getAuthenticatedProfile(request);
+    const { account, profile } = await getAuthenticatedAccount(request);
 
     const body = (await request.json()) as {
       bookingId?: string;
@@ -559,6 +586,7 @@ export async function POST(request: Request) {
         await refundPaidBooking({
           booking,
           actorId: profile.id,
+          requesterAccount: account,
           reason: note,
         });
         refundCompleted = true;
