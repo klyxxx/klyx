@@ -511,7 +511,28 @@ begin
      where id = p_refund_id
        and state in ('ready', 'refunding', 'reversal_required');
 
-    return found;
+    if found then
+      perform public.klyx_open_financial_reconciliation_case(
+        concat('single-refund:', p_refund_id, ':failed-after-reversal'),
+        (
+          select booking_id
+            from public.platform_held_booking_refunds
+           where id = p_refund_id
+        ),
+        'human_review',
+        'settlement',
+        'single_refund_failed_after_provider_reversal',
+        jsonb_build_object('refund_id', p_refund_id, 'provider_reversal', true),
+        jsonb_build_object(
+          'error_code',
+          left(coalesce(p_error_code, 'stripe_refund_failed_after_reversal'), 120)
+        ),
+        'single_refund_failure_after_reversal'
+      );
+      return true;
+    end if;
+
+    return false;
   end if;
 
   update public.platform_held_booking_refunds
@@ -536,6 +557,8 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  v_booking_id uuid;
 begin
   update public.platform_held_booking_refunds
      set state = 'review_required',
@@ -543,11 +566,30 @@ begin
          failure_message = left(coalesce(p_error_message, 'Single refund requires review.'), 1000),
          updated_at = now()
    where id = p_refund_id
-     and state <> 'succeeded';
+     and state <> 'succeeded'
+  returning booking_id into v_booking_id;
 
-  return found;
+  if not found then
+    return false;
+  end if;
+
+  perform public.klyx_open_financial_reconciliation_case(
+    concat('single-refund:', p_refund_id, ':review'),
+    v_booking_id,
+    'human_review',
+    'settlement',
+    left(coalesce(p_error_code, 'single_refund_review_required'), 120),
+    jsonb_build_object('refund_id', p_refund_id),
+    jsonb_build_object(
+      'message',
+      left(coalesce(p_error_message, 'Single refund requires review.'), 1000)
+    ),
+    'single_refund_truth_divergence'
+  );
+
+  return true;
 end;
-$$;
+$;
 
 -- Preserve legacy full-refund compatibility when there are no child plans.
 -- Once child plans exist, terminal truth is cumulative and may contain many
