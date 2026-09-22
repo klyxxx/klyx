@@ -398,8 +398,11 @@ async function listExistingRefundTruth(
   for (const candidate of listed.data) {
     const metadata = candidate.metadata ?? {};
     const knownSingleRefund =
-      metadata.payment_mode === PAYMENT_MODE &&
-      metadata.booking_id === settlement.booking_id;
+      metadata.booking_id === settlement.booking_id &&
+      (
+        !metadata.payment_mode ||
+        metadata.payment_mode === PAYMENT_MODE
+      );
 
     if (!knownSingleRefund) {
       throw new Error("KLYX_SINGLE_REFUND_UNKNOWN_REFUND_ON_CHARGE");
@@ -497,6 +500,39 @@ export async function refundPlatformHeldBooking(input: {
     throw new Error("KLYX_SINGLE_REFUND_FORBIDDEN");
   }
 
+  const requestKey = validRequestKey(input.request.requestKey);
+  let refund = await loadExistingRefundByRequestKey(booking.id, requestKey);
+
+  if (
+    refund &&
+    input.request.kind === "partial" &&
+    Number(refund.gross_refund_cents) !== input.request.amountCents
+  ) {
+    throw new Error("KLYX_SINGLE_REFUND_REQUEST_KEY_CONFLICT");
+  }
+
+  // A frozen request key is immutable financial truth. Pure retries of a
+  // terminal result do not need fresh Risk/Operations authorization because
+  // they cannot create a new Stripe side effect.
+  if (refund?.state === "succeeded" && refund.stripe_refund_id) {
+    return {
+      status: "refunded",
+      refundId: refund.id,
+      stripeRefundId: refund.stripe_refund_id,
+      reconciled: true,
+    };
+  }
+
+  if (refund?.state === "review_required") {
+    return { status: "review_required", refundId: refund.id };
+  }
+
+  if (refund?.state === "failed") {
+    throw new Error(
+      refund.failure_code ?? "KLYX_SINGLE_REFUND_PREVIOUSLY_FAILED"
+    );
+  }
+
   if (
     booking.payment_status !== "paid" ||
     !settlement.stripe_charge_id ||
@@ -506,8 +542,6 @@ export async function refundPlatformHeldBooking(input: {
   ) {
     throw new Error("KLYX_SINGLE_REFUND_NOT_READY");
   }
-
-  const requestKey = validRequestKey(input.request.requestKey);
 
   await enforceRefundTransactionRisk({
     requesterAccount: input.requesterAccount,
@@ -522,8 +556,6 @@ export async function refundPlatformHeldBooking(input: {
   });
   const stripe = new Stripe(financialRuntime.key);
   const expectedLive = financialRuntime.mode !== "test";
-
-  let refund = await loadExistingRefundByRequestKey(booking.id, requestKey);
 
   if (!refund) {
     const amountCents =
@@ -550,30 +582,6 @@ export async function refundPlatformHeldBooking(input: {
     }
 
     refund = await loadRefund(refundId);
-  } else if (
-    input.request.kind === "partial" &&
-    Number(refund.gross_refund_cents) !== input.request.amountCents
-  ) {
-    throw new Error("KLYX_SINGLE_REFUND_REQUEST_KEY_CONFLICT");
-  }
-
-  if (refund.state === "review_required") {
-    return { status: "review_required", refundId: refund.id };
-  }
-
-  if (refund.state === "failed") {
-    throw new Error(
-      refund.failure_code ?? "KLYX_SINGLE_REFUND_PREVIOUSLY_FAILED"
-    );
-  }
-
-  if (refund.state === "succeeded" && refund.stripe_refund_id) {
-    return {
-      status: "refunded",
-      refundId: refund.id,
-      stripeRefundId: refund.stripe_refund_id,
-      reconciled: true,
-    };
   }
 
   const reversalState = await processRequiredReversal({
