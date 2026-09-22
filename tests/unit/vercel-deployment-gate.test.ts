@@ -45,6 +45,9 @@ describe("KLYX Vercel deployment gate", () => {
     expect(script).toContain("$previousErrorActionPreference = $ErrorActionPreference");
     expect(script).toContain("$ErrorActionPreference = 'Continue'");
     expect(script).toContain("$exitCode = $LASTEXITCODE");
+    expect(script).toContain("function Convert-LastJsonObject");
+    expect(script).toContain("Convert-LastJsonObject -Lines $healthOutput");
+    expect(script).toContain("$Lines.Count - 1");
     expect(
       script.match(/\$ErrorActionPreference = \$previousErrorActionPreference/g)
         ?.length
