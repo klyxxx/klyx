@@ -36,6 +36,27 @@ describe("KLYX orchestrator settlement terminal contract", () => {
     );
   });
 
+  it("qualifies PLpgSQL output-column names inside workflow updates", () => {
+    expect(earnCompletion).toContain(
+      "update public.klyx_workflow_steps as workflow_step"
+    );
+    expect(earnCompletion).toContain(
+      "where workflow_step.workflow_id = v_workflow.id"
+    );
+    expect(earnCompletion).toContain(
+      "update public.klyx_workflows as workflow"
+    );
+    expect(earnCompletion).toContain(
+      "version = workflow.version + 1"
+    );
+    expect(earnCompletion).toContain(
+      "returning workflow.* into v_workflow"
+    );
+    expect(earnCompletion).not.toContain(
+      "where workflow_id = v_workflow.id"
+    );
+  });
+
   it("requires an explicit server-controlled completion RPC", () => {
     expect(migration).toContain(
       "create or replace function public.klyx_complete_settlement_workflow"
