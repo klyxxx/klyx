@@ -55,7 +55,7 @@ competence
 -> settlement
 ```
 
-The canonical server state machine maps completion into the mission/settlement boundary:
+The canonical server state machine persists every provider-side phase explicitly:
 
 ```text
 skill
@@ -64,8 +64,11 @@ skill
 -> proposal
 -> acceptance
 -> mission
+-> completion
 -> settlement
 ```
+
+`completion` is mandatory. A provider workflow may not jump directly from `mission` to `settlement`.
 
 Settlement is terminal only after explicit server-controlled settlement completion.
 
@@ -192,6 +195,26 @@ scripts/mission19-autonomous-continuity.mjs
 -> retry/ack replay
 -> price drift snapshot preservation
 ```
+
+The provider-side runtime proof runs after the real paid/completed mission lifecycle:
+
+```text
+scripts/mission19-earn-lifecycle.mjs
+-> active provider skill
+-> canonical offer_services capability
+-> real completed + paid booking
+-> skill
+-> opportunities
+-> eligibility
+-> proposal
+-> acceptance
+-> mission
+-> completion
+-> settlement
+-> explicit server completion
+```
+
+This prevents a false certification where DEMANDER is exercised end-to-end but GAGNER exists only as static state-machine code.
 
 The signed Stripe lifecycle uses an event whose Stripe `event.created` is one hour older than delivery. KLYX must still process it once, persist the paid booking/ledger state, and reject replay idempotently.
 
