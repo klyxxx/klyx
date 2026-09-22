@@ -18,6 +18,48 @@ const networkProof = read(
   "scripts/golden-path-economic-chain-stripe-blocked.mjs"
 );
 
+const runtimeSourceRoots = ["app", "lib", "hooks", "payload"] as const;
+const runtimeSourceExtensions = new Set([
+  ".ts",
+  ".tsx",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".cjs",
+]);
+
+function runtimeSourceFiles(relativeDir: string): string[] {
+  const absoluteDir = path.join(root, relativeDir);
+  if (!fs.existsSync(absoluteDir)) return [];
+
+  return fs.readdirSync(absoluteDir, { withFileTypes: true }).flatMap((entry) => {
+    const absolutePath = path.join(absoluteDir, entry.name);
+    const relativePath = path
+      .relative(root, absolutePath)
+      .split(path.sep)
+      .join("/");
+
+    if (entry.isDirectory()) {
+      return runtimeSourceFiles(relativePath);
+    }
+
+    if (!entry.isFile() || !runtimeSourceExtensions.has(path.extname(entry.name))) {
+      return [];
+    }
+
+    return [relativePath];
+  });
+}
+
+function directStripeTransferWriters(): string[] {
+  const transferMutation = /\.transfers\s*\.\s*create\s*\(/;
+
+  return runtimeSourceRoots
+    .flatMap((sourceRoot) => runtimeSourceFiles(sourceRoot))
+    .filter((file) => transferMutation.test(read(file)))
+    .sort();
+}
+
 describe("Mission 11 economic settlement eligibility contract", () => {
   it("creates one append-only decision ledger without creating parallel activity authorities", () => {
     expect(migration).toContain(
@@ -184,6 +226,23 @@ describe("Mission 11 economic settlement eligibility contract", () => {
     expect(groupRevalidation).toBeGreaterThan(groupClaim);
     expect(groupStripeTruth).toBeGreaterThan(groupRevalidation);
     expect(groupTransfer).toBeGreaterThan(groupStripeTruth);
+  });
+
+  it("forbids any production Stripe Transfer writer outside the economic eligibility authority boundary", () => {
+    const writers = directStripeTransferWriters();
+
+    expect(writers).toEqual([
+      "lib/booking-settlement-server.ts",
+      "lib/platform-held-group-settlement-server.ts",
+    ]);
+
+    for (const writer of writers) {
+      const source = read(writer);
+
+      expect(source).toContain("canReceiveSettlementForBooking");
+      expect(source).toContain("readStripeSettlementRecipientTruth");
+      expect(source).toContain("economic_settlement_eligibility_changed");
+    }
   });
 
   it("keeps economic eligibility independent from the controlled LIVE runtime", () => {
