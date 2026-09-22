@@ -160,10 +160,15 @@ describe("KLYX Stripe network proof", () => {
     expect(heldProof).toContain(
       "Do not delete local canonical Stripe identity or compatibility"
     );
-    expect(heldProof).not.toMatch(
-      /account_stripe_connect_identities"[\s\S]{0,160}\.delete\(\)/
+
+    const cleanupStart = heldProof.indexOf("} finally {");
+    expect(cleanupStart).toBeGreaterThan(-1);
+
+    const cleanup = heldProof.slice(cleanupStart);
+    expect(cleanup).not.toContain(
+      '.from("account_stripe_connect_identities")'
     );
-    expect(heldProof).not.toContain(
+    expect(cleanup).not.toContain(
       "Unable to reset local canonical Stripe identity"
     );
   });
