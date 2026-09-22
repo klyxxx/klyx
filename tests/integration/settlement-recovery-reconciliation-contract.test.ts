@@ -15,6 +15,7 @@ function compact(source: string) {
 
 const recovery = read("lib/booking-settlement-reconciliation-server.ts");
 const settlement = read("lib/booking-settlement-server.ts");
+const beneficiaryTransferGateway = read("lib/beneficiary-transfer-gateway.ts");
 const migration = compact(
   read(
     "supabase/migrations/20260918183500_klyx_settlement_recovery_reconciliation.sql"
@@ -68,7 +69,10 @@ describe("KLYX settlement recovery / reconciliation contract", () => {
     expect(recovery).toContain("await stripe.transfers.list({");
     expect(recovery).toContain("await stripe.transfers.retrieve(");
     expect(settlement).toContain("await reconcileExistingTransfer({");
-    expect(settlement).toContain("stripe.transfers.create(");
+    expect(settlement).toContain("createEconomicallyAuthorizedBeneficiaryTransfer");
+    expect(settlement).not.toContain("stripe.transfers.create(");
+    expect(beneficiaryTransferGateway).toContain("stripe.transfers.create(");
+    expect(beneficiaryTransferGateway).toContain("readStripeSettlementRecipientTruth");
     expect(settlement).toContain(
       "klyx-booking-settlement-${bookingId}"
     );

@@ -6,6 +6,10 @@ import Stripe from "stripe";
 import type { AuthenticatedAccount } from "@/lib/api-auth";
 import { canReceiveSettlementForBooking } from "@/lib/economic-settlement-eligibility-server";
 import {
+  createEconomicallyAuthorizedBeneficiaryTransfer,
+  isBeneficiaryTransferAuthorizationError,
+} from "@/lib/beneficiary-transfer-gateway";
+import {
   requireKlyxFinancialStripeObservationRuntime,
   requireKlyxFinancialStripeRuntime,
 } from "@/lib/klyx-financial-stripe-runtime";
@@ -21,7 +25,6 @@ import {
   getProviderStripeDestinationStrict,
   isStripeConnectIdentityReviewRequired,
 } from "@/lib/stripe-connect-account";
-import { readStripeSettlementRecipientTruth } from "@/lib/stripe-settlement-recipient-truth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   enforcePlatformHeldGroupRefundTransactionRisk,
@@ -628,58 +631,20 @@ export async function releasePlatformHeldGroupMember(
       requestedTransferAmountCents: Number(claim.provider_amount_cents),
     });
 
-    const revalidatedEconomicEligibility =
-      await evaluateMemberEconomicSettlementEligibility(member);
+    let transfer: Stripe.Transfer;
 
-    if (!revalidatedEconomicEligibility.allowed) {
-      await failReleaseClaim(
-        member.id,
-        claimToken,
-        "economic_settlement_eligibility_changed",
-        revalidatedEconomicEligibility.reasonCodes.join(",") ||
-          "Economic settlement eligibility changed after the atomic claim."
-      );
-      await markMemberReview(
-        member.id,
-        "economic_settlement_eligibility_changed",
-        revalidatedEconomicEligibility.reasonCodes.join(",") ||
-          "Economic settlement eligibility changed after the atomic claim."
-      );
-      return { status: "review_required" };
-    }
-
-    const stripeTruth = await readStripeSettlementRecipientTruth(
-      stripe,
-      member.stripe_account_id
-    );
-
-    if (
-      stripeTruth.stripeAccountId !== member.stripe_account_id ||
-      stripeTruth.livemode !== expectedLive ||
-      !stripeTruth.transferCapabilityActive
-    ) {
-      await failReleaseClaim(
-        member.id,
-        claimToken,
-        "stripe_recipient_not_ready_after_claim",
-        "Remote Stripe recipient truth does not permit the expected Transfer mode."
-      );
-      await markMemberReview(
-        member.id,
-        "stripe_recipient_not_ready_after_claim",
-        "Remote Stripe recipient truth does not permit the expected Transfer mode."
-      );
-      return { status: "review_required" };
-    }
-
-    stripeWriteAttempted = true;
-    const transfer = await stripe.transfers.create(
-      {
+    try {
+      transfer = await createEconomicallyAuthorizedBeneficiaryTransfer({
+        stripe,
+        accountId: member.provider_account_id,
+        bookingIds: memberBookingIds(member),
+        expectedProviderProfileId: member.provider_profile_id,
+        expectedStripeAccountId: member.stripe_account_id,
+        expectedLive,
         amount: Number(claim.provider_amount_cents),
         currency: parent.currency.toLowerCase(),
-        destination: member.stripe_account_id,
-        source_transaction: parent.stripe_charge_id,
-        transfer_group: parent.transfer_group,
+        sourceTransaction: parent.stripe_charge_id,
+        transferGroup: parent.transfer_group,
         metadata: {
           payment_mode: PAYMENT_MODE,
           split_batch_id: parent.batch_id,
@@ -687,11 +652,34 @@ export async function releasePlatformHeldGroupMember(
           group_settlement_member_id: member.id,
           provider_profile_id: member.provider_profile_id,
         },
-      },
-      {
         idempotencyKey: `klyx-platform-held-group-member-${member.id}`,
-      }
-    );
+        onStripeWriteAttempt: () => {
+          stripeWriteAttempted = true;
+        },
+      });
+    } catch (error) {
+      if (!isBeneficiaryTransferAuthorizationError(error)) throw error;
+
+      const code =
+        error.kind === "economic"
+          ? "economic_settlement_eligibility_changed"
+          : "stripe_recipient_not_ready_after_claim";
+      const message =
+        [error.decision, ...error.reasonCodes].join(",") || error.message;
+
+      await failReleaseClaim(
+        member.id,
+        claimToken,
+        code,
+        message
+      );
+      await markMemberReview(
+        member.id,
+        code,
+        message
+      );
+      return { status: "review_required" };
+    }
 
     verifyMemberTransfer({
       transfer,

@@ -70,10 +70,13 @@ describe("Platform-Held multi-executor group settlement contract", () => {
 
   it("binds every executor Transfer to the same source charge and transfer_group", () => {
     const server = read("lib/platform-held-group-settlement-server.ts");
+    const gateway = read("lib/beneficiary-transfer-gateway.ts");
 
-    expect(server).toContain("source_transaction: parent.stripe_charge_id");
-    expect(server).toContain("transfer_group: parent.transfer_group");
+    expect(server).toContain("sourceTransaction: parent.stripe_charge_id");
+    expect(server).toContain("transferGroup: parent.transfer_group");
     expect(server).toContain("group_settlement_member_id: member.id");
+    expect(gateway).toContain("source_transaction: input.sourceTransaction");
+    expect(gateway).toContain("transfer_group: input.transferGroup");
     expect(server).toContain(
       "transferSourceId(transfer) !== parent.stripe_charge_id"
     );
@@ -101,7 +104,7 @@ describe("Platform-Held multi-executor group settlement contract", () => {
       secondList
     );
     const create = server.indexOf(
-      "await stripe.transfers.create(",
+      "await createEconomicallyAuthorizedBeneficiaryTransfer({",
       capacity
     );
 
@@ -291,6 +294,7 @@ describe("Platform-Held multi-executor group settlement contract", () => {
       "app/api/bookings/split-missions/[id]/checkout/route-platform-held-core.ts"
     );
     const server = read("lib/platform-held-group-settlement-server.ts");
+    const gateway = read("lib/beneficiary-transfer-gateway.ts");
     const runtime = read("lib/klyx-financial-stripe-runtime.ts");
     const workflow = read(
       ".github/workflows/klyx-stripe-group-multiexecutor-network.yml"
@@ -303,7 +307,8 @@ describe("Platform-Held multi-executor group settlement contract", () => {
     expect(runtime).toContain("KLYX_LIVE_CERTIFICATION_PROFILE_ID");
     expect(runtime).toContain("KLYX_DR_CERTIFIED_SHA");
 
-    expect(server).toContain("stripe.transfers.create(");
+    expect(server).toContain("createEconomicallyAuthorizedBeneficiaryTransfer");
+    expect(gateway).toContain("stripe.transfers.create(");
     expect(server).toContain("stripe.transfers.createReversal(");
     expect(server).toContain("stripe.refunds.create(");
   });

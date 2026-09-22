@@ -12,6 +12,10 @@ const stripeTruth = fs.readFileSync(
   path.join(root, "lib/stripe-settlement-recipient-truth.ts"),
   "utf8"
 );
+const gateway = fs.readFileSync(
+  path.join(root, "lib/beneficiary-transfer-gateway.ts"),
+  "utf8"
+);
 
 describe("Platform-Held group remote Stripe eligibility", () => {
   it("keeps canonical destination resolution before claim but remote Stripe truth after the atomic claim", () => {
@@ -32,21 +36,26 @@ describe("Platform-Held group remote Stripe eligibility", () => {
     const claim = source.indexOf(
       '"klyx_claim_platform_held_group_member_release"'
     );
-    const remoteTruth = source.indexOf(
-      "await readStripeSettlementRecipientTruth(",
+    const gatewayCall = source.indexOf(
+      "await createEconomicallyAuthorizedBeneficiaryTransfer({",
       claim
     );
-    const create = source.indexOf("await stripe.transfers.create(", remoteTruth);
+    const remoteTruth = gateway.indexOf(
+      "await readStripeSettlementRecipientTruth("
+    );
+    const create = gateway.indexOf(
+      "stripe.transfers.create(",
+      remoteTruth
+    );
 
     expect(canonicalDestination).toBeGreaterThan(-1);
     expect(canonicalProvider).toBeGreaterThan(canonicalDestination);
     expect(claim).toBeGreaterThan(canonicalProvider);
-    expect(remoteTruth).toBeGreaterThan(claim);
+    expect(gatewayCall).toBeGreaterThan(claim);
+    expect(remoteTruth).toBeGreaterThan(-1);
     expect(create).toBeGreaterThan(remoteTruth);
-
-    expect(
-      source.indexOf("await readStripeSettlementRecipientTruth(", 0)
-    ).toBe(remoteTruth);
+    expect(source).not.toContain("readStripeSettlementRecipientTruth");
+    expect(source).not.toContain("stripe.transfers.create(");
   });
 
   it("isolates post-claim remote ineligibility to the affected settlement member", () => {
