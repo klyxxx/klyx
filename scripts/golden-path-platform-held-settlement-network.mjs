@@ -464,6 +464,7 @@ async function markHeldPaid({
           settlement_transfer_group: settlement.transfer_group,
         },
         mode: "payment",
+        livemode: false,
         payment_intent: intent.id,
         payment_status: "paid",
         status: "complete",
