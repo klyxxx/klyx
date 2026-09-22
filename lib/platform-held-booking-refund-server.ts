@@ -290,6 +290,10 @@ async function processRequiredReversal(input: {
   refund: RefundRow;
   settlement: SettlementRow;
 }): Promise<boolean> {
+  if (input.refund.state === "refunding") {
+    return false;
+  }
+
   if (
     !input.settlement.stripe_transfer_id ||
     input.refund.provider_refund_cents <= 0
@@ -604,22 +608,24 @@ export async function refundSinglePlatformHeldBooking(input: {
     return { status: "review_required", refundId: refund.id };
   }
 
-  const { data: inflight, error: inflightError } =
-    await supabaseAdmin.rpc(
-      "klyx_mark_platform_held_booking_refund_inflight",
-      { p_refund_id: refund.id }
-    );
+  if (refund.state !== "refunding") {
+    const { data: inflight, error: inflightError } =
+      await supabaseAdmin.rpc(
+        "klyx_mark_platform_held_booking_refund_inflight",
+        { p_refund_id: refund.id }
+      );
 
-  if (inflightError) throw new Error(inflightError.message);
-  if (inflight !== true) {
-    refund = await loadRefund(refund.id);
-    return {
-      status:
-        refund.state === "review_required"
-          ? "review_required"
-          : "pending_refund",
-      refundId: refund.id,
-    };
+    if (inflightError) throw new Error(inflightError.message);
+    if (inflight !== true) {
+      refund = await loadRefund(refund.id);
+      return {
+        status:
+          refund.state === "review_required"
+            ? "review_required"
+            : "pending_refund",
+        refundId: refund.id,
+      };
+    }
   }
 
   if (!truth.settlement.stripe_charge_id) {
