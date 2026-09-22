@@ -99,6 +99,21 @@ async function postSignedWebhook({ appOrigin, webhookSecret, event }) {
   });
 }
 
+async function reconcileSettlementThroughKlyxOps({
+  appOrigin,
+  reconciliationSecret,
+}) {
+  return requestJson({
+    appOrigin,
+    path: "/api/ops/settlement-reconciliation",
+    method: "POST",
+    body: { limit: 50 },
+    headers: {
+      Authorization: `Bearer ${reconciliationSecret}`,
+    },
+  });
+}
+
 function stripeObjectId(value) {
   return typeof value === "string" ? value : value?.id ?? null;
 }
@@ -914,6 +929,35 @@ async function insertEconomicSettlementAllow({
       `Unable to persist economic settlement eligibility fixture: ${economicError.message}`
     );
   }
+
+  return {
+    economicIdentityId: economicIdentity.id,
+    jurisdictionCode,
+  };
+}
+
+async function blockEconomicSettlementAfterTransfer({
+  admin,
+  economicIdentityId,
+  jurisdictionCode,
+}) {
+  const { error } = await admin.from("economic_restrictions").insert({
+    economic_identity_id: economicIdentityId,
+    restricted_action: "receive_settlement",
+    scope_type: "jurisdiction",
+    jurisdiction_code: jurisdictionCode,
+    status: "active",
+    source: "deterministic_rule",
+    reason_code: "network_recovery_beneficiary_blocked_after_transfer",
+    human_review_required: false,
+    starts_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    throw new Error(
+      `Unable to block economic settlement after accepted Transfer: ${error.message}`
+    );
+  }
 }
 
 async function claimRelease(admin, bookingId, claimToken) {
@@ -985,7 +1029,7 @@ async function runReleaseRetryReversalScenario({
   });
   await markBookingCompletedForSettlement(admin, booking.id);
   await insertSettlementRiskAllow(admin, accountId, booking.id);
-  await insertEconomicSettlementAllow({
+  const economicFixture = await insertEconomicSettlementAllow({
     admin,
     accountId,
     bookingId: booking.id,
@@ -1022,6 +1066,9 @@ async function runReleaseRetryReversalScenario({
   };
   const transferIdempotencyKey = `klyx-booking-settlement-${booking.id}`;
 
+  // Fault injection only: model the exact crash window where Stripe accepted the
+  // Transfer but KLYX lost the response before DB finalization. Production
+  // runtime Transfer creation remains exclusively behind beneficiary-transfer-gateway.
   const acceptedTransfer = await stripe.transfers.create(transferParams, {
     idempotencyKey: transferIdempotencyKey,
   });
@@ -1046,61 +1093,93 @@ async function runReleaseRetryReversalScenario({
   assert(afterTimeout.state === "release_failed", "Settlement must be release_failed after modeled timeout.");
   assert(afterTimeout.stripe_transfer_id === null, "DB must not invent a Transfer id after lost response.");
 
-  const retryToken = randomUUID();
-  const retryClaim = await claimRelease(admin, booking.id, retryToken);
-  assert(retryClaim.action === "create", `Retry claim was not reopened: ${retryClaim.action}.`);
-  assert(retryClaim.attempt_number === 2, "Retry claim must increment release attempt to 2.");
-
-  const reconciledList = await stripe.transfers.list({
-    transfer_group: retryClaim.transfer_group,
-    destination: retryClaim.stripe_account_id,
-    limit: 10,
+  await blockEconomicSettlementAfterTransfer({
+    admin,
+    economicIdentityId: economicFixture.economicIdentityId,
+    jurisdictionCode: economicFixture.jurisdictionCode,
   });
-  const matchingTransfers = reconciledList.data.filter(
-    (transfer) =>
-      transfer.metadata?.booking_id === booking.id &&
-      transfer.metadata?.payment_mode === PAYMENT_MODE
-  );
-  assert(matchingTransfers.length === 1, `transfer_group reconciliation expected one Transfer, found ${matchingTransfers.length}.`);
-  const reconciledTransfer = matchingTransfers[0];
-  assert(reconciledTransfer.id === acceptedTransfer.id, "Retry reconciliation found a different Transfer.");
-  assert(stripeObjectId(reconciledTransfer.source_transaction) === charge.id, "Reconciled Transfer source_transaction mismatch.");
 
-  const { data: finalizeData, error: finalizeError } = await admin.rpc(
-    "klyx_finalize_booking_settlement_release",
-    {
-      p_booking_id: booking.id,
-      p_claim_token: retryToken,
-      p_stripe_transfer_id: reconciledTransfer.id,
-    }
-  );
-  if (finalizeError) throw new Error(`Unable to finalize reconciled settlement: ${finalizeError.message}`);
-  assert(finalizeData === true, "Reconciled settlement finalize returned false.");
-
-  const idempotentTransfer = await stripe.transfers.create(transferParams, {
-    idempotencyKey: transferIdempotencyKey,
-  });
-  assert(idempotentTransfer.id === acceptedTransfer.id, "Stripe Transfer idempotency produced a second object.");
-
-  const afterIdempotentRetry = await stripe.transfers.list({
+  const transfersBeforeRecovery = await stripe.transfers.list({
     transfer_group: held.transfer_group,
     destination: held.stripe_account_id,
     limit: 10,
   });
-  const transferMatchesAfterRetry = afterIdempotentRetry.data.filter(
+  const matchingBeforeRecovery = transfersBeforeRecovery.data.filter(
     (transfer) =>
       transfer.metadata?.booking_id === booking.id &&
       transfer.metadata?.payment_mode === PAYMENT_MODE
   );
-  assert(transferMatchesAfterRetry.length === 1, "Retry created a double provider Transfer.");
+  assert(
+    matchingBeforeRecovery.length === 1 &&
+      matchingBeforeRecovery[0].id === acceptedTransfer.id,
+    "Fault injection must leave exactly one accepted Transfer before KLYX recovery."
+  );
 
-  const terminalClaim = await claimRelease(admin, booking.id, randomUUID());
-  assert(terminalClaim.action === "released", `Released settlement did not return released on retry: ${terminalClaim.action}.`);
+  const reconciliationSecret = requiredGoldenPathEnv(
+    "KLYX_SETTLEMENT_RECONCILIATION_SECRET"
+  );
+  const firstRecovery = await reconcileSettlementThroughKlyxOps({
+    appOrigin,
+    reconciliationSecret,
+  });
+  assert(
+    firstRecovery.payload?.ok === true,
+    "KLYX settlement reconciliation endpoint did not accept the recovery run."
+  );
 
   const released = await loadSettlement(admin, booking.id);
-  assert(released.state === "released", `Settlement did not finalize released: ${released.state}.`);
-  assert(released.stripe_transfer_id === acceptedTransfer.id, "DB released Transfer id mismatch.");
-  assert(released.release_attempt_number === 2, "DB release attempt number mismatch after retry.");
+  assert(
+    released.state === "released",
+    `KLYX recovery did not reconcile the existing Transfer: ${released.state}.`
+  );
+  assert(
+    released.stripe_transfer_id === acceptedTransfer.id,
+    "KLYX recovery did not persist the already-existing Stripe Transfer truth."
+  );
+  assert(
+    released.release_attempt_number === 1,
+    "Recovery must reconcile external truth without minting a new release attempt."
+  );
+
+  const transfersAfterRecovery = await stripe.transfers.list({
+    transfer_group: held.transfer_group,
+    destination: held.stripe_account_id,
+    limit: 10,
+  });
+  const transferMatchesAfterRetry = transfersAfterRecovery.data.filter(
+    (transfer) =>
+      transfer.metadata?.booking_id === booking.id &&
+      transfer.metadata?.payment_mode === PAYMENT_MODE
+  );
+  assert(
+    transferMatchesAfterRetry.length === 1 &&
+      transferMatchesAfterRetry[0].id === acceptedTransfer.id,
+    "KLYX recovery created a second provider Transfer instead of reconciling Stripe truth."
+  );
+
+  const replayRecovery = await reconcileSettlementThroughKlyxOps({
+    appOrigin,
+    reconciliationSecret,
+  });
+  assert(
+    replayRecovery.payload?.ok === true,
+    "Replayed KLYX recovery endpoint did not complete successfully."
+  );
+
+  const transfersAfterReplay = await stripe.transfers.list({
+    transfer_group: held.transfer_group,
+    destination: held.stripe_account_id,
+    limit: 10,
+  });
+  const replayMatches = transfersAfterReplay.data.filter(
+    (transfer) =>
+      transfer.metadata?.booking_id === booking.id &&
+      transfer.metadata?.payment_mode === PAYMENT_MODE
+  );
+  assert(
+    replayMatches.length === 1 && replayMatches[0].id === acceptedTransfer.id,
+    "Replayed recovery created a duplicate provider Transfer."
+  );
 
   const { data: prepareData, error: prepareError } = await admin.rpc(
     "klyx_prepare_booking_settlement_refund",
@@ -1246,6 +1325,8 @@ async function runReleaseRetryReversalScenario({
     transferGroup: held.transfer_group,
     sourceTransaction: stripeObjectId(remoteTransfer.source_transaction),
     releaseAttempts: terminalSettlement.release_attempt_number,
+    recoveryUsedKlyxOps: true,
+    eligibilityBlockedAfterTransferBeforeRecovery: true,
     transferCountAfterRetry: transferMatchesAfterRetry.length,
     reversalCountAfterRetry: matchingReversals.length,
     settlementState: terminalSettlement.state,
