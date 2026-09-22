@@ -916,6 +916,102 @@ async function insertEconomicSettlementAllow({
   }
 }
 
+async function injectPostTransferSettlementRestriction({
+  admin,
+  accountId,
+  bookingId,
+}) {
+  const [{ data: booking, error: bookingError }, { data: identity, error: identityError }] =
+    await Promise.all([
+      admin
+        .from("bookings")
+        .select("country_code")
+        .eq("id", bookingId)
+        .single(),
+      admin
+        .from("economic_identities")
+        .select("id")
+        .eq("account_id", accountId)
+        .single(),
+    ]);
+
+  if (bookingError) {
+    throw new Error(
+      `Unable to load booking jurisdiction for post-Transfer restriction: ${bookingError.message}`
+    );
+  }
+  if (identityError) {
+    throw new Error(
+      `Unable to load economic identity for post-Transfer restriction: ${identityError.message}`
+    );
+  }
+
+  const jurisdictionCode = String(booking.country_code ?? "")
+    .trim()
+    .toUpperCase();
+  assert(
+    jurisdictionCode.length >= 2,
+    "Post-Transfer restriction requires a booking jurisdiction."
+  );
+
+  const { data: restriction, error: restrictionError } = await admin
+    .from("economic_restrictions")
+    .insert({
+      economic_identity_id: identity.id,
+      restricted_action: "receive_settlement",
+      scope_type: "jurisdiction",
+      jurisdiction_code: jurisdictionCode,
+      status: "active",
+      source: "deterministic_rule",
+      reason_code: "network_recovery_post_transfer_ineligible",
+      human_review_required: false,
+      starts_at: new Date().toISOString(),
+    })
+    .select("id")
+    .single();
+
+  if (restrictionError) {
+    throw new Error(
+      `Unable to inject post-Transfer KLYX restriction: ${restrictionError.message}`
+    );
+  }
+
+  return {
+    restrictionId: restriction.id,
+    jurisdictionCode,
+  };
+}
+
+async function runScheduledSettlementRecovery({
+  appOrigin,
+  reconciliationSecret,
+  bookingId,
+}) {
+  const response = await requestJson({
+    appOrigin,
+    path: "/api/ops/settlement-reconciliation",
+    method: "POST",
+    body: { limit: 50 },
+    headers: {
+      Authorization: `Bearer ${reconciliationSecret}`,
+    },
+  });
+
+  assert(
+    response.payload?.ok === true,
+    "KLYX settlement reconciliation endpoint did not return ok=true."
+  );
+
+  const results = response.payload?.reconciliation?.results ?? [];
+  const bookingResult = results.find((entry) => entry?.bookingId === bookingId);
+  assert(
+    bookingResult,
+    "KLYX settlement reconciliation batch did not process the crashed booking."
+  );
+
+  return bookingResult.result;
+}
+
 async function claimRelease(admin, bookingId, claimToken) {
   const { data, error } = await admin.rpc("klyx_claim_booking_settlement_release", {
     p_booking_id: bookingId,
@@ -931,6 +1027,7 @@ async function runReleaseRetryReversalScenario({
   stripe,
   admin,
   appOrigin,
+  reconciliationSecret,
   accessToken,
   userClient,
   email,
@@ -1046,61 +1143,109 @@ async function runReleaseRetryReversalScenario({
   assert(afterTimeout.state === "release_failed", "Settlement must be release_failed after modeled timeout.");
   assert(afterTimeout.stripe_transfer_id === null, "DB must not invent a Transfer id after lost response.");
 
-  const retryToken = randomUUID();
-  const retryClaim = await claimRelease(admin, booking.id, retryToken);
-  assert(retryClaim.action === "create", `Retry claim was not reopened: ${retryClaim.action}.`);
-  assert(retryClaim.attempt_number === 2, "Retry claim must increment release attempt to 2.");
-
-  const reconciledList = await stripe.transfers.list({
-    transfer_group: retryClaim.transfer_group,
-    destination: retryClaim.stripe_account_id,
-    limit: 10,
+  const restriction = await injectPostTransferSettlementRestriction({
+    admin,
+    accountId,
+    bookingId: booking.id,
   });
-  const matchingTransfers = reconciledList.data.filter(
-    (transfer) =>
-      transfer.metadata?.booking_id === booking.id &&
-      transfer.metadata?.payment_mode === PAYMENT_MODE
-  );
-  assert(matchingTransfers.length === 1, `transfer_group reconciliation expected one Transfer, found ${matchingTransfers.length}.`);
-  const reconciledTransfer = matchingTransfers[0];
-  assert(reconciledTransfer.id === acceptedTransfer.id, "Retry reconciliation found a different Transfer.");
-  assert(stripeObjectId(reconciledTransfer.source_transaction) === charge.id, "Reconciled Transfer source_transaction mismatch.");
 
-  const { data: finalizeData, error: finalizeError } = await admin.rpc(
-    "klyx_finalize_booking_settlement_release",
-    {
-      p_booking_id: booking.id,
-      p_claim_token: retryToken,
-      p_stripe_transfer_id: reconciledTransfer.id,
-    }
-  );
-  if (finalizeError) throw new Error(`Unable to finalize reconciled settlement: ${finalizeError.message}`);
-  assert(finalizeData === true, "Reconciled settlement finalize returned false.");
-
-  const idempotentTransfer = await stripe.transfers.create(transferParams, {
-    idempotencyKey: transferIdempotencyKey,
-  });
-  assert(idempotentTransfer.id === acceptedTransfer.id, "Stripe Transfer idempotency produced a second object.");
-
-  const afterIdempotentRetry = await stripe.transfers.list({
+  const beforeRecoveryList = await stripe.transfers.list({
     transfer_group: held.transfer_group,
     destination: held.stripe_account_id,
     limit: 10,
   });
-  const transferMatchesAfterRetry = afterIdempotentRetry.data.filter(
+  const beforeRecoveryMatches = beforeRecoveryList.data.filter(
     (transfer) =>
       transfer.metadata?.booking_id === booking.id &&
       transfer.metadata?.payment_mode === PAYMENT_MODE
   );
-  assert(transferMatchesAfterRetry.length === 1, "Retry created a double provider Transfer.");
+  assert(
+    beforeRecoveryMatches.length === 1,
+    `Pre-recovery Stripe truth expected one Transfer, found ${beforeRecoveryMatches.length}.`
+  );
+  assert(
+    beforeRecoveryMatches[0].id === acceptedTransfer.id,
+    "Pre-recovery Stripe truth found a different Transfer."
+  );
 
-  const terminalClaim = await claimRelease(admin, booking.id, randomUUID());
-  assert(terminalClaim.action === "released", `Released settlement did not return released on retry: ${terminalClaim.action}.`);
+  const recoveryResult = await runScheduledSettlementRecovery({
+    appOrigin,
+    reconciliationSecret,
+    bookingId: booking.id,
+  });
+  assert(
+    recoveryResult?.status === "released",
+    `KLYX recovery did not release the existing Transfer: ${recoveryResult?.status ?? "missing"}.`
+  );
+  assert(
+    recoveryResult?.transferId === acceptedTransfer.id,
+    "KLYX recovery reconciled a different Transfer id."
+  );
+  assert(
+    recoveryResult?.reconciled === true,
+    "KLYX recovery did not mark the existing Transfer as reconciled."
+  );
 
   const released = await loadSettlement(admin, booking.id);
-  assert(released.state === "released", `Settlement did not finalize released: ${released.state}.`);
+  assert(released.state === "released", `Settlement did not reconcile to released: ${released.state}.`);
   assert(released.stripe_transfer_id === acceptedTransfer.id, "DB released Transfer id mismatch.");
-  assert(released.release_attempt_number === 2, "DB release attempt number mismatch after retry.");
+  assert(
+    released.release_attempt_number === 1,
+    "Existing-Transfer recovery must not mint a second release attempt."
+  );
+
+  const { data: recoveryEvents, error: recoveryEventsError } = await admin
+    .from("booking_settlement_reconciliation_events")
+    .select("source, action, outcome, before_state, after_state, stripe_transfer_id")
+    .eq("booking_id", booking.id)
+    .eq("action", "transfer_db_reconciled")
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (recoveryEventsError) {
+    throw new Error(
+      `Unable to load settlement recovery audit: ${recoveryEventsError.message}`
+    );
+  }
+
+  const recoveryEvent = recoveryEvents?.[0];
+  assert(recoveryEvent, "KLYX recovery did not append transfer_db_reconciled audit evidence.");
+  assert(recoveryEvent.source === "scheduled", "Recovery audit source is not scheduled.");
+  assert(recoveryEvent.outcome === "released", "Recovery audit outcome is not released.");
+  assert(recoveryEvent.before_state === "release_failed", "Recovery audit did not start from release_failed.");
+  assert(recoveryEvent.after_state === "released", "Recovery audit did not end in released.");
+  assert(
+    recoveryEvent.stripe_transfer_id === acceptedTransfer.id,
+    "Recovery audit Transfer id mismatch."
+  );
+
+  const afterRecoveryList = await stripe.transfers.list({
+    transfer_group: held.transfer_group,
+    destination: held.stripe_account_id,
+    limit: 10,
+  });
+  const transferMatchesAfterRetry = afterRecoveryList.data.filter(
+    (transfer) =>
+      transfer.metadata?.booking_id === booking.id &&
+      transfer.metadata?.payment_mode === PAYMENT_MODE
+  );
+  assert(
+    transferMatchesAfterRetry.length === 1,
+    "KLYX recovery created a second provider Transfer."
+  );
+
+  const reconciledTransfer = transferMatchesAfterRetry[0];
+  assert(reconciledTransfer.id === acceptedTransfer.id, "Recovered Transfer id changed.");
+  assert(
+    stripeObjectId(reconciledTransfer.source_transaction) === charge.id,
+    "Recovered Transfer source_transaction mismatch."
+  );
+
+  const terminalClaim = await claimRelease(admin, booking.id, randomUUID());
+  assert(
+    terminalClaim.action === "released",
+    `Released settlement did not remain terminal after recovery: ${terminalClaim.action}.`
+  );
 
   const { data: prepareData, error: prepareError } = await admin.rpc(
     "klyx_prepare_booking_settlement_refund",
@@ -1249,6 +1394,10 @@ async function runReleaseRetryReversalScenario({
     transferCountAfterRetry: transferMatchesAfterRetry.length,
     reversalCountAfterRetry: matchingReversals.length,
     settlementState: terminalSettlement.state,
+    recoveryViaKlyxOps: true,
+    recoveryAuditAction: "transfer_db_reconciled",
+    postTransferRestrictionId: restriction.restrictionId,
+    postTransferRestrictedJurisdiction: restriction.jurisdictionCode,
   };
 }
 
@@ -1262,6 +1411,9 @@ async function main() {
   const stripeSecretKey = requiredGoldenPathEnv("STRIPE_SECRET_KEY");
   const stripePublishableKey = requiredGoldenPathEnv("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY");
   const webhookSecret = requiredGoldenPathEnv("STRIPE_WEBHOOK_SECRET");
+  const reconciliationSecret = requiredGoldenPathEnv(
+    "KLYX_SETTLEMENT_RECONCILIATION_SECRET"
+  );
   assert(stripeSecretKey.startsWith("sk_test_"), "Platform-held proof requires sk_test_* only; sk_live_* is forbidden.");
   assert(stripePublishableKey.startsWith("pk_test_"), "Platform-held proof requires pk_test_* only.");
   assert(process.env.KLYX_STRIPE_MODE === "test", "Platform-held proof requires KLYX_STRIPE_MODE=test.");
@@ -1319,6 +1471,7 @@ async function main() {
       stripe,
       admin,
       appOrigin,
+      reconciliationSecret,
       accessToken,
       userClient,
       email,
@@ -1357,6 +1510,10 @@ async function main() {
             realSourceTransaction: true,
             retryAfterLostTransferResponse: true,
             reconciledByTransferGroup: true,
+            recoveryThroughKlyxReconciliationEngine: true,
+            postTransferIneligibilityReconcilesExistingTruthOnly: true,
+            recoveryAuditIsDurable: true,
+            noSecondReleaseAttemptDuringExistingTransferRecovery: true,
             noDoubleTransfer: true,
             idempotentReversal: true,
             dbStripeCoherentAfterRetry: true,
@@ -1379,6 +1536,8 @@ async function main() {
         atomicClaim: true,
         transferSourceTransaction: true,
         retryReconciledByTransferGroup: true,
+        recoveryThroughKlyxReconciliationEngine: true,
+        postTransferIneligibilityReconciledWithoutNewTransfer: true,
         noDoubleTransfer: true,
         reversalIdempotent: true,
         dbStripeCoherent: true,
@@ -1399,30 +1558,12 @@ async function main() {
         }
       }
 
-      const { error: identityResetError } = await admin
-        .from("account_stripe_connect_identities")
-        .delete()
-        .eq("account_id", accountId);
-      if (identityResetError) {
-        throw new Error(
-          `Unable to reset local canonical Stripe identity: ${identityResetError.message}`
-        );
-      }
-
-      const { error: profileResetError } = await admin
-        .from("profiles")
-        .update({
-          stripe_account_id: null,
-          stripe_onboarding_complete: false,
-          stripe_charges_enabled: false,
-          stripe_payouts_enabled: false,
-        })
-        .eq("account_id", accountId);
-      if (profileResetError) {
-        throw new Error(
-          `Unable to reset local Stripe compatibility profile state: ${profileResetError.message}`
-        );
-      }
+      // EPHEMERAL_EVIDENCE_PRESERVED_UNTIL_SUPABASE_DESTROY
+      //
+      // Do not delete canonical Stripe identity or economic eligibility rows here.
+      // Recovery certification intentionally creates immutable/FK-linked financial
+      // evidence. The workflow destroys this loopback-only Supabase instance after
+      // the proof, which is the correct cleanup boundary for local evidence.
     } catch (error) {
       cleanupFailure = error instanceof Error ? error.message : String(error);
     }

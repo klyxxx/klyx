@@ -406,11 +406,13 @@ jobs:
           held_email="stripe-held-${GITHUB_RUN_ID}@example.test"
           held_password="$(openssl rand -base64 36 | tr -d '\n')"
           webhook_secret="whsec_$(openssl rand -hex 32)"
+          reconciliation_secret="reconcile_$(openssl rand -hex 32)"
 
           echo "::add-mask::$local_public_key"
           echo "::add-mask::$SERVICE_ROLE_KEY"
           echo "::add-mask::$held_password"
           echo "::add-mask::$webhook_secret"
+          echo "::add-mask::$reconciliation_secret"
 
           {
             echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
@@ -419,6 +421,7 @@ jobs:
             echo "KLYX_E2E_EMAIL=$held_email"
             echo "KLYX_E2E_PASSWORD=$held_password"
             echo "STRIPE_WEBHOOK_SECRET=$webhook_secret"
+            echo "KLYX_SETTLEMENT_RECONCILIATION_SECRET=$reconciliation_secret"
           } >> "$GITHUB_ENV"
 
       - name: Verify isolated runtime guards
