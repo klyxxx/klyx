@@ -1558,30 +1558,12 @@ async function main() {
         }
       }
 
-      const { error: identityResetError } = await admin
-        .from("account_stripe_connect_identities")
-        .delete()
-        .eq("account_id", accountId);
-      if (identityResetError) {
-        throw new Error(
-          `Unable to reset local canonical Stripe identity: ${identityResetError.message}`
-        );
-      }
-
-      const { error: profileResetError } = await admin
-        .from("profiles")
-        .update({
-          stripe_account_id: null,
-          stripe_onboarding_complete: false,
-          stripe_charges_enabled: false,
-          stripe_payouts_enabled: false,
-        })
-        .eq("account_id", accountId);
-      if (profileResetError) {
-        throw new Error(
-          `Unable to reset local Stripe compatibility profile state: ${profileResetError.message}`
-        );
-      }
+      // EPHEMERAL_EVIDENCE_PRESERVED_UNTIL_SUPABASE_DESTROY
+      //
+      // Do not delete canonical Stripe identity or economic eligibility rows here.
+      // Recovery certification intentionally creates immutable/FK-linked financial
+      // evidence. The workflow destroys this loopback-only Supabase instance after
+      // the proof, which is the correct cleanup boundary for local evidence.
     } catch (error) {
       cleanupFailure = error instanceof Error ? error.message : String(error);
     }
