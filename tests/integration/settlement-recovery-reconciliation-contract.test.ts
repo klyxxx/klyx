@@ -58,6 +58,23 @@ describe("KLYX settlement recovery / reconciliation contract", () => {
     expect(recovery).not.toMatch(/openai/i);
   });
 
+  it("serializes exact-SHA recovery dispatches and preserves immutable local evidence until ephemeral teardown", () => {
+    const dispatcher = read(
+      ".github/workflows/klyx-settlement-recovery-certification-dispatch.yml"
+    );
+
+    expect(dispatcher).toContain(
+      "group: klyx-settlement-recovery-certification-${{ github.ref }}"
+    );
+    expect(dispatcher).toContain("cancel-in-progress: true");
+    expect(networkProof).toContain(
+      "EPHEMERAL_EVIDENCE_PRESERVED_UNTIL_SUPABASE_DESTROY"
+    );
+    expect(networkProof).toContain(
+      "The workflow destroys this loopback-only Supabase instance after"
+    );
+  });
+
   it("searches Stripe truth before any recovery-triggered Transfer write", () => {
     const searchIndex = recovery.indexOf(
       'action: "stripe_truth_searched"'
