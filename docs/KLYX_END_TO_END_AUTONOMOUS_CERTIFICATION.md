@@ -216,6 +216,26 @@ scripts/mission19-earn-lifecycle.mjs
 
 This prevents a false certification where DEMANDER is exercised end-to-end but GAGNER exists only as static state-machine code.
 
+The Golden Path proof validates persistent GAGNER ordering against a real paid/completed mission. Final GAGNER Settlement certification is stronger and runs in Stripe TEST on the platform-held network scenario:
+
+```text
+accepted provider quote + booking
+-> earn workflow acceptance
+-> real TEST payment / charge
+-> mission
+-> domain completion
+-> completion
+-> fresh Economic Eligibility + Risk
+-> settlement
+-> real Stripe TEST Transfer
+-> simulated lost DB response
+-> beneficiary becomes KLYX-ineligible
+-> recovery reconciles the existing Transfer only
+-> workflow settlement completed
+```
+
+The workflow may therefore become terminal only after KLYX has reconciled the exact Transfer that already exists at Stripe. A second Transfer is forbidden.
+
 The signed Stripe lifecycle uses an event whose Stripe `event.created` is one hour older than delivery. KLYX must still process it once, persist the paid booking/ledger state, and reject replay idempotently.
 
 ```text
@@ -252,7 +272,8 @@ Mission 19 is certified only when the exact candidate SHA passes:
 2. TypeScript;
 3. production build;
 4. existing payment/webhook/settlement golden paths;
-5. controlled chaos evidence covering every row in the required chaos matrix.
+5. controlled chaos evidence covering every row in the required chaos matrix;
+6. Stripe TEST network evidence binding the GAGNER settlement step to the real provider Transfer and reconciliation truth.
 
 Static contracts prove that the architecture contains the required boundaries. They are not, by themselves, runtime certification.
 
