@@ -14,6 +14,7 @@ const single = read("lib/booking-settlement-server.ts");
 const group = read("lib/platform-held-group-settlement-server.ts");
 const stripeTruth = read("lib/stripe-settlement-recipient-truth.ts");
 const documentation = read("docs/economic-settlement-eligibility.md");
+const networkProof = read("scripts/golden-path-platform-held-settlement-network.mjs");
 
 describe("Mission 11 economic settlement eligibility contract", () => {
   it("creates one append-only decision ledger without creating parallel activity authorities", () => {
@@ -140,6 +141,34 @@ describe("Mission 11 economic settlement eligibility contract", () => {
     expect(groupRevalidation).toBeGreaterThan(groupClaim);
     expect(groupStripeTruth).toBeGreaterThan(groupRevalidation);
     expect(groupTransfer).toBeGreaterThan(groupStripeTruth);
+  });
+
+  it("keeps the Stripe network proof aligned with economic authority before atomic claim", () => {
+    const trustIndex = networkProof.indexOf(
+      '.from("trust_eligibility_decisions")'
+    );
+    const economicIndex = networkProof.indexOf(
+      '.from("economic_settlement_eligibility_decisions")'
+    );
+    const riskIndex = networkProof.indexOf(
+      "await insertSettlementRiskAllow(admin, accountId, booking.id)"
+    );
+    const fixtureIndex = networkProof.indexOf(
+      "await insertEconomicSettlementAllow({"
+    );
+    const claimIndex = networkProof.indexOf(
+      "const firstToken = randomUUID()"
+    );
+
+    expect(trustIndex).toBeGreaterThan(-1);
+    expect(economicIndex).toBeGreaterThan(trustIndex);
+    expect(riskIndex).toBeGreaterThan(-1);
+    expect(fixtureIndex).toBeGreaterThan(riskIndex);
+    expect(claimIndex).toBeGreaterThan(fixtureIndex);
+    expect(networkProof).toContain('decision: "eligible"');
+    expect(networkProof).toContain('decision: "allowed"');
+    expect(networkProof).toContain("source_trust_decision_id: trustDecision.id");
+    expect(networkProof).toContain("stripe_account_id: stripeAccountId");
   });
 
   it("keeps economic eligibility independent from the controlled LIVE runtime", () => {
