@@ -1023,6 +1023,272 @@ async function claimRelease(admin, bookingId, claimToken) {
   return row;
 }
 
+function workflowRpcRow(data, label) {
+  const rows = Array.isArray(data) ? data : [];
+  if (rows.length !== 1) {
+    throw new Error(`${label} returned ${rows.length} rows instead of 1.`);
+  }
+  return rows[0];
+}
+
+async function transitionEarnWorkflow({
+  admin,
+  accountId,
+  workflow,
+  toStep,
+  eventType,
+  payload,
+}) {
+  const { data, error } = await admin.rpc("klyx_transition_workflow", {
+    p_workflow_id: workflow.workflow_id,
+    p_account_id: accountId,
+    p_expected_version: workflow.version,
+    p_to_step: toStep,
+    p_event_type: eventType,
+    p_actor_type: "server",
+    p_payload: payload ?? {},
+  });
+  if (error) {
+    throw new Error(
+      `Mission 19 earn transition ${workflow.current_step}->${toStep} failed: ${error.message}`
+    );
+  }
+
+  const next = workflowRpcRow(data, `earn transition ${toStep}`);
+  assert(
+    next.current_step === toStep && next.status === "active",
+    `Mission 19 earn workflow did not persist active step ${toStep}.`
+  );
+  return next;
+}
+
+async function createPlatformHeldEarnWorkflow({
+  admin,
+  accountId,
+  providerId,
+  bookingId,
+}) {
+  const { data: booking, error: bookingError } = await admin
+    .from("bookings")
+    .select(
+      "id, quote_id, user_service_id, status, payment_status, service_status"
+    )
+    .eq("id", bookingId)
+    .single();
+  if (bookingError) {
+    throw new Error(
+      `Unable to load Mission 19 earn booking truth: ${bookingError.message}`
+    );
+  }
+
+  assert(
+    booking.status === "accepted" && booking.payment_status === "unpaid",
+    "Mission 19 earn opportunity must begin from a real accepted unpaid booking."
+  );
+  assert(booking.quote_id, "Mission 19 earn proposal quote is missing.");
+  assert(booking.user_service_id, "Mission 19 earn provider skill is missing.");
+
+  const [
+    { data: capability, error: capabilityError },
+    { data: skill, error: skillError },
+    { data: quote, error: quoteError },
+  ] = await Promise.all([
+    admin
+      .from("account_actor_capabilities")
+      .select("enabled")
+      .eq("account_id", accountId)
+      .eq("capability", "offer_services")
+      .single(),
+    admin
+      .from("user_services")
+      .select("id, user_id, active, provider_enabled")
+      .eq("id", booking.user_service_id)
+      .eq("user_id", providerId)
+      .single(),
+    admin
+      .from("service_quotes")
+      .select("id, status, provider_profile_id")
+      .eq("id", booking.quote_id)
+      .single(),
+  ]);
+
+  if (capabilityError) throw new Error(capabilityError.message);
+  if (skillError) throw new Error(skillError.message);
+  if (quoteError) throw new Error(quoteError.message);
+
+  assert(
+    capability.enabled === true,
+    "Mission 19 earn eligibility requires canonical offer_services capability."
+  );
+  assert(
+    skill.active === true && skill.provider_enabled === true,
+    "Mission 19 earn skill is not active for the provider."
+  );
+  assert(
+    quote.status === "accepted" && quote.provider_profile_id === providerId,
+    "Mission 19 earn proposal/acceptance is not backed by the accepted provider quote."
+  );
+
+  const { data: conversation, error: conversationError } = await admin
+    .from("brain_conversations")
+    .insert({
+      user_id: providerId,
+      title: "Mission 19 Stripe TEST earn lifecycle",
+    })
+    .select("id")
+    .single();
+  if (conversationError) throw new Error(conversationError.message);
+
+  const { data: createdData, error: createdError } = await admin.rpc(
+    "klyx_create_or_resume_workflow",
+    {
+      p_account_id: accountId,
+      p_profile_id: providerId,
+      p_conversation_id: conversation.id,
+      p_mode: "earn",
+      p_context: {
+        certification: "mission19_stripe_test_earn",
+        booking_id: booking.id,
+        quote_id: booking.quote_id,
+        user_service_id: booking.user_service_id,
+        eligibility_capability: "offer_services",
+      },
+    }
+  );
+  if (createdError) throw new Error(createdError.message);
+
+  let workflow = workflowRpcRow(createdData, "Mission 19 earn create");
+  assert(
+    workflow.current_step === "skill" && workflow.status === "active",
+    "Mission 19 earn workflow did not start at skill."
+  );
+
+  workflow = await transitionEarnWorkflow({
+    admin,
+    accountId,
+    workflow,
+    toStep: "opportunities",
+    eventType: "mission19_earn_opportunity_discovered",
+    payload: {
+      booking_id: booking.id,
+      user_service_id: booking.user_service_id,
+    },
+  });
+  workflow = await transitionEarnWorkflow({
+    admin,
+    accountId,
+    workflow,
+    toStep: "eligibility",
+    eventType: "mission19_earn_eligibility_confirmed",
+    payload: {
+      capability: "offer_services",
+      enabled: true,
+      user_service_id: booking.user_service_id,
+    },
+  });
+  workflow = await transitionEarnWorkflow({
+    admin,
+    accountId,
+    workflow,
+    toStep: "proposal",
+    eventType: "mission19_earn_proposal_observed",
+    payload: {
+      quote_id: booking.quote_id,
+      quote_status: quote.status,
+    },
+  });
+  workflow = await transitionEarnWorkflow({
+    admin,
+    accountId,
+    workflow,
+    toStep: "acceptance",
+    eventType: "mission19_earn_acceptance_observed",
+    payload: {
+      booking_id: booking.id,
+      booking_status: booking.status,
+      quote_id: booking.quote_id,
+    },
+  });
+
+  return {
+    workflow,
+    conversationId: conversation.id,
+    bookingId: booking.id,
+    userServiceId: booking.user_service_id,
+    quoteId: booking.quote_id,
+  };
+}
+
+async function completePlatformHeldEarnWorkflow({
+  admin,
+  accountId,
+  earn,
+  bookingId,
+  transferId,
+}) {
+  const { data, error } = await admin.rpc(
+    "klyx_complete_settlement_workflow",
+    {
+      p_workflow_id: earn.workflow.workflow_id,
+      p_account_id: accountId,
+      p_expected_version: earn.workflow.version,
+      p_event_type: "mission19_earn_settlement_reconciled",
+      p_actor_type: "server",
+      p_payload: {
+        booking_id: bookingId,
+        stripe_transfer_id: transferId,
+        settlement_truth: "released",
+        reconciled_existing_transfer: true,
+      },
+    }
+  );
+  if (error) {
+    throw new Error(
+      `Mission 19 earn settlement completion failed: ${error.message}`
+    );
+  }
+
+  const completed = workflowRpcRow(data, "Mission 19 earn settlement completion");
+  assert(
+    completed.current_step === "settlement" &&
+      completed.status === "completed",
+    "Mission 19 earn workflow did not become terminal after reconciled Settlement."
+  );
+
+  const { data: steps, error: stepsError } = await admin
+    .from("klyx_workflow_steps")
+    .select("step, ordinal, exited_at")
+    .eq("workflow_id", completed.workflow_id)
+    .order("ordinal", { ascending: true });
+  if (stepsError) throw new Error(stepsError.message);
+
+  const expectedSteps = [
+    "skill",
+    "opportunities",
+    "eligibility",
+    "proposal",
+    "acceptance",
+    "mission",
+    "completion",
+    "settlement",
+  ];
+  const actualSteps = (steps ?? []).map((row) => row.step);
+  assert(
+    JSON.stringify(actualSteps) === JSON.stringify(expectedSteps),
+    `Mission 19 Stripe TEST earn step order mismatch: ${actualSteps.join(" -> ")}.`
+  );
+  assert(
+    (steps ?? []).every((row) => row.exited_at),
+    "Mission 19 Stripe TEST earn workflow left an open step."
+  );
+
+  return {
+    workflowId: completed.workflow_id,
+    terminalStatus: completed.status,
+    steps: expectedSteps,
+  };
+}
+
 async function runReleaseRetryReversalScenario({
   stripe,
   admin,
