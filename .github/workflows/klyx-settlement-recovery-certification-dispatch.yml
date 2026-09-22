@@ -5,6 +5,10 @@ on:
     branches:
       - "feature/settlement-recovery-reconciliation-*"
 
+concurrency:
+  group: klyx-settlement-recovery-certification-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   actions: write
