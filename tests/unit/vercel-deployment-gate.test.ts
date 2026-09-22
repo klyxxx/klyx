@@ -37,6 +37,8 @@ describe("KLYX Vercel deployment gate", () => {
     expect(script).toContain("central-klyx-chat");
     expect(script).toContain("npm run ops:smoke");
     expect(script).toContain("https://www.klyx.be");
+    expect(script).toContain("exact main SHA ${Sha}:");
+    expect(script).not.toContain("exact main SHA $Sha:");
   });
 
   it("keeps exact-main release certifications isolated from PR concurrency", () => {
