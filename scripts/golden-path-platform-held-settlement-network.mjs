@@ -541,10 +541,6 @@ async function runRefundBeforeReleaseScenario({
   provider,
 }) {
   const booking = await latestAcceptedUnpaidBooking(admin, client.id, provider.id);
-  assert(
-    booking.id === earnHandoff.bookingId,
-    "Platform-held release proof did not select the Mission 19 earn booking."
-  );
   await createHeldCheckout({ appOrigin, accessToken, clientId: client.id, bookingId: booking.id });
 
   const pendingSettlement = await loadSettlement(admin, booking.id);
@@ -1085,6 +1081,10 @@ async function runReleaseRetryReversalScenario({
   accessToken = reauthData.session.access_token;
 
   const booking = await latestAcceptedUnpaidBooking(admin, client.id, provider.id);
+  assert(
+    booking.id === earnHandoff.bookingId,
+    "Platform-held release proof did not select the Mission 19 earn booking."
+  );
   await createHeldCheckout({ appOrigin, accessToken, clientId: client.id, bookingId: booking.id });
 
   const pendingSettlement = await loadSettlement(admin, booking.id);
