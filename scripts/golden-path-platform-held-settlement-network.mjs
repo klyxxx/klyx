@@ -120,6 +120,439 @@ function v2RecipientTransferReady(account) {
   );
 }
 
+function stripeRequirementArray(account, key) {
+  const value = account?.requirements?.[key];
+  return Array.isArray(value) ? value : [];
+}
+
+function assertStripeOkForEconomicChain(legacyAccount, v2Account) {
+  assert(legacyAccount?.livemode === false, "Economic-chain recipient must be Stripe TEST.");
+  assert(
+    legacyAccount?.details_submitted === true,
+    "Economic-chain Stripe account details are not submitted."
+  );
+  assert(
+    legacyAccount?.payouts_enabled === true,
+    "Economic-chain Stripe account payouts are not enabled."
+  );
+  assert(
+    stripeRequirementArray(legacyAccount, "currently_due").length === 0,
+    "Economic-chain Stripe account still has currently_due requirements."
+  );
+  assert(
+    stripeRequirementArray(legacyAccount, "past_due").length === 0,
+    "Economic-chain Stripe account still has past_due requirements."
+  );
+  assert(
+    stripeRequirementArray(legacyAccount, "pending_verification").length === 0,
+    "Economic-chain Stripe account still has pending_verification requirements."
+  );
+  assert(
+    stripeRequirementArray(legacyAccount, "errors").length === 0,
+    "Economic-chain Stripe account still has requirement errors."
+  );
+  assert(
+    !legacyAccount?.requirements?.disabled_reason,
+    "Economic-chain Stripe account has a disabled_reason."
+  );
+  assert(
+    legacyAccount?.capabilities?.transfers === "active",
+    "Economic-chain Stripe v1 transfer capability is not active."
+  );
+  assert(
+    v2RecipientTransferReady(v2Account),
+    "Economic-chain Stripe v2 recipient transfer capability is not active."
+  );
+
+  return {
+    livemode: false,
+    detailsSubmitted: true,
+    payoutsEnabled: true,
+    currentlyDue: 0,
+    pastDue: 0,
+    pendingVerification: 0,
+    requirementErrors: 0,
+    disabledReason: null,
+    transferCapability: "active",
+    recipientTransferCapability: v2TransferStatus(v2Account),
+  };
+}
+
+async function loadBookingEconomicContext(admin, bookingId) {
+  const { data: booking, error: bookingError } = await admin
+    .from("bookings")
+    .select("id, user_service_id, service_id, country_code")
+    .eq("id", bookingId)
+    .single();
+
+  if (bookingError || !booking) {
+    throw new Error(
+      `Unable to load economic booking context: ${bookingError?.message ?? "missing booking"}`
+    );
+  }
+
+  let serviceId = booking.service_id ? String(booking.service_id) : null;
+  const userServiceId = booking.user_service_id
+    ? String(booking.user_service_id)
+    : null;
+
+  if (!serviceId && userServiceId) {
+    const { data: userService, error: userServiceError } = await admin
+      .from("user_services")
+      .select("service_id")
+      .eq("id", userServiceId)
+      .single();
+
+    if (userServiceError || !userService?.service_id) {
+      throw new Error(
+        `Unable to resolve booking service: ${userServiceError?.message ?? "missing service"}`
+      );
+    }
+    serviceId = String(userService.service_id);
+  }
+
+  assert(serviceId, "Economic-chain booking service id is missing.");
+
+  const { data: service, error: serviceError } = await admin
+    .from("services")
+    .select("slug")
+    .eq("id", serviceId)
+    .single();
+
+  if (serviceError || !service?.slug) {
+    throw new Error(
+      `Unable to resolve booking activity: ${serviceError?.message ?? "missing slug"}`
+    );
+  }
+
+  const jurisdictionCode = String(booking.country_code ?? "").trim().toUpperCase();
+  const activityKey = String(service.slug).trim().toLowerCase();
+  assert(jurisdictionCode, "Economic-chain booking jurisdiction is missing.");
+  assert(activityKey, "Economic-chain booking activity is missing.");
+
+  return {
+    activityKey,
+    jurisdictionCode,
+    userServiceId,
+  };
+}
+
+async function prepareVerifiedEconomicEligibility({
+  admin,
+  accountId,
+  bookingId,
+  stripeAccount,
+}) {
+  const context = await loadBookingEconomicContext(admin, bookingId);
+  const now = new Date();
+  const future = new Date(now.getTime() + 60 * 60 * 1000).toISOString();
+  const past = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
+
+  const { data: identity, error: identityError } = await admin
+    .from("economic_identities")
+    .select("id")
+    .eq("account_id", accountId)
+    .single();
+
+  if (identityError || !identity?.id) {
+    throw new Error(
+      `Unable to resolve economic identity: ${identityError?.message ?? "missing identity"}`
+    );
+  }
+
+  const economicIdentityId = String(identity.id);
+
+  const { error: capabilityError } = await admin
+    .from("account_actor_capabilities")
+    .upsert(
+      {
+        account_id: accountId,
+        capability: "offer_services",
+        enabled: true,
+        source: "system",
+        metadata: { certification: "stripe_network_economic_chain" },
+        updated_at: now.toISOString(),
+      },
+      { onConflict: "account_id,capability" }
+    );
+  if (capabilityError) {
+    throw new Error(`Unable to enable offer_services: ${capabilityError.message}`);
+  }
+
+  const { error: identityUpdateError } = await admin
+    .from("economic_identities")
+    .update({
+      status: "ready",
+      primary_country_code: context.jurisdictionCode,
+      human_review_required: false,
+      review_reason_code: null,
+      updated_at: now.toISOString(),
+    })
+    .eq("id", economicIdentityId)
+    .eq("account_id", accountId);
+  if (identityUpdateError) {
+    throw new Error(
+      `Unable to prepare economic identity: ${identityUpdateError.message}`
+    );
+  }
+
+  const { error: restrictionCleanupError } = await admin
+    .from("economic_restrictions")
+    .delete()
+    .eq("economic_identity_id", economicIdentityId);
+  if (restrictionCleanupError) {
+    throw new Error(
+      `Unable to clear economic restrictions: ${restrictionCleanupError.message}`
+    );
+  }
+
+  const { error: verificationCleanupError } = await admin
+    .from("economic_verification_cases")
+    .delete()
+    .eq("economic_identity_id", economicIdentityId);
+  if (verificationCleanupError) {
+    throw new Error(
+      `Unable to clear economic verification cases: ${verificationCleanupError.message}`
+    );
+  }
+
+  const { error: legalCleanupError } = await admin
+    .from("economic_legal_entities")
+    .delete()
+    .eq("economic_identity_id", economicIdentityId);
+  if (legalCleanupError) {
+    throw new Error(
+      `Unable to clear economic legal entities: ${legalCleanupError.message}`
+    );
+  }
+
+  const { data: legalEntity, error: legalEntityError } = await admin
+    .from("economic_legal_entities")
+    .insert({
+      economic_identity_id: economicIdentityId,
+      entity_type: "individual",
+      is_primary: true,
+      legal_name: "KLYX Stripe TEST Economic Chain",
+      country_code: context.jurisdictionCode,
+      source: "migration",
+      verification_status: "verified",
+      verified_at: past,
+      expires_at: future,
+    })
+    .select("id")
+    .single();
+
+  if (legalEntityError || !legalEntity?.id) {
+    throw new Error(
+      `Unable to create verified legal entity: ${legalEntityError?.message ?? "missing id"}`
+    );
+  }
+
+  const { error: verificationError } = await admin
+    .from("economic_verification_cases")
+    .insert({
+      economic_identity_id: economicIdentityId,
+      legal_entity_id: legalEntity.id,
+      verification_type: "kyc",
+      provider: "stripe.test",
+      external_reference: stripeAccount.id,
+      requirement_key: "beneficiary_identity",
+      status: "verified",
+      decision_source: "trusted_provider",
+      human_review_required: false,
+      verified_at: past,
+      expires_at: future,
+      provider_observed_at: now.toISOString(),
+    });
+  if (verificationError) {
+    throw new Error(
+      `Unable to create verified KYC case: ${verificationError.message}`
+    );
+  }
+
+  const { error: qualificationCleanupError } = await admin
+    .from("account_capability_qualifications")
+    .delete()
+    .eq("account_id", accountId)
+    .eq("capability", "offer_services");
+  if (qualificationCleanupError) {
+    throw new Error(
+      `Unable to clear qualifications: ${qualificationCleanupError.message}`
+    );
+  }
+
+  const qualificationScopeType = context.userServiceId
+    ? "user_service"
+    : "activity";
+  const qualificationScopeKey = context.userServiceId ?? context.activityKey;
+  const { error: qualificationError } = await admin
+    .from("account_capability_qualifications")
+    .insert({
+      account_id: accountId,
+      capability: "offer_services",
+      qualification_key: "economic.chain.stripe_test",
+      scope_type: qualificationScopeType,
+      scope_key: qualificationScopeKey,
+      status: "approved",
+      source: "system",
+      evidence: { certification: "stripe_network_economic_chain" },
+      valid_from: past,
+      valid_until: future,
+      activity_key: context.activityKey,
+      jurisdiction_code: context.jurisdictionCode,
+    });
+  if (qualificationError) {
+    throw new Error(
+      `Unable to create economic-chain qualification: ${qualificationError.message}`
+    );
+  }
+
+  const { error: projectionError } = await admin
+    .from("economic_stripe_account_projections")
+    .upsert(
+      {
+        economic_identity_id: economicIdentityId,
+        account_id: accountId,
+        stripe_account_id: stripeAccount.id,
+        country_code: stripeAccount.country ?? context.jurisdictionCode,
+        business_type: stripeAccount.business_type ?? "individual",
+        details_submitted: Boolean(stripeAccount.details_submitted),
+        charges_enabled: Boolean(stripeAccount.charges_enabled),
+        payouts_enabled: Boolean(stripeAccount.payouts_enabled),
+        currently_due: stripeRequirementArray(stripeAccount, "currently_due"),
+        eventually_due: stripeRequirementArray(stripeAccount, "eventually_due"),
+        past_due: stripeRequirementArray(stripeAccount, "past_due"),
+        pending_verification: stripeRequirementArray(
+          stripeAccount,
+          "pending_verification"
+        ),
+        requirement_errors: stripeRequirementArray(stripeAccount, "errors"),
+        disabled_reason: stripeAccount?.requirements?.disabled_reason ?? null,
+        capabilities: {
+          transfers: stripeAccount?.capabilities?.transfers ?? null,
+        },
+        provider_observed_at: now.toISOString(),
+        updated_at: now.toISOString(),
+      },
+      { onConflict: "economic_identity_id" }
+    );
+  if (projectionError) {
+    throw new Error(
+      `Unable to project Stripe economic truth: ${projectionError.message}`
+    );
+  }
+
+  const { data: trustDecision, error: trustError } = await admin
+    .from("trust_eligibility_decisions")
+    .insert({
+      account_id: accountId,
+      policy_id: null,
+      target_type: "booking",
+      target_ref: bookingId,
+      category_key: context.activityKey,
+      jurisdiction_code: context.jurisdictionCode,
+      decision: "eligible",
+      legal_pathway: "independent_compatible",
+      decision_source: "policy_engine",
+      human_review_required: false,
+      review_status: "not_required",
+      reason_codes: [],
+      required_actions: [],
+      explanation:
+        "Stripe TEST economic-chain certification eligibility baseline.",
+      input_snapshot: { certification: "stripe_network_economic_chain" },
+      expires_at: future,
+    })
+    .select("id")
+    .single();
+
+  if (trustError || !trustDecision?.id) {
+    throw new Error(
+      `Unable to create activity eligibility decision: ${trustError?.message ?? "missing id"}`
+    );
+  }
+
+  return {
+    ...context,
+    economicIdentityId,
+    sourceTrustDecisionId: String(trustDecision.id),
+  };
+}
+
+async function insertEconomicAllowFixture({
+  admin,
+  accountId,
+  bookingId,
+  stripeAccountId,
+  baseline,
+}) {
+  const now = new Date();
+  const { error } = await admin
+    .from("economic_settlement_eligibility_decisions")
+    .insert({
+      account_id: accountId,
+      economic_identity_id: baseline.economicIdentityId,
+      source_trust_decision_id: baseline.sourceTrustDecisionId,
+      stripe_account_id: stripeAccountId,
+      subject_type: "booking",
+      subject_id: bookingId,
+      activity_key: baseline.activityKey,
+      jurisdiction_code: baseline.jurisdictionCode,
+      decision: "allowed",
+      reason_codes: [],
+      evidence_snapshot: {
+        certification: "lower_level_claim_recovery_fixture",
+      },
+      decision_source: "deterministic_rule",
+      evaluated_at: now.toISOString(),
+      expires_at: new Date(now.getTime() + 4 * 60 * 1000).toISOString(),
+    });
+
+  if (error) {
+    throw new Error(
+      `Unable to persist lower-level economic allow fixture: ${error.message}`
+    );
+  }
+}
+
+async function triggerSettlementReconciliation(appOrigin) {
+  const secret = requiredGoldenPathEnv(
+    "KLYX_SETTLEMENT_RECONCILIATION_SECRET"
+  );
+  const result = await requestJson({
+    appOrigin,
+    path: "/api/ops/settlement-reconciliation",
+    method: "POST",
+    body: { limit: 50 },
+    headers: {
+      Authorization: `Bearer ${secret}`,
+    },
+  });
+
+  assert(result.payload?.ok === true, "Settlement reconciliation endpoint did not return ok=true.");
+  return result.payload;
+}
+
+async function latestEconomicDecision(admin, accountId, bookingId) {
+  const { data, error } = await admin
+    .from("economic_settlement_eligibility_decisions")
+    .select("decision, reason_codes, evidence_snapshot, evaluated_at")
+    .eq("account_id", accountId)
+    .eq("subject_type", "booking")
+    .eq("subject_id", bookingId)
+    .order("evaluated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data) {
+    throw new Error(
+      `Unable to read economic settlement decision: ${error?.message ?? "missing decision"}`
+    );
+  }
+
+  return data;
+}
+
 async function loadProfiles(admin, ownerUserId) {
   const { data, error } = await admin
     .from("profiles")
