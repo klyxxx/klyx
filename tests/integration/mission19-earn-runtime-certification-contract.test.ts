@@ -7,6 +7,9 @@ const read = (p: string) =>
   fs.readFileSync(path.join(root, p), "utf8").replace(/\r\n/g, "\n");
 
 const earnHarness = read("scripts/mission19-earn-market-lifecycle.mjs");
+const offerRoute = read(
+  "app/api/market/requests/[id]/offers/route.ts"
+);
 const stripeNetwork = read(
   "scripts/golden-path-platform-held-settlement-network.mjs"
 );
@@ -29,6 +32,15 @@ describe("Mission 19 earn runtime certification contract", () => {
     expect(earnHarness).toContain('path: "/api/bookings/create"');
     expect(earnHarness).toContain('quoteApplied === true');
     expect(earnHarness).toContain('path: "/api/bookings/status"');
+  });
+
+  it("projects the correct legacy capability for each offer method", () => {
+    expect(offerRoute).toMatch(
+      /export async function POST[\s\S]*?runWithLegacyProfileCapability\("offer"/
+    );
+    expect(offerRoute).toMatch(
+      /export async function PATCH[\s\S]*?runWithLegacyProfileCapability\("request"/
+    );
   });
 
   it("keeps sensitive provider mutations explicit instead of automatic", () => {
