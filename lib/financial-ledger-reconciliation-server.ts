@@ -436,12 +436,6 @@ function compareLocalTruth(input: {
   const transfers = rowsOfType(ledger, "transfer");
   const reversals = rowsOfType(ledger, "reversal");
   const refunds = rowsOfType(ledger, "refund");
-  const succeededRefundAmount = refunds
-    .filter((row) => row.new_state === "succeeded")
-    .reduce(
-      (sum, row) => sum + Math.max(Number(row.amount_minor), 0),
-      0
-    );
   const reversalAmount = reversals.reduce(
     (sum, row) => sum + Math.max(Number(row.amount_minor), 0),
     0
