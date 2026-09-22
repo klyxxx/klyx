@@ -37,6 +37,8 @@ type SettlementRow = {
   gross_amount_cents: number;
   platform_fee_cents: number;
   provider_amount_cents: number;
+  refunded_provider_amount_cents: number;
+  released_provider_amount_cents: number;
   stripe_checkout_session_id: string | null;
   stripe_payment_intent_id: string | null;
   stripe_charge_id: string | null;
@@ -93,7 +95,7 @@ async function findSettlement(bookingId: string): Promise<SettlementRow | null> 
   const { data, error } = await supabaseAdmin
     .from("booking_settlements")
     .select(
-      "booking_id, provider_profile_id, stripe_account_id, payment_mode, currency, gross_amount_cents, platform_fee_cents, provider_amount_cents, stripe_checkout_session_id, stripe_payment_intent_id, stripe_charge_id, stripe_transfer_id, stripe_transfer_reversal_id, transfer_group, state"
+      "booking_id, provider_profile_id, stripe_account_id, payment_mode, currency, gross_amount_cents, platform_fee_cents, provider_amount_cents, refunded_provider_amount_cents, released_provider_amount_cents, stripe_checkout_session_id, stripe_payment_intent_id, stripe_charge_id, stripe_transfer_id, stripe_transfer_reversal_id, transfer_group, state"
     )
     .eq("booking_id", bookingId)
     .maybeSingle();
@@ -233,14 +235,21 @@ function verifyTransferTruth(input: {
   settlement: SettlementRow;
   chargeId: string;
   expectedLive: boolean;
+  expectedAmountCents: number;
 }) {
-  const { transfer, settlement, chargeId, expectedLive } = input;
+  const {
+    transfer,
+    settlement,
+    chargeId,
+    expectedLive,
+    expectedAmountCents,
+  } = input;
   const destinationId = stripeObjectId(transfer.destination);
 
   if (transfer.livemode !== expectedLive) {
     throw new Error("KLYX_SETTLEMENT_TRANSFER_LIVEMODE_MISMATCH");
   }
-  if (transfer.amount !== settlement.provider_amount_cents) {
+  if (transfer.amount !== expectedAmountCents) {
     throw new Error("KLYX_SETTLEMENT_EXISTING_TRANSFER_AMOUNT_MISMATCH");
   }
   if (transfer.currency.toUpperCase() !== settlement.currency) {
@@ -262,6 +271,7 @@ async function reconcileExistingTransfer(input: {
   settlement: SettlementRow;
   chargeId: string;
   expectedLive: boolean;
+  expectedAmountCents: number;
 }): Promise<Stripe.Transfer | null> {
   const listed = await input.stripe.transfers.list({
     transfer_group: input.settlement.transfer_group,
@@ -287,6 +297,7 @@ async function reconcileExistingTransfer(input: {
     settlement: input.settlement,
     chargeId: input.chargeId,
     expectedLive: input.expectedLive,
+    expectedAmountCents: input.expectedAmountCents,
   });
 
   return existing;
@@ -497,6 +508,36 @@ export async function releasePlatformHeldBookingSettlement(
     throw new Error("KLYX_SETTLEMENT_RELEASE_CLAIM_INCOMPLETE");
   }
 
+  const { data: remainingProviderAmount, error: remainingAmountError } =
+    await supabaseAdmin.rpc(
+      "klyx_booking_settlement_remaining_provider_amount",
+      {
+        p_booking_id: bookingId,
+        p_claim_token: claimToken,
+      }
+    );
+
+  if (remainingAmountError) {
+    await failClaim({
+      bookingId,
+      claimToken,
+      code: "settlement_remaining_provider_amount_failed",
+      message: remainingAmountError.message,
+    });
+    throw new Error(remainingAmountError.message);
+  }
+
+  const releaseAmountCents = Number(remainingProviderAmount);
+  if (!Number.isSafeInteger(releaseAmountCents) || releaseAmountCents <= 0) {
+    await failClaim({
+      bookingId,
+      claimToken,
+      code: "settlement_provider_liability_exhausted",
+      message: "No provider liability remains after succeeded refunds.",
+    });
+    return { status: "not_ready" };
+  }
+
   let stripeAcceptedTransfer = false;
 
   try {
@@ -511,6 +552,7 @@ export async function releasePlatformHeldBookingSettlement(
         },
         chargeId: claim.stripe_charge_id,
         expectedLive,
+        expectedAmountCents: releaseAmountCents,
       });
     } catch (error) {
       await failClaim({
@@ -581,7 +623,7 @@ export async function releasePlatformHeldBookingSettlement(
 
       transfer = await stripe.transfers.create(
         {
-          amount: claim.provider_amount_cents,
+          amount: releaseAmountCents,
           currency: claim.currency.toLowerCase(),
           destination: claim.stripe_account_id,
           source_transaction: claim.stripe_charge_id,
@@ -602,6 +644,7 @@ export async function releasePlatformHeldBookingSettlement(
         settlement,
         chargeId: claim.stripe_charge_id,
         expectedLive,
+        expectedAmountCents: releaseAmountCents,
       });
     } else {
       stripeAcceptedTransfer = true;
@@ -723,6 +766,10 @@ export async function preparePlatformHeldBookingRefund(
     settlement,
     chargeId,
     expectedLive,
+    expectedAmountCents:
+      settlement.released_provider_amount_cents > 0
+        ? settlement.released_provider_amount_cents
+        : settlement.provider_amount_cents,
   });
 
   const reversals = await stripe.transfers.listReversals(transferId, {
