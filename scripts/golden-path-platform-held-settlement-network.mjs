@@ -1186,6 +1186,235 @@ async function claimRelease(admin, bookingId, claimToken) {
   return row;
 }
 
+async function runStripeOkKlyxBlockedScenario({
+  stripe,
+  admin,
+  appOrigin,
+  accessToken,
+  userClient,
+  email,
+  password,
+  webhookSecret,
+  client,
+  provider,
+  accountId,
+  stripeAccount,
+}) {
+  createSecondLifecycleBooking();
+
+  const { data: reauthData, error: reauthError } =
+    await userClient.auth.signInWithPassword({ email, password });
+  if (reauthError || !reauthData.session?.access_token) {
+    throw new Error(
+      "Unable to re-authenticate Stripe-OK/KLYX-blocked proof account."
+    );
+  }
+  accessToken = reauthData.session.access_token;
+
+  const booking = await latestAcceptedUnpaidBooking(
+    admin,
+    client.id,
+    provider.id
+  );
+  await createHeldCheckout({
+    appOrigin,
+    accessToken,
+    clientId: client.id,
+    bookingId: booking.id,
+  });
+
+  const pendingSettlement = await loadSettlement(admin, booking.id);
+  const { intent, charge } = await createRealHeldCharge({
+    stripe,
+    settlement: pendingSettlement,
+    bookingId: booking.id,
+    providerId: provider.id,
+  });
+  await markHeldPaid({
+    appOrigin,
+    webhookSecret,
+    bookingId: booking.id,
+    providerId: provider.id,
+    settlement: pendingSettlement,
+    intent,
+  });
+
+  const heldBeforeStripeTruth = await assertBookingHeld(
+    admin,
+    booking.id,
+    intent.id
+  );
+  const held = await attachSettlementStripeTruth({
+    admin,
+    bookingId: booking.id,
+    checkoutSessionId: heldBeforeStripeTruth.stripe_checkout_session_id,
+    paymentIntentId: intent.id,
+    chargeId: charge.id,
+  });
+  await markBookingCompletedForSettlement(admin, booking.id);
+
+  const baseline = await prepareVerifiedEconomicEligibility({
+    admin,
+    accountId,
+    bookingId: booking.id,
+    stripeAccount,
+  });
+
+  const remoteBefore = await stripe.accounts.retrieve(stripeAccount.id);
+  const remoteV2Before = await stripe.v2.core.accounts.retrieve(
+    stripeAccount.id,
+    {
+      include: ["configuration.recipient", "identity", "requirements"],
+    }
+  );
+  const stripeReadinessBefore = assertStripeOkForEconomicChain(
+    remoteBefore,
+    remoteV2Before
+  );
+
+  const beforeTransfers = await stripe.transfers.list({
+    transfer_group: held.transfer_group,
+    destination: held.stripe_account_id,
+    limit: 10,
+  });
+  assert(
+    beforeTransfers.data.length === 0,
+    "Stripe-OK/KLYX-blocked scenario must start with zero provider Transfers."
+  );
+
+  const { error: restrictionError } = await admin
+    .from("economic_restrictions")
+    .insert({
+      economic_identity_id: baseline.economicIdentityId,
+      restricted_action: "receive_settlement",
+      scope_type: "jurisdiction",
+      activity_key: null,
+      jurisdiction_code: baseline.jurisdictionCode,
+      status: "active",
+      source: "deterministic_rule",
+      reason_code: "CERT_STRIPE_OK_KLYX_BLOCKED",
+      human_review_required: false,
+    });
+  if (restrictionError) {
+    throw new Error(
+      `Unable to create KLYX-only settlement block: ${restrictionError.message}`
+    );
+  }
+
+  const reconciliation = await triggerSettlementReconciliation(appOrigin);
+  const currentResult = (reconciliation?.reconciliation?.results ?? []).find(
+    (entry) => entry.bookingId === booking.id
+  );
+  assert(
+    currentResult,
+    "Settlement reconciliation did not scan the Stripe-OK/KLYX-blocked booking."
+  );
+  assert(
+    currentResult.result?.status !== "released",
+    "KLYX-blocked booking was incorrectly reported as released."
+  );
+
+  const economicDecision = await latestEconomicDecision(
+    admin,
+    accountId,
+    booking.id
+  );
+  assert(
+    economicDecision.decision === "blocked",
+    `Expected KLYX economic blocked decision, received ${economicDecision.decision}.`
+  );
+  assert(
+    (economicDecision.reason_codes ?? []).includes(
+      "ECONOMIC_RESTRICTION_ACTIVE"
+    ),
+    "KLYX blocked decision did not preserve ECONOMIC_RESTRICTION_ACTIVE."
+  );
+
+  const blockedSettlement = await loadSettlement(admin, booking.id);
+  assert(
+    ["review_required", "human_review"].includes(blockedSettlement.state),
+    `Blocked settlement did not enter a review fence: ${blockedSettlement.state}.`
+  );
+  assert(
+    Number(blockedSettlement.release_attempt_number) === 0,
+    "KLYX block occurred after a release claim attempt; expected claim count 0."
+  );
+  assert(
+    blockedSettlement.stripe_transfer_id === null,
+    "KLYX-blocked settlement unexpectedly persisted a Stripe Transfer id."
+  );
+
+  const afterTransfers = await stripe.transfers.list({
+    transfer_group: held.transfer_group,
+    destination: held.stripe_account_id,
+    limit: 10,
+  });
+  assert(
+    afterTransfers.data.length === 0,
+    "Stripe-OK/KLYX-blocked scenario created a provider Transfer."
+  );
+
+  const remoteAfter = await stripe.accounts.retrieve(stripeAccount.id);
+  const remoteV2After = await stripe.v2.core.accounts.retrieve(
+    stripeAccount.id,
+    {
+      include: ["configuration.recipient", "identity", "requirements"],
+    }
+  );
+  const stripeReadinessAfter = assertStripeOkForEconomicChain(
+    remoteAfter,
+    remoteV2After
+  );
+
+  const cleanupRefund = await stripe.refunds.create(
+    {
+      payment_intent: intent.id,
+      amount: Number(held.gross_amount_cents),
+      metadata: {
+        booking_id: booking.id,
+        payment_mode: PAYMENT_MODE,
+        klyx_network_proof: "stripe_ok_klyx_blocked_cleanup",
+      },
+    },
+    {
+      idempotencyKey: `klyx-stripe-ok-klyx-blocked-cleanup-${booking.id}`,
+    }
+  );
+
+  let terminalRefund = cleanupRefund;
+  for (
+    let attempt = 0;
+    attempt < 40 && terminalRefund.status === "pending";
+    attempt += 1
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    terminalRefund = await stripe.refunds.retrieve(cleanupRefund.id);
+  }
+  assert(
+    terminalRefund.status === "succeeded",
+    `Blocked-proof cleanup refund did not succeed: ${terminalRefund.status}.`
+  );
+
+  await expireCheckout(stripe, held.stripe_checkout_session_id);
+
+  return {
+    bookingId: booking.id,
+    paymentIntentId: intent.id,
+    chargeId: charge.id,
+    transferGroup: held.transfer_group,
+    economicDecision: economicDecision.decision,
+    economicReasonCodes: economicDecision.reason_codes,
+    settlementState: blockedSettlement.state,
+    releaseAttempts: Number(blockedSettlement.release_attempt_number),
+    providerTransferCountBefore: beforeTransfers.data.length,
+    providerTransferCountAfter: afterTransfers.data.length,
+    stripeOkBefore: stripeReadinessBefore,
+    stripeOkAfter: stripeReadinessAfter,
+    cleanupRefundId: terminalRefund.id,
+    beneficiaryPaymentPrevented: true,
+  };
+}
+
 async function runReleaseRetryReversalScenario({
   stripe,
   admin,
@@ -1198,6 +1427,7 @@ async function runReleaseRetryReversalScenario({
   client,
   provider,
   accountId,
+  stripeAccount,
 }) {
   createSecondLifecycleBooking();
 
@@ -1242,6 +1472,24 @@ async function runReleaseRetryReversalScenario({
     chargeId: charge.id,
   });
   await markBookingCompletedForSettlement(admin, booking.id);
+
+  // This scenario is deliberately lower-level: the separate runtime matrix and
+  // Stripe-OK/KLYX-blocked scenario certify the real evaluator. Here we seed one
+  // fresh allowed snapshot only to exercise claim races, lost responses,
+  // reconciliation, reversal and refund idempotency beneath that gate.
+  const baseline = await prepareVerifiedEconomicEligibility({
+    admin,
+    accountId,
+    bookingId: booking.id,
+    stripeAccount,
+  });
+  await insertEconomicAllowFixture({
+    admin,
+    accountId,
+    bookingId: booking.id,
+    stripeAccountId: stripeAccount.id,
+    baseline,
+  });
   await insertSettlementRiskAllow(admin, accountId, booking.id);
 
   const firstToken = randomUUID();
