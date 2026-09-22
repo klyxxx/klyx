@@ -592,6 +592,16 @@ export async function refundPlatformHeldBooking(input: {
   refund = await loadRefund(refund.id);
   settlement = await loadSettlement(booking.id);
 
+  const chargeId = settlement.stripe_charge_id;
+  if (!chargeId) {
+    await markReview(
+      refund.id,
+      "single_refund_source_charge_missing",
+      "Frozen Single refund Settlement lost its Stripe source charge."
+    );
+    return { status: "review_required", refundId: refund.id };
+  }
+
   let remote;
   try {
     remote = await listExistingRefundTruth(stripe, settlement, refund);
@@ -667,7 +677,7 @@ export async function refundPlatformHeldBooking(input: {
   try {
     stripeRefund = await stripe.refunds.create(
       {
-        charge: settlement.stripe_charge_id,
+        charge: chargeId,
         amount: Number(refund.gross_refund_cents),
         reason: "requested_by_customer",
         metadata: {
