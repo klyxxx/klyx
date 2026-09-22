@@ -1791,6 +1791,7 @@ async function main() {
 
   let connectedAccount = null;
   let connectedV2Account = null;
+  let economicStripeReadiness = null;
   let createdConnectedAccount = false;
   let cleanupFailure = null;
 
@@ -1801,6 +1802,7 @@ async function main() {
     });
     connectedAccount = provisioned.account;
     connectedV2Account = provisioned.v2Account;
+    economicStripeReadiness = provisioned.economicStripeReadiness;
     createdConnectedAccount = provisioned.createdForProof;
     await bindCanonicalAccount(admin, accountId, provider.id, connectedAccount);
 
@@ -1812,6 +1814,21 @@ async function main() {
       webhookSecret,
       client,
       provider,
+    });
+
+    const stripeOkKlyxBlocked = await runStripeOkKlyxBlockedScenario({
+      stripe,
+      admin,
+      appOrigin,
+      accessToken,
+      userClient,
+      email,
+      password,
+      webhookSecret,
+      client,
+      provider,
+      accountId,
+      stripeAccount: connectedAccount,
     });
 
     const releaseRetryReversal = await runReleaseRetryReversalScenario({
@@ -1826,6 +1843,7 @@ async function main() {
       client,
       provider,
       accountId,
+      stripeAccount: connectedAccount,
     });
 
     fs.mkdirSync(PROOF_DIR, { recursive: true });
@@ -1843,10 +1861,20 @@ async function main() {
           liveSecretAccepted: false,
           canonicalAccountStripeIdUsed: true,
           recipientTransferCapabilityActive: true,
+          economicStripeReadiness,
           bankPayoutRequiredForRelease: false,
           refundBeforeRelease,
+          stripeOkKlyxBlocked,
           releaseRetryReversal,
           invariants: {
+            economicChainRuntimeCertified: true,
+            stripeOkKlyxBlocked: true,
+            blockedBeforeReleaseClaim:
+              stripeOkKlyxBlocked.releaseAttempts === 0,
+            blockedBeforeStripeTransfer:
+              stripeOkKlyxBlocked.providerTransferCountAfter === 0,
+            beneficiaryPaymentPrevented:
+              stripeOkKlyxBlocked.beneficiaryPaymentPrevented === true,
             realPlatformCharge: true,
             heldSettlement: true,
             settlementReleaseDecision: true,
@@ -1875,6 +1903,8 @@ async function main() {
         stripeTestNetwork: true,
         paymentMode: PAYMENT_MODE,
         refundBeforeRelease: true,
+        stripeOkKlyxBlocked: true,
+        beneficiaryPaymentPrevented: true,
         atomicClaim: true,
         transferSourceTransaction: true,
         retryReconciledByTransferGroup: true,
@@ -1898,30 +1928,10 @@ async function main() {
         }
       }
 
-      const { error: identityResetError } = await admin
-        .from("account_stripe_connect_identities")
-        .delete()
-        .eq("account_id", accountId);
-      if (identityResetError) {
-        throw new Error(
-          `Unable to reset local canonical Stripe identity: ${identityResetError.message}`
-        );
-      }
-
-      const { error: profileResetError } = await admin
-        .from("profiles")
-        .update({
-          stripe_account_id: null,
-          stripe_onboarding_complete: false,
-          stripe_charges_enabled: false,
-          stripe_payouts_enabled: false,
-        })
-        .eq("account_id", accountId);
-      if (profileResetError) {
-        throw new Error(
-          `Unable to reset local Stripe compatibility profile state: ${profileResetError.message}`
-        );
-      }
+      // Do not delete the local canonical Stripe identity here. Economic
+      // settlement decisions are append-only and keep an ON DELETE RESTRICT
+      // reference to that exact identity. This Supabase instance is ephemeral
+      // and is destroyed by the workflow after the proof completes.
     } catch (error) {
       cleanupFailure = error instanceof Error ? error.message : String(error);
     }
