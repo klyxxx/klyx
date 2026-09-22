@@ -59,42 +59,7 @@ describe("KLYX orchestrator settlement terminal contract", () => {
       "v_settlement.state <> 'released'"
     );
     expect(authorityMigration).toContain(
-      "coalesce(v_settlement.stripe_transfer_id, '') !~ '^tr_[A-Za-z0-9_]+
-    expect(migration).toContain(
-      "revoke all on function public.klyx_complete_settlement_workflow"
-    );
-    expect(migration).toContain("from public, anon, authenticated");
-    expect(migration).toContain(
-      "grant execute on function public.klyx_complete_settlement_workflow"
-    );
-    expect(migration).toContain("to service_role");
-  });
-
-  it("exposes completion only through the server repository boundary", () => {
-    expect(repository).toContain(
-      "export async function completeSettlementWorkflow"
-    );
-    expect(repository).toContain(
-      'params.workflow.mode !== "earn"'
-    );
-    expect(repository).toContain(
-      'params.workflow.currentStep !== "settlement"'
-    );
-    expect(repository).toContain(
-      "bookingId: string"
-    );
-    expect(repository).toContain(
-      "booking_id: params.bookingId"
-    );
-    expect(repository).toContain(
-      '"klyx_complete_settlement_workflow"'
-    );
-    expect(repository).toContain(
-      'actorType: "server" | "system" | "operator"'
-    );
-  });
-});
-"
+      "coalesce(v_settlement.stripe_transfer_id, '') !~ '^tr_[A-Za-z0-9_]+$'"
     );
     expect(authorityMigration).toContain(
       "'settlement_authority', 'booking_settlements'"
@@ -121,6 +86,10 @@ describe("KLYX orchestrator settlement terminal contract", () => {
     );
     expect(repository).toContain(
       'params.workflow.currentStep !== "settlement"'
+    );
+    expect(repository).toContain("bookingId: string");
+    expect(repository).toContain(
+      "booking_id: params.bookingId"
     );
     expect(repository).toContain(
       '"klyx_complete_settlement_workflow"'
