@@ -14,6 +14,7 @@ const ACTIVE_PROFILE_COOKIE = "klyx_active_profile";
 const PAYMENT_MODE = "platform_held";
 const PROOF_DIR = "stripe-network-proof";
 const PROVIDER_FIXTURE_HANDOFF = `${PROOF_DIR}/platform-held-provider-fixture.json`;
+const MISSION19_EARN_HANDOFF = `${PROOF_DIR}/mission19-earn-handoff.json`;
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -540,6 +541,10 @@ async function runRefundBeforeReleaseScenario({
   provider,
 }) {
   const booking = await latestAcceptedUnpaidBooking(admin, client.id, provider.id);
+  assert(
+    booking.id === earnHandoff.bookingId,
+    "Platform-held release proof did not select the Mission 19 earn booking."
+  );
   await createHeldCheckout({ appOrigin, accessToken, clientId: client.id, bookingId: booking.id });
 
   const pendingSettlement = await loadSettlement(admin, booking.id);
@@ -705,14 +710,138 @@ async function runRefundBeforeReleaseScenario({
   };
 }
 
-function createSecondLifecycleBooking() {
-  const child = spawnSync(process.execPath, ["scripts/golden-path-client-lifecycle.mjs"], {
-    stdio: "inherit",
-    env: process.env,
-  });
-  if (child.status !== 0) {
-    throw new Error(`Second golden-path lifecycle booking failed with exit code ${child.status}.`);
+function createMission19EarnLifecycleBooking() {
+  try {
+    fs.rmSync(MISSION19_EARN_HANDOFF, { force: true });
+  } catch {
+    // The handoff is ephemeral; absence before creation is expected.
   }
+
+  const child = spawnSync(
+    process.execPath,
+    ["scripts/mission19-earn-market-lifecycle.mjs"],
+    {
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        KLYX_MISSION19_EARN_HANDOFF_PATH: MISSION19_EARN_HANDOFF,
+      },
+    }
+  );
+
+  if (child.status !== 0) {
+    throw new Error(
+      `Mission 19 earn market lifecycle failed with exit code ${child.status}.`
+    );
+  }
+
+  if (!fs.existsSync(MISSION19_EARN_HANDOFF)) {
+    throw new Error("Mission 19 earn market handoff is missing.");
+  }
+
+  const handoff = JSON.parse(
+    fs.readFileSync(MISSION19_EARN_HANDOFF, "utf8")
+  );
+
+  assert(handoff?.mission19Earn === true, "Mission 19 earn handoff marker is invalid.");
+  assert(typeof handoff?.workflowId === "string", "Mission 19 earn workflow id is missing.");
+  assert(typeof handoff?.bookingId === "string", "Mission 19 earn booking id is missing.");
+  assert(handoff?.workflowStep === "mission", "Mission 19 earn workflow did not stop at mission.");
+
+  return handoff;
+}
+
+async function advanceMission19EarnToSettlement(admin, handoff, bookingId) {
+  assert(
+    handoff.bookingId === bookingId,
+    "Mission 19 earn handoff booking does not match settlement booking."
+  );
+
+  const { data: workflow, error: workflowError } = await admin
+    .from("klyx_workflows")
+    .select("id, account_id, profile_id, mode, current_step, status, version")
+    .eq("id", handoff.workflowId)
+    .single();
+
+  if (workflowError) throw new Error(workflowError.message);
+
+  assert(
+    workflow.mode === "earn" &&
+      workflow.current_step === "mission" &&
+      workflow.status === "active",
+    "Mission 19 earn workflow is not ready to enter settlement."
+  );
+  assert(
+    workflow.profile_id === handoff.providerProfileId,
+    "Mission 19 earn workflow provider mismatch."
+  );
+
+  const { data, error } = await admin.rpc("klyx_transition_workflow", {
+    p_workflow_id: workflow.id,
+    p_account_id: workflow.account_id,
+    p_expected_version: workflow.version,
+    p_to_step: "settlement",
+    p_event_type: "earn_mission_completed",
+    p_actor_type: "server",
+    p_payload: {
+      booking_id: bookingId,
+      market_request_id: handoff.marketRequestId,
+      offer_id: handoff.offerId,
+      quote_id: handoff.quoteId,
+    },
+  });
+
+  if (error) throw new Error(error.message);
+  const row = (data ?? [])[0];
+  assert(
+    row?.current_step === "settlement" && row?.status === "active",
+    "Mission 19 earn workflow did not enter settlement."
+  );
+
+  return row;
+}
+
+async function completeMission19EarnFromReleasedSettlement(
+  admin,
+  handoff,
+  bookingId
+) {
+  const { data: workflow, error: workflowError } = await admin
+    .from("klyx_workflows")
+    .select("id, account_id, mode, current_step, status, version")
+    .eq("id", handoff.workflowId)
+    .single();
+
+  if (workflowError) throw new Error(workflowError.message);
+
+  assert(
+    workflow.mode === "earn" &&
+      workflow.current_step === "settlement" &&
+      workflow.status === "active",
+    "Mission 19 earn workflow is not waiting on settlement."
+  );
+
+  const { data, error } = await admin.rpc("klyx_complete_settlement_workflow", {
+    p_workflow_id: workflow.id,
+    p_account_id: workflow.account_id,
+    p_expected_version: workflow.version,
+    p_event_type: "earn_settlement_released",
+    p_actor_type: "server",
+    p_payload: {
+      booking_id: bookingId,
+      stripe_network_proof: true,
+    },
+  });
+
+  if (error) throw new Error(error.message);
+  const row = (data ?? [])[0];
+
+  assert(
+    row?.current_step === "settlement" && row?.status === "completed",
+    "Mission 19 earn workflow did not become terminal after released settlement."
+  );
+
+  return row;
 }
 
 async function markBookingCompletedForSettlement(admin, bookingId) {
@@ -940,9 +1069,9 @@ async function runReleaseRetryReversalScenario({
   provider,
   accountId,
 }) {
-  createSecondLifecycleBooking();
+  const earnHandoff = createMission19EarnLifecycleBooking();
 
-  // golden-path-client-lifecycle signs out globally. Because this proof reuses
+  // The child lifecycle signs out globally. Because this proof reuses
   // the same ephemeral TEST user in a child process, that sign-out revokes the
   // parent session too. Re-authenticate explicitly before the second Checkout
   // instead of relying on a token whose session has been invalidated.
@@ -950,7 +1079,7 @@ async function runReleaseRetryReversalScenario({
     await userClient.auth.signInWithPassword({ email, password });
   if (reauthError || !reauthData.session?.access_token) {
     throw new Error(
-      "Unable to re-authenticate platform-held proof after second lifecycle."
+      "Unable to re-authenticate platform-held proof after Mission 19 earn lifecycle."
     );
   }
   accessToken = reauthData.session.access_token;
@@ -984,6 +1113,7 @@ async function runReleaseRetryReversalScenario({
     chargeId: charge.id,
   });
   await markBookingCompletedForSettlement(admin, booking.id);
+  await advanceMission19EarnToSettlement(admin, earnHandoff, booking.id);
   await insertSettlementRiskAllow(admin, accountId, booking.id);
   await insertEconomicSettlementAllow({
     admin,
@@ -1101,6 +1231,12 @@ async function runReleaseRetryReversalScenario({
   assert(released.state === "released", `Settlement did not finalize released: ${released.state}.`);
   assert(released.stripe_transfer_id === acceptedTransfer.id, "DB released Transfer id mismatch.");
   assert(released.release_attempt_number === 2, "DB release attempt number mismatch after retry.");
+
+  const earnWorkflow = await completeMission19EarnFromReleasedSettlement(
+    admin,
+    earnHandoff,
+    booking.id
+  );
 
   const { data: prepareData, error: prepareError } = await admin.rpc(
     "klyx_prepare_booking_settlement_refund",
@@ -1249,6 +1385,9 @@ async function runReleaseRetryReversalScenario({
     transferCountAfterRetry: transferMatchesAfterRetry.length,
     reversalCountAfterRetry: matchingReversals.length,
     settlementState: terminalSettlement.state,
+    mission19EarnWorkflowId: earnWorkflow.workflow_id,
+    mission19EarnWorkflowStatus: earnWorkflow.status,
+    mission19EarnLifecycleCertified: true,
   };
 }
 
