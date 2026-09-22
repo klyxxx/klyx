@@ -797,6 +797,37 @@ async function advanceMission19EarnToSettlement(admin, handoff, bookingId) {
   return row;
 }
 
+async function assertMission19EarnCompletionBlockedBeforeRelease(
+  admin,
+  handoff,
+  bookingId
+) {
+  const { data: workflow, error: workflowError } = await admin
+    .from("klyx_workflows")
+    .select("id, account_id, mode, current_step, status, version")
+    .eq("id", handoff.workflowId)
+    .single();
+
+  if (workflowError) throw new Error(workflowError.message);
+
+  const { error } = await admin.rpc("klyx_complete_settlement_workflow", {
+    p_workflow_id: workflow.id,
+    p_account_id: workflow.account_id,
+    p_expected_version: workflow.version,
+    p_event_type: "earn_settlement_premature_completion_probe",
+    p_actor_type: "server",
+    p_payload: {
+      booking_id: bookingId,
+      stripe_network_proof: true,
+    },
+  });
+
+  assert(
+    error?.message?.includes("KLYX_WORKFLOW_SETTLEMENT_PROOF_REQUIRED"),
+    `Earn workflow completion was not fail-closed before release: ${error?.message ?? "no error"}.`
+  );
+}
+
 async function completeMission19EarnFromReleasedSettlement(
   admin,
   handoff,
@@ -1114,6 +1145,11 @@ async function runReleaseRetryReversalScenario({
   });
   await markBookingCompletedForSettlement(admin, booking.id);
   await advanceMission19EarnToSettlement(admin, earnHandoff, booking.id);
+  await assertMission19EarnCompletionBlockedBeforeRelease(
+    admin,
+    earnHandoff,
+    booking.id
+  );
   await insertSettlementRiskAllow(admin, accountId, booking.id);
   await insertEconomicSettlementAllow({
     admin,
@@ -1499,6 +1535,9 @@ async function main() {
             noDoubleTransfer: true,
             idempotentReversal: true,
             dbStripeCoherentAfterRetry: true,
+            mission19EarnMarketLifecycle: true,
+            earnCompletionBlockedBeforeRelease: true,
+            earnCompletionAfterReleasedSettlement: true,
           },
           connectedAccountCreatedForProof: createdConnectedAccount,
           verifiedAt: new Date().toISOString(),
@@ -1521,6 +1560,7 @@ async function main() {
         noDoubleTransfer: true,
         reversalIdempotent: true,
         dbStripeCoherent: true,
+        mission19EarnLifecycleCertified: true,
         liveForbidden: true,
         groupSplitForbidden: true,
         bankPayoutRequired: false,
