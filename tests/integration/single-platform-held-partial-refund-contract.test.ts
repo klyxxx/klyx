@@ -136,18 +136,25 @@ describe("single Platform-Held partial refund contract", () => {
     expect(route).toContain("requesterAccount: account");
   });
 
-  it("validates frozen Stripe Charge and released Transfer before side effects", () => {
+  it("validates frozen Stripe Charge and released Transfer before creating the immutable refund plan", () => {
+    const mutation = server.indexOf(
+      "export async function refundSinglePlatformHeldBooking"
+    );
     const chargeTruth = server.indexOf(
-      "await verifyFrozenStripeCharge({"
+      "await verifyFrozenStripeCharge({",
+      mutation
     );
     const transferTruth = server.indexOf(
-      "await verifyReleasedTransfer({"
+      "await verifyReleasedTransfer({",
+      chargeTruth
     );
     const plan = server.indexOf(
-      '"klyx_create_platform_held_booking_refund_plan"'
+      '"klyx_create_platform_held_booking_refund_plan"',
+      transferTruth
     );
 
-    expect(chargeTruth).toBeGreaterThan(-1);
+    expect(mutation).toBeGreaterThan(-1);
+    expect(chargeTruth).toBeGreaterThan(mutation);
     expect(transferTruth).toBeGreaterThan(chargeTruth);
     expect(plan).toBeGreaterThan(transferTruth);
 
