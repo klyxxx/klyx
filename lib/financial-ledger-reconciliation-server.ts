@@ -64,6 +64,11 @@ type SettlementRow = {
   gross_amount_cents: number;
   platform_fee_cents: number;
   provider_amount_cents: number;
+  refunded_amount_cents: number;
+  refunded_platform_fee_cents: number;
+  refunded_provider_amount_cents: number;
+  released_provider_amount_cents: number;
+  reversed_provider_amount_cents: number;
   stripe_checkout_session_id: string | null;
   stripe_payment_intent_id: string | null;
   stripe_charge_id: string | null;
@@ -186,6 +191,20 @@ function uniqueText(values: Array<string | null | undefined>): string[] {
   );
 }
 
+function cumulativeFeeRefund(input: {
+  gross: number;
+  fee: number;
+  refunded: number;
+}): number {
+  if (input.gross <= 0 || input.refunded <= 0) return 0;
+
+  const gross = BigInt(input.gross);
+  const fee = BigInt(input.fee);
+  const refunded = BigInt(input.refunded);
+
+  return Number((fee * refunded + gross / BigInt(2)) / gross);
+}
+
 function sumAmounts(rows: LedgerRow[]): number {
   return rows.reduce(
     (sum, row) => sum + Math.max(Number(row.amount_minor), 0),
@@ -265,7 +284,7 @@ async function loadLocalTruth(bookingId: string): Promise<{
     supabaseAdmin
       .from("booking_settlements")
       .select(
-        "booking_id, stripe_account_id, currency, gross_amount_cents, platform_fee_cents, provider_amount_cents, stripe_checkout_session_id, stripe_payment_intent_id, stripe_charge_id, stripe_transfer_id, stripe_transfer_reversal_id, state"
+        "booking_id, stripe_account_id, currency, gross_amount_cents, platform_fee_cents, provider_amount_cents, refunded_amount_cents, refunded_platform_fee_cents, refunded_provider_amount_cents, released_provider_amount_cents, reversed_provider_amount_cents, stripe_checkout_session_id, stripe_payment_intent_id, stripe_charge_id, stripe_transfer_id, stripe_transfer_reversal_id, state"
       )
       .eq("booking_id", bookingId)
       .maybeSingle(),
@@ -685,6 +704,65 @@ function compareLocalTruth(input: {
       },
     });
 
+    const expectedRefundedFee = cumulativeFeeRefund({
+      gross,
+      fee,
+      refunded,
+    });
+    const expectedRefundedProvider =
+      refunded - expectedRefundedFee;
+    const reversalLedgerAmount = sumAmounts(reversals);
+
+    pushMismatch(divergences, {
+      mismatch:
+        settlement.refunded_amount_cents !== refunded ||
+        settlement.refunded_platform_fee_cents !== expectedRefundedFee ||
+        settlement.refunded_provider_amount_cents !== expectedRefundedProvider,
+      state: "reconciliation",
+      dimension: "settlement",
+      reasonCode: "single_settlement_refund_cumulative_mismatch",
+      expected: {
+        refundedAmountCents: refunded,
+        refundedPlatformFeeCents: expectedRefundedFee,
+        refundedProviderAmountCents: expectedRefundedProvider,
+      },
+      actual: {
+        refundedAmountCents: settlement.refunded_amount_cents,
+        refundedPlatformFeeCents:
+          settlement.refunded_platform_fee_cents,
+        refundedProviderAmountCents:
+          settlement.refunded_provider_amount_cents,
+      },
+    });
+
+    pushMismatch(divergences, {
+      mismatch:
+        settlement.reversed_provider_amount_cents !== reversalLedgerAmount,
+      state: "reconciliation",
+      dimension: "settlement",
+      reasonCode: "single_settlement_reversal_cumulative_mismatch",
+      expected: { reversedProviderAmountCents: reversalLedgerAmount },
+      actual: {
+        reversedProviderAmountCents:
+          settlement.reversed_provider_amount_cents,
+      },
+    });
+
+    pushMismatch(divergences, {
+      mismatch:
+        settlement.released_provider_amount_cents > 0 &&
+        !settlement.stripe_transfer_id,
+      state: "human_review",
+      dimension: "settlement",
+      reasonCode: "single_settlement_released_amount_without_transfer",
+      expected: {
+        releasedProviderAmountCents:
+          settlement.released_provider_amount_cents,
+        transferIdRequired: true,
+      },
+      actual: { stripeTransferId: settlement.stripe_transfer_id },
+    });
+
     if (settlement.stripe_transfer_id) {
       const matchingTransfer = transfers.find(
         (row) => row.stripe_transfer_id === settlement.stripe_transfer_id
@@ -738,14 +816,28 @@ function compareLocalTruth(input: {
     pushMismatch(divergences, {
       mismatch:
         settlement.state === "refunded" &&
-        Boolean(settlement.stripe_transfer_id) &&
-        !settlement.stripe_transfer_reversal_id,
+        settlement.refunded_amount_cents !== settlement.gross_amount_cents,
       dimension: "settlement",
-      reasonCode: "refunded_settlement_without_reversal_truth",
-      expected: { reversalRequired: true },
+      reasonCode: "refunded_settlement_without_full_refund_truth",
+      expected: { refundedAmountCents: settlement.gross_amount_cents },
+      actual: { refundedAmountCents: settlement.refunded_amount_cents },
+    });
+
+    pushMismatch(divergences, {
+      mismatch:
+        settlement.state === "refunded" &&
+        Boolean(settlement.stripe_transfer_id) &&
+        settlement.reversed_provider_amount_cents <
+          settlement.released_provider_amount_cents,
+      dimension: "settlement",
+      reasonCode: "refunded_settlement_without_full_reversal_truth",
+      expected: {
+        reversedProviderAmountCents:
+          settlement.released_provider_amount_cents,
+      },
       actual: {
-        stripeTransferId: settlement.stripe_transfer_id,
-        stripeTransferReversalId: settlement.stripe_transfer_reversal_id,
+        reversedProviderAmountCents:
+          settlement.reversed_provider_amount_cents,
       },
     });
   }
@@ -991,7 +1083,7 @@ async function compareStripeTruth(input: {
 
       const settlementAmount =
         settlement?.stripe_transfer_id === transferId
-          ? settlement.provider_amount_cents
+          ? settlement.released_provider_amount_cents
           : group.member?.stripe_transfer_id === transferId
             ? Number(group.member.released_amount_cents)
             : null;
