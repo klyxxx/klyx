@@ -14,7 +14,9 @@ const single = read("lib/booking-settlement-server.ts");
 const group = read("lib/platform-held-group-settlement-server.ts");
 const stripeTruth = read("lib/stripe-settlement-recipient-truth.ts");
 const documentation = read("docs/economic-settlement-eligibility.md");
-const networkProof = read("scripts/golden-path-platform-held-settlement-network.mjs");
+const networkProof = read(
+  "scripts/golden-path-economic-chain-stripe-blocked.mjs"
+);
 
 describe("Mission 11 economic settlement eligibility contract", () => {
   it("creates one append-only decision ledger without creating parallel activity authorities", () => {
@@ -44,15 +46,56 @@ describe("Mission 11 economic settlement eligibility contract", () => {
     );
   });
 
-  it("never treats Stripe payouts_enabled as sufficient authorization", () => {
-    expect(eligibility).toContain("stripeProjection.payouts_enabled");
+  it("requires a verified primary legal subject and explicit KYC/KYB evidence before settlement", () => {
+    expect(eligibility).toContain('"economic_legal_entities"');
+    expect(eligibility).toContain('"economic_persons"');
+    expect(eligibility).toContain("ECONOMIC_LEGAL_SUBJECT_MISSING");
+    expect(eligibility).toContain("ECONOMIC_LEGAL_SUBJECT_NOT_VERIFIED");
+    expect(eligibility).toContain("ECONOMIC_LEGAL_SUBJECT_EXPIRED");
+    expect(eligibility).toContain("ECONOMIC_LEGAL_SUBJECT_RESTRICTED");
+    expect(eligibility).toContain("ECONOMIC_VERIFICATION_MISSING");
+  });
+
+  it("blocks a required missing qualification and jurisdiction restriction before settlement", () => {
+    expect(eligibility).toContain("ACCOUNT_QUALIFICATION_MISSING");
+    expect(eligibility).toContain("trustDecisionRequiresQualification");
+    expect(eligibility).toContain("ECONOMIC_COUNTRY_RESTRICTED");
+  });
+
+  it("uses Accounts v2 recipient transfer capability instead of legacy payout booleans", () => {
+    expect(eligibility).toContain("payouts_enabled: boolean;");
+    expect(eligibility).not.toContain('blocked.push("STRIPE_PAYOUTS_NOT_ENABLED")');
+    expect(eligibility).not.toContain('blocked.push("STRIPE_DETAILS_NOT_SUBMITTED")');
+    expect(eligibility).toContain("STRIPE_TRANSFER_CAPABILITY_INACTIVE");
+    expect(eligibility).toContain("transferCapabilityActive");
     expect(eligibility).toContain("ACCOUNT_OFFER_SERVICES_CAPABILITY_DENIED");
     expect(eligibility).toContain("TRUST_ACTIVITY_ELIGIBILITY_MISSING");
     expect(eligibility).toContain("ECONOMIC_VERIFICATION_NOT_SATISFIED");
     expect(eligibility).toContain("ECONOMIC_RESTRICTION_ACTIVE");
-    expect(documentation).toContain("payouts_enabled");
-    expect(documentation).toContain("necessary evidence");
-    expect(documentation).toContain("never sufficient");
+    expect(documentation).toContain("legacy compatibility evidence");
+    expect(documentation).toContain("stripe_transfers");
+  });
+
+  it("proves Stripe Recipient green / KLYX blocked without relying on legacy payout flags", () => {
+    expect(networkProof).toContain("v2RecipientTransferReady(v2Account)");
+    expect(networkProof).toContain(
+      'stripeTransferStatus: v2TransferStatus(v2Account)'
+    );
+    expect(networkProof).toContain(
+      'code.startsWith("STRIPE_")'
+    );
+    expect(networkProof).toContain(
+      "STRIPE_OK_KLYX_BLOCKED_PREVENTS_BENEFICIARY_TRANSFER"
+    );
+    expect(networkProof).toContain("insertSettlementRiskAllow");
+    expect(networkProof).toContain('action: "settlement_release"');
+    expect(networkProof).toContain('decision: "allow"');
+    expect(networkProof).not.toContain(
+      'stripeAccount.payouts_enabled === true'
+    );
+    expect(networkProof).not.toContain(
+      'stripeAccount.details_submitted === true'
+    );
   });
 
   it("requires a fresh economic allow before the independent risk allow in both SQL claims", () => {
@@ -141,34 +184,6 @@ describe("Mission 11 economic settlement eligibility contract", () => {
     expect(groupRevalidation).toBeGreaterThan(groupClaim);
     expect(groupStripeTruth).toBeGreaterThan(groupRevalidation);
     expect(groupTransfer).toBeGreaterThan(groupStripeTruth);
-  });
-
-  it("keeps the Stripe network proof aligned with economic authority before atomic claim", () => {
-    const trustIndex = networkProof.indexOf(
-      '.from("trust_eligibility_decisions")'
-    );
-    const economicIndex = networkProof.indexOf(
-      '.from("economic_settlement_eligibility_decisions")'
-    );
-    const riskIndex = networkProof.indexOf(
-      "await insertSettlementRiskAllow(admin, accountId, booking.id)"
-    );
-    const fixtureIndex = networkProof.indexOf(
-      "await insertEconomicSettlementAllow({"
-    );
-    const claimIndex = networkProof.indexOf(
-      "const firstToken = randomUUID()"
-    );
-
-    expect(trustIndex).toBeGreaterThan(-1);
-    expect(economicIndex).toBeGreaterThan(trustIndex);
-    expect(riskIndex).toBeGreaterThan(-1);
-    expect(fixtureIndex).toBeGreaterThan(riskIndex);
-    expect(claimIndex).toBeGreaterThan(fixtureIndex);
-    expect(networkProof).toContain('decision: "eligible"');
-    expect(networkProof).toContain('decision: "allowed"');
-    expect(networkProof).toContain("source_trust_decision_id: trustDecision.id");
-    expect(networkProof).toContain("stripe_account_id: stripeAccountId");
   });
 
   it("keeps economic eligibility independent from the controlled LIVE runtime", () => {

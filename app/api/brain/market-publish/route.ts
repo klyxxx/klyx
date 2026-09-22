@@ -7,6 +7,7 @@ import {
   requireAccountType,
 } from "@/lib/api-auth";
 import { requireBrainMarketConfirmation } from "@/lib/brain-market-confirmation";
+import { getKlyxMarketLiquidity } from "@/lib/market-liquidity-server";
 
 // KLYX_BRAIN_PUBLISH_CONFIRMATION_IDEMPOTENCY_16_20
 // KLYX_BRAIN_PROVIDER_NOTIFICATION_RECOVERY_16_21
@@ -167,6 +168,24 @@ export async function POST(request: Request) {
             "Le métier compris par KLYX n’existe pas dans le catalogue actif.",
         },
         { status: 404 }
+      );
+    }
+
+    const marketLiquidity = await getKlyxMarketLiquidity({
+      serviceSlug: service.slug,
+      countryCode: profile.countryCode,
+      currencyCode: profile.currencyCode,
+      windowDays: 30,
+    });
+
+    if (marketLiquidity.technicalSupport.status === "unsupported") {
+      return NextResponse.json(
+        {
+          error:
+            "Ce service n’est pas techniquement activé dans ce marché KLYX.",
+          code: "KLYX_MARKET_SERVICE_TECHNICALLY_UNSUPPORTED",
+        },
+        { status: 409 }
       );
     }
 

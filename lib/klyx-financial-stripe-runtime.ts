@@ -58,6 +58,40 @@ function requireExactLiveShaBoundary(): {
   return { deployedSha, drCertifiedSha };
 }
 
+async function requireFinancialRuntimeSchedulerEnabled(): Promise<void> {
+  const { data, error } = await supabaseAdmin
+    .from("ops_financial_runtime_scheduler")
+    .select("enabled, token_sha256, alert_email")
+    .eq("scheduler_key", "financial_runtime_tick")
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      "KLYX_FINANCIAL_RUNTIME_SCHEDULER_READ_FAILED",
+      { cause: error }
+    );
+  }
+
+  const tokenHash =
+    typeof data?.token_sha256 === "string"
+      ? data.token_sha256.trim()
+      : "";
+  const alertEmail =
+    typeof data?.alert_email === "string"
+      ? data.alert_email.trim()
+      : "";
+
+  if (
+    data?.enabled !== true ||
+    !/^[0-9a-f]{64}$/i.test(tokenHash) ||
+    !alertEmail
+  ) {
+    throw new Error(
+      "KLYX_FINANCIAL_RUNTIME_SCHEDULER_NOT_READY"
+    );
+  }
+}
+
 async function requireLiveRuntimeHeartbeats(
   deployedSha: string
 ): Promise<void> {
@@ -154,6 +188,35 @@ async function requireFinancialDlqEmpty(): Promise<void> {
   }
 }
 
+async function requireRecentCriticalAlertSentinel(): Promise<void> {
+  const threshold = new Date(
+    Date.now() - 36 * 60 * 60 * 1000
+  ).toISOString();
+
+  const { data, error } = await supabaseAdmin
+    .from("transactional_email_deliveries")
+    .select("id, sent_at")
+    .eq("template_key", "critical_operational_alert_sentinel")
+    .eq("status", "sent")
+    .gte("sent_at", threshold)
+    .order("sent_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(
+      "KLYX_FINANCIAL_RUNTIME_ALERT_SENTINEL_READ_FAILED",
+      { cause: error }
+    );
+  }
+
+  if (!data?.id || !data.sent_at) {
+    throw new Error(
+      "KLYX_FINANCIAL_RUNTIME_ALERT_SENTINEL_NOT_READY"
+    );
+  }
+}
+
 async function requireNoCriticalFinancialSignal(): Promise<void> {
   const monitoring =
     await getKlyxObservabilityFinancialMonitoringSnapshot({
@@ -176,11 +239,13 @@ async function requireLiveOperationalReadiness(input: {
   }
 
   await Promise.all([
+    requireFinancialRuntimeSchedulerEnabled(),
     requireLiveRuntimeHeartbeats(input.deployedSha),
     requireCanonicalLedgerHealthy(),
     requireNoOpenFinancialReconciliation(),
     requireFinancialDlqEmpty(),
     requireNoCriticalFinancialSignal(),
+    requireRecentCriticalAlertSentinel(),
   ]);
 }
 

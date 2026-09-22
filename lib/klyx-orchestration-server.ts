@@ -9,7 +9,7 @@ import {
   type KlyxIncomeMissionCandidate,
 } from "@/lib/klyx-orchestration";
 import {
-  providerZonesCoverBelgianLocality,
+  providerZonesCoverLocation,
   type ProviderSearchZoneCoverageInput,
 } from "@/lib/provider-search-zone-coverage";
 import { distanceBetweenLocalitiesKm } from "@/lib/service-zone-distance";
@@ -345,6 +345,8 @@ export async function buildProviderIncomeOrchestration(
     const id = asText(job.id) || asText(job.requestId) || asText(job.request_id);
     const title = asText(job.title);
     const city = asText(job.city);
+    const countryCode =
+      (asText(job.country_code) || asText(job.countryCode)).toUpperCase();
     const currency = asText(job.currency).toUpperCase();
     if (!id || !title || !city || currency !== expectedCurrency) continue;
 
@@ -358,7 +360,10 @@ export async function buildProviderIncomeOrchestration(
     }
 
     const zonesForService = zonesByUserService.get(userServiceId) ?? [];
-    const zoneMatch = providerZonesCoverBelgianLocality(zonesForService, city);
+    const zoneMatch = providerZonesCoverLocation(zonesForService, {
+      locality: city,
+      countryCode: /^[A-Z]{2}$/.test(countryCode) ? countryCode : null,
+    });
     const slots = availabilityByUserService.get(userServiceId) ?? [];
     const availabilityMatch = schedule.intervals.every((interval) =>
       availabilityContains(slots, interval.date, interval.startTime, interval.endTime)
