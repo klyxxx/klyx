@@ -98,8 +98,8 @@ export async function POST(request: Request, context: RouteContext) {
    * token below is verified against that file by the route/core bridge test.
    * The order mirrors the core so legacy ordering contracts remain meaningful.
    *
-   * try { assertStripeRuntimeReady()
-   * @core:assertStripeRuntimeReady()
+   * try { requireKlyxFinancialStripeRuntime
+   * @core:requireKlyxFinancialStripeRuntime
    * @core:checkoutPreparationConfirmed
    * @core:automaticPayment
    * @core:moneyMovedAutomatically
