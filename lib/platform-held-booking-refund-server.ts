@@ -38,11 +38,6 @@ type SettlementRow = {
   stripe_transfer_id: string | null;
   transfer_group: string;
   state: string;
-  released_amount_cents: number;
-  refunded_gross_amount_cents: number;
-  refunded_platform_fee_cents: number;
-  refunded_provider_amount_cents: number;
-  reversed_amount_cents: number;
 };
 
 type RefundRow = {
@@ -125,7 +120,7 @@ async function loadSettlement(bookingId: string): Promise<SettlementRow> {
   const { data, error } = await supabaseAdmin
     .from("booking_settlements")
     .select(
-      "booking_id, provider_profile_id, stripe_account_id, payment_mode, currency, gross_amount_cents, platform_fee_cents, provider_amount_cents, stripe_checkout_session_id, stripe_payment_intent_id, stripe_charge_id, stripe_transfer_id, transfer_group, state, released_amount_cents, refunded_gross_amount_cents, refunded_platform_fee_cents, refunded_provider_amount_cents, reversed_amount_cents"
+      "booking_id, provider_profile_id, stripe_account_id, payment_mode, currency, gross_amount_cents, platform_fee_cents, provider_amount_cents, stripe_checkout_session_id, stripe_payment_intent_id, stripe_charge_id, stripe_transfer_id, transfer_group, state"
     )
     .eq("booking_id", bookingId)
     .maybeSingle();
@@ -179,19 +174,18 @@ async function remainingRefundAmount(
       "ready",
       "reversal_required",
       "refunding",
+      "succeeded",
       "review_required",
     ]);
 
   if (error) throw new Error(error.message);
 
-  const reserved = (data ?? []).reduce(
+  const reservedOrSucceeded = (data ?? []).reduce(
     (sum, row) => sum + Math.max(Number(row.gross_refund_cents ?? 0), 0),
     0
   );
   const remaining =
-    Number(settlement.gross_amount_cents) -
-    Number(settlement.refunded_gross_amount_cents) -
-    reserved;
+    Number(settlement.gross_amount_cents) - reservedOrSucceeded;
 
   if (!Number.isSafeInteger(remaining) || remaining <= 0) {
     throw new Error("KLYX_SINGLE_REFUND_NOTHING_LEFT");
@@ -228,10 +222,7 @@ function verifyTransferTruth(input: {
   const { transfer, settlement, expectedLive } = input;
   const destination = stripeObjectId(transfer.destination);
   const sourceTransaction = stripeObjectId(transfer.source_transaction);
-  const expectedAmount =
-    Number(settlement.released_amount_cents) > 0
-      ? Number(settlement.released_amount_cents)
-      : Number(settlement.provider_amount_cents);
+  const expectedAmount = Number(settlement.provider_amount_cents);
 
   if (transfer.livemode !== expectedLive) {
     throw new Error("KLYX_SINGLE_REFUND_TRANSFER_LIVEMODE_MISMATCH");
@@ -536,9 +527,8 @@ export async function refundPlatformHeldBooking(input: {
   if (
     booking.payment_status !== "paid" ||
     !settlement.stripe_charge_id ||
-    ["review_required", "human_review", "refund_pending", "refunded"].includes(
-      settlement.state
-    )
+    !settlement.stripe_transfer_id ||
+    settlement.state !== "released"
   ) {
     throw new Error("KLYX_SINGLE_REFUND_NOT_READY");
   }
