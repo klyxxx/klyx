@@ -202,15 +202,19 @@ jobs:
           # This is a one-time, production-audited reconciliation allowlist.
           # Any historical file outside this exact set keeps the deployment
           # fail-closed instead of broadening --include-all implicitly.
-          # 2026-09-20 audit: production already contains later 09:15+ migrations;
-          # Mission 12 at 09:10 is therefore the sole historical insertion gap.
+          # 2026-09-22 audit: production already contains later 18:30, 19:00
+          # and 19:30 migrations. Mission 19 introduced exactly these three
+          # historical insertion gaps and no other local migration is missing.
           approved_historical_migrations=(
-            "20260920091000_klyx_orchestrator_foundation.sql"
+            "20260921173000_klyx_end_to_end_autonomous_continuity.sql"
+            "20260921174500_klyx_durable_job_claim_ambiguity_fix.sql"
+            "20260921180500_klyx_settlement_latest_eligibility_gate.sql"
           )
 
           approved_reconciliation_batch=(
-            "20260920091000_klyx_orchestrator_foundation.sql"
-            "20260920174500_klyx_operations_failure_domains.sql"
+            "20260921173000_klyx_end_to_end_autonomous_continuity.sql"
+            "20260921174500_klyx_durable_job_claim_ambiguity_fix.sql"
+            "20260921180500_klyx_settlement_latest_eligibility_gate.sql"
           )
 
           historical_gap_message="Found local migration files to be inserted before the last migration on remote database."
