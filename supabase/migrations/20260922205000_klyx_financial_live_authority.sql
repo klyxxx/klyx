@@ -266,6 +266,19 @@ begin
     raise exception 'KLYX_FINANCIAL_LIVE_DISABLE_BEFORE_CONTROLLED';
   end if;
 
+  if v_current.state <> 'DISABLED'
+     and v_state <> 'DISABLED'
+     and v_current.authorized_sha is distinct from nullif(v_sha, '') then
+    raise exception 'KLYX_FINANCIAL_LIVE_DISABLE_BEFORE_SHA_CHANGE';
+  end if;
+
+  if v_current.state = 'CONTROLLED'
+     and v_state = 'CONTROLLED'
+     and v_current.certification_profile_id
+       is distinct from p_certification_profile_id then
+    raise exception 'KLYX_FINANCIAL_LIVE_DISABLE_BEFORE_PROFILE_CHANGE';
+  end if;
+
   v_next_version := v_current.version + 1;
 
   perform set_config(
