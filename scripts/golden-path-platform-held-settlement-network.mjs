@@ -1399,30 +1399,12 @@ async function main() {
         }
       }
 
-      const { error: identityResetError } = await admin
-        .from("account_stripe_connect_identities")
-        .delete()
-        .eq("account_id", accountId);
-      if (identityResetError) {
-        throw new Error(
-          `Unable to reset local canonical Stripe identity: ${identityResetError.message}`
-        );
-      }
-
-      const { error: profileResetError } = await admin
-        .from("profiles")
-        .update({
-          stripe_account_id: null,
-          stripe_onboarding_complete: false,
-          stripe_charges_enabled: false,
-          stripe_payouts_enabled: false,
-        })
-        .eq("account_id", accountId);
-      if (profileResetError) {
-        throw new Error(
-          `Unable to reset local Stripe compatibility profile state: ${profileResetError.message}`
-        );
-      }
+      // Do not delete local canonical Stripe identity or compatibility
+      // projection here. This proof creates immutable economic eligibility
+      // decisions that intentionally reference the canonical Stripe identity.
+      // The entire Supabase instance is ephemeral and is destroyed by the
+      // workflow after this script exits, so deleting that referenced identity
+      // would violate audit integrity for no cleanup benefit.
     } catch (error) {
       cleanupFailure = error instanceof Error ? error.message : String(error);
     }
