@@ -39,6 +39,7 @@ on:
       - "tests/supabase-production-migration-workflow.test.ts"
       - "scripts/golden-path-*.mjs"
       - "scripts/mission19-autonomous-continuity.mjs"
+      - "scripts/mission19-earn-market-lifecycle.mjs"
       - "scripts/mission19-settlement-eligibility-chaos.mjs"
       - "docs/KLYX_END_TO_END_AUTONOMOUS_CERTIFICATION.md"
       - "tests/integration/end-to-end-autonomous-*.test.ts"
@@ -345,6 +346,9 @@ jobs:
       - name: Verify provider onboarding service, pricing and zone
         run: node scripts/golden-path-provider-onboarding.mjs
 
+      - name: Verify Mission 19 earn market lifecycle to mission
+        run: node scripts/mission19-earn-market-lifecycle.mjs
+
       - name: Verify agent search, exact choice and confirmation boundary
         run: node scripts/golden-path-agent-orchestration.mjs
 
@@ -377,7 +381,7 @@ jobs:
 
       - name: Golden path local lifecycle ready
         run: >-
-          echo "Private photo upload/analysis/deletion, provider studio/zone onboarding, agent search/choice orchestration with booking confirmation boundary, intent analysis, exact provider search, quote, booking, direct-message DB abuse guard, signed delayed Stripe webhook, idempotency, payment ledger, mission completion, review, provider finance reconciliation, refunded terminal state, split payment/refund reconciliation and Mission 19 settlement ineligibility gate verified on ephemeral Supabase."
+          echo "Private photo upload/analysis/deletion, provider studio/zone onboarding, agent search/choice orchestration with booking confirmation boundary, intent analysis, exact provider search, quote, booking, direct-message DB abuse guard, signed delayed Stripe webhook, idempotency, payment ledger, mission completion, review, provider finance reconciliation, refunded terminal state, split payment/refund reconciliation and Mission 19 DEMANDER survivability, GAGNER market-to-mission lifecycle and settlement ineligibility gate verified on ephemeral Supabase."
 
       - name: Stop golden path production server
         if: always()
