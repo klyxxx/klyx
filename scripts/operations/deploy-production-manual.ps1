@@ -88,7 +88,7 @@ function Assert-GreenMainPushChecks([string]$Sha) {
     $payload = Invoke-RestMethod -Method Get -Uri $uri -Headers $headers
   }
   catch {
-    Fail "Unable to read GitHub Actions runs for exact main SHA $Sha: $($_.Exception.Message)"
+    Fail "Unable to read GitHub Actions runs for exact main SHA ${Sha}: $($_.Exception.Message)"
   }
 
   foreach ($workflowName in $RequiredMainPushWorkflows) {
