@@ -4,13 +4,16 @@ import { randomUUID } from "node:crypto";
 import Stripe from "stripe";
 
 import { canReceiveSettlementForBooking } from "@/lib/economic-settlement-eligibility-server";
+import {
+  createEconomicallyAuthorizedBeneficiaryTransfer,
+  isBeneficiaryTransferAuthorizationError,
+} from "@/lib/beneficiary-transfer-gateway";
 import { requireKlyxFinancialStripeRuntimeForBooking } from "@/lib/klyx-financial-stripe-runtime";
 import {
   getProviderStripeDestination,
   getProviderStripeDestinationStrict,
   isStripeConnectIdentityReviewRequired,
 } from "@/lib/stripe-connect-account";
-import { readStripeSettlementRecipientTruth } from "@/lib/stripe-settlement-recipient-truth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   enforceSettlementReleaseTransactionRisk,
@@ -529,74 +532,49 @@ export async function releasePlatformHeldBookingSettlement(
     const reconciled = Boolean(transfer);
 
     if (!transfer) {
-      const revalidatedEligibility = await canReceiveSettlementForBooking({
-        accountId: recipientAccountId,
-        bookingId,
-        expectedProviderProfileId: settlement.provider_profile_id,
-        expectedStripeAccountId: claim.stripe_account_id,
-      });
-
-      if (
-        !revalidatedEligibility ||
-        revalidatedEligibility.decision !== "allowed"
-      ) {
-        await failClaim({
-          bookingId,
-          claimToken,
-          code: "economic_settlement_eligibility_changed",
-          message:
-            "Economic settlement eligibility changed after the atomic claim.",
-        });
-        await markReviewRequired(bookingId, [
-          revalidatedEligibility?.decision ?? "human_review",
-          ...(revalidatedEligibility?.reasonCodes ?? [
-            "economic_settlement_context_missing_after_claim",
-          ]),
-        ]);
-        return { status: "review_required" };
-      }
-
-      const stripeTruth = await readStripeSettlementRecipientTruth(
-        stripe,
-        claim.stripe_account_id
-      );
-
-      if (
-        stripeTruth.stripeAccountId !== claim.stripe_account_id ||
-        stripeTruth.livemode !== expectedLive ||
-        !stripeTruth.transferCapabilityActive
-      ) {
-        await failClaim({
-          bookingId,
-          claimToken,
-          code: "stripe_recipient_not_ready",
-          message:
-            "Remote Stripe recipient truth does not permit the expected Transfer mode.",
-        });
-        await markReviewRequired(bookingId, [
-          "stripe_recipient_not_ready",
-        ]);
-        return { status: "review_required" };
-      }
-
-      transfer = await stripe.transfers.create(
-        {
+      try {
+        transfer = await createEconomicallyAuthorizedBeneficiaryTransfer({
+          stripe,
+          accountId: recipientAccountId,
+          bookingIds: [bookingId],
+          expectedProviderProfileId: settlement.provider_profile_id,
+          expectedStripeAccountId: claim.stripe_account_id,
+          expectedLive,
           amount: claim.provider_amount_cents,
           currency: claim.currency.toLowerCase(),
-          destination: claim.stripe_account_id,
-          source_transaction: claim.stripe_charge_id,
-          transfer_group: claim.transfer_group,
+          sourceTransaction: claim.stripe_charge_id,
+          transferGroup: claim.transfer_group,
           metadata: {
             booking_id: bookingId,
             payment_mode: PAYMENT_MODE,
             settlement_attempt: String(claim.attempt_number),
           },
-        },
-        {
           idempotencyKey: `klyx-booking-settlement-${bookingId}`,
-        }
-      );
-      stripeAcceptedTransfer = true;
+          onStripeWriteAttempt: () => {
+            stripeAcceptedTransfer = true;
+          },
+        });
+      } catch (error) {
+        if (!isBeneficiaryTransferAuthorizationError(error)) throw error;
+
+        const code =
+          error.kind === "economic"
+            ? "economic_settlement_eligibility_changed"
+            : "stripe_recipient_not_ready";
+
+        await failClaim({
+          bookingId,
+          claimToken,
+          code,
+          message: error.message,
+        });
+        await markReviewRequired(bookingId, [
+          error.decision,
+          ...error.reasonCodes,
+        ]);
+        return { status: "review_required" };
+      }
+
       verifyTransferTruth({
         transfer,
         settlement,
