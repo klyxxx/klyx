@@ -196,6 +196,17 @@ describe("KLYX platform-held settlement phase-2 contract", () => {
     expect(core).toContain('.eq("status", "accepted")');
   });
 
+  it("marks the synthetic TEST Checkout Session itself as non-live", () => {
+    const proof = read("scripts/golden-path-platform-held-settlement-network.mjs");
+    const checkoutSessionIndex = proof.indexOf('object: "checkout.session"');
+    const livemodeIndex = proof.indexOf("livemode: false", checkoutSessionIndex);
+    const paymentStatusIndex = proof.indexOf('payment_status: "paid"', checkoutSessionIndex);
+
+    expect(checkoutSessionIndex).toBeGreaterThan(-1);
+    expect(livemodeIndex).toBeGreaterThan(checkoutSessionIndex);
+    expect(paymentStatusIndex).toBeGreaterThan(livemodeIndex);
+  });
+
   it("consumes the exact TEST recipient handoff without v1 list rediscovery", () => {
     const fixture = read("scripts/golden-path-provider-fixture.mjs");
     const proof = read("scripts/golden-path-platform-held-settlement-network.mjs");

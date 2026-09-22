@@ -443,10 +443,15 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     if (claimed && claimAttemptCount !== null) {
+      const internalFailureCode =
+        error instanceof Error && error.message
+          ? `stripe_webhook_processing_failed_${error.message}`
+          : "stripe_webhook_processing_failed";
+
       const failureMarkResult = await markStripeWebhookFailed(
         event.id,
         claimAttemptCount,
-        "stripe_webhook_processing_failed"
+        internalFailureCode
       );
 
       if (failureMarkResult === "superseded") {
