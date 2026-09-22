@@ -56,6 +56,21 @@ describe("KLYX settlement recovery / reconciliation contract", () => {
     expect(recovery).not.toMatch(/openai/i);
   });
 
+  it("network-certifies crash recovery through the real KLYX ops reconciler without a second Transfer", () => {
+    const proof = read("scripts/golden-path-platform-held-settlement-network.mjs");
+    const workflow = read(".github/workflows/klyx-stripe-network-test.yml");
+
+    expect(proof).toContain("Fault injection only: model the exact crash window");
+    expect(proof).toContain("await reconcileSettlementThroughKlyxOps({");
+    expect(proof).toContain('path: "/api/ops/settlement-reconciliation"');
+    expect(proof).toContain("blockEconomicSettlementAfterTransfer");
+    expect(proof).toContain("eligibilityBlockedAfterTransferBeforeRecovery: true");
+    expect(proof).toContain("recoveryUsedKlyxOps: true");
+    expect(proof).toContain("transferMatchesAfterRetry.length === 1");
+    expect(proof).toContain("replayMatches.length === 1");
+    expect(workflow).toContain("KLYX_SETTLEMENT_RECONCILIATION_SECRET");
+  });
+
   it("searches Stripe truth before any recovery-triggered Transfer write", () => {
     const searchIndex = recovery.indexOf(
       'action: "stripe_truth_searched"'
