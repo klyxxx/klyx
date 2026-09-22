@@ -93,18 +93,18 @@ describe("KLYX Mission 1 production financial certification contract", () => {
     );
   });
 
-  it("requires deployed, DR and controlled-certification SHA evidence", () => {
+  it("requires deployed, DR and canonical LIVE authority SHA evidence", () => {
     expect(runtime).toContain("VERCEL_GIT_COMMIT_SHA");
     expect(runtime).toContain("KLYX_DR_CERTIFIED_SHA");
-    expect(runtime).toContain("KLYX_LIVE_CERTIFICATION_SHA");
     expect(runtime).toContain(
       "KLYX_PRODUCTION_FINANCIAL_CERTIFIED_SHA"
     );
+    expect(runtime).toContain("requireKlyxFinancialLiveAuthority");
     expect(runtime).toContain(
       "KLYX_FINANCIAL_RUNTIME_DR_SHA_MISMATCH"
     );
     expect(runtime).toContain(
-      "KLYX_FINANCIAL_RUNTIME_CERTIFICATION_SHA_MISMATCH"
+      "KLYX_FINANCIAL_RUNTIME_CERTIFIED_SHA_MISMATCH"
     );
     expect(stripeRuntime).toContain(
       'key: "financial_certification_sha"'
@@ -120,22 +120,25 @@ describe("KLYX Mission 1 production financial certification contract", () => {
     expect(health).toContain("certificationProfileConfigured");
   });
 
-  it("keeps general LIVE off during certification and restricts canary bookings to one profile", () => {
+  it("uses canonical CONTROLLED state to restrict certification to one profile", () => {
     expect(runtime).toContain(
-      "KLYX_LIVE_CERTIFICATION_ENABLED"
+      "requireKlyxFinancialLiveAuthority"
     );
-    expect(runtime).toContain(
-      "KLYX_LIVE_CERTIFICATION_PROFILE_ID"
+    expect(runtime).not.toContain(
+      'if (!envTrue("KLYX_LIVE_CERTIFICATION_ENABLED"))'
     );
-    expect(runtime).toContain(
-      "KLYX_FINANCIAL_RUNTIME_CERTIFICATION_PROFILE_BLOCKED"
+    expect(runtime).not.toContain(
+      'env("KLYX_LIVE_CERTIFICATION_PROFILE_ID")'
     );
 
     expect(verifier).toContain(
-      "KLYX_CERT_GENERAL_LIVE_MUST_REMAIN_OFF"
+      'liveAuthority?.state === "CONTROLLED"'
     );
     expect(verifier).toContain(
       "KLYX_CERT_CONTROLLED_LIVE_NOT_ENABLED"
+    );
+    expect(verifier).toContain(
+      "KLYX_CERT_LIVE_AUTHORITY_PROFILE_MISMATCH"
     );
     expect(verifier).toContain(
       "KLYX_CERT_PROFILE_BOOKING_MISMATCH"
