@@ -104,8 +104,11 @@ describe("Supabase production migration-history reconciliation contract", () => 
     const approvedHistorical = bashArray("approved_historical_migrations");
 
     expect(approvedHistorical).toEqual([
-      "20260920091000_klyx_orchestrator_foundation.sql",
+      "20260921173000_klyx_end_to_end_autonomous_continuity.sql",
+      "20260921174500_klyx_durable_job_claim_ambiguity_fix.sql",
+      "20260921180500_klyx_settlement_latest_eligibility_gate.sql",
     ]);
+    expect(approvedHistorical).toHaveLength(3);
 
     expect(workflow).toContain(
       "Refusing --include-all: historical migration set differs from the audited production gap."
@@ -117,9 +120,11 @@ describe("Supabase production migration-history reconciliation contract", () => 
     const approvedBatch = bashArray("approved_reconciliation_batch");
 
     expect(approvedBatch).toEqual([
-      "20260920091000_klyx_orchestrator_foundation.sql",
-      "20260920174500_klyx_operations_failure_domains.sql",
+      "20260921173000_klyx_end_to_end_autonomous_continuity.sql",
+      "20260921174500_klyx_durable_job_claim_ambiguity_fix.sql",
+      "20260921180500_klyx_settlement_latest_eligibility_gate.sql",
     ]);
+    expect(approvedBatch).toHaveLength(3);
 
     expect(approvedBatch).not.toContain(
       "20260906140329_klyx_remove_duplicate_profiles_stripe_index.sql"
