@@ -60,7 +60,7 @@ describe("KLYX single-booking Stripe readiness contract", () => {
   });
 
   it("keeps the POST checkout core as the independent final authority", () => {
-    expect(checkoutSource).toContain("assertStripeRuntimeReady()");
+    expect(checkoutSource).toContain("requireKlyxFinancialStripeRuntime");
     expect(checkoutSource).toContain("resolveKlyxMarketPaymentPolicy");
     expect(checkoutSource).toContain("KLYX_GLOBAL_MONEY_SNAPSHOT_REQUIRED");
     expect(checkoutSource).toContain("resolveService(");
