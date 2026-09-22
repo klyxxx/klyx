@@ -29,8 +29,21 @@ function Invoke-Checked {
     [Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments
   )
 
-  & $Command @Arguments
-  if ($LASTEXITCODE -ne 0) {
+  # Windows PowerShell 5.1 can promote ordinary native stderr output into a
+  # NativeCommandError when the script-wide ErrorActionPreference is Stop.
+  # Vercel CLI writes informational/version output to stderr, so native command
+  # success must be decided by the process exit code instead.
+  $previousErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    & $Command @Arguments
+    $exitCode = $LASTEXITCODE
+  }
+  finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+
+  if ($exitCode -ne 0) {
     Fail "Command failed: $Command $($Arguments -join ' ')"
   }
 }
@@ -41,8 +54,17 @@ function Invoke-CheckedCapture {
     [Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments
   )
 
-  $output = & $Command @Arguments 2>&1
-  if ($LASTEXITCODE -ne 0) {
+  $previousErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    $output = & $Command @Arguments 2>&1
+    $exitCode = $LASTEXITCODE
+  }
+  finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+
+  if ($exitCode -ne 0) {
     $rendered = ($output | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
     Fail "Command failed: $Command $($Arguments -join ' ')`n$rendered"
   }
