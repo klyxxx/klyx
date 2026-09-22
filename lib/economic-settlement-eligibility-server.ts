@@ -32,11 +32,22 @@ type EconomicIdentityRow = {
   review_reason_code: string | null;
 };
 
+type LegalEntityRow = {
+  id: string;
+  entity_type: string;
+  is_primary: boolean;
+  verification_status: string;
+  verified_at: string | null;
+  expires_at: string | null;
+  country_code: string | null;
+};
+
 type VerificationCaseRow = {
   id: string;
   verification_type: string;
   status: string;
   human_review_required: boolean;
+  expires_at: string | null;
 };
 
 type EconomicRestrictionRow = {
@@ -523,6 +534,7 @@ export async function canReceiveSettlement(input: {
 
   const [
     capabilityResult,
+    legalEntityResult,
     qualificationResult,
     canonicalStripeResult,
     trustRestrictionsResult,
@@ -537,6 +549,13 @@ export async function canReceiveSettlement(input: {
       .eq("account_id", input.accountId)
       .eq("capability", "offer_services")
       .maybeSingle(),
+    supabaseAdmin
+      .from("economic_legal_entities")
+      .select(
+        "id, entity_type, is_primary, verification_status, verified_at, expires_at, country_code"
+      )
+      .eq("economic_identity_id", identity.id)
+      .eq("is_primary", true),
     supabaseAdmin
       .from("account_capability_qualifications")
       .select(
@@ -568,7 +587,9 @@ export async function canReceiveSettlement(input: {
       .limit(20),
     supabaseAdmin
       .from("economic_verification_cases")
-      .select("id, verification_type, status, human_review_required")
+      .select(
+        "id, verification_type, status, human_review_required, expires_at"
+      )
       .eq("economic_identity_id", identity.id),
     supabaseAdmin
       .from("economic_restrictions")
@@ -588,6 +609,7 @@ export async function canReceiveSettlement(input: {
 
   for (const result of [
     capabilityResult,
+    legalEntityResult,
     qualificationResult,
     canonicalStripeResult,
     trustRestrictionsResult,
@@ -600,6 +622,7 @@ export async function canReceiveSettlement(input: {
   }
 
   const capability = capabilityResult.data as { enabled: boolean } | null;
+  const legalEntities = (legalEntityResult.data ?? []) as LegalEntityRow[];
   const qualifications = (qualificationResult.data ?? []) as QualificationRow[];
   const canonicalStripe =
     (canonicalStripeResult.data as CanonicalStripeRow | null) ?? null;
@@ -619,14 +642,54 @@ export async function canReceiveSettlement(input: {
 
   if (identity.status === "closed" || identity.status === "restricted") {
     blocked.push("ECONOMIC_IDENTITY_RESTRICTED");
+  } else if (identity.status === "created" || identity.status === "collecting") {
+    blocked.push("ECONOMIC_IDENTITY_NOT_READY");
   }
+
   if (identity.status === "human_review" || identity.human_review_required) {
     review.push(
       identity.review_reason_code || "ECONOMIC_IDENTITY_HUMAN_REVIEW_REQUIRED"
     );
   }
 
+  const primaryLegalEntity = legalEntities[0] ?? null;
+  if (!primaryLegalEntity) {
+    blocked.push("ECONOMIC_LEGAL_ENTITY_MISSING");
+  } else {
+    const legalEntityExpired =
+      Boolean(primaryLegalEntity.expires_at) &&
+      Date.parse(primaryLegalEntity.expires_at as string) <= nowMs;
+    const legalEntityStatus = primaryLegalEntity.verification_status
+      .trim()
+      .toLowerCase();
+
+    if (legalEntityExpired || legalEntityStatus === "expired") {
+      blocked.push("ECONOMIC_LEGAL_ENTITY_EXPIRED");
+    } else if (legalEntityStatus === "restricted") {
+      blocked.push("ECONOMIC_LEGAL_ENTITY_RESTRICTED");
+    } else if (legalEntityStatus === "failed") {
+      blocked.push("ECONOMIC_LEGAL_ENTITY_FAILED");
+    } else if (legalEntityStatus === "human_review") {
+      review.push("ECONOMIC_LEGAL_ENTITY_HUMAN_REVIEW_REQUIRED");
+    } else if (legalEntityStatus !== "verified") {
+      blocked.push("ECONOMIC_LEGAL_ENTITY_NOT_VERIFIED");
+    }
+  }
+
+  if (verificationCases.length === 0) {
+    blocked.push("ECONOMIC_VERIFICATION_MISSING");
+  }
+
   for (const verification of verificationCases) {
+    const verificationExpired =
+      Boolean(verification.expires_at) &&
+      Date.parse(verification.expires_at as string) <= nowMs;
+
+    if (verificationExpired || verification.status === "expired") {
+      blocked.push("ECONOMIC_VERIFICATION_EXPIRED");
+      continue;
+    }
+
     if (
       verification.status === "human_review" ||
       verification.human_review_required
@@ -641,7 +704,6 @@ export async function canReceiveSettlement(input: {
         "pending",
         "pending_external_review",
         "failed",
-        "expired",
         "restricted",
       ].includes(verification.status)
     ) {
@@ -656,6 +718,10 @@ export async function canReceiveSettlement(input: {
       userServiceId: input.userServiceId,
     })
   );
+
+  if (applicableQualifications.length === 0) {
+    blocked.push("ACCOUNT_QUALIFICATION_MISSING");
+  }
 
   for (const qualification of applicableQualifications) {
     const status = qualificationStatus(qualification, nowMs);
@@ -829,6 +895,12 @@ export async function canReceiveSettlement(input: {
     evidenceSnapshot: {
       accountCapabilityEnabled: capability?.enabled === true,
       economicIdentityStatus: identity.status,
+      primaryLegalEntityId: primaryLegalEntity?.id ?? null,
+      primaryLegalEntityType: primaryLegalEntity?.entity_type ?? null,
+      primaryLegalEntityStatus:
+        primaryLegalEntity?.verification_status ?? null,
+      primaryLegalEntityCountryCode:
+        primaryLegalEntity?.country_code ?? null,
       verificationCaseIds: verificationCases.map((row) => row.id),
       applicableQualificationIds: applicableQualifications.map((row) => row.id),
       economicRestrictionIds: applicableEconomicRestrictions.map((row) => row.id),
