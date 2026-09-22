@@ -111,13 +111,13 @@ describe("KLYX Mission 1 production financial certification contract", () => {
     );
 
     expect(health).toContain("drShaMatchesDeployment");
-    expect(health).toContain("certificationShaMatchesDeployment");
+    expect(health).toContain("liveAuthority");
+    expect(health).toContain("authorizedShaMatchesDeployment");
     expect(health).toContain(
       "financialCertifiedShaMatchesDeployment"
     );
     expect(health).toContain("stripeSecretModeCompatible");
     expect(health).toContain("stripeWebhookConfigured");
-    expect(health).toContain("certificationProfileConfigured");
   });
 
   it("uses canonical CONTROLLED state to restrict certification to one profile", () => {
