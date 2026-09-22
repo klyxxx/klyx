@@ -540,13 +540,6 @@ async function runRefundBeforeReleaseScenario({
   provider,
 }) {
   const booking = await latestAcceptedUnpaidBooking(admin, client.id, provider.id);
-  const earn = await createPlatformHeldEarnWorkflow({
-    admin,
-    accountId,
-    providerId: provider.id,
-    bookingId: booking.id,
-  });
-
   await createHeldCheckout({ appOrigin, accessToken, clientId: client.id, bookingId: booking.id });
 
   const pendingSettlement = await loadSettlement(admin, booking.id);
@@ -1326,6 +1319,13 @@ async function runReleaseRetryReversalScenario({
   accessToken = reauthData.session.access_token;
 
   const booking = await latestAcceptedUnpaidBooking(admin, client.id, provider.id);
+  const earn = await createPlatformHeldEarnWorkflow({
+    admin,
+    accountId,
+    providerId: provider.id,
+    bookingId: booking.id,
+  });
+
   await createHeldCheckout({ appOrigin, accessToken, clientId: client.id, bookingId: booking.id });
 
   const pendingSettlement = await loadSettlement(admin, booking.id);
