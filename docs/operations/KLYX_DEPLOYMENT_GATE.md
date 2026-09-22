@@ -58,13 +58,21 @@ If any equality fails, stop. Never deploy an older checkout because its checks h
 
 ### 2. Require green checks for that exact `main` SHA
 
-At minimum, require successful exact-SHA runs for the main-push certifications that apply to every release:
+At minimum, require successful exact-SHA runs for the release certifications that apply to every release:
 
 - `KLYX Security Certification`;
 - `KLYX Golden Path`;
 - `KLYX E2E` / `Playwright browser verification`.
 
-Any additional required repository check applicable to the SHA must also be green. A pending, cancelled, skipped when required, or failed gate means no deployment.
+A successful `push` run is the normal proof. If a push run was cancelled before useful execution, a later successful `workflow_dispatch` run may recover the gate only when all of the following are true:
+
+- its `head_sha` equals the current exact `main` SHA already resolved by the deployment gate;
+- the run itself is completed successfully;
+- its job evidence contains `Verify immutable certification SHA = success`.
+
+The deployment script selects the most recent eligible exact-SHA run for each required workflow. Therefore a newer pending, cancelled, failed or required-skipped run remains blocking even if an older run succeeded.
+
+Any additional required repository check applicable to the SHA must also be green.
 
 `KLYX Performance Certification` is PR/path-triggered rather than a universal `main` push check. When it is required by the change set, its successful PR-head evidence is also required before merge; it must not be invented as an exact-main run when the workflow does not trigger on `main`.
 
