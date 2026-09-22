@@ -104,22 +104,22 @@ begin
    where workflow_step.workflow_id = v_workflow.id
      and workflow_step.exited_at is null;
 
-  update public.klyx_workflows
+  update public.klyx_workflows as workflow
      set current_step = p_to_step,
          status = case
            when v_workflow.mode = 'request' and p_to_step = 'closure'
              then 'completed'
            else 'active'
          end,
-         version = version + 1,
+         version = workflow.version + 1,
          completed_at = case
            when v_workflow.mode = 'request' and p_to_step = 'closure'
-             then coalesce(completed_at, now())
-           else completed_at
+             then coalesce(workflow.completed_at, now())
+           else workflow.completed_at
          end,
          updated_at = now()
-   where id = v_workflow.id
-   returning * into v_workflow;
+   where workflow.id = v_workflow.id
+   returning workflow.* into v_workflow;
 
   insert into public.klyx_workflow_steps (
     workflow_id,
