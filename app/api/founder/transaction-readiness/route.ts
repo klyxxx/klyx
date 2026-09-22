@@ -380,35 +380,74 @@ export async function GET() {
       process.env.KLYX_PRODUCTION_FINANCIAL_CERTIFIED_SHA
         ?.trim()
         .toLowerCase() ?? "";
-    const liveCertificationSha =
-      process.env.KLYX_LIVE_CERTIFICATION_SHA?.trim().toLowerCase() ?? "";
     const shaValid = (value: string) => /^[0-9a-f]{40}$/.test(value);
-    const liveGeneral =
-      process.env.KLYX_LIVE_PAYMENTS_ENABLED?.trim().toLowerCase() ===
-      "true";
-    const liveCertification =
-      process.env.KLYX_LIVE_CERTIFICATION_ENABLED
-        ?.trim()
-        .toLowerCase() === "true";
+
+    const { data: liveAuthorityData, error: liveAuthorityError } =
+      await supabaseAdmin
+        .from("ops_financial_live_authority")
+        .select(
+          "state, authorized_sha, certification_profile_id, reason_code, version"
+        )
+        .eq("authority_key", "stripe_finance")
+        .maybeSingle();
+
+    const liveAuthorityState =
+      liveAuthorityData?.state === "DISABLED" ||
+      liveAuthorityData?.state === "CONTROLLED" ||
+      liveAuthorityData?.state === "GENERAL"
+        ? liveAuthorityData.state
+        : null;
+    const liveAuthoritySha =
+      typeof liveAuthorityData?.authorized_sha === "string"
+        ? liveAuthorityData.authorized_sha.trim().toLowerCase()
+        : "";
+
+    checks.push({
+      key: "financial_live_authority",
+      label: "Autorité LIVE canonique",
+      ok:
+        !liveAuthorityError &&
+        liveAuthorityState !== null &&
+        liveAuthorityState !== "DISABLED",
+      detail: liveAuthorityError
+        ? "Autorité LIVE canonique inaccessible."
+        : liveAuthorityState === "DISABLED"
+          ? "LIVE financier explicitement DISABLED."
+          : liveAuthorityState
+            ? `LIVE financier ${liveAuthorityState} · version ${liveAuthorityData?.version ?? "?"}.`
+            : "Autorité LIVE canonique invalide.",
+      severity: "blocking",
+    });
 
     if (process.env.KLYX_STRIPE_MODE?.trim() === "live") {
+      const authorityShaMatches =
+        shaValid(deployedSha) &&
+        shaValid(liveAuthoritySha) &&
+        deployedSha === liveAuthoritySha;
+      const drMatches =
+        shaValid(deployedSha) &&
+        deployedSha === drCertifiedSha;
+      const financialCertificationMatches =
+        shaValid(deployedSha) &&
+        deployedSha === financialCertifiedSha;
+
       checks.push({
         key: "financial_exact_sha",
         label: "SHA financier exact",
-        ok: liveGeneral
-          ? shaValid(deployedSha) &&
-            deployedSha === drCertifiedSha &&
-            deployedSha === financialCertifiedSha
-          : liveCertification
-            ? shaValid(deployedSha) &&
-              deployedSha === drCertifiedSha &&
-              deployedSha === liveCertificationSha
-            : false,
-        detail: liveGeneral
-          ? "LIVE général exige SHA déployé = DR = certification financière."
-          : liveCertification
-            ? "Canary LIVE exige SHA déployé = DR = SHA de certification."
-            : "Mode Stripe LIVE sans activation financière autorisée.",
+        ok:
+          liveAuthorityState === "CONTROLLED"
+            ? authorityShaMatches && drMatches
+            : liveAuthorityState === "GENERAL"
+              ? authorityShaMatches &&
+                drMatches &&
+                financialCertificationMatches
+              : false,
+        detail:
+          liveAuthorityState === "CONTROLLED"
+            ? "CONTROLLED exige SHA déployé = autorité LIVE = DR."
+            : liveAuthorityState === "GENERAL"
+              ? "GENERAL exige SHA déployé = autorité LIVE = DR = certification financière."
+              : "Aucune activation financière canonique n'est autorisée.",
         severity: "blocking",
       });
     }
