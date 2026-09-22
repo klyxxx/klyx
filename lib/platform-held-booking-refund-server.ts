@@ -289,10 +289,58 @@ async function finalizeRefund(input: {
   await persistRefundLedger(input);
 }
 
+async function verifyFrozenStripeCharge(input: {
+  stripe: Stripe;
+  settlement: SettlementRow;
+  expectedLive: boolean;
+}) {
+  const chargeId = input.settlement.stripe_charge_id;
+  if (!chargeId) {
+    throw new Error("KLYX_SINGLE_HELD_SOURCE_CHARGE_REQUIRED");
+  }
+
+  const charge = await input.stripe.charges.retrieve(chargeId);
+  const paymentIntentId = stripeObjectId(charge.payment_intent);
+
+  if (
+    charge.livemode !== input.expectedLive ||
+    charge.amount !== Number(input.settlement.gross_amount_cents) ||
+    charge.currency.toUpperCase() !== input.settlement.currency ||
+    charge.paid !== true ||
+    paymentIntentId !== input.settlement.stripe_payment_intent_id
+  ) {
+    throw new Error("KLYX_SINGLE_HELD_CHARGE_TRUTH_MISMATCH");
+  }
+}
+
+async function verifyReleasedTransfer(input: {
+  stripe: Stripe;
+  settlement: SettlementRow;
+  expectedLive: boolean;
+}) {
+  const transferId = input.settlement.stripe_transfer_id;
+  if (!transferId) return;
+
+  const transfer = await input.stripe.transfers.retrieve(transferId);
+  const destination = stripeObjectId(transfer.destination);
+  const sourceTransaction = stripeObjectId(transfer.source_transaction);
+
+  if (
+    transfer.livemode !== input.expectedLive ||
+    transfer.amount !== Number(input.settlement.released_provider_amount_cents) ||
+    transfer.currency.toUpperCase() !== input.settlement.currency ||
+    destination !== input.settlement.stripe_account_id ||
+    sourceTransaction !== input.settlement.stripe_charge_id
+  ) {
+    throw new Error("KLYX_SINGLE_HELD_TRANSFER_TRUTH_MISMATCH");
+  }
+}
+
 async function processRequiredReversal(input: {
   stripe: Stripe;
   refund: RefundRow;
   settlement: SettlementRow;
+  expectedLive: boolean;
 }): Promise<boolean> {
   if (input.refund.state === "refunding") {
     return false;
@@ -304,6 +352,12 @@ async function processRequiredReversal(input: {
   ) {
     return false;
   }
+
+  await verifyReleasedTransfer({
+    stripe: input.stripe,
+    settlement: input.settlement,
+    expectedLive: input.expectedLive,
+  });
 
   const listed = await input.stripe.transfers.listReversals(
     input.settlement.stripe_transfer_id,
@@ -505,6 +559,18 @@ export async function refundSinglePlatformHeldBooking(input: {
       capability: "refunds",
     });
   const stripe = new Stripe(financialRuntime.key);
+  const expectedLive = financialRuntime.mode !== "test";
+
+  await verifyFrozenStripeCharge({
+    stripe,
+    settlement: initial.settlement,
+    expectedLive,
+  });
+  await verifyReleasedTransfer({
+    stripe,
+    settlement: initial.settlement,
+    expectedLive,
+  });
 
   const { data: refundId, error: planError } = await supabaseAdmin.rpc(
     "klyx_create_platform_held_booking_refund_plan",
@@ -541,6 +607,7 @@ export async function refundSinglePlatformHeldBooking(input: {
     stripe,
     refund,
     settlement: truth.settlement,
+    expectedLive,
   });
 
   refund = await loadRefund(refund.id);
