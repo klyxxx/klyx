@@ -213,6 +213,7 @@ export async function transitionWorkflow(params: {
 export async function completeSettlementWorkflow(params: {
   accountId: string;
   workflow: WorkflowSnapshot;
+  bookingId: string;
   eventType?: string;
   actorType: "server" | "system" | "operator";
   payload?: Record<string, unknown>;
@@ -232,7 +233,10 @@ export async function completeSettlementWorkflow(params: {
       p_expected_version: params.workflow.version,
       p_event_type: params.eventType ?? "settlement_completed",
       p_actor_type: params.actorType,
-      p_payload: params.payload ?? {},
+      p_payload: {
+        ...(params.payload ?? {}),
+        booking_id: params.bookingId,
+      },
     }
   );
 
