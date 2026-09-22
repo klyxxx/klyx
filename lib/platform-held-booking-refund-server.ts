@@ -2,6 +2,9 @@ import "server-only";
 
 import Stripe from "stripe";
 
+import type { AuthenticatedAccount } from "@/lib/api-auth";
+import { reconcilePlatformHeldBookingSettlement } from "@/lib/booking-settlement-reconciliation-server";
+
 import {
   appendFinancialLedgerEvent,
   openFinancialReconciliationCase,
@@ -12,6 +15,7 @@ import {
 } from "@/lib/klyx-financial-stripe-runtime";
 import { upsertFinancialLedgerEntry } from "@/lib/payment-ledger";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { enforceRefundTransactionRisk } from "@/lib/transaction-risk-server";
 
 const PAYMENT_MODE = "platform_held" as const;
 
@@ -430,6 +434,7 @@ async function listExistingRefundTruth(input: {
 
 export async function refundSinglePlatformHeldBooking(input: {
   bookingId: string;
+  requesterAccount: AuthenticatedAccount;
   requesterProfileId: string;
   request: SinglePlatformHeldRefundRequest;
 }): Promise<SinglePlatformHeldRefundResult> {
@@ -448,6 +453,31 @@ export async function refundSinglePlatformHeldBooking(input: {
     initial.settlement.state === "review_required"
   ) {
     throw new Error("KLYX_SINGLE_HELD_REFUND_NOT_READY");
+  }
+
+  await enforceRefundTransactionRisk({
+    requesterAccount: input.requesterAccount,
+    refundRecipientProfileId: initial.booking.parent_id,
+    subjectType: "booking",
+    subjectId: input.bookingId,
+  });
+
+  const recovery = await reconcilePlatformHeldBookingSettlement({
+    bookingId: input.bookingId,
+    source: "refund",
+  });
+
+  if (
+    recovery.status === "human_review" ||
+    recovery.status === "failed" ||
+    recovery.status === "pending_release" ||
+    recovery.status === "refund_pending"
+  ) {
+    throw new Error(
+      recovery.status === "human_review"
+        ? "KLYX_SETTLEMENT_HUMAN_REVIEW"
+        : "KLYX_SETTLEMENT_REFUND_RECONCILIATION_PENDING"
+    );
   }
 
   const remainingGross =
