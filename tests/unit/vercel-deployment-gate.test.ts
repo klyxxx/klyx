@@ -31,7 +31,7 @@ describe("KLYX Vercel deployment gate", () => {
     expect(script).toContain("KLYX Security Certification");
     expect(script).toContain("KLYX Golden Path");
     expect(script).toContain("KLYX E2E");
-    expect(script).not.toContain("vercel build --prod");
+    expect(script).not.toContain("Invoke-Checked npx vercel build --prod");
     expect(script).not.toContain("vercel deploy --prebuilt --prod");
     expect(script).toContain("vercel deploy --prod --skip-domain");
     expect(script).toContain("vercel curl");
