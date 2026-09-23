@@ -88,6 +88,19 @@ async function main() {
   invariant(booking.user_service_id, "Mission 19 earn skill identity missing.");
   invariant(booking.completed_at, "Mission 19 earn completion timestamp missing.");
 
+  const { data: settlement, error: settlementError } = await admin
+    .from("booking_settlements")
+    .select("state, stripe_transfer_id")
+    .eq("booking_id", booking.id)
+    .maybeSingle();
+  if (settlementError) throw new Error(settlementError.message);
+  invariant(
+    !settlement ||
+      settlement.state !== "released" ||
+      !settlement.stripe_transfer_id,
+    "Local earn boundary fixture unexpectedly already has released Settlement truth."
+  );
+
   const { data: skill, error: skillError } = await admin
     .from("user_services")
     .select("id, user_id, active, provider_enabled")
@@ -121,8 +134,9 @@ async function main() {
       p_context: {
         mission19_run: marker,
         provider_profile_id: provider.id,
-        user_service_id: skill.id,
+        booking_id: booking.id,
         realized_opportunity_booking_id: booking.id,
+        user_service_id: skill.id,
         eligibility_capability: "offer_services",
       },
     }
@@ -181,27 +195,25 @@ async function main() {
     );
   }
 
-  const { data: completedData, error: completedError } = await admin.rpc(
+  const { error: prematureCompletionError } = await admin.rpc(
     "klyx_complete_settlement_workflow",
     {
       p_workflow_id: workflow.workflow_id,
       p_account_id: accountId,
       p_expected_version: workflow.version,
-      p_event_type: "mission19_earn_settlement_completed",
+      p_event_type: "mission19_earn_premature_settlement_completion",
       p_actor_type: "server",
       p_payload: {
         booking_id: booking.id,
-        domain_booking_completed: true,
-        payment_observed: true,
+        claimed_settlement_truth: "released",
       },
     }
   );
-  if (completedError) throw new Error(completedError.message);
-  const completed = rpcRow(completedData, "earn settlement completion");
-
   invariant(
-    completed.current_step === "settlement" && completed.status === "completed",
-    "Earn workflow settlement did not become terminal completed."
+    prematureCompletionError?.message?.includes(
+      "KLYX_WORKFLOW_SETTLEMENT_TRUTH_NOT_RELEASED"
+    ) === true,
+    `Earn workflow did not fail closed before canonical Settlement release: ${prematureCompletionError?.message ?? "no error"}.`
   );
 
   const { data: steps, error: stepsError } = await admin
@@ -228,8 +240,10 @@ async function main() {
     `Earn workflow step order mismatch: ${actualSteps.join(" -> ")}.`
   );
   invariant(
-    (steps ?? []).every((row) => row.exited_at),
-    "Earn workflow left a step open after settlement completion."
+    (steps ?? []).slice(0, -1).every((row) => row.exited_at) &&
+      steps?.at(-1)?.step === "settlement" &&
+      !steps?.at(-1)?.exited_at,
+    "Earn workflow settlement boundary did not remain open after blocked completion."
   );
 
   const { data: finalWorkflow, error: finalWorkflowError } = await admin
@@ -240,39 +254,41 @@ async function main() {
   if (finalWorkflowError) throw new Error(finalWorkflowError.message);
 
   invariant(
-    finalWorkflow.status === "completed" &&
+    finalWorkflow.status === "active" &&
       finalWorkflow.current_step === "settlement" &&
-      Boolean(finalWorkflow.completed_at),
-    "Earn workflow final canonical state is invalid."
+      !finalWorkflow.completed_at,
+    "Earn workflow became terminal without canonical Settlement truth."
   );
   invariant(
-    finalWorkflow.context?.realized_opportunity_booking_id === booking.id,
+    finalWorkflow.context?.booking_id === booking.id &&
+      finalWorkflow.context?.realized_opportunity_booking_id === booking.id,
     "Earn workflow lost its canonical booking opportunity identity."
   );
 
-  const { data: terminalEvents, error: terminalEventsError } = await admin
+  const { count: terminalEventCount, error: terminalEventError } = await admin
     .from("klyx_workflow_events")
-    .select("event_type, step")
+    .select("id", { count: "exact", head: true })
     .eq("workflow_id", workflow.workflow_id)
-    .eq("event_type", "mission19_earn_settlement_completed");
-  if (terminalEventsError) throw new Error(terminalEventsError.message);
+    .eq("event_type", "mission19_earn_premature_settlement_completion");
+  if (terminalEventError) throw new Error(terminalEventError.message);
   invariant(
-    (terminalEvents ?? []).length === 1 &&
-      terminalEvents[0].step === "settlement",
-    "Earn workflow settlement completion audit is missing or duplicated."
+    terminalEventCount === 0,
+    "Blocked settlement completion appended a false terminal audit event."
   );
 
   await userClient.auth.signOut();
 
   process.stdout.write(
     `${JSON.stringify({
-      earnLifecycleProofPassed: true,
+      earnLifecycleBoundaryProofPassed: true,
       workflowId: workflow.workflow_id,
       bookingId: booking.id,
       userServiceId: skill.id,
       capability: "offer_services",
       steps: expectedSteps,
+      currentStep: finalWorkflow.current_step,
       terminalStatus: finalWorkflow.status,
+      settlementCompletionBlocked: true,
     })}\n`
   );
 }
