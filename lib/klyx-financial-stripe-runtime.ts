@@ -1,5 +1,6 @@
 import "server-only";
 
+import { requireKlyxFinancialLiveAuthority } from "@/lib/financial-live-authority-server";
 import { getKlyxObservabilityFinancialMonitoringSnapshot } from "@/lib/observability-financial-monitoring-server";
 import { requireKlyxOpsCapabilityAvailable } from "@/lib/ops-control-server";
 import {
@@ -336,8 +337,16 @@ export async function requireKlyxFinancialStripeRuntime(input: {
   assertStripeRuntimeConfiguredForDiagnostics();
 
   const { deployedSha } = requireExactLiveShaBoundary();
+  const liveAuthority = await requireKlyxFinancialLiveAuthority({
+    deployedSha,
+    clientProfileId: input.clientProfileId,
+  });
 
-  if (envTrue("KLYX_LIVE_PAYMENTS_ENABLED")) {
+  if (liveAuthority.state === "GENERAL") {
+    if (!envTrue("KLYX_LIVE_PAYMENTS_ENABLED")) {
+      throw new Error("KLYX_FINANCIAL_RUNTIME_GENERAL_ENV_FENCE_DISABLED");
+    }
+
     assertStripeRuntimeReady();
 
     const certifiedSha = exactSha(
@@ -360,23 +369,8 @@ export async function requireKlyxFinancialStripeRuntime(input: {
     };
   }
 
-  if (!envTrue("KLYX_LIVE_CERTIFICATION_ENABLED")) {
-    throw new Error("KLYX_SETTLEMENT_CONTROL_LIVE_NOT_READY");
-  }
-
-  const certificationSha = exactSha("KLYX_LIVE_CERTIFICATION_SHA");
-  if (certificationSha !== deployedSha) {
-    throw new Error("KLYX_FINANCIAL_RUNTIME_CERTIFICATION_SHA_MISMATCH");
-  }
-
-  const certificationProfileId =
-    env("KLYX_LIVE_CERTIFICATION_PROFILE_ID").toLowerCase();
-
-  if (
-    !UUID_RE.test(certificationProfileId) ||
-    certificationProfileId !== input.clientProfileId.toLowerCase()
-  ) {
-    throw new Error("KLYX_FINANCIAL_RUNTIME_CERTIFICATION_PROFILE_BLOCKED");
+  if (liveAuthority.state !== "CONTROLLED") {
+    throw new Error("KLYX_FINANCIAL_LIVE_DISABLED");
   }
 
   await requireLiveOperationalReadiness({
