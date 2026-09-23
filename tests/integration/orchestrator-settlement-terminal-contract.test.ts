@@ -11,7 +11,7 @@ const migration = read(
 );
 const repository = read("lib/brain/orchestrator/repository.ts");
 const earnCompletion = read(
-  "supabase/migrations/20260922213000_klyx_earn_completion_workflow.sql"
+  "supabase/migrations/20260923161500_klyx_earn_completion_workflow.sql"
 );
 
 describe("KLYX orchestrator settlement terminal contract", () => {
@@ -58,32 +58,53 @@ describe("KLYX orchestrator settlement terminal contract", () => {
   });
 
   it("requires an explicit server-controlled completion RPC", () => {
-    expect(migration).toContain(
+    expect(earnCompletion).toContain(
       "create or replace function public.klyx_complete_settlement_workflow"
     );
-    expect(migration).toContain(
+    expect(earnCompletion).toContain(
       "p_actor_type not in ('server', 'system', 'operator')"
     );
-    expect(migration).toContain(
+    expect(earnCompletion).toContain(
       "v_workflow.mode <> 'earn' or v_workflow.current_step <> 'settlement'"
     );
-    expect(migration).toContain(
+    expect(earnCompletion).toContain(
       "v_workflow.version <> p_expected_version"
     );
-    expect(migration).toContain(
+    expect(earnCompletion).toContain(
       "v_workflow.status not in ('active', 'waiting')"
     );
   });
 
+  it("binds terminal earn completion to canonical booking and financial truth", () => {
+    expect(earnCompletion).toContain("v_workflow.context ->> 'booking_id'");
+    expect(earnCompletion).toContain(
+      "KLYX_WORKFLOW_SETTLEMENT_DOMAIN_NOT_COMPLETE"
+    );
+    expect(earnCompletion).toContain("public.booking_settlements as settlement");
+    expect(earnCompletion).toContain(
+      "KLYX_WORKFLOW_SETTLEMENT_TRUTH_NOT_RELEASED"
+    );
+    expect(earnCompletion).toContain("public.financial_ledger_events as ledger");
+    expect(earnCompletion).toContain("ledger.movement_type = 'transfer'");
+    expect(earnCompletion).toContain("ledger.source = 'settlement'");
+    expect(earnCompletion).toContain(
+      "KLYX_WORKFLOW_SETTLEMENT_LEDGER_TRANSFER_MISSING"
+    );
+    expect(earnCompletion).toContain("public.financial_reconciliation_current");
+    expect(earnCompletion).toContain(
+      "KLYX_WORKFLOW_SETTLEMENT_RECONCILIATION_OPEN"
+    );
+  });
+
   it("keeps settlement completion inaccessible to browser roles", () => {
-    expect(migration).toContain(
+    expect(earnCompletion).toContain(
       "revoke all on function public.klyx_complete_settlement_workflow"
     );
-    expect(migration).toContain("from public, anon, authenticated");
-    expect(migration).toContain(
+    expect(earnCompletion).toContain("from public, anon, authenticated");
+    expect(earnCompletion).toContain(
       "grant execute on function public.klyx_complete_settlement_workflow"
     );
-    expect(migration).toContain("to service_role");
+    expect(earnCompletion).toContain("to service_role");
   });
 
   it("exposes completion only through the server repository boundary", () => {
