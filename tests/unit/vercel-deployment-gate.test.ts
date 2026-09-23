@@ -42,11 +42,14 @@ describe("KLYX Vercel deployment gate", () => {
     expect(script).toContain("https://www.klyx.be");
     expect(script).toContain("Main moved during the staged deployment build");
     expect(script).toContain("stagedHealth = 'verified'");
+    expect(script).toContain("stagedBuildHealth = 'verified'");
+    expect(script).toContain("financialRuntimeState = $financialRuntimeState");
     expect(script).toContain("$previousErrorActionPreference = $ErrorActionPreference");
     expect(script).toContain("$ErrorActionPreference = 'Continue'");
     expect(script).toContain("$exitCode = $LASTEXITCODE");
     expect(script).toContain("function Convert-LastJsonObject");
     expect(script).toContain("Convert-LastJsonObject -Lines $healthOutput");
+    expect(script).toContain("Convert-LastJsonObject -Lines $buildHealthOutput");
     expect(script).toContain("$Lines.Count - 1");
     expect(
       script.match(/\$ErrorActionPreference = \$previousErrorActionPreference/g)
@@ -54,6 +57,35 @@ describe("KLYX Vercel deployment gate", () => {
     ).toBe(2);
     expect(script).toContain("exact main SHA ${Sha}:");
     expect(script).not.toContain("exact main SHA $Sha:");
+  });
+
+  it("blocks promotion when financial LIVE state is not certified for the staged SHA", () => {
+    const script = read("scripts/operations/deploy-production-manual.ps1");
+
+    expect(script).toContain("function Assert-StagedBuildHealth");
+    expect(script).toContain("/api/health/build");
+    expect(script).toContain("commitSha");
+    expect(script).toContain("financialRuntime");
+    expect(script).toContain("stripeSecretModeCompatible");
+    expect(script).toContain("stripeWebhookConfigured");
+    expect(script).toContain("generalLiveEnabled");
+    expect(script).toContain("controlledCertificationEnabled");
+    expect(script).toContain("drShaMatchesDeployment");
+    expect(script).toContain("certificationShaMatchesDeployment");
+    expect(script).toContain("financialCertifiedShaMatchesDeployment");
+    expect(script).toContain("certificationProfileConfigured");
+    expect(script).toContain(
+      "General LIVE is enabled without exact-SHA DR certification."
+    );
+    expect(script).toContain(
+      "General LIVE is enabled without exact-SHA production financial certification."
+    );
+    expect(script).toContain(
+      "General LIVE and controlled certification cannot be enabled simultaneously."
+    );
+    expect(script).toContain("return 'safe_off'");
+    expect(script).toContain("return 'controlled_certification'");
+    expect(script).toContain("return 'certified_live'");
   });
 
   it("keeps exact-main release certifications isolated from PR concurrency", () => {

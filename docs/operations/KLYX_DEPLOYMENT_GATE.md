@@ -16,11 +16,60 @@ The following rules are mandatory:
 - Vercel Deploy Hooks must not be created or invoked for KLYX production.
 - Production may be deployed only from the current, true `main` commit.
 - The exact `main` SHA must be attached to the Vercel deployment as `klyxMainSha` metadata.
-- `/api/health` and the canonical production origin must be verified after deployment.
+- `/api/health`, `/api/health/build`, and the canonical production origin must be verified before promotion.
+- A staged candidate must never be promoted with an unsafe financial runtime state.
 - The last known healthy Vercel deployment must remain available as a rollback target.
 - Only the central KLYX chat is authorized to initiate a production deployment.
 
 `vercel.json` enforces the Git-side boundary with `git.deploymentEnabled = false`. The existing KLYX cron remains unchanged.
+
+## Financial runtime promotion invariant
+
+A staged production candidate is promotable only when `/api/health/build` proves all of the following for the exact staged SHA:
+
+- `commitSha == MAIN_SHA`;
+- `environment == production`;
+- Stripe secret mode matches `KLYX_STRIPE_MODE`;
+- the Stripe webhook secret is configured.
+
+The financial runtime must then be in exactly one of these states:
+
+1. **SAFE OFF**
+   - `generalLiveEnabled == false`;
+   - `controlledCertificationEnabled == false`.
+
+2. **CONTROLLED CERTIFICATION**
+   - general LIVE remains OFF;
+   - controlled certification is enabled;
+   - deployed SHA = DR-certified SHA;
+   - deployed SHA = certification SHA;
+   - the dedicated certification profile is configured.
+
+3. **CERTIFIED LIVE**
+   - general LIVE is enabled;
+   - controlled certification is OFF;
+   - deployed SHA = DR-certified SHA;
+   - deployed SHA = production-financial-certified SHA.
+
+Any other combination is invalid and must stop before `vercel promote`.
+
+In particular:
+
+```text
+general LIVE = true
++
+DR exact-SHA = false
+```
+
+or:
+
+```text
+general LIVE = true
++
+production financial certification exact-SHA = false
+```
+
+must leave the candidate staged and unpromoted.
 
 ## Scope
 
@@ -94,10 +143,12 @@ The script:
 1. creates a production-targeted Vercel deployment with `--skip-domain`, so the candidate builds remotely but does not receive the production domains;
 2. attaches `klyxMainSha=$MAIN_SHA` and `klyxReleaseSource=central-klyx-chat`;
 3. verifies the immutable deployment metadata;
-4. checks the staged candidate's `/api/health` and home page using authenticated `vercel curl`;
-5. re-fetches `origin/main` immediately before promotion and aborts if `main` moved;
-6. promotes the exact verified deployment with `vercel promote`;
-7. runs the canonical production smoke test.
+4. checks the staged candidate's `/api/health`;
+5. checks `/api/health/build`, verifies the exact deployed SHA, and rejects any unsafe financial runtime state before promotion;
+6. checks the staged home page using authenticated `vercel curl`;
+7. re-fetches `origin/main` immediately before promotion and aborts if `main` moved;
+8. promotes the exact verified deployment with `vercel promote`;
+9. runs the canonical production smoke test.
 
 It does not use a Git-triggered deployment or Deploy Hook. A candidate that fails staged verification remains unpromoted, so the existing production deployment continues serving traffic.
 
@@ -113,6 +164,7 @@ npm run ops:smoke
 A valid release requires:
 
 - `https://www.klyx.be/api/health` -> HTTP 200 and `{ status: "ok", service: "klyx", check: "liveness" }`;
+- staged `/api/health/build` -> exact `MAIN_SHA` plus an allowed financial runtime state;
 - `https://www.klyx.be/` -> HTTP 200 HTML;
 - no deployment/runtime error that invalidates the release.
 
@@ -126,7 +178,8 @@ For every production deployment, retain together:
 - exact `main` SHA;
 - Vercel deployment ID and immutable deployment URL;
 - confirmation that `klyxMainSha` metadata matches;
-- health/domain verification result;
+- liveness and build-health verification result;
+- verified financial runtime state (`safe_off`, `controlled_certification`, or `certified_live`);
 - previous healthy deployment ID used as the rollback candidate.
 
 Do not create a Git commit merely to record a deployment: that would move `main` after the deployed SHA. Use the central KLYX release record / deployment ledger instead.
@@ -157,4 +210,5 @@ Do not:
 - deploy a PR branch, detached unverified SHA, local-only commit, or stale `main`;
 - accept successful build output as proof of production health;
 - accept a healthy domain as proof that the intended SHA was deployed;
+- promote a candidate whose `/api/health/build` financial runtime is inconsistent with exact-SHA DR/certification state;
 - change Stripe, Supabase business state, bookings, or Brain as part of a deployment-only mission.
