@@ -263,10 +263,21 @@ function criticalAlertPayload(input: {
   };
 }
 
+function criticalAlertSentinelIdentity(now = new Date()): {
+  deduplicationKey: string;
+  occurredAt: string;
+} {
+  const dayBucket = now.toISOString().slice(0, 10);
+
+  return {
+    deduplicationKey: `klyx-critical-alert-sentinel:${dayBucket}`,
+    occurredAt: `${dayBucket}T00:00:00.000Z`,
+  };
+}
+
 async function enqueueCriticalAlertSentinel(): Promise<number> {
-  const dayBucket = new Date().toISOString().slice(0, 10);
-  const deduplicationKey =
-    `klyx-critical-alert-sentinel:${dayBucket}`;
+  const { deduplicationKey, occurredAt } =
+    criticalAlertSentinelIdentity();
 
   const result = await enqueueKlyxDurableJob({
     jobType: CRITICAL_ALERT_JOB,
@@ -277,7 +288,7 @@ async function enqueueCriticalAlertSentinel(): Promise<number> {
       sourceType: "financial_worker",
       reasonCode: "SENTINEL",
       dimension: "operations",
-      occurredAt: new Date().toISOString(),
+      occurredAt,
       sentinel: true,
     },
     domainType: "operations",
