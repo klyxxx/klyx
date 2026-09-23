@@ -171,7 +171,7 @@ jobs:
 
           supabase db dump             --db-url "$KLYX_DR_SOURCE_DB_URL"             -f "$KLYX_FULL_DR_DB_ROOT/roles.sql"             --role-only
 
-          supabase db dump             --db-url "$KLYX_DR_SOURCE_DB_URL"             -f "$KLYX_FULL_DR_DB_ROOT/public-schema.sql"             --schema public
+          supabase db dump             --db-url "$KLYX_DR_SOURCE_DB_URL"             -f "$KLYX_FULL_DR_DB_ROOT/public-schema.sql"             --schema public,klyx_private
 
           supabase db dump             --db-url "$KLYX_DR_SOURCE_DB_URL"             -f "$KLYX_FULL_DR_DB_ROOT/public-data.sql"             --schema public             --data-only             --use-copy
 
