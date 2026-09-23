@@ -1,0 +1,119 @@
+import { readFileSync } from "node:fs";
+
+import { describe, expect, it } from "vitest";
+
+const migration = readFileSync(
+  "supabase/migrations/20260923150000_klyx_stripe_connect_identity_conflict_resolution.sql",
+  "utf8"
+).replace(/\r\n/g, "\n");
+
+describe("KLYX Stripe Connect identity conflict resolution", () => {
+  it("is service-role-only and append-only audited", () => {
+    expect(migration).toContain(
+      "create table if not exists public.account_stripe_connect_identity_resolutions"
+    );
+    expect(migration).toContain(
+      "create or replace function public.klyx_resolve_stripe_connect_identity_conflict"
+    );
+    expect(migration).toContain(
+      "revoke all on function public.klyx_resolve_stripe_connect_identity_conflict"
+    );
+    expect(migration).toContain("to service_role");
+    expect(migration).toContain("insert into public.account_stripe_connect_identity_resolutions");
+    expect(migration).not.toContain("delete from public.account_stripe_connect_identity_resolutions");
+  });
+
+  it("makes retries idempotent by account and correlation id", () => {
+    expect(migration).toContain(
+      "account_stripe_connect_identity_resolutions_correlation_unique"
+    );
+    expect(migration).toContain("(account_id, correlation_id)");
+    expect(migration).toContain(
+      "KLYX_CONNECT_IDENTITY_RESOLUTION_CORRELATION_REUSE_MISMATCH"
+    );
+    expect(migration).toContain(
+      "KLYX_CONNECT_IDENTITY_RESOLUTION_IDEMPOTENT_STATE_MISMATCH"
+    );
+    expect(migration).toContain("cardinality(v_existing.cleared_profile_ids)");
+    expect(migration).toContain("v_existing.id");
+  });
+
+  it("requires the exact conflict set and historical evidence before selecting a winner", () => {
+    expect(migration).toContain(
+      "KLYX_CONNECT_IDENTITY_RESOLUTION_CONFLICT_SET_DRIFT"
+    );
+    expect(migration).toContain(
+      "KLYX_CONNECT_IDENTITY_RESOLUTION_HISTORY_DRIFT"
+    );
+    expect(migration).toContain(
+      "KLYX_CONNECT_IDENTITY_RESOLUTION_SELECTED_NOT_HISTORICAL"
+    );
+    expect(migration).toContain("for update");
+    expect(migration).toContain("v_current_conflicts is distinct from v_expected");
+    expect(migration).toContain("v_historical_ids is distinct from v_expected");
+  });
+
+  it("clears stale legacy mirrors instead of silently reassigning them", () => {
+    const profileUpdateStart = migration.indexOf(
+      "update public.profiles as profile"
+    );
+    const canonicalUpdateStart = migration.indexOf(
+      "update public.account_stripe_connect_identities as identity",
+      profileUpdateStart
+    );
+    const profileUpdate = migration.slice(
+      profileUpdateStart,
+      canonicalUpdateStart
+    );
+
+    expect(profileUpdateStart).toBeGreaterThan(-1);
+    expect(canonicalUpdateStart).toBeGreaterThan(profileUpdateStart);
+    expect(profileUpdate).toContain("set stripe_account_id = null");
+    expect(profileUpdate).toContain("stripe_onboarding_complete = false");
+    expect(profileUpdate).toContain("stripe_charges_enabled = false");
+    expect(profileUpdate).toContain("stripe_payouts_enabled = false");
+    expect(profileUpdate).not.toContain("stripe_account_id = v_selected");
+  });
+
+  it("prevents the selected Stripe account from belonging to another KLYX account", () => {
+    expect(migration).toContain(
+      "KLYX_CONNECT_IDENTITY_RESOLUTION_SELECTED_ALREADY_CANONICAL"
+    );
+    expect(migration).toContain(
+      "KLYX_CONNECT_IDENTITY_RESOLUTION_SELECTED_OTHER_ACCOUNT_HISTORY"
+    );
+  });
+
+  it("changes only identity projections and never rewrites financial history", () => {
+    for (const forbidden of [
+      "booking_financial_ledger",
+      "financial_ledger_entries",
+      "booking_settlements",
+      "stripe_transfers",
+      "refunds",
+      "payment_intents",
+    ]) {
+      expect(migration).not.toMatch(
+        new RegExp(`(?:update|delete\\s+from|insert\\s+into)\\s+public\\.${forbidden}`, "i")
+      );
+    }
+  });
+
+  it("links the canonical account only after stale mirrors have been cleared", () => {
+    const clearLegacy = migration.indexOf(
+      "update public.profiles as profile"
+    );
+    const linkCanonical = migration.indexOf(
+      "update public.account_stripe_connect_identities as identity",
+      clearLegacy
+    );
+    const audit = migration.indexOf(
+      "insert into public.account_stripe_connect_identity_resolutions",
+      linkCanonical
+    );
+
+    expect(clearLegacy).toBeGreaterThan(-1);
+    expect(linkCanonical).toBeGreaterThan(clearLegacy);
+    expect(audit).toBeGreaterThan(linkCanonical);
+  });
+});
