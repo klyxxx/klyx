@@ -31,7 +31,7 @@ jobs:
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       KLYX_DR_SOURCE_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       KLYX_DR_SOURCE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      KLYX_DR_SUPABASE_POSTGRES_IMAGE: "ghcr.io/supabase/postgres:17.6.1.156"
+      KLYX_DR_SUPABASE_POSTGRES_IMAGE: "supabase/postgres:17.6.1.156"
       SUPABASE_TELEMETRY_DISABLED: "1"
 
     steps:
@@ -155,6 +155,10 @@ jobs:
         uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
         with:
           version: 2.111.0
+
+      - name: Use Docker Hub for Supabase CI images
+        shell: bash
+        run: echo "SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io" >> "$GITHUB_ENV"
 
       - name: Warm Supabase Postgres image with bounded transient retry
         shell: bash
