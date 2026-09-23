@@ -38,12 +38,26 @@ describe("KLYX Stripe Connect identity conflict resolution", () => {
     expect(migration).toContain("v_historical_ids is distinct from v_expected");
   });
 
-  it("never reassigns an obsolete legacy profile to the selected Stripe account", () => {
-    expect(migration).toContain("set stripe_account_id = null");
-    expect(migration).toContain("stripe_onboarding_complete = false");
-    expect(migration).toContain("stripe_charges_enabled = false");
-    expect(migration).toContain("stripe_payouts_enabled = false");
-    expect(migration).not.toContain("set stripe_account_id = v_selected");
+  it("clears stale legacy mirrors instead of silently reassigning them", () => {
+    const profileUpdateStart = migration.indexOf(
+      "update public.profiles as profile"
+    );
+    const canonicalUpdateStart = migration.indexOf(
+      "update public.account_stripe_connect_identities as identity",
+      profileUpdateStart
+    );
+    const profileUpdate = migration.slice(
+      profileUpdateStart,
+      canonicalUpdateStart
+    );
+
+    expect(profileUpdateStart).toBeGreaterThan(-1);
+    expect(canonicalUpdateStart).toBeGreaterThan(profileUpdateStart);
+    expect(profileUpdate).toContain("set stripe_account_id = null");
+    expect(profileUpdate).toContain("stripe_onboarding_complete = false");
+    expect(profileUpdate).toContain("stripe_charges_enabled = false");
+    expect(profileUpdate).toContain("stripe_payouts_enabled = false");
+    expect(profileUpdate).not.toContain("stripe_account_id = v_selected");
   });
 
   it("prevents the selected Stripe account from belonging to another KLYX account", () => {
@@ -71,8 +85,12 @@ describe("KLYX Stripe Connect identity conflict resolution", () => {
   });
 
   it("links the canonical account only after stale mirrors have been cleared", () => {
-    const clearLegacy = migration.indexOf("set stripe_account_id = null");
-    const linkCanonical = migration.indexOf("identity_state = 'linked'");
+    const clearLegacy = migration.indexOf(
+      "update public.profiles as profile"
+    );
+    const linkCanonical = migration.indexOf(
+      "update public.account_stripe_connect_identities as identity"
+    );
     const audit = migration.indexOf(
       "insert into public.account_stripe_connect_identity_resolutions"
     );
