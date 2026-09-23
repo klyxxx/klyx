@@ -188,6 +188,9 @@ set search_path = public
 as $$
 declare
   v_workflow public.klyx_workflows%rowtype;
+  v_booking_id uuid;
+  v_booking record;
+  v_settlement record;
 begin
   if p_actor_type not in ('server', 'system', 'operator') then
     raise exception 'KLYX_WORKFLOW_COMPLETION_ACTOR_INVALID';
@@ -214,6 +217,78 @@ begin
 
   if v_workflow.status not in ('active', 'waiting') then
     raise exception 'KLYX_WORKFLOW_SETTLEMENT_NOT_COMPLETABLE';
+  end if;
+
+  begin
+    v_booking_id := coalesce(
+      nullif(trim(v_workflow.context ->> 'booking_id'), ''),
+      nullif(trim(v_workflow.context ->> 'realized_opportunity_booking_id'), '')
+    )::uuid;
+  exception when invalid_text_representation then
+    raise exception 'KLYX_WORKFLOW_SETTLEMENT_BOOKING_INVALID';
+  end;
+
+  if v_booking_id is null then
+    raise exception 'KLYX_WORKFLOW_SETTLEMENT_BOOKING_REQUIRED';
+  end if;
+
+  select
+    booking.status,
+    booking.payment_status,
+    booking.service_status,
+    coalesce(booking.provider_id, booking.babysitter_id) as provider_profile_id
+    into v_booking
+    from public.bookings as booking
+   where booking.id = v_booking_id;
+
+  if not found then
+    raise exception 'KLYX_WORKFLOW_SETTLEMENT_BOOKING_NOT_FOUND';
+  end if;
+
+  if v_booking.provider_profile_id is distinct from v_workflow.profile_id then
+    raise exception 'KLYX_WORKFLOW_SETTLEMENT_PROVIDER_MISMATCH';
+  end if;
+
+  if coalesce(v_booking.status, '') <> 'completed'
+     or coalesce(v_booking.payment_status, '') <> 'paid'
+     or coalesce(v_booking.service_status, '') <> 'completed' then
+    raise exception 'KLYX_WORKFLOW_SETTLEMENT_DOMAIN_NOT_COMPLETE';
+  end if;
+
+  select
+    settlement.state,
+    settlement.provider_profile_id,
+    settlement.stripe_transfer_id
+    into v_settlement
+    from public.booking_settlements as settlement
+   where settlement.booking_id = v_booking_id;
+
+  if not found
+     or v_settlement.provider_profile_id is distinct from v_workflow.profile_id
+     or coalesce(v_settlement.state, '') <> 'released'
+     or coalesce(trim(v_settlement.stripe_transfer_id), '') = '' then
+    raise exception 'KLYX_WORKFLOW_SETTLEMENT_TRUTH_NOT_RELEASED';
+  end if;
+
+  if not exists (
+    select 1
+      from public.financial_ledger_events as ledger
+     where ledger.booking_id = v_booking_id
+       and ledger.movement_type = 'transfer'
+       and ledger.beneficiary_kind = 'provider'
+       and ledger.source = 'settlement'
+       and ledger.stripe_transfer_id = v_settlement.stripe_transfer_id
+  ) then
+    raise exception 'KLYX_WORKFLOW_SETTLEMENT_LEDGER_TRANSFER_MISSING';
+  end if;
+
+  if exists (
+    select 1
+      from public.financial_reconciliation_current as reconciliation
+     where reconciliation.booking_id = v_booking_id
+       and reconciliation.state in ('reconciliation', 'human_review')
+  ) then
+    raise exception 'KLYX_WORKFLOW_SETTLEMENT_RECONCILIATION_OPEN';
   end if;
 
   update public.klyx_workflow_steps as workflow_step
@@ -246,7 +321,12 @@ begin
     p_actor_type,
     'settlement',
     v_workflow.version,
-    coalesce(p_payload, '{}'::jsonb)
+    coalesce(p_payload, '{}'::jsonb) || jsonb_build_object(
+      'booking_id', v_booking_id,
+      'stripe_transfer_id', v_settlement.stripe_transfer_id,
+      'settlement_state', v_settlement.state,
+      'financial_truth_verified', true
+    )
   );
 
   return query
@@ -267,5 +347,10 @@ comment on function public.klyx_transition_workflow(
   uuid, uuid, bigint, text, text, text, jsonb
 ) is
   'Canonical persistent KLYX workflow transition authority. Earn mode requires explicit completion before settlement.';
+
+comment on function public.klyx_complete_settlement_workflow(
+  uuid, uuid, bigint, text, text, jsonb
+) is
+  'Completes an earn workflow only after its canonical booking is completed/paid, canonical Settlement is released with a Transfer, central Ledger transfer evidence exists, and no financial reconciliation remains open.';
 
 commit;
