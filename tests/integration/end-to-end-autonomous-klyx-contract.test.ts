@@ -70,9 +70,7 @@ describe("Mission 19 end-to-end autonomous KLYX contract", () => {
       expect(stateMachine).toContain(`"${step}"`);
     }
 
-    expect(stateMachine).toContain(
-      "assistantMayExecuteActionDirectly"
-    );
+    expect(stateMachine).toContain("assistantMayExecuteActionDirectly");
     expect(stateMachine).toContain("return false;");
   });
 
@@ -107,17 +105,11 @@ describe("Mission 19 end-to-end autonomous KLYX contract", () => {
     expect(continuity).toContain("to service_role");
     expect(continuity).toContain("from public, anon, authenticated");
 
-    const exactLookup = repository.indexOf(
-      "findActiveWorkflowForConversation"
-    );
-    const orphanRecovery = repository.indexOf(
-      "resumeOrphanedWorkflow"
-    );
+    const exactLookup = repository.indexOf("findActiveWorkflowForConversation");
+    const orphanRecovery = repository.indexOf("resumeOrphanedWorkflow");
     expect(exactLookup).toBeGreaterThan(-1);
     expect(orphanRecovery).toBeGreaterThan(-1);
-    expect(repository).toContain(
-      '"klyx_resume_orphaned_workflow"'
-    );
+    expect(repository).toContain('"klyx_resume_orphaned_workflow"');
     const createOrResumeStart = repository.indexOf(
       "export async function createOrResumeWorkflow"
     );
@@ -131,16 +123,10 @@ describe("Mission 19 end-to-end autonomous KLYX contract", () => {
 
     expect(createOrResumeStart).toBeGreaterThan(-1);
     expect(createOrResumeEnd).toBeGreaterThan(createOrResumeStart);
-    expect(createOrResume).toContain(
-      '"klyx_create_or_resume_workflow"'
-    );
+    expect(createOrResume).toContain('"klyx_create_or_resume_workflow"');
     expect(createOrResume).toContain("if (!current) {");
-    expect(createOrResume).not.toContain(
-      "if (current) return current;"
-    );
-    expect(assistantWorkflow).toContain(
-      "profileId: params.profileId"
-    );
+    expect(createOrResume).not.toContain("if (current) return current;");
+    expect(assistantWorkflow).toContain("profileId: params.profileId");
   });
 
   it("does not depend on the LLM or browser as mutation authority", () => {
@@ -150,24 +136,14 @@ describe("Mission 19 end-to-end autonomous KLYX contract", () => {
     expect(foundation).toContain(
       "Sensitive mutations are never executed by the LLM."
     );
-    expect(repository).toContain(
-      "automaticSensitiveExecutionAllowed: false"
-    );
-    expect(documentation).toContain(
-      "browser state != workflow truth"
-    );
-    expect(documentation).toContain(
-      "LLM context != workflow truth"
-    );
+    expect(repository).toContain("automaticSensitiveExecutionAllowed: false");
+    expect(documentation).toContain("browser state != workflow truth");
+    expect(documentation).toContain("LLM context != workflow truth");
   });
 
   it("makes double-click, replay, worker crash and retry converge on durable identities", () => {
-    expect(foundation).toContain(
-      "unique (workflow_id, idempotency_key)"
-    );
-    expect(durableJobs).toContain(
-      "unique (job_type, idempotency_key)"
-    );
+    expect(foundation).toContain("unique (workflow_id, idempotency_key)");
+    expect(durableJobs).toContain("unique (job_type, idempotency_key)");
     expect(durableJobs).toContain("for update skip locked");
     expect(durableJobs).toContain("lease_token");
     expect(durableJobs).toContain("lease_expires_at");
@@ -179,21 +155,13 @@ describe("Mission 19 end-to-end autonomous KLYX contract", () => {
   });
 
   it("freezes booking economics against later catalog price edits", () => {
-    const snapshotRead = checkout.indexOf(
-      "booking.subtotal_amount_minor ??"
-    );
-    const catalogFallback = checkout.indexOf(
-      "legacyFallbackAmount"
-    );
+    const snapshotRead = checkout.indexOf("booking.subtotal_amount_minor ??");
+    const catalogFallback = checkout.indexOf("legacyFallbackAmount");
 
     expect(snapshotRead).toBeGreaterThan(-1);
     expect(catalogFallback).toBeGreaterThan(-1);
-    expect(snapshotRead).toBeLessThan(
-      checkout.lastIndexOf("legacyFallbackAmount")
-    );
-    expect(checkout).toContain(
-      "KLYX_GLOBAL_MONEY_SNAPSHOT_REQUIRED"
-    );
+    expect(snapshotRead).toBeLessThan(checkout.lastIndexOf("legacyFallbackAmount"));
+    expect(checkout).toContain("KLYX_GLOBAL_MONEY_SNAPSHOT_REQUIRED");
 
     expect(splitCheckout).toContain("price_snapshot");
     expect(splitCheckout).toContain("invalidated_at");
@@ -206,15 +174,11 @@ describe("Mission 19 end-to-end autonomous KLYX contract", () => {
     expect(eligibility).toContain(
       "KLYX MISSION 11 — ECONOMIC ELIGIBILITY -> SETTLEMENT GATE"
     );
-    expect(eligibility).toContain(
-      "economic_settlement_eligibility_decisions"
-    );
+    expect(eligibility).toContain("economic_settlement_eligibility_decisions");
     expect(eligibility).toContain("'allowed'");
     expect(eligibility).toContain("'human_review'");
     expect(eligibility).toContain("'blocked'");
-    expect(documentation).toContain(
-      "Stripe payouts_enabled = true"
-    );
+    expect(documentation).toContain("Stripe payouts_enabled = true");
     expect(documentation).toContain(
       "If KLYX eligibility becomes blocked before a new Transfer, release must remain blocked."
     );
@@ -222,9 +186,7 @@ describe("Mission 19 end-to-end autonomous KLYX contract", () => {
 
   it("fails closed when the newest eligibility timestamp contains conflicting decisions", () => {
     expect(latestEligibilityGate).toContain("select bool_and(");
-    expect(latestEligibilityGate).toContain(
-      "select max(latest.evaluated_at)"
-    );
+    expect(latestEligibilityGate).toContain("select max(latest.evaluated_at)");
     expect(latestEligibilityGate).not.toContain(
       "order by d.evaluated_at desc, d.id desc"
     );
@@ -245,15 +207,9 @@ describe("Mission 19 end-to-end autonomous KLYX contract", () => {
     expect(webhookLifecycle).toContain(
       "Delayed Stripe webhook did not converge after a one-hour event delay."
     );
-    expect(settlementChaos).toContain(
-      'decision: "allowed"'
-    );
-    expect(settlementChaos).toContain(
-      'decision: "blocked"'
-    );
-    expect(settlementChaos).toContain(
-      'blockedClaim.action === "not_ready"'
-    );
+    expect(settlementChaos).toContain('decision: "allowed"');
+    expect(settlementChaos).toContain('decision: "blocked"');
+    expect(settlementChaos).toContain('blockedClaim.action === "not_ready"');
     expect(settlementChaos).toContain(
       'finalSettlement.stripe_transfer_id === null'
     );
@@ -265,7 +221,7 @@ describe("Mission 19 end-to-end autonomous KLYX contract", () => {
     );
   });
 
-  it("proves the full earn lifecycle against real completed booking truth", () => {
+  it("proves the local earn lifecycle reaches settlement but cannot terminate without released financial truth", () => {
     expect(earnLifecycle).toContain('capability", "offer_services"');
     expect(earnLifecycle).toContain('.eq("status", "completed")');
     expect(earnLifecycle).toContain('.eq("payment_status", "paid")');
@@ -283,49 +239,49 @@ describe("Mission 19 end-to-end autonomous KLYX contract", () => {
       expect(earnLifecycle).toContain(`"${step}"`);
     }
     expect(earnLifecycle).toContain('"klyx_complete_settlement_workflow"');
-    expect(earnLifecycle).toContain('completed.status === "completed"');
-    expect(goldenPathWorkflow).toContain(
-      "Verify Mission 19 earn lifecycle"
+    expect(earnLifecycle).toContain(
+      "KLYX_WORKFLOW_SETTLEMENT_TRUTH_NOT_RELEASED"
     );
+    expect(earnLifecycle).toContain('finalWorkflow.status === "active"');
+    expect(earnLifecycle).toContain(
+      "settlementCompletionBlocked: true"
+    );
+    expect(goldenPathWorkflow).toContain("Verify Mission 19 earn lifecycle");
     expect(goldenPathWorkflow).toContain(
       "node scripts/mission19-earn-lifecycle.mjs"
     );
   });
 
-  it("binds earn settlement completion to a real Stripe TEST Transfer", () => {
-    expect(stripeHeldNetwork).toContain(
-      "createPlatformHeldEarnWorkflow"
+  it("binds earn terminal completion to canonical domain, Settlement and central Ledger truth", () => {
+    expect(earnCompletion).toContain("v_workflow.context ->> 'booking_id'");
+    expect(earnCompletion).toContain("public.booking_settlements as settlement");
+    expect(earnCompletion).toContain("coalesce(v_settlement.state, '') <> 'released'");
+    expect(earnCompletion).toContain("public.financial_ledger_events as ledger");
+    expect(earnCompletion).toContain("ledger.movement_type = 'transfer'");
+    expect(earnCompletion).toContain("ledger.beneficiary_kind = 'provider'");
+    expect(earnCompletion).toContain("public.financial_reconciliation_current");
+    expect(earnCompletion).toContain(
+      "KLYX_WORKFLOW_SETTLEMENT_RECONCILIATION_OPEN"
     );
-    expect(stripeHeldNetwork).toContain(
-      'toStep: "mission"'
-    );
-    expect(stripeHeldNetwork).toContain(
-      'toStep: "completion"'
-    );
-    expect(stripeHeldNetwork).toContain(
-      'toStep: "settlement"'
-    );
-    expect(stripeHeldNetwork).toContain(
-      "stripe.transfers.create(transferParams"
-    );
+  });
+
+  it("proves terminal earn completion only after the real Stripe TEST Transfer is reconciled", () => {
+    expect(stripeHeldNetwork).toContain("createPlatformHeldEarnWorkflow");
+    expect(stripeHeldNetwork).toContain('toStep: "mission"');
+    expect(stripeHeldNetwork).toContain('toStep: "completion"');
+    expect(stripeHeldNetwork).toContain('toStep: "settlement"');
+    expect(stripeHeldNetwork).toContain("stripe.transfers.create(transferParams");
     expect(stripeHeldNetwork).toContain(
       "injectPostTransferSettlementRestriction"
     );
-    expect(stripeHeldNetwork).toContain(
-      'recoveryResult?.status === "released"'
-    );
-    expect(stripeHeldNetwork).toContain(
-      "completePlatformHeldEarnWorkflow"
-    );
+    expect(stripeHeldNetwork).toContain('recoveryResult?.status === "released"');
+    expect(stripeHeldNetwork).toContain('released.state === "released"');
+    expect(stripeHeldNetwork).toContain("completePlatformHeldEarnWorkflow");
     expect(stripeHeldNetwork).toContain(
       'p_event_type: "mission19_earn_settlement_reconciled"'
     );
-    expect(stripeHeldNetwork).toContain(
-      'settlement_truth: "released"'
-    );
-    expect(stripeHeldNetwork).toContain(
-      "mission19EarnWorkflow: earnProof"
-    );
+    expect(stripeHeldNetwork).toContain('settlement_truth: "released"');
+    expect(stripeHeldNetwork).toContain("mission19EarnWorkflow: earnProof");
   });
 
   it("keeps static contract checks separate from runtime certification", () => {
