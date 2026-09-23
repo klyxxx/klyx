@@ -63,6 +63,37 @@ describe("KLYX financial runtime worker contract", () => {
     expect(worker).toContain("Aucune donnée utilisateur");
   });
 
+  it("keeps the daily sentinel idempotency fingerprint stable across repeated ticks", () => {
+    const worker = read("lib/financial-runtime-worker-server.ts");
+    const durableJobsMigration = read(
+      "supabase/migrations/20260920190000_klyx_durable_jobs_retry_dlq.sql"
+    );
+
+    expect(worker).toContain("function criticalAlertSentinelIdentity");
+    expect(worker).toContain(
+      "const dayBucket = now.toISOString().slice(0, 10)"
+    );
+    expect(worker).toContain(
+      "`klyx-critical-alert-sentinel:${dayBucket}`"
+    );
+    expect(worker).toContain(
+      "`${dayBucket}T00:00:00.000Z`"
+    );
+    expect(worker).toContain(
+      "criticalAlertSentinelIdentity();"
+    );
+    expect(worker).toContain("occurredAt,");
+    expect(worker).not.toContain(
+      "occurredAt: new Date().toISOString()"
+    );
+
+    // The worker must adapt to canonical idempotency, not weaken it.
+    expect(durableJobsMigration).toContain(
+      "KLYX_DURABLE_JOB_IDEMPOTENCY_CONFLICT"
+    );
+    expect(durableJobsMigration).toContain("request_fingerprint");
+  });
+
   it("records worker and alert heartbeats only from the deployed SHA", () => {
     const worker = read("lib/financial-runtime-worker-server.ts");
 
