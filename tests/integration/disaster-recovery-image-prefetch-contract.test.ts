@@ -3,31 +3,70 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-const workflow = fs
-  .readFileSync(
-    path.join(
-      process.cwd(),
-      ".github/workflows/klyx-supabase-full-restore-drill.yml"
-    ),
-    "utf8"
-  )
-  .replace(/\r\n/g, "\n");
+function readWorkflow(relativePath: string) {
+  return fs
+    .readFileSync(path.join(process.cwd(), relativePath), "utf8")
+    .replace(/\r\n/g, "\n");
+}
 
-describe("KLYX full restore Supabase image prefetch", () => {
-  it("pins and prefetches the exact Supabase Postgres image before db dump", () => {
-    expect(workflow).toContain(
+const fullRestore = readWorkflow(
+  ".github/workflows/klyx-supabase-full-restore-drill.yml"
+);
+const goldenPath = readWorkflow(
+  ".github/workflows/klyx-golden-path.yml"
+);
+const performance = readWorkflow(
+  ".github/workflows/klyx-performance.yml"
+);
+const providerStorage = readWorkflow(
+  ".github/workflows/klyx-provider-storage-golden.yml"
+);
+
+const isolatedSupabaseWorkflows = [
+  fullRestore,
+  goldenPath,
+  performance,
+  providerStorage,
+];
+
+describe("KLYX Supabase CI registry hardening", () => {
+  it("forces Docker Hub after setup-cli in every isolated Supabase workflow", () => {
+    for (const workflow of isolatedSupabaseWorkflows) {
+      const setupIndex = workflow.indexOf("Setup Supabase CLI");
+      const registryIndex = workflow.indexOf(
+        "Use Docker Hub for Supabase CI images"
+      );
+      const startIndex = Math.max(
+        workflow.indexOf("Start ephemeral"),
+        workflow.indexOf("Warm Supabase Postgres image")
+      );
+
+      expect(setupIndex).toBeGreaterThan(-1);
+      expect(registryIndex).toBeGreaterThan(setupIndex);
+      expect(workflow).toContain(
+        'SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io'
+      );
+      expect(startIndex).toBeGreaterThan(registryIndex);
+    }
+  });
+
+  it("pins and prefetches the exact Docker Hub Supabase Postgres image before db dump", () => {
+    expect(fullRestore).toContain(
+      'KLYX_DR_SUPABASE_POSTGRES_IMAGE: "supabase/postgres:17.6.1.156"'
+    );
+    expect(fullRestore).not.toContain(
       'KLYX_DR_SUPABASE_POSTGRES_IMAGE: "ghcr.io/supabase/postgres:17.6.1.156"'
     );
-    expect(workflow).toContain(
+    expect(fullRestore).toContain(
       "Warm Supabase Postgres image with bounded transient retry"
     );
-    expect(workflow).toContain('docker image inspect "$image"');
-    expect(workflow).toContain('docker pull "$image"');
+    expect(fullRestore).toContain('docker image inspect "$image"');
+    expect(fullRestore).toContain('docker pull "$image"');
 
-    const warmIndex = workflow.indexOf(
+    const warmIndex = fullRestore.indexOf(
       "Warm Supabase Postgres image with bounded transient retry"
     );
-    const dumpIndex = workflow.indexOf(
+    const dumpIndex = fullRestore.indexOf(
       "Capture production logical database snapshot"
     );
 
@@ -36,21 +75,27 @@ describe("KLYX full restore Supabase image prefetch", () => {
   });
 
   it("retries only known transient registry/network failures", () => {
-    expect(workflow).toContain("toomanyrequests");
-    expect(workflow).toContain("429");
-    expect(workflow).toContain("5[0-9][0-9]");
-    expect(workflow).toContain("timeout");
-    expect(workflow).toContain("connection reset");
-    expect(workflow).toContain("unexpected eof");
-    expect(workflow).toContain("temporary failure");
-    expect(workflow).toContain("context deadline exceeded");
-    expect(workflow).toContain("Non-transient Docker image pull failure");
+    expect(fullRestore).toContain("toomanyrequests");
+    expect(fullRestore).toContain("429");
+    expect(fullRestore).toContain("5[0-9][0-9]");
+    expect(fullRestore).toContain("timeout");
+    expect(fullRestore).toContain("connection reset");
+    expect(fullRestore).toContain("unexpected eof");
+    expect(fullRestore).toContain("temporary failure");
+    expect(fullRestore).toContain("context deadline exceeded");
+    expect(fullRestore).toContain(
+      "Non-transient Docker image pull failure"
+    );
   });
 
   it("uses bounded backoff and never converts registry failure into success", () => {
-    expect(workflow).toContain("delays=(0 5 30 120 300)");
-    expect(workflow).toContain("jitter=$((RANDOM % 11))");
-    expect(workflow).toContain("Unable to preload required Supabase Postgres image");
-    expect(workflow).not.toContain("docker pull \"$image\" || true");
+    expect(fullRestore).toContain("delays=(0 5 30 120 300)");
+    expect(fullRestore).toContain("jitter=$((RANDOM % 11))");
+    expect(fullRestore).toContain(
+      "Unable to preload required Supabase Postgres image"
+    );
+    expect(fullRestore).not.toContain(
+      'docker pull "$image" || true'
+    );
   });
 });
