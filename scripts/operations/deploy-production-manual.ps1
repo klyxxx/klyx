@@ -29,8 +29,21 @@ function Invoke-Checked {
     [Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments
   )
 
-  & $Command @Arguments
-  if ($LASTEXITCODE -ne 0) {
+  # Windows PowerShell 5.1 can promote ordinary native stderr output into a
+  # NativeCommandError when the script-wide ErrorActionPreference is Stop.
+  # Vercel CLI writes informational/version output to stderr, so native command
+  # success must be decided by the process exit code instead.
+  $previousErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    & $Command @Arguments
+    $exitCode = $LASTEXITCODE
+  }
+  finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+
+  if ($exitCode -ne 0) {
     Fail "Command failed: $Command $($Arguments -join ' ')"
   }
 }
@@ -41,13 +54,115 @@ function Invoke-CheckedCapture {
     [Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments
   )
 
-  $output = & $Command @Arguments 2>&1
-  if ($LASTEXITCODE -ne 0) {
+  $previousErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    $output = & $Command @Arguments 2>&1
+    $exitCode = $LASTEXITCODE
+  }
+  finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+
+  if ($exitCode -ne 0) {
     $rendered = ($output | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
     Fail "Command failed: $Command $($Arguments -join ' ')`n$rendered"
   }
 
   return @($output | ForEach-Object { $_.ToString() })
+}
+
+function Convert-LastJsonObject {
+  param(
+    [Parameter(Mandatory = $true)][string[]]$Lines,
+    [Parameter(Mandatory = $true)][string]$Context
+  )
+
+  for ($index = $Lines.Count - 1; $index -ge 0; $index--) {
+    $candidate = $Lines[$index].Trim()
+    if ([string]::IsNullOrWhiteSpace($candidate)) {
+      continue
+    }
+
+    try {
+      $payload = $candidate | ConvertFrom-Json
+      if ($null -ne $payload) {
+        return $payload
+      }
+    }
+    catch {
+      continue
+    }
+  }
+
+  $rendered = ($Lines -join [Environment]::NewLine).Trim()
+  Fail "$Context did not contain a valid JSON object: $rendered"
+}
+
+function Assert-StagedBuildHealth {
+  param(
+    [Parameter(Mandatory = $true)]$Payload,
+    [Parameter(Mandatory = $true)][string]$ExpectedSha
+  )
+
+  $expected = $ExpectedSha.ToLowerInvariant()
+  $commitSha = "$($Payload.commitSha)".Trim().ToLowerInvariant()
+
+  if ($Payload.ok -ne $true) {
+    Fail 'Staged /api/health/build reports ok=false.'
+  }
+  if ($commitSha -ne $expected) {
+    Fail "Staged build SHA $commitSha does not equal exact main SHA $expected."
+  }
+  if ($Payload.environment -ne 'production') {
+    Fail "Staged build environment must be production; got '$($Payload.environment)'."
+  }
+  if ($null -eq $Payload.financialRuntime) {
+    Fail 'Staged /api/health/build is missing financialRuntime evidence.'
+  }
+
+  $runtime = $Payload.financialRuntime
+
+  if ($runtime.stripeSecretModeCompatible -ne $true) {
+    Fail 'Stripe secret mode is incompatible with KLYX_STRIPE_MODE.'
+  }
+  if ($runtime.stripeWebhookConfigured -ne $true) {
+    Fail 'Stripe webhook secret is not configured for the staged production runtime.'
+  }
+
+  $generalLive = $runtime.generalLiveEnabled -eq $true
+  $controlledCertification = $runtime.controlledCertificationEnabled -eq $true
+
+  if ($generalLive -and $controlledCertification) {
+    Fail 'General LIVE and controlled certification cannot be enabled simultaneously.'
+  }
+
+  if ($generalLive) {
+    if ($runtime.drShaMatchesDeployment -ne $true) {
+      Fail 'General LIVE is enabled without exact-SHA DR certification.'
+    }
+    if ($runtime.financialCertifiedShaMatchesDeployment -ne $true) {
+      Fail 'General LIVE is enabled without exact-SHA production financial certification.'
+    }
+
+    return 'certified_live'
+  }
+
+  if ($controlledCertification) {
+    if ($runtime.drShaMatchesDeployment -ne $true) {
+      Fail 'Controlled financial certification is enabled without exact-SHA DR certification.'
+    }
+    if ($runtime.certificationShaMatchesDeployment -ne $true) {
+      Fail 'Controlled financial certification SHA does not match the staged deployment.'
+    }
+    if ($runtime.certificationProfileConfigured -ne $true) {
+      Fail 'Controlled financial certification profile is not configured.'
+    }
+
+    return 'controlled_certification'
+  }
+
+  return 'safe_off'
 }
 
 function Assert-ExactMainAndCleanTree {
@@ -159,24 +274,23 @@ try {
     Fail "Could not verify klyxMainSha metadata for staged deployment $deploymentUrl."
   }
 
-  # Vercel CLI authentication lets this check work even when the immutable
+  # Vercel CLI authentication lets these checks work even when the immutable
   # deployment URL is protected. Fail on any HTTP 4xx/5xx before promotion.
   $healthOutput = Invoke-CheckedCapture npx vercel curl "$deploymentUrl/api/health" --fail-with-body --silent --show-error
-  $healthText = ($healthOutput -join [Environment]::NewLine).Trim()
-  try {
-    $healthPayload = $healthText | ConvertFrom-Json
-  }
-  catch {
-    Fail "Staged /api/health did not return valid JSON: $healthText"
-  }
+  $healthPayload = Convert-LastJsonObject -Lines $healthOutput -Context 'Staged /api/health'
 
   if (
     $healthPayload.status -ne 'ok' -or
     $healthPayload.service -ne 'klyx' -or
     $healthPayload.check -ne 'liveness'
   ) {
+    $healthText = ($healthOutput -join [Environment]::NewLine).Trim()
     Fail "Staged /api/health payload is invalid: $healthText"
   }
+
+  $buildHealthOutput = Invoke-CheckedCapture npx vercel curl "$deploymentUrl/api/health/build" --fail-with-body --silent --show-error
+  $buildHealthPayload = Convert-LastJsonObject -Lines $buildHealthOutput -Context 'Staged /api/health/build'
+  $financialRuntimeState = Assert-StagedBuildHealth -Payload $buildHealthPayload -ExpectedSha $sha
 
   [void](Invoke-CheckedCapture npx vercel curl "$deploymentUrl/" --fail-with-body --silent --show-error)
 
@@ -199,6 +313,8 @@ try {
     productionOrigin = $ProductionOrigin
     shaMetadata = 'verified'
     stagedHealth = 'verified'
+    stagedBuildHealth = 'verified'
+    financialRuntimeState = $financialRuntimeState
     promotion = 'verified'
     health = 'verified'
   } | ConvertTo-Json -Compress | Write-Host
