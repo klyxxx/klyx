@@ -1,5 +1,7 @@
 import "server-only";
 
+import { getKlyxFinancialLiveAuthority } from "@/lib/financial-live-authority-server";
+
 export const dynamic = "force-dynamic";
 
 const SHA_RE = /^[0-9a-f]{40}$/;
@@ -21,6 +23,34 @@ function normalizedSha(name: string): string | null {
 
 export async function GET(): Promise<Response> {
   const commitSha = normalizedSha("VERCEL_GIT_COMMIT_SHA");
+  let liveAuthority:
+    | {
+        state: "DISABLED" | "CONTROLLED" | "GENERAL";
+        version: number;
+        authorizedShaMatchesDeployment: boolean;
+      }
+    | {
+        state: "UNAVAILABLE";
+        version: null;
+        authorizedShaMatchesDeployment: false;
+      };
+
+  try {
+    const authority = await getKlyxFinancialLiveAuthority();
+    liveAuthority = {
+      state: authority.state,
+      version: authority.version,
+      authorizedShaMatchesDeployment:
+        Boolean(commitSha) &&
+        authority.authorizedSha === commitSha,
+    };
+  } catch {
+    liveAuthority = {
+      state: "UNAVAILABLE",
+      version: null,
+      authorizedShaMatchesDeployment: false,
+    };
+  }
   const drCertifiedSha = normalizedSha("KLYX_DR_CERTIFIED_SHA");
   const liveCertificationSha = normalizedSha("KLYX_LIVE_CERTIFICATION_SHA");
   const financialCertifiedSha = normalizedSha(
@@ -56,6 +86,7 @@ export async function GET(): Promise<Response> {
         controlledCertificationEnabled: envTrue(
           "KLYX_LIVE_CERTIFICATION_ENABLED"
         ),
+        liveAuthority,
         drShaMatchesDeployment:
           Boolean(commitSha) && drCertifiedSha === commitSha,
         certificationShaMatchesDeployment:

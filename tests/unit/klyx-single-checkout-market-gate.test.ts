@@ -35,7 +35,7 @@ describe("KLYX single checkout global market gate", () => {
       "await resolveKlyxMarketPaymentPolicy"
     );
     const liveFailClosed = source.indexOf(
-      'stripeRuntime.mode === "live"'
+      'stripeRuntimeMode === "live"'
     );
     const checkoutCreate = source.indexOf(
       "stripe.checkout.sessions.create"
