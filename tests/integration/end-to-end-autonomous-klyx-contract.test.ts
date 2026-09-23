@@ -29,7 +29,7 @@ const latestEligibilityGate = read(
   "supabase/migrations/20260921180500_klyx_settlement_latest_eligibility_gate.sql"
 );
 const earnCompletion = read(
-  "supabase/migrations/20260922213000_klyx_earn_completion_workflow.sql"
+  "supabase/migrations/20260923161500_klyx_earn_completion_workflow.sql"
 );
 const webhookLifecycle = read("scripts/golden-path-service-lifecycle.mjs");
 const settlementChaos = read("scripts/mission19-settlement-eligibility-chaos.mjs");
@@ -243,9 +243,7 @@ describe("Mission 19 end-to-end autonomous KLYX contract", () => {
       "KLYX_WORKFLOW_SETTLEMENT_TRUTH_NOT_RELEASED"
     );
     expect(earnLifecycle).toContain('finalWorkflow.status === "active"');
-    expect(earnLifecycle).toContain(
-      "settlementCompletionBlocked: true"
-    );
+    expect(earnLifecycle).toContain("settlementCompletionBlocked: true");
     expect(goldenPathWorkflow).toContain("Verify Mission 19 earn lifecycle");
     expect(goldenPathWorkflow).toContain(
       "node scripts/mission19-earn-lifecycle.mjs"
