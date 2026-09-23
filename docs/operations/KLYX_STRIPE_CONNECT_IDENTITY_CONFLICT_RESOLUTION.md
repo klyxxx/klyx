@@ -72,6 +72,24 @@ If the checks pass, one transaction:
 
 The RPC never copies the selected Stripe account onto unrelated profiles.
 
+## Idempotent replay
+
+`(account_id, correlation_id)` is unique.
+
+If the caller loses the response after the transaction committed, replay the
+**exact same** command with the same `correlation_id`.
+
+KLYX returns the original resolution only when:
+
+- selected Stripe account is identical;
+- expected conflict set is identical;
+- reason code is identical;
+- canonical state is already `linked` to that selected account.
+
+Reusing the correlation id with different semantics, or replaying it against an
+unexpected canonical state, fails closed. Never generate a new correlation id
+merely to bypass an ambiguous result.
+
 ## Post-resolution verification
 
 Immediately after resolution, verify:
