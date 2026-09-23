@@ -23,6 +23,21 @@ describe("KLYX Stripe Connect identity conflict resolution", () => {
     expect(migration).not.toContain("delete from public.account_stripe_connect_identity_resolutions");
   });
 
+  it("makes retries idempotent by account and correlation id", () => {
+    expect(migration).toContain(
+      "account_stripe_connect_identity_resolutions_correlation_unique"
+    );
+    expect(migration).toContain("(account_id, correlation_id)");
+    expect(migration).toContain(
+      "KLYX_CONNECT_IDENTITY_RESOLUTION_CORRELATION_REUSE_MISMATCH"
+    );
+    expect(migration).toContain(
+      "KLYX_CONNECT_IDENTITY_RESOLUTION_IDEMPOTENT_STATE_MISMATCH"
+    );
+    expect(migration).toContain("cardinality(v_existing.cleared_profile_ids)");
+    expect(migration).toContain("v_existing.id");
+  });
+
   it("requires the exact conflict set and historical evidence before selecting a winner", () => {
     expect(migration).toContain(
       "KLYX_CONNECT_IDENTITY_RESOLUTION_CONFLICT_SET_DRIFT"
@@ -89,10 +104,12 @@ describe("KLYX Stripe Connect identity conflict resolution", () => {
       "update public.profiles as profile"
     );
     const linkCanonical = migration.indexOf(
-      "update public.account_stripe_connect_identities as identity"
+      "update public.account_stripe_connect_identities as identity",
+      clearLegacy
     );
     const audit = migration.indexOf(
-      "insert into public.account_stripe_connect_identity_resolutions"
+      "insert into public.account_stripe_connect_identity_resolutions",
+      linkCanonical
     );
 
     expect(clearLegacy).toBeGreaterThan(-1);
