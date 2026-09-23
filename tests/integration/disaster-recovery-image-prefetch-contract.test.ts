@@ -21,12 +21,16 @@ const performance = readWorkflow(
 const providerStorage = readWorkflow(
   ".github/workflows/klyx-provider-storage-golden.yml"
 );
+const economicChain = readWorkflow(
+  ".github/workflows/klyx-economic-chain-real-conditions.yml"
+);
 
 const isolatedSupabaseWorkflows = [
   fullRestore,
   goldenPath,
   performance,
   providerStorage,
+  economicChain,
 ];
 
 describe("KLYX Supabase CI registry hardening", () => {
