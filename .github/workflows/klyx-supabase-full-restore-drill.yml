@@ -31,6 +31,7 @@ jobs:
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       KLYX_DR_SOURCE_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       KLYX_DR_SOURCE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      KLYX_DR_SUPABASE_POSTGRES_IMAGE: "ghcr.io/supabase/postgres:17.6.1.156"
       SUPABASE_TELEMETRY_DISABLED: "1"
 
     steps:
@@ -154,6 +155,50 @@ jobs:
         uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
         with:
           version: 2.111.0
+
+      - name: Warm Supabase Postgres image with bounded transient retry
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          image="$KLYX_DR_SUPABASE_POSTGRES_IMAGE"
+          delays=(0 5 30 120 300)
+          pull_log="${RUNNER_TEMP}/klyx-dr-postgres-image-pull.log"
+          transient_pattern='toomanyrequests|(^|[^0-9])429([^0-9]|$)|HTTP[[:space:]]+5[0-9][0-9]|status( code)?:?[[:space:]]+5[0-9][0-9]|timeout|connection reset|unexpected eof|temporary failure|context deadline exceeded|tls handshake timeout'
+
+          for index in "${!delays[@]}"; do
+            if docker image inspect "$image" >/dev/null 2>&1; then
+              echo "Required Supabase Postgres image is already local."
+              rm -f -- "$pull_log"
+              exit 0
+            fi
+
+            delay="${delays[$index]}"
+            if [ "$delay" -gt 0 ]; then
+              jitter=$((RANDOM % 11))
+              sleep "$((delay + jitter))"
+            fi
+
+            : > "$pull_log"
+            if docker pull "$image" 2>&1 | tee "$pull_log"; then
+              rm -f -- "$pull_log"
+              exit 0
+            fi
+
+            if ! grep -Eqi "$transient_pattern" "$pull_log"; then
+              echo "::error::Non-transient Docker image pull failure for required Supabase Postgres image."
+              rm -f -- "$pull_log"
+              exit 1
+            fi
+
+            if [ "$index" -eq "$((${#delays[@]} - 1))" ]; then
+              echo "::error::Unable to preload required Supabase Postgres image after bounded transient retries."
+              rm -f -- "$pull_log"
+              exit 1
+            fi
+
+            echo "::warning::Transient registry/network failure while pulling required Supabase Postgres image; retrying with bounded backoff."
+          done
 
       - name: Capture production Auth and Storage snapshot
         shell: bash
