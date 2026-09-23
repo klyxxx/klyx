@@ -20,4 +20,9 @@ describe("DR public-table fingerprint psql interpolation regression", () => {
       "--command 'select count(*) from public.:\"table\";'"
     );
   });
+
+  it("captures the internal klyx_private schema with public so cross-schema dependencies restore in pg_dump order", () => {
+    expect(workflow).toContain("--schema public,klyx_private");
+    expect(workflow).toContain("--schema public             --data-only");
+  });
 });
