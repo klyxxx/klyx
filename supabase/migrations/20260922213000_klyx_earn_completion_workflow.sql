@@ -185,7 +185,7 @@ returns table (
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 declare
   v_workflow public.klyx_workflows%rowtype;
 begin
@@ -253,7 +253,7 @@ begin
   select v_workflow.id, v_workflow.mode, v_workflow.current_step,
          v_workflow.status, v_workflow.version;
 end;
-$;
+$$;
 
 revoke all on function public.klyx_complete_settlement_workflow(
   uuid, uuid, bigint, text, text, jsonb
