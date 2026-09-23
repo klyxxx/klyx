@@ -198,7 +198,16 @@ jobs:
           : > "$count_file"
           while IFS= read -r table; do
             [ -n "$table" ] || continue
-            count="$(psql               --no-psqlrc               --tuples-only               --no-align               --set ON_ERROR_STOP=1               --set table="$table"               --dbname "$KLYX_DR_SOURCE_DB_URL"               --command 'select count(*) from public.:"table";')"
+            count="$(
+              printf '%s\n' 'select count(*) from public.:"table";' |
+                psql \
+                  --no-psqlrc \
+                  --tuples-only \
+                  --no-align \
+                  --set=ON_ERROR_STOP=1 \
+                  --set=table="$table" \
+                  --dbname "$KLYX_DR_SOURCE_DB_URL"
+            )"
             printf '%s|%s\n' "$table" "$count" >> "$count_file"
           done < "$table_file"
 
@@ -311,7 +320,7 @@ jobs:
           current_auth_users="$(docker exec "$KLYX_FULL_DR_DB_CONTAINER"             psql --username postgres --dbname postgres --tuples-only --no-align               --variable ON_ERROR_STOP=1               --command 'select count(*) from auth.users;')"
 
           if [ "$expected_auth_users" != "$current_auth_users" ]; then
-            docker exec "$KLYX_FULL_DR_DB_CONTAINER"               psql                 --username postgres                 --dbname postgres                 --single-transaction                 --variable ON_ERROR_STOP=1                 --command 'SET session_replication_role = replica;'                 --file /tmp/klyx-full-dr/auth-data.sql
+            docker exec "$KLYX_FULL_DR_DB_CONTAINER"               psql                 --username postgres                 --dbname postgres               --single-transaction               --variable ON_ERROR_STOP=1               --command 'SET session_replication_role = replica;'               --file /tmp/klyx-full-dr/auth-data.sql
           fi
 
           final_auth_users="$(docker exec "$KLYX_FULL_DR_DB_CONTAINER"             psql --username postgres --dbname postgres --tuples-only --no-align               --variable ON_ERROR_STOP=1               --command 'select count(*) from auth.users;')"
@@ -338,7 +347,17 @@ jobs:
 
           while IFS= read -r table; do
             [ -n "$table" ] || continue
-            count="$(docker exec "$KLYX_FULL_DR_DB_CONTAINER"               psql                 --username postgres                 --dbname postgres                 --tuples-only                 --no-align                 --variable ON_ERROR_STOP=1                 --set table="$table"                 --command 'select count(*) from public.:"table";')"
+            count="$(
+              printf '%s\n' 'select count(*) from public.:"table";' |
+                docker exec -i "$KLYX_FULL_DR_DB_CONTAINER" \
+                  psql \
+                    --username postgres \
+                    --dbname postgres \
+                    --tuples-only \
+                    --no-align \
+                    --set=ON_ERROR_STOP=1 \
+                    --set=table="$table"
+            )"
             printf '%s|%s\n' "$table" "$count" >> "$target_counts"
           done < "$KLYX_FULL_DR_WORK_ROOT/source-public-tables.txt"
 
