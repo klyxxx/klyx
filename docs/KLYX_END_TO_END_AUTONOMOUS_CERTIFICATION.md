@@ -70,7 +70,7 @@ skill
 
 `completion` is mandatory. A provider workflow may not jump directly from `mission` to `settlement`.
 
-Settlement is terminal only after explicit server-controlled settlement completion.
+Settlement is terminal only after explicit server-controlled completion backed by canonical booking, Settlement, central Ledger and reconciliation truth.
 
 ## Product continuity invariant
 
@@ -196,7 +196,7 @@ scripts/mission19-autonomous-continuity.mjs
 -> price drift snapshot preservation
 ```
 
-The provider-side runtime proof runs after the real paid/completed mission lifecycle:
+The provider-side local runtime proof runs after a real paid/completed mission lifecycle and proves ordering plus the fail-closed Settlement boundary:
 
 ```text
 scripts/mission19-earn-lifecycle.mjs
@@ -211,12 +211,14 @@ scripts/mission19-earn-lifecycle.mjs
 -> mission
 -> completion
 -> settlement
--> explicit server completion
+-> attempt terminal completion without released Settlement truth
+-> BLOCKED
+-> workflow remains active at settlement
 ```
 
-This prevents a false certification where DEMANDER is exercised end-to-end but GAGNER exists only as static state-machine code.
+This prevents a false certification where DEMANDER is exercised end-to-end but GAGNER exists only as static state-machine code. It also proves that `completed + paid` alone is not sufficient to close GAGNER.
 
-The Golden Path proof validates persistent GAGNER ordering against a real paid/completed mission. Final GAGNER Settlement certification is stronger and runs in Stripe TEST on the platform-held network scenario:
+Final GAGNER Settlement certification runs in Stripe TEST on the platform-held network scenario:
 
 ```text
 accepted provider quote + booking
@@ -231,8 +233,26 @@ accepted provider quote + booking
 -> simulated lost DB response
 -> beneficiary becomes KLYX-ineligible
 -> recovery reconciles the existing Transfer only
+-> booking_settlements = released
+-> central Ledger contains the provider transfer
+-> no open financial reconciliation
 -> workflow settlement completed
 ```
+
+The terminal RPC derives the booking from persistent workflow context. It must independently verify:
+
+```text
+booking provider == workflow provider
+booking.status = completed
+booking.payment_status = paid
+booking.service_status = completed
+booking_settlements.state = released
+stripe_transfer_id exists
+central financial ledger contains the matching provider transfer
+no financial_reconciliation_current row remains in reconciliation/human_review
+```
+
+Caller payloads such as `settlement_truth: released` are audit context only. They are never authority.
 
 The workflow may therefore become terminal only after KLYX has reconciled the exact Transfer that already exists at Stripe. A second Transfer is forbidden.
 
@@ -273,7 +293,7 @@ Mission 19 is certified only when the exact candidate SHA passes:
 3. production build;
 4. existing payment/webhook/settlement golden paths;
 5. controlled chaos evidence covering every row in the required chaos matrix;
-6. Stripe TEST network evidence binding the GAGNER settlement step to the real provider Transfer and reconciliation truth.
+6. Stripe TEST network evidence binding the GAGNER settlement step to the real provider Transfer, central Ledger and reconciliation truth.
 
 Static contracts prove that the architecture contains the required boundaries. They are not, by themselves, runtime certification.
 
