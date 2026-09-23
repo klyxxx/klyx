@@ -91,8 +91,9 @@ permissions:
   contents: read
 
 # Mutation-heavy launch proof must never race with itself.
+# Isolate each PR/ref so another PR cannot replace this run while pending.
 concurrency:
-  group: klyx-golden-path-${{ github.repository }}-${{ github.event_name == 'push' && 'main' || github.event_name }}
+  group: klyx-golden-path-${{ github.repository }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -202,12 +203,10 @@ jobs:
               -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor; then
               exit 0
             fi
-
             if [ "$attempt" -eq 4 ]; then
               echo "::error::Supabase start failed after 4 attempts."
               exit 1
             fi
-
             supabase stop --no-backup || true
             backoff=$((attempt * 20))
             echo "Transient Supabase/image pull failure; retrying in ${backoff}s."
