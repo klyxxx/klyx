@@ -13,6 +13,7 @@
 -- - stale legacy profile projections are cleared, never silently reassigned;
 -- - canonical authority and compatibility cleanup happen atomically;
 -- - every resolution is append-only audited;
+-- - retries with the same correlation id are idempotent;
 -- - no booking/payment/ledger/transfer/refund history is rewritten.
 -- ============================================================
 
@@ -57,6 +58,9 @@ grant usage, select on sequence public.account_stripe_connect_identity_resolutio
 create index if not exists account_stripe_connect_identity_resolutions_account_idx
   on public.account_stripe_connect_identity_resolutions (account_id, resolved_at desc);
 
+create unique index if not exists account_stripe_connect_identity_resolutions_correlation_unique
+  on public.account_stripe_connect_identity_resolutions (account_id, correlation_id);
+
 create or replace function public.klyx_resolve_stripe_connect_identity_conflict(
   p_account_id uuid,
   p_selected_stripe_account_id text,
@@ -77,6 +81,7 @@ set search_path = public
 as $$
 declare
   v_identity public.account_stripe_connect_identities%rowtype;
+  v_existing public.account_stripe_connect_identity_resolutions%rowtype;
   v_selected text := trim(coalesce(p_selected_stripe_account_id, ''));
   v_reason text := upper(trim(coalesce(p_reason_code, '')));
   v_correlation text := trim(coalesce(p_correlation_id, ''));
@@ -119,6 +124,45 @@ begin
 
   if cardinality(v_expected) < 2 or not (v_selected = any(v_expected)) then
     raise exception 'KLYX_CONNECT_IDENTITY_RESOLUTION_EXPECTED_SET_INVALID';
+  end if;
+
+  -- Idempotent retry path. A timeout after the original commit may cause the
+  -- operator to replay the same command. Same correlation + same immutable
+  -- decision returns the original result; correlation reuse with different
+  -- semantics fails closed.
+  select *
+    into v_existing
+  from public.account_stripe_connect_identity_resolutions as resolution
+  where resolution.account_id = p_account_id
+    and resolution.correlation_id = v_correlation
+  limit 1;
+
+  if found then
+    if v_existing.selected_stripe_account_id <> v_selected
+      or v_existing.expected_conflicting_stripe_account_ids is distinct from v_expected
+      or v_existing.reason_code <> v_reason then
+      raise exception 'KLYX_CONNECT_IDENTITY_RESOLUTION_CORRELATION_REUSE_MISMATCH';
+    end if;
+
+    select *
+      into v_identity
+    from public.account_stripe_connect_identities
+    where account_stripe_connect_identities.account_id = p_account_id;
+
+    if not found
+      or v_identity.identity_state <> 'linked'
+      or v_identity.stripe_account_id <> v_selected
+      or cardinality(v_identity.conflicting_stripe_account_ids) <> 0 then
+      raise exception 'KLYX_CONNECT_IDENTITY_RESOLUTION_IDEMPOTENT_STATE_MISMATCH';
+    end if;
+
+    return query
+    select
+      p_account_id,
+      v_selected,
+      cardinality(v_existing.cleared_profile_ids),
+      v_existing.id;
+    return;
   end if;
 
   select *
@@ -260,6 +304,6 @@ grant execute on function public.klyx_resolve_stripe_connect_identity_conflict(
 comment on function public.klyx_resolve_stripe_connect_identity_conflict(
   uuid, text, text[], text, text, jsonb
 ) is
-  'Atomically resolves an existing canonical Connect identity conflict after explicit external review. Exact conflict/history set is mandatory; stale legacy projections are cleared and the decision is append-only audited.';
+  'Atomically resolves an existing canonical Connect identity conflict after explicit external review. Exact conflict/history set is mandatory; stale legacy projections are cleared and retries are idempotent by account/correlation id.';
 
 commit;
