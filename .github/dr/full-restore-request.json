@@ -1,0 +1,9 @@
+{
+  "format": "KLYX_FULL_RESTORE_REQUEST",
+  "version": 1,
+  "requestId": "dr-full-restore-20260923-cb2839f7",
+  "baseMainSha": "cb2839f7ca63519522c2937c87ebf212cf190c3f",
+  "confirmProductionRead": true,
+  "reason": "Re-run the isolated full restore on post-#889 main before any financial LIVE activation.",
+  "requestedAt": "2026-09-23T16:26:00Z"
+}

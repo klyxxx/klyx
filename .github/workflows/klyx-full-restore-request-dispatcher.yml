@@ -1,0 +1,168 @@
+name: KLYX Full Restore Request Dispatcher
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/dr/full-restore-request.json
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: klyx-full-restore-request-dispatcher-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    name: Validate request and dispatch exact-main full restore
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout exact request commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+
+      - name: Validate explicit DR request
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          request_file=".github/dr/full-restore-request.json"
+          test -s "$request_file"
+
+          node - "$request_file" <<'NODE'
+          const fs = require("node:fs");
+
+          const path = process.argv[2];
+          const request = JSON.parse(fs.readFileSync(path, "utf8"));
+          const allowed = new Set([
+            "format",
+            "version",
+            "requestId",
+            "baseMainSha",
+            "confirmProductionRead",
+            "reason",
+            "requestedAt",
+          ]);
+
+          for (const key of Object.keys(request)) {
+            if (!allowed.has(key)) {
+              throw new Error(`Unexpected DR request field: ${key}`);
+            }
+          }
+
+          if (request.format !== "KLYX_FULL_RESTORE_REQUEST") {
+            throw new Error("Unexpected DR request format.");
+          }
+          if (request.version !== 1) {
+            throw new Error("Unsupported DR request version.");
+          }
+          if (request.confirmProductionRead !== true) {
+            throw new Error("Production-read confirmation must be explicit true.");
+          }
+          if (!/^[a-f0-9]{40}$/i.test(String(request.baseMainSha ?? ""))) {
+            throw new Error("baseMainSha must be a full Git SHA.");
+          }
+          if (!/^[a-z0-9][a-z0-9._-]{7,127}$/i.test(String(request.requestId ?? ""))) {
+            throw new Error("requestId is invalid.");
+          }
+          if (typeof request.reason !== "string" || request.reason.trim().length < 16) {
+            throw new Error("A concrete DR request reason is required.");
+          }
+
+          const requestedAt = Date.parse(String(request.requestedAt ?? ""));
+          if (!Number.isFinite(requestedAt)) {
+            throw new Error("requestedAt is invalid.");
+          }
+          const age = Date.now() - requestedAt;
+          if (age < -5 * 60 * 1000 || age > 24 * 60 * 60 * 1000) {
+            throw new Error("DR request must be no older than 24 hours.");
+          }
+          NODE
+
+          requested_base="$(jq -r '.baseMainSha | ascii_downcase' "$request_file")"
+          actual_parent="$(git rev-parse HEAD^1 | tr '[:upper:]' '[:lower:]')"
+
+          if [ "$requested_base" != "$actual_parent" ]; then
+            echo "::error::DR request baseMainSha does not match this main commit parent."
+            exit 1
+          fi
+
+      - name: Refuse stale main before dispatch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          current_main="$(gh api "/repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha' | tr '[:upper:]' '[:lower:]')"
+          current_sha="$(printf '%s' "$GITHUB_SHA" | tr '[:upper:]' '[:lower:]')"
+
+          if [ "$current_main" != "$current_sha" ]; then
+            echo "::error::main advanced after this DR request commit; refusing stale dispatch."
+            exit 1
+          fi
+
+      - name: Dispatch protected full restore drill
+        id: dispatch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          gh workflow run klyx-supabase-full-restore-drill.yml \
+            --ref main \
+            -f confirm_production_read=true
+
+          run_id=""
+          for attempt in $(seq 1 20); do
+            run_id="$(
+              gh api "/repos/${GITHUB_REPOSITORY}/actions/runs?event=workflow_dispatch&branch=main&per_page=30" \
+                --jq ".workflow_runs[] | select(.name == \"KLYX Supabase Full Restore Drill\" and .head_sha == \"${GITHUB_SHA}\") | .id" \
+                | head -n1
+            )"
+
+            if [ -n "$run_id" ]; then
+              break
+            fi
+
+            sleep 3
+          done
+
+          if [ -z "$run_id" ]; then
+            echo "::error::No exact-SHA Full Restore Drill run was created."
+            exit 1
+          fi
+
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "Dispatched exact-main Full Restore Drill run: $run_id"
+
+      - name: Verify dispatched run binding
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FULL_RESTORE_RUN_ID: ${{ steps.dispatch.outputs.run_id }}
+        run: |
+          set -euo pipefail
+
+          run_json="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${FULL_RESTORE_RUN_ID}")"
+          name="$(jq -r '.name // ""' <<<"$run_json")"
+          event="$(jq -r '.event // ""' <<<"$run_json")"
+          head_sha="$(jq -r '.head_sha // ""' <<<"$run_json")"
+          head_branch="$(jq -r '.head_branch // ""' <<<"$run_json")"
+
+          if [ "$name" != "KLYX Supabase Full Restore Drill" ] || \
+             [ "$event" != "workflow_dispatch" ] || \
+             [ "$head_sha" != "$GITHUB_SHA" ] || \
+             [ "$head_branch" != "main" ]; then
+            echo "::error::Dispatched Full Restore Drill is not bound to this exact main SHA."
+            exit 1
+          fi
