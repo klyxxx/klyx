@@ -118,6 +118,10 @@ jobs:
         with:
           version: 2.111.0
 
+      - name: Use Docker Hub for Supabase CI images
+        shell: bash
+        run: echo "SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io" >> "$GITHUB_ENV"
+
       - name: Initialize local Supabase config
         shell: bash
         run: |
