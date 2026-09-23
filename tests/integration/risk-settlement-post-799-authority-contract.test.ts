@@ -74,7 +74,7 @@ describe("post-#799 Risk/Settlement integration authority", () => {
     expect(settlement).toContain("requireKlyxFinancialStripeRuntimeForBooking");
     expect(runtime).toContain('key.startsWith("sk_test_")');
     expect(runtime).toContain('key.startsWith("sk_live_")');
-    expect(runtime).toContain("KLYX_LIVE_CERTIFICATION_PROFILE_ID");
+    expect(runtime).toContain("requireKlyxFinancialLiveAuthority");
     expect(runtime).toContain("KLYX_PRODUCTION_FINANCIAL_CERTIFIED_SHA");
     expect(settlement).toContain("stripe.transfers.create");
     expect(settlement).toContain("transfers.createReversal");

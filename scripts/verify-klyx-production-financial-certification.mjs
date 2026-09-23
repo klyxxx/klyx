@@ -634,21 +634,14 @@ async function main() {
     "KLYX_CERT_RUNTIME_NOT_LIVE"
   );
   assert(
-    health?.financialRuntime?.generalLiveEnabled === false,
-    "KLYX_CERT_GENERAL_LIVE_MUST_REMAIN_OFF"
-  );
-  assert(
-    health?.financialRuntime?.controlledCertificationEnabled === true,
+    health?.financialRuntime?.liveAuthority?.state === "CONTROLLED",
     "KLYX_CERT_CONTROLLED_LIVE_NOT_ENABLED"
   );
   assert(
-    health?.financialRuntime?.drShaMatchesDeployment === true &&
-      health?.financialRuntime?.certificationShaMatchesDeployment === true,
+    health?.financialRuntime?.liveAuthority
+      ?.authorizedShaMatchesDeployment === true &&
+      health?.financialRuntime?.drShaMatchesDeployment === true,
     "KLYX_CERT_RUNTIME_SHA_CHAIN_MISMATCH"
-  );
-  assert(
-    health?.financialRuntime?.certificationProfileConfigured === true,
-    "KLYX_CERT_PROFILE_NOT_CONFIGURED"
   );
   assert(
     health?.financialRuntime?.stripeSecretModeCompatible === true,
@@ -675,6 +668,35 @@ async function main() {
   const supabase = createClient(supabaseUrl, serviceRole, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+
+  const { data: liveAuthority, error: liveAuthorityError } =
+    await supabase
+      .from("ops_financial_live_authority")
+      .select(
+        "state, authorized_sha, certification_profile_id, version"
+      )
+      .eq("authority_key", "stripe_finance")
+      .maybeSingle();
+
+  assert(
+    !liveAuthorityError && liveAuthority,
+    "KLYX_CERT_LIVE_AUTHORITY_UNAVAILABLE"
+  );
+  assert(
+    liveAuthority.state === "CONTROLLED",
+    "KLYX_CERT_LIVE_AUTHORITY_NOT_CONTROLLED"
+  );
+  assert(
+    String(liveAuthority.authorized_sha ?? "").toLowerCase() ===
+      expectedSha,
+    "KLYX_CERT_LIVE_AUTHORITY_SHA_MISMATCH"
+  );
+  assert(
+    String(
+      liveAuthority.certification_profile_id ?? ""
+    ).toLowerCase() === certificationProfileId.toLowerCase(),
+    "KLYX_CERT_LIVE_AUTHORITY_PROFILE_MISMATCH"
+  );
 
   const summary = [];
 

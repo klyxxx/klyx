@@ -19,8 +19,8 @@ import { POST as corePost } from "./route-core";
  * The executable payment authority lives in ./route-core.ts. Every @core token
  * below is verified against that file by the route/core bridge contract test.
  *
- * try { assertStripeRuntimeReady()
- * @core:assertStripeRuntimeReady()
+ * try { requireKlyxFinancialStripeRuntime
+ * @core:requireKlyxFinancialStripeRuntime
  * @core:assessKlyxStripeMarketAccess
  * @core:profile.countryCode
  * @core:clientMarketAccess.allowed
