@@ -32,6 +32,7 @@ jobs:
       KLYX_DR_SOURCE_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       KLYX_DR_SOURCE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       KLYX_DR_SUPABASE_POSTGRES_IMAGE: "supabase/postgres:17.6.1.156"
+      KLYX_DR_GOTRUE_VERSION: "v2.197.0"
       SUPABASE_TELEMETRY_DISABLED: "1"
 
     steps:
@@ -272,6 +273,14 @@ jobs:
 
           if [ -f "$KLYX_FULL_DR_LAB_ROOT/supabase/.temp/project-ref" ]; then
             echo "::error::Isolated restore lab must never be linked."
+            exit 1
+          fi
+
+          mkdir -p "$KLYX_FULL_DR_LAB_ROOT/supabase/.temp"
+          printf '%s\n' "$KLYX_DR_GOTRUE_VERSION" > "$KLYX_FULL_DR_LAB_ROOT/supabase/.temp/gotrue-version"
+
+          if [ "$(tr -d '\r\n' < "$KLYX_FULL_DR_LAB_ROOT/supabase/.temp/gotrue-version")" != "$KLYX_DR_GOTRUE_VERSION" ]; then
+            echo "::error::Unable to pin isolated Auth runtime version."
             exit 1
           fi
 
