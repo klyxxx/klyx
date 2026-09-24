@@ -24,7 +24,7 @@ const REQUIRED_COVERAGE = [
 
 describe("KLYX autonomous offline certification bench", () => {
   it("certifies every required scenario with fake adapters and no network access", () => {
-    const report = runAutonomousCertificationBench();
+    const report = runAutonomousCertificationBench() as any;
 
     expect(report.summary.status).toBe("PASS");
     expect(report.summary.failed).toBe(0);
@@ -45,7 +45,7 @@ describe("KLYX autonomous offline certification bench", () => {
 
     expect(
       report.results.every(
-        (scenario) =>
+        (scenario: any) =>
           scenario.status === "PASS" &&
           scenario.evidence?.externalNetworkCalls === 0
       )
@@ -61,7 +61,7 @@ describe("KLYX autonomous offline certification bench", () => {
   });
 
   it("covers continuity on both DEMANDER and GAGNER", () => {
-    const report = runAutonomousCertificationBench();
+    const report = runAutonomousCertificationBench() as any;
 
     for (const requirement of [
       "browser_closed_reopened",
