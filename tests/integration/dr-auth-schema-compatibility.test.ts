@@ -1,6 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
-import { preparePortableAuthData } from "../../scripts/prepare-portable-auth-data.mjs";
+import { afterEach, describe, expect, it } from "vitest";
+
+const scriptPath = path.join(
+  process.cwd(),
+  "scripts",
+  "prepare-portable-auth-data.mjs"
+);
+const tempRoots: string[] = [];
 
 const usersCopy = [
   "COPY auth.users (id, email) FROM stdin;",
@@ -13,20 +23,57 @@ const emptyRecoverySetsCopy = [
   "\\.",
 ].join("\n");
 
+function runPortableAuth(input: { source: string; targetTables: string[] }) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "klyx-dr-auth-test-"));
+  tempRoots.push(root);
+
+  const sourcePath = path.join(root, "auth-data.sql");
+  const targetPath = path.join(root, "target-auth-tables.txt");
+  const outputPath = path.join(root, "auth-data.portable.sql");
+  const reportPath = path.join(root, "report.json");
+
+  fs.writeFileSync(sourcePath, input.source, "utf8");
+  fs.writeFileSync(targetPath, `${input.targetTables.join("\n")}\n`, "utf8");
+
+  const result = spawnSync(
+    process.execPath,
+    [scriptPath, sourcePath, targetPath, outputPath, reportPath],
+    { encoding: "utf8" }
+  );
+
+  return {
+    ...result,
+    outputPath,
+    reportPath,
+    output: fs.existsSync(outputPath)
+      ? fs.readFileSync(outputPath, "utf8")
+      : null,
+    report: fs.existsSync(reportPath)
+      ? JSON.parse(fs.readFileSync(reportPath, "utf8"))
+      : null,
+  };
+}
+
+afterEach(() => {
+  for (const root of tempRoots.splice(0)) {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 describe("KLYX DR portable Auth data", () => {
   it("omits only missing target Auth relations whose COPY block is empty", () => {
-    const source = [usersCopy, emptyRecoverySetsCopy, ""].join("\n");
-    const result = preparePortableAuthData({
-      source,
+    const result = runPortableAuth({
+      source: [usersCopy, emptyRecoverySetsCopy, ""].join("\n"),
       targetTables: ["users", "identities"],
     });
 
-    expect(result.sql).toContain("COPY auth.users");
-    expect(result.sql).not.toContain("COPY auth.mfa_recovery_code_sets");
-    expect(result.sql).toContain(
+    expect(result.status).toBe(0);
+    expect(result.output).toContain("COPY auth.users");
+    expect(result.output).not.toContain("COPY auth.mfa_recovery_code_sets");
+    expect(result.output).toContain(
       "omitted empty COPY block for auth.mfa_recovery_code_sets"
     );
-    expect(result.report.omitted).toEqual([
+    expect(result.report?.omitted).toEqual([
       {
         table: "mfa_recovery_code_sets",
         rowCount: 0,
@@ -36,49 +83,59 @@ describe("KLYX DR portable Auth data", () => {
   });
 
   it("fails closed when a missing target relation contains source data", () => {
-    const source = [
-      usersCopy,
-      "COPY auth.mfa_recovery_code_sets (id, user_id) FROM stdin;",
-      "set-1\t00000000-0000-0000-0000-000000000001",
-      "\\.",
-      "",
-    ].join("\n");
+    const result = runPortableAuth({
+      source: [
+        usersCopy,
+        "COPY auth.mfa_recovery_code_sets (id, user_id) FROM stdin;",
+        "set-1\t00000000-0000-0000-0000-000000000001",
+        "\\.",
+        "",
+      ].join("\n"),
+      targetTables: ["users"],
+    });
 
-    expect(() =>
-      preparePortableAuthData({
-        source,
-        targetTables: ["users"],
-      })
-    ).toThrow(
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain(
       "Target Auth schema is missing auth.mfa_recovery_code_sets, but source dump contains 1 data row(s)"
+    );
+    expect(result.output).toBeNull();
+    expect(result.report).toBeNull();
+  });
+
+  it("requires auth.users in the target schema", () => {
+    const result = runPortableAuth({
+      source: usersCopy,
+      targetTables: ["identities"],
+    });
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain(
+      "Target Auth schema is missing required table auth.users"
     );
   });
 
-  it("requires auth.users in both target schema and source dump", () => {
-    expect(() =>
-      preparePortableAuthData({
-        source: usersCopy,
-        targetTables: ["identities"],
-      })
-    ).toThrow("Target Auth schema is missing required table auth.users");
+  it("requires auth.users in the source dump", () => {
+    const result = runPortableAuth({
+      source: emptyRecoverySetsCopy,
+      targetTables: ["users", "mfa_recovery_code_sets"],
+    });
 
-    expect(() =>
-      preparePortableAuthData({
-        source: emptyRecoverySetsCopy,
-        targetTables: ["users", "mfa_recovery_code_sets"],
-      })
-    ).toThrow("Source Auth dump does not contain required COPY block for auth.users");
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain(
+      "Source Auth dump does not contain required COPY block for auth.users"
+    );
   });
 
-  it("rejects malformed or unterminated COPY blocks", () => {
-    expect(() =>
-      preparePortableAuthData({
-        source: [
-          "COPY auth.users (id, email) FROM stdin;",
-          "00000000-0000-0000-0000-000000000001\tuser@example.com",
-        ].join("\n"),
-        targetTables: ["users"],
-      })
-    ).toThrow("Unterminated COPY block for auth.users");
+  it("rejects unterminated COPY blocks", () => {
+    const result = runPortableAuth({
+      source: [
+        "COPY auth.users (id, email) FROM stdin;",
+        "00000000-0000-0000-0000-000000000001\tuser@example.com",
+      ].join("\n"),
+      targetTables: ["users"],
+    });
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("Unterminated COPY block for auth.users");
   });
 });
