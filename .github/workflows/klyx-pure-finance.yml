@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "lib/pure-finance-engine.ts"
+      - "lib/pure-finance/**"
       - "tests/unit/pure-finance-engine.test.ts"
       - "tests/integration/pure-finance-engine-contract.test.ts"
       - ".github/workflows/klyx-pure-finance.yml"
