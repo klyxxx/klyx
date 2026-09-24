@@ -9,6 +9,7 @@ on:
       - ".github/workflows/klyx-autonomous-offline-certification.yml"
       - "scripts/certification/autonomous-klyx-offline-bench.mjs"
       - "tests/integration/autonomous-offline-certification-bench.test.ts"
+      - "docs/KLYX_AUTONOMOUS_OFFLINE_CERTIFICATION_BENCH.md"
       - "docs/KLYX_END_TO_END_AUTONOMOUS_CERTIFICATION.md"
       - "package.json"
   push:
@@ -18,6 +19,7 @@ on:
       - ".github/workflows/klyx-autonomous-offline-certification.yml"
       - "scripts/certification/autonomous-klyx-offline-bench.mjs"
       - "tests/integration/autonomous-offline-certification-bench.test.ts"
+      - "docs/KLYX_AUTONOMOUS_OFFLINE_CERTIFICATION_BENCH.md"
       - "docs/KLYX_END_TO_END_AUTONOMOUS_CERTIFICATION.md"
       - "package.json"
 
