@@ -53,3 +53,6 @@ jobs:
 
       - name: TypeScript safety check
         run: npx tsc --noEmit --pretty false
+
+      - name: Production build
+        run: npm run build
