@@ -40,7 +40,10 @@ async function advance(
   return runtime.orchestrator.dispatch({
     workflowId,
     idempotencyKey: key,
-    command: { kind: "advance", to, factsPatch },
+    command:
+      factsPatch === undefined
+        ? { kind: "advance", to }
+        : { kind: "advance", to, factsPatch },
   });
 }
 
