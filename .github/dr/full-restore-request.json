@@ -1,9 +1,9 @@
 {
   "format": "KLYX_FULL_RESTORE_REQUEST",
   "version": 1,
-  "requestId": "dr-full-restore-20260923-cb2839f7",
-  "baseMainSha": "cb2839f7ca63519522c2937c87ebf212cf190c3f",
+  "requestId": "dr-full-restore-20260924-761aae08",
+  "baseMainSha": "761aae088a2b83ed3c1a3833f588c9929d2c799b",
   "confirmProductionRead": true,
-  "reason": "Re-run the isolated full restore on post-#889 main before any financial LIVE activation.",
-  "requestedAt": "2026-09-23T16:26:00Z"
+  "reason": "Run the exact-main isolated full restore after Economic Chain registry hardening and before any financial LIVE activation.",
+  "requestedAt": "2026-09-24T10:39:00Z"
 }
