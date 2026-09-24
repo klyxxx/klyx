@@ -39,7 +39,7 @@ function baseState() {
 }
 
 describe("pure money primitives", () => {
-  it("supports 0/2/3-decimal currencies with canonical half-up rounding", () => {
+  it("supports zero-, two- and three-decimal currencies with canonical half-up rounding", () => {
     expect(decimalToMinorUnits("123.5", "JPY", currencies)).toBe(124);
     expect(decimalToMinorUnits("10.005", "EUR", currencies)).toBe(1001);
     expect(decimalToMinorUnits("12.3455", "KWD", currencies)).toBe(12346);
@@ -48,15 +48,15 @@ describe("pure money primitives", () => {
     expect(minorUnitsToDecimal(12346, "KWD", currencies)).toBe("12.346");
   });
 
-  it("rounds rationals and basis points deterministically", () => {
-    expect(roundFinanceRational(5n, 2n)).toBe(3);
-    expect(roundFinanceRational(-5n, 2n)).toBe(-3);
+  it("rounds exact rationals and basis points deterministically", () => {
+    expect(roundFinanceRational(BigInt(5), BigInt(2))).toBe(3);
+    expect(roundFinanceRational(BigInt(-5), BigInt(2))).toBe(-3);
     expect(calculateBasisPointsAmount(999, 1500)).toBe(150);
     expect(calculateBasisPointsAmount(1, 4999)).toBe(0);
     expect(calculateBasisPointsAmount(1, 5000)).toBe(1);
   });
 
-  it("fails closed on missing/duplicate currency policy", () => {
+  it("fails closed on missing or duplicate currency policy", () => {
     expect(() => decimalToMinorUnits("1", "CHF", currencies)).toThrow(
       "KLYX_FINANCE_CURRENCY_POLICY_MISSING"
     );
@@ -70,7 +70,7 @@ describe("pure money primitives", () => {
 });
 
 describe("pure FX", () => {
-  it("converts exact rational major-unit FX across different minor-unit exponents", () => {
+  it("converts exact rational FX across different minor-unit exponents", () => {
     expect(
       convertMoney(
         { amountMinor: 1000, currency: "EUR" },
@@ -102,7 +102,7 @@ describe("pure FX", () => {
     ).toEqual({ amountMinor: 1500, currency: "JPY" });
   });
 
-  it("requires explicit FX truth and rejects mismatches", () => {
+  it("requires explicit cross-currency FX truth", () => {
     expect(() =>
       convertMoney({ amountMinor: 100, currency: "EUR" }, "USD", null, currencies)
     ).toThrow("KLYX_FINANCE_FX_RATE_REQUIRED");
@@ -125,7 +125,7 @@ describe("pure FX", () => {
 });
 
 describe("commission, taxes and provider liability", () => {
-  it("conserves the charge exactly", () => {
+  it("conserves every unit between platform economics and provider liability", () => {
     const result = calculateFinancialBreakdown({
       grossMinor: 10_000,
       commission: { basisPoints: 1_500, fixedMinor: 25 },
@@ -161,7 +161,7 @@ describe("commission, taxes and provider liability", () => {
     );
   });
 
-  it("rejects impossible economics", () => {
+  it("rejects impossible commission/tax configurations", () => {
     expect(() =>
       calculateFinancialBreakdown({
         grossMinor: 100,
@@ -186,8 +186,8 @@ describe("commission, taxes and provider liability", () => {
   });
 });
 
-describe("canonical charge → commission → provider liability → transfer → reversal → refund", () => {
-  it("creates canonical initial movements", () => {
+describe("canonical financial chain", () => {
+  it("starts with charge → commission → provider liability", () => {
     const state = baseState();
     expect(state.events.map((entry) => entry.type)).toEqual([
       "charge",
@@ -198,7 +198,7 @@ describe("canonical charge → commission → provider liability → transfer �
     assertFinancialState(state);
   });
 
-  it("supports partial and full settlement without over-transfer", () => {
+  it("supports partial/full settlement without over-transfer", () => {
     let state = settleProviderLiability(baseState(), {
       operationId: "settle-1",
       amountMinor: 3_000,
@@ -218,7 +218,7 @@ describe("canonical charge → commission → provider liability → transfer �
     ).toThrow("KLYX_FINANCE_SETTLEMENT_EXCEEDS_LIABILITY");
   });
 
-  it("supports explicit reversal", () => {
+  it("supports reversal and reopens settlement capacity", () => {
     let state = settleProviderLiability(baseState(), { operationId: "settle" });
     state = reverseTransfer(state, {
       operationId: "reverse",
@@ -229,7 +229,7 @@ describe("canonical charge → commission → provider liability → transfer �
     expect(state.events.at(-1)?.type).toBe("reversal");
   });
 
-  it("auto-reverses provider overpayment before refund", () => {
+  it("auto-reverses provider overpayment before recording a refund", () => {
     let state = settleProviderLiability(baseState(), { operationId: "settle" });
     state = refundCharge(state, {
       operationId: "partial-refund",
@@ -244,7 +244,7 @@ describe("canonical charge → commission → provider liability → transfer �
     assertFinancialState(state);
   });
 
-  it("full refund after settlement preserves canonical transfer → reversal → refund order", () => {
+  it("full refund after settlement yields transfer → reversal → refund", () => {
     let state = settleProviderLiability(baseState(), { operationId: "settle" });
     state = fullRefundCharge(state, { operationId: "full-refund" });
     expect(state.events.slice(-3).map((entry) => entry.type)).toEqual([
@@ -257,7 +257,7 @@ describe("canonical charge → commission → provider liability → transfer �
     expect(netTransferredMinor(state)).toBe(0);
   });
 
-  it("supports manual repair when automatic reversal is disabled", () => {
+  it("supports explicit manual reversal repair", () => {
     const settled = settleProviderLiability(baseState(), { operationId: "settle" });
     const refunded = refundCharge(settled, {
       operationId: "refund-no-auto",
@@ -276,8 +276,8 @@ describe("canonical charge → commission → provider liability → transfer �
   });
 });
 
-describe("partial refund determinism", () => {
-  it("cumulative allocation always conserves each refund", () => {
+describe("partial/full refund determinism", () => {
+  it("cumulative allocation conserves each refund exactly", () => {
     let state = createFinancialState({
       transactionId: "refund-conservation",
       currency: "EUR",
@@ -362,7 +362,7 @@ describe("partial refund determinism", () => {
 });
 
 describe("payout projection and reproducibility", () => {
-  it("projects payout from net transfer truth without mutating state", () => {
+  it("projects payout from net transfer truth without mutation", () => {
     const state = settleProviderLiability(baseState(), {
       operationId: "settle",
       amountMinor: 4_000,
@@ -429,7 +429,7 @@ describe("payout projection and reproducibility", () => {
 });
 
 describe("broad deterministic matrices", () => {
-  it("conserves every minor unit across many gross/commission combinations", () => {
+  it("conserves every minor unit across a gross/commission matrix", () => {
     for (let gross = 1; gross <= 2_000; gross += 37) {
       for (const bps of [0, 1, 125, 999, 1500, 3333, 5000, 10000]) {
         const result = calculateFinancialBreakdown({
@@ -449,7 +449,7 @@ describe("broad deterministic matrices", () => {
     }
   });
 
-  it("full refunds conserve awkward values across taxes and rounding", () => {
+  it("full refunds conserve awkward totals across tax and rounding matrices", () => {
     for (let gross = 1; gross <= 1_000; gross += 29) {
       const initial = createFinancialState({
         transactionId: `refund-${gross}`,
