@@ -168,7 +168,7 @@ describe("KLYX pure resilience engine", () => {
   it("never blindly retries timeout or unknown external state", async () => {
     const { engine } = setup({
       executors: {
-        "mock.timeout": async () => new Promise(() => undefined),
+        "mock.timeout": async () => new Promise<never>(() => undefined),
       },
       recoveryHandlers: {
         "mock.timeout": async () => ({
