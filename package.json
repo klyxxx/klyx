@@ -29,8 +29,11 @@
     "perf:ab": "powershell -ExecutionPolicy Bypass -File scripts/performance/ab-local.ps1",
     "ops:smoke": "node scripts/operations/check-public-production.mjs",
     "test:mission19": "vitest run tests/integration/end-to-end-autonomous-continuity-contract.test.ts tests/integration/end-to-end-autonomous-klyx-contract.test.ts tests/integration/mission19-durable-job-claim-regression.test.ts tests/integration/mission19-exact-dispatch-serialization.test.ts",
+    "test:durable:orchestration": "vitest run tests/unit/resilience-engine.test.ts tests/unit/resilience-engine-fail-closed.test.ts tests/unit/durable-orchestration-engine.test.ts tests/integration/resilience-engine-contract.test.ts tests/integration/resilience-engine-fail-closed-contract.test.ts tests/integration/autonomous-offline-certification-bench.test.ts",
+    "test:autonomous:offline": "vitest run tests/integration/autonomous-offline-certification-bench.test.ts tests/integration/durable-orchestration-certification.test.ts",
     "certify:mission19:continuity": "node scripts/mission19-autonomous-continuity.mjs",
-    "certify:mission19:settlement": "node scripts/mission19-settlement-eligibility-chaos.mjs"
+    "certify:mission19:settlement": "node scripts/mission19-settlement-eligibility-chaos.mjs",
+    "certify:autonomous:offline": "node scripts/certification/autonomous-klyx-offline-bench.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -53,7 +56,7 @@
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
-    "@types/react-dom": "^19",
+    "@types/react-dom": "^19.2.4",
     "eslint": "^9",
     "eslint-config-next": "16.3.3",
     "supabase": "^2.114.0",
