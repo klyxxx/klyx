@@ -3,10 +3,18 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-const source = fs.readFileSync(
-  path.join(process.cwd(), "lib/pure-finance-engine.ts"),
-  "utf8"
-);
+const root = process.cwd();
+const moduleDir = path.join(root, "lib/pure-finance");
+const moduleFiles = fs
+  .readdirSync(moduleDir)
+  .filter((name) => name.endsWith(".ts"))
+  .sort();
+const source = [
+  fs.readFileSync(path.join(root, "lib/pure-finance-engine.ts"), "utf8"),
+  ...moduleFiles.map((name) =>
+    fs.readFileSync(path.join(moduleDir, name), "utf8")
+  ),
+].join("\n");
 
 describe("KLYX pure finance architecture contract", () => {
   it("has no payment-provider, database or server-only dependency", () => {
@@ -17,7 +25,7 @@ describe("KLYX pure finance architecture contract", () => {
     expect(source).not.toContain("stripe.");
   });
 
-  it("does not depend on clock, randomness, locale metadata or network I/O", () => {
+  it("does not depend on clocks, randomness, locale metadata or network I/O", () => {
     for (const forbidden of [
       "Date.now",
       "new Date(",
@@ -31,7 +39,7 @@ describe("KLYX pure finance architecture contract", () => {
     }
   });
 
-  it("keeps the canonical financial chain vocabulary", () => {
+  it("keeps the canonical financial vocabulary", () => {
     for (const token of [
       '"charge"',
       '"commission"',
@@ -52,9 +60,9 @@ describe("KLYX pure finance architecture contract", () => {
     expect(source).not.toMatch(/const\s+(SUPPORTED|ALLOWED)_CURRENC/i);
   });
 
-  it("uses integer/rational math and explicit operation identities", () => {
+  it("uses integer/rational math and deterministic operation identities", () => {
     expect(source).toContain('export type FinanceRoundingMode = "half_up"');
-    expect(source).toContain("BigInt");
+    expect(source).toContain("BigInt(");
     expect(source).toContain("allocateProportionally");
     expect(source).toContain("KLYX_FINANCE_OPERATION_DUPLICATE");
   });
