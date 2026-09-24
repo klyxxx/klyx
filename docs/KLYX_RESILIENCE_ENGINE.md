@@ -145,3 +145,9 @@ The old job remains immutable history.
 This mission contains no Stripe SDK import, no Supabase import, no transfer, refund, payout, PaymentIntent, ledger mutation, or settlement mutation.
 
 Any future financial adapter must remain behind existing KLYX financial authorities and must re-check eligibility, ledger, settlement and environment certification before side effects.
+
+## CI certification semantics
+
+KLYX pull-request E2E is repository-serialized through GitHub concurrency. A run cancelled before any job is created is an orchestration event, not certification success and not evidence of a product failure.
+
+The exact pull-request head SHA must still obtain a successful `Playwright browser verification` before merge. A previous SHA, a zero-job cancellation, or a successful sibling pull request never substitutes for certification of the head being merged.
