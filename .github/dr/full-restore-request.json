@@ -1,9 +1,9 @@
 {
   "format": "KLYX_FULL_RESTORE_REQUEST",
   "version": 1,
-  "requestId": "dr-full-restore-20260924-761aae08",
-  "baseMainSha": "761aae088a2b83ed3c1a3833f588c9929d2c799b",
+  "requestId": "dr-full-restore-20260924-b3b773c4-auth-compat",
+  "baseMainSha": "b3b773c4ce8711ceca6d8ff0612c19090c7b27b4",
   "confirmProductionRead": true,
-  "reason": "Run a fresh isolated full restore for the exact current main before any controlled financial LIVE certification or production promotion.",
-  "requestedAt": "2026-09-24T10:39:00Z"
+  "reason": "Run a fresh exact-main isolated full restore after the fail-closed target-aware Auth schema compatibility fix.",
+  "requestedAt": "2026-09-24T14:24:00Z"
 }
