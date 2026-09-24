@@ -7,20 +7,32 @@ on:
       - main
     paths:
       - ".github/workflows/klyx-autonomous-offline-certification.yml"
+      - "lib/durable-orchestration-engine.ts"
+      - "lib/durable-orchestration-fakes.ts"
+      - "lib/resilience-engine.ts"
+      - "lib/resilience-memory-adapter.ts"
       - "scripts/certification/autonomous-klyx-offline-bench.mjs"
       - "tests/integration/autonomous-offline-certification-bench.test.ts"
+      - "tests/integration/durable-orchestration-certification.test.ts"
+      - "tests/unit/durable-orchestration-engine.test.ts"
       - "docs/KLYX_AUTONOMOUS_OFFLINE_CERTIFICATION_BENCH.md"
-      - "docs/KLYX_END_TO_END_AUTONOMOUS_CERTIFICATION.md"
+      - "docs/KLYX_DURABLE_ORCHESTRATION_ENGINE.md"
       - "package.json"
   push:
     branches:
       - main
     paths:
       - ".github/workflows/klyx-autonomous-offline-certification.yml"
+      - "lib/durable-orchestration-engine.ts"
+      - "lib/durable-orchestration-fakes.ts"
+      - "lib/resilience-engine.ts"
+      - "lib/resilience-memory-adapter.ts"
       - "scripts/certification/autonomous-klyx-offline-bench.mjs"
       - "tests/integration/autonomous-offline-certification-bench.test.ts"
+      - "tests/integration/durable-orchestration-certification.test.ts"
+      - "tests/unit/durable-orchestration-engine.test.ts"
       - "docs/KLYX_AUTONOMOUS_OFFLINE_CERTIFICATION_BENCH.md"
-      - "docs/KLYX_END_TO_END_AUTONOMOUS_CERTIFICATION.md"
+      - "docs/KLYX_DURABLE_ORCHESTRATION_ENGINE.md"
       - "package.json"
 
 permissions:
@@ -32,9 +44,9 @@ concurrency:
 
 jobs:
   certify:
-    name: Deterministic DEMANDER + GAGNER bench
+    name: Deterministic DEMANDER + GAGNER durable engine
     runs-on: ubuntu-22.04
-    timeout-minutes: 5
+    timeout-minutes: 8
     env:
       KLYX_AUTONOMOUS_CERT_DIR: certification-artifacts
       KLYX_AUTONOMOUS_OFFLINE_ONLY: "true"
@@ -49,9 +61,26 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: TypeScript
+        run: npx tsc --noEmit --pretty false
+
+      - name: Durable orchestration unit and contract tests
+        run: >-
+          npx vitest run
+          tests/unit/resilience-engine.test.ts
+          tests/unit/resilience-engine-fail-closed.test.ts
+          tests/unit/durable-orchestration-engine.test.ts
+          tests/integration/resilience-engine-contract.test.ts
+          tests/integration/resilience-engine-fail-closed-contract.test.ts
+          tests/integration/autonomous-offline-certification-bench.test.ts
 
       - name: Certify autonomous KLYX offline
-        run: node scripts/certification/autonomous-klyx-offline-bench.mjs
+        run: npm run certify:autonomous:offline
 
       - name: Verify deterministic PASS report
         shell: bash
@@ -74,6 +103,9 @@ jobs:
           }
           if (report.adapters?.stripe !== "fake-stripe") {
             throw new Error("Real Stripe adapter detected.");
+          }
+          if (report.adapters?.persistence !== "abstract-klyx-orchestration-store") {
+            throw new Error("Persistence abstraction contract failed.");
           }
           if (
             !report.results?.every(
