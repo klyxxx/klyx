@@ -1,0 +1,58 @@
+name: KLYX Pure Finance Certification
+
+on:
+  pull_request:
+    paths:
+      - "lib/pure-finance-engine.ts"
+      - "lib/pure-finance/**"
+      - "tests/unit/pure-finance-engine.test.ts"
+      - "tests/integration/pure-finance-engine-contract.test.ts"
+      - ".github/workflows/klyx-pure-finance.yml"
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact commit SHA to certify
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  pure-finance:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Verify immutable certification SHA
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event.inputs.expected_sha }}" != "${GITHUB_SHA}" ]; then
+            echo "::error::Expected SHA does not match GITHUB_SHA."
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Pure finance unit and architecture tests
+        run: >-
+          npx vitest run
+          tests/unit/pure-finance-engine.test.ts
+          tests/integration/pure-finance-engine-contract.test.ts
+          --reporter=verbose
+
+      - name: TypeScript safety check
+        run: npx tsc --noEmit --pretty false
+
+      - name: Production build
+        run: npm run build
