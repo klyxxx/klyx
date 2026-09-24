@@ -154,7 +154,7 @@ jobs:
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
         with:
-          version: 2.111.0
+          version: 2.117.0
 
       - name: Use Docker Hub for Supabase CI images
         shell: bash
@@ -172,7 +172,6 @@ jobs:
 
           for index in "${!delays[@]}"; do
             if docker image inspect "$image" >/dev/null 2>&1; then
-              echo "Required Supabase Postgres image is already local."
               rm -f -- "$pull_log"
               exit 0
             fi
@@ -190,18 +189,16 @@ jobs:
             fi
 
             if ! grep -Eqi "$transient_pattern" "$pull_log"; then
-              echo "::error::Non-transient Docker image pull failure for required Supabase Postgres image."
+              echo "::error::Non-transient Docker image pull failure."
               rm -f -- "$pull_log"
               exit 1
             fi
 
             if [ "$index" -eq "$((${#delays[@]} - 1))" ]; then
-              echo "::error::Unable to preload required Supabase Postgres image after bounded transient retries."
+              echo "::error::Unable to preload required Supabase Postgres image."
               rm -f -- "$pull_log"
               exit 1
             fi
-
-            echo "::warning::Transient registry/network failure while pulling required Supabase Postgres image; retrying with bounded backoff."
           done
 
       - name: Capture production Auth and Storage snapshot
@@ -209,7 +206,6 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/backup-klyx-storage.mjs "$KLYX_FULL_DR_STORAGE_ROOT"
-
           test -s "$KLYX_FULL_DR_STORAGE_ROOT/storage-manifest.json"
           test -s "$KLYX_FULL_DR_STORAGE_ROOT/state-manifest.json"
 
@@ -218,56 +214,68 @@ jobs:
         run: |
           set -euo pipefail
 
-          supabase db dump             --db-url "$KLYX_DR_SOURCE_DB_URL"             -f "$KLYX_FULL_DR_DB_ROOT/roles.sql"             --role-only
+          supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" -f "$KLYX_FULL_DR_DB_ROOT/roles.sql" --role-only
+          supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" -f "$KLYX_FULL_DR_DB_ROOT/auth-schema.sql" --schema auth
+          supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" -f "$KLYX_FULL_DR_DB_ROOT/auth-data.sql" --schema auth --data-only --use-copy
+          supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" -f "$KLYX_FULL_DR_DB_ROOT/public-schema.sql" --schema public,klyx_private
+          supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" -f "$KLYX_FULL_DR_DB_ROOT/public-data.sql" --schema public --data-only --use-copy
+          supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" -f "$KLYX_FULL_DR_DB_ROOT/migration-history-schema.sql" --schema supabase_migrations
+          supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" -f "$KLYX_FULL_DR_DB_ROOT/migration-history-data.sql" --schema supabase_migrations --data-only --use-copy
 
-          supabase db dump             --db-url "$KLYX_DR_SOURCE_DB_URL"             -f "$KLYX_FULL_DR_DB_ROOT/public-schema.sql"             --schema public,klyx_private
-
-          supabase db dump             --db-url "$KLYX_DR_SOURCE_DB_URL"             -f "$KLYX_FULL_DR_DB_ROOT/public-data.sql"             --schema public             --data-only             --use-copy
-
-          supabase db dump             --db-url "$KLYX_DR_SOURCE_DB_URL"             -f "$KLYX_FULL_DR_DB_ROOT/auth-data.sql"             --schema auth             --data-only             --use-copy
-
-          supabase db dump             --db-url "$KLYX_DR_SOURCE_DB_URL"             -f "$KLYX_FULL_DR_DB_ROOT/migration-history-schema.sql"             --schema supabase_migrations
-
-          supabase db dump             --db-url "$KLYX_DR_SOURCE_DB_URL"             -f "$KLYX_FULL_DR_DB_ROOT/migration-history-data.sql"             --schema supabase_migrations             --data-only             --use-copy
-
-          for file in             roles.sql             public-schema.sql             public-data.sql             auth-data.sql             migration-history-schema.sql             migration-history-data.sql; do
+          for file in \
+            roles.sql \
+            auth-schema.sql \
+            auth-data.sql \
+            public-schema.sql \
+            public-data.sql \
+            migration-history-schema.sql \
+            migration-history-data.sql; do
             test -s "$KLYX_FULL_DR_DB_ROOT/$file"
           done
 
-      - name: Capture private source public-table fingerprints
+      - name: Capture private source public and Auth table fingerprints
         shell: bash
         run: |
           set -euo pipefail
 
-          table_file="$KLYX_FULL_DR_WORK_ROOT/source-public-tables.txt"
-          count_file="$KLYX_FULL_DR_WORK_ROOT/source-public-counts.txt"
+          for schema in public auth; do
+            table_file="$KLYX_FULL_DR_WORK_ROOT/source-${schema}-tables.txt"
+            count_file="$KLYX_FULL_DR_WORK_ROOT/source-${schema}-counts.txt"
 
-          psql             --no-psqlrc             --tuples-only             --no-align             --set ON_ERROR_STOP=1             --dbname "$KLYX_DR_SOURCE_DB_URL"             --command "select tablename from pg_tables where schemaname = 'public' order by tablename;"             > "$table_file"
+            psql \
+              --no-psqlrc \
+              --tuples-only \
+              --no-align \
+              --set ON_ERROR_STOP=1 \
+              --dbname "$KLYX_DR_SOURCE_DB_URL" \
+              --command "select tablename from pg_tables where schemaname = '${schema}' order by tablename;" \
+              > "$table_file"
 
-          : > "$count_file"
-          while IFS= read -r table; do
-            [ -n "$table" ] || continue
-            count="$(
-              printf '%s\n' 'select count(*) from public.:"table";' |
-                psql \
-                  --no-psqlrc \
-                  --tuples-only \
-                  --no-align \
-                  --set=ON_ERROR_STOP=1 \
-                  --set=table="$table" \
-                  --dbname "$KLYX_DR_SOURCE_DB_URL"
-            )"
-            printf '%s|%s\n' "$table" "$count" >> "$count_file"
-          done < "$table_file"
+            : > "$count_file"
+            while IFS= read -r table; do
+              [ -n "$table" ] || continue
+              count="$(
+                printf '%s\n' 'select count(*) from :"schema".:"table";' |
+                  psql \
+                    --no-psqlrc \
+                    --tuples-only \
+                    --no-align \
+                    --set=ON_ERROR_STOP=1 \
+                    --set=schema="$schema" \
+                    --set=table="$table" \
+                    --dbname "$KLYX_DR_SOURCE_DB_URL"
+              )"
+              printf '%s|%s\n' "$table" "$count" >> "$count_file"
+            done < "$table_file"
 
-          test -s "$table_file"
-          test -s "$count_file"
+            test -s "$table_file"
+            test -s "$count_file"
+          done
 
       - name: Initialize isolated Supabase lab
         shell: bash
         run: |
           set -euo pipefail
-
           supabase --workdir "$KLYX_FULL_DR_LAB_ROOT" init --force
 
           if [ -f "$KLYX_FULL_DR_LAB_ROOT/supabase/.temp/project-ref" ]; then
@@ -287,10 +295,7 @@ jobs:
 
           supabase --workdir "$KLYX_FULL_DR_LAB_ROOT" db start
 
-          mapfile -t db_containers < <(
-            docker ps --format '{{.Names}}' | grep '^supabase_db_' || true
-          )
-
+          mapfile -t db_containers < <(docker ps --format '{{.Names}}' | grep '^supabase_db_' || true)
           if [ "${#db_containers[@]}" -ne 1 ]; then
             echo "::error::Unable to identify one isolated Supabase DB container."
             exit 1
@@ -305,14 +310,11 @@ jobs:
 
           node - "$KLYX_FULL_DR_DB_ROOT/roles.sql" "$KLYX_FULL_DR_DB_ROOT/roles.portable.sql" <<'NODE'
           const fs = require("node:fs");
-
           const inputPath = process.argv[2];
           const outputPath = process.argv[3];
           const source = fs.readFileSync(inputPath, "utf8");
           const roleStatement = /\b(?:CREATE|ALTER) ROLE\b/;
-          const roleSetting =
-            /^ALTER ROLE (?:(?:"(?:[^"]|"")*")|(?:[^\s;]+)) (?:SET|RESET)\b.*;\s*$/;
-
+          const roleSetting = /^ALTER ROLE (?:(?:"(?:[^"]|"")*")|(?:[^\s;]+)) (?:SET|RESET)\b.*;\s*$/;
           const lines = source.split(/\r?\n/);
           const portable = [];
           let stripped = 0;
@@ -326,17 +328,9 @@ jobs:
           }
 
           let output = portable.join("\n");
-          const hasPortableRoleStatements = roleStatement.test(output);
-
-          if (!hasPortableRoleStatements) {
-            if (stripped === 0) {
-              throw new Error("Role dump has no replayable statements.");
-            }
-
-            output = [
-              "-- KLYX full restore drill: keep existing local Supabase roles.",
-              "",
-            ].join("\n");
+          if (!roleStatement.test(output)) {
+            if (stripped === 0) throw new Error("Role dump has no replayable statements.");
+            output = "-- KLYX full restore drill: keep existing local Supabase roles.\n";
           }
 
           fs.writeFileSync(outputPath, output, { mode: 0o600 });
@@ -348,34 +342,78 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           docker exec "$KLYX_FULL_DR_DB_CONTAINER" sh -lc 'mkdir -p /tmp/klyx-full-dr'
 
-          for file in             roles.portable.sql             public-schema.sql             public-data.sql             auth-data.sql             migration-history-schema.sql             migration-history-data.sql; do
-            docker cp               "$KLYX_FULL_DR_DB_ROOT/$file"               "$KLYX_FULL_DR_DB_CONTAINER:/tmp/klyx-full-dr/$file"
+          for file in \
+            roles.portable.sql \
+            auth-schema.sql \
+            auth-data.sql \
+            public-schema.sql \
+            public-data.sql \
+            migration-history-schema.sql \
+            migration-history-data.sql; do
+            docker cp "$KLYX_FULL_DR_DB_ROOT/$file" "$KLYX_FULL_DR_DB_CONTAINER:/tmp/klyx-full-dr/$file"
           done
 
-      - name: Restore database and Auth into isolated database
+      - name: Restore source Auth schema, database and Auth data into isolated database
         shell: bash
         run: |
           set -euo pipefail
 
-          docker exec "$KLYX_FULL_DR_DB_CONTAINER"             psql               --username postgres               --dbname postgres               --variable ON_ERROR_STOP=1               --command 'drop schema if exists public cascade;'               --command 'create schema public authorization postgres;'
+          docker exec "$KLYX_FULL_DR_DB_CONTAINER" \
+            psql \
+              --username postgres \
+              --dbname postgres \
+              --variable ON_ERROR_STOP=1 \
+              --command 'drop schema if exists public cascade;' \
+              --command 'drop schema if exists auth cascade;'
 
-          docker exec "$KLYX_FULL_DR_DB_CONTAINER"             psql               --username postgres               --dbname postgres               --single-transaction               --variable ON_ERROR_STOP=1               --file /tmp/klyx-full-dr/roles.portable.sql               --file /tmp/klyx-full-dr/public-schema.sql               --command 'SET session_replication_role = replica;'               --file /tmp/klyx-full-dr/public-data.sql
+          docker exec "$KLYX_FULL_DR_DB_CONTAINER" \
+            psql \
+              --username postgres \
+              --dbname postgres \
+              --single-transaction \
+              --variable ON_ERROR_STOP=1 \
+              --file /tmp/klyx-full-dr/roles.portable.sql \
+              --file /tmp/klyx-full-dr/auth-schema.sql \
+              --file /tmp/klyx-full-dr/public-schema.sql \
+              --command 'SET session_replication_role = replica;' \
+              --file /tmp/klyx-full-dr/auth-data.sql \
+              --file /tmp/klyx-full-dr/public-data.sql
 
-          expected_auth_users="$(node -e             'const fs=require("fs"); const s=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(String(s.authUserCount));'             "$KLYX_FULL_DR_STORAGE_ROOT/state-manifest.json")"
-
-          current_auth_users="$(docker exec "$KLYX_FULL_DR_DB_CONTAINER"             psql --username postgres --dbname postgres --tuples-only --no-align               --variable ON_ERROR_STOP=1               --command 'select count(*) from auth.users;')"
-
-          if [ "$expected_auth_users" != "$current_auth_users" ]; then
-            docker exec "$KLYX_FULL_DR_DB_CONTAINER"               psql                 --username postgres                 --dbname postgres               --single-transaction               --variable ON_ERROR_STOP=1               --command 'SET session_replication_role = replica;'               --file /tmp/klyx-full-dr/auth-data.sql
-          fi
-
-          final_auth_users="$(docker exec "$KLYX_FULL_DR_DB_CONTAINER"             psql --username postgres --dbname postgres --tuples-only --no-align               --variable ON_ERROR_STOP=1               --command 'select count(*) from auth.users;')"
+          expected_auth_users="$(node -e 'const fs=require("fs"); const s=JSON.parse(fs.readFileSync(process.argv[1],"utf8")); process.stdout.write(String(s.authUserCount));' "$KLYX_FULL_DR_STORAGE_ROOT/state-manifest.json")"
+          final_auth_users="$(docker exec "$KLYX_FULL_DR_DB_CONTAINER" psql --username postgres --dbname postgres --tuples-only --no-align --variable ON_ERROR_STOP=1 --command 'select count(*) from auth.users;')"
 
           if [ "$final_auth_users" != "$expected_auth_users" ]; then
-            echo "::error::Auth restore count mismatch."
+            echo "::error::Auth users restore count mismatch."
+            exit 1
+          fi
+
+      - name: Verify every restored Auth-table row count
+        shell: bash
+        run: |
+          set -euo pipefail
+          target_counts="$KLYX_FULL_DR_WORK_ROOT/target-auth-counts.txt"
+          : > "$target_counts"
+
+          while IFS= read -r table; do
+            [ -n "$table" ] || continue
+            count="$(
+              printf '%s\n' 'select count(*) from auth.:"table";' |
+                docker exec -i "$KLYX_FULL_DR_DB_CONTAINER" \
+                  psql \
+                    --username postgres \
+                    --dbname postgres \
+                    --tuples-only \
+                    --no-align \
+                    --set=ON_ERROR_STOP=1 \
+                    --set=table="$table"
+            )"
+            printf '%s|%s\n' "$table" "$count" >> "$target_counts"
+          done < "$KLYX_FULL_DR_WORK_ROOT/source-auth-tables.txt"
+
+          if ! cmp -s "$KLYX_FULL_DR_WORK_ROOT/source-auth-counts.txt" "$target_counts"; then
+            echo "::error::Restored Auth-table row-count fingerprint mismatch."
             exit 1
           fi
 
@@ -383,14 +421,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          docker exec "$KLYX_FULL_DR_DB_CONTAINER"             psql               --username postgres               --dbname postgres               --single-transaction               --variable ON_ERROR_STOP=1               --file /tmp/klyx-full-dr/migration-history-schema.sql               --file /tmp/klyx-full-dr/migration-history-data.sql
+          docker exec "$KLYX_FULL_DR_DB_CONTAINER" \
+            psql \
+              --username postgres \
+              --dbname postgres \
+              --single-transaction \
+              --variable ON_ERROR_STOP=1 \
+              --file /tmp/klyx-full-dr/migration-history-schema.sql \
+              --file /tmp/klyx-full-dr/migration-history-data.sql
 
       - name: Verify every restored public-table row count
         shell: bash
         run: |
           set -euo pipefail
-
           target_counts="$KLYX_FULL_DR_WORK_ROOT/target-public-counts.txt"
           : > "$target_counts"
 
@@ -410,7 +453,7 @@ jobs:
             printf '%s|%s\n' "$table" "$count" >> "$target_counts"
           done < "$KLYX_FULL_DR_WORK_ROOT/source-public-tables.txt"
 
-          if ! cmp -s             "$KLYX_FULL_DR_WORK_ROOT/source-public-counts.txt"             "$target_counts"; then
+          if ! cmp -s "$KLYX_FULL_DR_WORK_ROOT/source-public-counts.txt" "$target_counts"; then
             echo "::error::Restored public-table row-count fingerprint mismatch."
             exit 1
           fi
@@ -419,10 +462,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           supabase --workdir "$KLYX_FULL_DR_LAB_ROOT" stop
-
-          supabase --workdir "$KLYX_FULL_DR_LAB_ROOT" start             -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+          supabase --workdir "$KLYX_FULL_DR_LAB_ROOT" start -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
 
           eval "$(supabase --workdir "$KLYX_FULL_DR_LAB_ROOT" status -o env)"
 
@@ -459,7 +500,24 @@ jobs:
           set -euo pipefail
           mkdir -p full-restore-proof
 
-          printf '%s\n'             "commit=${GITHUB_SHA}"             "run=${GITHUB_RUN_ID}"             "scope=public_auth_storage_full_restore"             "source=production_read_only_snapshot"             "target=ephemeral_loopback_supabase"             "all_public_table_row_counts_match=true"             "auth_database_verified=true"             "auth_service_verified=true"             "storage_binary_sha256_verified=true"             "storage_service_verified=true"             "production_write=false"             "linked_restore_commands=false"             "sensitive_snapshot_uploaded=false"             "verified_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"             > full-restore-proof/proof.txt
+          printf '%s\n' \
+            "commit=${GITHUB_SHA}" \
+            "run=${GITHUB_RUN_ID}" \
+            "scope=public_auth_storage_full_restore" \
+            "source=production_read_only_snapshot" \
+            "target=ephemeral_loopback_supabase" \
+            "all_public_table_row_counts_match=true" \
+            "all_auth_table_row_counts_match=true" \
+            "auth_source_schema_restored=true" \
+            "auth_database_verified=true" \
+            "auth_service_verified=true" \
+            "storage_binary_sha256_verified=true" \
+            "storage_service_verified=true" \
+            "production_write=false" \
+            "linked_restore_commands=false" \
+            "sensitive_snapshot_uploaded=false" \
+            "verified_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            > full-restore-proof/proof.txt
 
       - name: Upload sanitized full recovery proof
         if: success()
