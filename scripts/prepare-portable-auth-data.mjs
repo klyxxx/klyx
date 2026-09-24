@@ -2,7 +2,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { pathToFileURL } from "node:url";
 
 function fail(message) {
   throw new Error(message);
@@ -156,10 +156,11 @@ function main() {
   }
 }
 
-const isDirectExecution =
-  process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
+const entrypoint = process.argv[1]
+  ? pathToFileURL(path.resolve(process.argv[1])).href
+  : null;
 
-if (isDirectExecution) {
+if (entrypoint === import.meta.url) {
   try {
     main();
   } catch (error) {
