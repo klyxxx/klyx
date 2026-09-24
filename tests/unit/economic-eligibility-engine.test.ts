@@ -115,10 +115,12 @@ describe("pure KLYX economic eligibility engine", () => {
 
   it("blocks restricted verification", () => {
     const input = cloneInput();
-    input.verifications[0] = {
-      ...input.verifications[0],
-      status: "restricted",
-    };
+    input.verifications = [
+      {
+        ...input.verifications[0],
+        status: "restricted",
+      },
+    ];
 
     const result = evaluateEconomicEligibility(input);
 
