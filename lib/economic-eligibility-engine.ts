@@ -9,38 +9,12 @@ export type EconomicEligibilityState =
   | "requirements_due"
   | "human_review";
 
-export type EconomicEligibilityDecision =
-  | "allowed"
-  | "blocked"
-  | "human_review";
-
+export type EconomicEligibilityDecision = "allowed" | "blocked" | "human_review";
 export type EconomicEligibilityAction = "settlement" | "payout";
-
-export type KlyxAuthorityStatus =
-  | "verified"
-  | "pending"
-  | "expired"
-  | "restricted"
-  | "human_review";
-
-export type AccountStatus =
-  | "active"
-  | "pending"
-  | "restricted"
-  | "human_review";
-
-export type CountryEligibilityStatus =
-  | "allowed"
-  | "pending"
-  | "restricted"
-  | "human_review";
-
-export type ExternalProviderStatus =
-  | "ready"
-  | "pending"
-  | "restricted"
-  | "human_review";
-
+export type KlyxAuthorityStatus = "verified" | "pending" | "expired" | "restricted" | "human_review";
+export type AccountStatus = "active" | "pending" | "restricted" | "human_review";
+export type CountryEligibilityStatus = "allowed" | "pending" | "restricted" | "human_review";
+export type ExternalProviderStatus = "ready" | "pending" | "restricted" | "human_review";
 export type ExternalRequirementScope = "settlement" | "payout" | "both";
 
 export type EconomicEligibilityAuthority =
@@ -91,6 +65,7 @@ export type EconomicEligibilityReasonCode =
   | "COUNTRY_PENDING"
   | "COUNTRY_HUMAN_REVIEW"
   | "EXTERNAL_PROVIDER_IDENTITY_MISMATCH"
+  | "EXTERNAL_PROVIDER_ACCOUNT_MISSING"
   | "EXTERNAL_PROVIDER_PENDING"
   | "EXTERNAL_PROVIDER_RESTRICTED"
   | "EXTERNAL_PROVIDER_HUMAN_REVIEW"
@@ -107,38 +82,26 @@ export type EconomicEligibilityEvidence = {
   details: Readonly<Record<string, string | number | boolean | null>>;
 };
 
-export type AccountAuthority = {
-  id: string;
-  status: AccountStatus;
-};
-
-export type EconomicIdentityAuthority = {
-  id: string;
-  accountId: string;
-  status: KlyxAuthorityStatus;
-};
-
+export type AccountAuthority = { id: string; status: AccountStatus };
+export type EconomicIdentityAuthority = { id: string; accountId: string; status: KlyxAuthorityStatus };
 export type LegalSubjectAuthority = {
   id: string;
   economicIdentityId: string;
   kind: "person" | "entity";
   status: KlyxAuthorityStatus;
 };
-
 export type VerificationAuthority = {
   id: string;
   subjectId: string;
   type: string;
   status: KlyxAuthorityStatus;
 };
-
 export type QualificationAuthority = {
   id: string;
   accountId: string;
   key: string;
   status: KlyxAuthorityStatus;
 };
-
 export type ActivityEligibilityAuthority = {
   id: string;
   accountId: string;
@@ -147,12 +110,10 @@ export type ActivityEligibilityAuthority = {
   status: KlyxAuthorityStatus;
   countryStatus: CountryEligibilityStatus;
 };
-
 export type ExternalPaymentProviderRequirement = {
   code: string;
   scope: ExternalRequirementScope;
 };
-
 export type ExternalPaymentProviderState = {
   provider: string;
   economicIdentityId: string;
@@ -162,24 +123,20 @@ export type ExternalPaymentProviderState = {
   payoutsEnabled: boolean;
   requirementsDue: readonly ExternalPaymentProviderRequirement[];
 };
-
 export type EconomicEligibilityRequirements = {
   verificationTypes: readonly string[];
   qualificationKeys: readonly string[];
 };
-
 export type EconomicEligibilityContext = {
   action: EconomicEligibilityAction;
   activityKey: string;
   countryCode: string;
   evaluatedAt: string;
 };
-
 export type PreviousEconomicEligibilityState = {
   state: EconomicEligibilityState;
   decision: EconomicEligibilityDecision;
 };
-
 export type EconomicEligibilityInput = {
   account: AccountAuthority;
   economicIdentity: EconomicIdentityAuthority;
@@ -192,7 +149,6 @@ export type EconomicEligibilityInput = {
   context: EconomicEligibilityContext;
   previous?: PreviousEconomicEligibilityState | null;
 };
-
 export type EconomicEligibilityAuditEvent = {
   type: "economic_eligibility_evaluated";
   schemaVersion: 1;
@@ -214,7 +170,6 @@ export type EconomicEligibilityAuditEvent = {
   reasonCodes: readonly EconomicEligibilityReasonCode[];
   evidence: readonly EconomicEligibilityEvidence[];
 };
-
 export type EconomicEligibilityResult = {
   state: EconomicEligibilityState;
   decision: EconomicEligibilityDecision;
@@ -226,8 +181,13 @@ export type EconomicEligibilityResult = {
 
 type Finding = {
   state: EconomicEligibilityState;
-  decision: Exclude<EconomicEligibilityDecision, "allowed">;
+  decision: "blocked" | "human_review";
   reasonCode: EconomicEligibilityReasonCode;
+};
+
+type MutableEvaluation = {
+  findings: Finding[];
+  evidence: EconomicEligibilityEvidence[];
 };
 
 const STATE_PRIORITY: Readonly<Record<EconomicEligibilityState, number>> = {
@@ -242,20 +202,23 @@ const STATE_PRIORITY: Readonly<Record<EconomicEligibilityState, number>> = {
   restricted: 80,
 };
 
-function normalizeActivityKey(value: string): string {
+const STATUS_TO_STATE: Readonly<Record<Exclude<KlyxAuthorityStatus, "verified">, EconomicEligibilityState>> = {
+  pending: "pending",
+  expired: "expired",
+  restricted: "restricted",
+  human_review: "human_review",
+};
+
+function normalizeKey(value: string): string {
   return value.trim().toLowerCase();
 }
 
-function normalizeCountryCode(value: string): string {
+function normalizeCountry(value: string): string {
   return value.trim().toUpperCase();
 }
 
-function normalizeRequirementKey(value: string): string {
-  return value.trim().toLowerCase();
-}
-
-function addEvidence(
-  evidence: EconomicEligibilityEvidence[],
+function pushEvidence(
+  evaluation: MutableEvaluation,
   authority: EconomicEligibilityAuthority,
   code: string,
   status: string,
@@ -263,15 +226,14 @@ function addEvidence(
   blocking: boolean,
   details: Readonly<Record<string, string | number | boolean | null>> = {}
 ): void {
-  evidence.push({ authority, code, status, reference, blocking, details });
+  evaluation.evidence.push({ authority, code, status, reference, blocking, details });
 }
 
-function addFinding(
-  findings: Finding[],
-  evidence: EconomicEligibilityEvidence[],
+function pushFinding(
+  evaluation: MutableEvaluation,
   input: {
     state: EconomicEligibilityState;
-    decision: Exclude<EconomicEligibilityDecision, "allowed">;
+    decision: "blocked" | "human_review";
     reasonCode: EconomicEligibilityReasonCode;
     authority: EconomicEligibilityAuthority;
     status: string;
@@ -279,13 +241,13 @@ function addFinding(
     details?: Readonly<Record<string, string | number | boolean | null>>;
   }
 ): void {
-  findings.push({
+  evaluation.findings.push({
     state: input.state,
     decision: input.decision,
     reasonCode: input.reasonCode,
   });
-  addEvidence(
-    evidence,
+  pushEvidence(
+    evaluation,
     input.authority,
     input.reasonCode,
     input.status,
@@ -295,28 +257,22 @@ function addFinding(
   );
 }
 
-function evaluateStandardStatus(
-  findings: Finding[],
-  evidence: EconomicEligibilityEvidence[],
+function evaluateKlyxStatus(
+  evaluation: MutableEvaluation,
   input: {
     authority: EconomicEligibilityAuthority;
     reference: string;
     status: KlyxAuthorityStatus;
-    prefix:
-      | "ECONOMIC_IDENTITY"
-      | "LEGAL_SUBJECT"
-      | "VERIFICATION"
-      | "QUALIFICATION"
-      | "ACTIVITY";
+    prefix: "ECONOMIC_IDENTITY" | "LEGAL_SUBJECT" | "VERIFICATION" | "QUALIFICATION" | "ACTIVITY";
     details?: Readonly<Record<string, string | number | boolean | null>>;
   }
 ): void {
   if (input.status === "verified") {
-    addEvidence(
-      evidence,
+    pushEvidence(
+      evaluation,
       input.authority,
       `${input.prefix}_VERIFIED`,
-      input.status,
+      "verified",
       input.reference,
       false,
       input.details
@@ -324,11 +280,9 @@ function evaluateStandardStatus(
     return;
   }
 
-  const reasonCode = `${input.prefix}_${input.status.toUpperCase()}` as
-    | EconomicEligibilityReasonCode;
-
-  addFinding(findings, evidence, {
-    state: input.status === "human_review" ? "human_review" : input.status,
+  const reasonCode = `${input.prefix}_${input.status.toUpperCase()}` as EconomicEligibilityReasonCode;
+  pushFinding(evaluation, {
+    state: STATUS_TO_STATE[input.status],
     decision: input.status === "human_review" ? "human_review" : "blocked",
     reasonCode,
     authority: input.authority,
@@ -338,36 +292,27 @@ function evaluateStandardStatus(
   });
 }
 
-function requirementApplies(
-  requirement: ExternalPaymentProviderRequirement,
-  action: EconomicEligibilityAction
-): boolean {
-  return requirement.scope === "both" || requirement.scope === action;
+function sortedUnique(values: readonly string[]): string[] {
+  return Array.from(new Set(values.map(normalizeKey).filter(Boolean))).sort();
 }
 
-function selectOverallState(findings: readonly Finding[]): EconomicEligibilityState {
-  if (findings.length === 0) return "verified";
-
-  return findings.reduce<EconomicEligibilityState>((selected, finding) => {
-    return STATE_PRIORITY[finding.state] > STATE_PRIORITY[selected]
-      ? finding.state
-      : selected;
-  }, "verified");
+function finalState(findings: readonly Finding[]): EconomicEligibilityState {
+  return findings.reduce<EconomicEligibilityState>(
+    (current, finding) =>
+      STATE_PRIORITY[finding.state] > STATE_PRIORITY[current]
+        ? finding.state
+        : current,
+    "verified"
+  );
 }
 
-function selectDecision(
-  findings: readonly Finding[]
-): EconomicEligibilityDecision {
-  if (findings.some((finding) => finding.decision === "blocked")) {
-    return "blocked";
-  }
-  if (findings.some((finding) => finding.decision === "human_review")) {
-    return "human_review";
-  }
+function finalDecision(findings: readonly Finding[]): EconomicEligibilityDecision {
+  if (findings.some((finding) => finding.decision === "blocked")) return "blocked";
+  if (findings.some((finding) => finding.decision === "human_review")) return "human_review";
   return "allowed";
 }
 
-function uniqueReasonCodes(
+function reasonCodes(
   findings: readonly Finding[],
   decision: EconomicEligibilityDecision
 ): EconomicEligibilityReasonCode[] {
@@ -384,32 +329,24 @@ function uniqueReasonCodes(
   return result;
 }
 
+function requirementApplies(
+  requirement: ExternalPaymentProviderRequirement,
+  action: EconomicEligibilityAction
+): boolean {
+  return requirement.scope === "both" || requirement.scope === action;
+}
+
 export function evaluateEconomicEligibility(
   input: EconomicEligibilityInput
 ): EconomicEligibilityResult {
-  const findings: Finding[] = [];
-  const evidence: EconomicEligibilityEvidence[] = [];
-
-  const activityKey = normalizeActivityKey(input.context.activityKey);
-  const countryCode = normalizeCountryCode(input.context.countryCode);
-  const activityAuthorityKey = normalizeActivityKey(
-    input.activityEligibility.activityKey
-  );
-  const activityAuthorityCountry = normalizeCountryCode(
-    input.activityEligibility.countryCode
-  );
+  const evaluation: MutableEvaluation = { findings: [], evidence: [] };
+  const activityKey = normalizeKey(input.context.activityKey);
+  const countryCode = normalizeCountry(input.context.countryCode);
 
   if (input.account.status === "active") {
-    addEvidence(
-      evidence,
-      "account",
-      "ACCOUNT_ACTIVE",
-      "active",
-      input.account.id,
-      false
-    );
+    pushEvidence(evaluation, "account", "ACCOUNT_ACTIVE", "active", input.account.id, false);
   } else if (input.account.status === "human_review") {
-    addFinding(findings, evidence, {
+    pushFinding(evaluation, {
       state: "human_review",
       decision: "human_review",
       reasonCode: "ACCOUNT_HUMAN_REVIEW",
@@ -418,13 +355,10 @@ export function evaluateEconomicEligibility(
       reference: input.account.id,
     });
   } else {
-    addFinding(findings, evidence, {
+    pushFinding(evaluation, {
       state: input.account.status === "pending" ? "pending" : "restricted",
       decision: "blocked",
-      reasonCode:
-        input.account.status === "pending"
-          ? "ACCOUNT_PENDING"
-          : "ACCOUNT_RESTRICTED",
+      reasonCode: input.account.status === "pending" ? "ACCOUNT_PENDING" : "ACCOUNT_RESTRICTED",
       authority: "account",
       status: input.account.status,
       reference: input.account.id,
@@ -432,7 +366,7 @@ export function evaluateEconomicEligibility(
   }
 
   if (input.economicIdentity.accountId !== input.account.id) {
-    addFinding(findings, evidence, {
+    pushFinding(evaluation, {
       state: "restricted",
       decision: "blocked",
       reasonCode: "ECONOMIC_IDENTITY_ACCOUNT_MISMATCH",
@@ -442,8 +376,7 @@ export function evaluateEconomicEligibility(
       details: { expectedAccountId: input.account.id },
     });
   }
-
-  evaluateStandardStatus(findings, evidence, {
+  evaluateKlyxStatus(evaluation, {
     authority: "economic_identity",
     reference: input.economicIdentity.id,
     status: input.economicIdentity.status,
@@ -451,7 +384,7 @@ export function evaluateEconomicEligibility(
   });
 
   if (input.legalSubject.economicIdentityId !== input.economicIdentity.id) {
-    addFinding(findings, evidence, {
+    pushFinding(evaluation, {
       state: "restricted",
       decision: "blocked",
       reasonCode: "LEGAL_SUBJECT_IDENTITY_MISMATCH",
@@ -461,8 +394,7 @@ export function evaluateEconomicEligibility(
       details: { expectedEconomicIdentityId: input.economicIdentity.id },
     });
   }
-
-  evaluateStandardStatus(findings, evidence, {
+  evaluateKlyxStatus(evaluation, {
     authority: "legal_subject",
     reference: input.legalSubject.id,
     status: input.legalSubject.status,
@@ -470,26 +402,14 @@ export function evaluateEconomicEligibility(
     details: { kind: input.legalSubject.kind },
   });
 
-  const verificationsByType = new Map<string, VerificationAuthority[]>();
-  for (const verification of input.verifications) {
-    const key = normalizeRequirementKey(verification.type);
-    const current = verificationsByType.get(key) ?? [];
-    current.push(verification);
-    verificationsByType.set(key, current);
-  }
+  for (const type of sortedUnique(input.requirements.verificationTypes)) {
+    const matches = input.verifications
+      .filter((verification) => normalizeKey(verification.type) === type)
+      .slice()
+      .sort((a, b) => a.id.localeCompare(b.id));
 
-  const requiredVerificationTypes = Array.from(
-    new Set(
-      input.requirements.verificationTypes
-        .map(normalizeRequirementKey)
-        .filter(Boolean)
-    )
-  ).sort();
-
-  for (const type of requiredVerificationTypes) {
-    const candidates = verificationsByType.get(type) ?? [];
-    if (candidates.length === 0) {
-      addFinding(findings, evidence, {
+    if (matches.length === 0) {
+      pushFinding(evaluation, {
         state: "pending",
         decision: "blocked",
         reasonCode: "VERIFICATION_MISSING",
@@ -501,54 +421,39 @@ export function evaluateEconomicEligibility(
       continue;
     }
 
-    const verification = [...candidates].sort((a, b) =>
-      a.id.localeCompare(b.id)
-    )[0];
-
-    if (verification.subjectId !== input.legalSubject.id) {
-      addFinding(findings, evidence, {
-        state: "restricted",
-        decision: "blocked",
-        reasonCode: "VERIFICATION_SUBJECT_MISMATCH",
+    for (const verification of matches) {
+      if (verification.subjectId !== input.legalSubject.id) {
+        pushFinding(evaluation, {
+          state: "restricted",
+          decision: "blocked",
+          reasonCode: "VERIFICATION_SUBJECT_MISMATCH",
+          authority: "verification",
+          status: "mismatch",
+          reference: verification.id,
+          details: {
+            verificationType: type,
+            expectedSubjectId: input.legalSubject.id,
+          },
+        });
+      }
+      evaluateKlyxStatus(evaluation, {
         authority: "verification",
-        status: "mismatch",
         reference: verification.id,
-        details: {
-          verificationType: type,
-          expectedSubjectId: input.legalSubject.id,
-        },
+        status: verification.status,
+        prefix: "VERIFICATION",
+        details: { verificationType: type },
       });
     }
-
-    evaluateStandardStatus(findings, evidence, {
-      authority: "verification",
-      reference: verification.id,
-      status: verification.status,
-      prefix: "VERIFICATION",
-      details: { verificationType: type },
-    });
   }
 
-  const qualificationsByKey = new Map<string, QualificationAuthority[]>();
-  for (const qualification of input.qualifications) {
-    const key = normalizeRequirementKey(qualification.key);
-    const current = qualificationsByKey.get(key) ?? [];
-    current.push(qualification);
-    qualificationsByKey.set(key, current);
-  }
+  for (const key of sortedUnique(input.requirements.qualificationKeys)) {
+    const matches = input.qualifications
+      .filter((qualification) => normalizeKey(qualification.key) === key)
+      .slice()
+      .sort((a, b) => a.id.localeCompare(b.id));
 
-  const requiredQualificationKeys = Array.from(
-    new Set(
-      input.requirements.qualificationKeys
-        .map(normalizeRequirementKey)
-        .filter(Boolean)
-    )
-  ).sort();
-
-  for (const key of requiredQualificationKeys) {
-    const candidates = qualificationsByKey.get(key) ?? [];
-    if (candidates.length === 0) {
-      addFinding(findings, evidence, {
+    if (matches.length === 0) {
+      pushFinding(evaluation, {
         state: "qualification_missing",
         decision: "blocked",
         reasonCode: "QUALIFICATION_MISSING",
@@ -560,36 +465,33 @@ export function evaluateEconomicEligibility(
       continue;
     }
 
-    const qualification = [...candidates].sort((a, b) =>
-      a.id.localeCompare(b.id)
-    )[0];
-
-    if (qualification.accountId !== input.account.id) {
-      addFinding(findings, evidence, {
-        state: "restricted",
-        decision: "blocked",
-        reasonCode: "QUALIFICATION_ACCOUNT_MISMATCH",
+    for (const qualification of matches) {
+      if (qualification.accountId !== input.account.id) {
+        pushFinding(evaluation, {
+          state: "restricted",
+          decision: "blocked",
+          reasonCode: "QUALIFICATION_ACCOUNT_MISMATCH",
+          authority: "qualification",
+          status: "mismatch",
+          reference: qualification.id,
+          details: {
+            qualificationKey: key,
+            expectedAccountId: input.account.id,
+          },
+        });
+      }
+      evaluateKlyxStatus(evaluation, {
         authority: "qualification",
-        status: "mismatch",
         reference: qualification.id,
-        details: {
-          qualificationKey: key,
-          expectedAccountId: input.account.id,
-        },
+        status: qualification.status,
+        prefix: "QUALIFICATION",
+        details: { qualificationKey: key },
       });
     }
-
-    evaluateStandardStatus(findings, evidence, {
-      authority: "qualification",
-      reference: qualification.id,
-      status: qualification.status,
-      prefix: "QUALIFICATION",
-      details: { qualificationKey: key },
-    });
   }
 
   if (input.activityEligibility.accountId !== input.account.id) {
-    addFinding(findings, evidence, {
+    pushFinding(evaluation, {
       state: "restricted",
       decision: "blocked",
       reasonCode: "ACTIVITY_ACCOUNT_MISMATCH",
@@ -600,22 +502,19 @@ export function evaluateEconomicEligibility(
     });
   }
 
-  if (activityAuthorityKey !== activityKey) {
-    addFinding(findings, evidence, {
+  const authorityActivityKey = normalizeKey(input.activityEligibility.activityKey);
+  if (authorityActivityKey !== activityKey) {
+    pushFinding(evaluation, {
       state: "restricted",
       decision: "blocked",
       reasonCode: "ACTIVITY_CONTEXT_MISMATCH",
       authority: "activity_eligibility",
       status: "mismatch",
       reference: input.activityEligibility.id,
-      details: {
-        expectedActivityKey: activityKey,
-        authorityActivityKey: activityAuthorityKey,
-      },
+      details: { expectedActivityKey: activityKey, authorityActivityKey },
     });
   }
-
-  evaluateStandardStatus(findings, evidence, {
+  evaluateKlyxStatus(evaluation, {
     authority: "activity_eligibility",
     reference: input.activityEligibility.id,
     status: input.activityEligibility.status,
@@ -623,117 +522,138 @@ export function evaluateEconomicEligibility(
     details: { activityKey },
   });
 
-  if (activityAuthorityCountry !== countryCode) {
-    addFinding(findings, evidence, {
+  const authorityCountryCode = normalizeCountry(input.activityEligibility.countryCode);
+  if (authorityCountryCode !== countryCode) {
+    pushFinding(evaluation, {
       state: "country_restricted",
       decision: "blocked",
       reasonCode: "COUNTRY_CONTEXT_MISMATCH",
       authority: "country_eligibility",
       status: "mismatch",
       reference: input.activityEligibility.id,
-      details: {
-        expectedCountryCode: countryCode,
-        authorityCountryCode: activityAuthorityCountry,
-      },
+      details: { expectedCountryCode: countryCode, authorityCountryCode },
     });
   }
 
-  if (input.activityEligibility.countryStatus === "allowed") {
-    addEvidence(
-      evidence,
-      "country_eligibility",
-      "COUNTRY_ALLOWED",
-      "allowed",
-      input.activityEligibility.id,
-      false,
-      { countryCode }
-    );
-  } else if (input.activityEligibility.countryStatus === "human_review") {
-    addFinding(findings, evidence, {
-      state: "human_review",
-      decision: "human_review",
-      reasonCode: "COUNTRY_HUMAN_REVIEW",
-      authority: "country_eligibility",
-      status: "human_review",
-      reference: input.activityEligibility.id,
-      details: { countryCode },
-    });
-  } else if (input.activityEligibility.countryStatus === "pending") {
-    addFinding(findings, evidence, {
-      state: "pending",
-      decision: "blocked",
-      reasonCode: "COUNTRY_PENDING",
-      authority: "country_eligibility",
-      status: "pending",
-      reference: input.activityEligibility.id,
-      details: { countryCode },
-    });
-  } else {
-    addFinding(findings, evidence, {
-      state: "country_restricted",
-      decision: "blocked",
-      reasonCode: "COUNTRY_RESTRICTED",
-      authority: "country_eligibility",
-      status: "restricted",
-      reference: input.activityEligibility.id,
-      details: { countryCode },
-    });
+  switch (input.activityEligibility.countryStatus) {
+    case "allowed":
+      pushEvidence(
+        evaluation,
+        "country_eligibility",
+        "COUNTRY_ALLOWED",
+        "allowed",
+        input.activityEligibility.id,
+        false,
+        { countryCode }
+      );
+      break;
+    case "pending":
+      pushFinding(evaluation, {
+        state: "pending",
+        decision: "blocked",
+        reasonCode: "COUNTRY_PENDING",
+        authority: "country_eligibility",
+        status: "pending",
+        reference: input.activityEligibility.id,
+        details: { countryCode },
+      });
+      break;
+    case "restricted":
+      pushFinding(evaluation, {
+        state: "country_restricted",
+        decision: "blocked",
+        reasonCode: "COUNTRY_RESTRICTED",
+        authority: "country_eligibility",
+        status: "restricted",
+        reference: input.activityEligibility.id,
+        details: { countryCode },
+      });
+      break;
+    case "human_review":
+      pushFinding(evaluation, {
+        state: "human_review",
+        decision: "human_review",
+        reasonCode: "COUNTRY_HUMAN_REVIEW",
+        authority: "country_eligibility",
+        status: "human_review",
+        reference: input.activityEligibility.id,
+        details: { countryCode },
+      });
+      break;
   }
 
   const provider = input.externalPaymentProvider;
+  const providerName = provider.provider.trim();
 
   if (provider.economicIdentityId !== input.economicIdentity.id) {
-    addFinding(findings, evidence, {
+    pushFinding(evaluation, {
       state: "restricted",
       decision: "blocked",
       reasonCode: "EXTERNAL_PROVIDER_IDENTITY_MISMATCH",
       authority: "external_payment_provider",
       status: "mismatch",
       reference: provider.externalAccountRef,
-      details: { provider: provider.provider },
+      details: { provider: providerName },
     });
   }
 
-  if (provider.status === "ready") {
-    addEvidence(
-      evidence,
-      "external_payment_provider",
-      "EXTERNAL_PROVIDER_READY",
-      "ready",
-      provider.externalAccountRef,
-      false,
-      { provider: provider.provider }
-    );
-  } else if (provider.status === "human_review") {
-    addFinding(findings, evidence, {
-      state: "human_review",
-      decision: "human_review",
-      reasonCode: "EXTERNAL_PROVIDER_HUMAN_REVIEW",
-      authority: "external_payment_provider",
-      status: provider.status,
-      reference: provider.externalAccountRef,
-      details: { provider: provider.provider },
-    });
-  } else if (provider.status === "pending") {
-    addFinding(findings, evidence, {
-      state: "pending",
-      decision: "blocked",
-      reasonCode: "EXTERNAL_PROVIDER_PENDING",
-      authority: "external_payment_provider",
-      status: provider.status,
-      reference: provider.externalAccountRef,
-      details: { provider: provider.provider },
-    });
-  } else {
-    addFinding(findings, evidence, {
+  if (!provider.externalAccountRef?.trim()) {
+    pushFinding(evaluation, {
       state: "restricted",
       decision: "blocked",
-      reasonCode: "EXTERNAL_PROVIDER_RESTRICTED",
+      reasonCode: "EXTERNAL_PROVIDER_ACCOUNT_MISSING",
       authority: "external_payment_provider",
-      status: provider.status,
-      reference: provider.externalAccountRef,
-      details: { provider: provider.provider },
+      status: "missing",
+      reference: null,
+      details: { provider: providerName },
     });
+  }
+
+  switch (provider.status) {
+    case "ready":
+      pushEvidence(
+        evaluation,
+        "external_payment_provider",
+        "EXTERNAL_PROVIDER_READY",
+        "ready",
+        provider.externalAccountRef,
+        false,
+        { provider: providerName }
+      );
+      break;
+    case "pending":
+      pushFinding(evaluation, {
+        state: "pending",
+        decision: "blocked",
+        reasonCode: "EXTERNAL_PROVIDER_PENDING",
+        authority: "external_payment_provider",
+        status: "pending",
+        reference: provider.externalAccountRef,
+        details: { provider: providerName },
+      });
+      break;
+    case "restricted":
+      pushFinding(evaluation, {
+        state: "restricted",
+        decision: "blocked",
+        reasonCode: "EXTERNAL_PROVIDER_RESTRICTED",
+        authority: "external_payment_provider",
+        status: "restricted",
+        reference: provider.externalAccountRef,
+        details: { provider: providerName },
+      });
+      break;
+    case "human_review":
+      pushFinding(evaluation, {
+        state: "human_review",
+        decision: "human_review",
+        reasonCode: "EXTERNAL_PROVIDER_HUMAN_REVIEW",
+        authority: "external_payment_provider",
+        status: "human_review",
+        reference: provider.externalAccountRef,
+        details: { provider: providerName },
+      });
+      break;
   }
 
   const applicableRequirements = provider.requirementsDue
@@ -743,7 +663,7 @@ export function evaluateEconomicEligibility(
     .sort();
 
   if (applicableRequirements.length > 0) {
-    addFinding(findings, evidence, {
+    pushFinding(evaluation, {
       state: "requirements_due",
       decision: "blocked",
       reasonCode: "EXTERNAL_REQUIREMENTS_DUE",
@@ -751,7 +671,7 @@ export function evaluateEconomicEligibility(
       status: "requirements_due",
       reference: provider.externalAccountRef,
       details: {
-        provider: provider.provider,
+        provider: providerName,
         requirementCount: applicableRequirements.length,
         requirements: applicableRequirements.join(","),
       },
@@ -759,66 +679,63 @@ export function evaluateEconomicEligibility(
   }
 
   if (input.context.action === "settlement") {
-    if (!provider.settlementEnabled) {
-      addFinding(findings, evidence, {
+    if (provider.settlementEnabled) {
+      pushEvidence(
+        evaluation,
+        "external_payment_provider",
+        "EXTERNAL_SETTLEMENT_ENABLED",
+        "enabled",
+        provider.externalAccountRef,
+        false,
+        { provider: providerName }
+      );
+    } else {
+      pushFinding(evaluation, {
         state: "payouts_disabled",
         decision: "blocked",
         reasonCode: "EXTERNAL_SETTLEMENT_DISABLED",
         authority: "external_payment_provider",
         status: "disabled",
         reference: provider.externalAccountRef,
-        details: { provider: provider.provider },
+        details: { provider: providerName },
       });
-    } else {
-      addEvidence(
-        evidence,
-        "external_payment_provider",
-        "EXTERNAL_SETTLEMENT_ENABLED",
-        "enabled",
-        provider.externalAccountRef,
-        false,
-        { provider: provider.provider }
-      );
     }
 
-    addEvidence(
-      evidence,
+    pushEvidence(
+      evaluation,
       "external_payment_provider",
       "EXTERNAL_PAYOUT_RAIL_STATUS",
       provider.payoutsEnabled ? "enabled" : "disabled",
       provider.externalAccountRef,
       false,
-      {
-        provider: provider.provider,
-        informationalForSettlement: true,
-      }
+      { provider: providerName, informationalForSettlement: true }
     );
-  } else if (!provider.payoutsEnabled) {
-    addFinding(findings, evidence, {
+  } else if (provider.payoutsEnabled) {
+    pushEvidence(
+      evaluation,
+      "external_payment_provider",
+      "EXTERNAL_PAYOUTS_ENABLED",
+      "enabled",
+      provider.externalAccountRef,
+      false,
+      { provider: providerName }
+    );
+  } else {
+    pushFinding(evaluation, {
       state: "payouts_disabled",
       decision: "blocked",
       reasonCode: "EXTERNAL_PAYOUTS_DISABLED",
       authority: "external_payment_provider",
       status: "disabled",
       reference: provider.externalAccountRef,
-      details: { provider: provider.provider },
+      details: { provider: providerName },
     });
-  } else {
-    addEvidence(
-      evidence,
-      "external_payment_provider",
-      "EXTERNAL_PAYOUTS_ENABLED",
-      "enabled",
-      provider.externalAccountRef,
-      false,
-      { provider: provider.provider }
-    );
   }
 
-  const decision = selectDecision(findings);
-  const state = selectOverallState(findings);
+  const decision = finalDecision(evaluation.findings);
+  const state = finalState(evaluation.findings);
   const authorized = decision === "allowed";
-  const reasonCodes = uniqueReasonCodes(findings, decision);
+  const codes = reasonCodes(evaluation.findings, decision);
 
   const auditEvent: EconomicEligibilityAuditEvent = {
     type: "economic_eligibility_evaluated",
@@ -834,22 +751,20 @@ export function evaluateEconomicEligibility(
     },
     previousState: input.previous ?? null,
     newState: { state, decision, authorized },
-    reasonCodes,
-    evidence,
+    reasonCodes: codes,
+    evidence: evaluation.evidence,
   };
 
   return {
     state,
     decision,
     authorized,
-    reasonCodes,
-    evidence,
+    reasonCodes: codes,
+    evidence: evaluation.evidence,
     auditEvent,
   };
 }
 
-export function settlementIsAuthorized(
-  result: EconomicEligibilityResult
-): boolean {
+export function settlementIsAuthorized(result: EconomicEligibilityResult): boolean {
   return result.auditEvent.subject.action === "settlement" && result.authorized;
 }
