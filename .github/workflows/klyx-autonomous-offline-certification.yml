@@ -1,0 +1,96 @@
+name: KLYX Autonomous Offline Certification
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/klyx-autonomous-offline-certification.yml"
+      - "scripts/certification/autonomous-klyx-offline-bench.mjs"
+      - "tests/integration/autonomous-offline-certification-bench.test.ts"
+      - "docs/KLYX_AUTONOMOUS_OFFLINE_CERTIFICATION_BENCH.md"
+      - "docs/KLYX_END_TO_END_AUTONOMOUS_CERTIFICATION.md"
+      - "package.json"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/klyx-autonomous-offline-certification.yml"
+      - "scripts/certification/autonomous-klyx-offline-bench.mjs"
+      - "tests/integration/autonomous-offline-certification-bench.test.ts"
+      - "docs/KLYX_AUTONOMOUS_OFFLINE_CERTIFICATION_BENCH.md"
+      - "docs/KLYX_END_TO_END_AUTONOMOUS_CERTIFICATION.md"
+      - "package.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: klyx-autonomous-offline-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  certify:
+    name: Deterministic DEMANDER + GAGNER bench
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    env:
+      KLYX_AUTONOMOUS_CERT_DIR: certification-artifacts
+      KLYX_AUTONOMOUS_OFFLINE_ONLY: "true"
+      KLYX_LIVE_PAYMENTS_ENABLED: "false"
+      KLYX_STRIPE_MODE: "offline-fake"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Certify autonomous KLYX offline
+        run: node scripts/certification/autonomous-klyx-offline-bench.mjs
+
+      - name: Verify deterministic PASS report
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require("node:fs");
+          const report = JSON.parse(
+            fs.readFileSync("certification-artifacts/report.json", "utf8")
+          );
+
+          if (report.summary?.status !== "PASS") {
+            throw new Error("Autonomous certification report is not PASS.");
+          }
+          if (report.liveAccess !== false || report.deterministic !== true) {
+            throw new Error("Autonomous certification isolation contract failed.");
+          }
+          if (report.adapters?.supabase !== "fake-supabase") {
+            throw new Error("Real Supabase adapter detected.");
+          }
+          if (report.adapters?.stripe !== "fake-stripe") {
+            throw new Error("Real Stripe adapter detected.");
+          }
+          if (
+            !report.results?.every(
+              (scenario) =>
+                scenario.status === "PASS" &&
+                scenario.evidence?.externalNetworkCalls === 0
+            )
+          ) {
+            throw new Error("A scenario failed or attempted external network access.");
+          }
+          NODE
+
+      - name: Upload certification report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: klyx-autonomous-offline-certification-${{ github.run_id }}
+          path: certification-artifacts/
+          if-no-files-found: error
+          retention-days: 30
