@@ -10,6 +10,12 @@ const scriptPath = path.join(
   "scripts",
   "prepare-portable-auth-data.mjs"
 );
+const workflowPath = path.join(
+  process.cwd(),
+  ".github",
+  "workflows",
+  "klyx-supabase-full-restore-drill.yml"
+);
 const tempRoots: string[] = [];
 
 const usersCopy = [
@@ -137,5 +143,21 @@ describe("KLYX DR portable Auth data", () => {
 
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain("Unterminated COPY block for auth.users");
+  });
+
+  it("keeps the full restore workflow fail-closed while using the portable Auth dump", () => {
+    const workflow = fs.readFileSync(workflowPath, "utf8");
+
+    expect(workflow).toContain("Prepare target-aware Auth data snapshot");
+    expect(workflow).toContain("prepare-portable-auth-data.mjs");
+    expect(workflow).toContain("auth-data.portable.sql");
+    expect(workflow).toContain("--variable ON_ERROR_STOP=1");
+    expect(workflow).toContain("--file /tmp/klyx-full-dr/auth-data.portable.sql");
+    expect(workflow).toContain("auth_schema_compatibility_verified=true");
+
+    expect(workflow).not.toContain(
+      "--file /tmp/klyx-full-dr/auth-data.sql"
+    );
+    expect(workflow).not.toContain("ON_ERROR_STOP=0");
   });
 });
