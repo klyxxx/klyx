@@ -1,5 +1,17 @@
 import "server-only";
 
+import {
+  evaluateSettlementEligibilitySnapshot,
+  previousEconomicEligibilityState,
+  type EconomicIdentitySource,
+  type EconomicRestrictionSource,
+  type ExternalProviderProjectionSource,
+  type LegalSubjectSource,
+  type QualificationSource,
+  type TrustDecisionSource,
+  type TrustRestrictionSource,
+  type VerificationSource,
+} from "@/lib/economic-settlement-eligibility-adapter";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export type EconomicSettlementEligibilityDecision =
@@ -37,6 +49,9 @@ type VerificationCaseRow = {
   verification_type: string;
   status: string;
   human_review_required: boolean;
+  legal_entity_id: string | null;
+  economic_person_id: string | null;
+  expires_at: string | null;
 };
 
 type LegalEntityRow = {
@@ -112,49 +127,21 @@ type StripeProjectionRow = {
   economic_identity_id: string;
   account_id: string;
   stripe_account_id: string;
-  details_submitted: boolean;
   payouts_enabled: boolean;
   currently_due: unknown;
-  eventually_due: unknown;
   past_due: unknown;
   pending_verification: unknown;
   requirement_errors: unknown;
   disabled_reason: string | null;
   capabilities: unknown;
-  provider_observed_at: string;
+};
+
+type PreviousDecisionRow = {
+  decision: string;
+  evidence_snapshot: unknown;
 };
 
 const DECISION_TTL_MS = 4 * 60 * 1000;
-
-function asArray(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
-function strings(value: unknown): string[] {
-  return asArray(value)
-    .filter((item): item is string => typeof item === "string")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function activeWindow(
-  startsAt: string | null | undefined,
-  endsAt: string | null | undefined,
-  nowMs: number
-): boolean {
-  const starts = startsAt ? Date.parse(startsAt) : Number.NaN;
-  const ends = endsAt ? Date.parse(endsAt) : Number.NaN;
-
-  if (Number.isFinite(starts) && starts > nowMs) return false;
-  if (endsAt && Number.isFinite(ends) && ends <= nowMs) return false;
-  return true;
-}
 
 function normalizeActivityKey(value: string): string {
   return value.trim().toLowerCase();
@@ -162,261 +149,6 @@ function normalizeActivityKey(value: string): string {
 
 function normalizeJurisdictionCode(value: string): string {
   return value.trim().toUpperCase();
-}
-
-function economicRestrictionApplies(
-  restriction: EconomicRestrictionRow,
-  activityKey: string,
-  jurisdictionCode: string,
-  nowMs: number
-): boolean {
-  if (
-    restriction.status !== "active" ||
-    !activeWindow(restriction.starts_at, restriction.ends_at, nowMs)
-  ) {
-    return false;
-  }
-
-  if (
-    ![
-      "receive_settlement",
-      "settlement_release",
-      "receive_payouts",
-      "use_platform",
-    ].includes(restriction.restricted_action)
-  ) {
-    return false;
-  }
-
-  switch (restriction.scope_type) {
-    case "global":
-      return true;
-    case "activity":
-      return restriction.activity_key === activityKey;
-    case "jurisdiction":
-      return restriction.jurisdiction_code === jurisdictionCode;
-    case "activity_jurisdiction":
-      return (
-        restriction.activity_key === activityKey &&
-        restriction.jurisdiction_code === jurisdictionCode
-      );
-    default:
-      return true;
-  }
-}
-
-function trustRestrictionApplies(
-  restriction: TrustRestrictionRow,
-  input: {
-    activityKey: string;
-    userServiceId?: string | null;
-    subjectType: string;
-    subjectId: string;
-  },
-  nowMs: number
-): boolean {
-  if (
-    restriction.status !== "active" ||
-    !activeWindow(restriction.starts_at, restriction.ends_at, nowMs)
-  ) {
-    return false;
-  }
-
-  if (!["receive_payouts", "use_platform"].includes(restriction.restricted_action)) {
-    return false;
-  }
-
-  switch (restriction.scope_type) {
-    case "platform":
-      return true;
-    case "category":
-      return restriction.scope_key === input.activityKey;
-    case "service":
-      return Boolean(
-        restriction.scope_key &&
-          (restriction.scope_key === input.userServiceId ||
-            restriction.scope_key === input.activityKey)
-      );
-    case "booking":
-      return (
-        input.subjectType === "booking" &&
-        restriction.scope_key === input.subjectId
-      );
-    default:
-      return true;
-  }
-}
-
-function qualificationApplies(
-  qualification: QualificationRow,
-  input: {
-    activityKey: string;
-    jurisdictionCode: string;
-    userServiceId?: string | null;
-  }
-): boolean {
-  if (
-    qualification.activity_key &&
-    qualification.activity_key !== input.activityKey
-  ) {
-    return false;
-  }
-
-  if (
-    qualification.jurisdiction_code &&
-    qualification.jurisdiction_code !== input.jurisdictionCode
-  ) {
-    return false;
-  }
-
-  if (qualification.scope_type === "global") return true;
-
-  if (qualification.scope_type === "user_service") {
-    return (
-      Boolean(input.userServiceId) &&
-      qualification.scope_key === input.userServiceId
-    );
-  }
-
-  if (
-    ["activity", "category", "service"].includes(qualification.scope_type)
-  ) {
-    return (
-      qualification.scope_key === input.activityKey ||
-      qualification.scope_key === input.userServiceId
-    );
-  }
-
-  return Boolean(
-    qualification.activity_key || qualification.jurisdiction_code
-  );
-}
-
-function qualificationStatus(
-  qualification: QualificationRow,
-  nowMs: number
-): "ok" | "review" | "blocked" {
-  if (qualification.valid_from) {
-    const validFrom = Date.parse(qualification.valid_from);
-    if (Number.isFinite(validFrom) && validFrom > nowMs) return "review";
-  }
-
-  if (qualification.valid_until) {
-    const validUntil = Date.parse(qualification.valid_until);
-    if (Number.isFinite(validUntil) && validUntil <= nowMs) return "blocked";
-  }
-
-  const status = qualification.status.trim().toLowerCase();
-  if (
-    ["approved", "verified", "active", "satisfied", "granted"].includes(status)
-  ) {
-    return "ok";
-  }
-  if (
-    ["rejected", "revoked", "expired", "suspended", "blocked", "denied", "failed"].includes(
-      status
-    )
-  ) {
-    return "blocked";
-  }
-  return "review";
-}
-
-function legalSubjectStatus(
-  subject: Pick<LegalEntityRow | EconomicPersonRow, "verification_status" | "expires_at">,
-  nowMs: number
-): "ok" | "review" | "blocked" {
-  if (subject.expires_at) {
-    const expiresAt = Date.parse(subject.expires_at);
-    if (Number.isFinite(expiresAt) && expiresAt <= nowMs) {
-      return "blocked";
-    }
-  }
-
-  const status = subject.verification_status.trim().toLowerCase();
-  if (status === "verified") return "ok";
-  if (status === "human_review") return "review";
-  return "blocked";
-}
-
-function requiredActionCodes(value: unknown): string[] {
-  return asArray(value)
-    .map((item) => {
-      if (typeof item === "string") return item.trim();
-      const record = asRecord(item);
-      return typeof record.code === "string" ? record.code.trim() : "";
-    })
-    .filter(Boolean);
-}
-
-function trustDecisionRequiresQualification(
-  decision: TrustDecisionRow | null
-): boolean {
-  if (!decision) return false;
-
-  const markers = [
-    ...strings(decision.reason_codes),
-    ...requiredActionCodes(decision.required_actions),
-  ];
-
-  return markers.some((value) =>
-    /(qualification|credential|licen[cs]e|certification|professional[_ -]?proof)/i.test(
-      value
-    )
-  );
-}
-
-function selectTrustDecision(
-  decisions: TrustDecisionRow[],
-  input: {
-    subjectType: string;
-    subjectId: string;
-    activityKey: string;
-    userServiceId?: string | null;
-  }
-): TrustDecisionRow | null {
-  const exact = decisions.filter(
-    (row) =>
-      row.target_type === input.subjectType &&
-      row.target_ref === input.subjectId
-  );
-  if (exact.length > 0) return exact[0];
-
-  const service = decisions.filter(
-    (row) =>
-      row.target_type === "service" &&
-      (row.target_ref === input.userServiceId ||
-        row.target_ref === input.activityKey)
-  );
-  if (service.length > 0) return service[0];
-
-  const category = decisions.filter(
-    (row) =>
-      row.target_type === "category" &&
-      (!row.target_ref || row.target_ref === input.activityKey)
-  );
-  if (category.length > 0) return category[0];
-
-  return null;
-}
-
-function stripeTransferCapabilityStatus(capabilities: unknown): string | null {
-  const root = asRecord(capabilities);
-  const direct = root.transfers ?? root.stripe_transfers;
-
-  if (typeof direct === "string") return direct.toLowerCase();
-
-  const directRecord = asRecord(direct);
-  if (typeof directRecord.status === "string") {
-    return directRecord.status.toLowerCase();
-  }
-
-  const nested = asRecord(
-    asRecord(asRecord(root.stripe_balance).stripe_transfers)
-  );
-  return typeof nested.status === "string"
-    ? nested.status.toLowerCase()
-    : null;
 }
 
 async function ensureEconomicIdentity(
@@ -487,7 +219,9 @@ async function recordDecision(input: {
     .single();
 
   if (error) throw new Error(error.message);
-  if (!data?.id) throw new Error("KLYX_ECONOMIC_SETTLEMENT_DECISION_NOT_RECORDED");
+  if (!data?.id) {
+    throw new Error("KLYX_ECONOMIC_SETTLEMENT_DECISION_NOT_RECORDED");
+  }
   return String(data.id);
 }
 
@@ -506,9 +240,9 @@ export async function loadSettlementBookingContext(input: {
   if (bookingError) throw new Error(bookingError.message);
   if (!booking) return null;
 
-  const providerProfileId =
-    String(booking.provider_id ?? booking.babysitter_id ?? "").trim();
-
+  const providerProfileId = String(
+    booking.provider_id ?? booking.babysitter_id ?? ""
+  ).trim();
   if (
     !providerProfileId ||
     (input.expectedProviderProfileId &&
@@ -528,7 +262,6 @@ export async function loadSettlementBookingContext(input: {
       .select("service_id")
       .eq("id", userServiceId)
       .maybeSingle();
-
     if (userServiceError) throw new Error(userServiceError.message);
     serviceId = userService?.service_id ? String(userService.service_id) : null;
   }
@@ -540,7 +273,6 @@ export async function loadSettlementBookingContext(input: {
     .select("slug")
     .eq("id", serviceId)
     .maybeSingle();
-
   if (serviceError) throw new Error(serviceError.message);
 
   const activityKey = service?.slug
@@ -549,7 +281,6 @@ export async function loadSettlementBookingContext(input: {
   const jurisdictionCode = booking.country_code
     ? normalizeJurisdictionCode(String(booking.country_code))
     : "";
-
   if (!activityKey || !jurisdictionCode) return null;
 
   return {
@@ -571,15 +302,12 @@ export async function canReceiveSettlement(input: {
   userServiceId?: string | null;
 }): Promise<EconomicSettlementEligibilityResult> {
   const evaluatedAt = new Date();
-  const nowMs = evaluatedAt.getTime();
   const activityKey = normalizeActivityKey(input.activityKey);
   const jurisdictionCode = normalizeJurisdictionCode(input.jurisdictionCode);
-  const blocked: string[] = [];
-  const review: string[] = [];
-
   const identity = await ensureEconomicIdentity(input.accountId);
 
   const [
+    accountResult,
     capabilityResult,
     qualificationResult,
     canonicalStripeResult,
@@ -590,7 +318,13 @@ export async function canReceiveSettlement(input: {
     verificationResult,
     economicRestrictionsResult,
     stripeProjectionResult,
+    previousDecisionResult,
   ] = await Promise.all([
+    supabaseAdmin
+      .from("accounts")
+      .select("id")
+      .eq("id", input.accountId)
+      .maybeSingle(),
     supabaseAdmin
       .from("account_actor_capabilities")
       .select("enabled")
@@ -636,7 +370,9 @@ export async function canReceiveSettlement(input: {
       .eq("economic_identity_id", identity.id),
     supabaseAdmin
       .from("economic_verification_cases")
-      .select("id, verification_type, status, human_review_required")
+      .select(
+        "id, verification_type, status, human_review_required, legal_entity_id, economic_person_id, expires_at"
+      )
       .eq("economic_identity_id", identity.id),
     supabaseAdmin
       .from("economic_restrictions")
@@ -648,13 +384,25 @@ export async function canReceiveSettlement(input: {
     supabaseAdmin
       .from("economic_stripe_account_projections")
       .select(
-        "economic_identity_id, account_id, stripe_account_id, details_submitted, payouts_enabled, currently_due, eventually_due, past_due, pending_verification, requirement_errors, disabled_reason, capabilities, provider_observed_at"
+        "economic_identity_id, account_id, stripe_account_id, payouts_enabled, currently_due, past_due, pending_verification, requirement_errors, disabled_reason, capabilities"
       )
       .eq("economic_identity_id", identity.id)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("economic_settlement_eligibility_decisions")
+      .select("decision, evidence_snapshot")
+      .eq("account_id", input.accountId)
+      .eq("subject_type", input.subjectType)
+      .eq("subject_id", input.subjectId)
+      .eq("activity_key", activityKey)
+      .eq("jurisdiction_code", jurisdictionCode)
+      .order("evaluated_at", { ascending: false })
+      .limit(1)
       .maybeSingle(),
   ]);
 
   for (const result of [
+    accountResult,
     capabilityResult,
     qualificationResult,
     canonicalStripeResult,
@@ -665,6 +413,7 @@ export async function canReceiveSettlement(input: {
     verificationResult,
     economicRestrictionsResult,
     stripeProjectionResult,
+    previousDecisionResult,
   ]) {
     if (result.error) throw new Error(result.error.message);
   }
@@ -676,323 +425,177 @@ export async function canReceiveSettlement(input: {
   const trustRestrictions =
     (trustRestrictionsResult.data ?? []) as TrustRestrictionRow[];
   const trustDecisions = (trustDecisionsResult.data ?? []) as TrustDecisionRow[];
-  const legalEntities =
-    (legalEntitiesResult.data ?? []) as LegalEntityRow[];
-  const economicPersons =
-    (economicPersonsResult.data ?? []) as EconomicPersonRow[];
+  const legalEntities = (legalEntitiesResult.data ?? []) as LegalEntityRow[];
+  const economicPersons = (economicPersonsResult.data ?? []) as EconomicPersonRow[];
   const verificationCases =
     (verificationResult.data ?? []) as VerificationCaseRow[];
   const economicRestrictions =
     (economicRestrictionsResult.data ?? []) as EconomicRestrictionRow[];
   const stripeProjection =
     (stripeProjectionResult.data as StripeProjectionRow | null) ?? null;
+  const previousDecision =
+    (previousDecisionResult.data as PreviousDecisionRow | null) ?? null;
 
-  if (capability?.enabled !== true) {
-    blocked.push("ACCOUNT_OFFER_SERVICES_CAPABILITY_DENIED");
-  }
+  const economicIdentity: EconomicIdentitySource = {
+    id: identity.id,
+    status: identity.status,
+    humanReviewRequired: identity.human_review_required,
+    reviewReasonCode: identity.review_reason_code,
+  };
 
-  if (identity.status === "closed" || identity.status === "restricted") {
-    blocked.push("ECONOMIC_IDENTITY_RESTRICTED");
-  }
-  if (identity.status === "human_review" || identity.human_review_required) {
-    review.push(
-      identity.review_reason_code || "ECONOMIC_IDENTITY_HUMAN_REVIEW_REQUIRED"
-    );
-  }
-
-  const primaryLegalEntities = legalEntities.filter((row) => row.is_primary);
-  const primaryEconomicPersons = economicPersons.filter((row) => row.is_primary);
-  const primaryLegalSubjects = [
-    ...primaryLegalEntities,
-    ...primaryEconomicPersons,
+  const legalSubjects: LegalSubjectSource[] = [
+    ...legalEntities.map((row) => ({
+      id: row.id,
+      kind: "entity" as const,
+      isPrimary: row.is_primary,
+      verificationStatus: row.verification_status,
+      expiresAt: row.expires_at,
+    })),
+    ...economicPersons.map((row) => ({
+      id: row.id,
+      kind: "person" as const,
+      isPrimary: row.is_primary,
+      verificationStatus: row.verification_status,
+      expiresAt: row.expires_at,
+    })),
   ];
 
-  if (primaryLegalSubjects.length === 0) {
-    blocked.push("ECONOMIC_LEGAL_SUBJECT_MISSING");
-  }
+  const verifications: VerificationSource[] = verificationCases.map((row) => ({
+    id: row.id,
+    verificationType: row.verification_type,
+    status: row.status,
+    humanReviewRequired: row.human_review_required,
+    legalEntityId: row.legal_entity_id,
+    economicPersonId: row.economic_person_id,
+    expiresAt: row.expires_at,
+  }));
 
-  for (const subject of primaryLegalSubjects) {
-    const status = legalSubjectStatus(subject, nowMs);
-    const normalizedStatus = subject.verification_status.trim().toLowerCase();
-    const expiresAt = subject.expires_at ? Date.parse(subject.expires_at) : Number.NaN;
-    const expired =
-      normalizedStatus === "expired" ||
-      (Number.isFinite(expiresAt) && expiresAt <= nowMs);
+  const qualificationSources: QualificationSource[] = qualifications.map((row) => ({
+    id: row.id,
+    qualificationKey: row.qualification_key,
+    scopeType: row.scope_type,
+    scopeKey: row.scope_key,
+    activityKey: row.activity_key,
+    jurisdictionCode: row.jurisdiction_code,
+    status: row.status,
+    validFrom: row.valid_from,
+    validUntil: row.valid_until,
+  }));
 
-    if (status === "review") {
-      review.push("ECONOMIC_LEGAL_SUBJECT_HUMAN_REVIEW_REQUIRED");
-    } else if (status === "blocked") {
-      blocked.push(
-        expired
-          ? "ECONOMIC_LEGAL_SUBJECT_EXPIRED"
-          : normalizedStatus === "restricted"
-            ? "ECONOMIC_LEGAL_SUBJECT_RESTRICTED"
-            : "ECONOMIC_LEGAL_SUBJECT_NOT_VERIFIED"
-      );
-    }
-  }
+  const economicRestrictionSources: EconomicRestrictionSource[] =
+    economicRestrictions.map((row) => ({
+      id: row.id,
+      restrictedAction: row.restricted_action,
+      scopeType: row.scope_type,
+      activityKey: row.activity_key,
+      jurisdictionCode: row.jurisdiction_code,
+      status: row.status,
+      reasonCode: row.reason_code,
+      humanReviewRequired: row.human_review_required,
+      startsAt: row.starts_at,
+      endsAt: row.ends_at,
+    }));
 
-  if (verificationCases.length === 0) {
-    blocked.push("ECONOMIC_VERIFICATION_MISSING");
-  }
-
-  for (const verification of verificationCases) {
-    if (
-      verification.status === "human_review" ||
-      verification.human_review_required
-    ) {
-      review.push("ECONOMIC_VERIFICATION_HUMAN_REVIEW_REQUIRED");
-      continue;
-    }
-
-    if (
-      [
-        "required",
-        "pending",
-        "pending_external_review",
-        "failed",
-        "expired",
-        "restricted",
-      ].includes(verification.status)
-    ) {
-      blocked.push("ECONOMIC_VERIFICATION_NOT_SATISFIED");
-    }
-  }
-
-  const applicableQualifications = qualifications.filter((qualification) =>
-    qualificationApplies(qualification, {
-      activityKey,
-      jurisdictionCode,
-      userServiceId: input.userServiceId,
+  const trustRestrictionSources: TrustRestrictionSource[] = trustRestrictions.map(
+    (row) => ({
+      id: row.id,
+      scopeType: row.scope_type,
+      scopeKey: row.scope_key,
+      restrictedAction: row.restricted_action,
+      status: row.status,
+      humanReviewRequired: row.human_review_required,
+      startsAt: row.starts_at,
+      endsAt: row.ends_at,
+      reasonCode: row.reason_code,
     })
   );
-  const qualificationRequired =
-    trustDecisionRequiresQualification(
-      selectTrustDecision(trustDecisions, {
-        subjectType: input.subjectType,
-        subjectId: input.subjectId,
-        activityKey,
-        userServiceId: input.userServiceId,
-      })
-    );
 
-  if (qualificationRequired && applicableQualifications.length === 0) {
-    blocked.push("ACCOUNT_QUALIFICATION_MISSING");
-  }
+  const trustDecisionSources: TrustDecisionSource[] = trustDecisions.map((row) => ({
+    id: row.id,
+    targetType: row.target_type,
+    targetRef: row.target_ref,
+    decision: row.decision,
+    humanReviewRequired: row.human_review_required,
+    reviewStatus: row.review_status,
+    reasonCodes: row.reason_codes,
+    requiredActions: row.required_actions,
+    createdAt: row.created_at,
+    expiresAt: row.expires_at,
+  }));
 
-  for (const qualification of applicableQualifications) {
-    const status = qualificationStatus(qualification, nowMs);
-    if (status === "blocked") {
-      blocked.push("ACCOUNT_QUALIFICATION_CONTRADICTION");
-    } else if (status === "review") {
-      review.push("ACCOUNT_QUALIFICATION_REVIEW_REQUIRED");
-    }
-  }
-
-  const applicableEconomicRestrictions = economicRestrictions.filter(
-    (restriction) =>
-      economicRestrictionApplies(
-        restriction,
-        activityKey,
-        jurisdictionCode,
-        nowMs
-      )
-  );
-
-  for (const restriction of applicableEconomicRestrictions) {
-    if (restriction.human_review_required) {
-      review.push("ECONOMIC_RESTRICTION_HUMAN_REVIEW_REQUIRED");
-    } else {
-      blocked.push("ECONOMIC_RESTRICTION_ACTIVE");
-      if (
-        restriction.scope_type === "jurisdiction" ||
-        restriction.scope_type === "activity_jurisdiction"
-      ) {
-        blocked.push("ECONOMIC_COUNTRY_RESTRICTED");
+  const externalProviderProjection: ExternalProviderProjectionSource = stripeProjection
+    ? {
+        economicIdentityId: stripeProjection.economic_identity_id,
+        accountId: stripeProjection.account_id,
+        externalAccountRef: stripeProjection.stripe_account_id,
+        payoutsEnabled: stripeProjection.payouts_enabled,
+        currentlyDue: stripeProjection.currently_due,
+        pastDue: stripeProjection.past_due,
+        pendingVerification: stripeProjection.pending_verification,
+        requirementErrors: stripeProjection.requirement_errors,
+        disabledReason: stripeProjection.disabled_reason,
+        capabilities: stripeProjection.capabilities,
       }
-    }
-  }
+    : null;
 
-  const applicableTrustRestrictions = trustRestrictions.filter((restriction) =>
-    trustRestrictionApplies(
-      restriction,
-      {
-        activityKey,
-        userServiceId: input.userServiceId,
-        subjectType: input.subjectType,
-        subjectId: input.subjectId,
-      },
-      nowMs
-    )
-  );
-
-  for (const restriction of applicableTrustRestrictions) {
-    if (restriction.human_review_required) {
-      review.push("TRUST_RESTRICTION_HUMAN_REVIEW_REQUIRED");
-    } else {
-      blocked.push("TRUST_RESTRICTION_ACTIVE");
-    }
-  }
-
-  const trustDecision = selectTrustDecision(trustDecisions, {
-    subjectType: input.subjectType,
-    subjectId: input.subjectId,
-    activityKey,
-    userServiceId: input.userServiceId,
+  const evaluation = evaluateSettlementEligibilitySnapshot({
+    accountId: input.accountId,
+    accountExists: Boolean(accountResult.data),
+    offerServicesEnabled: capability?.enabled === true,
+    economicIdentity,
+    legalSubjects,
+    verifications,
+    qualifications: qualificationSources,
+    economicRestrictions: economicRestrictionSources,
+    trustRestrictions: trustRestrictionSources,
+    trustDecisions: trustDecisionSources,
+    canonicalExternalIdentity: canonicalStripe
+      ? {
+          identityState: canonicalStripe.identity_state,
+          externalAccountRef: canonicalStripe.stripe_account_id,
+        }
+      : null,
+    externalProviderProjection,
+    context: {
+      activityKey,
+      jurisdictionCode,
+      subjectType: input.subjectType,
+      subjectId: input.subjectId,
+      userServiceId: input.userServiceId,
+      expectedExternalAccountRef: input.expectedStripeAccountId,
+      evaluatedAt: evaluatedAt.toISOString(),
+    },
+    previous: previousEconomicEligibilityState(
+      previousDecision
+        ? {
+            decision: previousDecision.decision,
+            evidenceSnapshot: previousDecision.evidence_snapshot,
+          }
+        : null
+    ),
   });
 
-  if (!trustDecision) {
-    review.push("TRUST_ACTIVITY_ELIGIBILITY_MISSING");
-  } else {
-    const expired =
-      Boolean(trustDecision.expires_at) &&
-      Date.parse(trustDecision.expires_at as string) <= nowMs;
-
-    if (expired) {
-      review.push("TRUST_ACTIVITY_ELIGIBILITY_EXPIRED");
-    } else if (
-      trustDecision.human_review_required ||
-      trustDecision.review_status === "pending"
-    ) {
-      review.push("TRUST_ACTIVITY_ELIGIBILITY_HUMAN_REVIEW_REQUIRED");
-    } else if (
-      trustDecision.review_status === "rejected" ||
-      ["requirements_missing", "ineligible"].includes(trustDecision.decision)
-    ) {
-      blocked.push("TRUST_ACTIVITY_ELIGIBILITY_DENIED");
-    } else if (trustDecision.decision === "human_review_required") {
-      review.push("TRUST_ACTIVITY_ELIGIBILITY_HUMAN_REVIEW_REQUIRED");
-    } else if (trustDecision.decision === "eligible_with_conditions") {
-      if (asArray(trustDecision.required_actions).length > 0) {
-        review.push("TRUST_ACTIVITY_ELIGIBILITY_CONDITIONS_OUTSTANDING");
-      }
-    } else if (trustDecision.decision !== "eligible") {
-      review.push("TRUST_ACTIVITY_ELIGIBILITY_UNKNOWN");
-    }
-  }
-
-  let stripeAccountId: string | null = null;
-
-  if (
-    !canonicalStripe ||
-    canonicalStripe.identity_state !== "linked" ||
-    !canonicalStripe.stripe_account_id
-  ) {
-    review.push("CANONICAL_STRIPE_IDENTITY_NOT_LINKED");
-  } else {
-    stripeAccountId = canonicalStripe.stripe_account_id;
-
-    if (stripeAccountId !== input.expectedStripeAccountId) {
-      review.push("CANONICAL_STRIPE_IDENTITY_CHANGED");
-    }
-  }
-
-  let transferCapabilityStatus: string | null = null;
-
-  if (!stripeProjection) {
-    review.push("ECONOMIC_STRIPE_PROJECTION_MISSING");
-  } else if (
-    stripeProjection.account_id !== input.accountId ||
-    stripeProjection.economic_identity_id !== identity.id ||
-    stripeProjection.stripe_account_id !== stripeAccountId ||
-    stripeProjection.stripe_account_id !== input.expectedStripeAccountId
-  ) {
-    review.push("ECONOMIC_STRIPE_PROJECTION_DIVERGED");
-  } else {
-    transferCapabilityStatus = stripeTransferCapabilityStatus(
-      stripeProjection.capabilities
-    );
-
-    const transferCapabilityActive =
-      transferCapabilityStatus !== null &&
-      ["active", "enabled"].includes(transferCapabilityStatus);
-
-    // Accounts v2 Recipient settlement authority is the recipient
-    // stripe_transfers capability. Legacy v1 details_submitted /
-    // payouts_enabled and generic payout requirements remain evidence only;
-    // they must not veto an otherwise-active Recipient Transfer capability.
-    if (!transferCapabilityActive) {
-      if (asArray(stripeProjection.currently_due).length > 0) {
-        blocked.push("STRIPE_REQUIREMENTS_CURRENTLY_DUE");
-      }
-      if (asArray(stripeProjection.past_due).length > 0) {
-        blocked.push("STRIPE_REQUIREMENTS_PAST_DUE");
-      }
-      if (asArray(stripeProjection.pending_verification).length > 0) {
-        blocked.push("STRIPE_REQUIREMENTS_PENDING_VERIFICATION");
-      }
-      if (asArray(stripeProjection.requirement_errors).length > 0) {
-        blocked.push("STRIPE_REQUIREMENT_ERRORS");
-      }
-      if (stripeProjection.disabled_reason?.trim()) {
-        blocked.push("STRIPE_ACCOUNT_DISABLED");
-      }
-      blocked.push("STRIPE_TRANSFER_CAPABILITY_INACTIVE");
-    }
-  }
-
-  const reasonCodes = Array.from(
-    new Set(blocked.length > 0 ? [...blocked, ...review] : review)
-  );
-
-  const decision: EconomicSettlementEligibilityDecision =
-    blocked.length > 0
-      ? "blocked"
-      : review.length > 0
-        ? "human_review"
-        : "allowed";
-
-  const sourceTrustDecisionId = trustDecision?.id ?? null;
   const decisionId = await recordDecision({
     accountId: input.accountId,
     economicIdentityId: identity.id,
-    sourceTrustDecisionId,
-    stripeAccountId,
+    sourceTrustDecisionId: evaluation.sourceTrustDecisionId,
+    stripeAccountId: evaluation.externalAccountRef,
     subjectType: input.subjectType,
     subjectId: input.subjectId,
     activityKey,
     jurisdictionCode,
-    decision,
-    reasonCodes,
-    evidenceSnapshot: {
-      accountCapabilityEnabled: capability?.enabled === true,
-      economicIdentityStatus: identity.status,
-      primaryLegalEntityIds: primaryLegalEntities.map((row) => row.id),
-      primaryEconomicPersonIds: primaryEconomicPersons.map((row) => row.id),
-      verificationCaseIds: verificationCases.map((row) => row.id),
-      qualificationRequired,
-      applicableQualificationIds: applicableQualifications.map((row) => row.id),
-      economicRestrictionIds: applicableEconomicRestrictions.map((row) => row.id),
-      trustRestrictionIds: applicableTrustRestrictions.map((row) => row.id),
-      trustDecisionId: sourceTrustDecisionId,
-      stripeProjectionPresent: Boolean(stripeProjection),
-      stripeProjectionDetailsSubmitted:
-        stripeProjection?.details_submitted ?? false,
-      stripeProjectionPayoutsEnabled:
-        stripeProjection?.payouts_enabled ?? false,
-      stripeCurrentlyDueCount: asArray(stripeProjection?.currently_due).length,
-      stripeEventuallyDueCount: asArray(stripeProjection?.eventually_due).length,
-      stripePastDueCount: asArray(stripeProjection?.past_due).length,
-      stripePendingVerificationCount: asArray(
-        stripeProjection?.pending_verification
-      ).length,
-      stripeRequirementErrorCount: asArray(
-        stripeProjection?.requirement_errors
-      ).length,
-      stripeTransferCapabilityStatus: transferCapabilityStatus,
-      stripeTransferCapabilityActive:
-        transferCapabilityStatus !== null &&
-        ["active", "enabled"].includes(transferCapabilityStatus),
-    },
+    decision: evaluation.decision,
+    reasonCodes: evaluation.reasonCodes,
+    evidenceSnapshot: evaluation.evidenceSnapshot,
     evaluatedAt,
   });
 
   return {
     decisionId,
-    decision,
-    reasonCodes,
-    sourceTrustDecisionId,
-    stripeAccountId,
+    decision: evaluation.decision,
+    reasonCodes: evaluation.reasonCodes,
+    sourceTrustDecisionId: evaluation.sourceTrustDecisionId,
+    stripeAccountId: evaluation.externalAccountRef,
     activityKey,
     jurisdictionCode,
   };
@@ -1008,7 +611,6 @@ export async function canReceiveSettlementForBooking(input: {
     bookingId: input.bookingId,
     expectedProviderProfileId: input.expectedProviderProfileId,
   });
-
   if (!context) return null;
 
   return canReceiveSettlement({
