@@ -33,6 +33,7 @@ type BookingRow = {
   application_fee_amount: number | null;
   platform_fee_amount: number | null;
   provider_amount: number | null;
+  paid_at: string | null;
 };
 
 type LedgerRow = {
@@ -46,6 +47,10 @@ type LedgerRow = {
   source: string;
   new_state: string;
   occurred_at: string;
+};
+
+type LedgerBoundaryRow = {
+  recorded_at: string;
 };
 
 type GroupMemberRow = {
@@ -64,10 +69,24 @@ type ProfileAccountRow = {
   account_id: string | null;
 };
 
+export type PureFinanceRuntimeEvidenceClass =
+  | "current_runtime"
+  | "legacy_historical"
+  | "not_applicable";
+
+export type PureFinanceRuntimeEvidenceBasis =
+  | "current_runtime"
+  | "paid_before_central_ledger"
+  | "historical_backfill_only"
+  | "payment_not_final"
+  | "test_only_payment_mode";
+
 export type PureFinanceRuntimeShadowResult = {
   bookingId: string;
   scope: "full_chain";
   status: "coherent" | "human_review" | "not_applicable";
+  evidenceClass: PureFinanceRuntimeEvidenceClass;
+  evidenceBasis: PureFinanceRuntimeEvidenceBasis;
   runtimeParity: boolean;
   observedMovementCount: number;
   mutationMovementCount: number;
@@ -86,6 +105,56 @@ function preflightDivergence(
   actual: Readonly<Record<string, string | number | boolean | null>>
 ): PureFinanceRuntimeShadowDivergence {
   return { reasonCode, movementKey: null, expected, actual };
+}
+
+function timestampBefore(left: string | null, right: string | null): boolean {
+  if (!left || !right) return false;
+  const leftMillis = Date.parse(left);
+  const rightMillis = Date.parse(right);
+  return (
+    Number.isFinite(leftMillis) &&
+    Number.isFinite(rightMillis) &&
+    leftMillis < rightMillis
+  );
+}
+
+function classifyEvidence(input: {
+  booking: BookingRow;
+  effectiveLedger: readonly LedgerRow[];
+  centralLedgerFirstRecordedAt: string | null;
+}): {
+  evidenceClass: Exclude<PureFinanceRuntimeEvidenceClass, "not_applicable">;
+  evidenceBasis: Extract<
+    PureFinanceRuntimeEvidenceBasis,
+    "current_runtime" | "paid_before_central_ledger" | "historical_backfill_only"
+  >;
+} {
+  if (
+    timestampBefore(
+      input.booking.paid_at,
+      input.centralLedgerFirstRecordedAt
+    )
+  ) {
+    return {
+      evidenceClass: "legacy_historical",
+      evidenceBasis: "paid_before_central_ledger",
+    };
+  }
+
+  if (
+    input.effectiveLedger.length > 0 &&
+    input.effectiveLedger.every((row) => row.source === "historical_backfill")
+  ) {
+    return {
+      evidenceClass: "legacy_historical",
+      evidenceBasis: "historical_backfill_only",
+    };
+  }
+
+  return {
+    evidenceClass: "current_runtime",
+    evidenceBasis: "current_runtime",
+  };
 }
 
 async function loadFrozenEconomics(booking: BookingRow): Promise<{
@@ -234,11 +303,11 @@ export async function verifyPureFinanceRuntimeShadow(input: {
     throw new Error("KLYX_PURE_FINANCE_SHADOW_BOOKING_INVALID");
   }
 
-  const [bookingResult, ledgerResult] = await Promise.all([
+  const [bookingResult, ledgerResult, boundaryResult] = await Promise.all([
     supabaseAdmin
       .from("bookings")
       .select(
-        "id, parent_id, provider_id, babysitter_id, payment_status, payment_mode, amount_total, currency, application_fee_amount, platform_fee_amount, provider_amount"
+        "id, parent_id, provider_id, babysitter_id, payment_status, payment_mode, amount_total, currency, application_fee_amount, platform_fee_amount, provider_amount, paid_at"
       )
       .eq("id", bookingId)
       .maybeSingle(),
@@ -248,6 +317,12 @@ export async function verifyPureFinanceRuntimeShadow(input: {
         "movement_key, movement_type, amount_minor, currency, beneficiary_kind, beneficiary_ref, cause, source, new_state, occurred_at"
       )
       .eq("booking_id", bookingId),
+    supabaseAdmin
+      .from("financial_ledger_events")
+      .select("recorded_at")
+      .order("recorded_at", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   if (bookingResult.error) throw new Error(bookingResult.error.message);
@@ -255,6 +330,7 @@ export async function verifyPureFinanceRuntimeShadow(input: {
     throw new Error("KLYX_PURE_FINANCE_SHADOW_BOOKING_NOT_FOUND");
   }
   if (ledgerResult.error) throw new Error(ledgerResult.error.message);
+  if (boundaryResult.error) throw new Error(boundaryResult.error.message);
 
   const booking = bookingResult.data as BookingRow;
   if (!["paid", "refunded"].includes(booking.payment_status ?? "")) {
@@ -262,6 +338,8 @@ export async function verifyPureFinanceRuntimeShadow(input: {
       bookingId,
       scope: "full_chain",
       status: "not_applicable",
+      evidenceClass: "not_applicable",
+      evidenceBasis: "payment_not_final",
       runtimeParity: false,
       observedMovementCount: 0,
       mutationMovementCount: 0,
@@ -275,6 +353,8 @@ export async function verifyPureFinanceRuntimeShadow(input: {
       bookingId,
       scope: "full_chain",
       status: "not_applicable",
+      evidenceClass: "not_applicable",
+      evidenceBasis: "test_only_payment_mode",
       runtimeParity: false,
       observedMovementCount: 0,
       mutationMovementCount: 0,
@@ -285,6 +365,13 @@ export async function verifyPureFinanceRuntimeShadow(input: {
 
   const rawLedger = (ledgerResult.data ?? []) as LedgerRow[];
   const effectiveLedger = rawLedger.filter(isEffectiveLedgerRow);
+  const centralLedgerFirstRecordedAt =
+    (boundaryResult.data as LedgerBoundaryRow | null)?.recorded_at ?? null;
+  const evidenceClassification = classifyEvidence({
+    booking,
+    effectiveLedger,
+    centralLedgerFirstRecordedAt,
+  });
   const observed = effectiveLedger.map(observedMovement);
   const frozen = await loadFrozenEconomics(booking);
   const providerProfileId = booking.provider_id ?? booking.babysitter_id ?? null;
@@ -359,6 +446,8 @@ export async function verifyPureFinanceRuntimeShadow(input: {
     bookingId,
     scope: "full_chain",
     status: divergences.length === 0 ? "coherent" : "human_review",
+    evidenceClass: evidenceClassification.evidenceClass,
+    evidenceBasis: evidenceClassification.evidenceBasis,
     runtimeParity: divergences.length === 0 && shadow.runtimeParity,
     observedMovementCount: shadow.observedMovementCount,
     mutationMovementCount: shadow.mutationMovementCount,
