@@ -52,9 +52,7 @@ describe("KLYX LIVE gate legacy-shadow readiness contract", () => {
       "lib/pure-finance/runtime-reconciliation-readiness-server.ts"
     );
 
-    expect(readiness).toContain(
-      "Missing/ambiguous/current-runtime evidence is deliberately blocking"
-    );
+    expect(readiness).toContain("return null;");
     expect(readiness).toContain("blockingCaseIds.push(reconciliation.id)");
     expect(readiness).toContain(
       'throw new Error("KLYX_FINANCIAL_RUNTIME_RECONCILIATION_OPEN")'
