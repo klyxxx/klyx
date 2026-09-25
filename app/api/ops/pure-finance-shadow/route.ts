@@ -3,6 +3,10 @@ import "server-only";
 import { timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
 
+import {
+  MAX_CONTROLLED_PURE_FINANCE_SHADOW_BOOKINGS,
+  verifyControlledPureFinanceRuntimeShadow,
+} from "@/lib/pure-finance-shadow-batch-server";
 import { verifyPureFinanceRuntimeShadow } from "@/lib/pure-finance-shadow-server";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +36,11 @@ function authorized(request: NextRequest): boolean {
   );
 }
 
+type ShadowRequestBody = {
+  bookingId?: unknown;
+  bookingIds?: unknown;
+};
+
 export async function POST(request: NextRequest): Promise<Response> {
   if (!configured()) {
     return noStore(503, {
@@ -47,14 +56,57 @@ export async function POST(request: NextRequest): Promise<Response> {
     });
   }
 
-  let bookingId = "";
+  let body: ShadowRequestBody;
   try {
-    const body = (await request.json()) as { bookingId?: unknown };
-    bookingId = typeof body.bookingId === "string" ? body.bookingId.trim() : "";
+    body = (await request.json()) as ShadowRequestBody;
   } catch {
-    bookingId = "";
+    return noStore(400, {
+      ok: false,
+      code: "KLYX_PURE_FINANCE_SHADOW_BODY_INVALID",
+    });
   }
 
+  const hasSingle = body.bookingId !== undefined;
+  const hasBatch = body.bookingIds !== undefined;
+  if (hasSingle && hasBatch) {
+    return noStore(400, {
+      ok: false,
+      code: "KLYX_PURE_FINANCE_SHADOW_MODE_AMBIGUOUS",
+    });
+  }
+
+  if (hasBatch) {
+    if (
+      !Array.isArray(body.bookingIds) ||
+      body.bookingIds.length === 0 ||
+      body.bookingIds.length > MAX_CONTROLLED_PURE_FINANCE_SHADOW_BOOKINGS ||
+      body.bookingIds.some((value) => typeof value !== "string")
+    ) {
+      return noStore(400, {
+        ok: false,
+        code: "KLYX_PURE_FINANCE_CONTROLLED_SHADOW_BOOKINGS_INVALID",
+      });
+    }
+
+    try {
+      const result = await verifyControlledPureFinanceRuntimeShadow({
+        bookingIds: body.bookingIds as string[],
+      });
+      return noStore(200, { ok: true, mode: "controlled_batch", result });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (message.startsWith("KLYX_PURE_FINANCE_CONTROLLED_SHADOW_")) {
+        return noStore(400, { ok: false, code: message });
+      }
+      return noStore(500, {
+        ok: false,
+        code: "KLYX_PURE_FINANCE_CONTROLLED_SHADOW_FAILED",
+      });
+    }
+  }
+
+  const bookingId =
+    typeof body.bookingId === "string" ? body.bookingId.trim() : "";
   if (!bookingId) {
     return noStore(400, {
       ok: false,
@@ -64,7 +116,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   try {
     const result = await verifyPureFinanceRuntimeShadow({ bookingId });
-    return noStore(200, { ok: true, result });
+    return noStore(200, { ok: true, mode: "single", result });
   } catch {
     return noStore(500, {
       ok: false,
