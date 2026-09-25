@@ -1,6 +1,9 @@
 import "server-only";
 
-import { openFinancialReconciliationCase } from "@/lib/financial-ledger-server";
+import {
+  openFinancialReconciliationCase,
+  recordFinancialReconciliationDecision,
+} from "@/lib/financial-ledger-server";
 import {
   certifyPureFinanceRuntimeShadow,
   type PureFinanceRuntimeObservedMovement,
@@ -62,6 +65,10 @@ type GroupEconomicsRow = {
 
 type ProfileAccountRow = {
   account_id: string | null;
+};
+
+type ReconciliationCaseRow = {
+  id: string;
 };
 
 export type PureFinanceRuntimeShadowResult = {
@@ -226,6 +233,38 @@ function observedMovement(row: LedgerRow): PureFinanceRuntimeObservedMovement {
   };
 }
 
+async function resolveObsoleteRuntimeShadowCases(input: {
+  bookingId: string;
+  classificationReason: string;
+}): Promise<void> {
+  const { data, error } = await supabaseAdmin
+    .from("financial_reconciliation_current")
+    .select("id")
+    .eq("booking_id", input.bookingId)
+    .eq("dimension", "pure_finance_runtime")
+    .in("state", ["reconciliation", "human_review"]);
+
+  if (error) throw new Error(error.message);
+
+  for (const row of (data ?? []) as ReconciliationCaseRow[]) {
+    if (!UUID_RE.test(row.id)) {
+      throw new Error("KLYX_PURE_FINANCE_SHADOW_CASE_ID_INVALID");
+    }
+
+    await recordFinancialReconciliationDecision({
+      caseId: row.id,
+      eventKey: `pure-finance-runtime:${row.id}:scope-excluded:${input.classificationReason}`,
+      state: "resolved",
+      cause: "pure_finance_runtime_scope_excluded",
+      actorRef: "pure_finance_runtime_shadow",
+      details: {
+        bookingId: input.bookingId,
+        classificationReason: input.classificationReason,
+      },
+    });
+  }
+}
+
 export async function verifyPureFinanceRuntimeShadow(input: {
   bookingId: string;
 }): Promise<PureFinanceRuntimeShadowResult> {
@@ -270,7 +309,16 @@ export async function verifyPureFinanceRuntimeShadow(input: {
     };
   }
 
+  const rawLedger = (ledgerResult.data ?? []) as LedgerRow[];
+  const effectiveLedger = rawLedger.filter(isEffectiveLedgerRow);
+
   if (booking.payment_mode === "platform_test_only") {
+    const classificationReason = "PURE_FINANCE_RUNTIME_TEST_ONLY_PAYMENT_MODE";
+    await resolveObsoleteRuntimeShadowCases({
+      bookingId,
+      classificationReason,
+    });
+
     return {
       bookingId,
       scope: "full_chain",
@@ -279,12 +327,34 @@ export async function verifyPureFinanceRuntimeShadow(input: {
       observedMovementCount: 0,
       mutationMovementCount: 0,
       caseIds: [],
-      reasonCodes: ["PURE_FINANCE_RUNTIME_TEST_ONLY_PAYMENT_MODE"],
+      reasonCodes: [classificationReason],
     };
   }
 
-  const rawLedger = (ledgerResult.data ?? []) as LedgerRow[];
-  const effectiveLedger = rawLedger.filter(isEffectiveLedgerRow);
+  const historicalBackfillOnly =
+    effectiveLedger.length > 0 &&
+    effectiveLedger.every((row) => row.source === "historical_backfill");
+
+  if (historicalBackfillOnly) {
+    const classificationReason =
+      "PURE_FINANCE_RUNTIME_HISTORICAL_BACKFILL_ONLY";
+    await resolveObsoleteRuntimeShadowCases({
+      bookingId,
+      classificationReason,
+    });
+
+    return {
+      bookingId,
+      scope: "full_chain",
+      status: "not_applicable",
+      runtimeParity: false,
+      observedMovementCount: effectiveLedger.length,
+      mutationMovementCount: 0,
+      caseIds: [],
+      reasonCodes: [classificationReason],
+    };
+  }
+
   const observed = effectiveLedger.map(observedMovement);
   const frozen = await loadFrozenEconomics(booking);
   const providerProfileId = booking.provider_id ?? booking.babysitter_id ?? null;
