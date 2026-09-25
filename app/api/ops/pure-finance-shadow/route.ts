@@ -3,7 +3,7 @@ import "server-only";
 import { timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
 
-import { verifyPureFinanceRecognitionShadow } from "@/lib/pure-finance-shadow-server";
+import { verifyPureFinanceRuntimeShadow } from "@/lib/pure-finance-shadow-server";
 
 export const dynamic = "force-dynamic";
 
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
 
   try {
-    const result = await verifyPureFinanceRecognitionShadow({ bookingId });
+    const result = await verifyPureFinanceRuntimeShadow({ bookingId });
     return noStore(200, { ok: true, result });
   } catch {
     return noStore(500, {
