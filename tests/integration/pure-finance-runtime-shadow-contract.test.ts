@@ -57,6 +57,16 @@ describe("KLYX pure-finance full runtime shadow contract", () => {
     }
   });
 
+  it("excludes test-only bookings from real-runtime financial evidence", () => {
+    expect(serverShadow).toContain(
+      'booking.payment_mode === "platform_test_only"'
+    );
+    expect(serverShadow).toContain(
+      '"PURE_FINANCE_RUNTIME_TEST_ONLY_PAYMENT_MODE"'
+    );
+    expect(serverShadow).toContain('status: "not_applicable"');
+  });
+
   it("covers the entire canonical chain in the pure comparator", () => {
     for (const movement of [
       "charge",
