@@ -9,7 +9,7 @@ function read(path: string): string {
 describe("KLYX canonical financial LIVE authority contract", () => {
   it("starts fail-closed and persists immutable state transitions", () => {
     const migration = read(
-      "supabase/migrations/20260923170000_klyx_financial_live_authority.sql"
+      "supabase/migrations/20260925210000_klyx_financial_live_authority.sql"
     );
 
     expect(migration).toContain("'DISABLED'");
