@@ -29,6 +29,12 @@ function basisPoints(numerator: number, denominator: number): number | null {
   return Math.floor((numerator * 10_000) / denominator);
 }
 
+function compareText(left: string, right: string): number {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
 export function certifyControlledPureFinanceShadowEvidence(input: {
   observations: readonly ControlledPureFinanceShadowObservation[];
 }): ControlledPureFinanceShadowEvidence {
@@ -101,7 +107,7 @@ export function certifyControlledPureFinanceShadowEvidence(input: {
     runtimeParityCount,
     shadowFailureRateBps: basisPoints(failedCount, applicableCount),
     reasonHistogram: Object.fromEntries(
-      [...reasons.entries()].sort(([left], [right]) => left.localeCompare(right))
+      [...reasons.entries()].sort(([left], [right]) => compareText(left, right))
     ),
   };
 }
