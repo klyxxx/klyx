@@ -17,7 +17,7 @@ if [ -z "$PRODUCTION_URL" ]; then
   fail "KLYX_PRODUCTION_URL is required."
 fi
 
-NORMALIZED_ORIGIN="$(node - "$PRODUCTION_URL" <<'NODE'
+if ! NORMALIZED_ORIGIN="$(node - "$PRODUCTION_URL" <<'NODE'
 const raw = process.argv[2] ?? "";
 let url;
 try {
@@ -46,7 +46,9 @@ if (
 
 process.stdout.write(`https://${hostname}`);
 NODE
-)" || fail "Production URL must be the canonical HTTPS origin klyx.be or www.klyx.be."
+)"; then
+  fail "Production URL must be the canonical HTTPS origin klyx.be or www.klyx.be."
+fi
 
 HEALTH_PATH="/api/health/build"
 HEALTH_URL="${NORMALIZED_ORIGIN}${HEALTH_PATH}"
@@ -72,8 +74,7 @@ curl \
 FINAL_URL="$(sed -n '1p' "$META_FILE")"
 HTTP_CODE="$(sed -n '2p' "$META_FILE")"
 
-node - "$FINAL_URL" "$HEALTH_PATH" <<'NODE' ||
-  process.exit(1)
+if ! node - "$FINAL_URL" "$HEALTH_PATH" <<'NODE'
 const raw = process.argv[2] ?? "";
 const requiredPath = process.argv[3] ?? "";
 let url;
@@ -94,13 +95,15 @@ if (
   process.exit(3);
 }
 NODE
+then
+  fail "Production health redirect escaped the canonical KLYX HTTPS origin."
+fi
 
 if ! [[ "$HTTP_CODE" =~ ^2[0-9][0-9]$ ]]; then
   fail "Production build-health endpoint did not return HTTP 2xx."
 fi
 
-node - "$BODY_FILE" "$EXPECTED_SHA" <<'NODE' ||
-  process.exit(1)
+if ! node - "$BODY_FILE" "$EXPECTED_SHA" <<'NODE'
 const fs = require("fs");
 const [path, expectedSha] = process.argv.slice(2);
 
@@ -149,3 +152,6 @@ if (
 
 console.log("KLYX production environment verified: canonical HTTPS origin, production runtime, exact served SHA, and non-secret financial observability are coherent.");
 NODE
+then
+  fail "Production build identity or financial runtime observability is incoherent."
+fi
