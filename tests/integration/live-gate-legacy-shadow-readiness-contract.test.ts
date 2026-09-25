@@ -89,6 +89,23 @@ describe("KLYX LIVE gate legacy-shadow readiness contract", () => {
     );
   });
 
+  it("keeps Founder readiness aligned with the runtime authority", () => {
+    const founder = read(
+      "app/api/founder/transaction-readiness/route.ts"
+    );
+
+    expect(founder).toContain("inspectFinancialRuntimeBlockingTruth");
+    expect(founder).toContain("blockingCaseIds.length");
+    expect(founder).toContain("blockingCriticalSignalKeys.length");
+    expect(founder).toContain("legacyHistoricalCases.length");
+    expect(founder).toContain("legacyHistoricalSignalKeys.length");
+    expect(founder).toContain('key: "legacy_historical_reconciliation"');
+    expect(founder).toContain('severity: "warning"');
+    expect(founder).toContain(
+      "Ils sont exclus du gate current-runtime mais ne sont pas supprimés."
+    );
+  });
+
   it("does not close or mutate reconciliation evidence", () => {
     const readiness = read(
       "lib/pure-finance/runtime-reconciliation-readiness-server.ts"
