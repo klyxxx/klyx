@@ -270,6 +270,19 @@ export async function verifyPureFinanceRuntimeShadow(input: {
     };
   }
 
+  if (booking.payment_mode === "platform_test_only") {
+    return {
+      bookingId,
+      scope: "full_chain",
+      status: "not_applicable",
+      runtimeParity: false,
+      observedMovementCount: 0,
+      mutationMovementCount: 0,
+      caseIds: [],
+      reasonCodes: ["PURE_FINANCE_RUNTIME_TEST_ONLY_PAYMENT_MODE"],
+    };
+  }
+
   const rawLedger = (ledgerResult.data ?? []) as LedgerRow[];
   const effectiveLedger = rawLedger.filter(isEffectiveLedgerRow);
   const observed = effectiveLedger.map(observedMovement);
