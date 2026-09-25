@@ -5,9 +5,13 @@ on:
     paths:
       - "lib/pure-finance-engine.ts"
       - "lib/pure-finance/**"
+      - "lib/pure-finance-shadow-server.ts"
+      - "app/api/ops/pure-finance-shadow/route.ts"
       - "tests/unit/pure-finance-engine.test.ts"
       - "tests/unit/pure-finance-ledger-projection.test.ts"
+      - "tests/unit/pure-finance-shadow-reconciliation.test.ts"
       - "tests/integration/pure-finance-engine-contract.test.ts"
+      - "tests/integration/pure-finance-runtime-shadow-contract.test.ts"
       - ".github/workflows/klyx-pure-finance.yml"
   workflow_dispatch:
     inputs:
@@ -50,7 +54,9 @@ jobs:
           npx vitest run
           tests/unit/pure-finance-engine.test.ts
           tests/unit/pure-finance-ledger-projection.test.ts
+          tests/unit/pure-finance-shadow-reconciliation.test.ts
           tests/integration/pure-finance-engine-contract.test.ts
+          tests/integration/pure-finance-runtime-shadow-contract.test.ts
           --reporter=verbose
 
       - name: TypeScript safety check
