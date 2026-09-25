@@ -264,8 +264,9 @@ describe("KLYX platform-held settlement phase-2 contract", () => {
     );
     expect(runtime).toContain('key.startsWith("sk_test_")');
     expect(runtime).toContain('key.startsWith("sk_live_")');
-    expect(runtime).toContain("KLYX_LIVE_CERTIFICATION_PROFILE_ID");
-    expect(runtime).toContain("KLYX_LIVE_CERTIFICATION_SHA");
+    expect(runtime).toContain("requireKlyxFinancialLiveAuthority");
+    expect(runtime).toContain('liveAuthority.state === "GENERAL"');
+    expect(runtime).toContain('liveAuthority.state !== "CONTROLLED"');
     expect(runtime).toContain("KLYX_DR_CERTIFIED_SHA");
     expect(runtime).toContain("KLYX_PRODUCTION_FINANCIAL_CERTIFIED_SHA");
     expect(release).not.toContain("stripe.payouts.create");

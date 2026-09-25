@@ -304,7 +304,7 @@ describe("Platform-Held multi-executor group settlement contract", () => {
     expect(workflow).toContain('KLYX_LIVE_PAYMENTS_ENABLED: "false"');
     expect(checkout).toContain("requireKlyxFinancialStripeRuntime");
     expect(server).toContain("requireKlyxFinancialStripeRuntime");
-    expect(runtime).toContain("KLYX_LIVE_CERTIFICATION_PROFILE_ID");
+    expect(runtime).toContain("requireKlyxFinancialLiveAuthority");
     expect(runtime).toContain("KLYX_DR_CERTIFIED_SHA");
 
     expect(server).toContain("createEconomicallyAuthorizedBeneficiaryTransfer");

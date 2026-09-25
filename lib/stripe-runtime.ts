@@ -234,7 +234,9 @@ export function assertStripeRuntimeConfiguredForDiagnostics(): StripeRuntimeRepo
 
   return assertStripeRuntimeChecks(
     report,
-    (check) => check.key !== "live_switch"
+    (check) =>
+      check.key !== "live_switch" &&
+      check.key !== "financial_certification_sha"
   );
 }
 

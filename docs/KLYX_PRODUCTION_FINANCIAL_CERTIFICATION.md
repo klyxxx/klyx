@@ -48,9 +48,12 @@ after a later deployment. Otherwise KLYX could lose external Stripe truth
 precisely during an incident.
 
 Creating Checkout, Transfer, TransferReversal or Refund remains subject to the
-full mutation gate: Operations capability, exact LIVE SHA, DR evidence,
-controlled certification profile before Mission 1, and exact financial
-certification before general LIVE.
+full mutation gate: canonical financial LIVE authority, Operations capability,
+exact LIVE SHA, DR evidence, controlled certification profile before Mission 1,
+and exact financial certification before general LIVE.
+
+Environment variables configure Stripe and add secondary fences. They never
+select `CONTROLLED` or `GENERAL` by themselves.
 
 ## Happy-path chain
 
@@ -139,8 +142,11 @@ A different or unprovable deployed SHA blocks certification.
 Before the matrix may be evaluated:
 
 - Stripe runtime is LIVE;
-- **general LIVE payments remain disabled** during certification;
-- the controlled certification canary is explicitly enabled for the exact SHA;
+- canonical financial LIVE authority is exactly `CONTROLLED`;
+- `ops_financial_live_authority.authorized_sha` equals the exact deployed SHA;
+- the authority's `certification_profile_id` equals the dedicated canary client profile;
+- the deployed SHA equals the DR-certified SHA;
+- environment activation flags are not financial authority and cannot arm LIVE by themselves;
 - Stripe secret and publishable keys match LIVE mode;
 - LIVE webhook secret is configured;
 - canonical Connect identity is available from `account_stripe_connect_identities` with no LIVE bootstrap from `profiles.stripe_account_id`;
@@ -156,7 +162,8 @@ Before the matrix may be evaluated:
 - canonical financial ledger is readable;
 - no `financial_reconciliation_current` row remains in `reconciliation` or `human_review`;
 - central financial reconciliation is configured;
-- DR is certified for the exact SHA.
+- DR is certified for the exact SHA;
+- all financial LIVE authority transitions are version-fenced and immutably audited.
 
 ## Scenario evidence rules
 
