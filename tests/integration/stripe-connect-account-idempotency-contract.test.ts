@@ -48,7 +48,7 @@ describe("Stripe Connect account creation idempotency contract", () => {
 
   it("does not weaken payment checkout authority", () => {
     expect(route).toContain("assertStripeConnectRuntimeConfigured()");
-    expect(checkout).toContain("assertStripeRuntimeReady()");
+    expect(checkout).toContain("requireKlyxFinancialStripeRuntime");
     expect(checkout).toContain("getProfileAccountStripeConnectIdentity");
   });
 });

@@ -26,9 +26,9 @@ import { POST as platformHeldPost } from "./route-platform-held";
  * ./route-platform-held.ts; this public route remains the account/risk/mode
  * dispatcher.
  *
- * try { assertStripeRuntimeReady()
+ * try { requireKlyxFinancialStripeRuntime
  * @core:KLYX_SERVER_OBSERVABILITY_12B_8B
- * @core:assertStripeRuntimeReady()
+ * @core:requireKlyxFinancialStripeRuntime
  * @core:presentment_currency
  * @core:resolveKlyxMarketPaymentPolicy
  * @core:calculateKlyxMarketEconomics

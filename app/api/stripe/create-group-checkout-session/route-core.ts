@@ -9,6 +9,7 @@ import {
   requireAccountType,
 } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { requireKlyxFinancialStripeRuntime } from "@/lib/klyx-financial-stripe-runtime";
 import {
   calculateKlyxEconomics,
   getKlyxCommissionPercent,
@@ -24,7 +25,6 @@ import {
   STRIPE_CONNECT_IDENTITY_CONFLICT,
 } from "@/lib/stripe-connect-account-identity";
 import { markBookingGroupPaidFromSession } from "@/lib/stripe-group-payments";
-import { assertStripeRuntimeReady } from "@/lib/stripe-runtime";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 type ClaimRow = {
@@ -77,12 +77,17 @@ export async function POST(request: Request) {
     const { user, profile } = await getAuthenticatedProfile(request);
     requireAccountType(profile, "client");
 
-    const stripeRuntime = assertStripeRuntimeReady();
+    const financialRuntime = await requireKlyxFinancialStripeRuntime({
+      clientProfileId: profile.id,
+      capability: "payments",
+    });
+    const stripeRuntimeMode =
+      financialRuntime.mode === "test" ? "test" : "live";
 
     // Global Money migration safety: do not let legacy cents/commission
     // semantics mutate LIVE money while this financial path is not yet
     // migrated to canonical minor units + market policy.
-    if (stripeRuntime.mode === "live") {
+    if (stripeRuntimeMode === "live") {
       return NextResponse.json(
         {
           error: "Les paiements groupe LIVE restent bloques jusqu au snapshot global money du groupe.",
@@ -93,7 +98,7 @@ export async function POST(request: Request) {
     }
     const clientMarketAccess = assessKlyxStripeMarketAccess(
       profile.countryCode,
-      stripeRuntime.mode
+      stripeRuntimeMode
     );
 
     if (!clientMarketAccess.allowed) {
@@ -233,7 +238,7 @@ export async function POST(request: Request) {
     const service = serviceResult.data;
     const providerMarketAccess = assessKlyxStripeMarketAccess(
       provider?.country_code ?? "",
-      stripeRuntime.mode
+      stripeRuntimeMode
     );
     if (!providerMarketAccess.allowed) {
       return NextResponse.json(
