@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { certifyControlledPureFinanceShadowEvidence } from "@/lib/pure-finance/controlled-shadow-evidence";
+import { certifyControlledPureFinanceShadowEvidence } from "../../lib/pure-finance/controlled-shadow-evidence";
 
 describe("KLYX controlled pure-finance shadow evidence", () => {
   it("passes only when every applicable booking is coherent and runtime-parity true", () => {
