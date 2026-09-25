@@ -10,6 +10,7 @@ on:
       - "tests/unit/pure-finance-engine.test.ts"
       - "tests/unit/pure-finance-ledger-projection.test.ts"
       - "tests/unit/pure-finance-shadow-reconciliation.test.ts"
+      - "tests/unit/pure-finance-cutover-certification.test.ts"
       - "tests/integration/pure-finance-engine-contract.test.ts"
       - "tests/integration/pure-finance-runtime-shadow-contract.test.ts"
       - ".github/workflows/klyx-pure-finance.yml"
@@ -55,6 +56,7 @@ jobs:
           tests/unit/pure-finance-engine.test.ts
           tests/unit/pure-finance-ledger-projection.test.ts
           tests/unit/pure-finance-shadow-reconciliation.test.ts
+          tests/unit/pure-finance-cutover-certification.test.ts
           tests/integration/pure-finance-engine-contract.test.ts
           tests/integration/pure-finance-runtime-shadow-contract.test.ts
           --reporter=verbose
