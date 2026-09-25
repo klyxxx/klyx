@@ -217,8 +217,9 @@ describe("Mission 11 economic settlement eligibility contract", () => {
     const runtime = read("lib/klyx-financial-stripe-runtime.ts");
     expect(single).toContain("requireKlyxFinancialStripeRuntimeForBooking");
     expect(group).toContain("requireKlyxFinancialStripeRuntime");
-    expect(runtime).toContain("KLYX_LIVE_CERTIFICATION_PROFILE_ID");
-    expect(runtime).toContain("KLYX_LIVE_CERTIFICATION_SHA");
+    expect(runtime).toContain("requireKlyxFinancialLiveAuthority");
+    expect(runtime).toContain('liveAuthority.state === "GENERAL"');
+    expect(runtime).toContain('liveAuthority.state !== "CONTROLLED"');
     expect(runtime).toContain("KLYX_DR_CERTIFIED_SHA");
     expect(stripeTruth).not.toContain("transfers.create");
     expect(migration).not.toContain("refunds.create");

@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { assertStripeRuntimeReady } from "@/lib/stripe-runtime";
 import { randomUUID } from "node:crypto";
 import Stripe from "stripe";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -25,6 +24,7 @@ import {
 } from "@/lib/api-auth";
 import { logServerInfo, logServerWarning } from "@/lib/server-log";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { requireKlyxFinancialStripeRuntime } from "@/lib/klyx-financial-stripe-runtime";
 
 type BookingRow = {
   id: string;
@@ -192,7 +192,12 @@ export async function POST(request: Request) {
     const { user, profile } = await getAuthenticatedProfile(request);
     requireAccountType(profile, "client");
 
-    const stripeRuntime = assertStripeRuntimeReady();
+    const financialRuntime = await requireKlyxFinancialStripeRuntime({
+      clientProfileId: profile.id,
+      capability: "payments",
+    });
+    const stripeRuntimeMode =
+      financialRuntime.mode === "test" ? "test" : "live";
 
     const stripeSecretKey = requiredEnv("STRIPE_SECRET_KEY");
     const stripe = new Stripe(stripeSecretKey);
@@ -335,7 +340,7 @@ export async function POST(request: Request) {
       "";
 
     if (
-      stripeRuntime.mode === "live" &&
+      stripeRuntimeMode === "live" &&
       (
         !booking.payer_country_code ||
         !booking.execution_country_code ||
@@ -389,7 +394,7 @@ export async function POST(request: Request) {
           currencyCode: presentmentCurrency,
         });
     } catch (policyError) {
-      if (stripeRuntime.mode === "live") {
+      if (stripeRuntimeMode === "live") {
         throw policyError;
       }
 
@@ -426,7 +431,7 @@ export async function POST(request: Request) {
     }
 
     if (
-      stripeRuntime.mode === "live" &&
+      stripeRuntimeMode === "live" &&
       (
         !resolvedPolicy ||
         !resolvedPolicy.rule ||
