@@ -4,9 +4,15 @@ export type ControlledPureFinanceShadowObservationStatus =
   | "not_applicable"
   | "execution_failed";
 
+export type ControlledPureFinanceShadowEvidenceClass =
+  | "current_runtime"
+  | "legacy_historical"
+  | "not_applicable";
+
 export type ControlledPureFinanceShadowObservation = {
   bookingId: string;
   status: ControlledPureFinanceShadowObservationStatus;
+  evidenceClass: ControlledPureFinanceShadowEvidenceClass;
   runtimeParity: boolean;
   reasonCodes: readonly string[];
 };
@@ -15,6 +21,10 @@ export type ControlledPureFinanceShadowEvidence = {
   gateStatus: "pass" | "fail_closed" | "insufficient_evidence";
   requestedCount: number;
   applicableCount: number;
+  currentRuntimeCount: number;
+  legacyHistoricalCount: number;
+  legacyCoherentCount: number;
+  legacyHumanReviewCount: number;
   coherentCount: number;
   humanReviewCount: number;
   notApplicableCount: number;
@@ -35,6 +45,32 @@ function compareText(left: string, right: string): number {
   return 0;
 }
 
+function assertObservationClassConsistency(
+  observation: ControlledPureFinanceShadowObservation
+): void {
+  if (
+    observation.evidenceClass === "not_applicable" &&
+    observation.status !== "not_applicable"
+  ) {
+    throw new Error("KLYX_PURE_FINANCE_CONTROLLED_SHADOW_CLASS_STATUS_INVALID");
+  }
+
+  if (
+    observation.evidenceClass === "legacy_historical" &&
+    (observation.status === "not_applicable" ||
+      observation.status === "execution_failed")
+  ) {
+    throw new Error("KLYX_PURE_FINANCE_CONTROLLED_SHADOW_CLASS_STATUS_INVALID");
+  }
+
+  if (
+    observation.evidenceClass === "current_runtime" &&
+    observation.status === "not_applicable"
+  ) {
+    throw new Error("KLYX_PURE_FINANCE_CONTROLLED_SHADOW_CLASS_STATUS_INVALID");
+  }
+}
+
 export function certifyControlledPureFinanceShadowEvidence(input: {
   observations: readonly ControlledPureFinanceShadowObservation[];
 }): ControlledPureFinanceShadowEvidence {
@@ -44,6 +80,10 @@ export function certifyControlledPureFinanceShadowEvidence(input: {
 
   const seen = new Set<string>();
   const reasons = new Map<string, number>();
+  let currentRuntimeCount = 0;
+  let legacyHistoricalCount = 0;
+  let legacyCoherentCount = 0;
+  let legacyHumanReviewCount = 0;
   let coherentCount = 0;
   let humanReviewCount = 0;
   let notApplicableCount = 0;
@@ -60,19 +100,28 @@ export function certifyControlledPureFinanceShadowEvidence(input: {
       throw new Error("KLYX_PURE_FINANCE_CONTROLLED_SHADOW_BOOKING_DUPLICATE");
     }
     seen.add(bookingId);
+    assertObservationClassConsistency(observation);
 
-    if (observation.status === "coherent") coherentCount += 1;
-    if (observation.status === "human_review") humanReviewCount += 1;
-    if (observation.status === "not_applicable") notApplicableCount += 1;
-    if (observation.status === "execution_failed") executionFailureCount += 1;
-    if (observation.runtimeParity) runtimeParityCount += 1;
+    if (observation.evidenceClass === "not_applicable") {
+      notApplicableCount += 1;
+    } else if (observation.evidenceClass === "legacy_historical") {
+      legacyHistoricalCount += 1;
+      if (observation.status === "coherent") legacyCoherentCount += 1;
+      if (observation.status === "human_review") legacyHumanReviewCount += 1;
+    } else {
+      currentRuntimeCount += 1;
+      if (observation.status === "coherent") coherentCount += 1;
+      if (observation.status === "human_review") humanReviewCount += 1;
+      if (observation.status === "execution_failed") executionFailureCount += 1;
+      if (observation.runtimeParity) runtimeParityCount += 1;
 
-    if (observation.status === "coherent" && !observation.runtimeParity) {
-      parityContradictionCount += 1;
-      reasons.set(
-        "PURE_FINANCE_RUNTIME_PARITY_FALSE_WITH_COHERENT_STATUS",
-        (reasons.get("PURE_FINANCE_RUNTIME_PARITY_FALSE_WITH_COHERENT_STATUS") ?? 0) + 1
-      );
+      if (observation.status === "coherent" && !observation.runtimeParity) {
+        parityContradictionCount += 1;
+        reasons.set(
+          "PURE_FINANCE_RUNTIME_PARITY_FALSE_WITH_COHERENT_STATUS",
+          (reasons.get("PURE_FINANCE_RUNTIME_PARITY_FALSE_WITH_COHERENT_STATUS") ?? 0) + 1
+        );
+      }
     }
 
     for (const rawReason of observation.reasonCodes) {
@@ -83,12 +132,12 @@ export function certifyControlledPureFinanceShadowEvidence(input: {
   }
 
   const requestedCount = input.observations.length;
-  const applicableCount = requestedCount - notApplicableCount;
+  const applicableCount = currentRuntimeCount;
   const failedCount =
     humanReviewCount + executionFailureCount + parityContradictionCount;
 
   let gateStatus: ControlledPureFinanceShadowEvidence["gateStatus"];
-  if (applicableCount === 0) {
+  if (currentRuntimeCount === 0) {
     gateStatus = "insufficient_evidence";
   } else if (failedCount > 0 || runtimeParityCount !== coherentCount) {
     gateStatus = "fail_closed";
@@ -100,12 +149,16 @@ export function certifyControlledPureFinanceShadowEvidence(input: {
     gateStatus,
     requestedCount,
     applicableCount,
+    currentRuntimeCount,
+    legacyHistoricalCount,
+    legacyCoherentCount,
+    legacyHumanReviewCount,
     coherentCount,
     humanReviewCount,
     notApplicableCount,
     executionFailureCount,
     runtimeParityCount,
-    shadowFailureRateBps: basisPoints(failedCount, applicableCount),
+    shadowFailureRateBps: basisPoints(failedCount, currentRuntimeCount),
     reasonHistogram: Object.fromEntries(
       [...reasons.entries()].sort(([left], [right]) => compareText(left, right))
     ),

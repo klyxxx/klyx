@@ -20,6 +20,12 @@ export type ControlledPureFinanceShadowBookingResult = {
   status:
     | PureFinanceRuntimeShadowResult["status"]
     | "execution_failed";
+  evidenceClass:
+    | PureFinanceRuntimeShadowResult["evidenceClass"]
+    | "current_runtime";
+  evidenceBasis:
+    | PureFinanceRuntimeShadowResult["evidenceBasis"]
+    | "execution_failed";
   runtimeParity: boolean;
   observedMovementCount: number;
   mutationMovementCount: number;
@@ -64,6 +70,7 @@ function observationFromResult(
   return {
     bookingId: result.bookingId,
     status: result.status,
+    evidenceClass: result.evidenceClass,
     runtimeParity: result.runtimeParity,
     reasonCodes: result.reasonCodes,
   };
@@ -83,6 +90,8 @@ export async function verifyControlledPureFinanceRuntimeShadow(input: {
       bookings.push({
         bookingId,
         status: result.status,
+        evidenceClass: result.evidenceClass,
+        evidenceBasis: result.evidenceBasis,
         runtimeParity: result.runtimeParity,
         observedMovementCount: result.observedMovementCount,
         mutationMovementCount: result.mutationMovementCount,
@@ -90,9 +99,13 @@ export async function verifyControlledPureFinanceRuntimeShadow(input: {
         reasonCodes: result.reasonCodes,
       });
     } catch {
+      // Unknown execution failures are conservatively treated as current-runtime
+      // evidence so they can never be hidden behind the legacy exclusion.
       bookings.push({
         bookingId,
         status: "execution_failed",
+        evidenceClass: "current_runtime",
+        evidenceBasis: "execution_failed",
         runtimeParity: false,
         observedMovementCount: 0,
         mutationMovementCount: 0,

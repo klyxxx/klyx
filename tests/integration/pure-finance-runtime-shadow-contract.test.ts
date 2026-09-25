@@ -65,6 +65,17 @@ describe("KLYX pure-finance full runtime shadow contract", () => {
       '"PURE_FINANCE_RUNTIME_TEST_ONLY_PAYMENT_MODE"'
     );
     expect(serverShadow).toContain('status: "not_applicable"');
+    expect(serverShadow).toContain('evidenceClass: "not_applicable"');
+  });
+
+  it("classifies pre-ledger and backfill-only bookings as legacy evidence", () => {
+    expect(serverShadow).toContain('from("financial_ledger_events")');
+    expect(serverShadow).toContain('select("recorded_at")');
+    expect(serverShadow).toContain("booking.paid_at");
+    expect(serverShadow).toContain('row.source === "historical_backfill"');
+    expect(serverShadow).toContain('evidenceClass: "legacy_historical"');
+    expect(serverShadow).toContain('evidenceBasis: "paid_before_central_ledger"');
+    expect(serverShadow).toContain('evidenceBasis: "historical_backfill_only"');
   });
 
   it("covers the entire canonical chain in the pure comparator", () => {
