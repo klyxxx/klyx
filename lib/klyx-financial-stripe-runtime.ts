@@ -1,7 +1,7 @@
 import "server-only";
 
-import { getKlyxObservabilityFinancialMonitoringSnapshot } from "@/lib/observability-financial-monitoring-server";
 import { requireKlyxOpsCapabilityAvailable } from "@/lib/ops-control-server";
+import { requireNoBlockingFinancialRuntimeTruth } from "@/lib/pure-finance/runtime-reconciliation-readiness-server";
 import {
   assertStripeObservationRuntimeConfigured,
   assertStripeRuntimeConfiguredForDiagnostics,
@@ -152,23 +152,6 @@ async function requireCanonicalLedgerHealthy(): Promise<void> {
   }
 }
 
-async function requireNoOpenFinancialReconciliation(): Promise<void> {
-  const { count, error } = await supabaseAdmin
-    .from("financial_reconciliation_current")
-    .select("id", { count: "exact", head: true })
-    .in("state", ["reconciliation", "human_review"]);
-
-  if (error) {
-    throw new Error("KLYX_FINANCIAL_RUNTIME_RECONCILIATION_UNAVAILABLE", {
-      cause: error,
-    });
-  }
-
-  if ((count ?? 0) > 0) {
-    throw new Error("KLYX_FINANCIAL_RUNTIME_RECONCILIATION_OPEN");
-  }
-}
-
 async function requireFinancialDlqEmpty(): Promise<void> {
   const { count, error } = await supabaseAdmin
     .from("ops_durable_job_dlq")
@@ -217,17 +200,6 @@ async function requireRecentCriticalAlertSentinel(): Promise<void> {
   }
 }
 
-async function requireNoCriticalFinancialSignal(): Promise<void> {
-  const monitoring =
-    await getKlyxObservabilityFinancialMonitoringSnapshot({
-      signalLimit: 250,
-    });
-
-  if (monitoring.severityCounts.critical > 0) {
-    throw new Error("KLYX_FINANCIAL_RUNTIME_CRITICAL_SIGNAL_OPEN");
-  }
-}
-
 async function requireLiveOperationalReadiness(input: {
   deployedSha: string;
   capability: KlyxFinancialCapability;
@@ -242,9 +214,8 @@ async function requireLiveOperationalReadiness(input: {
     requireFinancialRuntimeSchedulerEnabled(),
     requireLiveRuntimeHeartbeats(input.deployedSha),
     requireCanonicalLedgerHealthy(),
-    requireNoOpenFinancialReconciliation(),
+    requireNoBlockingFinancialRuntimeTruth(),
     requireFinancialDlqEmpty(),
-    requireNoCriticalFinancialSignal(),
     requireRecentCriticalAlertSentinel(),
   ]);
 }
