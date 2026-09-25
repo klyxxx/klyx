@@ -22,6 +22,9 @@ describe("KLYX controlled pure-finance shadow contract", () => {
     expect(evidence).toContain("certifyControlledPureFinanceShadowEvidence");
     expect(evidence).toContain('"fail_closed"');
     expect(evidence).toContain('"insufficient_evidence"');
+    expect(evidence).toContain('"current_runtime"');
+    expect(evidence).toContain('"legacy_historical"');
+    expect(evidence).toContain("legacyHistoricalCount");
     expect(evidence).not.toContain('import "server-only"');
     expect(evidence).not.toMatch(/stripe/i);
     expect(evidence).not.toMatch(/supabase/i);
@@ -34,6 +37,9 @@ describe("KLYX controlled pure-finance shadow contract", () => {
     expect(batchServer).toContain("MAX_CONTROLLED_PURE_FINANCE_SHADOW_BOOKINGS = 25");
     expect(batchServer).toContain("verifyPureFinanceRuntimeShadow");
     expect(batchServer).toContain("for (const bookingId of bookingIds)");
+    expect(batchServer).toContain("evidenceClass: result.evidenceClass");
+    expect(batchServer).toContain("evidenceBasis: result.evidenceBasis");
+    expect(batchServer).toContain('evidenceClass: "current_runtime"');
     expect(batchServer).toContain('scope: "controlled_real_runtime"');
     expect(batchServer).toContain('authority: "shadow_only"');
     expect(batchServer).toContain("writerReplacementAuthorized: false");
