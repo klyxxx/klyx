@@ -6,14 +6,17 @@ on:
       - "lib/pure-finance-engine.ts"
       - "lib/pure-finance/**"
       - "lib/pure-finance-shadow-server.ts"
+      - "lib/pure-finance-shadow-batch-server.ts"
       - "app/api/ops/pure-finance-shadow/route.ts"
       - "tests/unit/pure-finance-engine.test.ts"
       - "tests/unit/pure-finance-ledger-projection.test.ts"
       - "tests/unit/pure-finance-shadow-reconciliation.test.ts"
       - "tests/unit/pure-finance-cutover-certification.test.ts"
       - "tests/unit/pure-finance-runtime-shadow.test.ts"
+      - "tests/unit/pure-finance-controlled-shadow-evidence.test.ts"
       - "tests/integration/pure-finance-engine-contract.test.ts"
       - "tests/integration/pure-finance-runtime-shadow-contract.test.ts"
+      - "tests/integration/pure-finance-controlled-shadow-contract.test.ts"
       - ".github/workflows/klyx-pure-finance.yml"
   workflow_dispatch:
     inputs:
@@ -59,8 +62,10 @@ jobs:
           tests/unit/pure-finance-shadow-reconciliation.test.ts
           tests/unit/pure-finance-cutover-certification.test.ts
           tests/unit/pure-finance-runtime-shadow.test.ts
+          tests/unit/pure-finance-controlled-shadow-evidence.test.ts
           tests/integration/pure-finance-engine-contract.test.ts
           tests/integration/pure-finance-runtime-shadow-contract.test.ts
+          tests/integration/pure-finance-controlled-shadow-contract.test.ts
           --reporter=verbose
 
       - name: TypeScript safety check
