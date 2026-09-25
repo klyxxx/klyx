@@ -1,5 +1,9 @@
 import "server-only";
 
+import {
+  classifyPureFinanceRuntimeEvidence,
+  type PureFinanceRuntimeEvidenceBasis,
+} from "@/lib/pure-finance/runtime-evidence-classification";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 type OpenReconciliationRow = {
@@ -39,10 +43,12 @@ type OpsCriticalSignalRow = {
   signal_key: string;
 };
 
-export type LegacyShadowEvidenceBasis =
+export type LegacyShadowEvidenceBasis = Extract<
+  PureFinanceRuntimeEvidenceBasis,
   | "paid_before_central_ledger"
   | "historical_backfill_only"
-  | "test_only_payment_mode";
+  | "test_only_payment_mode"
+>;
 
 export type LegacyShadowEvidenceCase = {
   caseId: string;
@@ -56,17 +62,6 @@ export type FinancialRuntimeBlockingTruth = {
   blockingCriticalSignalKeys: readonly string[];
   legacyHistoricalSignalKeys: readonly string[];
 };
-
-function timestampBefore(left: string | null, right: string | null): boolean {
-  if (!left || !right) return false;
-  const leftMillis = Date.parse(left);
-  const rightMillis = Date.parse(right);
-  return (
-    Number.isFinite(leftMillis) &&
-    Number.isFinite(rightMillis) &&
-    leftMillis < rightMillis
-  );
-}
 
 function isEffectiveLedgerRow(row: LedgerEvidenceRow): boolean {
   const state = row.new_state.trim().toLowerCase();
@@ -94,31 +89,27 @@ function classifyLegacyShadowCase(input: {
     return null;
   }
 
-  // Historical TEST-only observations are never valid LIVE cutover evidence.
-  // They stay visible in human_review but must not permanently block a later
-  // production canary that is evaluated against the current runtime.
-  if (booking.payment_mode === "platform_test_only") {
+  const effectiveLedger = input.ledger.filter(isEffectiveLedgerRow);
+  const classification = classifyPureFinanceRuntimeEvidence({
+    paymentStatus: booking.payment_status,
+    paymentMode: booking.payment_mode,
+    paidAt: booking.paid_at,
+    effectiveLedgerSources: effectiveLedger.map((row) => row.source),
+    centralLedgerFirstRecordedAt: input.centralLedgerFirstRecordedAt,
+  });
+
+  if (classification.evidenceClass === "legacy_historical") {
+    return classification.evidenceBasis as LegacyShadowEvidenceBasis;
+  }
+
+  // Old shadow cases created before TEST-only observations were classified as
+  // not_applicable must remain visible, but they are not production evidence.
+  if (classification.evidenceBasis === "test_only_payment_mode") {
     return "test_only_payment_mode";
   }
 
-  if (
-    timestampBefore(
-      booking.paid_at,
-      input.centralLedgerFirstRecordedAt
-    )
-  ) {
-    return "paid_before_central_ledger";
-  }
-
-  const effectiveLedger = input.ledger.filter(isEffectiveLedgerRow);
-  if (
-    effectiveLedger.length > 0 &&
-    effectiveLedger.every((row) => row.source === "historical_backfill")
-  ) {
-    return "historical_backfill_only";
-  }
-
-  // Missing/ambiguous/current-runtime evidence is deliberately blocking.
+  // payment_not_final, missing evidence and every current-runtime observation
+  // remain blocking. Ambiguity is never converted into a legacy exemption.
   return null;
 }
 
