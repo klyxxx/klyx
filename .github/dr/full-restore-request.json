@@ -1,9 +1,9 @@
 {
   "format": "KLYX_FULL_RESTORE_REQUEST",
   "version": 1,
-  "requestId": "dr-full-restore-20260926-7329bdfd-dropbox-offsite",
-  "baseMainSha": "7329bdfd2ef7dd1d649bbc6677b40c971bd22116",
+  "requestId": "dr-full-restore-20260926-ddfe894f-final-cert",
+  "baseMainSha": "ddfe894f732143f781212fa1bd710849a0f53110",
   "confirmProductionRead": true,
-  "reason": "Run a fresh exact-main isolated full restore after merging the bounded Dropbox offsite provider; required for same-SHA disaster-recovery certification while Stripe LIVE remains disabled.",
-  "requestedAt": "2026-09-26T15:46:31Z"
+  "reason": "Run the final fresh exact-main isolated full restore after merging DR Windows restore hardening; required for exact-SHA disaster-recovery certification while Stripe LIVE remains disabled.",
+  "requestedAt": "2026-09-26T17:08:00Z"
 }
