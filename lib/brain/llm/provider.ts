@@ -17,6 +17,14 @@ import {
   OpenAiKlyxLlmProvider,
 } from "./openai-provider";
 
+import {
+  klyxExternalNetworkAllowedSynchronously,
+  parseKlyxExternalCostMode,
+} from "@/lib/external-cost-control";
+import {
+  requireKlyxExternalCall,
+} from "@/lib/external-cost-control-server";
+
 const DISABLED_PROVIDER_NAME =
   "disabled";
 
@@ -157,6 +165,13 @@ class ResilientKlyxLlmProvider
     request: KlyxLlmRequest,
   ): Promise<KlyxLlmResponse> {
     try {
+      if (this.primary.name === "openai") {
+        await requireKlyxExternalCall({
+          provider: "openai",
+          operation: "llm_generate",
+        });
+      }
+
       const response =
         await this.primary.generate(
           request,
@@ -209,6 +224,14 @@ export function createKlyxLlmProvider():
     process.env.OPENAI_API_KEY?.trim();
 
   if (!apiKey) {
+    return fallback;
+  }
+
+  const costMode = parseKlyxExternalCostMode(
+    process.env.KLYX_EXTERNAL_COST_MODE,
+  );
+
+  if (!klyxExternalNetworkAllowedSynchronously("openai", costMode)) {
     return fallback;
   }
 
