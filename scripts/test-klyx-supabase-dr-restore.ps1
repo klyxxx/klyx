@@ -502,6 +502,30 @@ try {
     }
 
     # --------------------------------------------------------
+    # AUTH RUNTIME COMPATIBILITY
+    # Same production-compatible runtime as the full DR drill.
+
+    $GotrueVersion = "v2.197.0"
+
+    $SupabaseTemp =
+        Join-Path `
+            $LabRoot `
+            "supabase\.temp"
+
+    New-Item `
+        -ItemType Directory `
+        -Force `
+        -Path $SupabaseTemp |
+    Out-Null
+
+    Set-Content `
+        -LiteralPath (
+            Join-Path `
+                $SupabaseTemp `
+                "gotrue-version"
+        ) `
+        -Value $GotrueVersion `
+        -Encoding ASCII
     # START ONLY LOCAL POSTGRES
     # --------------------------------------------------------
 
@@ -725,8 +749,8 @@ try {
     # data.sql officiel doit normalement restaurer
     # les données Auth.
     #
-    # Le snapshot auth-data.sql de 8B est utilisé
-    # seulement si data.sql n'a restauré aucun user.
+    # auth-data.sql est le snapshot Auth autoritaire.
+    # Toute divergence du nombre d'utilisateurs déclenche sa restauration.
     # --------------------------------------------------------
 
     $AuthUsers =
@@ -739,11 +763,11 @@ try {
         [int]$ExpectedState.authUserCount
 
     if (
-        $AuthUsers -eq 0 -and
-        $ExpectedAuthUsers -gt 0
+        $AuthUsers -ne
+        $ExpectedAuthUsers
     ) {
         Write-Host (
-            "Auth not present in standard data dump; " +
+            "Auth count differs from expected state; " +
             "applying explicit Auth snapshot..."
         )
 

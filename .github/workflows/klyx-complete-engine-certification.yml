@@ -1,0 +1,315 @@
+name: KLYX Complete Engine Certification
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: "Immutable commit SHA expected for complete-engine certification"
+        required: false
+        default: ""
+        type: string
+      confirm_isolated_e2e:
+        description: "Confirm ephemeral local Supabase and no financial LIVE"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/klyx-complete-engine-certification.yml"
+      - "scripts/klyx-complete-*.mjs"
+      - "tests/integration/complete-klyx-engine-certification.test.ts"
+      - "scripts/mission19-autonomous-continuity.mjs"
+      - "scripts/mission19-settlement-eligibility-chaos.mjs"
+      - "scripts/golden-path-*.mjs"
+      - "lib/brain/orchestrator/**"
+      - "lib/resilience-*.ts"
+      - "lib/post-booking-incidents.ts"
+      - "lib/economic-eligibility-engine.ts"
+      - "lib/economic-settlement-eligibility-adapter.ts"
+      - "lib/pure-finance/**"
+      - "app/api/bookings/**"
+      - "app/api/stripe/webhook/**"
+      - "supabase/migrations/**"
+
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/klyx-complete-engine-certification.yml"
+      - "scripts/klyx-complete-*.mjs"
+      - "tests/integration/complete-klyx-engine-certification.test.ts"
+      - "lib/brain/orchestrator/**"
+      - "lib/resilience-*.ts"
+      - "lib/post-booking-incidents.ts"
+      - "lib/economic-eligibility-engine.ts"
+      - "lib/economic-settlement-eligibility-adapter.ts"
+      - "lib/pure-finance/**"
+      - "app/api/bookings/**"
+      - "app/api/stripe/webhook/**"
+      - "supabase/migrations/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: klyx-complete-engine-${{ github.repository }}-${{ github.event_name == 'push' && 'main' || github.event_name }}
+  cancel-in-progress: false
+
+jobs:
+  certify:
+    name: Complete DEMANDER + GAGNER engine
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+
+    env:
+      KLYX_GOLDEN_PATH_MUTATIONS_ENABLED: ${{ github.event_name != 'workflow_dispatch' && 'true' || inputs.confirm_isolated_e2e }}
+      KLYX_GOLDEN_PATH_LOCAL_SUPABASE: "true"
+      KLYX_PRODUCTION_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_TELEMETRY_DISABLED: "1"
+      KLYX_VISION_ENABLED: "0"
+      KLYX_STRIPE_MODE: "test"
+      STRIPE_SECRET_KEY: "sk_test_klyx_complete_engine_local_only"
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_klyx_complete_engine_local_only"
+      KLYX_ALLOW_PLATFORM_ONLY_TEST_PAYMENTS: "true"
+      KLYX_LIVE_PAYMENTS_ENABLED: "false"
+      NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100"
+      KLYX_PLAYWRIGHT_SYSTEM_CHROME: "1"
+
+    steps:
+      - name: Verify immutable certification SHA
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha != '' }}
+        shell: bash
+        env:
+          KLYX_EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$KLYX_EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Invalid expected certification SHA."
+            exit 1
+          fi
+          if [ "$GITHUB_SHA" != "$KLYX_EXPECTED_SHA" ]; then
+            echo "::error::Certification SHA mismatch: expected $KLYX_EXPECTED_SHA, got $GITHUB_SHA."
+            exit 1
+          fi
+
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+
+      - name: Refuse financial LIVE
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$KLYX_GOLDEN_PATH_MUTATIONS_ENABLED" != "true" ]; then
+            echo "::error::Complete engine certification requires explicit isolated-E2E mode."
+            exit 1
+          fi
+          if [ -z "${KLYX_PRODUCTION_SUPABASE_URL:-}" ]; then
+            echo "::error::Production Supabase comparison URL is required only for isolation proof."
+            exit 1
+          fi
+          case "${STRIPE_SECRET_KEY:-}" in
+            sk_test_*) ;;
+            *) echo "::error::Complete engine certification requires a test-only Stripe-shaped key."; exit 1 ;;
+          esac
+          if [ "$KLYX_STRIPE_MODE" != "test" ] || [ "$KLYX_LIVE_PAYMENTS_ENABLED" != "false" ]; then
+            echo "::error::Financial LIVE is forbidden in complete engine certification."
+            exit 1
+          fi
+          if [ "${KLYX_VISION_ENABLED:-0}" = "1" ]; then
+            echo "::error::External vision is forbidden in isolated certification."
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
+        with:
+          version: 2.111.0
+
+      - name: Use Docker Hub for Supabase CI images
+        shell: bash
+        run: echo "SUPABASE_INTERNAL_IMAGE_REGISTRY=docker.io" >> "$GITHUB_ENV"
+
+      - name: Initialize local Supabase config
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f supabase/config.toml ]; then
+            supabase init
+          fi
+
+      - name: Start ephemeral local Supabase
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase start \
+            -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+
+      - name: Export ephemeral Supabase and test credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(supabase status -o env)"
+          local_public_key="${ANON_KEY:-${PUBLISHABLE_KEY:-}}"
+          for name in API_URL SERVICE_ROLE_KEY; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Supabase local status did not provide ${name}."
+              exit 1
+            fi
+          done
+          if [ -z "$local_public_key" ]; then
+            echo "::error::Supabase local status did not provide ANON_KEY/PUBLISHABLE_KEY."
+            exit 1
+          fi
+          case "$API_URL" in
+            http://127.0.0.1:54321|http://localhost:54321) ;;
+            *) echo "::error::Refusing non-loopback Supabase API URL: ${API_URL}"; exit 1 ;;
+          esac
+
+          cert_email="complete-engine-${GITHUB_RUN_ID}@example.test"
+          cert_password="$(openssl rand -base64 36 | tr -d '\n')"
+          webhook_secret="whsec_$(openssl rand -hex 32)"
+          echo "::add-mask::$local_public_key"
+          echo "::add-mask::$SERVICE_ROLE_KEY"
+          echo "::add-mask::$cert_password"
+          echo "::add-mask::$webhook_secret"
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
+            echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$local_public_key"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+            echo "KLYX_E2E_EMAIL=$cert_email"
+            echo "KLYX_E2E_PASSWORD=$cert_password"
+            echo "STRIPE_WEBHOOK_SECRET=$webhook_secret"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify isolated runtime guard
+        run: >-
+          node --input-type=module -e
+          "import('./scripts/golden-path-runtime.mjs').then(({assertGoldenPathIsolation}) => assertGoldenPathIsolation())"
+
+      - name: Bootstrap dedicated certification account
+        run: node scripts/golden-path-bootstrap.mjs
+
+      - name: Verify dedicated certification account
+        run: node scripts/golden-path-preflight.mjs
+
+      - name: Prepare bookable provider fixture
+        run: node scripts/golden-path-provider-fixture.mjs
+
+      - name: Verify complete repository tests
+        run: npm test
+
+      - name: Verify TypeScript
+        run: npx tsc --noEmit --pretty false
+
+      - name: Verify production build
+        run: npm run build
+
+      - name: Start isolated KLYX production server
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run start -- -p 3100 > complete-engine-server.log 2>&1 &
+          server_pid=$!
+          echo "KLYX_COMPLETE_ENGINE_SERVER_PID=$server_pid" >> "$GITHUB_ENV"
+          for attempt in $(seq 1 40); do
+            if curl --fail --silent --show-error http://127.0.0.1:3100/login > /dev/null; then
+              echo "Isolated KLYX production server is ready."
+              exit 0
+            fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then
+              echo "::error::Isolated KLYX production server exited early."
+              cat complete-engine-server.log
+              exit 1
+            fi
+            sleep 1
+          done
+          echo "::error::Isolated KLYX production server did not become ready."
+          cat complete-engine-server.log
+          exit 1
+
+      - name: Verify provider onboarding service pricing and zone
+        run: node scripts/golden-path-provider-onboarding.mjs
+
+      - name: Verify agent search choice and confirmation boundary
+        run: node scripts/golden-path-agent-orchestration.mjs
+
+      - name: Verify client intent and exact provider search
+        run: node scripts/golden-path-intent-search.mjs
+
+      - name: Verify client quote and booking lifecycle
+        run: node scripts/golden-path-client-lifecycle.mjs
+
+      - name: Verify browser conversation LLM worker retry replay and price chaos
+        run: node scripts/mission19-autonomous-continuity.mjs
+
+      - name: Verify delayed signed webhook payment mission and completion
+        run: node scripts/golden-path-service-lifecycle.mjs
+
+      - name: Verify refund terminal state
+        run: node scripts/golden-path-refund-terminal-state.mjs
+
+      - name: Verify split refund reconciliation
+        run: node scripts/golden-path-split-refund.mjs
+
+      - name: Verify beneficiary ineligibility blocks settlement
+        run: node scripts/mission19-settlement-eligibility-chaos.mjs
+
+      - name: Verify complete DEMANDER and GAGNER canonical workflow runtime
+        run: node scripts/klyx-complete-workflow-certification.mjs
+
+      - name: Produce final PASS FAIL report
+        run: node scripts/klyx-complete-engine-final-report.mjs
+
+      - name: Stop isolated KLYX production server
+        if: always()
+        shell: bash
+        run: |
+          if [ -n "${KLYX_COMPLETE_ENGINE_SERVER_PID:-}" ] && \
+             kill -0 "$KLYX_COMPLETE_ENGINE_SERVER_PID" 2>/dev/null; then
+            kill "$KLYX_COMPLETE_ENGINE_SERVER_PID" || true
+          fi
+
+      - name: Upload complete engine certification report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: klyx-complete-engine-certification-${{ github.run_id }}
+          path: |
+            klyx-complete-engine-runtime-report.json
+            klyx-complete-engine-certification-report.json
+            klyx-complete-engine-certification-report.md
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload isolated server log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: klyx-complete-engine-server-log-${{ github.run_id }}
+          path: complete-engine-server.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Destroy ephemeral local Supabase
+        if: always()
+        shell: bash
+        run: |
+          if command -v supabase >/dev/null 2>&1; then
+            supabase stop --no-backup || true
+          fi
