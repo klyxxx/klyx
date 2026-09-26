@@ -69,8 +69,24 @@ describe("KLYX mobile client foundation contract", () => {
     expect(payments).not.toContain("refunds.create");
   });
 
-  it("uses the same KLYX assistant engine as web", () => {
+  it("uses server-authoritative economic eligibility and canonical ledger views", () => {
     const api = read("mobile/src/lib/klyx-api.ts");
+    const earn = read("mobile/app/(tabs)/earn.tsx");
+    expect(api).toContain('"/api/provider/jobs"');
+    expect(api).toContain('"/api/provider/finance"');
+    expect(earn).toContain("loadProviderOpportunities");
+    expect(earn).toContain("loadProviderFinance");
+    expect(earn).toContain("Le mobile n’autorise ni transfert, ni settlement, ni correction du ledger");
+    expect(earn).not.toContain("transfers.create");
+    expect(earn).not.toContain("booking_financial_ledger");
+  });
+
+  it("uses the same KLYX assistant and Sumsub engines as web", () => {
+    const api = read("mobile/src/lib/klyx-api.ts");
+    const sumsub = read("mobile/src/lib/sumsub.ts");
     expect(api).toContain("/api/brain/respond");
+    expect(sumsub).toContain("/api/provider/sumsub/token");
+    expect(sumsub).toContain("SNSMobileSDK.init");
+    expect(sumsub).not.toContain("SUMSUB_SECRET_KEY");
   });
 });
