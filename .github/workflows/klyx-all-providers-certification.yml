@@ -70,9 +70,9 @@ jobs:
           tests/unit/resilience-engine.test.ts
           tests/unit/resilience-engine-fail-closed.test.ts
           tests/integration/zero-cost-brain-contract.test.ts
-          tests/integration/sumsub-webhook-hardening.test.ts
-          tests/integration/resend-email.test.ts
-          tests/integration/email-delivery-idempotency.test.ts
+          tests/unit/sumsub-webhook-hardening.test.ts
+          tests/unit/resend-email.test.ts
+          tests/unit/email-delivery-idempotency.test.ts
           tests/integration/auth-turnstile-contract.test.ts
           tests/integration/security-headers-csp-contract.test.ts
 
