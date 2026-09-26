@@ -69,7 +69,7 @@ export async function reserveExternalProviderAction(input: {
       unitsUsed: 0,
       costMicrousd: 0,
       unitsRemaining: policy.defaultMonthlyUnitLimit,
-      budgetRemainingMicrousd: policy.defaultMonthlyBudgetMicrousd,
+      budgetRemainingMicrousd: decision.monthlyBudgetMicrousd,
     };
   }
 
@@ -87,7 +87,7 @@ export async function reserveExternalProviderAction(input: {
       unitsUsed: 0,
       costMicrousd: 0,
       unitsRemaining: policy.defaultMonthlyUnitLimit,
-      budgetRemainingMicrousd: policy.defaultMonthlyBudgetMicrousd,
+      budgetRemainingMicrousd: decision.monthlyBudgetMicrousd,
     };
   }
 
@@ -99,7 +99,7 @@ export async function reserveExternalProviderAction(input: {
       p_units: 1,
       p_cost_microusd: estimatedCostMicrousd,
       p_unit_limit: policy.defaultMonthlyUnitLimit,
-      p_budget_microusd: policy.defaultMonthlyBudgetMicrousd,
+      p_budget_microusd: decision.monthlyBudgetMicrousd,
     }
   );
 
@@ -132,8 +132,8 @@ export async function reserveExternalProviderAction(input: {
       ? result.unitsUsed / policy.defaultMonthlyUnitLimit
       : 0;
   const budgetRatio =
-    policy.defaultMonthlyBudgetMicrousd > 0
-      ? result.costMicrousd / policy.defaultMonthlyBudgetMicrousd
+    decision.monthlyBudgetMicrousd > 0
+      ? result.costMicrousd / decision.monthlyBudgetMicrousd
       : 0;
 
   if (!result.allowed || unitRatio >= 0.8 || budgetRatio >= 0.8) {
