@@ -6,6 +6,7 @@ const KLYX_ELMAH_IO_APPLICATION = "klyx.be";
 const ELMAH_IO_TIMEOUT_MS = 2_500;
 const MAX_IDENTIFIER_LENGTH = 96;
 const MAX_ROUTE_LENGTH = 240;
+const ELMAH_MIN_MONTHLY_BUDGET_USD = 26;
 
 type ElmahDataItem = {
   key: string;
@@ -47,8 +48,17 @@ type KlyxUnhandledRequestErrorReport = {
   renderSource?: string;
 };
 
+function elmahCostAuthorized(): boolean {
+  if (process.env.KLYX_EXTERNAL_COST_MODE?.trim().toUpperCase() !== "PAID_CONTROLLED") {
+    return false;
+  }
+
+  const budget = Number(process.env.KLYX_EXTERNAL_COST_BUDGET_ELMAH_USD ?? "0");
+  return Number.isFinite(budget) && budget >= ELMAH_MIN_MONTHLY_BUDGET_USD;
+}
+
 function productionApiKey(): string | null {
-  if (process.env.VERCEL_ENV !== "production") {
+  if (process.env.VERCEL_ENV !== "production" || !elmahCostAuthorized()) {
     return null;
   }
 
