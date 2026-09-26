@@ -6,6 +6,7 @@ import {
   requireKlyxAdmin,
 } from "@/lib/admin-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { authorizeKlyxExternalCall } from "@/lib/external-cost-control-server";
 import {
   logServerError,
   logServerWarning,
@@ -128,7 +129,7 @@ export async function GET() {
       process.env
         .KLYX_OPENAI_MODEL
         ?.trim() ||
-      "gpt-5-mini";
+      "gpt-5.6-luna";
 
     if (!apiKey) {
       return NextResponse.json(
@@ -143,6 +144,31 @@ export async function GET() {
             "OPENAI_API_KEY_MISSING",
           errorMessage:
             "OPENAI_API_KEY absente.",
+        },
+        {
+          status: 200,
+        }
+      );
+    }
+
+    const costDecision = await authorizeKlyxExternalCall({
+      provider: "openai",
+      operation: "admin_health_probe",
+    });
+
+    if (!costDecision.allowed) {
+      return NextResponse.json(
+        {
+          ready: false,
+          configured: true,
+          model,
+          apiStatus: null,
+          errorType: "cost_control",
+          errorCode: "OPENAI_COST_CONTROLLED",
+          errorMessage:
+            "Le diagnostic réseau OpenAI est désactivé par le budget KLYX.",
+          costMode: costDecision.mode,
+          costReason: costDecision.reason,
         },
         {
           status: 200,
@@ -169,7 +195,7 @@ export async function GET() {
               input:
                 "Réponds uniquement avec le mot OK.",
               max_output_tokens:
-                256,
+                32,
             }),
             signal:
               AbortSignal.timeout(
