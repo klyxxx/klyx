@@ -1,0 +1,53 @@
+import fs from "node:fs";
+import path from "node:path";
+import { describe, expect, it } from "vitest";
+
+const root = process.cwd();
+const read = (relative: string) => fs.readFileSync(path.join(root, relative), "utf8");
+
+describe("KLYX mobile client foundation contract", () => {
+  it("keeps mobile as a client of the existing KLYX Core", () => {
+    const architecture = read("docs/KLYX_MOBILE_ARCHITECTURE.md");
+    expect(architecture).toContain("This is a transport adapter, not a second backend.");
+    expect(architecture).toContain("Economic Eligibility");
+    expect(architecture).toContain("canonical ledger");
+  });
+
+  it("bridges Supabase mobile auth into the existing secure cookie session", () => {
+    const route = read("app/api/mobile/session/route.ts");
+    const client = read("mobile/src/lib/klyx-api.ts");
+    expect(route).toContain("supabase.auth.setSession");
+    expect(client).toContain("/api/mobile/session");
+    expect(client).toContain('credentials: "include"');
+  });
+
+  it("does not place authoritative provider secrets in mobile configuration", () => {
+    const env = read("mobile/.env.example");
+    const config = read("mobile/src/config.ts");
+    for (const forbidden of [
+      "SUPABASE_SERVICE_ROLE_KEY=",
+      "STRIPE_SECRET_KEY=",
+      "SUMSUB_SECRET_KEY=",
+      "TWILIO_AUTH_TOKEN=",
+      "RESEND_API_KEY=",
+      "OPENAI_API_KEY=",
+    ]) {
+      expect(env).not.toContain(forbidden);
+      expect(config).not.toContain(forbidden);
+    }
+  });
+
+  it("keeps financial authority out of the mobile payment adapter", () => {
+    const payments = read("mobile/src/lib/payments.ts");
+    expect(payments).toContain("Mobile never computes amount");
+    expect(payments).not.toContain("STRIPE_SECRET_KEY");
+    expect(payments).not.toContain("transfers.create");
+    expect(payments).not.toContain("refunds.create");
+  });
+
+  it("uses the same assistant and active-profile APIs as web", () => {
+    const api = read("mobile/src/lib/klyx-api.ts");
+    expect(api).toContain("/api/profiles/active");
+    expect(api).toContain("/api/brain/respond");
+  });
+});
