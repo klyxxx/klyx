@@ -220,23 +220,6 @@ export function routeKlyxAssistantCapability(
   }
 
   if (
-    /\b(?:prestataire|proposer mes services|devenir prestataire|gagner de l['’]?argent|trouver des missions|provider|offer my services|find work|dienstverlener|opdrachten|anbieter|auftr[aä]ge)\b/i.test(
-      message
-    )
-  ) {
-    return {
-      capability: "provider_help",
-      risk: "sensitive_domain",
-      costMode: "engine_read",
-      engines: ["supabase", "matching", "sumsub", "stripe"],
-      delegateToLegacy: true,
-      llmAllowed: false,
-      targetLocale: null,
-      wantsLiveStatus: false,
-    };
-  }
-
-  if (
     /\b(?:cr[ée]er|publier|faire|ouvrir|lancer)\s+(?:une|ma)?\s*demande\b/i.test(message) ||
     /\b(?:create|post|publish)\s+(?:a|my)?\s*request\b/i.test(message)
   ) {
@@ -263,6 +246,23 @@ export function routeKlyxAssistantCapability(
       risk: "read_only",
       costMode: "engine_read",
       engines: ["supabase", "matching"],
+      delegateToLegacy: true,
+      llmAllowed: false,
+      targetLocale: null,
+      wantsLiveStatus: false,
+    };
+  }
+
+  if (
+    /\b(?:prestataire|proposer mes services|devenir prestataire|gagner de l['’]?argent|trouver des missions|provider|offer my services|find work|dienstverlener|opdrachten|anbieter|auftr[aä]ge)\b/i.test(
+      message
+    )
+  ) {
+    return {
+      capability: "provider_help",
+      risk: "sensitive_domain",
+      costMode: "engine_read",
+      engines: ["supabase", "matching", "sumsub", "stripe"],
       delegateToLegacy: true,
       llmAllowed: false,
       targetLocale: null,
