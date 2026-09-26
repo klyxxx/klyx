@@ -250,7 +250,7 @@ export type ProviderFinanceTransaction = {
 export type ProviderFinancePayload = {
   summary: ProviderFinanceSummary;
   transactions: ProviderFinanceTransaction[];
-  reconciliation: {
+  reconciliation?: {
     checked: boolean;
     reconciled: boolean;
     status: "ok" | "review_required" | string;
