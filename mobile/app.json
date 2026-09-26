@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "KLYX",
+    "slug": "klyx",
+    "version": "0.1.0",
+    "scheme": "klyx",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "plugins": ["expo-router"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "be.klyx.app"
+    },
+    "android": {
+      "package": "be.klyx.app",
+      "predictiveBackGestureEnabled": true
+    },
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "klyxWebOrigin": "https://www.klyx.be"
+    }
+  }
+}
