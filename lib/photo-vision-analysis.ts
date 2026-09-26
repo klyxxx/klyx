@@ -3,6 +3,8 @@
 // server routes. KLYX intentionally avoids a runtime `server-only` dependency
 // here so the repository's Vitest contracts can inspect the module directly.
 
+import { authorizeKlyxExternalCall } from "@/lib/external-cost-control-server";
+
 export type PhotoVisualEvidence = {
   visualSummary: string;
   serviceHints: string[];
@@ -25,7 +27,7 @@ type AnalyzePhotoVisionInput = {
 };
 
 const MAX_VISION_BYTES = 10 * 1024 * 1024;
-const DEFAULT_VISION_MODEL = "gpt-5-mini";
+const DEFAULT_VISION_MODEL = "gpt-5.6-luna";
 
 // Visual evidence below this threshold may still be displayed as an
 // inconclusive analysis, but it cannot influence the service candidate list.
@@ -178,9 +180,27 @@ export async function analyzePhotoVisualContent(
     };
   }
 
+  if (process.env.NODE_ENV !== "test") {
+    const costDecision = await authorizeKlyxExternalCall({
+      provider: "openai",
+      operation: "photo_vision_analysis",
+    });
+
+    if (!costDecision.allowed) {
+      return {
+        enabled: true,
+        used: false,
+        provider: "none",
+        model: null,
+        evidence: null,
+        fallbackReason: "vision_cost_controlled",
+      };
+    }
+  }
+
   const base64 = Buffer.from(input.bytes).toString("base64");
   const dataUrl = `data:${input.mimeType};base64,${base64}`;
-  const description = input.userDescription.trim().slice(0, 1500);
+  const description = input.userDescription.trim().slice(0, 1000);
 
   try {
     const response = await fetch("https://api.openai.com/v1/responses", {
@@ -228,7 +248,7 @@ export async function analyzePhotoVisualContent(
           },
           verbosity: "low",
         },
-        max_output_tokens: 350,
+        max_output_tokens: 250,
       }),
       signal: AbortSignal.timeout(20000),
     });
