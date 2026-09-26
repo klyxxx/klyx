@@ -5,6 +5,11 @@ import {
   createHmac,
   timingSafeEqual,
 } from "crypto";
+import {
+  klyxExternalNetworkAllowedSynchronously,
+  parseKlyxExternalCostMode,
+} from "@/lib/external-cost-control";
+import { requireKlyxExternalCall } from "@/lib/external-cost-control-server";
 
 const BASE_URL = "https://api.sumsub.com";
 
@@ -23,6 +28,11 @@ export function getSumsubLevelName(): string {
 }
 
 export function sumsubConfigured(): boolean {
+  const mode = parseKlyxExternalCostMode(process.env.KLYX_EXTERNAL_COST_MODE);
+  if (!klyxExternalNetworkAllowedSynchronously("sumsub", mode)) {
+    return false;
+  }
+
   return Boolean(
     process.env.SUMSUB_APP_TOKEN?.trim() &&
       process.env.SUMSUB_SECRET_KEY?.trim() &&
@@ -109,6 +119,13 @@ export async function createSumsubSdkToken(params: {
   userId: string;
   email?: string | null;
 }): Promise<{ token: string; userId?: string }> {
+  // Creating the applicant flow can lead to a billable successful verification.
+  // It is therefore the spend boundary; status/webhook reads stay usable.
+  await requireKlyxExternalCall({
+    provider: "sumsub",
+    operation: "kyc_verification_start",
+  });
+
   const body: Record<string, unknown> = {
     userId: params.userId,
     levelName: getSumsubLevelName(),
