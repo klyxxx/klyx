@@ -12,6 +12,12 @@ function read(relativePath: string) {
 const workflow = read(
   ".github/workflows/klyx-supabase-full-restore-drill.yml"
 );
+const offsiteRestore = read(
+  "scripts/test-klyx-supabase-dr-restore.ps1"
+);
+
+const minimalAuthStorageExclusions =
+  "realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor";
 
 describe("KLYX DR Auth runtime compatibility", () => {
   it("pins only the isolated GoTrue runtime to the production-compatible version", () => {
@@ -74,5 +80,12 @@ describe("KLYX DR Auth runtime compatibility", () => {
     expect(workflow).not.toContain("supabase link");
     expect(workflow).not.toContain("supabase db push");
     expect(workflow).toContain("production_write=false");
+  });
+
+  it("starts only the local services needed for Auth and Storage in the offsite drill", () => {
+    expect(offsiteRestore).toContain(minimalAuthStorageExclusions);
+    expect(offsiteRestore).not.toContain("--ignore-health-check");
+    expect(minimalAuthStorageExclusions).not.toContain("gotrue");
+    expect(minimalAuthStorageExclusions).not.toContain("storage-api");
   });
 });

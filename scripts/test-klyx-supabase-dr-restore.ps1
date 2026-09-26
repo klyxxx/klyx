@@ -865,7 +865,7 @@ try {
     )
 
     # --------------------------------------------------------
-    # RESTART AS FULL SUPABASE STACK
+    # RESTART AS MINIMAL AUTH + STORAGE STACK
     # --------------------------------------------------------
 
     Write-Host ""
@@ -878,17 +878,19 @@ try {
     if (
         $LASTEXITCODE -ne 0
     ) {
-        throw "Unable to stop isolated DB before full stack."
+        throw "Unable to stop isolated DB before Auth + Storage stack."
     }
 
     & $SupabaseCmd `
         --workdir $LabRoot `
-        start
+        start `
+        -x `
+        "realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"
 
     if (
         $LASTEXITCODE -ne 0
     ) {
-        throw "Full isolated Supabase stack FAILED."
+        throw "Minimal isolated Auth + Storage stack FAILED."
     }
 
     # --------------------------------------------------------
