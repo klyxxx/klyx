@@ -5,7 +5,7 @@ import {
   requireAccountType,
 } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
-import { sumsubConfigured } from "@/lib/sumsub";
+import { getKlyxIdentityVerificationAdapter } from "@/lib/providers/runtime-adapters";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function GET(request: Request) {
@@ -19,6 +19,9 @@ export async function GET(request: Request) {
       profile,
       "provider"
     );
+
+    const identityVerification =
+      await getKlyxIdentityVerificationAdapter();
 
     const { data, error } =
       await supabaseAdmin
@@ -34,7 +37,7 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({
-      configured: sumsubConfigured(),
+      configured: identityVerification.configured(),
       verification: data ?? null,
     });
   } catch (error) {
