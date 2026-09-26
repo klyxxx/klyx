@@ -18,7 +18,9 @@ describe("Stripe simple-booking refund aggregation contract", () => {
 
   it("keeps partial refunds non-terminal until the paid amount is fully refunded", () => {
     expect(source).toContain("const fullyRefunded = succeededAmount >= grossAmount");
-    expect(source).toContain('const refundStatus: "processing" | "succeeded" | "failed"');
+    expect(source).toContain('| "partially_refunded"');
+    expect(source).toContain('succeededAmount > 0');
+    expect(source).toContain('? "partially_refunded"');
     expect(source).toContain('refundStatus === "succeeded"\n          ? "refunded"');
     expect(source).toContain("refunded_amount_cents: succeededAmount");
   });
