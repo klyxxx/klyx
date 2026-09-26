@@ -383,6 +383,8 @@ try {
             "db",
             "dump",
             "--linked",
+            "--schema",
+            "public,klyx_private",
             "-f",
             (
                 Join-Path `
@@ -400,6 +402,8 @@ try {
             "db",
             "dump",
             "--linked",
+            "--schema",
+            "public",
             "-f",
             (
                 Join-Path `
