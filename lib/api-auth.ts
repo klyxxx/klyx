@@ -197,8 +197,8 @@ function selectCompatibilityProfile(
   const method = request.method.toUpperCase();
 
   // Transitional request-storage adapters for endpoints that still persist or
-  // read legacy client profile foreign keys. The selected legacy cookie never
-  // changes the canonical account identity or request_services authority.
+  // read legacy client profile foreign keys. The selected profile never changes
+  // canonical account identity or request_services authority.
   if (
     (pathname === "/api/market/requests" &&
       (method === "POST" || method === "PATCH")) ||
@@ -338,6 +338,14 @@ async function getAuthenticatedContext(
   const requestedProfileId = request.headers
     .get(ACTIVE_PROFILE_HEADER)
     ?.trim();
+
+  if (
+    requestedProfileId &&
+    !normalizedProfiles.some((profile) => profile.id === requestedProfileId)
+  ) {
+    throw new Error("KLYX_ACTIVE_PROFILE_NOT_OWNED");
+  }
+
   const cookieProfileId = (
     await cookies()
   ).get(ACTIVE_PROFILE_COOKIE)?.value;
@@ -436,6 +444,7 @@ export function apiErrorStatus(message: string): number {
 
   if (
     message === "Profil KLYX introuvable." ||
+    message === "KLYX_ACTIVE_PROFILE_NOT_OWNED" ||
     message.startsWith("Cette action nécessite") ||
     message.startsWith("KLYX_ACCOUNT_CAPABILITY_REQUIRED:")
   ) {
