@@ -9,7 +9,11 @@ import {
   useState,
 } from "react";
 
-import { clearWebSession, syncWebSession } from "@/src/lib/klyx-api";
+import {
+  clearMobileProfileSelection,
+  clearWebSession,
+  syncWebSession,
+} from "@/src/lib/klyx-api";
 import { supabase } from "@/src/lib/supabase";
 
 type AuthContextValue = {
@@ -74,6 +78,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
           await supabase.auth.signOut();
         } finally {
           setSession(null);
+          await clearMobileProfileSelection().catch(() => undefined);
           await remoteSignOut;
         }
       },
