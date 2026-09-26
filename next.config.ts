@@ -34,6 +34,10 @@ const nextConfig: NextConfig = {
     return {
       beforeFiles: [
         {
+          source: "/api/brain/converse",
+          destination: "/api/assistant/gateway",
+        },
+        {
           source: "/api/brain/respond",
           destination: "/api/assistant/respond",
         },
