@@ -16,6 +16,13 @@ const KNOWN_INTENTS = new Set<AssistantIntent>([
   "service_need",
   "income_search",
   "mission_management",
+  "account_help",
+  "booking_tracking",
+  "payment_explanation",
+  "refund_explanation",
+  "provider_help",
+  "kyc_explanation",
+  "locale_change",
   "information",
   "clarification",
 ]);
