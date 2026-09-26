@@ -24,6 +24,16 @@ describe("KLYX mobile client foundation contract", () => {
     expect(client).toContain("clearWebSession");
   });
 
+  it("uses a bearer-native owned-profile projection instead of trusting device state", () => {
+    const route = read("app/api/mobile/profiles/route.ts");
+    const client = read("mobile/src/lib/klyx-api.ts");
+    expect(route).toContain("getAuthenticatedProfile(request)");
+    expect(route).toContain("profiles.find((item) => item.id === profileId)");
+    expect(client).toContain("/api/mobile/profiles");
+    expect(client).toContain("x-klyx-active-profile-id");
+    expect(client).toContain("expo-secure-store");
+  });
+
   it("stores native auth state only in encrypted chunked device storage", () => {
     const supabase = read("mobile/src/lib/supabase.ts");
     expect(supabase).toContain("expo-secure-store");
@@ -59,9 +69,8 @@ describe("KLYX mobile client foundation contract", () => {
     expect(payments).not.toContain("refunds.create");
   });
 
-  it("uses the same assistant and active-profile APIs as web", () => {
+  it("uses the same KLYX assistant engine as web", () => {
     const api = read("mobile/src/lib/klyx-api.ts");
-    expect(api).toContain("/api/profiles/active");
     expect(api).toContain("/api/brain/respond");
   });
 });
