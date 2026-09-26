@@ -190,12 +190,27 @@ export async function authorizeKlyxExternalCall(input: {
   criticality?: KlyxExternalCostCriticality;
 }): Promise<KlyxExternalCostAuthorization> {
   const mode = getKlyxExternalCostMode();
+  const defaults = KLYX_EXTERNAL_PROVIDER_DEFAULTS[input.provider];
+
+  if (
+    process.env.NODE_ENV === "test" &&
+    process.env.KLYX_EXTERNAL_COST_TEST_BYPASS === "1"
+  ) {
+    return {
+      allowed: true,
+      provider: input.provider,
+      operation: input.operation,
+      mode,
+      reason: "TEST_MOCK_BYPASS",
+      fallback: defaults.fallback,
+      remainingCalls: null,
+    };
+  }
 
   if (input.provider === "resend") {
     return authorizeResendFreeQuota(input.operation);
   }
 
-  const defaults = KLYX_EXTERNAL_PROVIDER_DEFAULTS[input.provider];
   const conservativeCost = Math.max(
     defaults.estimatedCostMicroUsd,
     Math.max(0, Math.floor(input.estimatedCostMicroUsd ?? 0))
