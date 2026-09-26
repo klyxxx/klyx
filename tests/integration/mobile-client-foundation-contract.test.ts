@@ -17,8 +17,22 @@ describe("KLYX mobile client foundation contract", () => {
     const route = read("app/api/mobile/session/route.ts");
     const client = read("mobile/src/lib/klyx-api.ts");
     expect(route).toContain("supabase.auth.setSession");
+    expect(route).toContain("supabase.auth.signOut");
     expect(client).toContain("/api/mobile/session");
     expect(client).toContain('credentials: "include"');
+    expect(client).toContain("Authorization: `Bearer ${accessToken}`");
+    expect(client).toContain("clearWebSession");
+  });
+
+  it("stores native auth state only in encrypted chunked device storage", () => {
+    const supabase = read("mobile/src/lib/supabase.ts");
+    expect(supabase).toContain("expo-secure-store");
+    expect(supabase).toContain("WHEN_UNLOCKED_THIS_DEVICE_ONLY");
+    expect(supabase).toContain("CHUNK_SIZE");
+    expect(supabase).toContain("startAutoRefresh");
+    expect(supabase).toContain("stopAutoRefresh");
+    expect(supabase).not.toContain("AsyncStorage");
+    expect(supabase).not.toContain("localStorage");
   });
 
   it("does not place authoritative provider secrets in mobile configuration", () => {
