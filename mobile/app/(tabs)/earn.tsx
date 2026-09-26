@@ -74,6 +74,7 @@ export default function EarnScreen() {
   const summary = finance?.summary;
   const reconciliationLabel = useMemo(() => {
     if (!finance) return "—";
+    if (!finance.reconciliation) return "Aucun événement à réconcilier";
     return finance.reconciliation.reconciled ? "Réconcilié" : "Vérification requise";
   }, [finance]);
 
