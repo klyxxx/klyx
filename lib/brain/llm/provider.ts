@@ -16,6 +16,7 @@ import {
 import {
   OpenAiKlyxLlmProvider,
 } from "./openai-provider";
+import { decideExternalCostAction } from "@/lib/external-cost-policy";
 
 const DISABLED_PROVIDER_NAME =
   "disabled";
@@ -208,7 +209,12 @@ export function createKlyxLlmProvider():
   const apiKey =
     process.env.OPENAI_API_KEY?.trim();
 
-  if (!apiKey) {
+  const costDecision = decideExternalCostAction({
+    provider: "openai",
+    estimatedCostMicrousd: 1,
+  });
+
+  if (!apiKey || costDecision.action !== "allow") {
     return fallback;
   }
 
