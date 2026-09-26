@@ -53,6 +53,13 @@ describe("KLYX assistant single product entrypoint", () => {
     expect(unified).not.toContain("releasePlatformHeldGroupMember");
   });
 
+  it("exposes only sanitized KYC state and no Sumsub moderation note", () => {
+    expect(unified).toContain("external_review_status");
+    expect(unified).toContain("external_review_answer");
+    expect(unified).not.toContain("external_moderation_comment");
+    expect(unified).not.toContain("external_reject_type");
+  });
+
   it("answers common product/account/payment/refund/provider/KYC questions without AI", () => {
     expect(deterministicReplies).toContain('params.capability === "klyx_information"');
     expect(deterministicReplies).toContain('params.capability === "account_profile"');
