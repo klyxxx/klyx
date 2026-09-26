@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "KLYX",
+    "slug": "klyx",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "klyx",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "plugins": ["expo-router"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "be.klyx.app"
+    },
+    "android": {
+      "package": "be.klyx.app"
+    },
+    "extra": {
+      "releaseControl": {
+        "defaultState": "INTERNAL",
+        "stripeLiveImplicitActivation": false,
+        "paidProviderImplicitActivation": false
+      }
+    }
+  }
+}

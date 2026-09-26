@@ -1,0 +1,31 @@
+{
+  "cli": {
+    "version": ">= 16.0.0"
+  },
+  "build": {
+    "internal": {
+      "distribution": "internal",
+      "channel": "internal",
+      "env": {
+        "EXPO_PUBLIC_KLYX_RELEASE_CHANNEL": "INTERNAL"
+      }
+    },
+    "test": {
+      "distribution": "internal",
+      "channel": "test",
+      "env": {
+        "EXPO_PUBLIC_KLYX_RELEASE_CHANNEL": "TEST"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "channel": "production",
+      "env": {
+        "EXPO_PUBLIC_KLYX_RELEASE_CHANNEL": "PILOT"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
