@@ -1,5 +1,7 @@
 import "server-only";
 
+import { requireKlyxExternalCall } from "@/lib/external-cost-control-server";
+
 import type {
   KlyxLlmProvider,
   KlyxLlmProviderStatus,
@@ -20,7 +22,7 @@ const OPENAI_RESPONSES_URL =
   "https://api.openai.com/v1/responses";
 
 const DEFAULT_MODEL =
-  "gpt-5.6-terra";
+  "gpt-5.6-luna";
 
 const DEFAULT_TIMEOUT_MS =
   15_000;
@@ -341,6 +343,16 @@ export class OpenAiKlyxLlmProvider
       throw new Error(
         "KLYX LLM request requires at least one message.",
       );
+    }
+
+    // The lowest-level OpenAI network boundary owns the spend check so direct
+    // provider use cannot bypass the KLYX cost-control plane. Unit tests mock
+    // fetch and never create external spend, so they remain dependency-free.
+    if (process.env.NODE_ENV !== "test") {
+      await requireKlyxExternalCall({
+        provider: "openai",
+        operation: "llm_generate",
+      });
     }
 
     const safety =
