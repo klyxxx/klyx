@@ -42,7 +42,7 @@ describe("KLYX Integrated Financial TEST 48 contract", () => {
       expect(summary).toContain(`\"${topology}\"`);
     }
 
-    expect(matrix).toContain("SCENARIOS.length * TOPOLOGIES.length").toContain;
+    expect(matrix).toContain("SCENARIOS.length * TOPOLOGIES.length");
     expect(summary).toContain("requiredCellCount: 48");
     expect(workflow).toContain("Enforce 48 of 48 PASS");
   });
