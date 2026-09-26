@@ -5,6 +5,7 @@ import {
   createHmac,
   timingSafeEqual,
 } from "crypto";
+import { authorizeKlyxExternalCall } from "@/lib/external-cost-control-server";
 
 const BASE_URL = "https://api.sumsub.com";
 
@@ -109,6 +110,17 @@ export async function createSumsubSdkToken(params: {
   userId: string;
   email?: string | null;
 }): Promise<{ token: string; userId?: string }> {
+  const cost = await authorizeKlyxExternalCall({
+    provider: "sumsub",
+    operation: "verification_start",
+    estimatedCostMicroUsd: 1_350_000,
+    criticality: "important",
+  });
+
+  if (!cost.allowed) {
+    throw new Error(`KLYX_EXTERNAL_COST_BLOCKED:sumsub:${cost.reason}`);
+  }
+
   const body: Record<string, unknown> = {
     userId: params.userId,
     levelName: getSumsubLevelName(),
