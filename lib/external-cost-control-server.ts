@@ -81,12 +81,12 @@ function warnCost(input: {
 
 async function consumeQuota(input: {
   provider: KlyxExternalProvider;
-  operation: string;
+  bucket: "daily" | "monthly";
   limit: number;
   windowSeconds: number;
 }) {
   const policy: ApiRateLimitPolicy = {
-    action: `external_cost_${input.provider}_${input.operation}`.slice(0, 120),
+    action: `external_cost_${input.provider}_${input.bucket}`,
     limit: input.limit,
     windowSeconds: input.windowSeconds,
   };
@@ -104,7 +104,7 @@ async function authorizeResendFreeQuota(
   try {
     const daily = await consumeQuota({
       provider: "resend",
-      operation: `${operation}_daily`,
+      bucket: "daily",
       limit: RESEND_ZERO_MODE_DAILY_LIMIT,
       windowSeconds: DAY_SECONDS,
     });
@@ -128,7 +128,7 @@ async function authorizeResendFreeQuota(
 
     const monthly = await consumeQuota({
       provider: "resend",
-      operation: `${operation}_monthly`,
+      bucket: "monthly",
       limit: RESEND_ZERO_MODE_MONTHLY_LIMIT,
       windowSeconds: ROLLING_MONTH_SECONDS,
     });
@@ -196,10 +196,14 @@ export async function authorizeKlyxExternalCall(input: {
   }
 
   const defaults = KLYX_EXTERNAL_PROVIDER_DEFAULTS[input.provider];
+  const conservativeCost = Math.max(
+    defaults.estimatedCostMicroUsd,
+    Math.max(0, Math.floor(input.estimatedCostMicroUsd ?? 0))
+  );
   const decision = evaluateKlyxExternalCost({
     mode,
     provider: input.provider,
-    estimatedCostMicroUsd: input.estimatedCostMicroUsd,
+    estimatedCostMicroUsd: conservativeCost,
     monthlyBudgetMicroUsd: providerBudgetMicroUsd(input.provider),
     criticality: input.criticality,
   });
@@ -260,7 +264,7 @@ export async function authorizeKlyxExternalCall(input: {
   try {
     const quota = await consumeQuota({
       provider: input.provider,
-      operation: input.operation,
+      bucket: "monthly",
       limit,
       windowSeconds: ROLLING_MONTH_SECONDS,
     });
