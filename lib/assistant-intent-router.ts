@@ -2,6 +2,13 @@ export type AssistantIntent =
   | "service_need"
   | "income_search"
   | "mission_management"
+  | "account_help"
+  | "booking_tracking"
+  | "payment_explanation"
+  | "refund_explanation"
+  | "provider_help"
+  | "kyc_explanation"
+  | "locale_change"
   | "information"
   | "clarification";
 
@@ -60,14 +67,63 @@ const INCOME_SIGNALS: readonly Signal[] = [
 const MANAGEMENT_SIGNALS: readonly Signal[] = [
   { pattern: /^\s*(?:g[ée]rer|suivre)\s+(?:une|ma|la)?\s*mission\s*$/i, weight: 7 },
   { pattern: /^\s*(?:manage|track)\s+(?:a|my|the)?\s*mission\s*$/i, weight: 7 },
-  { pattern: /\bma mission|mon service|ma r[ée]servation|mon rendez[- ]?vous\b/i, weight: 5 },
+  { pattern: /\bma mission|mon service|mon rendez[- ]?vous\b/i, weight: 5 },
   { pattern: /\bmission (?:en cours|existante|confirm[ée]e|pay[ée]e)\b/i, weight: 5 },
-  { pattern: /\bo[ùu] en est|quel est le statut|suivre (?:ma|la) mission\b/i, weight: 5 },
+  { pattern: /\bsuivre (?:ma|la) mission\b/i, weight: 5 },
   { pattern: /\bannul(?:er|e)|reporter|d[ée]placer|modifier\b/i, weight: 2 },
-  { pattern: /\bpaiement (?:de|pour) (?:ma|la) mission|remboursement\b/i, weight: 4 },
-  { pattern: /\bmy (?:mission|booking|appointment)|track my|cancel my|reschedule my\b/i, weight: 5 },
-  { pattern: /\bmijn (?:opdracht|boeking)|mijn afspraak|annuleer mijn\b/i, weight: 5 },
-  { pattern: /\bmeine(?:n|r)? (?:auftrag|buchung|termin)|meinen termin\b/i, weight: 5 },
+  { pattern: /\bmy (?:mission|appointment)|track my mission|cancel my|reschedule my\b/i, weight: 5 },
+  { pattern: /\bmijn (?:opdracht)|mijn afspraak|annuleer mijn\b/i, weight: 5 },
+  { pattern: /\bmeine(?:n|r)? (?:auftrag|termin)|meinen termin\b/i, weight: 5 },
+];
+
+const ACCOUNT_SIGNALS: readonly Signal[] = [
+  { pattern: /^\s*(?:mon|mes|my|mijn|mein)\s+(?:compte|profil|profils|account|profile|profiel|konto)\s*$/i, weight: 8 },
+  { pattern: /\b(?:compte|profil|account|profile|profiel|konto)\b.*\b(?:changer|modifier|g[ée]rer|switch|manage|wijzig|wechsel|verwalten)\b/i, weight: 6 },
+  { pattern: /\b(?:changer|switch|wissel|wechsel)\b.*\b(?:profil|profile|compte|account|profiel|konto)\b/i, weight: 7 },
+  { pattern: /\bparam[èe]tres?|settings|instellingen|einstellungen|confidentialit[ée]|privacy\b/i, weight: 5 },
+  { pattern: /\bmes informations|account details|account information|kontogegevens|kontodaten\b/i, weight: 5 },
+];
+
+const BOOKING_SIGNALS: readonly Signal[] = [
+  { pattern: /\b(?:ma|la|mes) r[ée]servation(?:s)?\b/i, weight: 7 },
+  { pattern: /\b(?:my|the) booking\b/i, weight: 7 },
+  { pattern: /\bmijn boeking|meine buchung\b/i, weight: 7 },
+  { pattern: /\bo[ùu] en est (?:ma|la) r[ée]servation\b/i, weight: 8 },
+  { pattern: /\bstatut (?:de )?(?:ma|la) r[ée]servation\b/i, weight: 8 },
+  { pattern: /\btrack (?:my|the) booking|booking status\b/i, weight: 8 },
+  { pattern: /\bboeking volgen|status van mijn boeking|buchung verfolgen|status meiner buchung\b/i, weight: 8 },
+];
+
+const PAYMENT_SIGNALS: readonly Signal[] = [
+  { pattern: /\b(?:comment|how|hoe|wie)\b.*\b(?:paiement|payer|payment|betalen|betaling|zahlung|bezahlen)\b/i, weight: 8 },
+  { pattern: /\b(?:paiement|payment|betaling|zahlung)\b.*\b(?:fonctionne|marche|status|statut|expliquer|explain|werkt|funktioniert)\b/i, weight: 8 },
+  { pattern: /^\s*(?:paiement|payment|betaling|zahlung)\s*\??$/i, weight: 7 },
+  { pattern: /\b(?:pourquoi|why|waarom|warum)\b.*\b(?:paiement|payment|betaling|zahlung)\b/i, weight: 7 },
+];
+
+const REFUND_SIGNALS: readonly Signal[] = [
+  { pattern: /\bremboursement|rembours[ée]|refund|terugbetaling|r[üu]ckerstattung\b/i, weight: 7 },
+  { pattern: /\b(?:comment|how|hoe|wie)\b.*\b(?:rembours|refund|terugbetaal|r[üu]ckerstatt)\w*/i, weight: 3 },
+];
+
+const PROVIDER_SIGNALS: readonly Signal[] = [
+  { pattern: /\b(?:devenir|etre|être) prestataire\b/i, weight: 8 },
+  { pattern: /\b(?:proposer|offrir|vendre) (?:mes|des) services\b/i, weight: 8 },
+  { pattern: /\bespace prestataire|profil prestataire|provider (?:area|profile)|dienstverlener|anbieter(?:bereich|profil)\b/i, weight: 7 },
+  { pattern: /\b(?:help|aide|aider).*(?:prestataire|provider|dienstverlener|anbieter)\b/i, weight: 6 },
+];
+
+const KYC_SIGNALS: readonly Signal[] = [
+  { pattern: /\bkyc\b/i, weight: 9 },
+  { pattern: /\bsumsub\b/i, weight: 9 },
+  { pattern: /\bv[ée]rification d['’ ]identit[ée]|identity verification|identiteitsverificatie|identit[äa]tspr[üu]fung\b/i, weight: 8 },
+  { pattern: /\b(?:v[ée]rifier|verify|verifieer|pr[üu]fen).*(?:identit[ée]|identity|identiteit|identit[äa]t)\b/i, weight: 7 },
+];
+
+const LOCALE_SIGNALS: readonly Signal[] = [
+  { pattern: /\b(?:change|changer|mets?|passe|switch|set|zet|stel|wechsel|stell).*(?:langue|language|taal|sprache)\b/i, weight: 9 },
+  { pattern: /\b(?:en|to|naar|auf)\s+(?:fran[cç]ais|french|anglais|english|n[ée]erlandais|nederlands|dutch|allemand|deutsch|german)\b/i, weight: 5 },
+  { pattern: /^\s*(?:fran[cç]ais|french|anglais|english|n[ée]erlandais|nederlands|dutch|allemand|deutsch|german)\s*$/i, weight: 4 },
 ];
 
 const INFORMATION_SIGNALS: readonly Signal[] = [
@@ -94,18 +150,18 @@ function score(value: string, signals: readonly Signal[]): number {
 
 function question(locale: string | null | undefined): string {
   if (locale === "en") {
-    return "Do you want KLYX to find a service for you, find paid work, or manage an existing mission?";
+    return "Do you want KLYX to find a service, manage a booking or account, explain a payment, or help you earn with KLYX?";
   }
 
   if (locale === "nl") {
-    return "Wil je dat KLYX een dienst voor je vindt, betaalde opdrachten zoekt of een bestaande opdracht beheert?";
+    return "Wil je dat KLYX een dienst vindt, een boeking of account beheert, een betaling uitlegt of je helpt verdienen met KLYX?";
   }
 
   if (locale === "de") {
-    return "Soll KLYX einen Service für dich finden, bezahlte Aufträge suchen oder einen bestehenden Auftrag verwalten?";
+    return "Soll KLYX einen Service finden, eine Buchung oder ein Konto verwalten, eine Zahlung erklären oder dir beim Verdienen mit KLYX helfen?";
   }
 
-  return "Tu veux que KLYX trouve un service, cherche des missions rémunérées ou gère une mission existante ?";
+  return "Tu veux que KLYX trouve un service, gère une réservation ou ton compte, explique un paiement, ou t’aide à gagner avec KLYX ?";
 }
 
 function confidenceFor(top: number, second: number): AssistantIntentRoute["confidence"] {
@@ -115,12 +171,7 @@ function confidenceFor(top: number, second: number): AssistantIntentRoute["confi
 }
 
 function hasExplicitNewDirection(scores: AssistantIntentRoute["scores"]): boolean {
-  return (
-    scores.service_need >= 4 ||
-    scores.income_search >= 4 ||
-    scores.mission_management >= 4 ||
-    scores.information >= 4
-  );
+  return Object.values(scores).some((value) => value >= 4);
 }
 
 export function routeAssistantIntent(
@@ -132,6 +183,13 @@ export function routeAssistantIntent(
     service_need: score(message, SERVICE_SIGNALS),
     income_search: score(message, INCOME_SIGNALS),
     mission_management: score(message, MANAGEMENT_SIGNALS),
+    account_help: score(message, ACCOUNT_SIGNALS),
+    booking_tracking: score(message, BOOKING_SIGNALS),
+    payment_explanation: score(message, PAYMENT_SIGNALS),
+    refund_explanation: score(message, REFUND_SIGNALS),
+    provider_help: score(message, PROVIDER_SIGNALS),
+    kyc_explanation: score(message, KYC_SIGNALS),
+    locale_change: score(message, LOCALE_SIGNALS),
     information: score(message, INFORMATION_SIGNALS),
   };
 
