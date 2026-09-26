@@ -15,12 +15,13 @@ import {
 import {
   parseOpenAiStructuredResult,
 } from "./openai-structured";
+import { authorizeKlyxExternalCall } from "@/lib/external-cost-control-server";
 
 const OPENAI_RESPONSES_URL =
   "https://api.openai.com/v1/responses";
 
 const DEFAULT_MODEL =
-  "gpt-5.6-terra";
+  "gpt-5.6-luna";
 
 const DEFAULT_TIMEOUT_MS =
   15_000;
@@ -349,6 +350,19 @@ export class OpenAiKlyxLlmProvider
     assertNoAutomaticExecution(
       safety,
     );
+
+    const costAuthorization = await authorizeKlyxExternalCall({
+      provider: "openai",
+      operation: "responses_generate",
+      estimatedCostMicroUsd: 10_000,
+      criticality: "non_critical",
+    });
+
+    if (!costAuthorization.allowed) {
+      throw new Error(
+        `KLYX_EXTERNAL_COST_BLOCKED:openai:${costAuthorization.reason}`
+      );
+    }
 
     const model =
       getModel();
