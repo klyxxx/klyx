@@ -29,11 +29,14 @@ describe("KLYX orchestrator state machine", () => {
     ]);
   });
 
-  it("encodes the gagner lifecycle and settlement terminal", () => {
+  it("encodes the full gagner lifecycle with completion before settlement", () => {
     expect(allowedNextWorkflowSteps("earn", "skill")).toEqual([
       "opportunities",
     ]);
     expect(allowedNextWorkflowSteps("earn", "mission")).toEqual([
+      "completion",
+    ]);
+    expect(allowedNextWorkflowSteps("earn", "completion")).toEqual([
       "settlement",
     ]);
     expect(allowedNextWorkflowSteps("earn", "settlement")).toEqual([]);
@@ -52,6 +55,14 @@ describe("KLYX orchestrator state machine", () => {
       assertWorkflowTransition({
         mode: "earn",
         from: "skill",
+        to: "settlement",
+      })
+    ).toThrow("KLYX_WORKFLOW_TRANSITION_INVALID");
+
+    expect(() =>
+      assertWorkflowTransition({
+        mode: "earn",
+        from: "mission",
         to: "settlement",
       })
     ).toThrow("KLYX_WORKFLOW_TRANSITION_INVALID");
