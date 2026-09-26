@@ -436,6 +436,10 @@ function compareLocalTruth(input: {
   const transfers = rowsOfType(ledger, "transfer");
   const reversals = rowsOfType(ledger, "reversal");
   const refunds = rowsOfType(ledger, "refund");
+  const reversalAmount = reversals.reduce(
+    (sum, row) => sum + Math.max(Number(row.amount_minor), 0),
+    0
+  );
 
   const clientBeneficiaryRows = ledger.filter(
     (row) => row.beneficiary_kind === "client"
@@ -738,14 +742,40 @@ function compareLocalTruth(input: {
     pushMismatch(divergences, {
       mismatch:
         settlement.state === "refunded" &&
-        Boolean(settlement.stripe_transfer_id) &&
-        !settlement.stripe_transfer_reversal_id,
+        succeededRefundAmount !== settlement.gross_amount_cents,
+      state: "human_review",
       dimension: "settlement",
-      reasonCode: "refunded_settlement_without_reversal_truth",
-      expected: { reversalRequired: true },
+      reasonCode: "refunded_settlement_refund_total_mismatch",
+      expected: {
+        refundAmountMinor: settlement.gross_amount_cents,
+      },
       actual: {
+        refundAmountMinor: succeededRefundAmount,
+        stripeRefundIds: refunds
+          .filter((row) => row.new_state === "succeeded")
+          .map((row) => row.stripe_refund_id),
+      },
+    });
+
+    pushMismatch(divergences, {
+      mismatch:
+        settlement.state === "refunded" &&
+        Boolean(settlement.stripe_transfer_id) &&
+        reversalAmount !== settlement.provider_amount_cents,
+      state: "human_review",
+      dimension: "settlement",
+      reasonCode: "refunded_settlement_reversal_total_mismatch",
+      expected: {
+        reversalAmountMinor: settlement.provider_amount_cents,
         stripeTransferId: settlement.stripe_transfer_id,
-        stripeTransferReversalId: settlement.stripe_transfer_reversal_id,
+      },
+      actual: {
+        reversalAmountMinor: reversalAmount,
+        stripeTransferReversalIds: reversals.map(
+          (row) => row.stripe_transfer_reversal_id
+        ),
+        legacyStripeTransferReversalId:
+          settlement.stripe_transfer_reversal_id,
       },
     });
   }
