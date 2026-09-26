@@ -21,8 +21,15 @@ function safeDescription(value) {
   return normalized || "KLYX production deployment";
 }
 
+function externalCostAllowsElmah() {
+  return (
+    process.env.KLYX_EXTERNAL_COST_MODE?.trim().toLowerCase() === "guarded" &&
+    process.env.KLYX_EXTERNAL_COST_ELMAH_IO_ENABLED?.trim() === "1"
+  );
+}
+
 async function notifyDeployment() {
-  if (process.env.VERCEL_ENV !== "production") {
+  if (process.env.VERCEL_ENV !== "production" || !externalCostAllowsElmah()) {
     return;
   }
 
