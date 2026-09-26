@@ -49,7 +49,8 @@ describe("KLYX assistant single product entrypoint", () => {
     expect(unified).not.toContain("createRefund");
     expect(unified).not.toContain("stripe.transfers");
     expect(unified).not.toContain("paymentIntents.create");
-    expect(unified).not.toContain("settle");
+    expect(unified).not.toContain("reconcilePlatformHeldBookingSettlement");
+    expect(unified).not.toContain("releasePlatformHeldGroupMember");
   });
 
   it("answers common product/account/payment/refund/provider/KYC questions without AI", () => {
