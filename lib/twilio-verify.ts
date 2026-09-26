@@ -1,5 +1,9 @@
 import "server-only";
 
+import {
+  fetchWithProviderRecovery,
+} from "@/lib/provider-http-recovery";
+
 // KLYX_TWILIO_VERIFY_12_69
 
 type TwilioResponse = {
@@ -77,7 +81,9 @@ export async function sendPhoneOtp(
     Channel: "sms",
   });
 
-  const response = await fetch(
+  // Starting a verification can send an SMS. A timeout is therefore
+  // ambiguous: never replay it blindly and risk duplicate messages.
+  const response = await fetchWithProviderRecovery(
     "https://verify.twilio.com/v2/Services/" +
       encodeURIComponent(serviceSid) +
       "/Verifications",
@@ -90,6 +96,13 @@ export async function sendPhoneOtp(
           "application/x-www-form-urlencoded",
       },
       body: body.toString(),
+    },
+    {
+      provider: "twilio",
+      operation: "start_verification",
+      replaySafety: "ambiguous",
+      timeoutMs: 8_000,
+      maxAttempts: 1,
     }
   );
 
@@ -108,7 +121,9 @@ export async function verifyPhoneOtp(
     Code: code,
   });
 
-  const response = await fetch(
+  // Verification checks do not create the SMS side effect, so transient
+  // provider/network failures may be retried automatically.
+  const response = await fetchWithProviderRecovery(
     "https://verify.twilio.com/v2/Services/" +
       encodeURIComponent(serviceSid) +
       "/VerificationCheck",
@@ -121,6 +136,13 @@ export async function verifyPhoneOtp(
           "application/x-www-form-urlencoded",
       },
       body: body.toString(),
+    },
+    {
+      provider: "twilio",
+      operation: "check_verification",
+      replaySafety: "safe",
+      timeoutMs: 8_000,
+      maxAttempts: 3,
     }
   );
 
