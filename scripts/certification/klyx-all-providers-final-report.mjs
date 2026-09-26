@@ -32,17 +32,35 @@ const repoTests = stepStatus(process.env.KLYX_REPO_TESTS_OUTCOME);
 const typescript = stepStatus(process.env.KLYX_TYPESCRIPT_OUTCOME);
 const build = stepStatus(process.env.KLYX_BUILD_OUTCOME);
 const platforms = stepStatus(process.env.KLYX_PLATFORMS_OUTCOME);
+const exactEngine = stepStatus(process.env.KLYX_EXACT_ENGINE_OUTCOME);
+const exactStripe = stepStatus(process.env.KLYX_EXACT_STRIPE_OUTCOME);
+const certSha = process.env.KLYX_CERT_SHA || process.env.GITHUB_SHA || "unknown";
 
-const providerRows = network.providers.map((item) => ({
-  name: item.provider,
-  status: item.status,
-  evidence: item.evidence,
-  mode: item.mode,
-}));
+const providerRows = network.providers.map((item) => {
+  if (item.provider === "stripe") {
+    return {
+      name: item.provider,
+      status: item.status === "PASS" && exactStripe === "PASS" ? "PASS" : "FAIL",
+      evidence: `${item.evidence}; exact-SHA Economic Chain Stripe TEST=${exactStripe}`,
+      mode: item.mode,
+    };
+  }
+  return {
+    name: item.provider,
+    status: item.status,
+    evidence: item.evidence,
+    mode: item.mode,
+  };
+});
+
+const engineStatus =
+  repoTests === "PASS" && recovery === "PASS" && exactEngine === "PASS"
+    ? "PASS"
+    : "FAIL";
 
 const report = {
-  schemaVersion: 1,
-  sha: process.env.GITHUB_SHA || "unknown",
+  schemaVersion: 2,
+  sha: certSha,
   generatedAt: new Date().toISOString(),
   safety: {
     stripeLive: "FORBIDDEN",
@@ -52,15 +70,15 @@ const report = {
   engines: [
     {
       name: "DEMANDER",
-      status: repoTests === "PASS" && recovery === "PASS" ? "PASS" : "FAIL",
+      status: engineStatus,
       chain: "assistant -> matching -> devis -> booking -> Stripe -> mission -> incident -> refund -> closure",
-      evidence: "repository test suite + dedicated recovery certification; complete-engine workflow is a separate required check",
+      evidence: `exact-SHA complete-engine=${exactEngine}; repository tests=${repoTests}; recovery=${recovery}`,
     },
     {
       name: "GAGNER",
-      status: repoTests === "PASS" && recovery === "PASS" ? "PASS" : "FAIL",
+      status: engineStatus,
       chain: "assistant -> profil -> Twilio -> Sumsub -> eligibility -> opportunite -> mission -> Stripe settlement",
-      evidence: "repository test suite + dedicated recovery certification; external providers are reported independently",
+      evidence: `exact-SHA complete-engine=${exactEngine}; repository tests=${repoTests}; recovery=${recovery}`,
     },
   ],
   providers: providerRows,
@@ -81,7 +99,7 @@ const report = {
   ],
   failuresAndRecovery: [
     { scenario: "OpenAI unavailable", status: recovery, strategy: "retry/fallback, no LLM mutation authority" },
-    { scenario: "Stripe unavailable", status: recovery, strategy: "prove-before-replay + bounded retry + reconciliation" },
+    { scenario: "Stripe unavailable", status: recovery === "PASS" && exactStripe === "PASS" ? "PASS" : "FAIL", strategy: "prove-before-replay + bounded retry + reconciliation + exact-SHA Stripe TEST proof" },
     {
       scenario: "Supabase unavailable",
       status: "FAIL",
@@ -94,7 +112,16 @@ const report = {
     { scenario: "worker crash", status: recovery, strategy: "lease expiry + automatic reclaim/retry" },
     { scenario: "mobile/web resume", status: platforms, strategy: "platform browser restart/network resume; workflow truth remains server-side" },
   ],
-  quality: { repoTests, typescript, build, recovery, platforms, providerNetwork: network.overall },
+  quality: {
+    repoTests,
+    typescript,
+    build,
+    recovery,
+    platforms,
+    providerNetwork: network.overall,
+    exactEngine,
+    exactStripe,
+  },
 };
 
 const hardFailures = [
@@ -106,8 +133,10 @@ const hardFailures = [
 ];
 report.overall = hardFailures.length === 0 ? "PASS" : "FAIL";
 
-const jsonPath = path.join(outDir, "all-providers-final.json");
-fs.writeFileSync(jsonPath, `${JSON.stringify(report, null, 2)}\n`);
+fs.writeFileSync(
+  path.join(outDir, "all-providers-final.json"),
+  `${JSON.stringify(report, null, 2)}\n`
+);
 
 const lines = [
   "# KLYX All Providers Certification",
