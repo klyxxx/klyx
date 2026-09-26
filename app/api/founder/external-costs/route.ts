@@ -20,6 +20,10 @@ function currentMonthStart(): string {
   return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-01`;
 }
 
+function currentDayStart(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export async function GET() {
   const startedAt = Date.now();
 
@@ -27,15 +31,24 @@ export async function GET() {
     await requireKlyxFounder();
 
     const periodStart = currentMonthStart();
-    const { data, error } = await supabaseAdmin
-      .from("external_provider_usage_monthly")
-      .select(
-        "provider, period_start, units_used, cost_microusd, last_action, updated_at"
-      )
-      .eq("period_start", periodStart)
-      .order("provider", { ascending: true });
+    const dayStart = currentDayStart();
+    const [monthlyResult, dailyResult] = await Promise.all([
+      supabaseAdmin
+        .from("external_provider_usage_monthly")
+        .select(
+          "provider, period_start, units_used, cost_microusd, last_action, updated_at"
+        )
+        .eq("period_start", periodStart)
+        .order("provider", { ascending: true }),
+      supabaseAdmin
+        .from("external_provider_usage_daily")
+        .select("provider, day_start, units_used, last_action, updated_at")
+        .eq("day_start", dayStart)
+        .order("provider", { ascending: true }),
+    ]);
 
-    if (error) throw error;
+    if (monthlyResult.error) throw monthlyResult.error;
+    if (dailyResult.error) throw dailyResult.error;
 
     const globalBudgetMicrousd = getGlobalPaidBudgetMicrousd();
     const providers = Object.keys(KLYX_EXTERNAL_PROVIDER_POLICIES).map(
@@ -45,7 +58,10 @@ export async function GET() {
         const effectiveBudgetMicrousd = policy.paidRisk
           ? Math.min(policy.defaultMonthlyBudgetMicrousd, globalBudgetMicrousd)
           : policy.defaultMonthlyBudgetMicrousd;
-        const usage = (data ?? []).find((row) => row.provider === provider) ?? null;
+        const monthlyUsage =
+          (monthlyResult.data ?? []).find((row) => row.provider === provider) ?? null;
+        const dailyUsage =
+          (dailyResult.data ?? []).find((row) => row.provider === provider) ?? null;
 
         return {
           provider,
@@ -54,15 +70,21 @@ export async function GET() {
           fallback: policy.fallback,
           monthlyBudgetMicrousd: effectiveBudgetMicrousd,
           monthlyUnitLimit: policy.defaultMonthlyUnitLimit,
-          usage,
+          dailyUnitLimit: policy.defaultDailyUnitLimit,
+          fixedMonthlyCommitmentMicrousd: policy.fixedMonthlyCommitmentMicrousd,
+          paidActivationEnv: policy.paidActivationEnv ?? null,
+          monthlyUsage,
+          dailyUsage,
         };
       }
     );
 
     return NextResponse.json({
       periodStart,
+      dayStart,
       globalBudgetMicrousd,
       zeroBudgetMode: globalBudgetMicrousd === 0,
+      alertThresholdsPct: [75, 90, 100],
       providers,
       authority: {
         costDecision: "external_cost_control",
