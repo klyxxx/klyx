@@ -14,7 +14,7 @@ type IdentityWebhookInput = {
 };
 
 export type KlyxIdentityVerificationAdapter = {
-  readonly provider: "sumsub";
+  readonly provider: string;
   configured(): boolean;
   createSdkToken(
     input: IdentityTokenInput
@@ -24,7 +24,7 @@ export type KlyxIdentityVerificationAdapter = {
 };
 
 export type KlyxPhoneVerificationAdapter = {
-  readonly provider: "twilio";
+  readonly provider: string;
   sendOtp(phoneNumber: string): Promise<unknown>;
   verifyOtp(
     phoneNumber: string,
@@ -48,18 +48,51 @@ export type KlyxProfileEmailDeliveryInput = {
   idempotencyKey?: string;
 };
 
+export type KlyxEmailDeliveryResult = {
+  ok: boolean;
+  status: "sent" | "skipped" | "failed";
+  provider: string;
+  httpStatus?: number;
+};
+
 export type KlyxEmailDeliveryAdapter = {
-  readonly provider: "resend";
-  sendTransactional(input: KlyxEmailDeliveryInput): Promise<unknown>;
+  readonly provider: string;
+  sendTransactional(
+    input: KlyxEmailDeliveryInput
+  ): Promise<KlyxEmailDeliveryResult>;
   sendProfileTransactional(
     input: KlyxProfileEmailDeliveryInput
-  ): Promise<unknown>;
+  ): Promise<KlyxEmailDeliveryResult>;
+};
+
+export type KlyxApiErrorReport = {
+  event: string;
+  route: string;
+  method: string;
+  status: number;
+  code: string;
+  durationMs?: number;
+  requestId?: string;
+  error?: unknown;
+};
+
+export type KlyxUnhandledRequestErrorReport = {
+  error: unknown;
+  method?: string;
+  routePath?: string;
+  routerKind?: string;
+  routeType?: string;
+  renderSource?: string;
 };
 
 export type KlyxObservabilityAdapter = {
-  readonly provider: "elmah_io";
+  readonly provider: string;
   configured(): boolean;
   heartbeatConfigured(): boolean;
+  reportApiError(input: KlyxApiErrorReport): Promise<boolean>;
+  reportUnhandledRequestError(
+    input: KlyxUnhandledRequestErrorReport
+  ): Promise<boolean>;
   sendHeartbeat(): Promise<boolean>;
 };
 
@@ -112,6 +145,9 @@ export async function getKlyxObservabilityAdapter(): Promise<KlyxObservabilityAd
     configured: provider.isKlyxElmahIoConfigured,
     heartbeatConfigured:
       provider.isKlyxElmahHeartbeatConfigured,
+    reportApiError: provider.reportKlyxApiError,
+    reportUnhandledRequestError:
+      provider.reportKlyxUnhandledRequestError,
     sendHeartbeat: provider.sendKlyxElmahHeartbeat,
   };
 }
