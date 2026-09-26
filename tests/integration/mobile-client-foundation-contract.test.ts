@@ -27,11 +27,15 @@ describe("KLYX mobile client foundation contract", () => {
   it("uses a bearer-native owned-profile projection instead of trusting device state", () => {
     const route = read("app/api/mobile/profiles/route.ts");
     const client = read("mobile/src/lib/klyx-api.ts");
+    const serverAuth = read("lib/api-auth.ts");
     expect(route).toContain("getAuthenticatedProfile(request)");
     expect(route).toContain("profiles.find((item) => item.id === profileId)");
     expect(client).toContain("/api/mobile/profiles");
     expect(client).toContain("x-klyx-active-profile-id");
     expect(client).toContain("expo-secure-store");
+    expect(serverAuth).toContain('const ACTIVE_PROFILE_HEADER = "x-klyx-active-profile-id"');
+    expect(serverAuth).toContain("request.headers");
+    expect(serverAuth).toContain("profiles.find((item) => item.id === selectedProfileId)");
   });
 
   it("stores native auth state only in encrypted chunked device storage", () => {
