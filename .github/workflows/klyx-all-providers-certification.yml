@@ -69,6 +69,7 @@ jobs:
           tests/integration/all-provider-recovery-contract.test.ts
           tests/integration/supabase-outage-recovery.test.ts
           tests/unit/sumsub-provider-recovery.test.ts
+          tests/integration/mobile-resume-contract.test.ts
           tests/unit/resilience-engine.test.ts
           tests/unit/resilience-engine-fail-closed.test.ts
           tests/integration/zero-cost-brain-contract.test.ts
@@ -77,6 +78,8 @@ jobs:
           tests/unit/email-delivery-idempotency.test.ts
           tests/integration/auth-turnstile-contract.test.ts
           tests/integration/security-headers-csp-contract.test.ts
+          tests/integration/economic-settlement-eligibility-contract.test.ts
+          tests/integration/settlement-recovery-reconciliation-contract.test.ts
 
       - name: Autonomous recovery certification
         run: npm run certify:autonomous:offline
