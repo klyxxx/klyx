@@ -4,8 +4,8 @@ import {
   apiErrorStatus,
   getAuthenticatedProfile,
 } from "@/lib/api-auth";
+import { getKlyxPhoneVerificationAdapter } from "@/lib/providers/runtime-adapters";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { verifyPhoneOtp } from "@/lib/twilio-verify";
 
 // KLYX_PHONE_OTP_VERIFY_SECURITY_12_71
 
@@ -117,8 +117,11 @@ export async function POST(request: Request) {
       );
     }
 
+    const phoneVerification =
+      await getKlyxPhoneVerificationAdapter();
+
     const result =
-      await verifyPhoneOtp(
+      await phoneVerification.verifyOtp(
         phoneNumber,
         code
       );
