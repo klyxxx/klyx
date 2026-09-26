@@ -22,6 +22,7 @@ export const EARN_WORKFLOW_STEPS = [
   "proposal",
   "acceptance",
   "mission",
+  "completion",
   "settlement",
 ] as const;
 
@@ -60,7 +61,8 @@ const EARN_TRANSITIONS: Record<EarnWorkflowStep, readonly EarnWorkflowStep[]> = 
   eligibility: ["proposal", "opportunities"],
   proposal: ["acceptance", "opportunities"],
   acceptance: ["mission", "proposal"],
-  mission: ["settlement"],
+  mission: ["completion"],
+  completion: ["settlement"],
   settlement: [],
 };
 

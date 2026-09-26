@@ -40,6 +40,7 @@ on:
       - "scripts/golden-path-*.mjs"
       - "scripts/mission19-autonomous-continuity.mjs"
       - "scripts/mission19-settlement-eligibility-chaos.mjs"
+      - "scripts/mission19-earn-lifecycle.mjs"
       - "docs/KLYX_END_TO_END_AUTONOMOUS_CERTIFICATION.md"
       - "tests/integration/end-to-end-autonomous-*.test.ts"
       - "supabase/migrations/**"
@@ -367,6 +368,9 @@ jobs:
       - name: Verify signed webhook, mission and review lifecycle
         run: node scripts/golden-path-service-lifecycle.mjs
 
+      - name: Verify Mission 19 earn lifecycle
+        run: node scripts/mission19-earn-lifecycle.mjs
+
       - name: Verify provider finance visibility and reconciliation
         run: node scripts/golden-path-provider-finance.mjs
 
@@ -381,7 +385,7 @@ jobs:
 
       - name: Golden path local lifecycle ready
         run: >-
-          echo "Private photo upload/analysis/deletion, provider studio/zone onboarding, agent search/choice orchestration with booking confirmation boundary, intent analysis, exact provider search, quote, booking, direct-message DB abuse guard, signed delayed Stripe webhook, idempotency, payment ledger, mission completion, review, provider finance reconciliation, refunded terminal state, split payment/refund reconciliation and Mission 19 settlement ineligibility gate verified on ephemeral Supabase."
+          echo "Private photo upload/analysis/deletion, provider studio/zone onboarding, agent search/choice orchestration with booking confirmation boundary, intent analysis, exact provider search, quote, booking, direct-message DB abuse guard, signed delayed Stripe webhook, idempotency, payment ledger, mission completion, full Mission 19 earn lifecycle, review, provider finance reconciliation, refunded terminal state, split payment/refund reconciliation and Mission 19 settlement ineligibility gate verified on ephemeral Supabase."
 
       - name: Stop golden path production server
         if: always()
