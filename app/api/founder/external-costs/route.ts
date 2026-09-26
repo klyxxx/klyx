@@ -80,7 +80,7 @@ export async function GET() {
       method: "GET",
       status,
       code: "KLYX_FOUNDER_EXTERNAL_COSTS_READ_FAILED",
-      publicMessage: founderErrorPublicMessage(error),
+      publicMessage: founderErrorPublicMessage(status),
       startedAt,
     });
   }
