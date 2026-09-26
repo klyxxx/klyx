@@ -21,18 +21,12 @@ import {
   klyxExternalNetworkAllowedSynchronously,
   parseKlyxExternalCostMode,
 } from "@/lib/external-cost-control";
-import {
-  requireKlyxExternalCall,
-} from "@/lib/external-cost-control-server";
 
 const DISABLED_PROVIDER_NAME =
   "disabled";
 
 const DISABLED_MODEL_NAME =
   "none";
-
-const COST_DEFAULT_OPENAI_MODEL =
-  "gpt-5.6-luna";
 
 function detectFallbackIntent(
   request: KlyxLlmRequest,
@@ -168,13 +162,6 @@ class ResilientKlyxLlmProvider
     request: KlyxLlmRequest,
   ): Promise<KlyxLlmResponse> {
     try {
-      if (this.primary.name === "openai") {
-        await requireKlyxExternalCall({
-          provider: "openai",
-          operation: "llm_generate",
-        });
-      }
-
       const response =
         await this.primary.generate(
           request,
@@ -236,11 +223,6 @@ export function createKlyxLlmProvider():
 
   if (!klyxExternalNetworkAllowedSynchronously("openai", costMode)) {
     return fallback;
-  }
-
-  // Cost-aware default only. An explicit KLYX_OPENAI_MODEL still wins.
-  if (!process.env.KLYX_OPENAI_MODEL?.trim()) {
-    process.env.KLYX_OPENAI_MODEL = COST_DEFAULT_OPENAI_MODEL;
   }
 
   const primary =
