@@ -67,6 +67,8 @@ jobs:
           npx vitest run
           tests/unit/provider-http-recovery.test.ts
           tests/integration/all-provider-recovery-contract.test.ts
+          tests/integration/supabase-outage-recovery.test.ts
+          tests/unit/sumsub-provider-recovery.test.ts
           tests/unit/resilience-engine.test.ts
           tests/unit/resilience-engine-fail-closed.test.ts
           tests/integration/zero-cost-brain-contract.test.ts
