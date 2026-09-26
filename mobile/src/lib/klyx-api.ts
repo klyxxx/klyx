@@ -171,6 +171,64 @@ export async function sendAssistantMessage(input: {
   });
 }
 
+export type BookingOverviewCard = {
+  id: string;
+  entityType: "booking" | "group";
+  href: string;
+  role: "client" | "provider";
+  otherUserName: string;
+  otherUserAvatar: string | null;
+  serviceLabel: string;
+  serviceSlug: string | null;
+  status: string;
+  statusLabel: string;
+  paymentStatus: string;
+  amountCents: number | null;
+  currency: string;
+  dateFrom: string;
+  dateTo: string;
+  firstStart: string;
+  lastEnd: string;
+  slotCount: number;
+  actionRequired: boolean;
+  history: boolean;
+  cancellationPending: boolean;
+  refundStatus: string;
+  createdAt: string;
+};
+
+export async function loadBookingOverview(): Promise<{ cards: BookingOverviewCard[] }> {
+  return apiFetch<{ cards: BookingOverviewCard[] }>("/api/bookings/overview", {
+    method: "GET",
+  });
+}
+
+export type MobileNotification = {
+  id: string;
+  type: string | null;
+  title: string | null;
+  message: string | null;
+  href: string | null;
+  readAt: string | null;
+  createdAt: string;
+};
+
+export async function loadMobileNotifications(): Promise<{
+  notifications: MobileNotification[];
+}> {
+  return apiFetch<{ notifications: MobileNotification[] }>(
+    "/api/mobile/notifications",
+    { method: "GET" }
+  );
+}
+
+export async function markNotificationRead(notificationId: string): Promise<void> {
+  await apiFetch<{ message: string }>("/api/notifications/read", {
+    method: "POST",
+    body: JSON.stringify({ notificationId }),
+  });
+}
+
 export type ProviderOpportunity = {
   id: string;
   title: string;
