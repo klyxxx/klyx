@@ -6,6 +6,7 @@ import {
   requireKlyxAdmin,
 } from "@/lib/admin-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { authorizeKlyxExternalCall } from "@/lib/external-cost-control-server";
 import {
   logServerError,
   logServerWarning,
@@ -128,7 +129,7 @@ export async function GET() {
       process.env
         .KLYX_OPENAI_MODEL
         ?.trim() ||
-      "gpt-5-mini";
+      "gpt-5.6-luna";
 
     if (!apiKey) {
       return NextResponse.json(
@@ -147,6 +148,31 @@ export async function GET() {
         {
           status: 200,
         }
+      );
+    }
+
+    const cost = await authorizeKlyxExternalCall({
+      provider: "openai",
+      operation: "health_probe",
+      estimatedCostMicroUsd: 100_000,
+      criticality: "non_critical",
+    });
+
+    if (!cost.allowed) {
+      return NextResponse.json(
+        {
+          ready: false,
+          configured: true,
+          model,
+          apiStatus: null,
+          networkChecked: false,
+          costGuarded: true,
+          costReason: cost.reason,
+          errorType: "cost_guard",
+          errorCode: "KLYX_OPENAI_HEALTH_NETWORK_CHECK_SKIPPED",
+          errorMessage: "OpenAI est configuré, mais le diagnostic réseau est désactivé pour protéger le budget externe.",
+        },
+        { status: 200 }
       );
     }
 
@@ -169,7 +195,7 @@ export async function GET() {
               input:
                 "Réponds uniquement avec le mot OK.",
               max_output_tokens:
-                256,
+                32,
             }),
             signal:
               AbortSignal.timeout(
@@ -195,6 +221,7 @@ export async function GET() {
           configured: true,
           model,
           apiStatus: null,
+          networkChecked: true,
           errorType:
             error instanceof Error
               ? error.name
@@ -244,6 +271,7 @@ export async function GET() {
           model,
           apiStatus:
             response.status,
+          networkChecked: true,
           errorType:
             safeString(
               errorPayload.error
@@ -288,6 +316,7 @@ export async function GET() {
         model,
         apiStatus:
           response.status,
+        networkChecked: true,
         responseStatus,
         incompleteReason,
         outputReceived:
