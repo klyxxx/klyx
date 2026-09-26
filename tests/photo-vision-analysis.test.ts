@@ -10,6 +10,7 @@ const previousVisionEnabled = process.env.KLYX_VISION_ENABLED;
 const previousApiKey = process.env.OPENAI_API_KEY;
 const previousVisionModel = process.env.KLYX_VISION_MODEL;
 const previousOpenAiModel = process.env.KLYX_OPENAI_MODEL;
+const previousCostBypass = process.env.KLYX_EXTERNAL_COST_TEST_BYPASS;
 
 function restoreEnvironment() {
   for (const [name, value] of Object.entries({
@@ -17,6 +18,7 @@ function restoreEnvironment() {
     OPENAI_API_KEY: previousApiKey,
     KLYX_VISION_MODEL: previousVisionModel,
     KLYX_OPENAI_MODEL: previousOpenAiModel,
+    KLYX_EXTERNAL_COST_TEST_BYPASS: previousCostBypass,
   })) {
     if (value == null) {
       delete process.env[name];
@@ -31,6 +33,7 @@ describe("KLYX photo visual analysis runtime", () => {
     process.env.KLYX_VISION_ENABLED = "1";
     process.env.OPENAI_API_KEY = "unit-test-key";
     process.env.KLYX_VISION_MODEL = "unit-test-vision-model";
+    process.env.KLYX_EXTERNAL_COST_TEST_BYPASS = "1";
     delete process.env.KLYX_OPENAI_MODEL;
   });
 
