@@ -24,6 +24,7 @@ export default function TabsLayout() {
     >
       <Tabs.Screen name="assistant" options={{ title: "Assistant", tabBarIcon: icon("◉") }} />
       <Tabs.Screen name="bookings" options={{ title: "Missions", tabBarIcon: icon("▣") }} />
+      <Tabs.Screen name="earn" options={{ title: "Gagner", tabBarIcon: icon("◇") }} />
       <Tabs.Screen name="notifications" options={{ title: "Alertes", tabBarIcon: icon("●") }} />
       <Tabs.Screen name="account" options={{ title: "Compte", tabBarIcon: icon("◎") }} />
     </Tabs>
