@@ -6,6 +6,11 @@ import {
   timingSafeEqual,
 } from "crypto";
 
+import {
+  fetchWithProviderRecovery,
+  type ProviderReplaySafety,
+} from "@/lib/provider-http-recovery";
+
 const BASE_URL = "https://api.sumsub.com";
 
 function requiredEnv(name: string): string {
@@ -35,6 +40,7 @@ export async function sumsubRequest<T>(params: {
   method: "GET" | "POST";
   path: string;
   body?: unknown;
+  replaySafety?: ProviderReplaySafety;
 }): Promise<T> {
   const appToken = requiredEnv("SUMSUB_APP_TOKEN");
   const secretKey = requiredEnv("SUMSUB_SECRET_KEY");
@@ -57,7 +63,11 @@ export async function sumsubRequest<T>(params: {
     )
     .digest("hex");
 
-  const response = await fetch(
+  const replaySafety =
+    params.replaySafety ??
+    (method === "GET" ? "safe" : "ambiguous");
+
+  const response = await fetchWithProviderRecovery(
     `${BASE_URL}${params.path}`,
     {
       method,
@@ -71,6 +81,13 @@ export async function sumsubRequest<T>(params: {
       },
       body:
         method === "POST" ? body : undefined,
+    },
+    {
+      provider: "sumsub",
+      operation: params.path,
+      replaySafety,
+      timeoutMs: 8_000,
+      maxAttempts: 3,
     }
   );
 
@@ -121,6 +138,8 @@ export async function createSumsubSdkToken(params: {
     };
   }
 
+  // Repeating token issuance is non-financial and does not mutate KLYX
+  // eligibility truth. Multiple short-lived tokens are acceptable recovery.
   return sumsubRequest<{
     token: string;
     userId?: string;
@@ -128,6 +147,7 @@ export async function createSumsubSdkToken(params: {
     method: "POST",
     path: "/resources/accessTokens/sdk",
     body,
+    replaySafety: "safe",
   });
 }
 
