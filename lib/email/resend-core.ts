@@ -1,3 +1,7 @@
+import {
+  fetchWithProviderRecovery,
+} from "@/lib/provider-http-recovery";
+
 export const KLYX_RESEND_FROM = "KLYX <support@klyx.be>";
 
 export type KlyxEmailDeliveryResult = {
@@ -44,7 +48,7 @@ export async function sendResendEmail(
   }
 
   try {
-    const response = await (options.fetchImpl ?? fetch)(
+    const response = await fetchWithProviderRecovery(
       "https://api.resend.com/emails",
       {
         method: "POST",
@@ -62,6 +66,15 @@ export async function sendResendEmail(
           text,
           ...(html ? { html } : {}),
         }),
+      },
+      {
+        provider: "resend",
+        operation: "send_email",
+        // Provider idempotency is the authority that makes network replay safe.
+        replaySafety: idempotencyKey ? "idempotent" : "ambiguous",
+        timeoutMs: 8_000,
+        maxAttempts: idempotencyKey ? 3 : 1,
+        fetchImpl: options.fetchImpl,
       }
     );
 
