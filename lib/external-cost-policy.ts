@@ -201,6 +201,12 @@ export function getExternalCostPolicy(
   };
 }
 
+export function getGlobalPaidBudgetMicrousd(
+  env: NodeJS.ProcessEnv = process.env
+): number {
+  return usdToMicrousd(env.KLYX_EXTERNAL_PAID_BUDGET_USD, 0);
+}
+
 export function decideExternalCostAction(input: {
   provider: KlyxExternalProvider;
   estimatedCostMicrousd?: number;
@@ -208,6 +214,10 @@ export function decideExternalCostAction(input: {
 }): KlyxExternalCostDecision {
   const env = input.env ?? process.env;
   const policy = getExternalCostPolicy(input.provider, env);
+  const globalBudgetMicrousd = getGlobalPaidBudgetMicrousd(env);
+  const effectiveBudgetMicrousd = policy.paidRisk
+    ? Math.min(policy.defaultMonthlyBudgetMicrousd, globalBudgetMicrousd)
+    : policy.defaultMonthlyBudgetMicrousd;
   const estimatedCostMicrousd = Math.max(
     0,
     Math.floor(input.estimatedCostMicrousd ?? 0)
@@ -215,7 +225,7 @@ export function decideExternalCostAction(input: {
 
   const base = {
     provider: policy.provider,
-    monthlyBudgetMicrousd: policy.defaultMonthlyBudgetMicrousd,
+    monthlyBudgetMicrousd: effectiveBudgetMicrousd,
     monthlyUnitLimit: policy.defaultMonthlyUnitLimit,
     estimatedCostMicrousd,
   };
@@ -232,7 +242,7 @@ export function decideExternalCostAction(input: {
     return { ...base, action: "allow", reason: "FREE_QUOTA_ALLOWED" };
   }
 
-  if (policy.defaultMonthlyBudgetMicrousd <= 0) {
+  if (effectiveBudgetMicrousd <= 0) {
     return {
       ...base,
       action: policy.critical ? "block" : "fallback",
@@ -240,7 +250,7 @@ export function decideExternalCostAction(input: {
     };
   }
 
-  if (estimatedCostMicrousd > policy.defaultMonthlyBudgetMicrousd) {
+  if (estimatedCostMicrousd > effectiveBudgetMicrousd) {
     return {
       ...base,
       action: policy.critical ? "block" : "fallback",
