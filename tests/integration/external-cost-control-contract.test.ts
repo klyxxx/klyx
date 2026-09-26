@@ -20,10 +20,17 @@ const ops = read("docs/KLYX_OPERATIONS_FAILURE_DOMAINS.md");
 
 describe("KLYX external cost control contract", () => {
   it("defaults paid providers and the global spend gate to zero budget", () => {
-    expect(policy).toContain('defaultMonthlyBudgetMicrousd: 0');
-    expect(policy).toContain('KLYX_EXTERNAL_PAID_BUDGET_USD');
+    expect(policy).toContain("defaultMonthlyBudgetMicrousd: 0");
+    expect(policy).toContain("KLYX_EXTERNAL_PAID_BUDGET_USD");
     expect(policy).toContain('fallback: "deterministic_klyx"');
-    expect(policy).toContain('defaultMonthlyUnitLimit: 2700');
+  });
+
+  it("keeps Resend safely below provider daily and monthly free limits", () => {
+    expect(policy).toContain("defaultMonthlyUnitLimit: 2700");
+    expect(policy).toContain("defaultDailyUnitLimit: 90");
+    expect(policy).toContain("KLYX_RESEND_DAILY_EMAIL_LIMIT");
+    expect(resend).toContain('provider: "resend"');
+    expect(resend).toContain("KLYX_RESEND_COST_CONTROL_UNAVAILABLE");
   });
 
   it("routes deterministic assistant questions locally before the AI call gate", () => {
@@ -46,20 +53,27 @@ describe("KLYX external cost control contract", () => {
     expect(twilio).toContain('action: "phone_otp_verification"');
     expect(sumsub).toContain('provider: "sumsub"');
     expect(sumsub).toContain('action: "identity_verification_start"');
+    expect(policy).toContain("KLYX_SUMSUB_PAID_SUBSCRIPTION_AUTHORIZED");
+    expect(policy).toContain("149_000_000");
   });
 
-  it("keeps Resend below an internal quota and fails closed if cost control is unavailable", () => {
-    expect(resend).toContain('provider: "resend"');
-    expect(resend).toContain("KLYX_RESEND_COST_CONTROL_UNAVAILABLE");
-  });
-
-  it("reserves provider usage atomically before outbound calls", () => {
+  it("reserves daily, monthly and budget usage atomically before outbound calls", () => {
     expect(migration).toContain("external_provider_usage_monthly");
+    expect(migration).toContain("external_provider_usage_daily");
     expect(migration).toContain("pg_advisory_xact_lock");
+    expect(migration).toContain("DAILY_UNIT_LIMIT_EXCEEDED");
     expect(migration).toContain("MONTHLY_UNIT_LIMIT_EXCEEDED");
     expect(migration).toContain("MONTHLY_BUDGET_EXCEEDED");
+    expect(server).toContain("p_daily_unit_limit");
+  });
+
+  it("emits 75/90/100 percent cost alerts and opens the circuit at 100 percent", () => {
+    expect(server).toContain("return 75");
+    expect(server).toContain("return 90");
+    expect(server).toContain("return 100");
     expect(server).toContain("KLYX_EXTERNAL_COST_CIRCUIT_OPEN");
     expect(server).toContain("KLYX_EXTERNAL_COST_ALERT");
+    expect(server).toContain("thresholdPct");
   });
 
   it("does not replace the canonical operational kill-switch authority", () => {
