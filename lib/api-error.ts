@@ -2,10 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { after, NextResponse } from "next/server";
 
-import {
-  isKlyxElmahIoConfigured,
-  reportKlyxApiError,
-} from "@/lib/elmah-io";
+import { getKlyxObservabilityAdapter } from "@/lib/providers/runtime-adapters";
 import { logServerError } from "@/lib/server-log";
 
 export const INTERNAL_API_ERROR_MESSAGE =
@@ -157,12 +154,16 @@ export function secureApiErrorResponse(
     error: input.error,
   });
 
-  if (
-    status >= 500 &&
-    isKlyxElmahIoConfigured()
-  ) {
+  if (status >= 500) {
     after(async () => {
-      await reportKlyxApiError({
+      const observability =
+        await getKlyxObservabilityAdapter();
+
+      if (!observability.configured()) {
+        return;
+      }
+
+      await observability.reportApiError({
         event: input.event,
         route: input.route,
         method: input.method,
