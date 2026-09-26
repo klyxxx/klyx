@@ -11,7 +11,7 @@ export type KlyxExternalProvider =
   | "vercel"
   | "github";
 
-export type KlyxExternalCostMode = "zero" | "guarded" | "normal";
+export type KlyxExternalCostMode = "zero" | "guarded";
 export type KlyxExternalCostCriticality = "critical" | "important" | "non_critical";
 
 export type KlyxExternalCostDecision = {
@@ -138,16 +138,6 @@ export function evaluateKlyxExternalCost(input: {
       reason: "ZERO_BUDGET_MODE",
       fallback: defaults.fallback,
       maxCallsFromBudget: 0,
-    };
-  }
-
-  if (input.mode === "normal") {
-    return {
-      allowed: true,
-      circuit: "closed",
-      reason: "WITHIN_BUDGET",
-      fallback: defaults.fallback,
-      maxCallsFromBudget: null,
     };
   }
 
