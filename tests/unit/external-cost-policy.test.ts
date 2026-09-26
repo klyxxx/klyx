@@ -25,16 +25,40 @@ describe("KLYX external cost policy", () => {
     });
   });
 
-  it("blocks production KYC initiation when Sumsub budget is zero", () => {
+  it("requires explicit paid activation before Sumsub can ever spend", () => {
+    const budgeted = {
+      ...productionEnv,
+      KLYX_EXTERNAL_PAID_BUDGET_USD: "200",
+      KLYX_SUMSUB_MONTHLY_BUDGET_USD: "200",
+      KLYX_SUMSUB_MONTHLY_VERIFICATION_LIMIT: "100",
+      KLYX_SUMSUB_DAILY_VERIFICATION_LIMIT: "10",
+    } as NodeJS.ProcessEnv;
+
     expect(
       decideExternalCostAction({
         provider: "sumsub",
         estimatedCostMicrousd: 1_350_000,
-        env: productionEnv,
+        env: budgeted,
       })
     ).toMatchObject({
       action: "block",
-      reason: "ZERO_BUDGET_BLOCK",
+      reason: "PAID_ACTIVATION_REQUIRED",
+      fixedMonthlyCommitmentMicrousd: 149_000_000,
+    });
+
+    expect(
+      decideExternalCostAction({
+        provider: "sumsub",
+        estimatedCostMicrousd: 1_350_000,
+        env: {
+          ...budgeted,
+          KLYX_SUMSUB_PAID_SUBSCRIPTION_AUTHORIZED: "1",
+        },
+      })
+    ).toMatchObject({
+      action: "allow",
+      reason: "PAID_BUDGET_ALLOWED",
+      dailyUnitLimit: 10,
     });
   });
 
@@ -51,10 +75,11 @@ describe("KLYX external cost policy", () => {
     });
   });
 
-  it("allows Resend only inside the internal free-tier unit policy", () => {
+  it("keeps Resend below both free daily and monthly quotas", () => {
     expect(getExternalCostPolicy("resend", productionEnv)).toMatchObject({
       paidRisk: false,
       defaultMonthlyUnitLimit: 2700,
+      defaultDailyUnitLimit: 90,
     });
     expect(
       decideExternalCostAction({ provider: "resend", env: productionEnv })
@@ -72,6 +97,7 @@ describe("KLYX external cost policy", () => {
       ...productionEnv,
       KLYX_OPENAI_MONTHLY_BUDGET_USD: "1",
       KLYX_OPENAI_MONTHLY_CALL_LIMIT: "100",
+      KLYX_OPENAI_DAILY_CALL_LIMIT: "10",
     } as NodeJS.ProcessEnv;
 
     expect(
@@ -101,6 +127,18 @@ describe("KLYX external cost policy", () => {
       reason: "PAID_BUDGET_ALLOWED",
       monthlyBudgetMicrousd: 1_000_000,
       monthlyUnitLimit: 100,
+      dailyUnitLimit: 10,
+    });
+  });
+
+  it("marks fixed subscription commitments separately from runtime usage", () => {
+    expect(getExternalCostPolicy("elmah", productionEnv)).toMatchObject({
+      fixedMonthlyCommitmentMicrousd: 26_000_000,
+      paidActivationEnv: "KLYX_ELMAH_PAID_SUBSCRIPTION_AUTHORIZED",
+    });
+    expect(getExternalCostPolicy("vercel", productionEnv)).toMatchObject({
+      fixedMonthlyCommitmentMicrousd: 20_000_000,
+      paidActivationEnv: "KLYX_VERCEL_PRO_AUTHORIZED",
     });
   });
 
