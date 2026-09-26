@@ -84,3 +84,29 @@ export async function POST(request: Request) {
     });
   }
 }
+
+export async function DELETE() {
+  const startedAt = Date.now();
+
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.signOut();
+
+    if (error) throw error;
+
+    return NextResponse.json(
+      { ok: true },
+      { headers: { "Cache-Control": "no-store, max-age=0" } }
+    );
+  } catch (error) {
+    return secureApiErrorResponse({
+      error,
+      event: "mobile_session_signout_failed",
+      route: "/api/mobile/session",
+      method: "DELETE",
+      status: 500,
+      code: "KLYX_MOBILE_SESSION_SIGNOUT_FAILED",
+      startedAt,
+    });
+  }
+}
