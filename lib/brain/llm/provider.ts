@@ -31,6 +31,9 @@ const DISABLED_PROVIDER_NAME =
 const DISABLED_MODEL_NAME =
   "none";
 
+const COST_DEFAULT_OPENAI_MODEL =
+  "gpt-5.6-luna";
+
 function detectFallbackIntent(
   request: KlyxLlmRequest,
 ): KlyxBrainIntent {
@@ -233,6 +236,11 @@ export function createKlyxLlmProvider():
 
   if (!klyxExternalNetworkAllowedSynchronously("openai", costMode)) {
     return fallback;
+  }
+
+  // Cost-aware default only. An explicit KLYX_OPENAI_MODEL still wins.
+  if (!process.env.KLYX_OPENAI_MODEL?.trim()) {
+    process.env.KLYX_OPENAI_MODEL = COST_DEFAULT_OPENAI_MODEL;
   }
 
   const primary =
