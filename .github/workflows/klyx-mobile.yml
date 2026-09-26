@@ -5,6 +5,7 @@ on:
     paths:
       - "mobile/**"
       - "app/api/mobile/**"
+      - "lib/api-auth.ts"
       - "docs/KLYX_MOBILE_ARCHITECTURE.md"
       - "tests/integration/mobile-client-foundation-contract.test.ts"
       - "tsconfig.json"
@@ -22,7 +23,7 @@ jobs:
   mobile-foundation:
     name: Android + iOS client foundation
     runs-on: ubuntu-22.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout exact commit
         uses: actions/checkout@v4
@@ -66,3 +67,7 @@ jobs:
       - name: Expo doctor
         working-directory: mobile
         run: npx expo-doctor
+
+      - name: Generate native Android + iOS projects
+        working-directory: mobile
+        run: npx expo prebuild --no-install --clean
