@@ -136,6 +136,8 @@ The workflow uploads a 90-day artifact containing:
 
 No booking IDs, Stripe object IDs, payment secrets or database credentials are written to the artifact.
 
+Every PR branch update reruns CI; an infrastructure-level cancellation must be replaced by a fresh run rather than being treated as PASS.
+
 ## Safety boundary
 
 This certification must never contain or invoke:
