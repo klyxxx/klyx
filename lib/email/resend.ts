@@ -2,6 +2,7 @@ import "server-only";
 
 import { logServerWarning } from "@/lib/server-log";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { reserveExternalProviderAction } from "@/lib/external-cost-control-server";
 import {
   sendResendEmail,
   type KlyxEmailDeliveryResult,
@@ -50,12 +51,26 @@ function logDeliveryWarning(code: string): void {
   });
 }
 
+async function reserveResendEmail(): Promise<boolean> {
+  try {
+    const reservation = await reserveExternalProviderAction({
+      provider: "resend",
+      action: "transactional_email",
+      estimatedCostMicrousd: 0,
+    });
+    return reservation.allowed;
+  } catch {
+    logDeliveryWarning("KLYX_RESEND_COST_CONTROL_UNAVAILABLE");
+    return false;
+  }
+}
+
 export async function sendKlyxTransactionalEmail(
   input: KlyxTransactionalEmailInput
 ): Promise<KlyxEmailDeliveryResult> {
   const apiKey = resendApiKey();
 
-  if (!apiKey) {
+  if (!apiKey || !(await reserveResendEmail())) {
     return skippedResult();
   }
 
@@ -108,7 +123,7 @@ export async function sendKlyxProfileTransactionalEmail(
 
     const email = authData.user?.email?.trim();
 
-    if (!email) {
+    if (!email || !(await reserveResendEmail())) {
       return skippedResult();
     }
 

@@ -5,6 +5,7 @@ import {
   createHmac,
   timingSafeEqual,
 } from "crypto";
+import { assertExternalProviderAction } from "@/lib/external-cost-control-server";
 
 const BASE_URL = "https://api.sumsub.com";
 
@@ -16,6 +17,14 @@ function requiredEnv(name: string): string {
   }
 
   return value;
+}
+
+function sumsubMaxVerificationCostMicrousd(): number {
+  const parsed = Number(
+    process.env.KLYX_SUMSUB_MAX_VERIFICATION_USD ?? "1.35"
+  );
+  const safe = Number.isFinite(parsed) && parsed > 0 ? parsed : 1.35;
+  return Math.ceil(safe * 1_000_000);
 }
 
 export function getSumsubLevelName(): string {
@@ -109,6 +118,12 @@ export async function createSumsubSdkToken(params: {
   userId: string;
   email?: string | null;
 }): Promise<{ token: string; userId?: string }> {
+  await assertExternalProviderAction({
+    provider: "sumsub",
+    action: "identity_verification_start",
+    estimatedCostMicrousd: sumsubMaxVerificationCostMicrousd(),
+  });
+
   const body: Record<string, unknown> = {
     userId: params.userId,
     levelName: getSumsubLevelName(),

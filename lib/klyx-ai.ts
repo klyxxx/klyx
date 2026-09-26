@@ -41,29 +41,38 @@ Exigences de réponse :
 Niveau KLYX : chaque phrase doit être utile, élégante et immédiatement compréhensible.
 `.trim();
 
-function fallbackReply(
+export function deterministicKlyxReply(
   message: string
-): string {
-  const normalized =
-    message.toLowerCase();
+): string | null {
+  const normalized = message.trim().toLowerCase();
+
+  if (!normalized) {
+    return "Dis-moi simplement ce que tu veux organiser.";
+  }
 
   if (
-    normalized.includes("bonjour") ||
-    normalized.includes("salut") ||
-    normalized.includes("bonsoir")
+    /^(bonjour|salut|bonsoir|hello|hi)[!. ]*$/.test(normalized)
   ) {
     return "Bonjour. Dis-moi simplement ce que tu veux organiser et KLYX te guide jusqu’à la prochaine action utile.";
   }
 
   if (
-    normalized.includes("prix") ||
-    normalized.includes("combien") ||
+    normalized.includes("combien ça coûte") ||
+    normalized.includes("combien ca coute") ||
+    normalized.includes("quel prix") ||
     normalized.includes("budget")
   ) {
     return "Je peux t’aider à cadrer le budget. Indique d’abord le service, la ville et le moment souhaité.";
   }
 
-  return "J’ai compris. Indique le service, la ville et le moment souhaité pour que KLYX puisse avancer précisément.";
+  return null;
+}
+
+function fallbackReply(message: string): string {
+  return (
+    deterministicKlyxReply(message) ??
+    "J’ai compris. Indique le service, la ville et le moment souhaité pour que KLYX puisse avancer précisément."
+  );
 }
 
 function normalizedMemorySummary(
@@ -108,11 +117,11 @@ export async function generateKlyxAiReply(
       .trim()
       .slice(0, 4000);
 
-  if (!message) {
+  const deterministic = deterministicKlyxReply(message);
+  if (deterministic) {
     return {
       mode: "fallback",
-      text:
-        "Dis-moi simplement ce que tu veux organiser.",
+      text: deterministic,
     };
   }
 
@@ -199,8 +208,7 @@ export async function generateKlyxAiReply(
             2200,
         });
 
-    const text =
-      response.text.trim();
+    const text = response.text.trim();
 
     if (!text) {
       return {
