@@ -7,10 +7,9 @@ import {
   nextEmailDeliveryAttempt,
 } from "@/lib/email/delivery-idempotency";
 import {
-  sendKlyxProfileTransactionalEmail,
-  sendKlyxTransactionalEmail,
-} from "@/lib/email/resend";
-import type { KlyxEmailDeliveryResult } from "@/lib/email/resend-core";
+  getKlyxEmailDeliveryAdapter,
+  type KlyxEmailDeliveryResult,
+} from "@/lib/providers/runtime-adapters";
 import { logServerWarning } from "@/lib/server-log";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -210,15 +209,17 @@ export async function sendKlyxDeduplicatedEmail(
   let result: KlyxEmailDeliveryResult;
 
   try {
+    const delivery = await getKlyxEmailDeliveryAdapter();
+
     result = profileId
-      ? await sendKlyxProfileTransactionalEmail({
+      ? await delivery.sendProfileTransactional({
           profileId,
           subject: input.subject,
           text: input.text,
           html: input.html,
           idempotencyKey,
         })
-      : await sendKlyxTransactionalEmail({
+      : await delivery.sendTransactional({
           to: to as string,
           subject: input.subject,
           text: input.text,

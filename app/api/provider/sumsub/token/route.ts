@@ -5,20 +5,20 @@ import {
   requireAccountType,
 } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
-import {
-  createSumsubSdkToken,
-  sumsubConfigured,
-} from "@/lib/sumsub";
+import { getKlyxIdentityVerificationAdapter } from "@/lib/providers/runtime-adapters";
 
 export async function POST(request: Request) {
   const startedAt = Date.now();
 
   try {
-    if (!sumsubConfigured()) {
+    const identityVerification =
+      await getKlyxIdentityVerificationAdapter();
+
+    if (!identityVerification.configured()) {
       return NextResponse.json(
         {
           error:
-            "Sumsub n'est pas encore configuré dans KLYX.",
+            "La vérification d'identité externe n'est pas encore configurée dans KLYX.",
         },
         { status: 503 }
       );
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     );
 
     const result =
-      await createSumsubSdkToken({
+      await identityVerification.createSdkToken({
         userId: profile.id,
         email: user.email ?? null,
       });

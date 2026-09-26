@@ -1,14 +1,14 @@
 import type { NextRequest } from "next/server";
 
-import {
-  isKlyxElmahHeartbeatConfigured,
-  sendKlyxElmahHeartbeat,
-} from "@/lib/elmah-io";
+import { getKlyxObservabilityAdapter } from "@/lib/providers/runtime-adapters";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest): Promise<Response> {
-  if (!isKlyxElmahHeartbeatConfigured()) {
+  const observability =
+    await getKlyxObservabilityAdapter();
+
+  if (!observability.heartbeatConfigured()) {
     return new Response(null, {
       status: 204,
       headers: {
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     );
   }
 
-  const delivered = await sendKlyxElmahHeartbeat();
+  const delivered = await observability.sendHeartbeat();
 
   return Response.json(
     { ok: delivered },
