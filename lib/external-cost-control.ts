@@ -39,7 +39,7 @@ export const KLYX_EXTERNAL_PROVIDER_DEFAULTS: Record<
   openai: {
     metered: true,
     zeroModeAllowed: false,
-    estimatedCostMicroUsd: 10_000,
+    estimatedCostMicroUsd: 100_000,
     fallback: "deterministic_local_reply",
   },
   supabase: {
