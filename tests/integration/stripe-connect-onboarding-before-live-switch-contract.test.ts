@@ -16,11 +16,11 @@ const onboardingRoute = read(
 );
 const statusRoute = read("app/api/stripe/connect/status/route.ts");
 const connectPage = read("app/connect/page.tsx");
-const checkoutRoute = read(
-  "app/api/stripe/create-checkout-session/route.ts"
+const checkoutCore = read(
+  "app/api/stripe/create-checkout-session/route-core.ts"
 );
-const groupCheckoutRoute = read(
-  "app/api/stripe/create-group-checkout-session/route.ts"
+const groupCheckoutCore = read(
+  "app/api/stripe/create-group-checkout-session/route-core.ts"
 );
 
 describe("KLYX Stripe Connect onboarding before live payment activation", () => {
@@ -90,7 +90,7 @@ describe("KLYX Stripe Connect onboarding before live payment activation", () => 
   });
 
   it("still requires full live runtime readiness for every client checkout", () => {
-    expect(checkoutRoute).toContain("assertStripeRuntimeReady()");
-    expect(groupCheckoutRoute).toContain("assertStripeRuntimeReady");
+    expect(checkoutCore).toContain("requireKlyxFinancialStripeRuntime");
+    expect(groupCheckoutCore).toContain("requireKlyxFinancialStripeRuntime");
   });
 });

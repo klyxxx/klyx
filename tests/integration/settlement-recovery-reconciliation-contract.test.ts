@@ -44,7 +44,7 @@ describe("KLYX settlement recovery / reconciliation contract", () => {
       "requireKlyxFinancialStripeObservationRuntime"
     );
     expect(runtime).toContain(
-      "KLYX_LIVE_CERTIFICATION_PROFILE_ID"
+      "requireKlyxFinancialLiveAuthority"
     );
     expect(runtime).toContain("KLYX_DR_CERTIFIED_SHA");
     expect(recovery).toContain(

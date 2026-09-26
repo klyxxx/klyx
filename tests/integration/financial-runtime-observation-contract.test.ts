@@ -54,7 +54,7 @@ describe("KLYX financial Stripe observation vs mutation authority", () => {
     expect(mutation).toContain("requireExactLiveShaBoundary");
     expect(mutation).toContain("requireLiveOperationalReadiness");
     expect(mutation).toContain(
-      "KLYX_LIVE_CERTIFICATION_PROFILE_ID"
+      "requireKlyxFinancialLiveAuthority"
     );
     expect(mutation).toContain(
       "KLYX_PRODUCTION_FINANCIAL_CERTIFIED_SHA"
@@ -66,9 +66,10 @@ describe("KLYX financial Stripe observation vs mutation authority", () => {
     expect(runtime).toContain("requireOpsCapability");
     expect(runtime).toContain("requireLiveRuntimeHeartbeats");
     expect(runtime).toContain("requireCanonicalLedgerHealthy");
-    expect(runtime).toContain("requireNoOpenFinancialReconciliation");
+    expect(runtime).toContain("requireNoBlockingFinancialRuntimeTruth");
     expect(runtime).toContain("requireFinancialDlqEmpty");
-    expect(runtime).toContain("requireNoCriticalFinancialSignal");
+    expect(runtime).not.toContain("requireNoOpenFinancialReconciliation");
+    expect(runtime).not.toContain("requireNoCriticalFinancialSignal");
   });
 
   it("validates only server key/mode for Stripe truth observation", () => {

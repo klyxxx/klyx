@@ -7,6 +7,7 @@ import {
 } from "@/lib/founder-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { getKlyxOpsCapabilityDecision } from "@/lib/ops-control-server";
+import { inspectFinancialRuntimeBlockingTruth } from "@/lib/pure-finance-runtime-reconciliation-readiness-server";
 import { logServerError } from "@/lib/server-log";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -304,16 +305,38 @@ export async function GET() {
       });
     }
 
-    const {
-      data: reconciliationData,
-      error: reconciliationError,
-    } = await supabaseAdmin
-      .from("financial_reconciliation_current")
-      .select("state")
-      .in("state", ["reconciliation", "human_review"])
-      .limit(1000);
+    try {
+      const financialTruth = await inspectFinancialRuntimeBlockingTruth();
+      const blockingTruthCount =
+        financialTruth.blockingCaseIds.length +
+        financialTruth.blockingCriticalSignalKeys.length;
+      const legacyHistoricalCount =
+        financialTruth.legacyHistoricalCases.length;
+      const legacyHistoricalSignalCount =
+        financialTruth.legacyHistoricalSignalKeys.length;
 
-    if (reconciliationError) {
+      checks.push({
+        key: "canonical_reconciliation",
+        label: "Ledger ↔ Settlement ↔ Stripe",
+        ok: blockingTruthCount === 0,
+        detail:
+          blockingTruthCount === 0
+            ? "Aucune divergence current-runtime ou critique bloquante ouverte."
+            : `${financialTruth.blockingCaseIds.length} reconciliation(s) bloquante(s) et ${financialTruth.blockingCriticalSignalKeys.length} signal(aux) critique(s) current-runtime. Toute mutation financière reste fail-closed.`,
+        severity: "blocking",
+      });
+
+      checks.push({
+        key: "legacy_historical_reconciliation",
+        label: "Historique financier pré-cutover",
+        ok: legacyHistoricalCount === 0 && legacyHistoricalSignalCount === 0,
+        detail:
+          legacyHistoricalCount === 0 && legacyHistoricalSignalCount === 0
+            ? "Aucun finding financier historique ouvert."
+            : `${legacyHistoricalCount} finding(s) historiques et ${legacyHistoricalSignalCount} signal(aux) associé(s) restent visibles en human_review. Ils sont exclus du gate current-runtime mais ne sont pas supprimés.`,
+        severity: "warning",
+      });
+    } catch (reconciliationError) {
       logServerError({
         error: reconciliationError,
         event: "founder_transaction_canonical_reconciliation_audit_failed",
@@ -328,25 +351,7 @@ export async function GET() {
         key: "canonical_reconciliation",
         label: "Ledger ↔ Settlement ↔ Stripe",
         ok: false,
-        detail: "La vérité de réconciliation canonique est indisponible.",
-        severity: "blocking",
-      });
-    } else {
-      const humanReviewCount = (reconciliationData ?? []).filter(
-        (row) => row.state === "human_review"
-      ).length;
-      const reconciliationCount = (reconciliationData ?? []).filter(
-        (row) => row.state === "reconciliation"
-      ).length;
-
-      checks.push({
-        key: "canonical_reconciliation",
-        label: "Ledger ↔ Settlement ↔ Stripe",
-        ok: humanReviewCount === 0 && reconciliationCount === 0,
-        detail:
-          humanReviewCount === 0 && reconciliationCount === 0
-            ? "Aucune divergence financière canonique ouverte."
-            : `${reconciliationCount} reconciliation(s) et ${humanReviewCount} human_review ouverte(s). Toute mutation financière doit rester fail-closed.`,
+        detail: "La vérité de réconciliation current-runtime est indisponible. État fail-closed.",
         severity: "blocking",
       });
     }
@@ -380,35 +385,74 @@ export async function GET() {
       process.env.KLYX_PRODUCTION_FINANCIAL_CERTIFIED_SHA
         ?.trim()
         .toLowerCase() ?? "";
-    const liveCertificationSha =
-      process.env.KLYX_LIVE_CERTIFICATION_SHA?.trim().toLowerCase() ?? "";
     const shaValid = (value: string) => /^[0-9a-f]{40}$/.test(value);
-    const liveGeneral =
-      process.env.KLYX_LIVE_PAYMENTS_ENABLED?.trim().toLowerCase() ===
-      "true";
-    const liveCertification =
-      process.env.KLYX_LIVE_CERTIFICATION_ENABLED
-        ?.trim()
-        .toLowerCase() === "true";
+
+    const { data: liveAuthorityData, error: liveAuthorityError } =
+      await supabaseAdmin
+        .from("ops_financial_live_authority")
+        .select(
+          "state, authorized_sha, certification_profile_id, reason_code, version"
+        )
+        .eq("authority_key", "stripe_finance")
+        .maybeSingle();
+
+    const liveAuthorityState =
+      liveAuthorityData?.state === "DISABLED" ||
+      liveAuthorityData?.state === "CONTROLLED" ||
+      liveAuthorityData?.state === "GENERAL"
+        ? liveAuthorityData.state
+        : null;
+    const liveAuthoritySha =
+      typeof liveAuthorityData?.authorized_sha === "string"
+        ? liveAuthorityData.authorized_sha.trim().toLowerCase()
+        : "";
+
+    checks.push({
+      key: "financial_live_authority",
+      label: "Autorité LIVE canonique",
+      ok:
+        !liveAuthorityError &&
+        liveAuthorityState !== null &&
+        liveAuthorityState !== "DISABLED",
+      detail: liveAuthorityError
+        ? "Autorité LIVE canonique inaccessible."
+        : liveAuthorityState === "DISABLED"
+          ? "LIVE financier explicitement DISABLED."
+          : liveAuthorityState
+            ? `LIVE financier ${liveAuthorityState} · version ${liveAuthorityData?.version ?? "?"}.`
+            : "Autorité LIVE canonique invalide.",
+      severity: "blocking",
+    });
 
     if (process.env.KLYX_STRIPE_MODE?.trim() === "live") {
+      const authorityShaMatches =
+        shaValid(deployedSha) &&
+        shaValid(liveAuthoritySha) &&
+        deployedSha === liveAuthoritySha;
+      const drMatches =
+        shaValid(deployedSha) &&
+        deployedSha === drCertifiedSha;
+      const financialCertificationMatches =
+        shaValid(deployedSha) &&
+        deployedSha === financialCertifiedSha;
+
       checks.push({
         key: "financial_exact_sha",
         label: "SHA financier exact",
-        ok: liveGeneral
-          ? shaValid(deployedSha) &&
-            deployedSha === drCertifiedSha &&
-            deployedSha === financialCertifiedSha
-          : liveCertification
-            ? shaValid(deployedSha) &&
-              deployedSha === drCertifiedSha &&
-              deployedSha === liveCertificationSha
-            : false,
-        detail: liveGeneral
-          ? "LIVE général exige SHA déployé = DR = certification financière."
-          : liveCertification
-            ? "Canary LIVE exige SHA déployé = DR = SHA de certification."
-            : "Mode Stripe LIVE sans activation financière autorisée.",
+        ok:
+          liveAuthorityState === "CONTROLLED"
+            ? authorityShaMatches && drMatches
+            : liveAuthorityState === "GENERAL"
+              ? authorityShaMatches &&
+                drMatches &&
+                financialCertificationMatches
+              : false,
+        detail:
+          liveAuthorityState === "CONTROLLED"
+            ? "CONTROLLED exige SHA déployé = autorité LIVE = DR."
+            : liveAuthorityState === "GENERAL"
+              ? "GENERAL exige SHA déployé = autorité LIVE = DR = certification financière."
+              : "Aucune activation financière canonique n'est autorisée.",
         severity: "blocking",
       });
     }

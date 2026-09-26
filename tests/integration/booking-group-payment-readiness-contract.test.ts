@@ -26,7 +26,7 @@ const readinessRouteSource = fs.readFileSync(
 const checkoutSource = fs.readFileSync(
   path.join(
     process.cwd(),
-    "app/api/stripe/create-group-checkout-session/route.ts"
+    "app/api/stripe/create-group-checkout-session/route-core.ts"
   ),
   "utf8"
 );
@@ -61,7 +61,7 @@ describe("KLYX grouped booking payment readiness contract", () => {
   });
 
   it("keeps checkout as the independent final server authority", () => {
-    expect(checkoutSource).toContain("assertStripeRuntimeReady()");
+    expect(checkoutSource).toContain("requireKlyxFinancialStripeRuntime");
     expect(checkoutSource).toContain("clientMarketAccess.allowed");
     expect(checkoutSource).toContain("providerMarketAccess.allowed");
     expect(checkoutSource).toContain("providerReady");

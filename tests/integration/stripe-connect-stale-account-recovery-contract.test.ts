@@ -16,7 +16,7 @@ const createAccount = read(
 );
 const statusRoute = read("app/api/stripe/connect/status/route.ts");
 const recovery = read("lib/stripe-connect-account-recovery.ts");
-const checkout = read("app/api/stripe/create-checkout-session/route.ts");
+const checkoutCore = read("app/api/stripe/create-checkout-session/route-core.ts");
 
 describe("Stripe Connect stale account fail-closed contract", () => {
   it("keeps recovery detection narrow to missing accounts and explicit link-mode mismatch", () => {
@@ -85,7 +85,7 @@ describe("Stripe Connect stale account fail-closed contract", () => {
 
   it("does not weaken checkout transaction readiness", () => {
     expect(createAccount).toContain("assertStripeConnectRuntimeConfigured()");
-    expect(checkout).toContain("assertStripeRuntimeReady()");
-    expect(checkout).toContain("getProfileAccountStripeConnectIdentity");
+    expect(checkoutCore).toContain("requireKlyxFinancialStripeRuntime");
+    expect(checkoutCore).toContain("getProfileAccountStripeConnectIdentity");
   });
 });

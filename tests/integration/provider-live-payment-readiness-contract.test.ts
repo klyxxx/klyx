@@ -47,9 +47,9 @@ describe("KLYX provider live payment readiness contract", () => {
 
   it("keeps Connect onboarding preparatory while transactional routes stay strict", () => {
     const connectCreate = source("app/api/stripe/connect/create-account/route.ts");
-    const checkoutRoutes = [
-      source("app/api/stripe/create-checkout-session/route.ts"),
-      source("app/api/stripe/create-group-checkout-session/route.ts"),
+    const checkoutCores = [
+      source("app/api/stripe/create-checkout-session/route-core.ts"),
+      source("app/api/stripe/create-group-checkout-session/route-core.ts"),
     ];
 
     expect(connectCreate).toMatch(/assertStripeConnectRuntimeConfigured/);
@@ -57,9 +57,9 @@ describe("KLYX provider live payment readiness contract", () => {
     expect(connectCreate).toMatch(/KLYX_STRIPE_COUNTRY_UNSUPPORTED/);
     expect(connectCreate).toMatch(/stripeRuntime\.mode === "live"/);
 
-    for (const route of checkoutRoutes) {
-      expect(route).toMatch(/assertStripeRuntimeReady/);
-      expect(route).not.toMatch(/assertStripeConnectRuntimeConfigured/);
+    for (const core of checkoutCores) {
+      expect(core).toMatch(/requireKlyxFinancialStripeRuntime/);
+      expect(core).not.toMatch(/assertStripeConnectRuntimeConfigured/);
     }
   });
 });

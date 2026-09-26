@@ -26,17 +26,28 @@ describe("KLYX LIVE financial operational readiness contract", () => {
     expect(migration).toContain("source_sha ~ '^[0-9a-f]{40}$'");
   });
 
-  it("fails LIVE mutations closed on DLQ, reconciliation, ledger or critical monitoring", () => {
+  it("fails LIVE mutations closed on DLQ, classified reconciliation truth, ledger or critical monitoring", () => {
     const runtime = read("lib/klyx-financial-stripe-runtime.ts");
+    const reconciliationReadiness = read(
+      "lib/pure-finance-runtime-reconciliation-readiness-server.ts"
+    );
 
     expect(runtime).toContain("ops_durable_job_dlq");
-    expect(runtime).toContain("financial_reconciliation_current");
     expect(runtime).toContain("financial_ledger_current");
-    expect(runtime).toContain("severityCounts.critical");
+    expect(runtime).toContain("requireNoBlockingFinancialRuntimeTruth");
     expect(runtime).toContain("KLYX_FINANCIAL_RUNTIME_DLQ_NOT_EMPTY");
-    expect(runtime).toContain("KLYX_FINANCIAL_RUNTIME_RECONCILIATION_OPEN");
     expect(runtime).toContain("KLYX_FINANCIAL_RUNTIME_LEDGER_UNAVAILABLE");
-    expect(runtime).toContain("KLYX_FINANCIAL_RUNTIME_CRITICAL_SIGNAL_OPEN");
+
+    expect(reconciliationReadiness).toContain("financial_reconciliation_current");
+    expect(reconciliationReadiness).toContain("financial_monitoring_signals_current");
+    expect(reconciliationReadiness).toContain("ops_observability_signals_current");
+    expect(reconciliationReadiness).toContain('.eq("severity", "critical")');
+    expect(reconciliationReadiness).toContain(
+      "KLYX_FINANCIAL_RUNTIME_RECONCILIATION_OPEN"
+    );
+    expect(reconciliationReadiness).toContain(
+      "KLYX_FINANCIAL_RUNTIME_CRITICAL_SIGNAL_OPEN"
+    );
   });
 
   it("checks operation-specific circuit breakers for settlement and refunds", () => {

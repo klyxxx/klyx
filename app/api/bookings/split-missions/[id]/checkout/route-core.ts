@@ -9,6 +9,7 @@ import {
   requireAccountType,
 } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { requireKlyxFinancialStripeRuntime } from "@/lib/klyx-financial-stripe-runtime";
 import {
   calculateKlyxEconomics,
   getKlyxCommissionPercent,
@@ -19,7 +20,6 @@ import {
   STRIPE_ACCOUNT_COUNTRY_MISMATCH,
 } from "@/lib/stripe-connect-country";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { assertStripeRuntimeReady } from "@/lib/stripe-runtime";
 
 // KLYX_SPLIT_CHECKOUT_API_13_27
 
@@ -531,12 +531,17 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
-    const stripeRuntime = assertStripeRuntimeReady();
+    const financialRuntime = await requireKlyxFinancialStripeRuntime({
+      clientProfileId: profile.id,
+      capability: "payments",
+    });
+    const stripeRuntimeMode =
+      financialRuntime.mode === "test" ? "test" : "live";
 
     // Global Money migration safety: do not let legacy cents/commission
     // semantics mutate LIVE money while this financial path is not yet
     // migrated to canonical minor units + market policy.
-    if (stripeRuntime.mode === "live") {
+    if (stripeRuntimeMode === "live") {
       return NextResponse.json(
         {
           error: "Les paiements split LIVE restent bloques jusqu au snapshot global money multi-prestataires.",
@@ -548,7 +553,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     const clientMarketAccess = assessKlyxStripeMarketAccess(
       profile.countryCode,
-      stripeRuntime.mode
+      stripeRuntimeMode
     );
     if (!clientMarketAccess.allowed) {
       return NextResponse.json(
@@ -761,7 +766,7 @@ export async function POST(request: Request, context: RouteContext) {
 
       const providerMarketAccess = assessKlyxStripeMarketAccess(
         text(provider.country_code),
-        stripeRuntime.mode
+        stripeRuntimeMode
       );
       if (!providerMarketAccess.allowed) {
         return NextResponse.json(

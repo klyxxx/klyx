@@ -17,7 +17,7 @@ const getAuthenticatedAccount =
 const requireAccountType =
   vi.fn();
 
-const assertStripeRuntimeReady =
+const requireKlyxFinancialStripeRuntime =
   vi.fn();
 
 const stripeAccountRetrieve =
@@ -53,9 +53,9 @@ vi.mock(
 );
 
 vi.mock(
-  "@/lib/stripe-runtime",
+  "@/lib/klyx-financial-stripe-runtime",
   () => ({
-    assertStripeRuntimeReady,
+    requireKlyxFinancialStripeRuntime,
   })
 );
 
@@ -188,10 +188,11 @@ describe(
         process.env.STRIPE_SECRET_KEY =
           "sk_test_klyx_13_30";
 
-        assertStripeRuntimeReady
-          .mockReturnValue({
+        requireKlyxFinancialStripeRuntime
+          .mockResolvedValue({
+            key: "sk_test_klyx_13_30",
             mode: "test",
-            ready: true,
+            deployedSha: null,
           });
 
         getAuthenticatedAccount
@@ -465,7 +466,7 @@ describe(
         );
 
         expect(
-          assertStripeRuntimeReady
+          requireKlyxFinancialStripeRuntime
         ).not.toHaveBeenCalled();
 
         await POST(
@@ -477,7 +478,7 @@ describe(
         );
 
         expect(
-          assertStripeRuntimeReady
+          requireKlyxFinancialStripeRuntime
         ).toHaveBeenCalledTimes(
           1
         );

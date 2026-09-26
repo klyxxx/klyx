@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+EXPECTED_SHA="${KLYX_EXPECTED_SHA:-}"
+PRODUCTION_URL="${KLYX_PRODUCTION_URL:-}"
+
+fail() {
+  echo "::error::$1"
+  exit 1
+}
+
+if ! [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+  fail "KLYX_EXPECTED_SHA must be an exact 40-char Git SHA."
+fi
+
+if [ -z "$PRODUCTION_URL" ]; then
+  fail "KLYX_PRODUCTION_URL is required."
+fi
+
+if ! NORMALIZED_ORIGIN="$(node - "$PRODUCTION_URL" <<'NODE'
+const raw = process.argv[2] ?? "";
+let url;
+try {
+  url = new URL(raw);
+} catch {
+  process.exit(2);
+}
+
+const allowedHosts = new Set(["klyx.be", "www.klyx.be"]);
+const hostname = url.hostname.toLowerCase();
+const canonicalPath = url.pathname === "" || url.pathname === "/";
+const canonicalPort = url.port === "" || url.port === "443";
+
+if (
+  url.protocol !== "https:" ||
+  !allowedHosts.has(hostname) ||
+  url.username ||
+  url.password ||
+  !canonicalPath ||
+  url.search ||
+  url.hash ||
+  !canonicalPort
+) {
+  process.exit(3);
+}
+
+process.stdout.write(`https://${hostname}`);
+NODE
+)"; then
+  fail "Production URL must be the canonical HTTPS origin klyx.be or www.klyx.be."
+fi
+
+HEALTH_PATH="/api/health/build"
+HEALTH_URL="${NORMALIZED_ORIGIN}${HEALTH_PATH}"
+BODY_FILE="$(mktemp)"
+META_FILE="$(mktemp)"
+trap 'rm -f "$BODY_FILE" "$META_FILE"' EXIT
+
+curl \
+  --fail-with-body \
+  --silent \
+  --show-error \
+  --location \
+  --max-redirs 3 \
+  --connect-timeout 10 \
+  --max-time 30 \
+  --proto '=https' \
+  --tlsv1.2 \
+  --output "$BODY_FILE" \
+  --write-out '%{url_effective}\n%{http_code}\n' \
+  "$HEALTH_URL" > "$META_FILE" ||
+  fail "Production build-health endpoint is unreachable."
+
+FINAL_URL="$(sed -n '1p' "$META_FILE")"
+HTTP_CODE="$(sed -n '2p' "$META_FILE")"
+
+if ! node - "$FINAL_URL" "$HEALTH_PATH" <<'NODE'
+const raw = process.argv[2] ?? "";
+const requiredPath = process.argv[3] ?? "";
+let url;
+try {
+  url = new URL(raw);
+} catch {
+  process.exit(2);
+}
+
+const allowedHosts = new Set(["klyx.be", "www.klyx.be"]);
+if (
+  url.protocol !== "https:" ||
+  !allowedHosts.has(url.hostname.toLowerCase()) ||
+  url.pathname !== requiredPath ||
+  url.search ||
+  url.hash
+) {
+  process.exit(3);
+}
+NODE
+then
+  fail "Production health redirect escaped the canonical KLYX HTTPS origin."
+fi
+
+if ! [[ "$HTTP_CODE" =~ ^2[0-9][0-9]$ ]]; then
+  fail "Production build-health endpoint did not return HTTP 2xx."
+fi
+
+if ! node - "$BODY_FILE" "$EXPECTED_SHA" <<'NODE'
+const fs = require("fs");
+const [path, expectedSha] = process.argv.slice(2);
+
+let body;
+try {
+  body = JSON.parse(fs.readFileSync(path, "utf8"));
+} catch {
+  console.error("::error::Production build-health response is not valid JSON.");
+  process.exit(2);
+}
+
+const fail = (message) => {
+  console.error(`::error::${message}`);
+  process.exit(3);
+};
+
+if (body?.ok !== true) {
+  fail("Production build-health reports ok=false.");
+}
+if (body?.commitSha !== expectedSha) {
+  fail("Served production SHA differs from the immutable certification SHA.");
+}
+if (body?.environment !== "production") {
+  fail("Served application is not the Vercel production environment.");
+}
+
+const runtime = body?.financialRuntime;
+if (!runtime || typeof runtime !== "object") {
+  fail("Production financial runtime observability is missing.");
+}
+if (runtime.stripeMode !== "live") {
+  fail("Production Stripe runtime is not explicitly configured as live.");
+}
+if (runtime.stripeSecretModeCompatible !== true) {
+  fail("Production Stripe secret mode is incompatible with the live runtime.");
+}
+if (runtime.stripeWebhookConfigured !== true) {
+  fail("Production Stripe webhook secret is not observably configured.");
+}
+if (
+  !runtime.liveAuthority ||
+  runtime.liveAuthority.state === "UNAVAILABLE"
+) {
+  fail("Canonical financial LIVE authority is not observable in production.");
+}
+
+console.log("KLYX production environment verified: canonical HTTPS origin, production runtime, exact served SHA, and non-secret financial observability are coherent.");
+NODE
+then
+  fail "Production build identity or financial runtime observability is incoherent."
+fi
