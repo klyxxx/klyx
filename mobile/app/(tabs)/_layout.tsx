@@ -1,9 +1,9 @@
 import { Redirect, Tabs } from "expo-router";
-import { Text } from "react-native";
+import { Text, type ColorValue } from "react-native";
 
 import { useAuth } from "@/src/providers/AuthProvider";
 
-const icon = (value: string) => ({ color }: { color: string }) => (
+const icon = (value: string) => ({ color }: { color: ColorValue }) => (
   <Text style={{ color, fontSize: 18 }}>{value}</Text>
 );
 
