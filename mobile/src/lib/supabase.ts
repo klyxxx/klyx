@@ -95,7 +95,15 @@ const storage = {
     if (chunks.length === 0) chunks.push("");
 
     for (let index = 0; index < chunks.length; index += 1) {
-      await SecureStore.setItemAsync(chunkKey(key, index), chunks[index], secureStoreOptions);
+      const chunk = chunks[index];
+      if (chunk === undefined) {
+        throw new Error("KLYX_SECURE_STORE_CHUNK_MISSING");
+      }
+      await SecureStore.setItemAsync(
+        chunkKey(key, index),
+        chunk,
+        secureStoreOptions
+      );
     }
 
     await SecureStore.setItemAsync(
