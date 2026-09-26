@@ -24,8 +24,12 @@ export type KlyxExternalCostPolicy = {
   fallback: string;
   defaultMonthlyBudgetMicrousd: number;
   defaultMonthlyUnitLimit: number | null;
+  defaultDailyUnitLimit: number | null;
+  fixedMonthlyCommitmentMicrousd: number;
   budgetEnv?: string;
   unitLimitEnv?: string;
+  dailyUnitLimitEnv?: string;
+  paidActivationEnv?: string;
 };
 
 export type KlyxExternalCostDecision = {
@@ -36,12 +40,15 @@ export type KlyxExternalCostDecision = {
     | "NO_EXTERNAL_RUNTIME_CALL"
     | "FREE_QUOTA_ALLOWED"
     | "PAID_BUDGET_ALLOWED"
+    | "PAID_ACTIVATION_REQUIRED"
     | "ZERO_BUDGET_FALLBACK"
     | "ZERO_BUDGET_BLOCK"
     | "CALL_COST_EXCEEDS_BUDGET";
   monthlyBudgetMicrousd: number;
   monthlyUnitLimit: number | null;
+  dailyUnitLimit: number | null;
   estimatedCostMicrousd: number;
+  fixedMonthlyCommitmentMicrousd: number;
 };
 
 const POLICIES: Record<KlyxExternalProvider, KlyxExternalCostPolicy> = {
@@ -53,8 +60,11 @@ const POLICIES: Record<KlyxExternalProvider, KlyxExternalCostPolicy> = {
     fallback: "deterministic_klyx",
     defaultMonthlyBudgetMicrousd: 0,
     defaultMonthlyUnitLimit: 0,
+    defaultDailyUnitLimit: 0,
+    fixedMonthlyCommitmentMicrousd: 0,
     budgetEnv: "KLYX_OPENAI_MONTHLY_BUDGET_USD",
     unitLimitEnv: "KLYX_OPENAI_MONTHLY_CALL_LIMIT",
+    dailyUnitLimitEnv: "KLYX_OPENAI_DAILY_CALL_LIMIT",
   },
   supabase: {
     provider: "supabase",
@@ -64,6 +74,8 @@ const POLICIES: Record<KlyxExternalProvider, KlyxExternalCostPolicy> = {
     fallback: "local_supabase_for_development",
     defaultMonthlyBudgetMicrousd: 0,
     defaultMonthlyUnitLimit: null,
+    defaultDailyUnitLimit: null,
+    fixedMonthlyCommitmentMicrousd: 0,
   },
   stripe: {
     provider: "stripe",
@@ -73,6 +85,8 @@ const POLICIES: Record<KlyxExternalProvider, KlyxExternalCostPolicy> = {
     fallback: "stripe_test_mode",
     defaultMonthlyBudgetMicrousd: 0,
     defaultMonthlyUnitLimit: null,
+    defaultDailyUnitLimit: null,
+    fixedMonthlyCommitmentMicrousd: 0,
   },
   sumsub: {
     provider: "sumsub",
@@ -82,8 +96,12 @@ const POLICIES: Record<KlyxExternalProvider, KlyxExternalCostPolicy> = {
     fallback: "local_test_fixture_only",
     defaultMonthlyBudgetMicrousd: 0,
     defaultMonthlyUnitLimit: 0,
+    defaultDailyUnitLimit: 0,
+    fixedMonthlyCommitmentMicrousd: 149_000_000,
     budgetEnv: "KLYX_SUMSUB_MONTHLY_BUDGET_USD",
     unitLimitEnv: "KLYX_SUMSUB_MONTHLY_VERIFICATION_LIMIT",
+    dailyUnitLimitEnv: "KLYX_SUMSUB_DAILY_VERIFICATION_LIMIT",
+    paidActivationEnv: "KLYX_SUMSUB_PAID_SUBSCRIPTION_AUTHORIZED",
   },
   twilio: {
     provider: "twilio",
@@ -93,8 +111,11 @@ const POLICIES: Record<KlyxExternalProvider, KlyxExternalCostPolicy> = {
     fallback: "local_test_otp_only",
     defaultMonthlyBudgetMicrousd: 0,
     defaultMonthlyUnitLimit: 0,
+    defaultDailyUnitLimit: 0,
+    fixedMonthlyCommitmentMicrousd: 0,
     budgetEnv: "KLYX_TWILIO_MONTHLY_BUDGET_USD",
     unitLimitEnv: "KLYX_TWILIO_MONTHLY_VERIFICATION_LIMIT",
+    dailyUnitLimitEnv: "KLYX_TWILIO_DAILY_VERIFICATION_LIMIT",
   },
   resend: {
     provider: "resend",
@@ -104,7 +125,10 @@ const POLICIES: Record<KlyxExternalProvider, KlyxExternalCostPolicy> = {
     fallback: "in_app_notification_and_server_log",
     defaultMonthlyBudgetMicrousd: 0,
     defaultMonthlyUnitLimit: 2700,
+    defaultDailyUnitLimit: 90,
+    fixedMonthlyCommitmentMicrousd: 0,
     unitLimitEnv: "KLYX_RESEND_MONTHLY_EMAIL_LIMIT",
+    dailyUnitLimitEnv: "KLYX_RESEND_DAILY_EMAIL_LIMIT",
   },
   tolgee: {
     provider: "tolgee",
@@ -114,6 +138,8 @@ const POLICIES: Record<KlyxExternalProvider, KlyxExternalCostPolicy> = {
     fallback: "committed_translation_catalogs",
     defaultMonthlyBudgetMicrousd: 0,
     defaultMonthlyUnitLimit: 0,
+    defaultDailyUnitLimit: 0,
+    fixedMonthlyCommitmentMicrousd: 0,
   },
   cloudflare: {
     provider: "cloudflare",
@@ -123,6 +149,8 @@ const POLICIES: Record<KlyxExternalProvider, KlyxExternalCostPolicy> = {
     fallback: "server_rate_limits",
     defaultMonthlyBudgetMicrousd: 0,
     defaultMonthlyUnitLimit: null,
+    defaultDailyUnitLimit: null,
+    fixedMonthlyCommitmentMicrousd: 0,
   },
   elmah: {
     provider: "elmah",
@@ -132,8 +160,12 @@ const POLICIES: Record<KlyxExternalProvider, KlyxExternalCostPolicy> = {
     fallback: "vercel_and_server_logs",
     defaultMonthlyBudgetMicrousd: 0,
     defaultMonthlyUnitLimit: 0,
+    defaultDailyUnitLimit: 0,
+    fixedMonthlyCommitmentMicrousd: 26_000_000,
     budgetEnv: "KLYX_ELMAH_MONTHLY_BUDGET_USD",
     unitLimitEnv: "KLYX_ELMAH_MONTHLY_EVENT_LIMIT",
+    dailyUnitLimitEnv: "KLYX_ELMAH_DAILY_EVENT_LIMIT",
+    paidActivationEnv: "KLYX_ELMAH_PAID_SUBSCRIPTION_AUTHORIZED",
   },
   vercel: {
     provider: "vercel",
@@ -143,6 +175,9 @@ const POLICIES: Record<KlyxExternalProvider, KlyxExternalCostPolicy> = {
     fallback: "local_nextjs",
     defaultMonthlyBudgetMicrousd: 0,
     defaultMonthlyUnitLimit: null,
+    defaultDailyUnitLimit: null,
+    fixedMonthlyCommitmentMicrousd: 20_000_000,
+    paidActivationEnv: "KLYX_VERCEL_PRO_AUTHORIZED",
   },
   github: {
     provider: "github",
@@ -152,6 +187,8 @@ const POLICIES: Record<KlyxExternalProvider, KlyxExternalCostPolicy> = {
     fallback: "local_git",
     defaultMonthlyBudgetMicrousd: 0,
     defaultMonthlyUnitLimit: null,
+    defaultDailyUnitLimit: null,
+    fixedMonthlyCommitmentMicrousd: 0,
   },
 };
 
@@ -198,6 +235,9 @@ export function getExternalCostPolicy(
     defaultMonthlyUnitLimit: base.unitLimitEnv
       ? integerLimit(env[base.unitLimitEnv], base.defaultMonthlyUnitLimit)
       : base.defaultMonthlyUnitLimit,
+    defaultDailyUnitLimit: base.dailyUnitLimitEnv
+      ? integerLimit(env[base.dailyUnitLimitEnv], base.defaultDailyUnitLimit)
+      : base.defaultDailyUnitLimit,
   };
 }
 
@@ -227,7 +267,9 @@ export function decideExternalCostAction(input: {
     provider: policy.provider,
     monthlyBudgetMicrousd: effectiveBudgetMicrousd,
     monthlyUnitLimit: policy.defaultMonthlyUnitLimit,
+    dailyUnitLimit: policy.defaultDailyUnitLimit,
     estimatedCostMicrousd,
+    fixedMonthlyCommitmentMicrousd: policy.fixedMonthlyCommitmentMicrousd,
   };
 
   if (!externalCostControlEnabled(env)) {
@@ -240,6 +282,18 @@ export function decideExternalCostAction(input: {
 
   if (!policy.paidRisk) {
     return { ...base, action: "allow", reason: "FREE_QUOTA_ALLOWED" };
+  }
+
+  if (
+    policy.paidActivationEnv &&
+    policy.fixedMonthlyCommitmentMicrousd > 0 &&
+    env[policy.paidActivationEnv] !== "1"
+  ) {
+    return {
+      ...base,
+      action: policy.critical ? "block" : "fallback",
+      reason: "PAID_ACTIVATION_REQUIRED",
+    };
   }
 
   if (effectiveBudgetMicrousd <= 0) {
