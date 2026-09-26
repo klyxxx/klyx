@@ -23,7 +23,7 @@ export async function launchKlyxVerification() {
   const sdk = SNSMobileSDK.init(currentToken, async () => {
     currentToken = await fetchSumsubToken();
     return currentToken;
-  });
+  }).build();
 
   return sdk.launch();
 }
