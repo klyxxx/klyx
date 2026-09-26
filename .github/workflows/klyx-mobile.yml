@@ -1,0 +1,68 @@
+name: KLYX Mobile Certification
+
+on:
+  pull_request:
+    paths:
+      - "mobile/**"
+      - "app/api/mobile/**"
+      - "docs/KLYX_MOBILE_ARCHITECTURE.md"
+      - "tests/integration/mobile-client-foundation-contract.test.ts"
+      - "tsconfig.json"
+      - ".github/workflows/klyx-mobile.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: klyx-mobile-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  mobile-foundation:
+    name: Android + iOS client foundation
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.23.2"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Verify KLYX mobile authority contract
+        run: npx vitest run tests/integration/mobile-client-foundation-contract.test.ts
+
+      - name: Install mobile dependencies
+        run: npm install --prefix mobile --no-audit --no-fund
+
+      - name: Verify Expo SDK dependency compatibility
+        working-directory: mobile
+        run: npx expo install --check
+
+      - name: Mobile TypeScript
+        run: npm run typecheck --prefix mobile
+
+      - name: Validate public Expo configuration
+        working-directory: mobile
+        run: npx expo config --type public > /tmp/klyx-mobile-expo-config.json
+
+      - name: Refuse embedded provider secrets
+        shell: bash
+        run: |
+          if grep -RIE --exclude-dir=node_modules --exclude='*.md' \
+            '(sk_(live|test)_[A-Za-z0-9]{12,}|whsec_[A-Za-z0-9]{12,}|rk_(live|test)_[A-Za-z0-9]{12,})' mobile; then
+            echo 'Provider secret-like value found in mobile bundle sources.' >&2
+            exit 1
+          fi
+
+      - name: Expo doctor
+        working-directory: mobile
+        run: npx expo-doctor
