@@ -1,9 +1,9 @@
 {
   "format": "KLYX_FULL_RESTORE_REQUEST",
   "version": 1,
-  "requestId": "dr-full-restore-20260924-019ebcc3-auth-compat",
-  "baseMainSha": "019ebcc3f28eecccf68c342876ab0aea1da8b5c0",
+  "requestId": "dr-full-restore-20260926-482ab4fc-complete-engine",
+  "baseMainSha": "482ab4fcdb92dce2475fea9d52216366ff96621b",
   "confirmProductionRead": true,
-  "reason": "Run a fresh isolated full restore after aligning the DR lab Auth runtime with the production recovery-code schema; required before any controlled financial LIVE certification or production promotion.",
-  "requestedAt": "2026-09-24T15:50:32Z"
+  "reason": "Run a fresh isolated full restore for the current true main after complete KLYX engine certification merged, before any exact-SHA production promotion or controlled financial LIVE certification; production source access remains read-only.",
+  "requestedAt": "2026-09-26T13:04:04Z"
 }
