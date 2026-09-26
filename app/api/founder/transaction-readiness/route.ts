@@ -7,6 +7,7 @@ import {
 } from "@/lib/founder-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { getKlyxOpsCapabilityDecision } from "@/lib/ops-control-server";
+import { inspectFinancialRuntimeBlockingTruth } from "@/lib/pure-finance-runtime-reconciliation-readiness-server";
 import { logServerError } from "@/lib/server-log";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -304,16 +305,38 @@ export async function GET() {
       });
     }
 
-    const {
-      data: reconciliationData,
-      error: reconciliationError,
-    } = await supabaseAdmin
-      .from("financial_reconciliation_current")
-      .select("state")
-      .in("state", ["reconciliation", "human_review"])
-      .limit(1000);
+    try {
+      const financialTruth = await inspectFinancialRuntimeBlockingTruth();
+      const blockingTruthCount =
+        financialTruth.blockingCaseIds.length +
+        financialTruth.blockingCriticalSignalKeys.length;
+      const legacyHistoricalCount =
+        financialTruth.legacyHistoricalCases.length;
+      const legacyHistoricalSignalCount =
+        financialTruth.legacyHistoricalSignalKeys.length;
 
-    if (reconciliationError) {
+      checks.push({
+        key: "canonical_reconciliation",
+        label: "Ledger ↔ Settlement ↔ Stripe",
+        ok: blockingTruthCount === 0,
+        detail:
+          blockingTruthCount === 0
+            ? "Aucune divergence current-runtime ou critique bloquante ouverte."
+            : `${financialTruth.blockingCaseIds.length} reconciliation(s) bloquante(s) et ${financialTruth.blockingCriticalSignalKeys.length} signal(aux) critique(s) current-runtime. Toute mutation financière reste fail-closed.`,
+        severity: "blocking",
+      });
+
+      checks.push({
+        key: "legacy_historical_reconciliation",
+        label: "Historique financier pré-cutover",
+        ok: legacyHistoricalCount === 0 && legacyHistoricalSignalCount === 0,
+        detail:
+          legacyHistoricalCount === 0 && legacyHistoricalSignalCount === 0
+            ? "Aucun finding financier historique ouvert."
+            : `${legacyHistoricalCount} finding(s) historiques et ${legacyHistoricalSignalCount} signal(aux) associé(s) restent visibles en human_review. Ils sont exclus du gate current-runtime mais ne sont pas supprimés.`,
+        severity: "warning",
+      });
+    } catch (reconciliationError) {
       logServerError({
         error: reconciliationError,
         event: "founder_transaction_canonical_reconciliation_audit_failed",
@@ -328,25 +351,7 @@ export async function GET() {
         key: "canonical_reconciliation",
         label: "Ledger ↔ Settlement ↔ Stripe",
         ok: false,
-        detail: "La vérité de réconciliation canonique est indisponible.",
-        severity: "blocking",
-      });
-    } else {
-      const humanReviewCount = (reconciliationData ?? []).filter(
-        (row) => row.state === "human_review"
-      ).length;
-      const reconciliationCount = (reconciliationData ?? []).filter(
-        (row) => row.state === "reconciliation"
-      ).length;
-
-      checks.push({
-        key: "canonical_reconciliation",
-        label: "Ledger ↔ Settlement ↔ Stripe",
-        ok: humanReviewCount === 0 && reconciliationCount === 0,
-        detail:
-          humanReviewCount === 0 && reconciliationCount === 0
-            ? "Aucune divergence financière canonique ouverte."
-            : `${reconciliationCount} reconciliation(s) et ${humanReviewCount} human_review ouverte(s). Toute mutation financière doit rester fail-closed.`,
+        detail: "La vérité de réconciliation current-runtime est indisponible. État fail-closed.",
         severity: "blocking",
       });
     }
