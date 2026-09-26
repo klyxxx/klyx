@@ -17,6 +17,7 @@ import { getLegacyProfileCapabilityContext } from "@/lib/legacy-profile-capabili
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 const ASSISTANT_CAPABILITY_HEADER = "x-klyx-assistant-capability";
+const ACTIVE_PROFILE_HEADER = "x-klyx-active-profile-id";
 
 type AuthenticatedUser = {
   id: string;
@@ -334,9 +335,13 @@ async function getAuthenticatedContext(
     normalizedProfiles.find((item) => item.legacyAccountType === "client") ??
     normalizedProfiles[0];
 
-  const selectedProfileId = (
+  const requestedProfileId = request.headers
+    .get(ACTIVE_PROFILE_HEADER)
+    ?.trim();
+  const cookieProfileId = (
     await cookies()
   ).get(ACTIVE_PROFILE_COOKIE)?.value;
+  const selectedProfileId = requestedProfileId || cookieProfileId;
 
   const profile = selectCompatibilityProfile(
     request,
