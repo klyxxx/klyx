@@ -41,18 +41,43 @@ Exigences de réponse :
 Niveau KLYX : chaque phrase doit être utile, élégante et immédiatement compréhensible.
 `.trim();
 
-function fallbackReply(
-  message: string
-): string {
-  const normalized =
-    message.toLowerCase();
+function normalizeMessage(message: string): string {
+  return message
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+export function deterministicKlyxReply(message: string): string | null {
+  const normalized = normalizeMessage(message);
+
+  if (!normalized) {
+    return "Dis-moi simplement ce que tu veux organiser.";
+  }
 
   if (
-    normalized.includes("bonjour") ||
-    normalized.includes("salut") ||
-    normalized.includes("bonsoir")
+    /^(bonjour|salut|bonsoir|hello|hi)(\b|[!.?])/i.test(normalized)
   ) {
     return "Bonjour. Dis-moi simplement ce que tu veux organiser et KLYX te guide jusqu’à la prochaine action utile.";
+  }
+
+  if (
+    normalized === "merci" ||
+    normalized.startsWith("merci ") ||
+    normalized === "thanks" ||
+    normalized.startsWith("thanks ")
+  ) {
+    return "Avec plaisir. Dis-moi la prochaine chose que tu veux organiser.";
+  }
+
+  if (
+    normalized.includes("que peux tu faire") ||
+    normalized.includes("comment fonctionne klyx") ||
+    normalized.includes("c'est quoi klyx") ||
+    normalized.includes("cest quoi klyx")
+  ) {
+    return "KLYX comprend ton besoin, cherche les options utiles et te guide jusqu’à la réservation, au suivi et à la résolution d’un incident. Les actions sensibles restent contrôlées par KLYX, jamais par le modèle IA seul.";
   }
 
   if (
@@ -63,7 +88,14 @@ function fallbackReply(
     return "Je peux t’aider à cadrer le budget. Indique d’abord le service, la ville et le moment souhaité.";
   }
 
-  return "J’ai compris. Indique le service, la ville et le moment souhaité pour que KLYX puisse avancer précisément.";
+  return null;
+}
+
+function fallbackReply(message: string): string {
+  return (
+    deterministicKlyxReply(message) ??
+    "J’ai compris. Indique le service, la ville et le moment souhaité pour que KLYX puisse avancer précisément."
+  );
 }
 
 function normalizedMemorySummary(
@@ -108,11 +140,11 @@ export async function generateKlyxAiReply(
       .trim()
       .slice(0, 4000);
 
-  if (!message) {
+  const deterministic = deterministicKlyxReply(message);
+  if (deterministic !== null) {
     return {
       mode: "fallback",
-      text:
-        "Dis-moi simplement ce que tu veux organiser.",
+      text: deterministic,
     };
   }
 
