@@ -66,6 +66,35 @@ foreach (
                 $value
         }
     }
+
+    if (
+        $line -match
+        '^\s*KLYX_EXTERNAL_COST_MODE=(.+)$'
+    ) {
+        $value =
+            $Matches[1].Trim()
+
+        if ($value) {
+            $env:KLYX_EXTERNAL_COST_MODE =
+                $value
+        }
+    }
+}
+
+if (
+    $env:KLYX_EXTERNAL_COST_MODE -ne
+    "guarded"
+) {
+    Write-Host ""
+    Write-Host "======================================"
+    Write-Host "KLYX 13.58 OPENAI SMOKE SKIPPED"
+    Write-Host "======================================"
+    Write-Host "External cost mode : ZERO/NOT GUARDED"
+    Write-Host "Real API call : NON"
+    Write-Host "Application changed : NON"
+    Write-Host "======================================"
+
+    exit 0
 }
 
 if (
@@ -91,7 +120,7 @@ $model =
             $env:KLYX_OPENAI_MODEL
         )
     ) {
-        "gpt-5.6-terra"
+        "gpt-5.6-luna"
     }
     else {
         $env:KLYX_OPENAI_MODEL
