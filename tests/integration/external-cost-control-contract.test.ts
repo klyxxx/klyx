@@ -19,15 +19,18 @@ const migration = read(
 const ops = read("docs/KLYX_OPERATIONS_FAILURE_DOMAINS.md");
 
 describe("KLYX external cost control contract", () => {
-  it("defaults paid providers to zero budget and preserves free fallbacks", () => {
+  it("defaults paid providers and the global spend gate to zero budget", () => {
     expect(policy).toContain('defaultMonthlyBudgetMicrousd: 0');
+    expect(policy).toContain('KLYX_EXTERNAL_PAID_BUDGET_USD');
     expect(policy).toContain('fallback: "deterministic_klyx"');
     expect(policy).toContain('defaultMonthlyUnitLimit: 2700');
   });
 
-  it("routes deterministic assistant questions locally before checking AI", () => {
-    const deterministicIndex = ai.indexOf("deterministicKlyxReply(message)");
-    const enabledIndex = ai.indexOf("isKlyxAiEnabled()");
+  it("routes deterministic assistant questions locally before the AI call gate", () => {
+    const deterministicIndex = ai.indexOf(
+      "const deterministic = deterministicKlyxReply(message)"
+    );
+    const enabledIndex = ai.indexOf("if (!isKlyxAiEnabled())", deterministicIndex);
     expect(deterministicIndex).toBeGreaterThan(-1);
     expect(enabledIndex).toBeGreaterThan(deterministicIndex);
   });
