@@ -79,6 +79,37 @@ describe("KLYX assistant capability control plane", () => {
     });
   });
 
+  it("disambiguates client service search from provider help across languages", () => {
+    const clientSearches = [
+      "Trouve-moi un prestataire pour un service",
+      "Find me a provider for a service",
+      "Zoek een dienstverlener voor een dienst",
+      "Suche einen Anbieter für einen Service",
+    ];
+
+    for (const message of clientSearches) {
+      expect(routeKlyxAssistantCapability(message)).toMatchObject({
+        capability: "service_search",
+        engines: ["supabase", "matching"],
+        llmAllowed: false,
+      });
+    }
+
+    const providerRequests = [
+      "Je veux devenir prestataire",
+      "I want to offer my services",
+      "Ik wil opdrachten vinden",
+      "Ich will Aufträge finden",
+    ];
+
+    for (const message of providerRequests) {
+      expect(routeKlyxAssistantCapability(message)).toMatchObject({
+        capability: "provider_help",
+        llmAllowed: false,
+      });
+    }
+  });
+
   it("changes supported languages deterministically through Tolgee", () => {
     expect(routeKlyxAssistantCapability("Passe en néerlandais")).toMatchObject({
       capability: "language_change",
