@@ -17,6 +17,7 @@ on:
       - "tests/integration/all-providers-recovery-certification.test.ts"
       - "tests/platform/**"
       - "playwright.providers.config.ts"
+      - "lib/brain/orchestrator/provider-certification-contract.ts"
       - "lib/resilience-*.ts"
       - "lib/durable-orchestration-*.ts"
       - "lib/twilio-verify.ts"
@@ -35,6 +36,7 @@ on:
       - "tests/integration/all-providers-recovery-certification.test.ts"
       - "tests/platform/**"
       - "playwright.providers.config.ts"
+      - "lib/brain/orchestrator/provider-certification-contract.ts"
       - "lib/resilience-*.ts"
       - "lib/durable-orchestration-*.ts"
       - "lib/twilio-verify.ts"
@@ -47,6 +49,7 @@ on:
 
 permissions:
   contents: read
+  actions: write
 
 concurrency:
   group: klyx-all-providers-${{ github.repository }}-${{ github.event_name == 'push' && 'main' || github.event_name }}
@@ -56,9 +59,12 @@ jobs:
   certify:
     name: Providers + recovery + Web Android iOS
     runs-on: ubuntu-22.04
-    timeout-minutes: 45
+    timeout-minutes: 70
 
     env:
+      KLYX_CERT_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      KLYX_CERT_REF: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref_name }}
+
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       KLYX_PRODUCTION_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
@@ -90,7 +96,7 @@ jobs:
       NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100"
 
     steps:
-      - name: Verify immutable certification SHA
+      - name: Validate requested certification SHA
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha != '' }}
         shell: bash
         env:
@@ -101,13 +107,25 @@ jobs:
             echo "::error::Invalid expected certification SHA."
             exit 1
           fi
-          if [ "$GITHUB_SHA" != "$KLYX_EXPECTED_SHA" ]; then
-            echo "::error::Certification SHA mismatch: expected $KLYX_EXPECTED_SHA, got $GITHUB_SHA."
+          if [ "$KLYX_CERT_SHA" != "$KLYX_EXPECTED_SHA" ]; then
+            echo "::error::Certification SHA mismatch: expected $KLYX_EXPECTED_SHA, resolved $KLYX_CERT_SHA."
             exit 1
           fi
 
-      - name: Checkout repository
+      - name: Checkout exact certification SHA
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.KLYX_CERT_SHA }}
+
+      - name: Verify exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          if [ "$actual" != "$KLYX_CERT_SHA" ]; then
+            echo "::error::Checkout SHA mismatch: expected $KLYX_CERT_SHA, got $actual."
+            exit 1
+          fi
 
       - name: Refuse Stripe LIVE
         shell: bash
@@ -125,6 +143,26 @@ jobs:
             echo "::error::Stripe LIVE is forbidden."
             exit 1
           fi
+
+      - name: Dispatch exact-SHA engine and Stripe TEST certifications
+        id: dispatch_exact
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --method POST \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/klyx-complete-engine-certification.yml/dispatches" \
+            -f ref="$KLYX_CERT_REF" \
+            -f "inputs[expected_sha]=$KLYX_CERT_SHA" \
+            -f "inputs[confirm_isolated_e2e]=true"
+
+          gh api --method POST \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/klyx-economic-chain-real-conditions.yml/dispatches" \
+            -f ref="$KLYX_CERT_REF" \
+            -f "inputs[expected_sha]=$KLYX_CERT_SHA" \
+            -f "inputs[confirm_stripe_test_network]=true"
 
       - name: Scan repository for secrets
         shell: pwsh
@@ -176,6 +214,62 @@ jobs:
         continue-on-error: true
         run: node scripts/certification/klyx-all-providers-network.mjs
 
+      - name: Await exact-SHA Complete Engine certification
+        id: exact_engine
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 150); do
+            row="$(gh api --method GET \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/klyx-complete-engine-certification.yml/runs" \
+              -f event=workflow_dispatch -f branch="$KLYX_CERT_REF" -F per_page=20 \
+              --jq ".workflow_runs[] | select(.head_sha == \"$KLYX_CERT_SHA\") | [.id,.status,.conclusion] | @tsv" \
+              | head -n 1)"
+            if [ -n "$row" ]; then
+              status="$(printf '%s' "$row" | cut -f2)"
+              conclusion="$(printf '%s' "$row" | cut -f3)"
+              echo "Complete Engine: $status / $conclusion"
+              if [ "$status" = "completed" ]; then
+                [ "$conclusion" = "success" ] && exit 0
+                exit 1
+              fi
+            fi
+            sleep 10
+          done
+          echo "::error::Timed out waiting for exact-SHA Complete Engine certification."
+          exit 1
+
+      - name: Await exact-SHA Economic Chain Stripe TEST certification
+        id: exact_stripe
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 150); do
+            row="$(gh api --method GET \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/klyx-economic-chain-real-conditions.yml/runs" \
+              -f event=workflow_dispatch -f branch="$KLYX_CERT_REF" -F per_page=20 \
+              --jq ".workflow_runs[] | select(.head_sha == \"$KLYX_CERT_SHA\") | [.id,.status,.conclusion] | @tsv" \
+              | head -n 1)"
+            if [ -n "$row" ]; then
+              status="$(printf '%s' "$row" | cut -f2)"
+              conclusion="$(printf '%s' "$row" | cut -f3)"
+              echo "Economic Chain: $status / $conclusion"
+              if [ "$status" = "completed" ]; then
+                [ "$conclusion" = "success" ] && exit 0
+                exit 1
+              fi
+            fi
+            sleep 10
+          done
+          echo "::error::Timed out waiting for exact-SHA Economic Chain certification."
+          exit 1
+
       - name: Produce final PASS FAIL report
         id: final_report
         if: always()
@@ -186,6 +280,8 @@ jobs:
           KLYX_TYPESCRIPT_OUTCOME: ${{ steps.typescript.outcome }}
           KLYX_BUILD_OUTCOME: ${{ steps.build.outcome }}
           KLYX_PLATFORMS_OUTCOME: ${{ steps.platforms.outcome }}
+          KLYX_EXACT_ENGINE_OUTCOME: ${{ steps.exact_engine.outcome }}
+          KLYX_EXACT_STRIPE_OUTCOME: ${{ steps.exact_stripe.outcome }}
         run: node scripts/certification/klyx-all-providers-final-report.mjs
 
       - name: Upload certification evidence
