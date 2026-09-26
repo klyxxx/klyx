@@ -30,9 +30,65 @@ describe("routeAssistantIntent", () => {
     ).toBe("mission_management");
   });
 
-  it("routes an informational question", () => {
+  it("routes booking tracking separately from generic mission management", () => {
+    expect(
+      routeAssistantIntent("Où en est ma réservation ?", {
+        locale: "fr",
+      }).intent
+    ).toBe("booking_tracking");
+  });
+
+  it("routes account and profile help", () => {
+    expect(
+      routeAssistantIntent("Je veux changer de profil KLYX", {
+        locale: "fr",
+      }).intent
+    ).toBe("account_help");
+  });
+
+  it("routes payment explanation before generic information", () => {
     expect(
       routeAssistantIntent("Comment fonctionne le paiement sur KLYX ?", {
+        locale: "fr",
+      }).intent
+    ).toBe("payment_explanation");
+  });
+
+  it("routes refund explanation", () => {
+    expect(
+      routeAssistantIntent("Où en est mon remboursement ?", {
+        locale: "fr",
+      }).intent
+    ).toBe("refund_explanation");
+  });
+
+  it("routes provider help", () => {
+    expect(
+      routeAssistantIntent("Je veux proposer mes services comme prestataire", {
+        locale: "fr",
+      }).intent
+    ).toBe("provider_help");
+  });
+
+  it("routes KYC explanation", () => {
+    expect(
+      routeAssistantIntent("Pourquoi dois-je faire le KYC Sumsub ?", {
+        locale: "fr",
+      }).intent
+    ).toBe("kyc_explanation");
+  });
+
+  it("routes language changes", () => {
+    expect(
+      routeAssistantIntent("Passe KLYX en anglais", {
+        locale: "fr",
+      }).intent
+    ).toBe("locale_change");
+  });
+
+  it("keeps generic KLYX questions informational", () => {
+    expect(
+      routeAssistantIntent("Comment fonctionne KLYX ?", {
         locale: "fr",
       }).intent
     ).toBe("information");
@@ -54,6 +110,6 @@ describe("routeAssistantIntent", () => {
 
     expect(result.intent).toBe("clarification");
     expect(result.clarificationQuestion).toContain("service");
-    expect(result.clarificationQuestion).toContain("missions rémunérées");
+    expect(result.clarificationQuestion).toContain("réservation");
   });
 });
