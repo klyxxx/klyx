@@ -10,15 +10,18 @@ function source(relativePath: string): string {
 describe("KLYX web/mobile resume contract", () => {
   it("keeps sensitive operations out of offline cache and exposes a deterministic resume boundary", () => {
     const serviceWorker = source("public/sw.js");
-    const offlinePage = source("app/offline/page.tsx");
+    const offlineContent = source("app/offline/OfflinePageContent.tsx");
+    const retryButton = source("app/components/OfflineRetryButton.tsx");
 
     expect(serviceWorker).toContain('url.pathname.startsWith("/api/")');
     expect(serviceWorker).toContain('url.pathname.startsWith("/payment/")');
     expect(serviceWorker).toContain('url.pathname.startsWith("/connect/")');
     expect(serviceWorker).toContain('caches.match("/offline")');
 
-    expect(offlinePage).toContain("KLYX est temporairement hors ligne");
-    expect(offlinePage).toMatch(/reconnexion|connexion|réessayer|recharger/i);
+    expect(offlineContent).toContain("OfflineRetryButton");
+    expect(retryButton).toContain('window.addEventListener("online", handleOnline)');
+    expect(retryButton).toContain('window.addEventListener("offline", handleOffline)');
+    expect(retryButton).toContain('router.push("/")');
   });
 
   it("mobile certification runs the same resume boundary on Android Chromium and iOS WebKit", () => {
