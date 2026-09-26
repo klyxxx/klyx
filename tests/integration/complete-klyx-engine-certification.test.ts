@@ -10,9 +10,7 @@ import {
   assistantMayExecuteActionDirectly,
   type WorkflowActionType,
 } from "@/lib/brain/orchestrator/state-machine";
-import {
-  KlyxResilienceEngine,
-} from "@/lib/resilience-engine";
+import { KlyxResilienceEngine } from "@/lib/resilience-engine";
 import {
   InMemoryKlyxResilienceStore,
   ManualKlyxResilienceClock,
@@ -25,6 +23,14 @@ import {
 const root = process.cwd();
 const repositorySource = fs.readFileSync(
   path.join(root, "lib/brain/orchestrator/repository.ts"),
+  "utf8"
+);
+const incidentRouteSource = fs.readFileSync(
+  path.join(root, "app/api/bookings/incidents/route.ts"),
+  "utf8"
+);
+const replacementRouteSource = fs.readFileSync(
+  path.join(root, "app/api/bookings/incidents/[id]/replacement/route.ts"),
   "utf8"
 );
 
@@ -57,15 +63,15 @@ describe("complete KLYX engine certification composition", () => {
       "settlement",
     ]);
 
-    for (const steps of [REQUEST_WORKFLOW_STEPS, EARN_WORKFLOW_STEPS]) {
-      for (let index = 0; index < steps.length - 1; index += 1) {
-        const from = steps[index]!;
-        const to = steps[index + 1]!;
-        expect(allowedNextWorkflowSteps(
-          steps === REQUEST_WORKFLOW_STEPS ? "request" : "earn",
-          from
-        )).toContain(to);
-      }
+    for (let index = 0; index < REQUEST_WORKFLOW_STEPS.length - 1; index += 1) {
+      expect(
+        allowedNextWorkflowSteps("request", REQUEST_WORKFLOW_STEPS[index]!)
+      ).toContain(REQUEST_WORKFLOW_STEPS[index + 1]!);
+    }
+    for (let index = 0; index < EARN_WORKFLOW_STEPS.length - 1; index += 1) {
+      expect(
+        allowedNextWorkflowSteps("earn", EARN_WORKFLOW_STEPS[index]!)
+      ).toContain(EARN_WORKFLOW_STEPS[index + 1]!);
     }
 
     expect(repositorySource).toContain("completeSettlementWorkflow");
@@ -132,7 +138,7 @@ describe("complete KLYX engine certification composition", () => {
     expect(recovered.job.lastErrorCode).toBe("PROVIDER_HAS_NO_OPERATION");
   });
 
-  it("keeps incident replacement policy deterministic and outside LLM authority", () => {
+  it("keeps incident and replacement deterministic, consent-bound and outside LLM authority", () => {
     const decision = evaluatePostBookingIncidentPolicy({
       incidentType: "provider_no_show",
       reporterRole: "client",
@@ -154,5 +160,17 @@ describe("complete KLYX engine certification composition", () => {
         refundHandling: decision.refundHandling,
       })
     ).toContain("2");
+
+    expect(incidentRouteSource).toContain("evaluatePostBookingIncidentPolicy");
+    expect(incidentRouteSource).toContain("automaticReplacement: false");
+    expect(incidentRouteSource).toContain("automaticCharge: false");
+    expect(incidentRouteSource).toContain("createsParallelLedger: false");
+    expect(replacementRouteSource).toContain('eventType: "replacement_selected"');
+    expect(replacementRouteSource).toContain("explicitUserConsent: true");
+    expect(replacementRouteSource).toContain("bookingCreated: false");
+    expect(replacementRouteSource).toContain("chargeCreated: false");
+    expect(replacementRouteSource).toContain("automaticReplacement: false");
+    expect(replacementRouteSource).toContain("automaticBooking: false");
+    expect(replacementRouteSource).toContain("automaticCharge: false");
   });
 });
