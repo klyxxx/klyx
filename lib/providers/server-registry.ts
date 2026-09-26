@@ -8,7 +8,6 @@ import {
   type KlyxProviderStatus,
 } from "./contracts";
 import {
-  KLYX_PROVIDER_CATALOG,
   getKlyxProviderPolicy,
 } from "./catalog";
 
@@ -112,28 +111,4 @@ export function getKlyxProviderStatuses(): KlyxProviderStatus[] {
   return KLYX_EXTERNAL_PROVIDER_NAMES.map((name) =>
     adapters[name].getStatus()
   );
-}
-
-export function assertKlyxServerAuthorityBoundary(
-  name: KlyxExternalProviderName
-): void {
-  const policy = KLYX_PROVIDER_CATALOG[name];
-
-  if (
-    policy.clientPolicy === "server_only" ||
-    policy.clientPolicy === "control_plane_only"
-  ) {
-    return;
-  }
-
-  if (
-    policy.clientPolicy === "public_token_only" ||
-    policy.clientPolicy === "public_session_only" ||
-    policy.clientPolicy === "static_snapshot_only"
-  ) {
-    return;
-  }
-
-  const exhaustive: never = policy.clientPolicy;
-  throw new Error(`Unknown provider client policy: ${exhaustive}`);
 }
