@@ -1,0 +1,212 @@
+name: KLYX All Providers Certification
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: "Immutable commit SHA to certify"
+        required: false
+        default: ""
+        type: string
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/klyx-all-providers-certification.yml"
+      - "scripts/certification/klyx-all-providers-*.mjs"
+      - "tests/integration/all-providers-recovery-certification.test.ts"
+      - "tests/platform/**"
+      - "playwright.providers.config.ts"
+      - "lib/resilience-*.ts"
+      - "lib/durable-orchestration-*.ts"
+      - "lib/twilio-verify.ts"
+      - "lib/sumsub.ts"
+      - "lib/email/**"
+      - "lib/elmah-io.ts"
+      - "lib/brain/llm/**"
+      - "lib/klyx-ai.ts"
+      - ".tolgeerc.json"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/klyx-all-providers-certification.yml"
+      - "scripts/certification/klyx-all-providers-*.mjs"
+      - "tests/integration/all-providers-recovery-certification.test.ts"
+      - "tests/platform/**"
+      - "playwright.providers.config.ts"
+      - "lib/resilience-*.ts"
+      - "lib/durable-orchestration-*.ts"
+      - "lib/twilio-verify.ts"
+      - "lib/sumsub.ts"
+      - "lib/email/**"
+      - "lib/elmah-io.ts"
+      - "lib/brain/llm/**"
+      - "lib/klyx-ai.ts"
+      - ".tolgeerc.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: klyx-all-providers-${{ github.repository }}-${{ github.event_name == 'push' && 'main' || github.event_name }}
+  cancel-in-progress: false
+
+jobs:
+  certify:
+    name: Providers + recovery + Web Android iOS
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      KLYX_PRODUCTION_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      KLYX_STRIPE_TEST_SECRET_KEY: ${{ secrets.KLYX_STRIPE_TEST_SECRET_KEY }}
+      KLYX_STRIPE_TEST_PUBLISHABLE_KEY: ${{ secrets.KLYX_STRIPE_TEST_PUBLISHABLE_KEY }}
+      STRIPE_SECRET_KEY: ${{ secrets.KLYX_STRIPE_TEST_SECRET_KEY }}
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.KLYX_STRIPE_TEST_PUBLISHABLE_KEY }}
+      KLYX_STRIPE_MODE: "test"
+      KLYX_LIVE_PAYMENTS_ENABLED: "false"
+
+      TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+      TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+      TWILIO_API_KEY_SID: ${{ secrets.TWILIO_API_KEY_SID }}
+      TWILIO_API_KEY_SECRET: ${{ secrets.TWILIO_API_KEY_SECRET }}
+      TWILIO_VERIFY_SERVICE_SID: ${{ secrets.TWILIO_VERIFY_SERVICE_SID }}
+
+      SUMSUB_APP_TOKEN: ${{ secrets.SUMSUB_APP_TOKEN }}
+      SUMSUB_SECRET_KEY: ${{ secrets.SUMSUB_SECRET_KEY }}
+      SUMSUB_LEVEL_NAME: ${{ secrets.SUMSUB_LEVEL_NAME }}
+      SUMSUB_WEBHOOK_SECRET: ${{ secrets.SUMSUB_WEBHOOK_SECRET }}
+
+      TOLGEE_API_KEY: ${{ secrets.TOLGEE_API_KEY }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ELMAH_IO_API_KEY: ${{ secrets.ELMAH_IO_API_KEY }}
+
+      NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100"
+
+    steps:
+      - name: Verify immutable certification SHA
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha != '' }}
+        shell: bash
+        env:
+          KLYX_EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$KLYX_EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Invalid expected certification SHA."
+            exit 1
+          fi
+          if [ "$GITHUB_SHA" != "$KLYX_EXPECTED_SHA" ]; then
+            echo "::error::Certification SHA mismatch: expected $KLYX_EXPECTED_SHA, got $GITHUB_SHA."
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Refuse Stripe LIVE
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${KLYX_STRIPE_TEST_SECRET_KEY:-}" in
+            sk_test_*) ;;
+            *) echo "::error::All-provider certification requires Stripe sk_test_* only."; exit 1 ;;
+          esac
+          case "${KLYX_STRIPE_TEST_PUBLISHABLE_KEY:-}" in
+            pk_test_*) ;;
+            *) echo "::error::All-provider certification requires Stripe pk_test_* only."; exit 1 ;;
+          esac
+          if [ "$KLYX_STRIPE_MODE" != "test" ] || [ "$KLYX_LIVE_PAYMENTS_ENABLED" != "false" ]; then
+            echo "::error::Stripe LIVE is forbidden."
+            exit 1
+          fi
+
+      - name: Scan repository for secrets
+        shell: pwsh
+        run: ./scripts/check-klyx-public-repo-secrets.ps1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Dedicated provider recovery certification
+        id: recovery
+        continue-on-error: true
+        run: npx vitest run tests/integration/all-providers-recovery-certification.test.ts
+
+      - name: Complete repository tests
+        id: repo_tests
+        continue-on-error: true
+        run: npm test
+
+      - name: TypeScript
+        id: typescript
+        continue-on-error: true
+        run: npx tsc --noEmit --pretty false
+
+      - name: Production build
+        id: build
+        continue-on-error: true
+        run: npm run build
+
+      - name: Web Android iOS browser certification
+        id: platforms
+        continue-on-error: true
+        env:
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "120000"
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/certification
+          npx playwright install --with-deps chromium webkit
+          npx playwright test --config=playwright.providers.config.ts
+
+      - name: Read-only real provider probes
+        id: network
+        continue-on-error: true
+        run: node scripts/certification/klyx-all-providers-network.mjs
+
+      - name: Produce final PASS FAIL report
+        id: final_report
+        if: always()
+        continue-on-error: true
+        env:
+          KLYX_RECOVERY_OUTCOME: ${{ steps.recovery.outcome }}
+          KLYX_REPO_TESTS_OUTCOME: ${{ steps.repo_tests.outcome }}
+          KLYX_TYPESCRIPT_OUTCOME: ${{ steps.typescript.outcome }}
+          KLYX_BUILD_OUTCOME: ${{ steps.build.outcome }}
+          KLYX_PLATFORMS_OUTCOME: ${{ steps.platforms.outcome }}
+        run: node scripts/certification/klyx-all-providers-final-report.mjs
+
+      - name: Upload certification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: klyx-all-providers-certification-${{ github.run_id }}
+          path: |
+            reports/certification/all-providers-network.json
+            reports/certification/all-platforms-playwright.json
+            reports/certification/all-providers-final.json
+            reports/certification/all-providers-final.md
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Enforce certification verdict
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.final_report.outcome }}" != "success" ]; then
+            echo "::error::KLYX all-provider certification report contains one or more FAIL results."
+            exit 1
+          fi
