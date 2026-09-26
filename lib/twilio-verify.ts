@@ -1,5 +1,7 @@
 import "server-only";
 
+import { requireKlyxExternalCall } from "@/lib/external-cost-control-server";
+
 // KLYX_TWILIO_VERIFY_12_69
 
 type TwilioResponse = {
@@ -69,6 +71,11 @@ async function parseResponse(
 export async function sendPhoneOtp(
   phoneNumber: string
 ) {
+  await requireKlyxExternalCall({
+    provider: "twilio",
+    operation: "verify_sms_send",
+  });
+
   const serviceSid =
     requiredEnv("TWILIO_VERIFY_SERVICE_SID");
 
@@ -100,6 +107,11 @@ export async function verifyPhoneOtp(
   phoneNumber: string,
   code: string
 ) {
+  await requireKlyxExternalCall({
+    provider: "twilio",
+    operation: "verify_sms_check",
+  });
+
   const serviceSid =
     requiredEnv("TWILIO_VERIFY_SERVICE_SID");
 
