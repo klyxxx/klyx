@@ -3,8 +3,6 @@
 // server routes. KLYX intentionally avoids a runtime `server-only` dependency
 // here so the repository's Vitest contracts can inspect the module directly.
 
-import { authorizeKlyxExternalCall } from "@/lib/external-cost-control-server";
-
 export type PhotoVisualEvidence = {
   visualSummary: string;
   serviceHints: string[];
@@ -181,6 +179,9 @@ export async function analyzePhotoVisualContent(
   }
 
   if (process.env.NODE_ENV !== "test") {
+    const { authorizeKlyxExternalCall } = await import(
+      "@/lib/external-cost-control-server"
+    );
     const costDecision = await authorizeKlyxExternalCall({
       provider: "openai",
       operation: "photo_vision_analysis",
