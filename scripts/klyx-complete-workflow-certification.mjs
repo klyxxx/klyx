@@ -8,6 +8,8 @@ import {
   requiredGoldenPathEnv,
 } from "./golden-path-runtime.mjs";
 
+const RUNTIME_REPORT_PATH = "klyx-complete-engine-runtime-report.json";
+
 function invariant(value, message) {
   if (!value) throw new Error(message);
 }
@@ -292,6 +294,7 @@ async function main() {
 
   const report = {
     certification: "KLYX_COMPLETE_ENGINE_RUNTIME",
+    status: "PASS",
     runMarker,
     financialLiveUsed: false,
     llmSourceOfTruth: false,
@@ -321,7 +324,7 @@ async function main() {
   };
 
   fs.writeFileSync(
-    "klyx-complete-engine-runtime-report.json",
+    RUNTIME_REPORT_PATH,
     `${JSON.stringify(report, null, 2)}\n`,
     "utf8"
   );
@@ -332,6 +335,26 @@ async function main() {
 
 main().catch((error) => {
   const message = error instanceof Error ? error.message : String(error);
+  const failureReport = {
+    certification: "KLYX_COMPLETE_ENGINE_RUNTIME",
+    status: "FAIL",
+    financialLiveUsed: false,
+    llmSourceOfTruth: false,
+    error: message,
+  };
+  try {
+    fs.writeFileSync(
+      RUNTIME_REPORT_PATH,
+      `${JSON.stringify(failureReport, null, 2)}\n`,
+      "utf8"
+    );
+  } catch (reportError) {
+    console.error(
+      `Unable to persist complete-engine failure report: ${
+        reportError instanceof Error ? reportError.message : String(reportError)
+      }`
+    );
+  }
   console.error(`KLYX complete workflow certification failed: ${message}`);
   process.exitCode = 1;
 });
