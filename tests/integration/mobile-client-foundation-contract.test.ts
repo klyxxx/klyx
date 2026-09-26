@@ -75,6 +75,24 @@ describe("KLYX mobile client foundation contract", () => {
     expect(payments).not.toContain("refunds.create");
   });
 
+  it("uses canonical booking and notification engines instead of direct mobile table reads", () => {
+    const api = read("mobile/src/lib/klyx-api.ts");
+    const bookings = read("mobile/app/(tabs)/bookings.tsx");
+    const notifications = read("mobile/app/(tabs)/notifications.tsx");
+    const notificationRoute = read("app/api/mobile/notifications/route.ts");
+    expect(api).toContain('"/api/bookings/overview"');
+    expect(api).toContain('"/api/mobile/notifications"');
+    expect(api).toContain('"/api/notifications/read"');
+    expect(bookings).toContain("loadBookingOverview");
+    expect(bookings).not.toContain('.from("bookings")');
+    expect(notifications).toContain("loadMobileNotifications");
+    expect(notifications).toContain("markNotificationRead");
+    expect(notifications).not.toContain('.from("user_notifications")');
+    expect(notificationRoute).toContain("getAuthenticatedProfile(request)");
+    expect(notificationRoute).toContain('.from("user_notifications")');
+    expect(notificationRoute).toContain('.eq("user_id", profile.id)');
+  });
+
   it("uses server-authoritative economic eligibility and canonical ledger views", () => {
     const api = read("mobile/src/lib/klyx-api.ts");
     const earn = read("mobile/app/(tabs)/earn.tsx");
