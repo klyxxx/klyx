@@ -1,6 +1,7 @@
 import type { Session } from "@supabase/supabase-js";
 
 import { mobileConfig } from "@/src/config";
+import { supabase } from "@/src/lib/supabase";
 
 export type ActiveProfile = {
   id: string;
@@ -21,16 +22,35 @@ export type ProfilesPayload = {
   activeProfileId: string | null;
 };
 
+type ApiFetchOptions = {
+  accessToken?: string | null;
+  anonymous?: boolean;
+};
+
+async function currentAccessToken(): Promise<string | null> {
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw error;
+  return data.session?.access_token ?? null;
+}
+
 export async function apiFetch<T>(
   path: string,
-  init: RequestInit = {}
+  init: RequestInit = {},
+  options: ApiFetchOptions = {}
 ): Promise<T> {
+  const accessToken = options.anonymous
+    ? null
+    : options.accessToken === undefined
+      ? await currentAccessToken()
+      : options.accessToken;
+
   const response = await fetch(`${mobileConfig.apiUrl}${path}`, {
     ...init,
     credentials: "include",
     headers: {
       Accept: "application/json",
       ...(init.body ? { "Content-Type": "application/json" } : {}),
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...init.headers,
     },
   });
@@ -48,13 +68,25 @@ export async function apiFetch<T>(
 }
 
 export async function syncWebSession(session: Session): Promise<void> {
-  await apiFetch<{ ok: true }>("/api/mobile/session", {
-    method: "POST",
-    body: JSON.stringify({
-      accessToken: session.access_token,
-      refreshToken: session.refresh_token,
-    }),
-  });
+  await apiFetch<{ ok: true }>(
+    "/api/mobile/session",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        accessToken: session.access_token,
+        refreshToken: session.refresh_token,
+      }),
+    },
+    { accessToken: session.access_token }
+  );
+}
+
+export async function clearWebSession(): Promise<void> {
+  await apiFetch<{ ok: true }>(
+    "/api/mobile/session",
+    { method: "DELETE" },
+    { anonymous: true }
+  );
 }
 
 export async function loadProfiles(): Promise<ProfilesPayload> {
