@@ -47,8 +47,15 @@ type KlyxUnhandledRequestErrorReport = {
   renderSource?: string;
 };
 
+function externalCostAllowsElmah(): boolean {
+  return (
+    process.env.KLYX_EXTERNAL_COST_MODE?.trim().toLowerCase() === "guarded" &&
+    process.env.KLYX_EXTERNAL_COST_ELMAH_IO_ENABLED?.trim() === "1"
+  );
+}
+
 function productionApiKey(): string | null {
-  if (process.env.VERCEL_ENV !== "production") {
+  if (process.env.VERCEL_ENV !== "production" || !externalCostAllowsElmah()) {
     return null;
   }
 
