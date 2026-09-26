@@ -24,7 +24,7 @@ describe("KLYX LIVE gate legacy-shadow readiness contract", () => {
 
   it("exempts only explicitly classified Pure Finance historical shadow cases", () => {
     const readiness = read(
-      "lib/pure-finance/runtime-reconciliation-readiness-server.ts"
+      "lib/pure-finance-runtime-reconciliation-readiness-server.ts"
     );
 
     expect(readiness).toContain(
@@ -49,7 +49,7 @@ describe("KLYX LIVE gate legacy-shadow readiness contract", () => {
 
   it("keeps missing, ambiguous, non-final and current-runtime cases blocking", () => {
     const readiness = read(
-      "lib/pure-finance/runtime-reconciliation-readiness-server.ts"
+      "lib/pure-finance-runtime-reconciliation-readiness-server.ts"
     );
 
     expect(readiness).toContain("return null;");
@@ -61,7 +61,7 @@ describe("KLYX LIVE gate legacy-shadow readiness contract", () => {
 
   it("filters critical financial signals only when they reference a proven legacy case", () => {
     const readiness = read(
-      "lib/pure-finance/runtime-reconciliation-readiness-server.ts"
+      "lib/pure-finance-runtime-reconciliation-readiness-server.ts"
     );
 
     expect(readiness).toContain(
@@ -78,7 +78,7 @@ describe("KLYX LIVE gate legacy-shadow readiness contract", () => {
 
   it("never exempts Operations critical signals", () => {
     const readiness = read(
-      "lib/pure-finance/runtime-reconciliation-readiness-server.ts"
+      "lib/pure-finance-runtime-reconciliation-readiness-server.ts"
     );
 
     expect(readiness).toContain(
@@ -108,7 +108,7 @@ describe("KLYX LIVE gate legacy-shadow readiness contract", () => {
 
   it("does not close or mutate reconciliation evidence", () => {
     const readiness = read(
-      "lib/pure-finance/runtime-reconciliation-readiness-server.ts"
+      "lib/pure-finance-runtime-reconciliation-readiness-server.ts"
     );
 
     expect(readiness).not.toContain(".update(");
