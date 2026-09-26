@@ -53,7 +53,7 @@ jobs:
       - name: Commit generated mobile lock
         if: ${{ github.event_name == 'push' && github.actor != 'github-actions[bot]' }}
         run: |
-          if git diff --quiet -- mobile/package-lock.json; then
+          if [ -z "$(git status --porcelain -- mobile/package-lock.json)" ]; then
             exit 0
           fi
           git config user.name "github-actions[bot]"
