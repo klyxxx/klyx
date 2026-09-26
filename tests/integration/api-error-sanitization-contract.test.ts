@@ -324,16 +324,16 @@ describe(
     );
 
     it(
-      "keeps Stripe runtime assertions inside observed try blocks",
+      "keeps Stripe financial runtime guards inside observed try blocks",
       () => {
-        const transactionalStripeRoutes = [
-          "app/api/stripe/create-checkout-session/route.ts",
-          "app/api/stripe/create-group-checkout-session/route.ts",
-          "app/api/bookings/split-missions/[id]/checkout/route.ts",
+        const transactionalStripeCores = [
+          "app/api/stripe/create-checkout-session/route-core.ts",
+          "app/api/stripe/create-group-checkout-session/route-core.ts",
+          "app/api/bookings/split-missions/[id]/checkout/route-core.ts",
         ];
 
         for (
-          const relativePath of transactionalStripeRoutes
+          const relativePath of transactionalStripeCores
         ) {
           const source = read(
             relativePath
@@ -341,7 +341,7 @@ describe(
 
           expect(source)
             .toMatch(
-              /try\s*\{[\s\S]*assertStripeRuntimeReady\(\)/
+              /try\s*\{[\s\S]*requireKlyxFinancialStripeRuntime\(/
             );
         }
 
