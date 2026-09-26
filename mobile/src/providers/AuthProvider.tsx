@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 
-import { syncWebSession } from "@/src/lib/klyx-api";
+import { clearWebSession, syncWebSession } from "@/src/lib/klyx-api";
 import { supabase } from "@/src/lib/supabase";
 
 type AuthContextValue = {
@@ -69,8 +69,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
         await adoptSession(data.session);
       },
       async signOut() {
-        await supabase.auth.signOut();
-        setSession(null);
+        const remoteSignOut = clearWebSession().catch(() => undefined);
+        try {
+          await supabase.auth.signOut();
+        } finally {
+          setSession(null);
+          await remoteSignOut;
+        }
       },
     }),
     [adoptSession, ready, session]
