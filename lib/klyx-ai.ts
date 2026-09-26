@@ -41,29 +41,58 @@ Exigences de réponse :
 Niveau KLYX : chaque phrase doit être utile, élégante et immédiatement compréhensible.
 `.trim();
 
-function fallbackReply(
+/**
+ * Questions dont la réponse ne nécessite ni raisonnement externe ni vérité
+ * fraîche. Elles sont toujours traitées localement, même si OpenAI est activé.
+ */
+export function deterministicKlyxReply(
   message: string
-): string {
-  const normalized =
-    message.toLowerCase();
+): string | null {
+  const normalized = message
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+  if (!normalized) {
+    return "Dis-moi simplement ce que tu veux organiser.";
+  }
 
   if (
-    normalized.includes("bonjour") ||
-    normalized.includes("salut") ||
-    normalized.includes("bonsoir")
+    /^(bonjour|salut|bonsoir|hello|hey)[!. ]*$/.test(normalized)
   ) {
     return "Bonjour. Dis-moi simplement ce que tu veux organiser et KLYX te guide jusqu’à la prochaine action utile.";
   }
 
-  if (
-    normalized.includes("prix") ||
-    normalized.includes("combien") ||
-    normalized.includes("budget")
-  ) {
-    return "Je peux t’aider à cadrer le budget. Indique d’abord le service, la ville et le moment souhaité.";
+  if (/^(merci|merci beaucoup|thanks|thank you)[!. ]*$/.test(normalized)) {
+    return "Avec plaisir. Tu peux me donner directement la prochaine chose à organiser.";
   }
 
-  return "J’ai compris. Indique le service, la ville et le moment souhaité pour que KLYX puisse avancer précisément.";
+  if (
+    normalized === "aide" ||
+    normalized === "help" ||
+    normalized.includes("que peut faire klyx") ||
+    normalized.includes("comment fonctionne klyx")
+  ) {
+    return "KLYX comprend ton besoin, cherche les options compatibles, prépare la prochaine action puis te demande confirmation avant toute action sensible.";
+  }
+
+  if (
+    normalized.includes("prix") ||
+    normalized.includes("combien ça coûte") ||
+    normalized.includes("combien ca coute") ||
+    normalized.includes("budget")
+  ) {
+    return "Je peux cadrer le budget sans appeler un modèle IA. Indique le service, la ville et le moment souhaité.";
+  }
+
+  return null;
+}
+
+function fallbackReply(
+  message: string
+): string {
+  return deterministicKlyxReply(message) ??
+    "J’ai compris. Indique le service, la ville et le moment souhaité pour que KLYX puisse avancer précisément.";
 }
 
 function normalizedMemorySummary(
@@ -80,9 +109,9 @@ function normalizedMemorySummary(
         item.trim().length > 0
     )
     .map((item) =>
-      item.trim().slice(0, 500)
+      item.trim().slice(0, 300)
     )
-    .slice(0, 7);
+    .slice(0, 4);
 }
 
 export function isKlyxAiEnabled(): boolean {
@@ -113,6 +142,14 @@ export async function generateKlyxAiReply(
       mode: "fallback",
       text:
         "Dis-moi simplement ce que tu veux organiser.",
+    };
+  }
+
+  const deterministic = deterministicKlyxReply(message);
+  if (deterministic) {
+    return {
+      mode: "fallback",
+      text: deterministic,
     };
   }
 
@@ -196,7 +233,7 @@ export async function generateKlyxAiReply(
             },
           },
           maxOutputCharacters:
-            2200,
+            1200,
         });
 
     const text =
