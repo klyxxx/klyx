@@ -151,12 +151,17 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   loading: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
   },
   title: { fontSize: 20, fontWeight: "700", textAlign: "center" },
   body: { fontSize: 15, lineHeight: 22, textAlign: "center", opacity: 0.72 },
-  button: { paddingHorizontal: 22, paddingVertical: 12, borderRadius: 999, backgroundColor: "#111111" },
+  button: {
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderRadius: 999,
+    backgroundColor: "#111111",
+  },
   buttonText: { color: "#ffffff", fontWeight: "700" },
 });
