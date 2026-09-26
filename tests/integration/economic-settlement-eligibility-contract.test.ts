@@ -9,6 +9,9 @@ const read = (p: string) =>
 const migration = read(
   "supabase/migrations/20260920110000_klyx_economic_settlement_eligibility.sql"
 );
+const latestSettlementGate = read(
+  "supabase/migrations/20260921180500_klyx_settlement_latest_eligibility_gate.sql"
+);
 const server = read("lib/economic-settlement-eligibility-server.ts");
 const adapter = read("lib/economic-settlement-eligibility-adapter.ts");
 const engine = read("lib/economic-eligibility-engine.ts");
@@ -16,6 +19,7 @@ const authority = `${server}\n${adapter}\n${engine}`;
 const single = read("lib/booking-settlement-server.ts");
 const group = read("lib/platform-held-group-settlement-server.ts");
 const stripeTruth = read("lib/stripe-settlement-recipient-truth.ts");
+const stripeConnectAccount = read("lib/stripe-connect-account.ts");
 const beneficiaryTransferGateway = read("lib/beneficiary-transfer-gateway.ts");
 const documentation = read("docs/economic-settlement-eligibility.md");
 const networkProof = read(
@@ -68,6 +72,9 @@ describe("Mission 11 economic settlement eligibility contract", () => {
       "create table if not exists public.economic_settlement_eligibility_decisions"
     );
     expect(migration).toContain("klyx_economic_settlement_decisions_append_only");
+    expect(migration).toContain(
+      "KLYX_ECONOMIC_SETTLEMENT_DECISIONS_APPEND_ONLY"
+    );
     expect(migration).not.toContain(
       "create table if not exists public.economic_capabilities"
     );
@@ -131,6 +138,31 @@ describe("Mission 11 economic settlement eligibility contract", () => {
     expect(documentation).toContain("stripe_transfers");
   });
 
+  it("keeps Stripe Connect account-first and rejects legacy-only identity fallback", () => {
+    expect(stripeConnectAccount).toContain(
+      "getCanonicalStripeConnectStrict(profile.account_id)"
+    );
+    expect(latestSettlementGate).toContain(
+      "from public.account_stripe_connect_identities as identity"
+    );
+
+    const legacyOnly = stripeConnectAccount.indexOf(
+      "if (!connect.stripeAccountId && legacyStripeAccountId)"
+    );
+    const reviewReason = stripeConnectAccount.indexOf(
+      'reason: "legacy_stripe_identity_not_canonicalized"',
+      legacyOnly
+    );
+    const failClosed = stripeConnectAccount.indexOf(
+      "throw new StripeConnectIdentityReviewRequiredError();",
+      reviewReason
+    );
+
+    expect(legacyOnly).toBeGreaterThan(-1);
+    expect(reviewReason).toBeGreaterThan(legacyOnly);
+    expect(failClosed).toBeGreaterThan(reviewReason);
+  });
+
   it("proves provider green / KLYX blocked prevents beneficiary movement", () => {
     expect(networkProof).toContain("v2RecipientTransferReady(v2Account)");
     expect(networkProof).toContain('stripeTransferStatus: v2TransferStatus(v2Account)');
@@ -166,6 +198,26 @@ describe("Mission 11 economic settlement eligibility contract", () => {
     expect(groupRisk).toBeGreaterThan(groupEconomic);
     expect(migration).toContain("d.expires_at > now()");
     expect(migration).toContain("d.evaluated_at >= now() - interval '5 minutes'");
+  });
+
+  it("re-checks the latest beneficiary eligibility immediately before settlement claim", () => {
+    const latestDecision = latestSettlementGate.indexOf(
+      "select max(latest.evaluated_at)"
+    );
+    const economicGate = latestSettlementGate.indexOf(
+      "if not v_economic_allowed then"
+    );
+    const releaseClaim = latestSettlementGate.indexOf(
+      "set state = 'release_claimed'"
+    );
+
+    expect(latestDecision).toBeGreaterThan(-1);
+    expect(economicGate).toBeGreaterThan(latestDecision);
+    expect(releaseClaim).toBeGreaterThan(economicGate);
+    expect(latestSettlementGate).toContain("d.decision = 'allowed'");
+    expect(latestSettlementGate).toContain(
+      "d.stripe_account_id is not distinct from v_settlement.stripe_account_id"
+    );
   });
 
   it("evaluates each booking independently for group settlement", () => {
