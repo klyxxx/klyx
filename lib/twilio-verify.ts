@@ -1,5 +1,7 @@
 import "server-only";
 
+import { authorizeKlyxExternalCall } from "@/lib/external-cost-control-server";
+
 // KLYX_TWILIO_VERIFY_12_69
 
 type TwilioResponse = {
@@ -18,6 +20,18 @@ function requiredEnv(name: string): string {
   }
 
   return value;
+}
+
+function localTestTransportEnabled(): boolean {
+  return (
+    process.env.KLYX_LOCAL_TEST_TRANSPORTS === "1" &&
+    process.env.VERCEL_ENV !== "production"
+  );
+}
+
+function localTestOtpCode(): string {
+  const configured = process.env.KLYX_LOCAL_TEST_OTP_CODE?.trim();
+  return /^\d{6}$/.test(configured ?? "") ? configured! : "000000";
 }
 
 function authCredentials() {
@@ -69,6 +83,23 @@ async function parseResponse(
 export async function sendPhoneOtp(
   phoneNumber: string
 ) {
+  const cost = await authorizeKlyxExternalCall({
+    provider: "twilio",
+    operation: "verify_sms_send",
+    estimatedCostMicroUsd: 250_000,
+    criticality: "non_critical",
+  });
+
+  if (!cost.allowed) {
+    if (localTestTransportEnabled()) {
+      return {
+        status: "pending",
+        message: "KLYX local zero-cost OTP transport",
+      };
+    }
+    throw new Error(`KLYX_EXTERNAL_COST_BLOCKED:twilio:${cost.reason}`);
+  }
+
   const serviceSid =
     requiredEnv("TWILIO_VERIFY_SERVICE_SID");
 
@@ -100,6 +131,24 @@ export async function verifyPhoneOtp(
   phoneNumber: string,
   code: string
 ) {
+  if (localTestTransportEnabled()) {
+    const approved = code.trim() === localTestOtpCode();
+    return {
+      approved,
+      status: approved ? "approved" : "pending",
+    };
+  }
+
+  const cost = await authorizeKlyxExternalCall({
+    provider: "twilio",
+    operation: "verify_check",
+    estimatedCostMicroUsd: 250_000,
+    criticality: "non_critical",
+  });
+  if (!cost.allowed) {
+    throw new Error(`KLYX_EXTERNAL_COST_BLOCKED:twilio:${cost.reason}`);
+  }
+
   const serviceSid =
     requiredEnv("TWILIO_VERIFY_SERVICE_SID");
 
