@@ -1,0 +1,107 @@
+name: KLYX All Providers Certification
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: "Exact immutable SHA to certify"
+        required: false
+        default: ""
+        type: string
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: klyx-all-providers-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  providers-and-mobile:
+    name: Providers + Android + iOS certification
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      - name: Verify immutable certification SHA
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha != '' }}
+        shell: bash
+        env:
+          KLYX_EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$KLYX_EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Invalid expected certification SHA."
+            exit 1
+          fi
+          if [ "$GITHUB_SHA" != "$KLYX_EXPECTED_SHA" ]; then
+            echo "::error::Certification SHA mismatch: expected $KLYX_EXPECTED_SHA, got $GITHUB_SHA."
+            exit 1
+          fi
+
+      - name: Checkout exact source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Provider recovery tests
+        run: >-
+          npx vitest run
+          tests/unit/provider-http-recovery.test.ts
+          tests/integration/all-provider-recovery-contract.test.ts
+          tests/unit/resilience-engine.test.ts
+          tests/unit/resilience-engine-fail-closed.test.ts
+          tests/integration/zero-cost-brain-contract.test.ts
+          tests/integration/sumsub-webhook-hardening.test.ts
+          tests/integration/resend-email.test.ts
+          tests/integration/email-delivery-idempotency.test.ts
+          tests/integration/auth-turnstile-contract.test.ts
+          tests/integration/security-headers-csp-contract.test.ts
+
+      - name: Autonomous recovery certification
+        run: npm run certify:autonomous:offline
+
+      - name: TypeScript
+        run: npx tsc --noEmit --pretty false
+
+      - name: Production build
+        run: npm run build
+
+      - name: Install Android Chromium and iOS WebKit engines
+        env:
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "120000"
+        run: npx playwright install --with-deps chromium webkit
+
+      - name: Android and iOS PWA browser certification
+        run: npx playwright test --config=playwright.mobile-certification.config.ts
+
+      - name: Publish certification summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## KLYX All Providers Certification"
+            echo ""
+            echo "- SHA: \`$GITHUB_SHA\`"
+            echo "- No Stripe LIVE action is executed by this workflow."
+            echo "- Provider outages use deterministic tests/fault injection only."
+            echo "- Android = Chromium mobile device profile; iOS = WebKit mobile device profile."
+          } >> "$GITHUB_STEP_SUMMARY"
