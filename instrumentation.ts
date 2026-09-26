@@ -1,4 +1,4 @@
-import { reportKlyxUnhandledRequestError } from "@/lib/elmah-io";
+import { getKlyxObservabilityAdapter } from "@/lib/providers/runtime-adapters";
 
 type KlyxInstrumentationRequest = {
   path: string;
@@ -20,7 +20,10 @@ export async function onRequestError(
   request: KlyxInstrumentationRequest,
   context: KlyxInstrumentationContext
 ): Promise<void> {
-  await reportKlyxUnhandledRequestError({
+  const observability =
+    await getKlyxObservabilityAdapter();
+
+  await observability.reportUnhandledRequestError({
     error,
     method: request.method,
     routePath: context.routePath,
