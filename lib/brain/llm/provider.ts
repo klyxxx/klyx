@@ -17,12 +17,19 @@ import {
   OpenAiKlyxLlmProvider,
 } from "./openai-provider";
 import { decideExternalCostAction } from "@/lib/external-cost-policy";
+import { assertExternalProviderAction } from "@/lib/external-cost-control-server";
 
 const DISABLED_PROVIDER_NAME =
   "disabled";
 
 const DISABLED_MODEL_NAME =
   "none";
+
+function openAiMaxCallCostMicrousd(): number {
+  const parsed = Number(process.env.KLYX_OPENAI_MAX_CALL_USD ?? "0.01");
+  const safe = Number.isFinite(parsed) && parsed > 0 ? parsed : 0.01;
+  return Math.ceil(safe * 1_000_000);
+}
 
 function detectFallbackIntent(
   request: KlyxLlmRequest,
@@ -81,69 +88,60 @@ class DisabledKlyxLlmProvider
 
   getStatus(): KlyxLlmProviderStatus {
     return {
-      provider:
-        DISABLED_PROVIDER_NAME,
-
-      configured:
-        false,
-
-      available:
-        false,
-
-      model:
-        null,
-
-      automaticExecutionAllowed:
-        false,
+      provider: DISABLED_PROVIDER_NAME,
+      configured: false,
+      available: false,
+      model: null,
+      automaticExecutionAllowed: false,
     };
   }
 
   async generate(
     request: KlyxLlmRequest,
   ): Promise<KlyxLlmResponse> {
-    const safety =
-      createKlyxLlmSafety();
-
-    assertNoAutomaticExecution(
-      safety,
-    );
+    const safety = createKlyxLlmSafety();
+    assertNoAutomaticExecution(safety);
 
     return {
-      provider:
-        DISABLED_PROVIDER_NAME,
-
-      model:
-        DISABLED_MODEL_NAME,
-
-      text:
-        "",
-
-      intent:
-        detectFallbackIntent(
-          request,
-        ),
-
-      confidence:
-        0,
-
+      provider: DISABLED_PROVIDER_NAME,
+      model: DISABLED_MODEL_NAME,
+      text: "",
+      intent: detectFallbackIntent(request),
+      confidence: 0,
       safety,
-
       metadata: {
-        fallbackOnly:
-          true,
-
-        reason:
-          "No external LLM provider is available.",
+        fallbackOnly: true,
+        reason: "No external LLM provider is available.",
       },
     };
+  }
+}
+
+class CostGuardedKlyxLlmProvider
+  implements KlyxLlmProvider
+{
+  readonly name = "cost_guarded_openai";
+
+  constructor(private readonly delegate: KlyxLlmProvider) {}
+
+  getStatus(): KlyxLlmProviderStatus {
+    return this.delegate.getStatus();
+  }
+
+  async generate(request: KlyxLlmRequest): Promise<KlyxLlmResponse> {
+    await assertExternalProviderAction({
+      provider: "openai",
+      action: "llm_response",
+      estimatedCostMicrousd: openAiMaxCallCostMicrousd(),
+    });
+    return this.delegate.generate(request);
   }
 }
 
 class ResilientKlyxLlmProvider
   implements KlyxLlmProvider
 {
-  readonly name =
-    "resilient";
+  readonly name = "resilient";
 
   constructor(
     private readonly primary: KlyxLlmProvider,
@@ -158,35 +156,18 @@ class ResilientKlyxLlmProvider
     request: KlyxLlmRequest,
   ): Promise<KlyxLlmResponse> {
     try {
-      const response =
-        await this.primary.generate(
-          request,
-        );
-
-      assertNoAutomaticExecution(
-        response.safety,
-      );
-
+      const response = await this.primary.generate(request);
+      assertNoAutomaticExecution(response.safety);
       return response;
     } catch (error) {
-      const fallbackResponse =
-        await this.fallback.generate(
-          request,
-        );
-
-      assertNoAutomaticExecution(
-        fallbackResponse.safety,
-      );
+      const fallbackResponse = await this.fallback.generate(request);
+      assertNoAutomaticExecution(fallbackResponse.safety);
 
       return {
         ...fallbackResponse,
-
         metadata: {
           ...(fallbackResponse.metadata ?? {}),
-
-          fallbackFrom:
-            this.primary.name,
-
+          fallbackFrom: this.primary.name,
           primaryError:
             error instanceof Error
               ? error.message
@@ -198,53 +179,38 @@ class ResilientKlyxLlmProvider
 }
 
 let providerSingleton:
-  KlyxLlmProvider | null =
-  null;
+  KlyxLlmProvider | null = null;
 
-export function createKlyxLlmProvider():
-  KlyxLlmProvider {
-  const fallback =
-    new DisabledKlyxLlmProvider();
-
-  const apiKey =
-    process.env.OPENAI_API_KEY?.trim();
-
+export function createKlyxLlmProvider(): KlyxLlmProvider {
+  const fallback = new DisabledKlyxLlmProvider();
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
   const costDecision = decideExternalCostAction({
     provider: "openai",
-    estimatedCostMicrousd: 1,
+    estimatedCostMicrousd: openAiMaxCallCostMicrousd(),
   });
 
   if (!apiKey || costDecision.action !== "allow") {
     return fallback;
   }
 
-  const primary =
-    new OpenAiKlyxLlmProvider();
-
-  return new ResilientKlyxLlmProvider(
-    primary,
-    fallback,
+  const primary = new CostGuardedKlyxLlmProvider(
+    new OpenAiKlyxLlmProvider()
   );
+
+  return new ResilientKlyxLlmProvider(primary, fallback);
 }
 
-export function getKlyxLlmProvider():
-  KlyxLlmProvider {
+export function getKlyxLlmProvider(): KlyxLlmProvider {
   if (!providerSingleton) {
-    providerSingleton =
-      createKlyxLlmProvider();
+    providerSingleton = createKlyxLlmProvider();
   }
-
   return providerSingleton;
 }
 
-export function getKlyxLlmStatus():
-  KlyxLlmProviderStatus {
-  return getKlyxLlmProvider()
-    .getStatus();
+export function getKlyxLlmStatus(): KlyxLlmProviderStatus {
+  return getKlyxLlmProvider().getStatus();
 }
 
-export function resetKlyxLlmProviderForTests():
-  void {
-  providerSingleton =
-    null;
+export function resetKlyxLlmProviderForTests(): void {
+  providerSingleton = null;
 }
