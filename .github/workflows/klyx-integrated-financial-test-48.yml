@@ -1,0 +1,319 @@
+name: KLYX Integrated Financial TEST 48
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: "Exact main + production Vercel SHA to certify"
+        required: true
+        type: string
+      production_url:
+        description: "KLYX production origin exposing /api/health/build"
+        required: true
+        default: "https://klyx-ten.vercel.app"
+        type: string
+      confirm_test_only:
+        description: "Confirm simulated/test financial certification with zero LIVE money movement"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/klyx-integrated-financial-test-48.yml"
+      - "tests/integration/integrated-financial-test-48.test.ts"
+      - "tests/integration/integrated-financial-test-48-contract.test.ts"
+      - "scripts/summarize-integrated-financial-test-48.mjs"
+      - "docs/KLYX_INTEGRATED_FINANCIAL_TEST_48.md"
+      - "lib/pure-finance/**"
+      - "lib/resilience-engine.ts"
+      - "lib/resilience-memory-adapter.ts"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: klyx-integrated-financial-test-48-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  integrated-financial-test-48:
+    name: Integrated financial TEST 48/48
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+
+    env:
+      KLYX_STRIPE_MODE: "test"
+      KLYX_LIVE_PAYMENTS_ENABLED: "false"
+      KLYX_FINANCIAL_TEST_48_MODE: "simulated_test"
+      KLYX_EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha || github.event.pull_request.head.sha }}
+      KLYX_PRODUCTION_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.production_url || '' }}
+      VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.KLYX_VERCEL_AUTOMATION_BYPASS_SECRET }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Refuse unsafe certification mode
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "$KLYX_STRIPE_MODE" != "test" ]; then
+            echo "::error::Integrated Financial TEST 48 must run in Stripe test mode."
+            exit 1
+          fi
+
+          if [ "$KLYX_LIVE_PAYMENTS_ENABLED" != "false" ]; then
+            echo "::error::LIVE payments must remain disabled."
+            exit 1
+          fi
+
+          if [ "$KLYX_FINANCIAL_TEST_48_MODE" != "simulated_test" ]; then
+            echo "::error::Only the deterministic simulated/test adapter is allowed."
+            exit 1
+          fi
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && \
+             [ "${{ inputs.confirm_test_only }}" != "true" ]; then
+            echo "::error::Exact deployed certification requires explicit TEST-only confirmation."
+            exit 1
+          fi
+
+      - name: Verify immutable exact main SHA
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          expected="${KLYX_EXPECTED_SHA,,}"
+          if ! [[ "$expected" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::expected_sha must be an exact 40-character Git SHA."
+            exit 1
+          fi
+
+          if [ "${GITHUB_SHA,,}" != "$expected" ]; then
+            echo "::error::Workflow SHA mismatch: expected $expected, got $GITHUB_SHA."
+            exit 1
+          fi
+
+          main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha' | tr '[:upper:]' '[:lower:]')"
+          if [ "$main_sha" != "$expected" ]; then
+            echo "::error::main moved: expected $expected, current main is $main_sha."
+            exit 1
+          fi
+
+      - name: Verify Vercel production exposes the exact SHA
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          origin="${KLYX_PRODUCTION_URL%/}"
+          if [[ "$origin" != https://* ]]; then
+            echo "::error::production_url must use HTTPS."
+            exit 1
+          fi
+
+          curl_args=(--fail-with-body --silent --show-error --max-time 20)
+          if [ -n "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]; then
+            echo "::add-mask::$VERCEL_AUTOMATION_BYPASS_SECRET"
+            curl_args+=(--header "x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}")
+          fi
+
+          health="$(curl "${curl_args[@]}" "${origin}/api/health/build")"
+          export KLYX_HEALTH_JSON="$health"
+
+          deployed_sha="$(node <<'NODE'
+          const health = JSON.parse(process.env.KLYX_HEALTH_JSON ?? "{}");
+          if (health?.environment !== "production") {
+            console.error("Health endpoint is not reporting production environment.");
+            process.exit(2);
+          }
+          const sha = String(health?.commitSha ?? "").toLowerCase();
+          if (!/^[0-9a-f]{40}$/.test(sha)) {
+            console.error("Production health did not expose a valid commitSha.");
+            process.exit(3);
+          }
+          process.stdout.write(sha);
+          NODE
+          )"
+
+          if [ "$deployed_sha" != "${KLYX_EXPECTED_SHA,,}" ]; then
+            echo "::error::Vercel production SHA mismatch: expected ${KLYX_EXPECTED_SHA,,}, got $deployed_sha."
+            exit 1
+          fi
+
+          echo "KLYX_DEPLOYED_SHA=$deployed_sha" >> "$GITHUB_ENV"
+          echo "Exact Vercel production SHA verified: $deployed_sha"
+
+      - name: Verify already-certified exact-SHA workflows
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${KLYX_EXPECTED_SHA}&status=completed&per_page=100")"
+
+          required=(
+            "KLYX E2E"
+            "KLYX Golden Path"
+            "KLYX Pure Finance Certification"
+          )
+
+          for workflow_name in "${required[@]}"; do
+            if ! jq -e --arg name "$workflow_name" \
+              '[.workflow_runs[] | select(.name == $name and .conclusion == "success")] | length > 0' \
+              <<< "$runs" >/dev/null; then
+              echo "::error::Missing successful exact-SHA workflow: ${workflow_name} @ ${KLYX_EXPECTED_SHA}"
+              exit 1
+            fi
+            echo "Reusing existing PASS: ${workflow_name}"
+          done
+
+      - name: Checkout exact candidate
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Verify Supabase production migration parity read-only
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SUPABASE_DB_URL:-}" ]; then
+            echo "::error::SUPABASE_DB_URL is required for read-only production migration verification."
+            exit 1
+          fi
+
+          effective_db_url="$(node <<'NODE'
+          const raw = process.env.SUPABASE_DB_URL ?? "";
+          const password = process.env.SUPABASE_DB_PASSWORD ?? "";
+          let url;
+          try {
+            url = new URL(raw);
+          } catch {
+            console.error("SUPABASE_DB_URL is invalid.");
+            process.exit(2);
+          }
+          if (!["postgres:", "postgresql:"].includes(url.protocol)) {
+            console.error("SUPABASE_DB_URL must be PostgreSQL.");
+            process.exit(3);
+          }
+          const host = url.hostname.toLowerCase();
+          if (!(host.endsWith(".supabase.co") || host.endsWith(".pooler.supabase.com"))) {
+            console.error("SUPABASE_DB_URL must target Supabase.");
+            process.exit(4);
+          }
+          if (password) url.password = password;
+          if (!url.password) {
+            console.error("Supabase database password is missing.");
+            process.exit(5);
+          }
+          process.stdout.write(url.toString());
+          NODE
+          )"
+
+          echo "::add-mask::$effective_db_url"
+          echo "SUPABASE_EFFECTIVE_DB_URL=$effective_db_url" >> "$GITHUB_ENV"
+
+      - name: Setup Supabase CLI
+        if: github.event_name == 'workflow_dispatch'
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf
+        with:
+          version: 2.111.0
+
+      - name: Prove no pending production migration
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/integrated-financial-test-48
+          supabase migration list --db-url "$SUPABASE_EFFECTIVE_DB_URL" \
+            | tee reports/integrated-financial-test-48/supabase-migrations.txt
+          supabase db push --db-url "$SUPABASE_EFFECTIVE_DB_URL" --dry-run \
+            | tee reports/integrated-financial-test-48/supabase-dry-run.txt
+
+      - name: TypeScript safety check
+        run: npx tsc --noEmit --pretty false
+
+      - name: Run deterministic 48-cell integrated matrix
+        id: matrix
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/integrated-financial-test-48
+          npx vitest run tests/integration/integrated-financial-test-48.test.ts \
+            --reporter=json \
+            --outputFile=reports/integrated-financial-test-48/vitest.json
+
+      - name: Produce PASS FAIL evidence report
+        id: summary
+        if: always()
+        continue-on-error: true
+        run: node scripts/summarize-integrated-financial-test-48.mjs
+
+      - name: Publish certification summary
+        if: always()
+        shell: bash
+        run: |
+          if [ -f reports/integrated-financial-test-48/summary.md ]; then
+            cat reports/integrated-financial-test-48/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload sanitized certification proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: klyx-integrated-financial-test-48-${{ github.run_id }}
+          path: reports/integrated-financial-test-48/
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Enforce 48 of 48 PASS
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ steps.matrix.outcome }}" != "success" ]; then
+            echo "::error::48-cell Vitest matrix failed."
+            exit 1
+          fi
+
+          if [ "${{ steps.summary.outcome }}" != "success" ]; then
+            echo "::error::Certification evidence summary failed."
+            exit 1
+          fi
+
+          status="$(jq -r '.status // "FAIL"' reports/integrated-financial-test-48/proof.json)"
+          pass_count="$(jq -r '.passCount // 0' reports/integrated-financial-test-48/proof.json)"
+          if [ "$status" != "PASS" ] || [ "$pass_count" != "48" ]; then
+            echo "::error::Integrated Financial TEST certification is not 48/48 PASS."
+            exit 1
+          fi
+
+          if [ "${KLYX_LIVE_PAYMENTS_ENABLED}" != "false" ]; then
+            echo "::error::Unsafe LIVE mutation state detected."
+            exit 1
+          fi
+
+          echo "KLYX Integrated Financial TEST 48 = PASS (${pass_count}/48)."
