@@ -170,3 +170,100 @@ export async function sendAssistantMessage(input: {
     body: JSON.stringify(input),
   });
 }
+
+export type ProviderOpportunity = {
+  id: string;
+  title: string;
+  description?: string;
+  city?: string;
+  currency?: string;
+  budget_max?: number | null;
+  budgetTotal?: number | null;
+  requested_date?: string | null;
+  requested_time?: string | null;
+  requestMode?: string;
+  slotCount?: number;
+  service?: {
+    name?: string | null;
+    slug?: string;
+  } | null;
+  match?: {
+    score: number;
+    reasons: string[];
+  } | null;
+  liveEligibility?: {
+    checked: boolean;
+    eligible: boolean;
+    code: string;
+    checkedAt: string;
+  };
+};
+
+export type ProviderJobsPayload = {
+  role?: "provider";
+  requests?: ProviderOpportunity[];
+  jobs?: ProviderOpportunity[];
+  count?: number;
+  liveEligibilityChecked?: boolean;
+  multiSlotJobsChecked?: number;
+  staleMultiSlotJobsRemoved?: number;
+  unresolvedMultiSlotJobsRemoved?: number;
+  liveValidationFailures?: number;
+  automaticExecutionAllowed?: false;
+};
+
+export async function loadProviderOpportunities(): Promise<ProviderJobsPayload> {
+  return apiFetch<ProviderJobsPayload>("/api/provider/jobs", {
+    method: "GET",
+  });
+}
+
+export type ProviderFinanceSummary = {
+  currency: string;
+  grossPaidCents: number;
+  platformFeeCents: number;
+  providerAmountCents: number;
+  refundedCents: number;
+  refundsProcessingCents: number;
+  successfulPayments: number;
+  failedPayments: number;
+  successfulRefunds: number;
+};
+
+export type ProviderFinanceTransaction = {
+  id: string;
+  bookingId: string;
+  bookingGroupId: string | null;
+  grouped: boolean;
+  bookingDate: string | null;
+  bookingStatus: string | null;
+  entryType: string;
+  status: string;
+  currency: string;
+  grossAmountCents: number;
+  platformFeeCents: number;
+  providerAmountCents: number | null;
+  refundAmountCents: number;
+  createdAt: string;
+};
+
+export type ProviderFinancePayload = {
+  summary: ProviderFinanceSummary;
+  transactions: ProviderFinanceTransaction[];
+  reconciliation: {
+    checked: boolean;
+    reconciled: boolean;
+    status: "ok" | "review_required" | string;
+    readOnly: boolean;
+    ledgerModified: false;
+    stripeModified: false;
+    automaticCorrection: false;
+  };
+  automaticExecutionAllowed: false;
+};
+
+export async function loadProviderFinance(): Promise<ProviderFinancePayload> {
+  return apiFetch<ProviderFinancePayload>("/api/provider/finance", {
+    method: "GET",
+  });
+}
