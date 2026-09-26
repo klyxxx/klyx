@@ -67,8 +67,8 @@ describe("KLYX external cost policy", () => {
     ).toMatchObject({ action: "allow", reason: "NO_EXTERNAL_RUNTIME_CALL" });
   });
 
-  it("requires an explicit non-zero budget before allowing paid OpenAI", () => {
-    const env = {
+  it("requires both global and provider budgets before allowing paid OpenAI", () => {
+    const providerOnly = {
       ...productionEnv,
       KLYX_OPENAI_MONTHLY_BUDGET_USD: "1",
       KLYX_OPENAI_MONTHLY_CALL_LIMIT: "100",
@@ -78,7 +78,23 @@ describe("KLYX external cost policy", () => {
       decideExternalCostAction({
         provider: "openai",
         estimatedCostMicrousd: 10_000,
-        env,
+        env: providerOnly,
+      })
+    ).toMatchObject({
+      action: "fallback",
+      reason: "ZERO_BUDGET_FALLBACK",
+    });
+
+    const fullyAuthorized = {
+      ...providerOnly,
+      KLYX_EXTERNAL_PAID_BUDGET_USD: "1",
+    } as NodeJS.ProcessEnv;
+
+    expect(
+      decideExternalCostAction({
+        provider: "openai",
+        estimatedCostMicrousd: 10_000,
+        env: fullyAuthorized,
       })
     ).toMatchObject({
       action: "allow",
