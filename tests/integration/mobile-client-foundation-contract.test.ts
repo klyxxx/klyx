@@ -35,7 +35,9 @@ describe("KLYX mobile client foundation contract", () => {
     expect(client).toContain("expo-secure-store");
     expect(serverAuth).toContain('const ACTIVE_PROFILE_HEADER = "x-klyx-active-profile-id"');
     expect(serverAuth).toContain("request.headers");
-    expect(serverAuth).toContain("profiles.find((item) => item.id === selectedProfileId)");
+    expect(serverAuth).toContain("normalizedProfiles.some((profile) => profile.id === requestedProfileId)");
+    expect(serverAuth).toContain('throw new Error("KLYX_ACTIVE_PROFILE_NOT_OWNED")');
+    expect(serverAuth).toContain('message === "KLYX_ACTIVE_PROFILE_NOT_OWNED"');
   });
 
   it("stores native auth state only in encrypted chunked device storage", () => {
