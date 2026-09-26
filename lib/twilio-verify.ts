@@ -1,5 +1,7 @@
 import "server-only";
 
+import { assertExternalProviderAction } from "@/lib/external-cost-control-server";
+
 // KLYX_TWILIO_VERIFY_12_69
 
 type TwilioResponse = {
@@ -18,6 +20,14 @@ function requiredEnv(name: string): string {
   }
 
   return value;
+}
+
+function twilioMaxVerificationCostMicrousd(): number {
+  const parsed = Number(
+    process.env.KLYX_TWILIO_MAX_VERIFICATION_USD ?? "0.20"
+  );
+  const safe = Number.isFinite(parsed) && parsed > 0 ? parsed : 0.20;
+  return Math.ceil(safe * 1_000_000);
 }
 
 function authCredentials() {
@@ -69,6 +79,12 @@ async function parseResponse(
 export async function sendPhoneOtp(
   phoneNumber: string
 ) {
+  await assertExternalProviderAction({
+    provider: "twilio",
+    action: "phone_otp_verification",
+    estimatedCostMicrousd: twilioMaxVerificationCostMicrousd(),
+  });
+
   const serviceSid =
     requiredEnv("TWILIO_VERIFY_SERVICE_SID");
 
