@@ -6,6 +6,8 @@ import {
   timingSafeEqual,
 } from "crypto";
 
+import { reserveKlyxProviderBudget } from "@/lib/providers/server-cost-control";
+
 const BASE_URL = "https://api.sumsub.com";
 
 function requiredEnv(name: string): string {
@@ -109,6 +111,11 @@ export async function createSumsubSdkToken(params: {
   userId: string;
   email?: string | null;
 }): Promise<{ token: string; userId?: string }> {
+  await reserveKlyxProviderBudget({
+    provider: "sumsub",
+    operation: "identity.sdk_session",
+  });
+
   const body: Record<string, unknown> = {
     userId: params.userId,
     levelName: getSumsubLevelName(),
