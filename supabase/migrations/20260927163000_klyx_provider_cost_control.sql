@@ -166,13 +166,13 @@ begin
     )
   );
 
-  select *
+  select d.*
   into v_existing
-  from public.provider_cost_decisions
-  where provider = v_provider
-    and operation = v_operation
-    and environment = v_environment
-    and request_key = v_request_key;
+  from public.provider_cost_decisions as d
+  where d.provider = v_provider
+    and d.operation = v_operation
+    and d.environment = v_environment
+    and d.request_key = v_request_key;
 
   if found then
     return query
@@ -186,8 +186,8 @@ begin
       v_existing.window_started_at,
       coalesce(w.call_count, 0),
       coalesce(w.reserved_cost_minor, 0)
-    from (select 1) x
-    left join public.provider_cost_windows w
+    from (select 1) as x
+    left join public.provider_cost_windows as w
       on w.provider = v_existing.provider
       and w.operation = v_existing.operation
       and w.environment = v_existing.environment
@@ -195,12 +195,12 @@ begin
     return;
   end if;
 
-  select *
+  select p.*
   into v_policy
-  from public.provider_cost_policies
-  where provider = v_provider
-    and operation = v_operation
-    and environment = v_environment
+  from public.provider_cost_policies as p
+  where p.provider = v_provider
+    and p.operation = v_operation
+    and p.environment = v_environment
   for update;
 
   if not found then
@@ -248,13 +248,13 @@ begin
       )
       on conflict do nothing;
 
-      select call_count, reserved_cost_minor
+      select w.call_count, w.reserved_cost_minor
       into v_calls, v_reserved
-      from public.provider_cost_windows
-      where provider = v_provider
-        and operation = v_operation
-        and environment = v_environment
-        and window_started_at = v_window_start
+      from public.provider_cost_windows as w
+      where w.provider = v_provider
+        and w.operation = v_operation
+        and w.environment = v_environment
+        and w.window_started_at = v_window_start
       for update;
 
       if v_calls + 1 > v_policy.max_calls_per_window then
@@ -268,16 +268,16 @@ begin
         v_allowed := true;
         v_reason := 'ALLOWED';
 
-        update public.provider_cost_windows
+        update public.provider_cost_windows as w
         set
-          call_count = call_count + 1,
-          reserved_cost_minor = reserved_cost_minor + v_policy.reserve_cost_minor_per_call,
+          call_count = w.call_count + 1,
+          reserved_cost_minor = w.reserved_cost_minor + v_policy.reserve_cost_minor_per_call,
           updated_at = now()
-        where provider = v_provider
-          and operation = v_operation
-          and environment = v_environment
-          and window_started_at = v_window_start
-        returning call_count, reserved_cost_minor
+        where w.provider = v_provider
+          and w.operation = v_operation
+          and w.environment = v_environment
+          and w.window_started_at = v_window_start
+        returning w.call_count, w.reserved_cost_minor
         into v_calls, v_reserved;
       end if;
     end if;
@@ -308,7 +308,7 @@ begin
     v_policy.version,
     v_window_start
   )
-  returning id into v_decision_id;
+  returning provider_cost_decisions.id into v_decision_id;
 
   return query select
     v_allowed,
