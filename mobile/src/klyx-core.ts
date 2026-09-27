@@ -1,4 +1,5 @@
 import { KLYX_API_BASE_URL } from "./config";
+import { getSelectedProfileId } from "./profile-selection";
 import { supabase } from "./supabase";
 
 export type MobileProfile = {
@@ -42,9 +43,11 @@ async function coreRequest<T>(
   pathname: string,
   options: CoreRequestOptions = {}
 ): Promise<T> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  const [sessionResult, selectedProfileId] = await Promise.all([
+    supabase.auth.getSession(),
+    getSelectedProfileId(),
+  ]);
+  const session = sessionResult.data.session;
 
   if (!session?.access_token) {
     throw new Error("Session KLYX absente.");
@@ -56,6 +59,9 @@ async function coreRequest<T>(
       Accept: "application/json",
       Authorization: `Bearer ${session.access_token}`,
       "x-klyx-mobile-client": "expo",
+      ...(selectedProfileId
+        ? { "x-klyx-profile-id": selectedProfileId }
+        : {}),
       ...(options.body === undefined
         ? {}
         : { "Content-Type": "application/json" }),
