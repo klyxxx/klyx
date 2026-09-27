@@ -1,5 +1,7 @@
 import "server-only";
 
+import { reserveKlyxProviderBudget } from "@/lib/providers/server-cost-control";
+
 // KLYX_TWILIO_VERIFY_12_69
 
 type TwilioResponse = {
@@ -69,6 +71,11 @@ async function parseResponse(
 export async function sendPhoneOtp(
   phoneNumber: string
 ) {
+  await reserveKlyxProviderBudget({
+    provider: "twilio",
+    operation: "verify.sms.send",
+  });
+
   const serviceSid =
     requiredEnv("TWILIO_VERIFY_SERVICE_SID");
 
