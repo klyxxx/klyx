@@ -14,10 +14,12 @@ import {
   type MobileBootstrap,
   type MobileProfile,
 } from "./klyx-core";
-import { secureStorage } from "./secure-storage";
+import {
+  clearSelectedProfileId,
+  getSelectedProfileId,
+  setSelectedProfileId as persistSelectedProfileId,
+} from "./profile-selection";
 import { supabase } from "./supabase";
-
-const PROFILE_STORAGE_KEY = "klyx.mobile.active-profile";
 
 type SessionContextValue = {
   session: Session | null;
@@ -42,7 +44,7 @@ export function KlyxSessionProvider({ children }: PropsWithChildren) {
 
   const refreshBootstrap = useCallback(async () => {
     const next = await getMobileBootstrap();
-    const remembered = await secureStorage.getItem(PROFILE_STORAGE_KEY);
+    const remembered = await getSelectedProfileId();
     const selected = next.profiles.some((item) => item.id === remembered)
       ? remembered
       : next.canonicalProfileId;
@@ -51,7 +53,7 @@ export function KlyxSessionProvider({ children }: PropsWithChildren) {
     setSelectedProfileId(selected);
 
     if (selected) {
-      await secureStorage.setItem(PROFILE_STORAGE_KEY, selected);
+      await persistSelectedProfileId(selected);
     }
   }, []);
 
@@ -124,7 +126,7 @@ export function KlyxSessionProvider({ children }: PropsWithChildren) {
         if (signInError) throw signInError;
       },
       async signOut() {
-        await secureStorage.removeItem(PROFILE_STORAGE_KEY);
+        await clearSelectedProfileId();
         const { error: signOutError } = await supabase.auth.signOut();
         if (signOutError) throw signOutError;
       },
@@ -133,7 +135,7 @@ export function KlyxSessionProvider({ children }: PropsWithChildren) {
           throw new Error("Profil KLYX invalide.");
         }
         setSelectedProfileId(profileId);
-        await secureStorage.setItem(PROFILE_STORAGE_KEY, profileId);
+        await persistSelectedProfileId(profileId);
       },
       refreshBootstrap,
     }),
