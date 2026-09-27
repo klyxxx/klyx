@@ -57,6 +57,17 @@ describe("KLYX mobile client boundary", () => {
     expect(core).toContain("Authorization: `Bearer ${session.access_token}`");
   });
 
+  it("propagates the selected profile and verifies ownership server-side", () => {
+    const core = read("mobile/src/klyx-core.ts");
+    const auth = read("lib/api-auth.ts");
+
+    expect(core).toContain('"x-klyx-profile-id": selectedProfileId');
+    expect(auth).toContain('const PROFILE_SELECTION_HEADER = "x-klyx-profile-id"');
+    expect(auth).toContain("normalizedProfiles.some((item) => item.id === requestedProfileId)");
+    expect(auth).toContain('throw new Error("KLYX_PROFILE_SELECTION_FORBIDDEN")');
+    expect(auth).toContain("preferredLegacyProfile(");
+  });
+
   it("keeps mobile notification mutations profile-owner scoped", () => {
     const route = read("app/api/mobile/notifications/read/route.ts");
 
