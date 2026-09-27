@@ -6,6 +6,7 @@ import {
   requireKlyxAdmin,
 } from "@/lib/admin-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { reserveKlyxProviderBudget } from "@/lib/providers/server-cost-control";
 import {
   logServerError,
   logServerWarning,
@@ -153,6 +154,11 @@ export async function GET() {
     let response: Response;
 
     try {
+      await reserveKlyxProviderBudget({
+        provider: "openai",
+        operation: "responses.health_check",
+      });
+
       response =
         await fetch(
           "https://api.openai.com/v1/responses",
@@ -189,6 +195,10 @@ export async function GET() {
         durationMs: Math.max(0, Date.now() - startedAt),
       });
 
+      const costBlocked =
+        error instanceof Error &&
+        error.message.startsWith("KLYX_PROVIDER_COST_BLOCKED:");
+
       return NextResponse.json(
         {
           ready: false,
@@ -196,13 +206,19 @@ export async function GET() {
           model,
           apiStatus: null,
           errorType:
-            error instanceof Error
-              ? error.name
-              : "network_error",
+            costBlocked
+              ? "cost_gate"
+              : error instanceof Error
+                ? error.name
+                : "network_error",
           errorCode:
-            "OPENAI_REQUEST_FAILED",
+            costBlocked
+              ? "OPENAI_COST_GATE_BLOCKED"
+              : "OPENAI_REQUEST_FAILED",
           errorMessage:
-            "OpenAI n'est pas joignable depuis KLYX.",
+            costBlocked
+              ? "OpenAI est volontairement bloqué par le contrôle de coût KLYX."
+              : "OpenAI n'est pas joignable depuis KLYX.",
         },
         {
           status: 200,
