@@ -54,6 +54,22 @@ function writeLocalePreference(locale: KlyxLocale) {
   applyDocumentLocale(locale);
 }
 
+function readLocaleCookie(): string | null {
+  const prefix = `${KLYX_LANGUAGE_COOKIE_KEY}=`;
+  const row = document.cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(prefix));
+
+  if (!row) return null;
+
+  try {
+    return decodeURIComponent(row.slice(prefix.length));
+  } catch {
+    return row.slice(prefix.length);
+  }
+}
+
 export default function KlyxLocaleProvider({
   children,
   initialLocale = KLYX_DEFAULT_LOCALE,
@@ -63,10 +79,13 @@ export default function KlyxLocaleProvider({
   );
 
   useEffect(() => {
+    const cookieLocale = readLocaleCookie();
     const saved = localStorage.getItem(KLYX_LANGUAGE_STORAGE_KEY);
-    const next = saved
-      ? normalizeKlyxSelectableLocale(saved)
-      : normalizeKlyxSelectableLocale(initialLocale);
+    const next = cookieLocale
+      ? normalizeKlyxSelectableLocale(cookieLocale)
+      : saved
+        ? normalizeKlyxSelectableLocale(saved)
+        : normalizeKlyxSelectableLocale(initialLocale);
 
     setLocaleState(next);
     writeLocalePreference(next);
@@ -91,6 +110,32 @@ export default function KlyxLocaleProvider({
 
     return () => {
       window.removeEventListener("storage", onStorage);
+    };
+  }, []);
+
+  useEffect(() => {
+    function syncLocaleFromCookie() {
+      const value = readLocaleCookie();
+      if (!value) return;
+
+      const next = normalizeKlyxSelectableLocale(value);
+      setLocaleState((current) => {
+        if (current === next) return current;
+
+        localStorage.setItem(KLYX_LANGUAGE_STORAGE_KEY, next);
+        applyDocumentLocale(next);
+        return next;
+      });
+    }
+
+    const interval = window.setInterval(syncLocaleFromCookie, 1000);
+    window.addEventListener("focus", syncLocaleFromCookie);
+    document.addEventListener("visibilitychange", syncLocaleFromCookie);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", syncLocaleFromCookie);
+      document.removeEventListener("visibilitychange", syncLocaleFromCookie);
     };
   }, []);
 
