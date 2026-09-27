@@ -1,0 +1,69 @@
+name: KLYX Mobile CI
+
+on:
+  pull_request:
+    paths:
+      - "mobile/**"
+      - "app/api/mobile/**"
+      - "app/api/provider/sumsub/**"
+      - "app/api/assistant/unified/**"
+      - "app/api/stripe/create-checkout-session/**"
+      - "messages/tolgee/**"
+      - "tests/integration/mobile-client-boundary-contract.test.ts"
+      - ".github/workflows/klyx-mobile-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mobile-client:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.13.1"
+
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: npm install --no-audit --no-fund
+
+      - name: Typecheck mobile
+        working-directory: mobile
+        run: npm run typecheck
+
+      - name: Validate Expo public config
+        working-directory: mobile
+        env:
+          EXPO_PUBLIC_KLYX_API_BASE_URL: https://example.invalid
+          EXPO_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_only
+        run: npx expo config --type public
+
+      - name: Validate Android native generation
+        working-directory: mobile
+        env:
+          EXPO_PUBLIC_KLYX_API_BASE_URL: https://example.invalid
+          EXPO_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_only
+        run: npx expo prebuild --platform android --no-install --clean
+
+  mobile-boundary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+          cache: npm
+
+      - name: Install KLYX dependencies
+        run: npm ci
+
+      - name: Certify mobile authority boundary
+        run: npx vitest run tests/integration/mobile-client-boundary-contract.test.ts

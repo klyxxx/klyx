@@ -1,0 +1,33 @@
+{
+  "name": "klyx-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "node_modules/expo/AppEntry.js",
+  "scripts": {
+    "sync:i18n": "node scripts/sync-tolgee.mjs",
+    "postinstall": "npm run sync:i18n",
+    "start": "npm run sync:i18n && expo start --dev-client",
+    "android": "npm run sync:i18n && expo run:android",
+    "ios": "npm run sync:i18n && expo run:ios",
+    "prebuild": "npm run sync:i18n && expo prebuild",
+    "typecheck": "npm run sync:i18n && tsc --noEmit"
+  },
+  "dependencies": {
+    "@sumsub/react-native-mobilesdk-module": "1.46.1",
+    "@supabase/supabase-js": "^2.111.0",
+    "expo": "~57.0.1",
+    "expo-secure-store": "~57.0.4",
+    "expo-status-bar": "~57.0.0",
+    "react": "19.2.3",
+    "react-native": "0.86.0",
+    "react-native-url-polyfill": "^2.0.0"
+  },
+  "devDependencies": {
+    "@expo/config-plugins": "~57.0.9",
+    "@types/react": "~19.2.2",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  }
+}
