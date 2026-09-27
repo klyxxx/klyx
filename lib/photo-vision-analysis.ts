@@ -143,6 +143,21 @@ export function isPhotoVisionEnabled(): boolean {
   );
 }
 
+async function reserveVisionProviderBudget(): Promise<void> {
+  if (process.env.NODE_ENV === "test") {
+    return;
+  }
+
+  const { reserveKlyxProviderBudget } = await import(
+    "@/lib/providers/server-cost-control"
+  );
+
+  await reserveKlyxProviderBudget({
+    provider: "openai",
+    operation: "responses.vision",
+  });
+}
+
 export async function analyzePhotoVisualContent(
   input: AnalyzePhotoVisionInput
 ): Promise<PhotoVisionResult> {
@@ -183,6 +198,8 @@ export async function analyzePhotoVisualContent(
   const description = input.userDescription.trim().slice(0, 1500);
 
   try {
+    await reserveVisionProviderBudget();
+
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
@@ -294,14 +311,20 @@ export async function analyzePhotoVisualContent(
       evidence,
       fallbackReason: null,
     };
-  } catch {
+  } catch (error) {
+    const budgetBlocked =
+      error instanceof Error &&
+      error.message.startsWith("KLYX_PROVIDER_COST_BLOCKED:");
+
     return {
       enabled: true,
       used: false,
       provider: "none",
       model: null,
       evidence: null,
-      fallbackReason: "vision_request_failed",
+      fallbackReason: budgetBlocked
+        ? "vision_cost_gate_blocked"
+        : "vision_request_failed",
     };
   }
 }
