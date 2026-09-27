@@ -17,6 +17,10 @@ import {
   OpenAiKlyxLlmProvider,
 } from "./openai-provider";
 
+import {
+  reserveKlyxProviderBudget,
+} from "@/lib/providers/server-cost-control";
+
 const DISABLED_PROVIDER_NAME =
   "disabled";
 
@@ -138,6 +142,31 @@ class DisabledKlyxLlmProvider
   }
 }
 
+class BudgetedKlyxLlmProvider
+  implements KlyxLlmProvider
+{
+  readonly name = "budgeted-openai";
+
+  constructor(
+    private readonly delegate: KlyxLlmProvider,
+  ) {}
+
+  getStatus(): KlyxLlmProviderStatus {
+    return this.delegate.getStatus();
+  }
+
+  async generate(
+    request: KlyxLlmRequest,
+  ): Promise<KlyxLlmResponse> {
+    await reserveKlyxProviderBudget({
+      provider: "openai",
+      operation: "responses.generate",
+    });
+
+    return this.delegate.generate(request);
+  }
+}
+
 class ResilientKlyxLlmProvider
   implements KlyxLlmProvider
 {
@@ -213,7 +242,9 @@ export function createKlyxLlmProvider():
   }
 
   const primary =
-    new OpenAiKlyxLlmProvider();
+    new BudgetedKlyxLlmProvider(
+      new OpenAiKlyxLlmProvider(),
+    );
 
   return new ResilientKlyxLlmProvider(
     primary,
