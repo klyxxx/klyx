@@ -20,10 +20,11 @@ module.exports = {
     },
     android: {
       package: "app.klyx.mobile",
-      permissions: ["CAMERA", "RECORD_AUDIO"]
+      permissions: ["CAMERA", "RECORD_AUDIO", "POST_NOTIFICATIONS"]
     },
     plugins: [
       "expo-secure-store",
+      "expo-notifications",
       path.resolve(__dirname, "plugins/with-sumsub.js")
     ],
     extra: {
