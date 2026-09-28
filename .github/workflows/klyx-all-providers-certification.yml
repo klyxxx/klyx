@@ -27,7 +27,7 @@ jobs:
   certify:
     name: Providers + recovery + Web Android iOS
     runs-on: ubuntu-22.04
-    timeout-minutes: 70
+    timeout-minutes: 80
 
     env:
       KLYX_CERT_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
@@ -112,7 +112,7 @@ jobs:
             exit 1
           fi
 
-      - name: Dispatch exact-SHA engine and Stripe TEST certifications
+      - name: Dispatch exact-SHA engine, Stripe TEST and mobile certifications
         id: dispatch_exact
         continue-on-error: true
         env:
@@ -131,6 +131,10 @@ jobs:
             -f ref="$KLYX_CERT_REF" \
             -f "inputs[expected_sha]=$KLYX_CERT_SHA" \
             -f "inputs[confirm_stripe_test_network]=true"
+
+          gh api --method POST \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/klyx-mobile-ci.yml/dispatches" \
+            -f ref="$KLYX_CERT_REF"
 
       - name: Scan repository for secrets
         shell: pwsh
@@ -167,7 +171,8 @@ jobs:
             tests/integration/auth-turnstile-contract.test.ts \
             tests/integration/security-headers-csp-contract.test.ts \
             tests/integration/economic-settlement-eligibility-contract.test.ts \
-            tests/integration/settlement-recovery-reconciliation-contract.test.ts
+            tests/integration/settlement-recovery-reconciliation-contract.test.ts \
+            tests/integration/mobile-client-boundary-contract.test.ts
           npm run certify:autonomous:offline
 
       - name: Complete repository tests
@@ -258,6 +263,34 @@ jobs:
           echo "::error::Timed out waiting for exact-SHA Economic Chain certification."
           exit 1
 
+      - name: Await exact-SHA Mobile Android iOS certification
+        id: exact_mobile
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 150); do
+            row="$(gh api --method GET \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/klyx-mobile-ci.yml/runs" \
+              -f event=workflow_dispatch -f branch="$KLYX_CERT_REF" -F per_page=20 \
+              --jq ".workflow_runs[] | select(.head_sha == \"$KLYX_CERT_SHA\") | [.id,.status,.conclusion] | @tsv" \
+              | head -n 1)"
+            if [ -n "$row" ]; then
+              status="$(printf '%s' "$row" | cut -f2)"
+              conclusion="$(printf '%s' "$row" | cut -f3)"
+              echo "Mobile Android+iOS: $status / $conclusion"
+              if [ "$status" = "completed" ]; then
+                [ "$conclusion" = "success" ] && exit 0
+                exit 1
+              fi
+            fi
+            sleep 10
+          done
+          echo "::error::Timed out waiting for exact-SHA Mobile Android+iOS certification."
+          exit 1
+
       - name: Produce final PASS FAIL report
         id: final_report
         if: always()
@@ -270,6 +303,7 @@ jobs:
           KLYX_PLATFORMS_OUTCOME: ${{ steps.platforms.outcome }}
           KLYX_EXACT_ENGINE_OUTCOME: ${{ steps.exact_engine.outcome }}
           KLYX_EXACT_STRIPE_OUTCOME: ${{ steps.exact_stripe.outcome }}
+          KLYX_EXACT_MOBILE_OUTCOME: ${{ steps.exact_mobile.outcome }}
         run: node scripts/certification/klyx-all-providers-final-report.mjs
 
       - name: Upload certification evidence
