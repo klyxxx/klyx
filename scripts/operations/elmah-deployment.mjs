@@ -21,8 +21,18 @@ function safeDescription(value) {
   return normalized || "KLYX production deployment";
 }
 
+function elmahCostArmed() {
+  if (process.env.KLYX_EXTERNAL_COST_MODE?.trim().toLowerCase() !== "bounded") {
+    return false;
+  }
+
+  const daily = Number(process.env.KLYX_COST_ELMAH_DAILY_LIMIT ?? 0);
+  const monthly = Number(process.env.KLYX_COST_ELMAH_MONTHLY_LIMIT ?? 0);
+  return Number.isFinite(daily) && daily > 0 && Number.isFinite(monthly) && monthly > 0;
+}
+
 async function notifyDeployment() {
-  if (process.env.VERCEL_ENV !== "production") {
+  if (process.env.VERCEL_ENV !== "production" || !elmahCostArmed()) {
     return;
   }
 

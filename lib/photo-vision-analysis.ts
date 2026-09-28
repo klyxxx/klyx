@@ -3,6 +3,8 @@
 // server routes. KLYX intentionally avoids a runtime `server-only` dependency
 // here so the repository's Vitest contracts can inspect the module directly.
 
+import { isKlyxExternalMeterArmed } from "@/lib/providers/cost-control";
+
 export type PhotoVisualEvidence = {
   visualSummary: string;
   serviceHints: string[];
@@ -25,7 +27,7 @@ type AnalyzePhotoVisionInput = {
 };
 
 const MAX_VISION_BYTES = 10 * 1024 * 1024;
-const DEFAULT_VISION_MODEL = "gpt-5-mini";
+const DEFAULT_VISION_MODEL = "gpt-5.6-luna";
 
 // Visual evidence below this threshold may still be displayed as an
 // inconclusive analysis, but it cannot influence the service candidate list.
@@ -56,41 +58,28 @@ const VISION_SCHEMA = {
       maximum: 100,
     },
   },
-  required: [
-    "visualSummary",
-    "serviceHints",
-    "confidence",
-  ],
+  required: ["visualSummary", "serviceHints", "confidence"],
 } as const;
 
 function extractOutputText(payload: unknown): string {
   if (!payload || typeof payload !== "object") return "";
 
   const record = payload as Record<string, unknown>;
-
   if (typeof record.output_text === "string") {
     return record.output_text.trim();
   }
 
   const output = Array.isArray(record.output) ? record.output : [];
-
   for (const item of output) {
     if (!item || typeof item !== "object") continue;
-
-    const content = Array.isArray(
-      (item as Record<string, unknown>).content
-    )
+    const content = Array.isArray((item as Record<string, unknown>).content)
       ? ((item as Record<string, unknown>).content as unknown[])
       : [];
 
     for (const part of content) {
       if (!part || typeof part !== "object") continue;
-
       const text = (part as Record<string, unknown>).text;
-
-      if (typeof text === "string" && text.trim()) {
-        return text.trim();
-      }
+      if (typeof text === "string" && text.trim()) return text.trim();
     }
   }
 
@@ -110,10 +99,7 @@ function cleanEvidence(value: unknown): PhotoVisualEvidence | null {
     ? [
         ...new Set(
           record.serviceHints
-            .filter(
-              (item): item is string =>
-                typeof item === "string"
-            )
+            .filter((item): item is string => typeof item === "string")
             .map((item) => item.trim().slice(0, 80))
             .filter(Boolean)
         ),
@@ -129,17 +115,14 @@ function cleanEvidence(value: unknown): PhotoVisualEvidence | null {
     return null;
   }
 
-  return {
-    visualSummary,
-    serviceHints,
-    confidence,
-  };
+  return { visualSummary, serviceHints, confidence };
 }
 
 export function isPhotoVisionEnabled(): boolean {
   return (
     process.env.KLYX_VISION_ENABLED === "1" &&
-    Boolean(process.env.OPENAI_API_KEY?.trim())
+    Boolean(process.env.OPENAI_API_KEY?.trim()) &&
+    isKlyxExternalMeterArmed("openai_request")
   );
 }
 
@@ -149,9 +132,7 @@ export async function analyzePhotoVisualContent(
   const enabled = isPhotoVisionEnabled();
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   const model =
-    process.env.KLYX_VISION_MODEL?.trim() ||
-    process.env.KLYX_OPENAI_MODEL?.trim() ||
-    DEFAULT_VISION_MODEL;
+    process.env.KLYX_VISION_MODEL?.trim() || DEFAULT_VISION_MODEL;
 
   if (!enabled || !apiKey) {
     return {
@@ -164,10 +145,7 @@ export async function analyzePhotoVisualContent(
     };
   }
 
-  if (
-    input.bytes.byteLength <= 0 ||
-    input.bytes.byteLength > MAX_VISION_BYTES
-  ) {
+  if (input.bytes.byteLength <= 0 || input.bytes.byteLength > MAX_VISION_BYTES) {
     return {
       enabled: true,
       used: false,
@@ -259,7 +237,6 @@ export async function analyzePhotoVisualContent(
     }
 
     let parsed: unknown;
-
     try {
       parsed = JSON.parse(outputText);
     } catch {
@@ -274,7 +251,6 @@ export async function analyzePhotoVisualContent(
     }
 
     const evidence = cleanEvidence(parsed);
-
     if (!evidence) {
       return {
         enabled: true,

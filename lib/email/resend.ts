@@ -2,6 +2,7 @@ import "server-only";
 
 import { logServerWarning } from "@/lib/server-log";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { reserveKlyxExternalProviderUsage } from "@/lib/providers/cost-usage-server";
 import {
   sendResendEmail,
   type KlyxEmailDeliveryResult,
@@ -50,12 +51,39 @@ function logDeliveryWarning(code: string): void {
   });
 }
 
+function costIdempotencyKey(value: string | undefined): string | undefined {
+  const normalized = value?.trim();
+  return normalized ? `resend:${normalized}`.slice(0, 200) : undefined;
+}
+
+async function reserveEmail(input: {
+  idempotencyKey?: string;
+}): Promise<boolean> {
+  const reservation = await reserveKlyxExternalProviderUsage({
+    meter: "resend_email",
+    idempotencyKey: costIdempotencyKey(input.idempotencyKey),
+  });
+
+  if (!reservation.allowed) {
+    logServerWarning({
+      event: "transactional_email_cost_guard",
+      code: "KLYX_RESEND_COST_LIMIT",
+    });
+  }
+
+  return reservation.allowed;
+}
+
 export async function sendKlyxTransactionalEmail(
   input: KlyxTransactionalEmailInput
 ): Promise<KlyxEmailDeliveryResult> {
   const apiKey = resendApiKey();
 
   if (!apiKey) {
+    return skippedResult();
+  }
+
+  if (!(await reserveEmail(input))) {
     return skippedResult();
   }
 
@@ -109,6 +137,10 @@ export async function sendKlyxProfileTransactionalEmail(
     const email = authData.user?.email?.trim();
 
     if (!email) {
+      return skippedResult();
+    }
+
+    if (!(await reserveEmail(input))) {
       return skippedResult();
     }
 

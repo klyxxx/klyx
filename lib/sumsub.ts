@@ -5,6 +5,7 @@ import {
   createHmac,
   timingSafeEqual,
 } from "crypto";
+import { requireKlyxExternalProviderUsage } from "@/lib/providers/cost-usage-server";
 
 const BASE_URL = "https://api.sumsub.com";
 
@@ -109,6 +110,10 @@ export async function createSumsubSdkToken(params: {
   userId: string;
   email?: string | null;
 }): Promise<{ token: string; userId?: string }> {
+  await requireKlyxExternalProviderUsage({
+    meter: "sumsub_verification_session",
+  });
+
   const body: Record<string, unknown> = {
     userId: params.userId,
     levelName: getSumsubLevelName(),

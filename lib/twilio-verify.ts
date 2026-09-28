@@ -1,5 +1,7 @@
 import "server-only";
 
+import { requireKlyxExternalProviderUsage } from "@/lib/providers/cost-usage-server";
+
 // KLYX_TWILIO_VERIFY_12_69
 
 type TwilioResponse = {
@@ -69,6 +71,10 @@ async function parseResponse(
 export async function sendPhoneOtp(
   phoneNumber: string
 ) {
+  await requireKlyxExternalProviderUsage({
+    meter: "twilio_verification_start",
+  });
+
   const serviceSid =
     requiredEnv("TWILIO_VERIFY_SERVICE_SID");
 

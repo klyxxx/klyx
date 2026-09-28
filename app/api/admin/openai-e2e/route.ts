@@ -10,6 +10,7 @@ import {
 import { secureApiErrorResponse } from "@/lib/api-error";
 import { generateKlyxAiReply } from "@/lib/klyx-ai";
 import { analyzePhotoVisualContent } from "@/lib/photo-vision-analysis";
+import { requireKlyxExternalProviderUsage } from "@/lib/providers/cost-usage-server";
 
 export const runtime = "nodejs";
 
@@ -94,6 +95,8 @@ export async function POST() {
       ].join(" "),
       accountType: "provider",
     });
+
+    await requireKlyxExternalProviderUsage({ meter: "openai_request" });
 
     const vision = await analyzePhotoVisualContent({
       bytes: createSyntheticProbePng(),

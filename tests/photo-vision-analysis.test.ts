@@ -10,6 +10,9 @@ const previousVisionEnabled = process.env.KLYX_VISION_ENABLED;
 const previousApiKey = process.env.OPENAI_API_KEY;
 const previousVisionModel = process.env.KLYX_VISION_MODEL;
 const previousOpenAiModel = process.env.KLYX_OPENAI_MODEL;
+const previousCostMode = process.env.KLYX_EXTERNAL_COST_MODE;
+const previousOpenAiDailyLimit = process.env.KLYX_COST_OPENAI_DAILY_LIMIT;
+const previousOpenAiMonthlyLimit = process.env.KLYX_COST_OPENAI_MONTHLY_LIMIT;
 
 function restoreEnvironment() {
   for (const [name, value] of Object.entries({
@@ -17,6 +20,9 @@ function restoreEnvironment() {
     OPENAI_API_KEY: previousApiKey,
     KLYX_VISION_MODEL: previousVisionModel,
     KLYX_OPENAI_MODEL: previousOpenAiModel,
+    KLYX_EXTERNAL_COST_MODE: previousCostMode,
+    KLYX_COST_OPENAI_DAILY_LIMIT: previousOpenAiDailyLimit,
+    KLYX_COST_OPENAI_MONTHLY_LIMIT: previousOpenAiMonthlyLimit,
   })) {
     if (value == null) {
       delete process.env[name];
@@ -31,6 +37,9 @@ describe("KLYX photo visual analysis runtime", () => {
     process.env.KLYX_VISION_ENABLED = "1";
     process.env.OPENAI_API_KEY = "unit-test-key";
     process.env.KLYX_VISION_MODEL = "unit-test-vision-model";
+    process.env.KLYX_EXTERNAL_COST_MODE = "bounded";
+    process.env.KLYX_COST_OPENAI_DAILY_LIMIT = "10";
+    process.env.KLYX_COST_OPENAI_MONTHLY_LIMIT = "100";
     delete process.env.KLYX_OPENAI_MODEL;
   });
 
@@ -148,6 +157,25 @@ describe("KLYX photo visual analysis runtime", () => {
 
     expect(result.used).toBe(false);
     expect(result.provider).toBe("none");
+    expect(result.fallbackReason).toBe("vision_disabled");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("falls back safely when the OpenAI cost budget is not armed", async () => {
+    process.env.KLYX_EXTERNAL_COST_MODE = "zero";
+
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(isPhotoVisionEnabled()).toBe(false);
+
+    const result = await analyzePhotoVisualContent({
+      bytes: new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+      mimeType: "image/png",
+      userDescription: "Une fuite est visible sous le robinet.",
+    });
+
+    expect(result.used).toBe(false);
     expect(result.fallbackReason).toBe("vision_disabled");
     expect(fetchMock).not.toHaveBeenCalled();
   });

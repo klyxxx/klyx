@@ -6,6 +6,8 @@ import {
   requireKlyxAdmin,
 } from "@/lib/admin-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
+import { isKlyxExternalMeterArmed } from "@/lib/providers/cost-control";
+import { reserveKlyxExternalProviderUsage } from "@/lib/providers/cost-usage-server";
 import {
   logServerError,
   logServerWarning,
@@ -31,82 +33,27 @@ function safeString(
   value: unknown,
   maxLength = 300
 ): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const normalized =
-    value.trim();
-
-  if (!normalized) {
-    return null;
-  }
-
-  return normalized.slice(
-    0,
-    maxLength
-  );
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  if (!normalized) return null;
+  return normalized.slice(0, maxLength);
 }
 
-function extractOutputText(
-  payload: OpenAiSuccessPayload
-): string {
-  if (
-    typeof payload.output_text ===
-      "string" &&
-    payload.output_text.trim()
-  ) {
+function extractOutputText(payload: OpenAiSuccessPayload): string {
+  if (typeof payload.output_text === "string" && payload.output_text.trim()) {
     return payload.output_text.trim();
   }
 
-  const output =
-    Array.isArray(payload.output)
-      ? payload.output
-      : [];
-
+  const output = Array.isArray(payload.output) ? payload.output : [];
   for (const item of output) {
-    if (
-      !item ||
-      typeof item !== "object"
-    ) {
-      continue;
-    }
-
-    const record =
-      item as Record<
-        string,
-        unknown
-      >;
-
-    const content =
-      Array.isArray(
-        record.content
-      )
-        ? record.content
-        : [];
+    if (!item || typeof item !== "object") continue;
+    const record = item as Record<string, unknown>;
+    const content = Array.isArray(record.content) ? record.content : [];
 
     for (const part of content) {
-      if (
-        !part ||
-        typeof part !== "object"
-      ) {
-        continue;
-      }
-
-      const text =
-        (
-          part as Record<
-            string,
-            unknown
-          >
-        ).text;
-
-      if (
-        typeof text === "string" &&
-        text.trim()
-      ) {
-        return text.trim();
-      }
+      if (!part || typeof part !== "object") continue;
+      const text = (part as Record<string, unknown>).text;
+      if (typeof text === "string" && text.trim()) return text.trim();
     }
   }
 
@@ -119,65 +66,72 @@ export async function GET() {
   try {
     await requireKlyxAdmin();
 
-    const apiKey =
-      process.env
-        .OPENAI_API_KEY
-        ?.trim() ?? "";
-
-    const model =
-      process.env
-        .KLYX_OPENAI_MODEL
-        ?.trim() ||
-      "gpt-5-mini";
+    const apiKey = process.env.OPENAI_API_KEY?.trim() ?? "";
+    const model = process.env.KLYX_OPENAI_MODEL?.trim() || "gpt-5.6-luna";
+    const budgetArmed = isKlyxExternalMeterArmed("openai_request");
 
     if (!apiKey) {
-      return NextResponse.json(
-        {
-          ready: false,
-          configured: false,
-          model,
-          apiStatus: null,
-          errorType:
-            "configuration_error",
-          errorCode:
-            "OPENAI_API_KEY_MISSING",
-          errorMessage:
-            "OPENAI_API_KEY absente.",
-        },
-        {
-          status: 200,
-        }
-      );
+      return NextResponse.json({
+        ready: false,
+        configured: false,
+        budgetArmed,
+        model,
+        apiStatus: null,
+        errorType: "configuration_error",
+        errorCode: "OPENAI_API_KEY_MISSING",
+        errorMessage: "OPENAI_API_KEY absente.",
+      });
+    }
+
+    if (!budgetArmed) {
+      return NextResponse.json({
+        ready: false,
+        configured: true,
+        budgetArmed: false,
+        model,
+        apiStatus: null,
+        errorType: "cost_guard",
+        errorCode: "OPENAI_COST_BUDGET_DISABLED",
+        errorMessage:
+          "OpenAI est volontairement désactivé par le budget KLYX; aucun appel externe de diagnostic n'a été effectué.",
+      });
+    }
+
+    const reservation = await reserveKlyxExternalProviderUsage({
+      meter: "openai_request",
+    });
+
+    if (!reservation.allowed) {
+      return NextResponse.json({
+        ready: false,
+        configured: true,
+        budgetArmed: true,
+        model,
+        apiStatus: null,
+        errorType: "cost_guard",
+        errorCode: "OPENAI_COST_LIMIT_REACHED",
+        errorMessage:
+          "Le quota OpenAI KLYX est atteint; aucun appel externe de diagnostic n'a été effectué.",
+      });
     }
 
     let response: Response;
 
     try {
-      response =
-        await fetch(
-          "https://api.openai.com/v1/responses",
-          {
-            method: "POST",
-            headers: {
-              Authorization:
-                `Bearer ${apiKey}`,
-              "Content-Type":
-                "application/json",
-            },
-            body: JSON.stringify({
-              model,
-              input:
-                "Réponds uniquement avec le mot OK.",
-              max_output_tokens:
-                256,
-            }),
-            signal:
-              AbortSignal.timeout(
-                20000
-              ),
-            cache: "no-store",
-          }
-        );
+      response = await fetch("https://api.openai.com/v1/responses", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          input: "Réponds uniquement avec le mot OK.",
+          max_output_tokens: 256,
+        }),
+        signal: AbortSignal.timeout(20000),
+        cache: "no-store",
+      });
     } catch (error) {
       logServerError({
         error,
@@ -189,44 +143,29 @@ export async function GET() {
         durationMs: Math.max(0, Date.now() - startedAt),
       });
 
-      return NextResponse.json(
-        {
-          ready: false,
-          configured: true,
-          model,
-          apiStatus: null,
-          errorType:
-            error instanceof Error
-              ? error.name
-              : "network_error",
-          errorCode:
-            "OPENAI_REQUEST_FAILED",
-          errorMessage:
-            "OpenAI n'est pas joignable depuis KLYX.",
-        },
-        {
-          status: 200,
-        }
-      );
+      return NextResponse.json({
+        ready: false,
+        configured: true,
+        budgetArmed: true,
+        model,
+        apiStatus: null,
+        errorType: error instanceof Error ? error.name : "network_error",
+        errorCode: "OPENAI_REQUEST_FAILED",
+        errorMessage: "OpenAI n'est pas joignable depuis KLYX.",
+      });
     }
 
-    let payload:
-      | OpenAiErrorPayload
-      | OpenAiSuccessPayload =
-      {};
-
+    let payload: OpenAiErrorPayload | OpenAiSuccessPayload = {};
     try {
-      payload =
-        await response.json() as
-          | OpenAiErrorPayload
-          | OpenAiSuccessPayload;
+      payload = (await response.json()) as
+        | OpenAiErrorPayload
+        | OpenAiSuccessPayload;
     } catch {
       payload = {};
     }
 
     if (!response.ok) {
-      const errorPayload =
-        payload as OpenAiErrorPayload;
+      const errorPayload = payload as OpenAiErrorPayload;
 
       logServerWarning({
         event: "admin_openai_health_upstream_rejected",
@@ -237,73 +176,36 @@ export async function GET() {
         durationMs: Math.max(0, Date.now() - startedAt),
       });
 
-      return NextResponse.json(
-        {
-          ready: false,
-          configured: true,
-          model,
-          apiStatus:
-            response.status,
-          errorType:
-            safeString(
-              errorPayload.error
-                ?.type
-            ),
-          errorCode:
-            safeString(
-              errorPayload.error
-                ?.code
-            ),
-          errorMessage:
-            "OpenAI a refusé la requête de diagnostic.",
-        },
-        {
-          status: 200,
-        }
-      );
+      return NextResponse.json({
+        ready: false,
+        configured: true,
+        budgetArmed: true,
+        model,
+        apiStatus: response.status,
+        errorType: safeString(errorPayload.error?.type),
+        errorCode: safeString(errorPayload.error?.code),
+        errorMessage: "OpenAI a refusé la requête de diagnostic.",
+      });
     }
 
-    const successPayload =
-      payload as OpenAiSuccessPayload;
-    const output =
-      extractOutputText(
-        successPayload
-      );
-    const responseStatus =
-      safeString(
-        successPayload.status
-      );
-    const incompleteReason =
-      safeString(
-        successPayload
-          .incomplete_details
-          ?.reason
-      );
-
-    return NextResponse.json(
-      {
-        ready:
-          Boolean(output),
-        configured: true,
-        model,
-        apiStatus:
-          response.status,
-        responseStatus,
-        incompleteReason,
-        outputReceived:
-          Boolean(output),
-        outputPreview:
-          output
-            ? output.slice(
-                0,
-                80
-              )
-            : null,
-      },
-      {
-        status: 200,
-      }
+    const successPayload = payload as OpenAiSuccessPayload;
+    const output = extractOutputText(successPayload);
+    const responseStatus = safeString(successPayload.status);
+    const incompleteReason = safeString(
+      successPayload.incomplete_details?.reason
     );
+
+    return NextResponse.json({
+      ready: Boolean(output),
+      configured: true,
+      budgetArmed: true,
+      model,
+      apiStatus: response.status,
+      responseStatus,
+      incompleteReason,
+      outputReceived: Boolean(output),
+      outputPreview: output ? output.slice(0, 80) : null,
+    });
   } catch (error) {
     const status = adminErrorStatus(error);
 
@@ -316,9 +218,7 @@ export async function GET() {
       code: "KLYX_ADMIN_OPENAI_HEALTH_FAILED",
       publicMessage: adminErrorPublicMessage(status),
       startedAt,
-      details: {
-        ready: false,
-      },
+      details: { ready: false },
     });
   }
 }

@@ -26,6 +26,7 @@ import {
   PHOTO_VISION_MIN_RELIABLE_CONFIDENCE,
   type PhotoVisionResult,
 } from "@/lib/photo-vision-analysis";
+import { reserveKlyxExternalProviderUsage } from "@/lib/providers/cost-usage-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 const ALLOWED_TYPES = [
@@ -220,16 +221,12 @@ function buildAnalysis(params: {
 
 export async function POST(request: Request) {
   try {
-    const { profile } =
-      await getAuthenticatedProfile(request);
+    const { profile } = await getAuthenticatedProfile(request);
 
     requireAccountType(profile, "client");
 
     const policy = API_RATE_LIMIT_POLICIES.photoAnalysis;
-    const rateLimit = await consumeApiRateLimit(
-      profile.id,
-      policy
-    );
+    const rateLimit = await consumeApiRateLimit(profile.id, policy);
 
     if (!rateLimit.allowed) {
       return apiRateLimitExceededResponse(policy, rateLimit);
@@ -247,22 +244,16 @@ export async function POST(request: Request) {
     };
 
     const storagePath =
-      typeof body.storagePath === "string"
-        ? body.storagePath.trim()
-        : "";
+      typeof body.storagePath === "string" ? body.storagePath.trim() : "";
     const originalName =
       typeof body.originalName === "string"
         ? body.originalName.trim().slice(0, 255)
         : "";
     const mimeType =
-      typeof body.mimeType === "string"
-        ? body.mimeType.trim()
-        : "";
+      typeof body.mimeType === "string" ? body.mimeType.trim() : "";
     const sizeBytes = Number(body.sizeBytes);
-    const width =
-      body.width == null ? null : Number(body.width);
-    const height =
-      body.height == null ? null : Number(body.height);
+    const width = body.width == null ? null : Number(body.width);
+    const height = body.height == null ? null : Number(body.height);
     const description =
       typeof body.description === "string"
         ? body.description.trim().slice(0, 1500)
@@ -275,23 +266,14 @@ export async function POST(request: Request) {
     ) {
       return NextResponse.json(
         { error: "Chemin de photo invalide." },
-        {
-          status: 400,
-          headers: rateLimitResponseHeaders(policy, rateLimit),
-        }
+        { status: 400, headers: rateLimitResponseHeaders(policy, rateLimit) }
       );
     }
 
     if (!isAllowedMimeType(mimeType)) {
       return NextResponse.json(
-        {
-          error:
-            "Utilise une image JPG, PNG ou WEBP.",
-        },
-        {
-          status: 400,
-          headers: rateLimitResponseHeaders(policy, rateLimit),
-        }
+        { error: "Utilise une image JPG, PNG ou WEBP." },
+        { status: 400, headers: rateLimitResponseHeaders(policy, rateLimit) }
       );
     }
 
@@ -301,27 +283,15 @@ export async function POST(request: Request) {
       sizeBytes > 10 * 1024 * 1024
     ) {
       return NextResponse.json(
-        {
-          error:
-            "La photo doit peser moins de 10 Mo.",
-        },
-        {
-          status: 400,
-          headers: rateLimitResponseHeaders(policy, rateLimit),
-        }
+        { error: "La photo doit peser moins de 10 Mo." },
+        { status: 400, headers: rateLimitResponseHeaders(policy, rateLimit) }
       );
     }
 
     if (description.length < 10) {
       return NextResponse.json(
-        {
-          error:
-            "Décris le problème avec au moins 10 caractères.",
-        },
-        {
-          status: 400,
-          headers: rateLimitResponseHeaders(policy, rateLimit),
-        }
+        { error: "Décris le problème avec au moins 10 caractères." },
+        { status: 400, headers: rateLimitResponseHeaders(policy, rateLimit) }
       );
     }
 
@@ -329,10 +299,7 @@ export async function POST(request: Request) {
     const [objectsResult, services] = await Promise.all([
       supabaseAdmin.storage
         .from("client-service-photos")
-        .list(profile.id, {
-          search: fileName,
-          limit: 10,
-        }),
+        .list(profile.id, { search: fileName, limit: 10 }),
       loadCanonicalServices(),
     ]);
 
@@ -340,21 +307,10 @@ export async function POST(request: Request) {
       throw new Error(objectsResult.error.message);
     }
 
-    if (
-      !fileName ||
-      !objectsResult.data?.some(
-        (object) => object.name === fileName
-      )
-    ) {
+    if (!fileName || !objectsResult.data?.some((object) => object.name === fileName)) {
       return NextResponse.json(
-        {
-          error:
-            "La photo envoyée est introuvable.",
-        },
-        {
-          status: 409,
-          headers: rateLimitResponseHeaders(policy, rateLimit),
-        }
+        { error: "La photo envoyée est introuvable." },
+        { status: 409, headers: rateLimitResponseHeaders(policy, rateLimit) }
       );
     }
 
@@ -375,14 +331,9 @@ export async function POST(request: Request) {
           .download(storagePath);
 
       if (downloadError || !imageBlob) {
-        vision = visionFallback(
-          true,
-          "vision_storage_download_failed"
-        );
+        vision = visionFallback(true, "vision_storage_download_failed");
       } else {
-        const imageBytes = new Uint8Array(
-          await imageBlob.arrayBuffer()
-        );
+        const imageBytes = new Uint8Array(await imageBlob.arrayBuffer());
 
         if (!hasExpectedImageSignature(imageBytes, mimeType)) {
           return NextResponse.json(
@@ -390,18 +341,23 @@ export async function POST(request: Request) {
               error:
                 "Le contenu du fichier ne correspond pas au format image annoncé.",
             },
-            {
-              status: 400,
-              headers: rateLimitResponseHeaders(policy, rateLimit),
-            }
+            { status: 400, headers: rateLimitResponseHeaders(policy, rateLimit) }
           );
         }
 
-        vision = await analyzePhotoVisualContent({
-          bytes: imageBytes,
-          mimeType,
-          userDescription: description,
+        const costReservation = await reserveKlyxExternalProviderUsage({
+          meter: "openai_request",
         });
+
+        if (!costReservation.allowed) {
+          vision = visionFallback(true, "vision_cost_budget_exhausted");
+        } else {
+          vision = await analyzePhotoVisualContent({
+            bytes: imageBytes,
+            mimeType,
+            userDescription: description,
+          });
+        }
       }
     }
 
@@ -421,20 +377,15 @@ export async function POST(request: Request) {
         mime_type: mimeType,
         size_bytes: sizeBytes,
         width:
-          typeof width === "number" &&
-          Number.isInteger(width) &&
-          width > 0
+          typeof width === "number" && Number.isInteger(width) && width > 0
             ? width
             : null,
         height:
-          typeof height === "number" &&
-          Number.isInteger(height) &&
-          height > 0
+          typeof height === "number" && Number.isInteger(height) && height > 0
             ? height
             : null,
         user_description: description,
-        detected_service_slug:
-          analysis.serviceSlug,
+        detected_service_slug: analysis.serviceSlug,
         analysis_mode: analysis.analysisMode,
         analysis_payload: {
           ...analysis,
@@ -463,15 +414,11 @@ export async function POST(request: Request) {
         visionAvailable: visionEnabled,
         visionUsed: vision.used,
       },
-      {
-        headers: rateLimitResponseHeaders(policy, rateLimit),
-      }
+      { headers: rateLimitResponseHeaders(policy, rateLimit) }
     );
   } catch (error) {
     const message =
-      error instanceof Error
-        ? error.message
-        : "Analyse impossible.";
+      error instanceof Error ? error.message : "Analyse impossible.";
 
     return NextResponse.json(
       { error: message },
@@ -482,27 +429,20 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const { profile } =
-      await getAuthenticatedProfile(request);
+    const { profile } = await getAuthenticatedProfile(request);
 
     requireAccountType(profile, "client");
 
-    const body = (await request.json()) as {
-      requestId?: unknown;
-    };
-
+    const body = (await request.json()) as { requestId?: unknown };
     const requestId =
-      typeof body.requestId === "string"
-        ? body.requestId.trim()
-        : "";
+      typeof body.requestId === "string" ? body.requestId.trim() : "";
 
-    const { data: photoRequest, error } =
-      await supabaseAdmin
-        .from("photo_service_requests")
-        .select("id, storage_path")
-        .eq("id", requestId)
-        .eq("profile_id", profile.id)
-        .maybeSingle();
+    const { data: photoRequest, error } = await supabaseAdmin
+      .from("photo_service_requests")
+      .select("id, storage_path")
+      .eq("id", requestId)
+      .eq("profile_id", profile.id)
+      .maybeSingle();
 
     if (error) throw new Error(error.message);
 
@@ -513,34 +453,28 @@ export async function DELETE(request: Request) {
       );
     }
 
-    const { error: storageError } =
-      await supabaseAdmin.storage
-        .from("client-service-photos")
-        .remove([photoRequest.storage_path]);
+    const { error: storageError } = await supabaseAdmin.storage
+      .from("client-service-photos")
+      .remove([photoRequest.storage_path]);
 
     if (storageError) {
       throw new Error(storageError.message);
     }
 
-    const { error: deleteError } =
-      await supabaseAdmin
-        .from("photo_service_requests")
-        .delete()
-        .eq("id", photoRequest.id)
-        .eq("profile_id", profile.id);
+    const { error: deleteError } = await supabaseAdmin
+      .from("photo_service_requests")
+      .delete()
+      .eq("id", photoRequest.id)
+      .eq("profile_id", profile.id);
 
     if (deleteError) {
       throw new Error(deleteError.message);
     }
 
-    return NextResponse.json({
-      message: "Photo supprimée.",
-    });
+    return NextResponse.json({ message: "Photo supprimée." });
   } catch (error) {
     const message =
-      error instanceof Error
-        ? error.message
-        : "Suppression impossible.";
+      error instanceof Error ? error.message : "Suppression impossible.";
 
     return NextResponse.json(
       { error: message },
