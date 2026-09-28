@@ -2,6 +2,8 @@ import "server-only";
 
 // KLYX_TWILIO_VERIFY_12_69
 
+const TWILIO_VERIFY_TIMEOUT_MS = 15_000;
+
 type TwilioResponse = {
   status?: string;
   message?: string;
@@ -77,6 +79,8 @@ export async function sendPhoneOtp(
     Channel: "sms",
   });
 
+  // Do not retry this POST automatically after a timeout: the provider may
+  // already have created the challenge. KLYX keeps verification fail-closed.
   const response = await fetch(
     "https://verify.twilio.com/v2/Services/" +
       encodeURIComponent(serviceSid) +
@@ -90,6 +94,7 @@ export async function sendPhoneOtp(
           "application/x-www-form-urlencoded",
       },
       body: body.toString(),
+      signal: AbortSignal.timeout(TWILIO_VERIFY_TIMEOUT_MS),
     }
   );
 
@@ -121,6 +126,7 @@ export async function verifyPhoneOtp(
           "application/x-www-form-urlencoded",
       },
       body: body.toString(),
+      signal: AbortSignal.timeout(TWILIO_VERIFY_TIMEOUT_MS),
     }
   );
 
