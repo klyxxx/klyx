@@ -34,6 +34,7 @@ const build = stepStatus(process.env.KLYX_BUILD_OUTCOME);
 const platforms = stepStatus(process.env.KLYX_PLATFORMS_OUTCOME);
 const exactEngine = stepStatus(process.env.KLYX_EXACT_ENGINE_OUTCOME);
 const exactStripe = stepStatus(process.env.KLYX_EXACT_STRIPE_OUTCOME);
+const exactMobile = stepStatus(process.env.KLYX_EXACT_MOBILE_OUTCOME);
 const certSha = process.env.KLYX_CERT_SHA || process.env.GITHUB_SHA || "unknown";
 
 const providerRows = network.providers.map((item) => {
@@ -59,7 +60,7 @@ const engineStatus =
     : "FAIL";
 
 const report = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   sha: certSha,
   generatedAt: new Date().toISOString(),
   safety: {
@@ -84,17 +85,17 @@ const report = {
   providers: providerRows,
   platforms: [
     { name: "Web Desktop", status: platforms, evidence: "Chromium Playwright project" },
-    { name: "Android Web", status: platforms, evidence: "Pixel Chromium Playwright emulation" },
-    { name: "iOS Web", status: platforms, evidence: "iPhone WebKit Playwright emulation" },
+    { name: "Android Web/PWA", status: platforms, evidence: "Pixel Chromium Playwright emulation" },
+    { name: "iOS Web/PWA", status: platforms, evidence: "iPhone WebKit Playwright emulation" },
     {
       name: "Android native",
-      status: "NOT_IMPLEMENTED",
-      evidence: "repository is Next.js Web; no native Android runtime is certified",
+      status: exactMobile,
+      evidence: "exact-SHA KLYX Mobile CI: mobile TypeScript + Expo public config + Android native generation + Core authority boundary",
     },
     {
       name: "iOS native",
-      status: "NOT_IMPLEMENTED",
-      evidence: "repository is Next.js Web; no native iOS runtime is certified",
+      status: exactMobile,
+      evidence: "exact-SHA KLYX Mobile CI: iOS native generation on macOS + Core authority boundary",
     },
   ],
   failuresAndRecovery: [
@@ -110,7 +111,7 @@ const report = {
     { scenario: "double click/action replay", status: recovery, strategy: "idempotency key + request fingerprint" },
     { scenario: "network cut", status: platforms, strategy: "browser reconnect + durable server workflow recovery" },
     { scenario: "worker crash", status: recovery, strategy: "lease expiry + automatic reclaim/retry" },
-    { scenario: "mobile/web resume", status: platforms, strategy: "platform browser restart/network resume; workflow truth remains server-side" },
+    { scenario: "mobile/web resume", status: platforms === "PASS" && exactMobile === "PASS" ? "PASS" : "FAIL", strategy: "Web/PWA reconnect + native client/Core boundary; workflow truth remains server-side" },
   ],
   quality: {
     repoTests,
@@ -121,12 +122,14 @@ const report = {
     providerNetwork: network.overall,
     exactEngine,
     exactStripe,
+    exactMobile,
   },
 };
 
 const hardFailures = [
   ...report.engines.filter((item) => item.status === "FAIL"),
   ...report.providers.filter((item) => item.status === "FAIL"),
+  ...report.platforms.filter((item) => item.status === "FAIL"),
   ...report.failuresAndRecovery.filter((item) => item.status === "FAIL"),
   ...(typescript === "FAIL" ? [{ name: "TypeScript" }] : []),
   ...(build === "FAIL" ? [{ name: "build" }] : []),
