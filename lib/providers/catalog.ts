@@ -32,11 +32,13 @@ export const KLYX_PROVIDER_CATALOG = {
       "NEXT_PUBLIC_SUPABASE_URL",
       "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
       "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      "EXPO_PUBLIC_SUPABASE_URL",
+      "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
     ],
     indispensableFor: ["canonical_persistence", "authentication", "storage"],
     freeFallback: "local adapters/mocks only; never a production authority fallback",
     authorityBoundary:
-      "Browser Auth may use publishable credentials, but privileged reads/writes and business authority remain server-side and RLS constrained.",
+      "Browser and mobile Auth may use publishable credentials, but privileged reads/writes and business authority remain server-side and RLS constrained.",
   },
   stripe: {
     name: "stripe",
@@ -70,7 +72,7 @@ export const KLYX_PROVIDER_CATALOG = {
     indispensableFor: ["external_identity_evidence_when_required"],
     freeFallback: "human review can collect evidence, but eligibility stays blocked until proof exists",
     authorityBoundary:
-      "The browser may run a short-lived SDK session minted by KLYX; webhook evidence is verified server-side and KLYX economic eligibility remains authoritative.",
+      "Web and mobile may run a short-lived SDK session minted by KLYX; webhook evidence is verified server-side and KLYX economic eligibility remains authoritative.",
   },
   twilio: {
     name: "twilio",
