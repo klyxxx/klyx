@@ -17,6 +17,7 @@ import { getLegacyProfileCapabilityContext } from "@/lib/legacy-profile-capabili
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 const ASSISTANT_CAPABILITY_HEADER = "x-klyx-assistant-capability";
+const PROFILE_SELECTION_HEADER = "x-klyx-profile-id";
 
 type AuthenticatedUser = {
   id: string;
@@ -124,11 +125,30 @@ function assistantCapability(request: Request): AccountType | null {
   return value === "client" || value === "provider" ? value : null;
 }
 
-function requestCompatibilityProfileFrom(
-  profiles: readonly AuthenticatedProfile[]
+function preferredLegacyProfile(
+  profiles: readonly AuthenticatedProfile[],
+  selectedProfileId: string | undefined,
+  accountType: AccountType
 ): AuthenticatedProfile {
-  const profile =
-    profiles.find((item) => item.legacyAccountType === "client") ?? profiles[0];
+  return (
+    profiles.find(
+      (item) =>
+        item.id === selectedProfileId && item.legacyAccountType === accountType
+    ) ??
+    profiles.find((item) => item.legacyAccountType === accountType) ??
+    profiles[0]
+  );
+}
+
+function requestCompatibilityProfileFrom(
+  profiles: readonly AuthenticatedProfile[],
+  selectedProfileId?: string
+): AuthenticatedProfile {
+  const profile = preferredLegacyProfile(
+    profiles,
+    selectedProfileId,
+    "client"
+  );
 
   return {
     ...profile,
@@ -137,10 +157,14 @@ function requestCompatibilityProfileFrom(
 }
 
 function offerCompatibilityProfileFrom(
-  profiles: readonly AuthenticatedProfile[]
+  profiles: readonly AuthenticatedProfile[],
+  selectedProfileId?: string
 ): AuthenticatedProfile {
-  const profile =
-    profiles.find((item) => item.legacyAccountType === "provider") ?? profiles[0];
+  const profile = preferredLegacyProfile(
+    profiles,
+    selectedProfileId,
+    "provider"
+  );
 
   return {
     ...profile,
@@ -151,17 +175,18 @@ function offerCompatibilityProfileFrom(
 function projectCapability(
   profiles: readonly AuthenticatedProfile[],
   canonicalProfile: AuthenticatedProfile,
-  requestedCapability: AccountType | null
+  requestedCapability: AccountType | null,
+  selectedProfileId?: string
 ): AuthenticatedProfile | null {
   if (!requestedCapability) return null;
 
   if (requestedCapability === "client") {
     if (!canonicalProfile.canRequestServices) return null;
-    return requestCompatibilityProfileFrom(profiles);
+    return requestCompatibilityProfileFrom(profiles, selectedProfileId);
   }
 
   if (!canonicalProfile.canOfferServices) return null;
-  return offerCompatibilityProfileFrom(profiles);
+  return offerCompatibilityProfileFrom(profiles, selectedProfileId);
 }
 
 function selectCompatibilityProfile(
@@ -175,17 +200,18 @@ function selectCompatibilityProfile(
   const compatibilityContext = getLegacyProfileCapabilityContext();
 
   if (compatibilityContext === "request") {
-    return requestCompatibilityProfileFrom(profiles);
+    return requestCompatibilityProfileFrom(profiles, selectedProfileId);
   }
 
   if (compatibilityContext === "offer") {
-    return offerCompatibilityProfileFrom(profiles);
+    return offerCompatibilityProfileFrom(profiles, selectedProfileId);
   }
 
   const projectedProfile = projectCapability(
     profiles,
     canonicalProfile,
-    assistantCapability(request)
+    assistantCapability(request),
+    selectedProfileId
   );
 
   if (projectedProfile) {
@@ -196,22 +222,20 @@ function selectCompatibilityProfile(
   const method = request.method.toUpperCase();
 
   // Transitional request-storage adapters for endpoints that still persist or
-  // read legacy client profile foreign keys. The selected legacy cookie never
-  // changes the canonical account identity or request_services authority.
+  // read legacy client profile foreign keys. A selected profile only changes
+  // the compatible legacy projection after ownership has been verified.
   if (
     (pathname === "/api/market/requests" &&
       (method === "POST" || method === "PATCH")) ||
     pathname.startsWith("/api/brain/market-split-plan/")
   ) {
-    return requestCompatibilityProfileFrom(profiles);
+    return requestCompatibilityProfileFrom(profiles, selectedProfileId);
   }
 
-  // Every provider API receives an offer-mode compatibility projection. The
-  // projected accountType is "provider" only when the canonical account has
-  // offer_services. Legacy direct role checks therefore remain fail-closed
-  // during migration without making profiles.account_type authoritative.
+  // Every provider API receives an offer-mode compatibility projection. When
+  // several provider profiles exist, preserve the verified selected provider.
   if (pathname.startsWith("/api/provider/")) {
-    return offerCompatibilityProfileFrom(profiles);
+    return offerCompatibilityProfileFrom(profiles, selectedProfileId);
   }
 
   return selected;
@@ -334,9 +358,22 @@ async function getAuthenticatedContext(
     normalizedProfiles.find((item) => item.legacyAccountType === "client") ??
     normalizedProfiles[0];
 
-  const selectedProfileId = (
+  // The selector is untrusted input. It is accepted only when it belongs to
+  // the already authenticated Supabase user; otherwise the request fails closed.
+  const requestedProfileId =
+    request.headers.get(PROFILE_SELECTION_HEADER)?.trim() || undefined;
+
+  if (
+    requestedProfileId &&
+    !normalizedProfiles.some((item) => item.id === requestedProfileId)
+  ) {
+    throw new Error("KLYX_PROFILE_SELECTION_FORBIDDEN");
+  }
+
+  const cookieProfileId = (
     await cookies()
   ).get(ACTIVE_PROFILE_COOKIE)?.value;
+  const selectedProfileId = requestedProfileId ?? cookieProfileId;
 
   const profile = selectCompatibilityProfile(
     request,
@@ -431,6 +468,7 @@ export function apiErrorStatus(message: string): number {
 
   if (
     message === "Profil KLYX introuvable." ||
+    message === "KLYX_PROFILE_SELECTION_FORBIDDEN" ||
     message.startsWith("Cette action nécessite") ||
     message.startsWith("KLYX_ACCOUNT_CAPABILITY_REQUIRED:")
   ) {

@@ -7,6 +7,8 @@ const read = (file: string) =>
   fs.readFileSync(path.join(process.cwd(), file), "utf8");
 
 const elmahRuntime = read("lib/elmah-io.ts");
+const providerAdapters = read("lib/providers/runtime-adapters.ts");
+const providerRegistry = read("lib/providers/server-registry.ts");
 const apiError = read("lib/api-error.ts");
 const instrumentation = read("instrumentation.ts");
 const healthRoute = read("app/api/health/route.ts");
@@ -29,11 +31,14 @@ describe("KLYX elmah.io production observability", () => {
     expect(elmahRuntime).not.toContain("authorization:");
   });
 
-  it("reports standardized API failures only for server errors", () => {
+  it("reports standardized API failures only for server errors through the provider adapter", () => {
     expect(elmahRuntime).toContain("input.status < 500");
     expect(elmahRuntime).toContain("input.status > 599");
     expect(elmahRuntime).toContain("correlationId");
-    expect(apiError).toContain("reportKlyxApiError");
+    expect(providerAdapters).toContain("reportApiError: provider.reportKlyxApiError");
+    expect(apiError).toContain("getKlyxObservabilityAdapter");
+    expect(apiError).toContain('getKlyxProviderAdapter("elmah_io")');
+    expect(apiError).toContain('configuration === "configured"');
     expect(apiError).toContain("status >= 500");
     expect(apiError).toContain("after(async () =>");
   });
@@ -65,11 +70,17 @@ describe("KLYX elmah.io production observability", () => {
     expect(healthRoute).not.toContain("process.env");
   });
 
-  it("keeps the heartbeat authenticated and safe when configuration is absent", () => {
+  it("keeps the heartbeat authenticated and safe when configuration is absent through the provider adapter", () => {
     expect(heartbeatRoute).toContain("CRON_SECRET");
     expect(heartbeatRoute).toContain("Bearer ${cronSecret}");
-    expect(heartbeatRoute).toContain("isKlyxElmahHeartbeatConfigured");
+    expect(heartbeatRoute).toContain("getKlyxObservabilityAdapter");
+    expect(heartbeatRoute).toContain("heartbeatConfigured()");
     expect(heartbeatRoute).toContain("status: 204");
+    expect(providerAdapters).toContain(
+      "heartbeatConfigured:\n      provider.isKlyxElmahHeartbeatConfigured"
+    );
+    expect(providerRegistry).toContain('case "elmah_io"');
+    expect(providerRegistry).toContain('hasEnv("ELMAH_IO_API_KEY")');
     expect(elmahRuntime).toContain("ELMAH_IO_HEARTBEAT_ID");
   });
 
