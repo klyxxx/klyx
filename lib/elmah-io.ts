@@ -1,3 +1,5 @@
+import { authorizeExternalProviderCall } from "@/lib/providers/cost-control-server";
+
 const ELMAH_IO_API_ORIGIN = "https://api.elmah.io";
 export const KLYX_ELMAH_IO_LOG_ID =
   "bac0ae51-d911-4ab5-8263-60a1e96b58ec";
@@ -158,6 +160,14 @@ async function postElmahJson(
 ): Promise<boolean> {
   const apiKey = productionApiKey();
   if (!apiKey) {
+    return false;
+  }
+
+  const budget = await authorizeExternalProviderCall(
+    "elmah_io",
+    "observability_event"
+  );
+  if (!budget.allowed) {
     return false;
   }
 
