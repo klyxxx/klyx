@@ -17,6 +17,8 @@ import {
   OpenAiKlyxLlmProvider,
 } from "./openai-provider";
 
+import { claimExternalProviderCost } from "@/lib/providers/cost-control";
+
 const DISABLED_PROVIDER_NAME =
   "disabled";
 
@@ -157,6 +159,11 @@ class ResilientKlyxLlmProvider
     request: KlyxLlmRequest,
   ): Promise<KlyxLlmResponse> {
     try {
+      await claimExternalProviderCost(
+        "openai",
+        "llm_generate",
+      );
+
       const response =
         await this.primary.generate(
           request,

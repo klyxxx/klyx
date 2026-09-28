@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { KlyxLlmProvider } from "@/lib/brain/llm/contracts";
+import { claimExternalProviderCost } from "@/lib/providers/cost-control";
 
 type IdentityTokenInput = {
   userId: string;
@@ -110,7 +111,13 @@ export async function getKlyxIdentityVerificationAdapter(): Promise<KlyxIdentity
   return {
     provider: "sumsub",
     configured: provider.sumsubConfigured,
-    createSdkToken: provider.createSumsubSdkToken,
+    createSdkToken: async (input) => {
+      await claimExternalProviderCost(
+        "sumsub",
+        "identity_sdk_token",
+      );
+      return provider.createSumsubSdkToken(input);
+    },
     verifyWebhook: provider.verifySumsubWebhook,
     hashWebhookPayload: provider.hashWebhookPayload,
   };
@@ -121,8 +128,20 @@ export async function getKlyxPhoneVerificationAdapter(): Promise<KlyxPhoneVerifi
 
   return {
     provider: "twilio",
-    sendOtp: provider.sendPhoneOtp,
-    verifyOtp: provider.verifyPhoneOtp,
+    sendOtp: async (phoneNumber) => {
+      await claimExternalProviderCost(
+        "twilio",
+        "phone_otp_send",
+      );
+      return provider.sendPhoneOtp(phoneNumber);
+    },
+    verifyOtp: async (phoneNumber, code) => {
+      await claimExternalProviderCost(
+        "twilio",
+        "phone_otp_verify",
+      );
+      return provider.verifyPhoneOtp(phoneNumber, code);
+    },
   };
 }
 
@@ -131,9 +150,22 @@ export async function getKlyxEmailDeliveryAdapter(): Promise<KlyxEmailDeliveryAd
 
   return {
     provider: "resend",
-    sendTransactional: provider.sendKlyxTransactionalEmail,
-    sendProfileTransactional:
-      provider.sendKlyxProfileTransactionalEmail,
+    sendTransactional: async (input) => {
+      await claimExternalProviderCost(
+        "resend",
+        "transactional_email",
+        input.idempotencyKey,
+      );
+      return provider.sendKlyxTransactionalEmail(input);
+    },
+    sendProfileTransactional: async (input) => {
+      await claimExternalProviderCost(
+        "resend",
+        "profile_transactional_email",
+        input.idempotencyKey,
+      );
+      return provider.sendKlyxProfileTransactionalEmail(input);
+    },
   };
 }
 
