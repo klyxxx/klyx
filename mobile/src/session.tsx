@@ -19,6 +19,11 @@ import {
   getSelectedProfileId,
   setSelectedProfileId as persistSelectedProfileId,
 } from "./profile-selection";
+import {
+  registerNativePush,
+  subscribeNativePushTokenRefresh,
+  unregisterNativePush,
+} from "./push";
 import { supabase } from "./supabase";
 
 type SessionContextValue = {
@@ -104,6 +109,20 @@ export function KlyxSessionProvider({ children }: PropsWithChildren) {
     };
   }, [refreshBootstrap, session?.access_token]);
 
+  useEffect(() => {
+    if (!session?.access_token) return;
+
+    let active = true;
+    void registerNativePush().catch(() => undefined);
+    const unsubscribe = subscribeNativePushTokenRefresh();
+
+    return () => {
+      active = false;
+      unsubscribe();
+      void active;
+    };
+  }, [session?.access_token]);
+
   const selectedProfile = useMemo(
     () =>
       bootstrap?.profiles.find((item) => item.id === selectedProfileId) ?? null,
@@ -126,6 +145,12 @@ export function KlyxSessionProvider({ children }: PropsWithChildren) {
         if (signInError) throw signInError;
       },
       async signOut() {
+        try {
+          await unregisterNativePush();
+        } catch {
+          // Sign-out must remain possible offline. Push content is intentionally
+          // generic and the installation is rebound on the next authenticated login.
+        }
         await clearSelectedProfileId();
         const { error: signOutError } = await supabase.auth.signOut();
         if (signOutError) throw signOutError;
