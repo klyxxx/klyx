@@ -68,7 +68,9 @@ export async function sendPhoneOtp(phoneNumber: string) {
 }
 
 export async function verifyPhoneOtp(phoneNumber: string, code: string) {
-  await assertExternalProviderCallAllowed("twilio", "otp_check");
+  await assertExternalProviderCallAllowed("twilio", "otp_check", {
+    consumeQuota: false,
+  });
   const serviceSid = requiredEnv("TWILIO_VERIFY_SERVICE_SID");
   const body = new URLSearchParams({ To: phoneNumber, Code: code });
   const response = await fetch(
