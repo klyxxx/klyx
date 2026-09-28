@@ -16,9 +16,11 @@ Target: certify DEMANDER, GAGNER, provider integrations, outage recovery, and We
 - Exact-SHA Economic Chain certification uses Stripe TEST only.
 - External providers are also checked with read-only network probes.
 - Web Desktop is exercised with Chromium.
-- Android is exercised as Android Web/PWA with a Pixel Chromium profile.
-- iOS is exercised as iOS Web/PWA with an iPhone WebKit profile.
-- Native Android and native iOS applications are not present in this Next.js repository and therefore cannot be reported PASS.
+- Android Web/PWA is exercised with a Pixel Chromium profile.
+- iOS Web/PWA is exercised with an iPhone WebKit profile.
+- Android native is certified on the exact SHA by KLYX Mobile CI through mobile TypeScript, Expo public configuration, native Android project generation, and the mobile/Core authority-boundary contract.
+- iOS native is certified on the exact SHA by KLYX Mobile CI through native iOS project generation on macOS and the same mobile/Core authority-boundary contract.
+- Native certification proves source configuration, native project generation, and authority boundaries. It does not claim physical-device, App Store, or Play Store delivery E2E unless a separate device/store certification exists.
 
 ## Strict outage verdict
 
