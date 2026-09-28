@@ -7,6 +7,7 @@ import {
 } from "crypto";
 
 const BASE_URL = "https://api.sumsub.com";
+const SUMSUB_TIMEOUT_MS = 15_000;
 
 function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();
@@ -57,6 +58,8 @@ export async function sumsubRequest<T>(params: {
     )
     .digest("hex");
 
+  // Do not automatically retry provider mutations here. A timeout can leave
+  // external state unknown; KLYX must fail closed and reconcile explicitly.
   const response = await fetch(
     `${BASE_URL}${params.path}`,
     {
@@ -71,6 +74,7 @@ export async function sumsubRequest<T>(params: {
       },
       body:
         method === "POST" ? body : undefined,
+      signal: AbortSignal.timeout(SUMSUB_TIMEOUT_MS),
     }
   );
 
