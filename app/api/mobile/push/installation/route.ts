@@ -19,6 +19,13 @@ type UnregisterBody = {
   installationId?: unknown;
 };
 
+type ExistingInstallation = {
+  account_id: string;
+  auth_user_id: string;
+  platform: "ios" | "android";
+  native_token: string;
+};
+
 function normalizeInstallationId(value: unknown): string {
   const installationId = typeof value === "string" ? value.trim() : "";
   if (!UUID_PATTERN.test(installationId)) {
@@ -42,6 +49,9 @@ function normalizeToken(value: unknown): string {
 
 function statusFor(error: unknown): number {
   const message = error instanceof Error ? error.message : "";
+  if (message === "KLYX_MOBILE_PUSH_INSTALLATION_OWNERSHIP_CONFLICT") {
+    return 409;
+  }
   if (message.startsWith("KLYX_MOBILE_PUSH_")) return 400;
   return apiErrorStatus(message);
 }
@@ -56,6 +66,27 @@ export async function POST(request: Request): Promise<Response> {
     const platform = normalizePlatform(body.platform);
     const token = normalizeToken(body.token);
     const now = new Date().toISOString();
+
+    const { data: existingData, error: existingError } = await supabaseAdmin
+      .from("mobile_push_installations")
+      .select("account_id, auth_user_id, platform, native_token")
+      .eq("installation_id", installationId)
+      .maybeSingle();
+
+    if (existingError) throw existingError;
+
+    const existing = existingData as ExistingInstallation | null;
+    const switchingAccount = existing && existing.account_id !== account.id;
+
+    // Rebinding is allowed only when the same physical installation proves the
+    // same native token/platform. A guessed installation UUID cannot be used to
+    // overwrite another account's device binding with an unrelated token.
+    if (
+      switchingAccount &&
+      (existing.platform !== platform || existing.native_token !== token)
+    ) {
+      throw new Error("KLYX_MOBILE_PUSH_INSTALLATION_OWNERSHIP_CONFLICT");
+    }
 
     // A native token can be recycled after an app reinstall. Disable an older
     // active binding before claiming it for the authenticated installation.
@@ -112,7 +143,15 @@ export async function POST(request: Request): Promise<Response> {
     });
 
     return Response.json(
-      { ok: false, code: status === 401 ? "UNAUTHORIZED" : "REGISTER_FAILED" },
+      {
+        ok: false,
+        code:
+          status === 401
+            ? "UNAUTHORIZED"
+            : status === 409
+              ? "INSTALLATION_CONFLICT"
+              : "REGISTER_FAILED",
+      },
       { status, headers: { "Cache-Control": "no-store" } }
     );
   }
