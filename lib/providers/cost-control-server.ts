@@ -81,18 +81,6 @@ function resolvedCallLimits(provider: KlyxExternalProviderName): {
     );
   }
 
-  if (
-    policy.billingKind === "metered" &&
-    policy.conservativeUnitCostUsd > 0 &&
-    getKlyxExternalCostMode() === "guarded"
-  ) {
-    const budget = providerMonthlyBudgetUsd(provider);
-    const budgetBound = Math.floor(budget / policy.conservativeUnitCostUsd);
-    rolling30d = rolling30d === null
-      ? budgetBound
-      : Math.min(rolling30d, budgetBound);
-  }
-
   return { daily, rolling30d };
 }
 
