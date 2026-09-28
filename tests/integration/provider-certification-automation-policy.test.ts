@@ -10,6 +10,8 @@ const scope = fs.readFileSync(
 describe("KLYX recovery automation policy", () => {
   it("requires automatic recovery before human intervention", () => {
     expect(scope).toContain("automatic retry/reconciliation first");
-    expect(scope).toContain("human_review only when deterministic recovery cannot prove the external state");
+    expect(scope).toMatch(
+      /`?human_review`? only when deterministic recovery cannot prove the external state/
+    );
   });
 });
