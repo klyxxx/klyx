@@ -65,8 +65,8 @@ function resolvedCallLimits(provider: KlyxExternalProviderName): {
 } {
   const policy = KLYX_EXTERNAL_COST_POLICIES[provider];
   const suffix = providerEnvSuffix(provider);
-  let daily = policy.defaultDailyCalls;
-  let rolling30d = policy.defaultRolling30DayCalls;
+  let daily: number | null = policy.defaultDailyCalls;
+  let rolling30d: number | null = policy.defaultRolling30DayCalls;
 
   if (daily !== null) {
     daily = positiveInteger(
