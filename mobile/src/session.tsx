@@ -112,15 +112,10 @@ export function KlyxSessionProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (!session?.access_token) return;
 
-    let active = true;
     void registerNativePush().catch(() => undefined);
     const unsubscribe = subscribeNativePushTokenRefresh();
 
-    return () => {
-      active = false;
-      unsubscribe();
-      void active;
-    };
+    return unsubscribe;
   }, [session?.access_token]);
 
   const selectedProfile = useMemo(
