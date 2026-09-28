@@ -16,6 +16,10 @@ const ROLLING_30D_SECONDS = 30 * DAY_SECONDS;
 const QUOTA_WARNING_RATIO = 0.2;
 const GLOBAL_SUBJECT = "klyx-external-provider-budget";
 
+type ExternalProviderCallOptions = {
+  consumeQuota?: boolean;
+};
+
 function providerEnvSuffix(provider: KlyxExternalProviderName): string {
   return provider.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
 }
@@ -124,11 +128,16 @@ function alertLowQuota(
 
 export async function authorizeExternalProviderCall(
   provider: KlyxExternalProviderName,
-  action: string
+  action: string,
+  options: ExternalProviderCallOptions = {}
 ): Promise<KlyxExternalCostDecision> {
   const initial = baseDecision(provider);
   if (!initial.allowed) {
     alertDecision(provider, action, initial);
+    return initial;
+  }
+
+  if (options.consumeQuota === false) {
     return initial;
   }
 
@@ -198,9 +207,14 @@ export async function authorizeExternalProviderCall(
 
 export async function assertExternalProviderCallAllowed(
   provider: KlyxExternalProviderName,
-  action: string
+  action: string,
+  options: ExternalProviderCallOptions = {}
 ): Promise<void> {
-  const decision = await authorizeExternalProviderCall(provider, action);
+  const decision = await authorizeExternalProviderCall(
+    provider,
+    action,
+    options
+  );
   if (!decision.allowed) {
     throw new Error(
       `KLYX_EXTERNAL_COST_BLOCKED:${provider}:${decision.reason}`
