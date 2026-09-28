@@ -11,6 +11,8 @@ describe("KLYX all-provider immutable SHA contract", () => {
   it("supports an exact SHA certification gate", () => {
     expect(workflow).toContain("expected_sha");
     expect(workflow).toContain("Certification SHA mismatch");
-    expect(workflow).toContain("$GITHUB_SHA");
+    expect(workflow).toContain("github.sha");
+    expect(workflow).toContain("KLYX_CERT_SHA");
+    expect(workflow).toContain("Verify exact checkout");
   });
 });

@@ -11,6 +11,8 @@ describe("KLYX all-provider certification safety", () => {
   it("does not arm Stripe LIVE", () => {
     expect(workflow).not.toContain("sk_live_");
     expect(workflow).not.toContain("KLYX_LIVE_PAYMENTS_ENABLED: true");
-    expect(workflow).toContain("No Stripe LIVE action is executed");
+    expect(workflow).toContain("Refuse Stripe LIVE");
+    expect(workflow).toContain('KLYX_LIVE_PAYMENTS_ENABLED: "false"');
+    expect(workflow).toContain("All-provider certification requires Stripe sk_test_* only.");
   });
 });

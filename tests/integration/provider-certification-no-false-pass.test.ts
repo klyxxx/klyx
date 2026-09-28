@@ -8,9 +8,14 @@ const workflow = fs.readFileSync(
 );
 
 describe("KLYX no-false-PASS contract", () => {
-  it("fails the job when any certification gate fails", () => {
-    expect(workflow).not.toContain("continue-on-error: true");
-    expect(workflow).toContain("Production build");
-    expect(workflow).toContain("Android and iOS PWA browser certification");
+  it("may collect gate failures but always enforces the aggregate verdict fail-closed", () => {
+    const report = workflow.indexOf("Produce final PASS FAIL report");
+    const enforce = workflow.indexOf("Enforce certification verdict");
+
+    expect(workflow).toContain("continue-on-error: true");
+    expect(report).toBeGreaterThanOrEqual(0);
+    expect(enforce).toBeGreaterThan(report);
+    expect(workflow).toContain("steps.final_report.outcome");
+    expect(workflow).toContain("KLYX all-provider certification report contains one or more FAIL results.");
   });
 });

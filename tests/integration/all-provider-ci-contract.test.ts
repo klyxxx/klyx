@@ -8,15 +8,17 @@ const workflow = fs.readFileSync(
 );
 
 describe("KLYX all-provider CI contract", () => {
-  it("runs recovery, autonomous, type, build, finance, Android and iOS gates", () => {
+  it("runs recovery, autonomous, type, build, finance and Web/mobile gates", () => {
     for (const needle of [
-      "Provider recovery tests",
-      "Autonomous recovery certification",
+      "Dedicated provider recovery certification",
+      "npm run certify:autonomous:offline",
       "TypeScript",
       "Production build",
       "economic-settlement-eligibility-contract.test.ts",
       "settlement-recovery-reconciliation-contract.test.ts",
-      "Android and iOS PWA browser certification",
+      "Web Android iOS browser certification",
+      "playwright.providers.config.ts",
+      "Enforce certification verdict",
     ]) {
       expect(workflow).toContain(needle);
     }
