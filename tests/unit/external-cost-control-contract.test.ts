@@ -23,6 +23,12 @@ describe("external cost control integration contract", () => {
     expect(control).not.toContain('external_cost_${provider}_${action}_30d');
   });
 
+  it("supports non-consuming recovery/completion calls", () => {
+    const control = source("lib/providers/cost-control-server.ts");
+    expect(control).toContain("consumeQuota?: boolean");
+    expect(control).toContain("if (options.consumeQuota === false)");
+  });
+
   it("gates OpenAI before the network request and caps output", () => {
     const openai = source("lib/brain/llm/openai-provider.ts");
     const guard = openai.indexOf(
@@ -45,14 +51,15 @@ describe("external cost control integration contract", () => {
     expect(network).toBeGreaterThan(guard);
   });
 
-  it("gates both Twilio chargeable verification calls", () => {
+  it("charges Twilio quota on send but lets an existing OTP check complete", () => {
     const twilio = source("lib/twilio-verify.ts");
     expect(twilio).toContain(
       'assertExternalProviderCallAllowed("twilio", "otp_send")'
     );
     expect(twilio).toContain(
-      'assertExternalProviderCallAllowed("twilio", "otp_check")'
+      'assertExternalProviderCallAllowed("twilio", "otp_check", {'
     );
+    expect(twilio).toContain("consumeQuota: false");
   });
 
   it("degrades Resend instead of failing a workflow when free quota is unavailable", () => {
