@@ -43,34 +43,47 @@ describe("KLYX native mobile push contract", () => {
     expect(migration).toContain("klyx_mobile_push_scheduler_token");
     expect(migration).toContain("klyx-mobile-push-tick");
     expect(worker).toContain("KLYX_MOBILE_PUSH_WORKER_DISABLED");
+    expect(worker).toContain("KLYX_MOBILE_PUSH_WORKER_CONFIG_MISSING");
+    expect(worker).toContain("assertMobilePushProviderConfig()");
+    expect(worker.indexOf("assertMobilePushProviderConfig();")).toBeLessThan(
+      worker.indexOf('"klyx_claim_mobile_push_outbox"')
+    );
     expect(worker).toContain("timingSafeEqual");
     expect(route).toContain("authorizeMobilePushTick");
   });
 
-  it("sends directly to FCM v1 and APNs and invalidates dead tokens", () => {
+  it("sends directly to FCM v1 and APNs and invalidates only proven dead tokens", () => {
     const worker = read("lib/mobile-push-server.ts");
 
     expect(worker).toContain("https://www.googleapis.com/auth/firebase.messaging");
+    expect(worker).toContain("urn:ietf:params:oauth:grant-type:jwt-bearer");
     expect(worker).toContain("https://fcm.googleapis.com/v1/projects/");
     expect(worker).toContain("https://api.push.apple.com");
     expect(worker).toContain('"apns-push-type": "alert"');
-    expect(worker).toContain("UNREGISTERED");
+    expect(worker).toContain('body.includes("UNREGISTERED")');
+    expect(worker).not.toContain("response.status === 404 ||");
     expect(worker).toContain("BadDeviceToken");
     expect(worker).toContain("invalidateInstallation");
   });
 
-  it("never sends canonical notification message text inside the native push payload", () => {
+  it("never sends canonical notification details inside the native push payload", () => {
     const worker = read("lib/mobile-push-server.ts");
 
+    expect(worker).toContain('.from("user_notifications")');
+    expect(worker).toContain('.select("id")');
     expect(worker).not.toContain('select("id, type, title, message, href")');
+    expect(worker).not.toContain("profileId,");
+    expect(worker).toContain('href: "/notifications"');
     expect(worker).toContain('body: "Tu as une nouvelle activité dans KLYX."');
   });
 
-  it("registers and unregisters installations through authenticated KLYX Core", () => {
+  it("registers installations through authenticated Core without UUID takeover", () => {
     const route = read("app/api/mobile/push/installation/route.ts");
     const client = read("mobile/src/push.ts");
 
     expect(route).toContain("getAuthenticatedAccount(request)");
+    expect(route).toContain("KLYX_MOBILE_PUSH_INSTALLATION_OWNERSHIP_CONFLICT");
+    expect(route).toContain("existing.native_token !== token");
     expect(route).toContain('.eq("account_id", account.id)');
     expect(client).toContain("Crypto.randomUUID()");
     expect(client).toContain("getDevicePushTokenAsync()");
