@@ -1,5 +1,7 @@
 const path = require("node:path");
 
+const googleServicesFile = process.env.KLYX_GOOGLE_SERVICES_FILE?.trim();
+
 module.exports = {
   expo: {
     name: "KLYX",
@@ -20,11 +22,12 @@ module.exports = {
     },
     android: {
       package: "app.klyx.mobile",
-      permissions: ["CAMERA", "RECORD_AUDIO", "POST_NOTIFICATIONS"]
+      permissions: ["CAMERA", "RECORD_AUDIO", "POST_NOTIFICATIONS"],
+      ...(googleServicesFile ? { googleServicesFile } : {})
     },
     plugins: [
       "expo-secure-store",
-      "expo-notifications",
+      ["expo-notifications", { defaultChannel: "klyx-default" }],
       path.resolve(__dirname, "plugins/with-sumsub.js")
     ],
     extra: {
