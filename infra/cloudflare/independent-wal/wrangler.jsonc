@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "klyx-independent-wal",
+  "main": "src/index.mjs",
+  "compatibility_date": "2026-09-28",
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "KLYX_WAL",
+        "class_name": "KlyxIndependentWal"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["KlyxIndependentWal"]
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}
