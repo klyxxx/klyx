@@ -12,14 +12,26 @@ function hasAny(value: string, needles: readonly string[]): boolean {
   return needles.some((needle) => value.includes(needle));
 }
 
+function isSimpleGreeting(value: string): boolean {
+  return [
+    "bonjour",
+    "salut",
+    "bonsoir",
+    "hello",
+    "hey",
+    "bonjour klyx",
+    "salut klyx",
+    "bonsoir klyx",
+    "hello klyx",
+    "hey klyx",
+  ].includes(value);
+}
+
 export function getDeterministicKlyxReply(message: string): string | null {
   const value = normalized(message);
   if (!value) return "Dis-moi simplement ce que tu veux organiser.";
 
-  if (
-    value.length <= 48 &&
-    hasAny(value, ["bonjour", "salut", "bonsoir", "hello", "hey"])
-  ) {
+  if (isSimpleGreeting(value)) {
     return "Bonjour. Dis-moi simplement ce que tu veux organiser et KLYX te guide jusqu’à la prochaine action utile.";
   }
 
@@ -36,6 +48,7 @@ export function getDeterministicKlyxReply(message: string): string | null {
   }
 
   if (
+    value.length <= 90 &&
     hasAny(value, [
       "comment demander un service",
       "comment reserver un service",
@@ -45,7 +58,10 @@ export function getDeterministicKlyxReply(message: string): string | null {
     return "Indique le service, la ville et le moment souhaité. KLYX pourra ensuite rechercher les options disponibles et te demander confirmation avant toute réservation ou paiement.";
   }
 
-  if (hasAny(value, ["prix", "combien", "budget", "tarif", "cout"])) {
+  if (
+    value.length <= 90 &&
+    hasAny(value, ["prix", "combien", "budget", "tarif", "cout"])
+  ) {
     return "Je peux t’aider à cadrer le budget. Indique d’abord le service, la ville et le moment souhaité. Un prix réel ne sera annoncé que depuis les données KLYX ou un devis confirmé.";
   }
 
@@ -55,7 +71,6 @@ export function getDeterministicKlyxReply(message: string): string | null {
       "ia peut payer",
       "ia peut rembourser",
       "llm source de verite",
-      "llm source de vérité",
     ])
   ) {
     return "Non. L’IA KLYX peut comprendre et proposer, mais elle n’est jamais l’autorité de paiement, remboursement, éligibilité ou settlement. Ces mutations restent déterministes et côté serveur.";
