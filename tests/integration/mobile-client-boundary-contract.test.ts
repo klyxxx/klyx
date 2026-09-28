@@ -30,6 +30,9 @@ describe("KLYX mobile client boundary", () => {
       "TWILIO_AUTH_TOKEN",
       "RESEND_API_KEY",
       "OPENAI_API_KEY",
+      "KLYX_FCM_PRIVATE_KEY",
+      "KLYX_APNS_PRIVATE_KEY",
+      "klyx_mobile_push_scheduler_token",
       "evaluateEconomicEligibility(",
       "stripe.transfers.create(",
       "stripe.refunds.create(",
@@ -54,6 +57,7 @@ describe("KLYX mobile client boundary", () => {
     expect(core).toContain('"/api/provider/sumsub/status"');
     expect(core).toContain('"/api/provider/finance"');
     expect(core).toContain('"/api/mobile/notifications/read"');
+    expect(core).toContain('"/api/mobile/push/installation"');
     expect(core).toContain("Authorization: `Bearer ${session.access_token}`");
   });
 
@@ -74,6 +78,17 @@ describe("KLYX mobile client boundary", () => {
     expect(route).toContain("getAuthenticatedProfile(request)");
     expect(route).toContain("profiles.some((item) => item.id === profileId)");
     expect(route).toContain('.eq("user_id", profileId)');
+  });
+
+  it("uses native APNs/FCM tokens without the Expo Push Service", () => {
+    const push = read("mobile/src/push.ts");
+    const server = read("lib/mobile-push-server.ts");
+
+    expect(push).toContain("getDevicePushTokenAsync()");
+    expect(push).not.toContain("getExpoPushTokenAsync");
+    expect(server).toContain("https://fcm.googleapis.com/v1/projects/");
+    expect(server).toContain("https://api.push.apple.com");
+    expect(server).not.toContain("exp.host/--/api/v2/push/send");
   });
 
   it("uses backend-issued short-lived Sumsub tokens", () => {

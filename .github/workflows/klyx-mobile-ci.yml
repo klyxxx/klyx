@@ -5,12 +5,16 @@ on:
     paths:
       - "mobile/**"
       - "lib/api-auth.ts"
+      - "lib/mobile-push-server.ts"
       - "app/api/mobile/**"
+      - "app/api/ops/mobile-push-tick/**"
       - "app/api/provider/sumsub/**"
       - "app/api/assistant/unified/**"
       - "app/api/stripe/create-checkout-session/**"
       - "messages/tolgee/**"
+      - "supabase/migrations/*mobile_native_push*.sql"
       - "tests/integration/mobile-client-boundary-contract.test.ts"
+      - "tests/integration/mobile-native-push-contract.test.ts"
       - ".github/workflows/klyx-mobile-ci.yml"
   workflow_dispatch:
 
@@ -88,5 +92,8 @@ jobs:
       - name: Install KLYX dependencies
         run: npm ci
 
-      - name: Certify mobile authority boundary
-        run: npx vitest run tests/integration/mobile-client-boundary-contract.test.ts
+      - name: Certify mobile authority and native push boundary
+        run: >-
+          npx vitest run
+          tests/integration/mobile-client-boundary-contract.test.ts
+          tests/integration/mobile-native-push-contract.test.ts

@@ -153,3 +153,25 @@ export function markNotificationRead(input: {
     body: input,
   });
 }
+
+export function registerPushInstallation(input: {
+  installationId: string;
+  platform: "ios" | "android";
+  token: string;
+}) {
+  return coreRequest<{
+    ok: true;
+    installationId: string;
+    platform: "ios" | "android";
+  }>("/api/mobile/push/installation", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export function unregisterPushInstallation(installationId: string) {
+  return coreRequest<{ ok: true }>("/api/mobile/push/installation", {
+    method: "DELETE",
+    body: { installationId },
+  });
+}
