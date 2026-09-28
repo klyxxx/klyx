@@ -15,8 +15,6 @@ export type KlyxExternalCostPolicy = {
   automaticDisableWhenExhausted: boolean;
   defaultDailyCalls: number | null;
   defaultRolling30DayCalls: number | null;
-  conservativeUnitCostUsd: number;
-  conservativeMonthlyFloorUsd: number;
   fallback: string;
 };
 
@@ -25,7 +23,6 @@ export type KlyxExternalCostDecisionReason =
   | "zero_budget_paid_provider"
   | "provider_not_explicitly_enabled"
   | "provider_budget_missing"
-  | "provider_budget_below_floor"
   | "global_budget_missing"
   | "global_budget_overcommitted"
   | "daily_quota_exhausted"
@@ -50,8 +47,6 @@ export const KLYX_EXTERNAL_COST_POLICIES = {
     automaticDisableWhenExhausted: true,
     defaultDailyCalls: 30,
     defaultRolling30DayCalls: 300,
-    conservativeUnitCostUsd: 0.01,
-    conservativeMonthlyFloorUsd: 0,
     fallback: "deterministic KLYX assistant",
   },
   supabase: {
@@ -61,8 +56,6 @@ export const KLYX_EXTERNAL_COST_POLICIES = {
     automaticDisableWhenExhausted: false,
     defaultDailyCalls: null,
     defaultRolling30DayCalls: null,
-    conservativeUnitCostUsd: 0,
-    conservativeMonthlyFloorUsd: 0,
     fallback: "local Supabase for development; production authority stays fail-closed",
   },
   stripe: {
@@ -72,8 +65,6 @@ export const KLYX_EXTERNAL_COST_POLICIES = {
     automaticDisableWhenExhausted: false,
     defaultDailyCalls: null,
     defaultRolling30DayCalls: null,
-    conservativeUnitCostUsd: 0,
-    conservativeMonthlyFloorUsd: 0,
     fallback: "Stripe TEST/fakes only; existing KLYX LIVE authority remains mandatory",
   },
   sumsub: {
@@ -83,8 +74,6 @@ export const KLYX_EXTERNAL_COST_POLICIES = {
     automaticDisableWhenExhausted: true,
     defaultDailyCalls: 5,
     defaultRolling30DayCalls: 20,
-    conservativeUnitCostUsd: 2,
-    conservativeMonthlyFloorUsd: 0,
     fallback: "sandbox/local evidence; economic eligibility remains blocked when proof is required",
   },
   twilio: {
@@ -94,8 +83,6 @@ export const KLYX_EXTERNAL_COST_POLICIES = {
     automaticDisableWhenExhausted: true,
     defaultDailyCalls: 10,
     defaultRolling30DayCalls: 100,
-    conservativeUnitCostUsd: 0.25,
-    conservativeMonthlyFloorUsd: 0,
     fallback: "email or manual verification only when KLYX policy permits it",
   },
   resend: {
@@ -105,8 +92,6 @@ export const KLYX_EXTERNAL_COST_POLICIES = {
     automaticDisableWhenExhausted: true,
     defaultDailyCalls: 80,
     defaultRolling30DayCalls: 2400,
-    conservativeUnitCostUsd: 0,
-    conservativeMonthlyFloorUsd: 0,
     fallback: "durable in-app notification/outbox",
   },
   tolgee: {
@@ -116,8 +101,6 @@ export const KLYX_EXTERNAL_COST_POLICIES = {
     automaticDisableWhenExhausted: true,
     defaultDailyCalls: null,
     defaultRolling30DayCalls: null,
-    conservativeUnitCostUsd: 0,
-    conservativeMonthlyFloorUsd: 0,
     fallback: "committed translation catalogs",
   },
   cloudflare_turnstile: {
@@ -127,8 +110,6 @@ export const KLYX_EXTERNAL_COST_POLICIES = {
     automaticDisableWhenExhausted: false,
     defaultDailyCalls: null,
     defaultRolling30DayCalls: null,
-    conservativeUnitCostUsd: 0,
-    conservativeMonthlyFloorUsd: 0,
     fallback: "explicit degraded server rate-limit policy only; never silent bypass",
   },
   elmah_io: {
@@ -138,8 +119,6 @@ export const KLYX_EXTERNAL_COST_POLICIES = {
     automaticDisableWhenExhausted: true,
     defaultDailyCalls: 100,
     defaultRolling30DayCalls: 2500,
-    conservativeUnitCostUsd: 0,
-    conservativeMonthlyFloorUsd: 17,
     fallback: "Vercel logs plus KLYX internal server logs",
   },
   vercel: {
@@ -149,8 +128,6 @@ export const KLYX_EXTERNAL_COST_POLICIES = {
     automaticDisableWhenExhausted: false,
     defaultDailyCalls: null,
     defaultRolling30DayCalls: null,
-    conservativeUnitCostUsd: 0,
-    conservativeMonthlyFloorUsd: 0,
     fallback: "local build/runtime; no automatic plan upgrade",
   },
   github: {
@@ -160,8 +137,6 @@ export const KLYX_EXTERNAL_COST_POLICIES = {
     automaticDisableWhenExhausted: false,
     defaultDailyCalls: null,
     defaultRolling30DayCalls: null,
-    conservativeUnitCostUsd: 0,
-    conservativeMonthlyFloorUsd: 0,
     fallback: "local Git/build/test; release mutations stop if control plane is unavailable",
   },
 } as const satisfies Record<KlyxExternalProviderName, KlyxExternalCostPolicy>;
@@ -220,11 +195,6 @@ export function evaluateKlyxExternalCost(
     }
     if (input.providerMonthlyBudgetUsd <= 0) {
       return denied(input, "provider_budget_missing");
-    }
-    if (
-      input.providerMonthlyBudgetUsd < policy.conservativeMonthlyFloorUsd
-    ) {
-      return denied(input, "provider_budget_below_floor");
     }
     if (
       input.configuredPaidBudgetsTotalUsd > input.globalMonthlyBudgetUsd
