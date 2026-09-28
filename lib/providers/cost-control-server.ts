@@ -155,7 +155,7 @@ export async function authorizeExternalProviderCall(
 
     if (limits.daily !== null) {
       const daily = await consumeApiRateLimit(GLOBAL_SUBJECT, {
-        action: `external_cost_${provider}_${action}_day`,
+        action: `external_cost_${provider}_day`,
         limit: limits.daily,
         windowSeconds: DAY_SECONDS,
       });
@@ -165,7 +165,7 @@ export async function authorizeExternalProviderCall(
 
     if (limits.rolling30d !== null) {
       const monthly = await consumeApiRateLimit(GLOBAL_SUBJECT, {
-        action: `external_cost_${provider}_${action}_30d`,
+        action: `external_cost_${provider}_30d`,
         limit: limits.rolling30d,
         windowSeconds: ROLLING_30D_SECONDS,
       });
