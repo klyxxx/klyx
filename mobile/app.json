@@ -6,7 +6,6 @@
     "orientation": "portrait",
     "scheme": "klyx",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "plugins": ["expo-router"],
     "ios": {
       "supportsTablet": true,
