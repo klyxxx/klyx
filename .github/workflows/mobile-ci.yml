@@ -1,0 +1,49 @@
+name: KLYX Mobile Verification
+
+on:
+  push:
+    branches:
+      - release/real-user-web-mobile-20260928
+  pull_request:
+    paths:
+      - "mobile/**"
+      - "app/api/mobile/**"
+      - "tests/unit/mobile-release-contract.test.ts"
+      - "tests/integration/real-user-rpc-surface-hardening-contract.test.ts"
+      - "supabase/migrations/20260926200000_klyx_real_user_rpc_surface_hardening.sql"
+      - ".github/workflows/mobile-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: npm install --ignore-scripts
+
+      - name: Typecheck mobile
+        working-directory: mobile
+        run: npm run typecheck
+
+      - name: Expo Doctor
+        working-directory: mobile
+        run: npx expo-doctor@latest
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Verify mobile release contract
+        run: npx vitest run tests/unit/mobile-release-contract.test.ts tests/integration/real-user-rpc-surface-hardening-contract.test.ts
+
+      - name: Verify web TypeScript integration
+        run: npx tsc --noEmit --pretty false
