@@ -81,6 +81,12 @@ Allowed client exposure is limited to:
 
 All authoritative payment, settlement, eligibility, KYC/KYB acceptance, OTP policy, email delivery, LLM orchestration and observability credentials stay behind KLYX server boundaries.
 
+### Mobile CAPTCHA release blocker
+
+The current Expo client signs in with `supabase.auth.signInWithPassword` but does not yet provide a Turnstile/CAPTCHA token. Supabase CAPTCHA protection applies to sign-in as well as sign-up/password reset when enabled. Therefore the mobile authentication path is **not production-certifiable yet**: with CAPTCHA enforced it can fail; disabling CAPTCHA only for mobile would weaken the existing abuse-control invariant.
+
+Before an Android/iOS store release, KLYX must add a native/WebView Turnstile challenge or another explicitly approved Supabase-compatible CAPTCHA flow and pass its token to Auth. This is a mobile release blocker, not a reason to disable production CAPTCHA.
+
 ## Replacement contract
 
 A provider replacement must preserve this sequence:
@@ -110,7 +116,8 @@ No replacement may weaken:
 ## Open actions
 
 1. Deploy/certify a current-main production SHA before calling the unified provider layer production-active.
-2. Repair the missing elmah.io production heartbeat and prove subsequent Healthy check-ins.
-3. Audit Supabase `SECURITY DEFINER` grants and mutable `search_path` in a dedicated migration mission.
-4. Keep actual provider invoices/usage in the KLYX business-cost subsystem rather than hard-coding plan prices in runtime code.
-5. Keep the mobile boundary test mandatory as the Android/iOS client evolves.
+2. Implement and certify Turnstile/CAPTCHA for Expo mobile auth before any store production release.
+3. Repair the missing elmah.io production heartbeat and prove subsequent Healthy check-ins.
+4. Audit Supabase `SECURITY DEFINER` grants and mutable `search_path` in a dedicated migration mission.
+5. Keep actual provider invoices/usage in the KLYX business-cost subsystem rather than hard-coding plan prices in runtime code.
+6. Keep the mobile boundary test mandatory as the Android/iOS client evolves.
