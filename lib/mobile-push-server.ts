@@ -36,8 +36,6 @@ type InstallationRow = {
 
 type NotificationRow = {
   id: string;
-  type: string | null;
-  href: string | null;
 };
 
 type ProfileRow = {
@@ -71,6 +69,27 @@ function env(name: string): string {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`${name}_MISSING`);
   return value;
+}
+
+function assertMobilePushProviderConfig(): void {
+  for (const name of [
+    "KLYX_FCM_PROJECT_ID",
+    "KLYX_FCM_CLIENT_EMAIL",
+    "KLYX_FCM_PRIVATE_KEY",
+    "KLYX_APNS_TEAM_ID",
+    "KLYX_APNS_KEY_ID",
+    "KLYX_APNS_PRIVATE_KEY",
+  ]) {
+    if (!process.env[name]?.trim()) {
+      throw new Error("KLYX_MOBILE_PUSH_WORKER_CONFIG_MISSING");
+    }
+  }
+
+  const apnsEnvironment =
+    process.env.KLYX_APNS_ENV?.trim().toLowerCase() || "production";
+  if (apnsEnvironment !== "production" && apnsEnvironment !== "sandbox") {
+    throw new Error("KLYX_MOBILE_PUSH_WORKER_CONFIG_MISSING");
+  }
 }
 
 function normalizePrivateKey(value: string): string {
@@ -164,8 +183,7 @@ async function fcmAccessToken(): Promise<string> {
 
 async function sendFcm(
   token: string,
-  notification: NotificationRow,
-  profileId: string
+  notification: NotificationRow
 ): Promise<DeliveryResult> {
   const projectId = env("KLYX_FCM_PROJECT_ID");
   const accessToken = await fcmAccessToken();
@@ -186,9 +204,7 @@ async function sendFcm(
           },
           data: {
             notificationId: notification.id,
-            profileId,
-            type: notification.type ?? "system",
-            href: notification.href ?? "/notifications",
+            href: "/notifications",
           },
           android: {
             priority: "high",
@@ -206,7 +222,6 @@ async function sendFcm(
 
   const body = await response.text();
   const invalidToken =
-    response.status === 404 ||
     body.includes("UNREGISTERED") ||
     body.includes("registration-token-not-registered");
 
@@ -244,8 +259,7 @@ function apnsProviderJwt(): string {
 function apnsRequest(
   client: ClientHttp2Session,
   token: string,
-  notification: NotificationRow,
-  profileId: string
+  notification: NotificationRow
 ): Promise<DeliveryResult> {
   const providerToken = apnsProviderJwt();
   const bundleId = process.env.KLYX_APNS_BUNDLE_ID?.trim() || "app.klyx.mobile";
@@ -301,9 +315,7 @@ function apnsRequest(
           sound: "default",
         },
         notificationId: notification.id,
-        profileId,
-        type: notification.type ?? "system",
-        href: notification.href ?? "/notifications",
+        href: "/notifications",
       })
     );
   });
@@ -311,8 +323,7 @@ function apnsRequest(
 
 async function sendApns(
   token: string,
-  notification: NotificationRow,
-  profileId: string
+  notification: NotificationRow
 ): Promise<DeliveryResult> {
   const environment = process.env.KLYX_APNS_ENV?.trim().toLowerCase();
   const origin =
@@ -322,7 +333,7 @@ async function sendApns(
   const client = connectHttp2(origin);
 
   try {
-    return await apnsRequest(client, token, notification, profileId);
+    return await apnsRequest(client, token, notification);
   } finally {
     client.close();
   }
@@ -388,7 +399,7 @@ async function processClaim(
       .maybeSingle(),
     supabaseAdmin
       .from("user_notifications")
-      .select("id, type, href")
+      .select("id")
       .eq("id", claim.notification_id)
       .maybeSingle(),
     supabaseAdmin
@@ -427,16 +438,8 @@ async function processClaim(
   try {
     result =
       installation.platform === "android"
-        ? await sendFcm(
-            installation.native_token,
-            notification,
-            claim.recipient_profile_id
-          )
-        : await sendApns(
-            installation.native_token,
-            notification,
-            claim.recipient_profile_id
-          );
+        ? await sendFcm(installation.native_token, notification)
+        : await sendApns(installation.native_token, notification);
   } catch (error) {
     result = {
       delivered: false,
@@ -500,6 +503,10 @@ export async function authorizeMobilePushTick(rawToken: string): Promise<void> {
   if (!safeHashEqual(sha256(rawToken), data.token_sha256)) {
     throw new Error("KLYX_MOBILE_PUSH_WORKER_AUTH_INVALID");
   }
+
+  // Missing provider credentials must fail before any queue claim can consume
+  // an attempt. Activation remains an explicit readiness state.
+  assertMobilePushProviderConfig();
 }
 
 export async function runMobilePushTick(): Promise<{
