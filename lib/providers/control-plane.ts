@@ -39,9 +39,7 @@ function assertPositiveInteger(value: number, label: string): void {
   }
 }
 
-function validateRegistration(
-  registration: KlyxProviderControlPlaneRegistration
-): void {
+function validateRegistration(registration: KlyxProviderControlPlaneRegistration): void {
   const { policy } = registration;
 
   if (registration.capabilities.length === 0) {
@@ -52,17 +50,12 @@ function validateRegistration(
     assertPositiveInteger(policy.timeoutMs, `${registration.provider}.timeoutMs`);
   }
 
-  assertPositiveInteger(
-    policy.retry.maxAttempts,
-    `${registration.provider}.retry.maxAttempts`
-  );
+  assertPositiveInteger(policy.retry.maxAttempts, `${registration.provider}.retry.maxAttempts`);
   if (policy.retry.baseDelayMs < 0 || policy.retry.maxDelayMs < 0) {
     throw new Error(`${registration.provider}.retry delays must be >= 0`);
   }
   if (policy.retry.baseDelayMs > policy.retry.maxDelayMs) {
-    throw new Error(
-      `${registration.provider}.retry baseDelayMs must be <= maxDelayMs`
-    );
+    throw new Error(`${registration.provider}.retry baseDelayMs must be <= maxDelayMs`);
   }
 
   for (const [label, limit] of [
@@ -70,26 +63,14 @@ function validateRegistration(
     ["rateLimit", policy.rateLimit],
   ] as const) {
     if (limit) {
-      assertPositiveInteger(
-        limit.max,
-        `${registration.provider}.${label}.max`
-      );
-      assertPositiveInteger(
-        limit.windowMs,
-        `${registration.provider}.${label}.windowMs`
-      );
+      assertPositiveInteger(limit.max, `${registration.provider}.${label}.max`);
+      assertPositiveInteger(limit.windowMs, `${registration.provider}.${label}.windowMs`);
     }
   }
 
   if (policy.budget) {
-    assertPositiveInteger(
-      policy.budget.maxMinor,
-      `${registration.provider}.budget.maxMinor`
-    );
-    assertPositiveInteger(
-      policy.budget.windowMs,
-      `${registration.provider}.budget.windowMs`
-    );
+    assertPositiveInteger(policy.budget.maxMinor, `${registration.provider}.budget.maxMinor`);
+    assertPositiveInteger(policy.budget.windowMs, `${registration.provider}.budget.windowMs`);
     if (!policy.budget.currency.trim()) {
       throw new Error(`${registration.provider}.budget.currency is required`);
     }
@@ -97,9 +78,7 @@ function validateRegistration(
       policy.budget.warnAtBps !== undefined &&
       (policy.budget.warnAtBps <= 0 || policy.budget.warnAtBps > 10_000)
     ) {
-      throw new Error(
-        `${registration.provider}.budget.warnAtBps must be within 1..10000`
-      );
+      throw new Error(`${registration.provider}.budget.warnAtBps must be within 1..10000`);
     }
   }
 
@@ -141,10 +120,8 @@ export class KlyxProviderControlPlane {
     KlyxExternalProviderName,
     KlyxProviderControlPlaneRegistration
   >();
-  private readonly states = new Map<
-    KlyxExternalProviderName,
-    ProviderMutableState
-  >();
+  private readonly states = new Map<KlyxExternalProviderName, ProviderMutableState>();
+  private readonly activePermits = new Map<string, KlyxProviderPermit>();
   private readonly now: () => number;
   private readonly nextId: () => string;
   private readonly auditSink: (event: KlyxProviderAuditEvent) => void;
@@ -156,8 +133,7 @@ export class KlyxProviderControlPlane {
   ) {
     let sequence = 0;
     this.now = dependencies.now ?? (() => Date.now());
-    this.nextId =
-      dependencies.nextId ?? (() => `provider-event-${++sequence}`);
+    this.nextId = dependencies.nextId ?? (() => `provider-event-${++sequence}`);
     this.auditSink = dependencies.audit ?? (() => undefined);
     this.observeSink = dependencies.observe ?? (() => undefined);
 
@@ -165,9 +141,7 @@ export class KlyxProviderControlPlane {
     for (const registration of registrations) {
       validateRegistration(registration);
       if (this.registrations.has(registration.provider)) {
-        throw new Error(
-          `duplicate provider registration: ${registration.provider}`
-        );
+        throw new Error(`duplicate provider registration: ${registration.provider}`);
       }
       this.registrations.set(registration.provider, registration);
       this.states.set(registration.provider, {
@@ -185,9 +159,7 @@ export class KlyxProviderControlPlane {
     }
   }
 
-  getRegistration(
-    provider: KlyxExternalProviderName
-  ): KlyxProviderControlPlaneRegistration {
+  getRegistration(provider: KlyxExternalProviderName): KlyxProviderControlPlaneRegistration {
     const registration = this.registrations.get(provider);
     if (!registration) {
       throw new Error(`provider is not registered: ${provider}`);
@@ -195,9 +167,7 @@ export class KlyxProviderControlPlane {
     return registration;
   }
 
-  getFallback(
-    provider: KlyxExternalProviderName
-  ): KlyxProviderFallbackPolicy {
+  getFallback(provider: KlyxExternalProviderName): KlyxProviderFallbackPolicy {
     return this.getRegistration(provider).policy.fallback;
   }
 
@@ -215,31 +185,13 @@ export class KlyxProviderControlPlane {
     this.refreshCircuit(registration, state, now);
 
     if (!policy.enabled) {
-      return this.block(
-        operation,
-        "PROVIDER_DISABLED",
-        policy.fallback,
-        now
-      );
+      return this.block(operation, "PROVIDER_DISABLED", policy.fallback, now);
     }
     if (!registration.capabilities.includes(operation.capability)) {
-      return this.block(
-        operation,
-        "CAPABILITY_NOT_SUPPORTED",
-        policy.fallback,
-        now
-      );
+      return this.block(operation, "CAPABILITY_NOT_SUPPORTED", policy.fallback, now);
     }
-    if (
-      policy.health.blockWhenUnhealthy &&
-      state.health === "unhealthy"
-    ) {
-      return this.block(
-        operation,
-        "PROVIDER_UNHEALTHY",
-        policy.fallback,
-        now
-      );
+    if (policy.health.blockWhenUnhealthy && state.health === "unhealthy") {
+      return this.block(operation, "PROVIDER_UNHEALTHY", policy.fallback, now);
     }
     if (state.circuit === "open") {
       return this.block(operation, "CIRCUIT_OPEN", policy.fallback, now);
@@ -249,46 +201,36 @@ export class KlyxProviderControlPlane {
       policy.circuitBreaker &&
       state.halfOpenInFlight >= policy.circuitBreaker.halfOpenMaxCalls
     ) {
-      return this.block(
-        operation,
-        "CIRCUIT_HALF_OPEN_BUSY",
-        policy.fallback,
-        now
-      );
+      return this.block(operation, "CIRCUIT_HALF_OPEN_BUSY", policy.fallback, now);
     }
-    if (
-      policy.rateLimit &&
-      state.rateLimit.used >= policy.rateLimit.max
-    ) {
+    if (policy.rateLimit && state.rateLimit.used >= policy.rateLimit.max) {
       return this.block(operation, "RATE_LIMITED", policy.fallback, now);
     }
     if (policy.quota && state.quota.used >= policy.quota.max) {
       return this.block(operation, "QUOTA_EXCEEDED", policy.fallback, now);
     }
 
-    if (policy.budget && operation.estimatedCostMinor !== undefined) {
-      if (
-        operation.costCurrency &&
-        operation.costCurrency.toUpperCase() !==
-          policy.budget.currency.toUpperCase()
-      ) {
-        return this.block(
-          operation,
-          "BUDGET_CURRENCY_MISMATCH",
-          policy.fallback,
-          now
-        );
+    if (operation.estimatedCostMinor !== undefined) {
+      if (!Number.isInteger(operation.estimatedCostMinor) || operation.estimatedCostMinor < 0) {
+        throw new Error("estimatedCostMinor must be a non-negative integer");
+      }
+    }
+
+    if (policy.budget) {
+      if (state.budget.used >= policy.budget.maxMinor) {
+        return this.block(operation, "BUDGET_EXCEEDED", policy.fallback, now);
       }
       if (
-        state.budget.used + operation.estimatedCostMinor >
-        policy.budget.maxMinor
+        operation.costCurrency &&
+        operation.costCurrency.toUpperCase() !== policy.budget.currency.toUpperCase()
       ) {
-        return this.block(
-          operation,
-          "BUDGET_EXCEEDED",
-          policy.fallback,
-          now
-        );
+        return this.block(operation, "BUDGET_CURRENCY_MISMATCH", policy.fallback, now);
+      }
+      if (
+        operation.estimatedCostMinor !== undefined &&
+        state.budget.used + operation.estimatedCostMinor > policy.budget.maxMinor
+      ) {
+        return this.block(operation, "BUDGET_EXCEEDED", policy.fallback, now);
       }
     }
 
@@ -306,6 +248,7 @@ export class KlyxProviderControlPlane {
       operation: operation.operation,
       timeoutMs: policy.timeoutMs,
     };
+    this.activePermits.set(permit.attemptId, permit);
 
     this.audit({
       eventId: this.nextId(),
@@ -327,10 +270,18 @@ export class KlyxProviderControlPlane {
     return { allowed: true, permit };
   }
 
-  recordAttempt(
-    permit: KlyxProviderPermit,
-    result: KlyxProviderAttemptResult
-  ): void {
+  recordAttempt(permit: KlyxProviderPermit, result: KlyxProviderAttemptResult): void {
+    const activePermit = this.activePermits.get(permit.attemptId);
+    if (
+      !activePermit ||
+      activePermit.provider !== permit.provider ||
+      activePermit.capability !== permit.capability ||
+      activePermit.operation !== permit.operation
+    ) {
+      throw new Error(`provider attempt is not active: ${permit.attemptId}`);
+    }
+    this.activePermits.delete(permit.attemptId);
+
     const now = this.now();
     const registration = this.getRegistration(permit.provider);
     const state = this.getState(permit.provider);
@@ -342,9 +293,22 @@ export class KlyxProviderControlPlane {
     this.consumeBudget(registration, state, result, now);
 
     if (result.ok) {
+      const previousHealth = state.health;
       state.consecutiveFailures = 0;
       state.health = "healthy";
       state.circuitFailures = 0;
+      if (previousHealth !== "healthy") {
+        this.audit({
+          eventId: this.nextId(),
+          occurredAtMs: now,
+          provider: permit.provider,
+          capability: permit.capability,
+          operation: permit.operation,
+          action: "health_changed",
+          reasonCode: "ATTEMPT_SUCCESS",
+          details: { health: "healthy" },
+        });
+      }
       if (state.circuit !== "closed") {
         state.circuit = "closed";
         state.circuitOpenedAtMs = null;
@@ -368,24 +332,13 @@ export class KlyxProviderControlPlane {
     state.consecutiveFailures += 1;
     this.updateHealthFromFailures(registration, state, permit, now);
 
-    if (
-      result.countsTowardCircuit !== false &&
-      registration.policy.circuitBreaker
-    ) {
+    if (result.countsTowardCircuit !== false && registration.policy.circuitBreaker) {
       state.circuitFailures += 1;
-      if (
-        state.circuitFailures >=
-        registration.policy.circuitBreaker.failureThreshold
-      ) {
+      if (state.circuitFailures >= registration.policy.circuitBreaker.failureThreshold) {
         state.circuit = "open";
         state.circuitOpenedAtMs = now;
         state.halfOpenInFlight = 0;
-        this.auditCircuit(
-          permit,
-          "circuit_opened",
-          now,
-          result.code
-        );
+        this.auditCircuit(permit, "circuit_opened", now, result.code);
       }
     }
 
@@ -426,9 +379,7 @@ export class KlyxProviderControlPlane {
     });
   }
 
-  snapshot(
-    provider: KlyxExternalProviderName
-  ): KlyxProviderStateSnapshot {
+  snapshot(provider: KlyxExternalProviderName): KlyxProviderStateSnapshot {
     const registration = this.getRegistration(provider);
     const state = this.getState(provider);
     const now = this.now();
@@ -449,9 +400,7 @@ export class KlyxProviderControlPlane {
     };
   }
 
-  private getState(
-    provider: KlyxExternalProviderName
-  ): ProviderMutableState {
+  private getState(provider: KlyxExternalProviderName): ProviderMutableState {
     const state = this.states.get(provider);
     if (!state) {
       throw new Error(`provider state is not registered: ${provider}`);
@@ -461,10 +410,7 @@ export class KlyxProviderControlPlane {
 
   private block(
     operation: KlyxProviderOperation,
-    reason: Exclude<
-      KlyxProviderAdmission,
-      { allowed: true }
-    >["reason"],
+    reason: Exclude<KlyxProviderAdmission, { allowed: true }>["reason"],
     fallback: KlyxProviderFallbackPolicy,
     now: number
   ): KlyxProviderAdmission {
@@ -485,12 +431,7 @@ export class KlyxProviderControlPlane {
       provider: operation.provider,
       labels: { reason },
     });
-    return {
-      allowed: false,
-      provider: operation.provider,
-      reason,
-      fallback,
-    };
+    return { allowed: false, provider: operation.provider, reason, fallback };
   }
 
   private resetExpiredWindows(
@@ -500,18 +441,12 @@ export class KlyxProviderControlPlane {
   ): void {
     const pairs: Array<[WindowCounter, number | null]> = [
       [state.quota, registration.policy.quota?.windowMs ?? null],
-      [
-        state.rateLimit,
-        registration.policy.rateLimit?.windowMs ?? null,
-      ],
+      [state.rateLimit, registration.policy.rateLimit?.windowMs ?? null],
       [state.budget, registration.policy.budget?.windowMs ?? null],
     ];
 
     for (const [counter, windowMs] of pairs) {
-      if (
-        windowMs !== null &&
-        now - counter.startedAtMs >= windowMs
-      ) {
+      if (windowMs !== null && now - counter.startedAtMs >= windowMs) {
         counter.startedAtMs = now;
         counter.used = 0;
       }
@@ -519,8 +454,7 @@ export class KlyxProviderControlPlane {
 
     if (
       registration.policy.budget &&
-      now - state.budget.startedAtMs <
-        registration.policy.budget.windowMs &&
+      now - state.budget.startedAtMs < registration.policy.budget.windowMs &&
       state.budget.used === 0
     ) {
       state.budgetWarningEmitted = false;
@@ -559,15 +493,9 @@ export class KlyxProviderControlPlane {
     const previous = state.health;
     const healthPolicy = registration.policy.health;
 
-    if (
-      state.consecutiveFailures >=
-      healthPolicy.unhealthyAfterConsecutiveFailures
-    ) {
+    if (state.consecutiveFailures >= healthPolicy.unhealthyAfterConsecutiveFailures) {
       state.health = "unhealthy";
-    } else if (
-      state.consecutiveFailures >=
-      healthPolicy.degradedAfterConsecutiveFailures
-    ) {
+    } else if (state.consecutiveFailures >= healthPolicy.degradedAfterConsecutiveFailures) {
       state.health = "degraded";
     }
 
@@ -594,6 +522,9 @@ export class KlyxProviderControlPlane {
     if (!budget || result.actualCostMinor === undefined) {
       return;
     }
+    if (!Number.isInteger(result.actualCostMinor) || result.actualCostMinor < 0) {
+      throw new Error("actualCostMinor must be a non-negative integer");
+    }
     if (
       result.costCurrency &&
       result.costCurrency.toUpperCase() !== budget.currency.toUpperCase()
@@ -607,7 +538,7 @@ export class KlyxProviderControlPlane {
       return;
     }
 
-    state.budget.used += Math.max(0, result.actualCostMinor);
+    state.budget.used += result.actualCostMinor;
     this.observe({
       name: "provider_control_plane_budget_used_minor",
       value: state.budget.used,
@@ -698,26 +629,31 @@ export type KlyxProviderExecutionOutcome<TOutput> =
       readonly requiresReconciliation: boolean;
     };
 
-export async function executeWithKlyxProviderControlPlane<
-  TInput,
-  TOutput
->(input: {
+export async function executeWithKlyxProviderControlPlane<TInput, TOutput>(input: {
   readonly controlPlane: KlyxProviderControlPlane;
   readonly adapter: KlyxProviderExecutionAdapter<TInput, TOutput>;
   readonly operation: Omit<KlyxProviderOperation, "provider">;
   readonly payload: TInput;
-  readonly actualCost?: (
-    value: TOutput
-  ) => { minor: number; currency: string } | undefined;
+  readonly actualCost?: (value: TOutput) => { minor: number; currency: string } | undefined;
   readonly sleep?: (ms: number) => Promise<void>;
 }): Promise<KlyxProviderExecutionOutcome<TOutput>> {
   const { controlPlane, adapter, operation, payload } = input;
   const registration = controlPlane.getRegistration(adapter.provider);
   const retryPolicy = registration.policy.retry;
+
+  if (!adapter.capabilities.includes(operation.capability)) {
+    return {
+      ok: false,
+      code: "ADAPTER_CAPABILITY_NOT_SUPPORTED",
+      attempts: 0,
+      provider: adapter.provider,
+      fallback: registration.policy.fallback,
+      requiresReconciliation: false,
+    };
+  }
+
   const sleep =
-    input.sleep ??
-    ((ms: number) =>
-      new Promise((resolve) => setTimeout(resolve, ms)));
+    input.sleep ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
   let attempts = 0;
   let lastCode = "PROVIDER_EXECUTION_FAILED";
   let lastCertainty: "known_failed" | "unknown" = "unknown";
@@ -736,7 +672,10 @@ export async function executeWithKlyxProviderControlPlane<
         attempts: attempts - 1,
         provider: adapter.provider,
         fallback: admission.fallback,
-        requiresReconciliation: false,
+        requiresReconciliation:
+          operation.kind === "mutation" &&
+          attempts > 1 &&
+          lastCertainty === "unknown",
       };
     }
 
@@ -786,12 +725,7 @@ export async function executeWithKlyxProviderControlPlane<
         actualCostMinor: cost?.minor,
         costCurrency: cost?.currency,
       });
-      return {
-        ok: true,
-        value,
-        attempts,
-        provider: adapter.provider,
-      };
+      return { ok: true, value, attempts, provider: adapter.provider };
     } catch (error) {
       if (timeoutHandle !== undefined) {
         clearTimeout(timeoutHandle);
@@ -801,10 +735,7 @@ export async function executeWithKlyxProviderControlPlane<
           ? error
           : new KlyxProviderExecutionError({
               code: "PROVIDER_ERROR",
-              message:
-                error instanceof Error
-                  ? error.message
-                  : "provider execution failed",
+              message: error instanceof Error ? error.message : "provider execution failed",
               retryable: false,
               certainty: "unknown",
             });
@@ -847,8 +778,7 @@ export async function executeWithKlyxProviderControlPlane<
     attempts,
     provider: adapter.provider,
     fallback: controlPlane.getFallback(adapter.provider),
-    requiresReconciliation:
-      operation.kind === "mutation" && lastCertainty === "unknown",
+    requiresReconciliation: operation.kind === "mutation" && lastCertainty === "unknown",
   };
 }
 
