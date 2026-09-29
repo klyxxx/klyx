@@ -8,6 +8,10 @@ const workflow = fs.readFileSync(
   path.join(root, ".github/workflows/klyx-dr-offsite-backup.yml"),
   "utf8"
 );
+const dispatcher = fs.readFileSync(
+  path.join(root, ".github/workflows/klyx-full-restore-request-dispatcher.yml"),
+  "utf8"
+);
 const uploader = fs.readFileSync(
   path.join(root, "scripts/dr/upload-dropbox-offsite.mjs"),
   "utf8"
@@ -20,6 +24,16 @@ describe("KLYX automated offsite DR backup contract", () => {
     expect(workflow).toContain("github.event.workflow_run.conclusion == 'success'");
     expect(workflow).toContain("github.event.workflow_run.head_branch == 'main'");
     expect(workflow).toContain("workflow_dispatch:");
+    expect(workflow).toContain("target_sha:");
+    expect(workflow).toContain("inputs.target_sha");
+  });
+
+  it("explicitly chains exact-main full restore success to offsite backup", () => {
+    expect(dispatcher).toContain("Wait for exact-main full restore success");
+    expect(dispatcher).toContain("Refuse stale main before offsite dispatch");
+    expect(dispatcher).toContain("gh workflow run klyx-dr-offsite-backup.yml");
+    expect(dispatcher).toContain('-f target_sha="$GITHUB_SHA"');
+    expect(dispatcher).toContain("Wait for exact-main offsite backup success");
   });
 
   it("refuses stale main and keeps production access read-only", () => {
