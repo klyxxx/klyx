@@ -16,11 +16,15 @@ import {
   parseOpenAiStructuredResult,
 } from "./openai-structured";
 
+import {
+  assertKlyxExternalProviderAllowed,
+} from "@/lib/providers/cost-governance";
+
 const OPENAI_RESPONSES_URL =
   "https://api.openai.com/v1/responses";
 
 const DEFAULT_MODEL =
-  "gpt-5.6-terra";
+  "gpt-5.6-luna";
 
 const DEFAULT_TIMEOUT_MS =
   15_000;
@@ -323,6 +327,11 @@ export class OpenAiKlyxLlmProvider
   async generate(
     request: KlyxLlmRequest,
   ): Promise<KlyxLlmResponse> {
+    assertKlyxExternalProviderAllowed(
+      "openai",
+      "llm.generate",
+    );
+
     const apiKey =
       getApiKey();
 
