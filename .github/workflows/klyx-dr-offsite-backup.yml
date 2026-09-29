@@ -7,6 +7,11 @@ on:
     types:
       - completed
   workflow_dispatch:
+    inputs:
+      target_sha:
+        description: "Exact main SHA certified by the successful Full Restore Drill"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -26,7 +31,7 @@ jobs:
 
     env:
       GH_TOKEN: ${{ github.token }}
-      KLYX_TARGET_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      KLYX_TARGET_SHA: ${{ github.event.workflow_run.head_sha || inputs.target_sha || github.sha }}
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       KLYX_DR_SOURCE_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
