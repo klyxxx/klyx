@@ -26,10 +26,22 @@ describe("KLYX zero-budget external provider contract", () => {
     );
   });
 
-  it("routes variable-cost provider calls through the cost-aware control plane", () => {
-    expect(source("lib/brain/llm/provider.ts")).toContain(
-      'getKlyxExternalProviderCostDecision("openai")'
-    );
+  it("routes every OpenAI runtime transport through the cost governor", () => {
+    const provider = source("lib/brain/llm/provider.ts");
+    const openai = source("lib/brain/llm/openai-provider.ts");
+    const vision = source("lib/photo-vision-analysis.ts");
+    const health = source("app/api/admin/openai-health/route.ts");
+
+    expect(provider).toContain('getKlyxExternalProviderCostDecision("openai")');
+    expect(openai).toContain('"gpt-6-luna"');
+    expect(openai).toContain("max_output_tokens:");
+    expect(vision).toContain('getKlyxExternalProviderCostDecision("openai").allowed');
+    expect(vision).toContain('fallbackReason: "vision_cost_blocked"');
+    expect(health).toContain('getKlyxExternalProviderCostDecision("openai")');
+    expect(health).toContain('"gpt-6-luna"');
+  });
+
+  it("routes other variable-cost provider calls through the cost-aware control plane", () => {
     expect(source("lib/sumsub.ts")).toContain(
       'assertKlyxExternalProviderCostAllowed("sumsub")'
     );
