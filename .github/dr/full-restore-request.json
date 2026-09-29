@@ -1,7 +1,7 @@
 {
   "format": "KLYX_FULL_RESTORE_REQUEST",
   "version": 1,
-  "requestId": "dr-full-restore-20260929-2f4fe095-git-chain",
+  "requestId": "dr-full-restore-20260929-2f4fe095-git-chain-retry1",
   "baseMainSha": "2f4fe09511037828064954f81cdd1531204af519",
   "confirmProductionRead": true,
   "reason": "Run a fresh exact-main isolated full restore and explicit encrypted offsite backup after merging the Git-only DR chain fix; production remains read-only and Stripe LIVE remains disabled.",
