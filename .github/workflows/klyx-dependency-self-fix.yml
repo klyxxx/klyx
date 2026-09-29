@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 jobs:
-  patch:
+  diagnose:
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     steps:
@@ -27,67 +27,49 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Upgrade security patches
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Trace vulnerable dependency parents
         shell: bash
         run: |
           set -euo pipefail
-          npm install --save 'next@^16.3.6'
-          npm install --save-dev 'eslint-config-next@^16.3.6'
-          npm audit fix --package-lock-only || true
-          npm ci
-
-      - name: Produce sanitized audit diagnostic
-        shell: bash
-        run: |
-          set +e
-          npm audit --json > /tmp/npm-audit-all.json
-          ALL_EXIT=$?
-          npm audit --omit=dev --json > /tmp/npm-audit-prod.json
-          PROD_EXIT=$?
-          set -e
           node <<'NODE'
+          const { execFileSync } = require('child_process');
           const fs = require('fs');
-          const read = (p) => JSON.parse(fs.readFileSync(p, 'utf8'));
-          const simplify = (doc) => ({
-            metadata: { vulnerabilities: doc.metadata?.vulnerabilities ?? {} },
-            vulnerabilities: Object.fromEntries(
-              Object.entries(doc.vulnerabilities ?? {}).map(([name, v]) => [name, {
-                severity: v.severity,
-                isDirect: Boolean(v.isDirect),
-                range: v.range,
-                via: (v.via ?? []).map((x) => typeof x === 'string' ? x : {
-                  source: x.source,
-                  name: x.name,
-                  severity: x.severity,
-                  title: x.title,
-                  range: x.range,
-                  url: x.url
-                }),
-                effects: v.effects ?? [],
-                fixAvailable: v.fixAvailable ?? false
-              }])
-            )
-          });
+          const targets = ['ip-address', 'undici', 'vitest'];
+          const result = {};
+          for (const target of targets) {
+            try {
+              const raw = execFileSync('npm', ['explain', target, '--json'], { encoding: 'utf8' });
+              const tree = JSON.parse(raw);
+              const simplifyNode = (n) => ({
+                name: n.name,
+                version: n.version,
+                location: n.location,
+                dependents: (n.dependents || []).map((d) => ({
+                  type: d.type,
+                  name: d.name,
+                  spec: d.spec,
+                  from: d.from && { name: d.from.name, version: d.from.version, location: d.from.location }
+                }))
+              });
+              result[target] = tree.map(simplifyNode);
+            } catch (error) {
+              result[target] = { error: String(error.message || error) };
+            }
+          }
           fs.mkdirSync('.github/dr', { recursive: true });
-          fs.writeFileSync('.github/dr/npm-audit-diagnostic.json', JSON.stringify({
-            generatedAt: new Date().toISOString(),
-            production: simplify(read('/tmp/npm-audit-prod.json')),
-            all: simplify(read('/tmp/npm-audit-all.json'))
-          }, null, 2) + '\n');
+          fs.writeFileSync('.github/dr/npm-dependency-trace.json', JSON.stringify(result, null, 2) + '\n');
           NODE
-          echo "all_exit=$ALL_EXIT prod_exit=$PROD_EXIT"
 
-      - name: Commit patched lockfile and diagnostic
+      - name: Commit sanitized dependency trace
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add package.json package-lock.json .github/dr/npm-audit-diagnostic.json
+          git add .github/dr/npm-dependency-trace.json
           git diff --cached --check
-          if git diff --cached --quiet; then
-            echo 'No dependency changes required.'
-            exit 0
-          fi
-          git commit -m 'chore(security): capture patched npm audit state'
+          git commit -m 'chore(security): trace npm advisory dependency parents'
           git push origin HEAD:agent/dr-git-hardening-20260929
