@@ -1,0 +1,67 @@
+{
+  "ip-address": [
+    {
+      "name": "ip-address",
+      "version": "10.4.0",
+      "location": "node_modules/ip-address",
+      "dependents": [
+        {
+          "type": "prod",
+          "name": "ip-address",
+          "spec": "^10.2.0",
+          "from": {
+            "name": "express-rate-limit",
+            "version": "8.6.1",
+            "location": "node_modules/express-rate-limit"
+          }
+        }
+      ]
+    }
+  ],
+  "undici": [
+    {
+      "name": "undici",
+      "version": "7.29.0",
+      "location": "node_modules/undici",
+      "dependents": [
+        {
+          "type": "prod",
+          "name": "undici",
+          "spec": "^7.11.0",
+          "from": {
+            "name": "@dotenvx/dotenvx",
+            "version": "1.75.1",
+            "location": "node_modules/@dotenvx/dotenvx"
+          }
+        },
+        {
+          "type": "prod",
+          "name": "undici",
+          "spec": "^7.27.2",
+          "from": {
+            "name": "shadcn",
+            "version": "4.16.0",
+            "location": "node_modules/shadcn"
+          }
+        }
+      ]
+    }
+  ],
+  "vitest": [
+    {
+      "name": "vitest",
+      "version": "4.1.10",
+      "location": "node_modules/vitest",
+      "dependents": [
+        {
+          "type": "dev",
+          "name": "vitest",
+          "spec": "^4.1.10",
+          "from": {
+            "location": "/home/runner/work/klyx/klyx"
+          }
+        }
+      ]
+    }
+  ]
+}
