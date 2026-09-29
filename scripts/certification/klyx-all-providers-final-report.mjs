@@ -27,15 +27,36 @@ try {
   };
 }
 
+let walNetwork = {
+  status: "FAIL",
+  provider: "cloudflare-independent-wal",
+  mode: "SAFE_CERTIFICATION_WRITE",
+  evidence: ["independent WAL report missing"],
+};
+try {
+  walNetwork = JSON.parse(
+    fs.readFileSync(path.join(outDir, "independent-wal-network.json"), "utf8")
+  );
+} catch {
+  // Fail-closed below through KLYX_INDEPENDENT_WAL_OUTCOME and this report.
+}
+
 const recovery = stepStatus(process.env.KLYX_RECOVERY_OUTCOME);
 const repoTests = stepStatus(process.env.KLYX_REPO_TESTS_OUTCOME);
 const typescript = stepStatus(process.env.KLYX_TYPESCRIPT_OUTCOME);
 const build = stepStatus(process.env.KLYX_BUILD_OUTCOME);
 const platforms = stepStatus(process.env.KLYX_PLATFORMS_OUTCOME);
+const independentWalStep = stepStatus(process.env.KLYX_INDEPENDENT_WAL_OUTCOME);
+const independentWal =
+  independentWalStep === "PASS" && walNetwork.status === "PASS" ? "PASS" : "FAIL";
 const exactEngine = stepStatus(process.env.KLYX_EXACT_ENGINE_OUTCOME);
 const exactStripe = stepStatus(process.env.KLYX_EXACT_STRIPE_OUTCOME);
 const exactMobile = stepStatus(process.env.KLYX_EXACT_MOBILE_OUTCOME);
 const certSha = process.env.KLYX_CERT_SHA || process.env.GITHUB_SHA || "unknown";
+
+const walEvidence = Array.isArray(walNetwork.evidence)
+  ? walNetwork.evidence.join("; ")
+  : String(walNetwork.evidence || "independent WAL evidence unavailable");
 
 const providerRows = network.providers.map((item) => {
   if (item.provider === "stripe") {
@@ -44,6 +65,14 @@ const providerRows = network.providers.map((item) => {
       status: item.status === "PASS" && exactStripe === "PASS" ? "PASS" : "FAIL",
       evidence: `${item.evidence}; exact-SHA Economic Chain Stripe TEST=${exactStripe}`,
       mode: item.mode,
+    };
+  }
+  if (item.provider === "cloudflare") {
+    return {
+      name: item.provider,
+      status: item.status === "PASS" && independentWal === "PASS" ? "PASS" : "FAIL",
+      evidence: `${item.evidence}; independent Durable Object WAL=${independentWal}; ${walEvidence}`,
+      mode: `${item.mode}+SAFE_CERTIFICATION_WRITE`,
     };
   }
   return {
@@ -59,14 +88,18 @@ const engineStatus =
     ? "PASS"
     : "FAIL";
 
+const supabaseOutageStatus =
+  recovery === "PASS" && independentWal === "PASS" ? "PASS" : "FAIL";
+
 const report = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   sha: certSha,
   generatedAt: new Date().toISOString(),
   safety: {
     stripeLive: "FORBIDDEN",
     financialLiveMutations: 0,
-    providerProbes: "READ_ONLY_OR_STRIPE_TEST_ONLY",
+    providerProbes: "READ_ONLY_OR_SAFE_CERTIFICATION_WRITE_OR_STRIPE_TEST_ONLY",
+    independentWalProbeCanonicalSupabaseMutations: 0,
   },
   engines: [
     {
@@ -103,8 +136,8 @@ const report = {
     { scenario: "Stripe unavailable", status: recovery === "PASS" && exactStripe === "PASS" ? "PASS" : "FAIL", strategy: "prove-before-replay + bounded retry + reconciliation + exact-SHA Stripe TEST proof" },
     {
       scenario: "Supabase unavailable",
-      status: "FAIL",
-      strategy: "fail-closed; canonical durable queue is in Supabase, so total Supabase outage has no independent write-ahead durability domain",
+      status: supabaseOutageStatus,
+      strategy: `encrypted write-ahead in independent Cloudflare Durable Object before canonical enqueue; alarm/replay reuses the same idempotency key when Supabase returns; deterministic recovery=${recovery}; real independent WAL=${independentWal}`,
     },
     { scenario: "Sumsub unavailable", status: recovery, strategy: "bounded retry; webhook/evidence reconciliation" },
     { scenario: "webhook delayed/absent", status: recovery, strategy: "deduplicate delayed event; recover missing webhook using external evidence" },
@@ -120,6 +153,7 @@ const report = {
     recovery,
     platforms,
     providerNetwork: network.overall,
+    independentWal,
     exactEngine,
     exactStripe,
     exactMobile,
@@ -147,6 +181,7 @@ const lines = [
   `- SHA: \`${report.sha}\``,
   `- Overall: **${report.overall}**`,
   "- Stripe LIVE: **FORBIDDEN / 0 LIVE mutations**",
+  `- Independent WAL: **${independentWal}**`,
   "",
   "## Engines",
   "",
