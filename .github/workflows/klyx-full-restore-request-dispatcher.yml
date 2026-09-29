@@ -20,7 +20,7 @@ jobs:
     name: Validate request and dispatch exact-main full restore
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-22.04
-    timeout-minutes: 10
+    timeout-minutes: 60
 
     steps:
       - name: Checkout exact request commit
@@ -166,3 +166,120 @@ jobs:
             echo "::error::Dispatched Full Restore Drill is not bound to this exact main SHA."
             exit 1
           fi
+
+      - name: Wait for exact-main full restore success
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FULL_RESTORE_RUN_ID: ${{ steps.dispatch.outputs.run_id }}
+        run: |
+          set -euo pipefail
+
+          for attempt in $(seq 1 120); do
+            run_json="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${FULL_RESTORE_RUN_ID}")"
+            status="$(jq -r '.status // ""' <<<"$run_json")"
+            conclusion="$(jq -r '.conclusion // ""' <<<"$run_json")"
+            head_sha="$(jq -r '.head_sha // ""' <<<"$run_json")"
+
+            if [ "$head_sha" != "$GITHUB_SHA" ]; then
+              echo "::error::Full Restore Drill head SHA changed unexpectedly."
+              exit 1
+            fi
+
+            if [ "$status" = "completed" ]; then
+              if [ "$conclusion" != "success" ]; then
+                echo "::error::Full Restore Drill completed with conclusion: $conclusion"
+                exit 1
+              fi
+              echo "Exact-main Full Restore Drill PASS: $FULL_RESTORE_RUN_ID"
+              exit 0
+            fi
+
+            sleep 15
+          done
+
+          echo "::error::Timed out waiting for exact-main Full Restore Drill."
+          exit 1
+
+      - name: Refuse stale main before offsite dispatch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          current_main="$(gh api "/repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha' | tr '[:upper:]' '[:lower:]')"
+          current_sha="$(printf '%s' "$GITHUB_SHA" | tr '[:upper:]' '[:lower:]')"
+
+          if [ "$current_main" != "$current_sha" ]; then
+            echo "::error::main advanced after Full Restore; refusing stale offsite dispatch."
+            exit 1
+          fi
+
+      - name: Dispatch exact-main encrypted offsite backup
+        id: offsite
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          gh workflow run klyx-dr-offsite-backup.yml \
+            --ref main \
+            -f target_sha="$GITHUB_SHA"
+
+          run_id=""
+          for attempt in $(seq 1 20); do
+            run_id="$(
+              gh api "/repos/${GITHUB_REPOSITORY}/actions/runs?event=workflow_dispatch&branch=main&per_page=30" \
+                --jq ".workflow_runs[] | select(.name == \"KLYX DR Offsite Backup\" and .head_sha == \"${GITHUB_SHA}\") | .id" \
+                | head -n1
+            )"
+
+            if [ -n "$run_id" ]; then
+              break
+            fi
+            sleep 3
+          done
+
+          if [ -z "$run_id" ]; then
+            echo "::error::No exact-SHA KLYX DR Offsite Backup run was created."
+            exit 1
+          fi
+
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "Dispatched exact-main encrypted offsite backup run: $run_id"
+
+      - name: Wait for exact-main offsite backup success
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OFFSITE_RUN_ID: ${{ steps.offsite.outputs.run_id }}
+        run: |
+          set -euo pipefail
+
+          for attempt in $(seq 1 120); do
+            run_json="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${OFFSITE_RUN_ID}")"
+            status="$(jq -r '.status // ""' <<<"$run_json")"
+            conclusion="$(jq -r '.conclusion // ""' <<<"$run_json")"
+            head_sha="$(jq -r '.head_sha // ""' <<<"$run_json")"
+
+            if [ "$head_sha" != "$GITHUB_SHA" ]; then
+              echo "::error::Offsite backup head SHA does not match exact main."
+              exit 1
+            fi
+
+            if [ "$status" = "completed" ]; then
+              if [ "$conclusion" != "success" ]; then
+                echo "::error::Offsite backup completed with conclusion: $conclusion"
+                exit 1
+              fi
+              echo "Exact-main encrypted offsite backup PASS: $OFFSITE_RUN_ID"
+              exit 0
+            fi
+
+            sleep 15
+          done
+
+          echo "::error::Timed out waiting for exact-main offsite backup."
+          exit 1
