@@ -3,6 +3,9 @@ import "server-only";
 import {
   getKlyxLlmProvider,
 } from "@/lib/brain/llm/provider";
+import {
+  klyxExternalProviderAllowed,
+} from "@/lib/providers/cost-governance";
 
 export type KlyxAiMode =
   | "openai"
@@ -41,18 +44,40 @@ Exigences de réponse :
 Niveau KLYX : chaque phrase doit être utile, élégante et immédiatement compréhensible.
 `.trim();
 
-function fallbackReply(
+function normalizeForDeterministicMatch(message: string): string {
+  return message
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s'-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function tryDeterministicKlyxReply(
   message: string
-): string {
-  const normalized =
-    message.toLowerCase();
+): string | null {
+  const normalized = normalizeForDeterministicMatch(message);
+
+  if (!normalized) {
+    return "Dis-moi simplement ce que tu veux organiser.";
+  }
 
   if (
-    normalized.includes("bonjour") ||
-    normalized.includes("salut") ||
-    normalized.includes("bonsoir")
+    /^(bonjour|salut|bonsoir|hello|hey)(\s|$)/.test(normalized)
   ) {
     return "Bonjour. Dis-moi simplement ce que tu veux organiser et KLYX te guide jusqu’à la prochaine action utile.";
+  }
+
+  if (
+    normalized === "aide" ||
+    normalized.includes("que peux tu faire") ||
+    normalized.includes("tu peux faire quoi") ||
+    normalized.includes("comment fonctionne klyx") ||
+    normalized.includes("c'est quoi klyx") ||
+    normalized.includes("qu'est ce que klyx")
+  ) {
+    return "KLYX organise les services du quotidien : tu décris le besoin, puis KLYX peut cadrer la demande, rechercher, comparer, préparer la réservation et suivre la mission. Les paiements, réservations et décisions sensibles restent contrôlés par les moteurs KLYX.";
   }
 
   if (
@@ -63,7 +88,25 @@ function fallbackReply(
     return "Je peux t’aider à cadrer le budget. Indique d’abord le service, la ville et le moment souhaité.";
   }
 
-  return "J’ai compris. Indique le service, la ville et le moment souhaité pour que KLYX puisse avancer précisément.";
+  if (
+    normalized.includes("je veux reserver") ||
+    normalized.includes("je veux un service") ||
+    normalized.includes("j'ai besoin de") ||
+    normalized.includes("jai besoin de")
+  ) {
+    return "D’accord. Indique le service, la ville et le moment souhaité pour que KLYX puisse préparer la demande.";
+  }
+
+  return null;
+}
+
+function fallbackReply(
+  message: string
+): string {
+  return (
+    tryDeterministicKlyxReply(message) ??
+    "J’ai compris. Indique le service, la ville et le moment souhaité pour que KLYX puisse avancer précisément."
+  );
 }
 
 function normalizedMemorySummary(
@@ -93,6 +136,10 @@ export function isKlyxAiEnabled(): boolean {
     return false;
   }
 
+  if (!klyxExternalProviderAllowed("openai")) {
+    return false;
+  }
+
   return (
     getKlyxLlmProvider()
       .getStatus()
@@ -108,11 +155,13 @@ export async function generateKlyxAiReply(
       .trim()
       .slice(0, 4000);
 
-  if (!message) {
+  const deterministicReply =
+    tryDeterministicKlyxReply(message);
+
+  if (deterministicReply) {
     return {
       mode: "fallback",
-      text:
-        "Dis-moi simplement ce que tu veux organiser.",
+      text: deterministicReply,
     };
   }
 
