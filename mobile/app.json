@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "KLYX",
+    "slug": "klyx-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "scheme": "klyx",
+    "ios": {
+      "bundleIdentifier": "be.klyx.app",
+      "supportsTablet": true,
+      "config": {
+        "usesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "be.klyx.app"
+    },
+    "plugins": [
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": true,
+          "faceIDPermission": "Autoriser KLYX à sécuriser votre session avec Face ID."
+        }
+      ]
+    ]
+  }
+}

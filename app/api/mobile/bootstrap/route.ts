@@ -2,64 +2,64 @@ import { NextResponse } from "next/server";
 
 import {
   apiErrorStatus,
-  getAuthenticatedProfile,
+  getAuthenticatedAccount,
 } from "@/lib/api-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
 
-const ROUTE = "/api/mobile/bootstrap";
+export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const startedAt = Date.now();
 
   try {
-    const { account, profile, profiles, canonicalProfile, user } =
-      await getAuthenticatedProfile(request);
+    const {
+      user,
+      account,
+      profiles,
+      canonicalProfile,
+    } = await getAuthenticatedAccount(request);
 
-    return NextResponse.json({
-      user: {
-        id: user.id,
-        email: user.email ?? null,
+    return NextResponse.json(
+      {
+        user: {
+          id: user.id,
+          email: user.email ?? null,
+        },
+        account: {
+          id: account.id,
+          canRequestServices: account.canRequestServices,
+          canOfferServices: account.canOfferServices,
+          capabilitySource: account.capabilitySource,
+          enabledCapabilities: account.enabledCapabilities,
+        },
+        profiles: profiles.map((profile) => ({
+          id: profile.id,
+          accountType: profile.accountType,
+          canRequestServices: profile.canRequestServices,
+          canOfferServices: profile.canOfferServices,
+          firstName: profile.firstName,
+          lastName: profile.lastName,
+          countryCode: profile.countryCode,
+          currencyCode: profile.currencyCode,
+        })),
+        canonicalProfileId: canonicalProfile.id,
       },
-      account: {
-        id: account.id,
-        canRequestServices: account.canRequestServices,
-        canOfferServices: account.canOfferServices,
-        enabledCapabilities: account.enabledCapabilities,
-      },
-      activeProfileId: profile.id,
-      canonicalProfileId: canonicalProfile.id,
-      profiles: profiles.map((item) => ({
-        id: item.id,
-        accountType: item.accountType,
-        legacyAccountType: item.legacyAccountType,
-        canRequestServices: item.canRequestServices,
-        canOfferServices: item.canOfferServices,
-        firstName: item.firstName,
-        lastName: item.lastName,
-        countryCode: item.countryCode,
-        currencyCode: item.currencyCode,
-      })),
-      clientContract: {
-        authority: "klyx_core",
-        bearerAuth: "supabase_access_token",
-        financialAuthorityOnClient: false,
-        eligibilityAuthorityOnClient: false,
-        ledgerAuthorityOnClient: false,
-      },
-    });
+      {
+        headers: {
+          "Cache-Control": "no-store, max-age=0",
+        },
+      }
+    );
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Bootstrap mobile indisponible.";
-    const status = apiErrorStatus(message);
+    const message = error instanceof Error ? error.message : "Unknown error";
 
     return secureApiErrorResponse({
       error,
       event: "mobile_bootstrap_failed",
-      route: ROUTE,
+      route: "/api/mobile/bootstrap",
       method: "GET",
-      status,
+      status: apiErrorStatus(message),
       code: "KLYX_MOBILE_BOOTSTRAP_FAILED",
-      publicMessage: status < 500 ? message : undefined,
       startedAt,
     });
   }

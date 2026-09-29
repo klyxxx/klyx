@@ -1,0 +1,58 @@
+name: KLYX Mobile
+
+on:
+  pull_request:
+    paths:
+      - "mobile/**"
+      - "app/api/mobile/**"
+      - "tests/integration/mobile-api-boundary-contract.test.ts"
+      - ".github/workflows/klyx-mobile.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "mobile/**"
+      - "app/api/mobile/**"
+      - "tests/integration/mobile-api-boundary-contract.test.ts"
+      - ".github/workflows/klyx-mobile.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.1
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Verify server mobile boundary
+        run: npx vitest run tests/integration/mobile-api-boundary-contract.test.ts
+
+      - name: Install mobile dependencies
+        run: npm install --prefix mobile --ignore-scripts
+
+      - name: Typecheck mobile
+        run: npm run typecheck --prefix mobile
+
+      - name: Validate Expo public config
+        run: npm run config:check --prefix mobile > /dev/null
+
+      - name: Refuse privileged secrets in mobile bundle
+        shell: bash
+        run: |
+          if grep -R -n -E 'SUPABASE_SERVICE_ROLE_KEY|STRIPE_SECRET_KEY|STRIPE_WEBHOOK_SECRET|SUMSUB_SECRET_KEY|TWILIO_AUTH_TOKEN|RESEND_API_KEY|OPENAI_API_KEY' mobile --exclude='.env.example'; then
+            echo 'Privileged provider secret reference found in mobile source.' >&2
+            exit 1
+          fi
