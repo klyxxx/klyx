@@ -54,6 +54,7 @@ describe("KLYX external provider cost control", () => {
 
   it("gates OpenAI generation and preserves deterministic fallback", () => {
     const provider = read("lib/brain/llm/provider.ts");
+    const openAiProvider = read("lib/brain/llm/openai-provider.ts");
 
     expect(provider).toContain("claimExternalProviderCost");
     expect(provider).toContain('"openai",\n        "llm_generate"');
@@ -62,6 +63,19 @@ describe("KLYX external provider cost control", () => {
     );
     expect(provider).toContain("DisabledKlyxLlmProvider");
     expect(provider).toContain("fallbackFrom");
+    expect(openAiProvider).toContain('"gpt-5.6-luna"');
+  });
+
+  it("gates OpenAI vision before the direct Responses API network call", () => {
+    const vision = read("lib/photo-vision-analysis.ts");
+
+    expect(vision).toContain("claimPhotoVisionCost");
+    expect(vision).toContain('"openai",\n      "vision_analyze"');
+    expect(vision).toContain('fallbackReason: "vision_cost_blocked"');
+    expect(vision.indexOf("await claimPhotoVisionCost()")).toBeLessThan(
+      vision.indexOf('fetch("https://api.openai.com/v1/responses"'),
+    );
+    expect(vision).toContain('DEFAULT_VISION_MODEL = "gpt-5.6-luna"');
   });
 
   it("serves deterministic KLYX replies locally unless cosmetic AI is explicitly enabled", () => {
