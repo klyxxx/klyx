@@ -24,7 +24,7 @@ const OPENAI_RESPONSES_URL =
   "https://api.openai.com/v1/responses";
 
 const DEFAULT_MODEL =
-  "gpt-5.6-luna";
+  "gpt-6-luna";
 
 const DEFAULT_TIMEOUT_MS =
   15_000;
