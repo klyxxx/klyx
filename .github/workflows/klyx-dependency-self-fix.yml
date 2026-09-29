@@ -1,0 +1,63 @@
+name: KLYX Dependency Self Fix
+
+on:
+  push:
+    branches:
+      - agent/dr-git-hardening-20260929
+    paths:
+      - .github/workflows/klyx-dependency-self-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout hardening branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/dr-git-hardening-20260929
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Upgrade Next.js security patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --save 'next@^16.3.6'
+          npm install --save-dev 'eslint-config-next@^16.3.6'
+
+      - name: Verify dependency security gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm audit --omit=dev --audit-level=moderate
+          npm audit --audit-level=high
+
+      - name: Unit tests
+        run: npm test
+
+      - name: TypeScript
+        run: npx tsc --noEmit --pretty false
+
+      - name: Commit dependency security patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package.json package-lock.json
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo 'No dependency changes required.'
+            exit 0
+          fi
+          git commit -m 'fix(security): upgrade Next.js to patched 16.3.6 line'
+          git push origin HEAD:agent/dr-git-hardening-20260929
