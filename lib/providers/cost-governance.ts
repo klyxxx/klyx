@@ -2,6 +2,9 @@ import "server-only";
 
 import { KLYX_PROVIDER_CATALOG } from "./catalog";
 import type { KlyxExternalProviderName } from "./contracts";
+import {
+  createKlyxProviderControlPlaneRegistry,
+} from "./control-plane-registry";
 
 export type KlyxExternalCostMode = "zero_cash" | "guarded";
 
@@ -38,8 +41,9 @@ export function getKlyxExternalCostMode(
     return "zero_cash";
   }
 
-  // The safest default is zero external paid spend. Production may opt in to
-  // guarded paid capabilities explicitly after budgets are configured.
+  // Safest default: no paid external provider call. A future paid rollout must
+  // explicitly opt into guarded mode and separately configure certified
+  // provider budgets. Missing configuration can therefore never create spend.
   return "zero_cash";
 }
 
@@ -197,8 +201,9 @@ export function assertKlyxExternalProviderAllowed(
 }
 
 export function createKlyxZeroCashControlPlaneOverrides() {
-  const minute = 60_000;
-  const month = 30 * 24 * 60 * minute;
+  const second = 1_000;
+  const minute = 60 * second;
+  const day = 24 * 60 * minute;
 
   return {
     openai: {
@@ -225,14 +230,15 @@ export function createKlyxZeroCashControlPlaneOverrides() {
     resend: {
       enabled: true,
       quota: {
-        // Conservative soft ceiling below the connected Free plan's 3,000/month.
-        max: 2_700,
-        windowMs: month,
+        // The connected Free plan exposes 100/day and 3,000/month. Capping at
+        // 90/day leaves headroom and stays below 3,000 even across 31 days.
+        max: 90,
+        windowMs: day,
       },
       rateLimit: {
-        // Connected account currently exposes 10 requests/second.
+        // Connected account currently exposes 10 API requests/second.
         max: 8,
-        windowMs: 1_000,
+        windowMs: second,
       },
       timeoutMs: 5_000,
       circuitBreaker: {
@@ -242,4 +248,16 @@ export function createKlyxZeroCashControlPlaneOverrides() {
       },
     },
   } as const;
+}
+
+export function createKlyxCostGovernedProviderControlPlaneRegistry(
+  env: NodeJS.ProcessEnv = process.env
+) {
+  if (getKlyxExternalCostMode(env) === "zero_cash") {
+    return createKlyxProviderControlPlaneRegistry(
+      createKlyxZeroCashControlPlaneOverrides()
+    );
+  }
+
+  return createKlyxProviderControlPlaneRegistry();
 }
