@@ -10,6 +10,7 @@ export type KlyxExternalCostDecision = {
   readonly reason:
     | "FREE_OR_LOCAL"
     | "ZERO_COST_BLOCK"
+    | "STRIPE_TEST_REQUIRED"
     | "PROVIDER_NOT_ENABLED"
     | "PROVIDER_SPEND_CAP_NOT_CONFIRMED"
     | "PROVIDER_BUDGET_NOT_CONFIGURED";
@@ -121,6 +122,23 @@ function providerEnvName(
   return `KLYX_PROVIDER_${PROVIDER_ENV_PREFIX[provider]}_${suffix}`;
 }
 
+function stripeTestOnly(): boolean {
+  if (normalizedEnvFlag("KLYX_LIVE_PAYMENTS_ENABLED")) {
+    return false;
+  }
+
+  const configuredMode = process.env.KLYX_STRIPE_MODE?.trim().toLowerCase();
+  if (configuredMode === "test") {
+    return true;
+  }
+
+  const secret = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
+  const publishable =
+    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim() ?? "";
+
+  return secret.startsWith("sk_test_") || publishable.startsWith("pk_test_");
+}
+
 export function getKlyxExternalCostMode(): KlyxExternalCostMode {
   const configured = process.env.KLYX_EXTERNAL_COST_MODE?.trim().toLowerCase();
   return configured === "guarded" ? "guarded" : "zero";
@@ -130,6 +148,21 @@ export function getKlyxExternalCostDecision(
   provider: KlyxExternalProviderName
 ): KlyxExternalCostDecision {
   const mode = getKlyxExternalCostMode();
+
+  // The cost governor can never be used as a path to authorize financial LIVE.
+  // Stripe is allowed here only for TEST-shaped development/certification traffic;
+  // the separate KLYX financial LIVE authority remains the only LIVE gate.
+  if (provider === "stripe") {
+    const allowed = stripeTestOnly();
+    return {
+      provider,
+      mode,
+      allowed,
+      reason: allowed ? "FREE_OR_LOCAL" : "STRIPE_TEST_REQUIRED",
+      budgetMinor: allowed ? null : 0,
+      currency: "USD",
+    };
+  }
 
   if (!GUARDED_RUNTIME_PROVIDERS.has(provider)) {
     return {
