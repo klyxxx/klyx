@@ -1,0 +1,59 @@
+name: KLYX Temporary Lockfile Refresh
+
+on:
+  push:
+    branches:
+      - cert/all-providers-recovery-20260926
+
+permissions:
+  contents: write
+
+concurrency:
+  group: klyx-lockfile-refresh-temp
+  cancel-in-progress: false
+
+jobs:
+  refresh-lockfile:
+    name: Refresh package-lock from package overrides
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: cert/all-providers-recovery-20260926
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Refresh lockfile only
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Verify lock contains patched transitive versions
+        shell: bash
+        run: |
+          node <<'NODE'
+          const lock = require('./package-lock.json');
+          const ip = lock.packages?.['node_modules/ip-address']?.version;
+          const undici = lock.packages?.['node_modules/undici']?.version;
+          if (ip !== '10.7.2') throw new Error(`unexpected ip-address version: ${ip}`);
+          if (undici !== '7.29.1') throw new Error(`unexpected undici version: ${undici}`);
+          console.log(`lock versions PASS: ip-address=${ip}, undici=${undici}`);
+          NODE
+
+      - name: Commit refreshed lockfile
+        shell: bash
+        run: |
+          if git diff --quiet -- package-lock.json; then
+            echo "package-lock.json already synchronized"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "fix(security): refresh lock for patched transitive dependencies"
+          git push origin HEAD:cert/all-providers-recovery-20260926
