@@ -6,6 +6,10 @@ import {
   timingSafeEqual,
 } from "crypto";
 
+import {
+  assertKlyxExternalProviderAllowed,
+} from "@/lib/providers/cost-governance";
+
 const BASE_URL = "https://api.sumsub.com";
 const SUMSUB_TIMEOUT_MS = 15_000;
 
@@ -37,6 +41,11 @@ export async function sumsubRequest<T>(params: {
   path: string;
   body?: unknown;
 }): Promise<T> {
+  assertKlyxExternalProviderAllowed(
+    "sumsub",
+    `api.${params.method.toLowerCase()}`
+  );
+
   const appToken = requiredEnv("SUMSUB_APP_TOKEN");
   const secretKey = requiredEnv("SUMSUB_SECRET_KEY");
   const method = params.method.toUpperCase();
