@@ -97,6 +97,41 @@ export type KlyxObservabilityAdapter = {
   sendHeartbeat(): Promise<boolean>;
 };
 
+function skippedEmailDelivery(): KlyxEmailDeliveryResult {
+  return {
+    ok: false,
+    status: "skipped",
+    provider: "resend",
+  };
+}
+
+async function allowResendDelivery(
+  operation: string,
+  idempotencyKey?: string,
+): Promise<boolean> {
+  try {
+    await claimExternalProviderCost(
+      "resend",
+      operation,
+      idempotencyKey,
+    );
+    return true;
+  } catch (error) {
+    console.warn(
+      JSON.stringify({
+        marker: "KLYX_EXTERNAL_PROVIDER_DEGRADED",
+        provider: "resend",
+        operation,
+        reason:
+          error instanceof Error
+            ? error.message.slice(0, 160)
+            : "KLYX_PROVIDER_COST_CONTROL_UNKNOWN_FAILURE",
+      }),
+    );
+    return false;
+  }
+}
+
 export async function getKlyxLlmAdapter(): Promise<KlyxLlmProvider> {
   const { getKlyxLlmProvider } = await import(
     "@/lib/brain/llm/provider"
@@ -151,19 +186,23 @@ export async function getKlyxEmailDeliveryAdapter(): Promise<KlyxEmailDeliveryAd
   return {
     provider: "resend",
     sendTransactional: async (input) => {
-      await claimExternalProviderCost(
-        "resend",
+      const allowed = await allowResendDelivery(
         "transactional_email",
         input.idempotencyKey,
       );
+      if (!allowed) {
+        return skippedEmailDelivery();
+      }
       return provider.sendKlyxTransactionalEmail(input);
     },
     sendProfileTransactional: async (input) => {
-      await claimExternalProviderCost(
-        "resend",
+      const allowed = await allowResendDelivery(
         "profile_transactional_email",
         input.idempotencyKey,
       );
+      if (!allowed) {
+        return skippedEmailDelivery();
+      }
       return provider.sendKlyxProfileTransactionalEmail(input);
     },
   };
