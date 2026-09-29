@@ -8,6 +8,8 @@ export type KlyxMeteredProvider =
   | "twilio"
   | "resend";
 
+export type KlyxProviderCostAlertLevel = 0 | 75 | 90 | 100;
+
 export type KlyxProviderCostClaim = {
   allowed: boolean;
   provider: KlyxMeteredProvider;
@@ -17,6 +19,7 @@ export type KlyxProviderCostClaim = {
   currency: string | null;
   reservedMinor: number;
   remainingMinor: number | null;
+  alertLevel: KlyxProviderCostAlertLevel;
 };
 
 type RawClaim = {
@@ -43,6 +46,54 @@ function asSafeInteger(value: unknown): number {
   }
 
   return 0;
+}
+
+function costAlertLevel(input: {
+  allowed: boolean;
+  reservedMinor: number;
+  remainingMinor: number | null;
+}): KlyxProviderCostAlertLevel {
+  if (!input.allowed) {
+    return 100;
+  }
+
+  if (input.remainingMinor === null) {
+    return 0;
+  }
+
+  const total = input.reservedMinor + input.remainingMinor;
+  if (total <= 0) {
+    return 0;
+  }
+
+  const utilization = input.reservedMinor / total;
+  if (utilization >= 1) return 100;
+  if (utilization >= 0.9) return 90;
+  if (utilization >= 0.75) return 75;
+  return 0;
+}
+
+function emitCostAlert(claim: KlyxProviderCostClaim): void {
+  if (claim.alertLevel === 0) {
+    return;
+  }
+
+  console.warn(
+    JSON.stringify({
+      marker:
+        claim.alertLevel === 100
+          ? "KLYX_EXTERNAL_COST_CIRCUIT_OPEN"
+          : "KLYX_EXTERNAL_COST_ALERT",
+      provider: claim.provider,
+      operation: claim.operation,
+      mode: claim.mode,
+      reason: claim.reason,
+      currency: claim.currency,
+      reservedMinor: claim.reservedMinor,
+      remainingMinor: claim.remainingMinor,
+      thresholdPct: claim.alertLevel,
+    }),
+  );
 }
 
 export async function claimExternalProviderCost(
@@ -79,6 +130,12 @@ export async function claimExternalProviderCost(
     );
   }
 
+  const reservedMinor = asSafeInteger(raw.reserved_minor);
+  const remainingMinor =
+    raw.remaining_minor === null || raw.remaining_minor === undefined
+      ? null
+      : asSafeInteger(raw.remaining_minor);
+
   const claim: KlyxProviderCostClaim = {
     allowed: raw.allowed,
     provider,
@@ -95,12 +152,16 @@ export async function claimExternalProviderCost(
       typeof raw.currency === "string"
         ? raw.currency
         : null,
-    reservedMinor: asSafeInteger(raw.reserved_minor),
-    remainingMinor:
-      raw.remaining_minor === null || raw.remaining_minor === undefined
-        ? null
-        : asSafeInteger(raw.remaining_minor),
+    reservedMinor,
+    remainingMinor,
+    alertLevel: costAlertLevel({
+      allowed: raw.allowed,
+      reservedMinor,
+      remainingMinor,
+    }),
   };
+
+  emitCostAlert(claim);
 
   if (!claim.allowed) {
     throw new Error(
