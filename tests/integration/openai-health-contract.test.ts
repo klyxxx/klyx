@@ -32,83 +32,23 @@ describe(
             "utf8"
           );
 
-        expect(
-          source
-        ).toContain(
-          "requireKlyxAdmin()"
-        );
-
-        expect(
-          source
-        ).toContain(
+        expect(source).toContain("requireKlyxAdmin()");
+        expect(source).toContain(
           'getKlyxExternalProviderCostDecision("openai")'
         );
-
-        expect(
-          source
-        ).toContain(
+        expect(source).toContain(
           "https://api.openai.com/v1/responses"
         );
-
-        expect(
-          source
-        ).toContain(
-          "OPENAI_API_KEY"
-        );
-
-        expect(
-          source
-        ).toContain(
-          "KLYX_OPENAI_MODEL"
-        );
-
-        expect(
-          source
-        ).toContain(
-          '"gpt-6-luna"'
-        );
-
-        expect(
-          source
-        ).toContain(
-          "max_output_tokens:"
-        );
-
-        expect(
-          source
-        ).toContain(
-          "AbortSignal.timeout"
-        );
-
-        expect(
-          source
-        ).toContain(
-          "configured: true"
-        );
-
-        expect(
-          source
-        ).toContain(
-          "apiStatus:"
-        );
-
-        expect(
-          source
-        ).not.toContain(
-          'from "vitest"'
-        );
-
-        expect(
-          source
-        ).not.toMatch(
-          /apiKey\s*[:,]/
-        );
-
-        expect(
-          source
-        ).not.toMatch(
-          /OPENAI_API_KEY\s*[:,]/
-        );
+        expect(source).toContain("OPENAI_API_KEY");
+        expect(source).toContain("KLYX_OPENAI_MODEL");
+        expect(source).toContain('"gpt-6-luna"');
+        expect(source).toMatch(/max_output_tokens:\s*32/);
+        expect(source).toContain("AbortSignal.timeout");
+        expect(source).toContain("configured: true");
+        expect(source).toContain("apiStatus:");
+        expect(source).not.toContain('from "vitest"');
+        expect(source).not.toMatch(/apiKey\s*[:,]/);
+        expect(source).not.toMatch(/OPENAI_API_KEY\s*[:,]/);
       }
     );
   }
