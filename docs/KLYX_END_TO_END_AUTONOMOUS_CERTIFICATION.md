@@ -55,7 +55,7 @@ competence
 -> settlement
 ```
 
-The canonical server state machine maps completion into the mission/settlement boundary:
+The canonical server state machine preserves that completion boundary explicitly:
 
 ```text
 skill
@@ -64,10 +64,11 @@ skill
 -> proposal
 -> acceptance
 -> mission
+-> completion
 -> settlement
 ```
 
-Settlement is terminal only after explicit server-controlled settlement completion.
+`mission -> settlement` is invalid. Settlement is terminal only after explicit server-controlled settlement completion.
 
 ## Product continuity invariant
 
@@ -180,7 +181,7 @@ A previously-created remote Transfer discovered during recovery is reconciled; r
 
 ## Executable Mission 19 runtime evidence
 
-The Golden Path now requires both Mission 19 chaos harnesses on the same candidate SHA.
+The Golden Path requires all Mission 19 product proofs on the same candidate SHA.
 
 ```text
 scripts/mission19-autonomous-continuity.mjs
@@ -192,6 +193,21 @@ scripts/mission19-autonomous-continuity.mjs
 -> retry/ack replay
 -> price drift snapshot preservation
 ```
+
+```text
+scripts/mission19-earn-lifecycle.mjs
+-> skill
+-> opportunities
+-> eligibility
+-> proposal
+-> acceptance
+-> mission
+-> completion
+-> settlement
+-> terminal settlement completion
+```
+
+The GAGNER proof also attempts `mission -> settlement` before completion and must receive `KLYX_WORKFLOW_TRANSITION_INVALID`.
 
 The signed Stripe lifecycle uses an event whose Stripe `event.created` is one hour older than delivery. KLYX must still process it once, persist the paid booking/ledger state, and reject replay idempotently.
 
@@ -229,7 +245,9 @@ Mission 19 is certified only when the exact candidate SHA passes:
 2. TypeScript;
 3. production build;
 4. existing payment/webhook/settlement golden paths;
-5. controlled chaos evidence covering every row in the required chaos matrix.
+5. runtime DEMANDER continuity evidence;
+6. runtime GAGNER lifecycle evidence including explicit completion;
+7. controlled chaos evidence covering every row in the required chaos matrix.
 
 Static contracts prove that the architecture contains the required boundaries. They are not, by themselves, runtime certification.
 

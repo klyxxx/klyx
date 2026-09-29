@@ -39,6 +39,7 @@ on:
       - "tests/supabase-production-migration-workflow.test.ts"
       - "scripts/golden-path-*.mjs"
       - "scripts/mission19-autonomous-continuity.mjs"
+      - "scripts/mission19-earn-lifecycle.mjs"
       - "scripts/mission19-settlement-eligibility-chaos.mjs"
       - "docs/KLYX_END_TO_END_AUTONOMOUS_CERTIFICATION.md"
       - "tests/integration/end-to-end-autonomous-*.test.ts"
@@ -90,8 +91,9 @@ permissions:
   contents: read
 
 # Mutation-heavy launch proof must never race with itself.
+# Isolate each PR/ref so another PR cannot replace this run while pending.
 concurrency:
-  group: klyx-golden-path-${{ github.repository }}-${{ github.event_name == 'push' && 'main' || github.event_name }}
+  group: klyx-golden-path-${{ github.repository }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -107,7 +109,6 @@ jobs:
       KLYX_PRODUCTION_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       SUPABASE_TELEMETRY_DISABLED: "1"
       KLYX_VISION_ENABLED: "0"
-
       KLYX_STRIPE_MODE: "test"
       STRIPE_SECRET_KEY: "sk_test_klyx_golden_path_local_only"
       NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_klyx_golden_path_local_only"
@@ -146,43 +147,31 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           if [ "$KLYX_GOLDEN_PATH_MUTATIONS_ENABLED" != "true" ]; then
             echo "::error::Golden path mutations require explicit isolated-E2E confirmation."
             exit 1
           fi
-
           if [ -z "${KLYX_PRODUCTION_SUPABASE_URL:-}" ]; then
             echo "::error::NEXT_PUBLIC_SUPABASE_URL production comparison secret is missing."
             exit 1
           fi
-
           node <<'NODE'
           const production = new URL(process.env.KLYX_PRODUCTION_SUPABASE_URL);
           const hostname = production.hostname.toLowerCase();
-          const valid =
-            hostname.endsWith(".supabase.co") ||
-            hostname.endsWith(".supabase.com");
-
-          if (!valid) {
-            throw new Error("Production comparison URL must target Supabase.");
-          }
-
+          const valid = hostname.endsWith(".supabase.co") || hostname.endsWith(".supabase.com");
+          if (!valid) throw new Error("Production comparison URL must target Supabase.");
           if (["127.0.0.1", "localhost", "[::1]"].includes(hostname)) {
             throw new Error("Production comparison URL must not be loopback.");
           }
           NODE
-
           case "${STRIPE_SECRET_KEY:-}" in
             sk_test_*) ;;
             *) echo "::error::Golden path requires a test-only Stripe-shaped runtime key."; exit 1 ;;
           esac
-
           if [ "$KLYX_STRIPE_MODE" != "test" ] || [ "$KLYX_LIVE_PAYMENTS_ENABLED" != "false" ]; then
             echo "::error::Golden path must run with live payments disabled."
             exit 1
           fi
-
           if [ "${KLYX_VISION_ENABLED:-0}" = "1" ]; then
             echo "::error::Golden path must not call external photo vision."
             exit 1
@@ -212,44 +201,49 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          supabase start \
-            -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+          for attempt in 1 2 3 4; do
+            echo "Starting ephemeral Supabase (attempt ${attempt}/4)..."
+            if supabase start \
+              -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 4 ]; then
+              echo "::error::Supabase start failed after 4 attempts."
+              exit 1
+            fi
+            supabase stop --no-backup || true
+            backoff=$((attempt * 20))
+            echo "Transient Supabase/image pull failure; retrying in ${backoff}s."
+            sleep "$backoff"
+          done
 
       - name: Export ephemeral Supabase and test credentials
         shell: bash
         run: |
           set -euo pipefail
-
           eval "$(supabase status -o env)"
-
           local_public_key="${ANON_KEY:-${PUBLISHABLE_KEY:-}}"
-
           for name in API_URL SERVICE_ROLE_KEY; do
             if [ -z "${!name:-}" ]; then
               echo "::error::Supabase local status did not provide ${name}."
               exit 1
             fi
           done
-
           if [ -z "$local_public_key" ]; then
             echo "::error::Supabase local status did not provide ANON_KEY/PUBLISHABLE_KEY."
             exit 1
           fi
-
           case "$API_URL" in
             http://127.0.0.1:54321|http://localhost:54321) ;;
             *) echo "::error::Refusing non-loopback Supabase API URL: ${API_URL}"; exit 1 ;;
           esac
-
           golden_email="golden-path-${GITHUB_RUN_ID}@example.test"
           golden_password="$(openssl rand -base64 36 | tr -d '\n')"
           webhook_secret="whsec_$(openssl rand -hex 32)"
-
           echo "::add-mask::$local_public_key"
           echo "::add-mask::$SERVICE_ROLE_KEY"
           echo "::add-mask::$golden_password"
           echo "::add-mask::$webhook_secret"
-
           {
             echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
             echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$local_public_key"
@@ -258,7 +252,6 @@ jobs:
             echo "KLYX_E2E_PASSWORD=$golden_password"
             echo "STRIPE_WEBHOOK_SECRET=$webhook_secret"
           } >> "$GITHUB_ENV"
-
           echo "Ephemeral local Supabase credentials prepared for this run only."
 
       - name: Verify isolated runtime guards
@@ -271,23 +264,17 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p golden-path-migration-proof
-
-          supabase migration list --local \
-            | tee golden-path-migration-proof/migrations.txt
-
+          supabase migration list --local | tee golden-path-migration-proof/migrations.txt
           latest_file="$(find supabase/migrations -maxdepth 1 -type f -name '*.sql' -printf '%f\n' | sort | tail -n 1)"
           latest_version="${latest_file%%_*}"
-
           if [ -z "$latest_version" ]; then
             echo "::error::No KLYX migration was found."
             exit 1
           fi
-
           if ! grep -Fq "$latest_version" golden-path-migration-proof/migrations.txt; then
             echo "::error::Latest KLYX migration ${latest_version} is not applied in local Supabase."
             exit 1
           fi
-
           printf '%s\n' \
             "commit=${GITHUB_SHA}" \
             "run=${GITHUB_RUN_ID}" \
@@ -317,28 +304,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           npm run start -- -p 3100 > golden-path-server.log 2>&1 &
           server_pid=$!
           echo "KLYX_GOLDEN_PATH_SERVER_PID=$server_pid" >> "$GITHUB_ENV"
-
           for attempt in $(seq 1 40); do
-            if curl --fail --silent --show-error \
-              http://127.0.0.1:3100/login \
-              > /dev/null; then
+            if curl --fail --silent --show-error http://127.0.0.1:3100/login > /dev/null; then
               echo "Golden path production server is ready."
               exit 0
             fi
-
             if ! kill -0 "$server_pid" 2>/dev/null; then
               echo "::error::Golden path production server exited early."
               cat golden-path-server.log
               exit 1
             fi
-
             sleep 1
           done
-
           echo "::error::Golden path production server did not become ready."
           cat golden-path-server.log
           exit 1
@@ -361,6 +341,9 @@ jobs:
       - name: Verify Mission 19 autonomous continuity chaos scenarios
         run: node scripts/mission19-autonomous-continuity.mjs
 
+      - name: Verify Mission 19 GAGNER lifecycle and completion boundary
+        run: node scripts/mission19-earn-lifecycle.mjs
+
       - name: Verify direct-message database abuse guard
         run: node scripts/golden-path-message-rate-limit.mjs
 
@@ -381,14 +364,13 @@ jobs:
 
       - name: Golden path local lifecycle ready
         run: >-
-          echo "Private photo upload/analysis/deletion, provider studio/zone onboarding, agent search/choice orchestration with booking confirmation boundary, intent analysis, exact provider search, quote, booking, direct-message DB abuse guard, signed delayed Stripe webhook, idempotency, payment ledger, mission completion, review, provider finance reconciliation, refunded terminal state, split payment/refund reconciliation and Mission 19 settlement ineligibility gate verified on ephemeral Supabase."
+          echo "Private photo upload/analysis/deletion, provider studio/zone onboarding, agent search/choice orchestration with booking confirmation boundary, intent analysis, exact provider search, quote, booking, Mission 19 GAGNER skill/opportunity/eligibility/proposal/acceptance/mission/completion/settlement lifecycle, direct-message DB abuse guard, signed delayed Stripe webhook, idempotency, payment ledger, mission completion, review, provider finance reconciliation, refunded terminal state, split payment/refund reconciliation and Mission 19 settlement ineligibility gate verified on ephemeral Supabase."
 
       - name: Stop golden path production server
         if: always()
         shell: bash
         run: |
-          if [ -n "${KLYX_GOLDEN_PATH_SERVER_PID:-}" ] && \
-             kill -0 "$KLYX_GOLDEN_PATH_SERVER_PID" 2>/dev/null; then
+          if [ -n "${KLYX_GOLDEN_PATH_SERVER_PID:-}" ] && kill -0 "$KLYX_GOLDEN_PATH_SERVER_PID" 2>/dev/null; then
             kill "$KLYX_GOLDEN_PATH_SERVER_PID" || true
           fi
 
