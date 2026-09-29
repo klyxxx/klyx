@@ -1,5 +1,7 @@
 import "server-only";
 
+import { assertKlyxExternalProviderCostAllowed } from "@/lib/providers/cost-runtime";
+
 // KLYX_TWILIO_VERIFY_12_69
 
 const TWILIO_VERIFY_TIMEOUT_MS = 15_000;
@@ -71,6 +73,8 @@ async function parseResponse(
 export async function sendPhoneOtp(
   phoneNumber: string
 ) {
+  assertKlyxExternalProviderCostAllowed("twilio");
+
   const serviceSid =
     requiredEnv("TWILIO_VERIFY_SERVICE_SID");
 
@@ -105,6 +109,8 @@ export async function verifyPhoneOtp(
   phoneNumber: string,
   code: string
 ) {
+  assertKlyxExternalProviderCostAllowed("twilio");
+
   const serviceSid =
     requiredEnv("TWILIO_VERIFY_SERVICE_SID");
 

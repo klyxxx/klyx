@@ -1,3 +1,5 @@
+import { getKlyxExternalProviderCostDecision } from "@/lib/providers/cost-runtime";
+
 const ELMAH_IO_API_ORIGIN = "https://api.elmah.io";
 export const KLYX_ELMAH_IO_LOG_ID =
   "bac0ae51-d911-4ab5-8263-60a1e96b58ec";
@@ -47,13 +49,27 @@ type KlyxUnhandledRequestErrorReport = {
   renderSource?: string;
 };
 
-function productionApiKey(): string | null {
+function configuredProductionApiKey(): string | null {
   if (process.env.VERCEL_ENV !== "production") {
     return null;
   }
 
   const apiKey = process.env.ELMAH_IO_API_KEY?.trim();
   return apiKey || null;
+}
+
+function productionApiKey(): string | null {
+  const apiKey = configuredProductionApiKey();
+  if (!apiKey) {
+    return null;
+  }
+
+  const costDecision = getKlyxExternalProviderCostDecision("elmah_io");
+  if (!costDecision.allowed) {
+    return null;
+  }
+
+  return apiKey;
 }
 
 function deploymentVersion(): string | undefined {
@@ -210,7 +226,7 @@ export function isKlyxElmahIoConfigured(): boolean {
 }
 
 export function isKlyxElmahHeartbeatConfigured(): boolean {
-  if (!isKlyxElmahIoConfigured()) {
+  if (!configuredProductionApiKey()) {
     return false;
   }
 

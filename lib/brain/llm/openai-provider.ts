@@ -20,13 +20,31 @@ const OPENAI_RESPONSES_URL =
   "https://api.openai.com/v1/responses";
 
 const DEFAULT_MODEL =
-  "gpt-5.6-terra";
+  "gpt-5.6-luna";
 
 const DEFAULT_TIMEOUT_MS =
   15_000;
 
 const MAX_TIMEOUT_MS =
   30_000;
+
+const DEFAULT_MAX_OUTPUT_TOKENS =
+  600;
+
+const MAX_OUTPUT_TOKENS =
+  2_000;
+
+const MAX_MESSAGES =
+  12;
+
+const MAX_MESSAGE_CHARACTERS =
+  4_000;
+
+const MAX_CONVERSATION_CHARACTERS =
+  24_000;
+
+const MAX_CONTEXT_CHARACTERS =
+  12_000;
 
 type OpenAiResponsePayload = {
   id?: string;
@@ -84,6 +102,18 @@ function getTimeoutMs(): number {
   );
 }
 
+function getMaxOutputTokens(): number {
+  const raw = Number(
+    process.env.KLYX_OPENAI_MAX_OUTPUT_TOKENS
+  );
+
+  if (!Number.isFinite(raw) || raw <= 0) {
+    return DEFAULT_MAX_OUTPUT_TOKENS;
+  }
+
+  return Math.min(Math.floor(raw), MAX_OUTPUT_TOKENS);
+}
+
 function trimOutput(
   value: string,
   maxCharacters?: number,
@@ -109,11 +139,16 @@ function serializeMessages(
   request: KlyxLlmRequest,
 ): string {
   return request.messages
+    .slice(-MAX_MESSAGES)
     .map(
       (message) =>
-        `${message.role.toUpperCase()}: ${message.content}`,
+        `${message.role.toUpperCase()}: ${message.content.slice(
+          0,
+          MAX_MESSAGE_CHARACTERS,
+        )}`,
     )
-    .join("\n\n");
+    .join("\n\n")
+    .slice(-MAX_CONVERSATION_CHARACTERS);
 }
 
 function serializeContext(
@@ -126,7 +161,7 @@ function serializeContext(
   try {
     return JSON.stringify(
       request.context,
-    );
+    ).slice(0, MAX_CONTEXT_CHARACTERS);
   } catch {
     return "{}";
   }
@@ -173,6 +208,9 @@ function buildRequestBody(
 ) {
   return {
     model,
+
+    max_output_tokens:
+      getMaxOutputTokens(),
 
     reasoning: {
       effort: "low",
@@ -466,6 +504,9 @@ export class OpenAiKlyxLlmProvider
 
           reasoningEffort:
             "low",
+
+          maxOutputTokens:
+            getMaxOutputTokens(),
         },
       };
     } finally {

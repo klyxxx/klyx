@@ -16,6 +16,7 @@ import {
 import {
   OpenAiKlyxLlmProvider,
 } from "./openai-provider";
+import { getKlyxExternalProviderCostDecision } from "@/lib/providers/cost-runtime";
 
 const DISABLED_PROVIDER_NAME =
   "disabled";
@@ -132,7 +133,7 @@ class DisabledKlyxLlmProvider
           true,
 
         reason:
-          "No external LLM provider is available.",
+          "No external LLM provider is available within the active cost policy.",
       },
     };
   }
@@ -209,6 +210,13 @@ export function createKlyxLlmProvider():
     process.env.OPENAI_API_KEY?.trim();
 
   if (!apiKey) {
+    return fallback;
+  }
+
+  const costDecision =
+    getKlyxExternalProviderCostDecision("openai");
+
+  if (!costDecision.allowed) {
     return fallback;
   }
 
