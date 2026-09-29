@@ -1,9 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-const root = process.cwd();
+const root = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../.."
+);
 
 function read(relativePath: string): string {
   return fs.readFileSync(path.join(root, relativePath), "utf8");
@@ -80,5 +84,6 @@ describe("KLYX zero-cost external provider contract", () => {
     expect(costControl).toContain("SPEND_CAP_CONFIRMED");
     expect(costControl).toContain("MONTHLY_BUDGET_MINOR");
     expect(costControl).toContain("warnAtBps: 8_000");
+    expect(costControl).toContain("STRIPE_TEST_REQUIRED");
   });
 });
