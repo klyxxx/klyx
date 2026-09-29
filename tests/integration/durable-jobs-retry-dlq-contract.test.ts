@@ -49,7 +49,7 @@ describe("KLYX Mission 14 durable jobs contract", () => {
     const fingerprint = migration.slice(start, end);
 
     expect(fingerprint).not.toContain("'available_at'");
-    expect(server).toContain("p_available_at: optionalText(input.availableAt)");
+    expect(server).toContain("p_available_at: optionalText(normalized.availableAt)");
     expect(server).not.toContain("p_available_at: new Date()");
     expect(doc).toContain(
       "Scheduling time is intentionally outside the fingerprint."
