@@ -61,13 +61,36 @@ function Invoke-KlyxSupabase {
         [string[]]$Arguments,
 
         [Parameter(Mandatory = $true)]
-        [string]$Label
+        [string]$Label,
+
+        [ValidateRange(1, 8)]
+        [int]$MaxAttempts = 4
     )
 
-    & $script:SupabaseExecutable @Arguments
+    $DelaySeconds = 2
 
-    if ($LASTEXITCODE -ne 0) {
-        throw "$Label FAILED."
+    for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
+        & $script:SupabaseExecutable @Arguments
+
+        if ($LASTEXITCODE -eq 0) {
+            if ($Attempt -gt 1) {
+                Write-Host "$Label recovered on attempt $Attempt/$MaxAttempts."
+            }
+
+            return
+        }
+
+        if ($Attempt -ge $MaxAttempts) {
+            throw "$Label FAILED after $MaxAttempts bounded attempts."
+        }
+
+        Write-Warning (
+            "$Label failed on attempt $Attempt/$MaxAttempts. " +
+            "Retrying in $DelaySeconds seconds."
+        )
+
+        Start-Sleep -Seconds $DelaySeconds
+        $DelaySeconds = [Math]::Min($DelaySeconds * 2, 16)
     }
 }
 

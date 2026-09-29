@@ -99,20 +99,55 @@ $ArchiveDirectory =
         ".klyx-local-backup\dr-archives"
 
 if (-not $ArchivePath) {
-    $Latest =
-        Get-ChildItem `
-            -LiteralPath $ArchiveDirectory `
-            -Filter "*.klyxdr" `
-            -File `
-            -ErrorAction SilentlyContinue |
-        Sort-Object `
-            LastWriteTimeUtc `
-            -Descending |
-        Select-Object `
-            -First 1
+    if ($ExpectedCommit) {
+        $NormalizedExpectedCommit =
+            $ExpectedCommit.Trim().ToLowerInvariant()
 
-    if (-not $Latest) {
-        throw "No KLYX DR archive found."
+        if (
+            $NormalizedExpectedCommit -notmatch
+            '^[a-f0-9]{40}$'
+        ) {
+            throw "ExpectedCommit must be a full 40-character Git SHA."
+        }
+
+        $ExpectedShortCommit =
+            $NormalizedExpectedCommit.Substring(0, 8)
+
+        $Latest =
+            Get-ChildItem `
+                -LiteralPath $ArchiveDirectory `
+                -Filter "*-$ExpectedShortCommit.klyxdr" `
+                -File `
+                -ErrorAction SilentlyContinue |
+            Sort-Object `
+                LastWriteTimeUtc `
+                -Descending |
+            Select-Object `
+                -First 1
+
+        if (-not $Latest) {
+            throw (
+                "No KLYX DR archive found for expected commit " +
+                "$NormalizedExpectedCommit. Stale fallback refused."
+            )
+        }
+    }
+    else {
+        $Latest =
+            Get-ChildItem `
+                -LiteralPath $ArchiveDirectory `
+                -Filter "*.klyxdr" `
+                -File `
+                -ErrorAction SilentlyContinue |
+            Sort-Object `
+                LastWriteTimeUtc `
+                -Descending |
+            Select-Object `
+                -First 1
+
+        if (-not $Latest) {
+            throw "No KLYX DR archive found."
+        }
     }
 
     $ArchivePath =
