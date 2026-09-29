@@ -1,9 +1,9 @@
 {
   "format": "KLYX_FULL_RESTORE_REQUEST",
   "version": 1,
-  "requestId": "dr-full-restore-20260929-23c9af7f-git-only",
-  "baseMainSha": "23c9af7f9a19748236dbbf7038c27555196077c6",
+  "requestId": "dr-full-restore-20260929-54289f07-offsite",
+  "baseMainSha": "54289f07ee0d8518371b967c66b4318360d6bc7a",
   "confirmProductionRead": true,
-  "reason": "Run the exact-main isolated full restore entirely through GitHub after Provider Control Plane merge; no local operator backup or restore and Stripe LIVE remains disabled.",
-  "requestedAt": "2026-09-29T17:30:00Z"
+  "reason": "Run an exact-main isolated full restore after merging automated encrypted offsite backup; production remains read-only and Stripe LIVE remains disabled.",
+  "requestedAt": "2026-09-29T20:26:00Z"
 }
