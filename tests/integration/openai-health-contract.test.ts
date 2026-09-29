@@ -24,7 +24,7 @@ describe(
   "KLYX OpenAI production health contract",
   () => {
     it(
-      "keeps the OpenAI health probe admin-only and secret-safe",
+      "keeps the OpenAI health probe admin-only, cost-guarded and secret-safe",
       () => {
         const source =
           fs.readFileSync(
@@ -36,6 +36,18 @@ describe(
           source
         ).toContain(
           "requireKlyxAdmin()"
+        );
+
+        expect(
+          source
+        ).toContain(
+          'getKlyxExternalCostDecision(\n        "openai"'
+        );
+
+        expect(
+          source
+        ).toContain(
+          "if (!costDecision.allowed)"
         );
 
         expect(
@@ -59,7 +71,7 @@ describe(
         expect(
           source
         ).toContain(
-          '"gpt-5-mini"'
+          '"gpt-6-luna"'
         );
 
         expect(
