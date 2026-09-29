@@ -25,7 +25,7 @@ type AnalyzePhotoVisionInput = {
 };
 
 const MAX_VISION_BYTES = 10 * 1024 * 1024;
-const DEFAULT_VISION_MODEL = "gpt-5-mini";
+const DEFAULT_VISION_MODEL = "gpt-5.6-luna";
 
 // Visual evidence below this threshold may still be displayed as an
 // inconclusive analysis, but it cannot influence the service candidate list.
@@ -136,6 +136,41 @@ function cleanEvidence(value: unknown): PhotoVisualEvidence | null {
   };
 }
 
+async function claimPhotoVisionCost(): Promise<boolean> {
+  // Unit tests use a mocked fetch and must not require a live Supabase cost
+  // authority. Production-like certification can explicitly enforce the gate.
+  if (
+    process.env.NODE_ENV === "test" &&
+    process.env.KLYX_EXTERNAL_COST_CONTROL_TEST_MODE !== "enforce"
+  ) {
+    return true;
+  }
+
+  try {
+    const { claimExternalProviderCost } = await import(
+      "@/lib/providers/cost-control"
+    );
+    await claimExternalProviderCost(
+      "openai",
+      "vision_analyze",
+    );
+    return true;
+  } catch (error) {
+    console.warn(
+      JSON.stringify({
+        marker: "KLYX_EXTERNAL_PROVIDER_DEGRADED",
+        provider: "openai",
+        operation: "vision_analyze",
+        reason:
+          error instanceof Error
+            ? error.message.slice(0, 160)
+            : "KLYX_PROVIDER_COST_CONTROL_UNKNOWN_FAILURE",
+      }),
+    );
+    return false;
+  }
+}
+
 export function isPhotoVisionEnabled(): boolean {
   return (
     process.env.KLYX_VISION_ENABLED === "1" &&
@@ -175,6 +210,17 @@ export async function analyzePhotoVisualContent(
       model: null,
       evidence: null,
       fallbackReason: "invalid_image_size",
+    };
+  }
+
+  if (!(await claimPhotoVisionCost())) {
+    return {
+      enabled: true,
+      used: false,
+      provider: "none",
+      model: null,
+      evidence: null,
+      fallbackReason: "vision_cost_blocked",
     };
   }
 
