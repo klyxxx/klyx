@@ -46,10 +46,18 @@ function withoutQuestions(value: string): string {
     .trim();
 }
 
+function deterministicRephraseEnabled(): boolean {
+  return process.env.KLYX_AI_REPHRASE_DETERMINISTIC === "1";
+}
+
 /**
  * Gives KLYX a visible conversational layer without giving the LLM authority
  * over transactional facts or actions. The deterministic application result
  * remains the source of truth and is always the fallback.
+ *
+ * Cost invariant: a valid deterministic KLYX answer is served locally by
+ * default. OpenAI rephrasing is an explicitly enabled cosmetic enhancement,
+ * never a prerequisite for the workflow.
  */
 export async function generateKlyxVisibleAiReply(
   input: VisibleAiInput
@@ -57,6 +65,13 @@ export async function generateKlyxVisibleAiReply(
   const deterministicReply = input.deterministicReply.trim();
 
   if (!deterministicReply) {
+    return {
+      mode: "fallback",
+      text: deterministicReply,
+    };
+  }
+
+  if (!deterministicRephraseEnabled()) {
     return {
       mode: "fallback",
       text: deterministicReply,
