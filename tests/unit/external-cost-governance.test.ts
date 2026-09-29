@@ -11,7 +11,10 @@ import { KLYX_EXTERNAL_PROVIDER_NAMES } from "@/lib/providers/contracts";
 function env(
   values: Record<string, string | undefined> = {}
 ): NodeJS.ProcessEnv {
-  return { ...values };
+  return {
+    NODE_ENV: "test",
+    ...values,
+  };
 }
 
 describe("KLYX external cost governance", () => {
