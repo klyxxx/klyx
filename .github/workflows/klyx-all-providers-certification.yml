@@ -61,6 +61,12 @@ jobs:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       ELMAH_IO_API_KEY: ${{ secrets.ELMAH_IO_API_KEY }}
 
+      KLYX_INDEPENDENT_WAL_URL: ${{ secrets.KLYX_INDEPENDENT_WAL_URL }}
+      KLYX_INDEPENDENT_WAL_HMAC_SECRET: ${{ secrets.KLYX_INDEPENDENT_WAL_HMAC_SECRET }}
+      KLYX_INDEPENDENT_WAL_ENCRYPTION_KEY: ${{ secrets.KLYX_INDEPENDENT_WAL_ENCRYPTION_KEY }}
+      KLYX_INDEPENDENT_WAL_KEY_ID: ${{ secrets.KLYX_INDEPENDENT_WAL_KEY_ID }}
+      KLYX_INDEPENDENT_WAL_REQUIRED: "true"
+
       NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100"
 
     steps:
@@ -160,6 +166,10 @@ jobs:
             tests/unit/provider-http-recovery.test.ts \
             tests/integration/all-provider-recovery-contract.test.ts \
             tests/integration/supabase-outage-recovery.test.ts \
+            tests/unit/independent-write-ahead.test.ts \
+            tests/unit/independent-wal-client.test.ts \
+            tests/integration/independent-wal-recovery-contract.test.ts \
+            tests/integration/durable-jobs-retry-dlq-contract.test.ts \
             tests/unit/sumsub-provider-recovery.test.ts \
             tests/integration/mobile-resume-contract.test.ts \
             tests/unit/resilience-engine.test.ts \
@@ -206,6 +216,11 @@ jobs:
         id: network
         continue-on-error: true
         run: node scripts/certification/klyx-all-providers-network.mjs
+
+      - name: Independent Cloudflare WAL proof
+        id: independent_wal
+        continue-on-error: true
+        run: node scripts/certification/klyx-independent-wal-network.mjs
 
       - name: Await exact-SHA Complete Engine certification
         id: exact_engine
@@ -301,6 +316,7 @@ jobs:
           KLYX_TYPESCRIPT_OUTCOME: ${{ steps.typescript.outcome }}
           KLYX_BUILD_OUTCOME: ${{ steps.build.outcome }}
           KLYX_PLATFORMS_OUTCOME: ${{ steps.platforms.outcome }}
+          KLYX_INDEPENDENT_WAL_OUTCOME: ${{ steps.independent_wal.outcome }}
           KLYX_EXACT_ENGINE_OUTCOME: ${{ steps.exact_engine.outcome }}
           KLYX_EXACT_STRIPE_OUTCOME: ${{ steps.exact_stripe.outcome }}
           KLYX_EXACT_MOBILE_OUTCOME: ${{ steps.exact_mobile.outcome }}
@@ -313,6 +329,7 @@ jobs:
           name: klyx-all-providers-certification-${{ github.run_id }}
           path: |
             reports/certification/all-providers-network.json
+            reports/certification/independent-wal-network.json
             reports/certification/all-platforms-playwright.json
             reports/certification/all-providers-final.json
             reports/certification/all-providers-final.md
