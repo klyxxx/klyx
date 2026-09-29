@@ -6,7 +6,7 @@ const outDir = path.join(process.cwd(), "reports", "certification");
 fs.mkdirSync(outDir, { recursive: true });
 
 const results = [];
-const sha = process.env.GITHUB_SHA || process.env.KLYX_CERT_SHA || "unknown";
+const sha = process.env.KLYX_CERT_SHA || process.env.GITHUB_SHA || "unknown";
 
 function required(name) {
   const value = process.env[name]?.trim();
@@ -47,13 +47,14 @@ async function probe(provider, mode, fn) {
 await probe("stripe", "TEST_READ_ONLY", async () => {
   const secret = required("KLYX_STRIPE_TEST_SECRET_KEY");
   if (!secret.startsWith("sk_test_")) throw new Error("REFUSE_NON_TEST_STRIPE_KEY");
-  const response = await request("https://api.stripe.com/v1/account", {
+  const response = await request("https://api.stripe.com/v1/balance", {
     headers: { Authorization: `Bearer ${secret}` },
   });
   if (!response.ok) throw new Error(`STRIPE_HTTP_${response.status}`);
   const body = await response.json();
+  if (body?.object !== "balance") throw new Error("STRIPE_UNEXPECTED_OBJECT");
   if (body?.livemode !== false) throw new Error("STRIPE_NOT_TEST_MODE");
-  return "authenticated Stripe TEST account via GET /v1/account; no write performed";
+  return "authenticated Stripe TEST balance via GET /v1/balance; no write performed";
 });
 
 await probe("twilio", "READ_ONLY", async () => {
@@ -153,9 +154,12 @@ await probe("supabase", "PRODUCTION_READ_ONLY", async () => {
   const origin = (process.env.KLYX_PRODUCTION_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "").trim();
   if (!origin) throw new Error("MISSING_SECRET:NEXT_PUBLIC_SUPABASE_URL");
   if (/localhost|127\.0\.0\.1/.test(origin)) throw new Error("REFUSE_LOCAL_SUPABASE_AS_PROVIDER_PROOF");
-  const response = await request(`${origin.replace(/\/$/, "")}/auth/v1/health`);
+  const publishableKey = required("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
+  const response = await request(`${origin.replace(/\/$/, "")}/auth/v1/health`, {
+    headers: { apikey: publishableKey },
+  });
   if (!response.ok) throw new Error(`SUPABASE_AUTH_HEALTH_HTTP_${response.status}`);
-  return "Supabase production Auth health endpoint reachable; read-only probe";
+  return "Supabase production Auth health endpoint reachable with publishable-key gateway auth; read-only probe";
 });
 
 const report = {
