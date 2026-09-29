@@ -26,7 +26,8 @@ function configurationState(
     case "supabase":
       return hasEnv("NEXT_PUBLIC_SUPABASE_URL") &&
         (hasEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY") ||
-          hasEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"))
+          hasEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY")) &&
+        hasEnv("SUPABASE_SERVICE_ROLE_KEY")
         ? "configured"
         : "missing";
     case "stripe":
@@ -61,7 +62,8 @@ function configurationState(
     case "tolgee":
       return "static_snapshot";
     case "cloudflare_turnstile":
-      return hasEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY")
+      return hasEnv("NEXT_PUBLIC_TURNSTILE_SITE_KEY") &&
+        hasEnv("TURNSTILE_SECRET_KEY")
         ? "configured"
         : "missing";
     case "elmah_io":

@@ -2,6 +2,7 @@ import "server-only";
 
 import { logServerWarning } from "@/lib/server-log";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { getKlyxResendZeroCostDecision } from "@/lib/providers/resend-zero-cost-guard";
 import {
   sendResendEmail,
   type KlyxEmailDeliveryResult,
@@ -50,12 +51,27 @@ function logDeliveryWarning(code: string): void {
   });
 }
 
+async function zeroCostQuotaAllowsSend(): Promise<boolean> {
+  const decision = await getKlyxResendZeroCostDecision();
+
+  if (!decision.allowed) {
+    logDeliveryWarning(decision.reason);
+    return false;
+  }
+
+  return true;
+}
+
 export async function sendKlyxTransactionalEmail(
   input: KlyxTransactionalEmailInput
 ): Promise<KlyxEmailDeliveryResult> {
   const apiKey = resendApiKey();
 
   if (!apiKey) {
+    return skippedResult();
+  }
+
+  if (!(await zeroCostQuotaAllowsSend())) {
     return skippedResult();
   }
 
@@ -74,6 +90,10 @@ export async function sendKlyxProfileTransactionalEmail(
   const apiKey = resendApiKey();
 
   if (!apiKey) {
+    return skippedResult();
+  }
+
+  if (!(await zeroCostQuotaAllowsSend())) {
     return skippedResult();
   }
 

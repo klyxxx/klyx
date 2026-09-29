@@ -1,5 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const costPolicy = vi.hoisted(() => ({
+  allowed: true,
+}));
+
+vi.mock("@/lib/providers/cost-runtime", () => ({
+  getKlyxExternalProviderCostDecision: () => ({
+    allowed: costPolicy.allowed,
+  }),
+}));
+
 import {
   analyzePhotoVisualContent,
   isPhotoVisionEnabled,
@@ -28,6 +38,7 @@ function restoreEnvironment() {
 
 describe("KLYX photo visual analysis runtime", () => {
   beforeEach(() => {
+    costPolicy.allowed = true;
     process.env.KLYX_VISION_ENABLED = "1";
     process.env.OPENAI_API_KEY = "unit-test-key";
     process.env.KLYX_VISION_MODEL = "unit-test-vision-model";
@@ -132,6 +143,24 @@ describe("KLYX photo visual analysis runtime", () => {
     expect(String(imagePart?.image_url)).toMatch(
       /^data:image\/png;base64,/
     );
+  });
+
+  it("blocks the network before OpenAI when the cost governor denies spend", async () => {
+    costPolicy.allowed = false;
+
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await analyzePhotoVisualContent({
+      bytes: new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+      mimeType: "image/png",
+      userDescription: "Une fuite est visible sous le robinet.",
+    });
+
+    expect(result.used).toBe(false);
+    expect(result.provider).toBe("none");
+    expect(result.fallbackReason).toBe("vision_cost_blocked");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("falls back safely when external vision is disabled", async () => {
