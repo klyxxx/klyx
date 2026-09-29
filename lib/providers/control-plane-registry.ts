@@ -7,6 +7,7 @@ import type {
 } from "./control-plane-contracts";
 import {
   getKlyxCostControlPolicyOverrides,
+  type KlyxCostEnvironment,
 } from "./cost-control";
 
 const DEFAULT_HEALTH_POLICY = {
@@ -103,9 +104,10 @@ export function createKlyxProviderControlPlaneRegistry(
   );
 }
 
-export function createKlyxCostAwareProviderControlPlaneRegistry():
-  KlyxProviderControlPlaneRegistration[] {
+export function createKlyxCostAwareProviderControlPlaneRegistry(
+  env: KlyxCostEnvironment = process.env
+): KlyxProviderControlPlaneRegistration[] {
   return createKlyxProviderControlPlaneRegistry(
-    getKlyxCostControlPolicyOverrides()
+    getKlyxCostControlPolicyOverrides(env)
   );
 }
