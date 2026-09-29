@@ -2,6 +2,7 @@ import type { KlyxExternalProviderName } from "./contracts";
 import type { KlyxProviderControlPlanePolicy } from "./control-plane-contracts";
 
 export type KlyxExternalCostMode = "zero" | "guarded";
+export type KlyxCostEnvironment = Readonly<Record<string, string | undefined>>;
 
 export type KlyxExternalCostDecision = {
   readonly provider: KlyxExternalProviderName;
@@ -98,13 +99,19 @@ const GUARDED_LOCAL_POLICY: Partial<
   },
 };
 
-function normalizedEnvFlag(name: string): boolean {
-  const value = process.env[name]?.trim().toLowerCase();
+function normalizedEnvFlag(
+  env: KlyxCostEnvironment,
+  name: string
+): boolean {
+  const value = env[name]?.trim().toLowerCase();
   return value === "1" || value === "true" || value === "yes";
 }
 
-function readPositiveInteger(name: string): number | null {
-  const raw = process.env[name]?.trim();
+function readPositiveInteger(
+  env: KlyxCostEnvironment,
+  name: string
+): number | null {
+  const raw = env[name]?.trim();
   if (!raw) return null;
 
   const parsed = Number(raw);
@@ -122,38 +129,40 @@ function providerEnvName(
   return `KLYX_PROVIDER_${PROVIDER_ENV_PREFIX[provider]}_${suffix}`;
 }
 
-function stripeTestOnly(): boolean {
-  if (normalizedEnvFlag("KLYX_LIVE_PAYMENTS_ENABLED")) {
+function stripeTestOnly(env: KlyxCostEnvironment): boolean {
+  if (normalizedEnvFlag(env, "KLYX_LIVE_PAYMENTS_ENABLED")) {
     return false;
   }
 
-  const configuredMode = process.env.KLYX_STRIPE_MODE?.trim().toLowerCase();
+  const configuredMode = env.KLYX_STRIPE_MODE?.trim().toLowerCase();
   if (configuredMode === "test") {
     return true;
   }
 
-  const secret = process.env.STRIPE_SECRET_KEY?.trim() ?? "";
-  const publishable =
-    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim() ?? "";
+  const secret = env.STRIPE_SECRET_KEY?.trim() ?? "";
+  const publishable = env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim() ?? "";
 
   return secret.startsWith("sk_test_") || publishable.startsWith("pk_test_");
 }
 
-export function getKlyxExternalCostMode(): KlyxExternalCostMode {
-  const configured = process.env.KLYX_EXTERNAL_COST_MODE?.trim().toLowerCase();
+export function getKlyxExternalCostMode(
+  env: KlyxCostEnvironment = process.env
+): KlyxExternalCostMode {
+  const configured = env.KLYX_EXTERNAL_COST_MODE?.trim().toLowerCase();
   return configured === "guarded" ? "guarded" : "zero";
 }
 
 export function getKlyxExternalCostDecision(
-  provider: KlyxExternalProviderName
+  provider: KlyxExternalProviderName,
+  env: KlyxCostEnvironment = process.env
 ): KlyxExternalCostDecision {
-  const mode = getKlyxExternalCostMode();
+  const mode = getKlyxExternalCostMode(env);
 
   // The cost governor can never be used as a path to authorize financial LIVE.
   // Stripe is allowed here only for TEST-shaped development/certification traffic;
   // the separate KLYX financial LIVE authority remains the only LIVE gate.
   if (provider === "stripe") {
-    const allowed = stripeTestOnly();
+    const allowed = stripeTestOnly(env);
     return {
       provider,
       mode,
@@ -186,7 +195,7 @@ export function getKlyxExternalCostDecision(
     };
   }
 
-  if (!normalizedEnvFlag(providerEnvName(provider, "ENABLED"))) {
+  if (!normalizedEnvFlag(env, providerEnvName(provider, "ENABLED"))) {
     return {
       provider,
       mode,
@@ -197,7 +206,7 @@ export function getKlyxExternalCostDecision(
     };
   }
 
-  if (!normalizedEnvFlag(providerEnvName(provider, "SPEND_CAP_CONFIRMED"))) {
+  if (!normalizedEnvFlag(env, providerEnvName(provider, "SPEND_CAP_CONFIRMED"))) {
     return {
       provider,
       mode,
@@ -209,6 +218,7 @@ export function getKlyxExternalCostDecision(
   }
 
   const budgetMinor = readPositiveInteger(
+    env,
     providerEnvName(provider, "MONTHLY_BUDGET_MINOR")
   );
 
@@ -223,7 +233,10 @@ export function getKlyxExternalCostDecision(
     };
   }
 
-  if (provider === "openai" && !normalizedEnvFlag("KLYX_OPENAI_ENABLED")) {
+  if (
+    provider === "openai" &&
+    !normalizedEnvFlag(env, "KLYX_OPENAI_ENABLED")
+  ) {
     return {
       provider,
       mode,
@@ -245,15 +258,17 @@ export function getKlyxExternalCostDecision(
 }
 
 export function isKlyxExternalProviderSpendAllowed(
-  provider: KlyxExternalProviderName
+  provider: KlyxExternalProviderName,
+  env: KlyxCostEnvironment = process.env
 ): boolean {
-  return getKlyxExternalCostDecision(provider).allowed;
+  return getKlyxExternalCostDecision(provider, env).allowed;
 }
 
 export function assertKlyxExternalProviderSpendAllowed(
-  provider: KlyxExternalProviderName
+  provider: KlyxExternalProviderName,
+  env: KlyxCostEnvironment = process.env
 ): void {
-  const decision = getKlyxExternalCostDecision(provider);
+  const decision = getKlyxExternalCostDecision(provider, env);
 
   if (decision.allowed) return;
 
@@ -262,7 +277,9 @@ export function assertKlyxExternalProviderSpendAllowed(
   );
 }
 
-export function getKlyxCostControlPolicyOverrides(): Partial<
+export function getKlyxCostControlPolicyOverrides(
+  env: KlyxCostEnvironment = process.env
+): Partial<
   Record<KlyxExternalProviderName, Partial<KlyxProviderControlPlanePolicy>>
 > {
   const overrides: Partial<
@@ -270,7 +287,7 @@ export function getKlyxCostControlPolicyOverrides(): Partial<
   > = {};
 
   for (const provider of GUARDED_RUNTIME_PROVIDERS) {
-    const decision = getKlyxExternalCostDecision(provider);
+    const decision = getKlyxExternalCostDecision(provider, env);
     const localPolicy = GUARDED_LOCAL_POLICY[provider] ?? {};
 
     overrides[provider] = {
