@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   acknowledgeIndependentWalJobWithConfig,
+  resolveIndependentWalConfig,
   writeIndependentWalJobWithConfig,
   type IndependentWalRuntimeConfig,
 } from "@/lib/independent-wal-client";
@@ -14,6 +15,31 @@ const config: IndependentWalRuntimeConfig = {
 };
 
 describe("independent WAL client", () => {
+  it("fails closed when production has no independent WAL configuration", () => {
+    expect(() =>
+      resolveIndependentWalConfig({
+        NODE_ENV: "production",
+        KLYX_INDEPENDENT_WAL_REQUIRED: "false",
+      })
+    ).toThrow("KLYX_INDEPENDENT_WAL_CONFIG_REQUIRED");
+
+    expect(() =>
+      resolveIndependentWalConfig({
+        VERCEL_ENV: "production",
+        KLYX_INDEPENDENT_WAL_REQUIRED: "false",
+      })
+    ).toThrow("KLYX_INDEPENDENT_WAL_CONFIG_REQUIRED");
+  });
+
+  it("allows an unconfigured WAL only outside production when not explicitly required", () => {
+    expect(
+      resolveIndependentWalConfig({
+        NODE_ENV: "test",
+        KLYX_INDEPENDENT_WAL_REQUIRED: "false",
+      })
+    ).toBeNull();
+  });
+
   it("prewrites an encrypted idempotent envelope and acknowledges replication", async () => {
     const requests: Array<{ url: string; init?: RequestInit }> = [];
     const fetchImpl = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
