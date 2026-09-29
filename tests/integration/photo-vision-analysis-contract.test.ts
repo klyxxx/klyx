@@ -46,10 +46,13 @@ describe("KLYX real photo vision", () => {
     expect(route).toContain('analysis_mode: analysis.analysisMode');
   });
 
-  it("keeps real vision explicitly enabled and configurable", () => {
+  it("keeps real vision configurable but cost-guarded before network access", () => {
     expect(vision).toContain('process.env.KLYX_VISION_ENABLED === "1"');
     expect(vision).toContain("process.env.KLYX_VISION_MODEL");
-    expect(vision).toContain('DEFAULT_VISION_MODEL = "gpt-5-mini"');
+    expect(vision).toContain('DEFAULT_VISION_MODEL = "gpt-6-luna"');
+    expect(vision).toContain("getKlyxExternalProviderCostDecision");
+    expect(vision).toContain('getKlyxExternalProviderCostDecision("openai").allowed');
+    expect(vision).toContain('fallbackReason: "vision_cost_blocked"');
     expect(vision).toContain('fetch("https://api.openai.com/v1/responses"');
     expect(vision).toContain("store: false");
     expect(vision).toContain('type: "input_image"');
