@@ -25,7 +25,7 @@ type AnalyzePhotoVisionInput = {
 };
 
 const MAX_VISION_BYTES = 10 * 1024 * 1024;
-const DEFAULT_VISION_MODEL = "gpt-5-mini";
+const DEFAULT_VISION_MODEL = "gpt-6-luna";
 
 // Visual evidence below this threshold may still be displayed as an
 // inconclusive analysis, but it cannot influence the service candidate list.
@@ -136,6 +136,19 @@ function cleanEvidence(value: unknown): PhotoVisualEvidence | null {
   };
 }
 
+async function openAiCostPolicyAllowsVision(): Promise<boolean> {
+  try {
+    const { getKlyxExternalProviderCostDecision } = await import(
+      "@/lib/providers/cost-runtime"
+    );
+
+    return getKlyxExternalProviderCostDecision("openai").allowed;
+  } catch {
+    // If cost authority cannot be proven, no paid network call is allowed.
+    return false;
+  }
+}
+
 export function isPhotoVisionEnabled(): boolean {
   return (
     process.env.KLYX_VISION_ENABLED === "1" &&
@@ -161,6 +174,17 @@ export async function analyzePhotoVisualContent(
       model: null,
       evidence: null,
       fallbackReason: "vision_disabled",
+    };
+  }
+
+  if (!(await openAiCostPolicyAllowsVision())) {
+    return {
+      enabled: false,
+      used: false,
+      provider: "none",
+      model: null,
+      evidence: null,
+      fallbackReason: "vision_cost_blocked",
     };
   }
 
