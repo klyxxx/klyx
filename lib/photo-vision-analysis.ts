@@ -3,6 +3,8 @@
 // server routes. KLYX intentionally avoids a runtime `server-only` dependency
 // here so the repository's Vitest contracts can inspect the module directly.
 
+import { isKlyxZeroCashMode } from "@/lib/providers/cost-mode";
+
 export type PhotoVisualEvidence = {
   visualSummary: string;
   serviceHints: string[];
@@ -25,7 +27,7 @@ type AnalyzePhotoVisionInput = {
 };
 
 const MAX_VISION_BYTES = 10 * 1024 * 1024;
-const DEFAULT_VISION_MODEL = "gpt-5-mini";
+const DEFAULT_VISION_MODEL = "gpt-6-luna";
 
 // Visual evidence below this threshold may still be displayed as an
 // inconclusive analysis, but it cannot influence the service candidate list.
@@ -138,6 +140,7 @@ function cleanEvidence(value: unknown): PhotoVisualEvidence | null {
 
 export function isPhotoVisionEnabled(): boolean {
   return (
+    !isKlyxZeroCashMode() &&
     process.env.KLYX_VISION_ENABLED === "1" &&
     Boolean(process.env.OPENAI_API_KEY?.trim())
   );
