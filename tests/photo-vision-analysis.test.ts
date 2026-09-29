@@ -10,6 +10,7 @@ const previousVisionEnabled = process.env.KLYX_VISION_ENABLED;
 const previousApiKey = process.env.OPENAI_API_KEY;
 const previousVisionModel = process.env.KLYX_VISION_MODEL;
 const previousOpenAiModel = process.env.KLYX_OPENAI_MODEL;
+const previousCostMode = process.env.KLYX_EXTERNAL_COST_MODE;
 
 function restoreEnvironment() {
   for (const [name, value] of Object.entries({
@@ -17,6 +18,7 @@ function restoreEnvironment() {
     OPENAI_API_KEY: previousApiKey,
     KLYX_VISION_MODEL: previousVisionModel,
     KLYX_OPENAI_MODEL: previousOpenAiModel,
+    KLYX_EXTERNAL_COST_MODE: previousCostMode,
   })) {
     if (value == null) {
       delete process.env[name];
@@ -28,6 +30,7 @@ function restoreEnvironment() {
 
 describe("KLYX photo visual analysis runtime", () => {
   beforeEach(() => {
+    process.env.KLYX_EXTERNAL_COST_MODE = "guarded";
     process.env.KLYX_VISION_ENABLED = "1";
     process.env.OPENAI_API_KEY = "unit-test-key";
     process.env.KLYX_VISION_MODEL = "unit-test-vision-model";
@@ -132,6 +135,24 @@ describe("KLYX photo visual analysis runtime", () => {
     expect(String(imagePart?.image_url)).toMatch(
       /^data:image\/png;base64,/
     );
+  });
+
+  it("blocks external vision before fetch in zero-cash mode", async () => {
+    process.env.KLYX_EXTERNAL_COST_MODE = "zero_cash";
+
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await analyzePhotoVisualContent({
+      bytes: new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+      mimeType: "image/png",
+      userDescription: "Une fuite est visible sous le robinet.",
+    });
+
+    expect(result.used).toBe(false);
+    expect(result.provider).toBe("none");
+    expect(result.fallbackReason).toBe("vision_disabled");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("falls back safely when external vision is disabled", async () => {
