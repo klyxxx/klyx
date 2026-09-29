@@ -23,6 +23,7 @@ import {
   markStripeWebhookFailed,
   markStripeWebhookProcessed,
 } from "@/lib/stripe-webhook-events";
+import { reconcileSinglePlatformHeldRefundFromStripe } from "@/lib/platform-held-booking-refund-server";
 import { reconcileStripeRefund } from "@/lib/stripe-refunds";
 import { requireKlyxFinancialStripeObservationRuntime } from "@/lib/klyx-financial-stripe-runtime";
 
@@ -397,6 +398,7 @@ export async function POST(request: Request) {
       case "refund.updated":
       case "refund.failed": {
         const refund = event.data.object as Stripe.Refund;
+        await reconcileSinglePlatformHeldRefundFromStripe(refund);
         await reconcileStripeRefund(refund);
         break;
       }
@@ -405,6 +407,7 @@ export async function POST(request: Request) {
         const charge = event.data.object as Stripe.Charge;
 
         for (const refund of charge.refunds?.data ?? []) {
+          await reconcileSinglePlatformHeldRefundFromStripe(refund);
           await reconcileStripeRefund(refund);
         }
 
