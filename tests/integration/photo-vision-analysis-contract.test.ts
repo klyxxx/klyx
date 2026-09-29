@@ -15,6 +15,7 @@ function read(file: string) {
 }
 
 const vision = read("lib/photo-vision-analysis.ts");
+const costMode = read("lib/providers/cost-mode.ts");
 const route = read("app/api/requests/photo/photo-route-core.ts");
 const page = read("app/request/photo/page.tsx");
 const compactPage = page.replace(/\s+/g, " ");
@@ -46,10 +47,12 @@ describe("KLYX real photo vision", () => {
     expect(route).toContain('analysis_mode: analysis.analysisMode');
   });
 
-  it("keeps real vision explicitly enabled and configurable", () => {
+  it("keeps real vision explicitly enabled, cost-governed and configurable", () => {
+    expect(vision).toContain("!isKlyxZeroCashMode()");
+    expect(costMode).toContain('return "zero_cash"');
     expect(vision).toContain('process.env.KLYX_VISION_ENABLED === "1"');
     expect(vision).toContain("process.env.KLYX_VISION_MODEL");
-    expect(vision).toContain('DEFAULT_VISION_MODEL = "gpt-5-mini"');
+    expect(vision).toContain('DEFAULT_VISION_MODEL = "gpt-6-luna"');
     expect(vision).toContain('fetch("https://api.openai.com/v1/responses"');
     expect(vision).toContain("store: false");
     expect(vision).toContain('type: "input_image"');
