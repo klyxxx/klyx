@@ -1,12 +1,18 @@
-import "server-only";
-
 import { KLYX_PROVIDER_CATALOG } from "./catalog";
 import type { KlyxExternalProviderName } from "./contracts";
 import {
   createKlyxProviderControlPlaneRegistry,
 } from "./control-plane-registry";
+import {
+  getKlyxExternalCostMode,
+  type KlyxExternalCostMode,
+} from "./cost-mode";
 
-export type KlyxExternalCostMode = "zero_cash" | "guarded";
+export {
+  getKlyxExternalCostMode,
+  isKlyxZeroCashMode,
+} from "./cost-mode";
+export type { KlyxExternalCostMode } from "./cost-mode";
 
 export type KlyxExternalCostDecision = {
   provider: KlyxExternalProviderName;
@@ -26,25 +32,6 @@ const COST_GUARD_ALERTED = new Set<string>();
 
 function normalized(value: string | undefined): string {
   return value?.trim().toLowerCase() ?? "";
-}
-
-export function getKlyxExternalCostMode(
-  env: NodeJS.ProcessEnv = process.env
-): KlyxExternalCostMode {
-  const explicit = normalized(env.KLYX_EXTERNAL_COST_MODE);
-
-  if (explicit === "guarded") {
-    return "guarded";
-  }
-
-  if (explicit === "zero_cash") {
-    return "zero_cash";
-  }
-
-  // Safest default: no paid external provider call. A future paid rollout must
-  // explicitly opt into guarded mode and separately configure certified
-  // provider budgets. Missing configuration can therefore never create spend.
-  return "zero_cash";
 }
 
 function stripeIsTestOnly(env: NodeJS.ProcessEnv): boolean {
