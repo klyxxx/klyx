@@ -33,6 +33,13 @@ const CONFIG_KEYS = [
 ] as const;
 
 function requiredFlag(env: NodeJS.ProcessEnv): boolean {
+  const nodeEnv = env.NODE_ENV?.trim().toLowerCase();
+  const vercelEnv = env.VERCEL_ENV?.trim().toLowerCase();
+
+  // Production may never silently fall back to Supabase-only durability.
+  // An explicit false flag cannot weaken this invariant.
+  if (nodeEnv === "production" || vercelEnv === "production") return true;
+
   return env.KLYX_INDEPENDENT_WAL_REQUIRED?.trim().toLowerCase() === "true";
 }
 
