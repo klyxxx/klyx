@@ -112,6 +112,8 @@ Vendor-side billing/spend controls must remain enabled where available. Applicat
 
 For the current zero-budget phase, the money budget for every metered paid provider is effectively **0**. The safe mechanism is therefore a pre-network deny rather than an estimated in-process monetary counter.
 
+This policy governs **runtime metered calls**. It cannot by itself cancel an existing fixed subscription such as hosting or an observability plan. Those account-level subscriptions must be audited separately and explicitly downgraded/cancelled if a literal EUR 0 monthly cash outflow is required.
+
 ## Rules before any paid mode
 
 Paid mode remains deliberately uncertified. It must not be enabled merely because an API key or credit card exists.
