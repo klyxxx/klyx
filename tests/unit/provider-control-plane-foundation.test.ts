@@ -79,7 +79,7 @@ describe("Provider Control Plane Foundation", () => {
       [
         registration({
           rateLimit: { max: 2, windowMs: 1_000 },
-          quota: { max: 3, windowMs: 10_000 },
+          quota: { max: 2, windowMs: 10_000 },
           budget: {
             currency: "USD",
             maxMinor: 100,
