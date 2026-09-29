@@ -1,0 +1,266 @@
+name: KLYX DR Offsite Backup
+
+on:
+  workflow_run:
+    workflows:
+      - "KLYX Supabase Full Restore Drill"
+    types:
+      - completed
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: klyx-dr-offsite-backup-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  offsite-backup:
+    name: Encrypt and verify independent Dropbox offsite backup
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+
+    env:
+      GH_TOKEN: ${{ github.token }}
+      KLYX_TARGET_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      KLYX_DR_SOURCE_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      KLYX_DR_SOURCE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      KLYX_DR_PUBLIC_KEY_PEM: ${{ secrets.KLYX_DR_PUBLIC_KEY_PEM }}
+      KLYX_DR_DROPBOX_APP_KEY: ${{ secrets.KLYX_DR_DROPBOX_APP_KEY }}
+      KLYX_DR_DROPBOX_APP_SECRET: ${{ secrets.KLYX_DR_DROPBOX_APP_SECRET }}
+      KLYX_DR_DROPBOX_REFRESH_TOKEN: ${{ secrets.KLYX_DR_DROPBOX_REFRESH_TOKEN }}
+      SUPABASE_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - name: Checkout exact restore commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ env.KLYX_TARGET_SHA }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Refuse stale or unsafe offsite backup
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! [[ "$KLYX_TARGET_SHA" =~ ^[a-f0-9]{40}$ ]]; then
+            echo "::error::Target SHA is invalid."
+            exit 1
+          fi
+
+          current_main="$(gh api "/repos/${GITHUB_REPOSITORY}/commits/main" --jq '.sha')"
+          if [ "$current_main" != "$KLYX_TARGET_SHA" ]; then
+            echo "::error::Offsite backup refuses stale main."
+            exit 1
+          fi
+
+          for name in \
+            SUPABASE_DB_URL \
+            KLYX_DR_SOURCE_SUPABASE_URL \
+            KLYX_DR_SOURCE_SERVICE_ROLE_KEY \
+            KLYX_DR_PUBLIC_KEY_PEM \
+            KLYX_DR_DROPBOX_APP_KEY \
+            KLYX_DR_DROPBOX_APP_SECRET \
+            KLYX_DR_DROPBOX_REFRESH_TOKEN; do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing required secret: ${name}"
+              exit 1
+            fi
+          done
+
+          effective_db_url="$(node <<'NODE'
+          const raw = process.env.SUPABASE_DB_URL ?? "";
+          const password = process.env.SUPABASE_DB_PASSWORD ?? "";
+          let url;
+          try {
+            url = new URL(raw);
+          } catch {
+            console.error("SUPABASE_DB_URL is not a valid URL.");
+            process.exit(2);
+          }
+          if (!["postgres:", "postgresql:"].includes(url.protocol)) {
+            console.error("SUPABASE_DB_URL must be PostgreSQL.");
+            process.exit(2);
+          }
+          const host = url.hostname.toLowerCase();
+          const valid = host.endsWith(".supabase.co") || host.endsWith(".pooler.supabase.com");
+          if (!valid || ["127.0.0.1", "localhost", "[::1]"].includes(host)) {
+            console.error("Source database must be a non-loopback Supabase host.");
+            process.exit(3);
+          }
+          if (password) url.password = password;
+          if (!url.password) {
+            console.error("Source database password is missing.");
+            process.exit(4);
+          }
+          process.stdout.write(url.toString());
+          NODE
+          )"
+
+          node <<'NODE'
+          const raw = process.env.KLYX_DR_SOURCE_SUPABASE_URL ?? "";
+          let url;
+          try {
+            url = new URL(raw);
+          } catch {
+            console.error("NEXT_PUBLIC_SUPABASE_URL is invalid.");
+            process.exit(2);
+          }
+          const host = url.hostname.toLowerCase();
+          const valid = url.protocol === "https:" &&
+            (host.endsWith(".supabase.co") || host.endsWith(".supabase.com"));
+          if (!valid || ["127.0.0.1", "localhost", "[::1]"].includes(host)) {
+            console.error("Source Supabase API must be production HTTPS.");
+            process.exit(3);
+          }
+          NODE
+
+          echo "::add-mask::$effective_db_url"
+          echo "::add-mask::$KLYX_DR_SOURCE_SERVICE_ROLE_KEY"
+          echo "KLYX_DR_SOURCE_DB_URL=$effective_db_url" >> "$GITHUB_ENV"
+
+          work_root="${RUNNER_TEMP}/klyx-offsite-dr-${GITHUB_RUN_ID}"
+          snapshot_root="${work_root}/snapshot"
+          db_root="${snapshot_root}/database"
+          storage_root="${snapshot_root}/storage"
+          mkdir -p "$db_root" "$storage_root"
+          chmod 700 "$work_root" "$snapshot_root" "$db_root" "$storage_root"
+
+          {
+            echo "KLYX_OFFSITE_WORK_ROOT=$work_root"
+            echo "KLYX_OFFSITE_DB_ROOT=$db_root"
+            echo "KLYX_OFFSITE_STORAGE_ROOT=$storage_root"
+          } >> "$GITHUB_ENV"
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
+        with:
+          version: 2.111.0
+
+      - name: Capture production Auth and Storage snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/backup-klyx-storage.mjs "$KLYX_OFFSITE_STORAGE_ROOT"
+          test -s "$KLYX_OFFSITE_STORAGE_ROOT/storage-manifest.json"
+          test -s "$KLYX_OFFSITE_STORAGE_ROOT/state-manifest.json"
+
+      - name: Capture production logical database snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" -f "$KLYX_OFFSITE_DB_ROOT/roles.sql" --role-only
+          supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" -f "$KLYX_OFFSITE_DB_ROOT/public-schema.sql" --schema public,klyx_private
+          supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" -f "$KLYX_OFFSITE_DB_ROOT/public-data.sql" --schema public --data-only --use-copy
+          supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" -f "$KLYX_OFFSITE_DB_ROOT/auth-data.sql" --schema auth --data-only --use-copy
+          supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" -f "$KLYX_OFFSITE_DB_ROOT/migration-history-schema.sql" --schema supabase_migrations
+          supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" -f "$KLYX_OFFSITE_DB_ROOT/migration-history-data.sql" --schema supabase_migrations --data-only --use-copy
+
+          for file in \
+            roles.sql \
+            public-schema.sql \
+            public-data.sql \
+            auth-data.sql \
+            migration-history-schema.sql \
+            migration-history-data.sql; do
+            test -s "$KLYX_OFFSITE_DB_ROOT/$file"
+          done
+
+      - name: Build and encrypt exact-SHA recovery archive
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cat > "$KLYX_OFFSITE_WORK_ROOT/backup-manifest.json" <<EOF
+          {
+            "format": "KLYX_DR_AUTOMATED_OFFSITE_SNAPSHOT",
+            "version": 1,
+            "gitCommit": "${KLYX_TARGET_SHA}",
+            "createdUtc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "source": "supabase_production_read_only",
+            "productionWrite": false
+          }
+          EOF
+
+          plain_archive="$KLYX_OFFSITE_WORK_ROOT/klyx-dr-plain.tar.gz"
+          tar -czf "$plain_archive" \
+            -C "$KLYX_OFFSITE_WORK_ROOT" \
+            snapshot backup-manifest.json
+
+          timestamp="$(date -u +%Y%m%d-%H%M%S)"
+          short_sha="${KLYX_TARGET_SHA:0:8}"
+          encrypted_archive="$KLYX_OFFSITE_WORK_ROOT/klyx-dr-${timestamp}-${short_sha}.klyxdr"
+
+          node scripts/encrypt-klyx-dr-envelope.mjs "$plain_archive" "$encrypted_archive"
+          rm -f -- "$plain_archive"
+
+          if [ "$(head -c 8 "$encrypted_archive")" != "KLYXDR02" ]; then
+            echo "::error::Encrypted archive is not KLYXDR02."
+            exit 1
+          fi
+
+          echo "KLYX_OFFSITE_ENCRYPTED_ARCHIVE=$encrypted_archive" >> "$GITHUB_ENV"
+
+      - name: Upload encrypted archive to independent Dropbox provider
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p offsite-backup-proof
+          KLYX_DR_EXPECTED_COMMIT="$KLYX_TARGET_SHA" \
+            node scripts/dr/upload-dropbox-offsite.mjs \
+              "$KLYX_OFFSITE_ENCRYPTED_ARCHIVE" \
+              offsite-backup-proof/proof.json
+
+          node - "$KLYX_TARGET_SHA" offsite-backup-proof/proof.json <<'NODE'
+          const fs = require("node:fs");
+          const expected = process.argv[2];
+          const proof = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
+          if (proof.format !== "KLYX_DR_OFFSITE_BACKUP_PROOF") process.exit(2);
+          if (proof.gitCommit !== expected) process.exit(3);
+          if (proof.provider !== "dropbox") process.exit(4);
+          if (proof.readBackVerified !== true) process.exit(5);
+          if (proof.productionWrite !== false) process.exit(6);
+          if (proof.plaintextUploaded !== false) process.exit(7);
+          if (proof.privateRecoveryKeyPresent !== false) process.exit(8);
+          if (!/^[a-f0-9]{64}$/.test(String(proof.archiveSha256 ?? ""))) process.exit(9);
+          NODE
+
+      - name: Upload sanitized offsite backup proof
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: klyx-dr-offsite-backup-proof-${{ github.run_id }}
+          path: offsite-backup-proof/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Destroy sensitive offsite backup material
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          unset KLYX_DR_SOURCE_DB_URL
+          unset KLYX_DR_SOURCE_SERVICE_ROLE_KEY
+          unset KLYX_DR_PUBLIC_KEY_PEM
+          unset KLYX_DR_DROPBOX_APP_KEY
+          unset KLYX_DR_DROPBOX_APP_SECRET
+          unset KLYX_DR_DROPBOX_REFRESH_TOKEN
+          if [ -n "${KLYX_OFFSITE_WORK_ROOT:-}" ] && [ -d "$KLYX_OFFSITE_WORK_ROOT" ]; then
+            rm -rf -- "$KLYX_OFFSITE_WORK_ROOT"
+          fi
