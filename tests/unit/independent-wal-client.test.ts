@@ -25,6 +25,7 @@ describe("independent WAL client", () => {
 
     expect(() =>
       resolveIndependentWalConfig({
+        NODE_ENV: "test",
         VERCEL_ENV: "production",
         KLYX_INDEPENDENT_WAL_REQUIRED: "false",
       })
