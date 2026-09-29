@@ -1,6 +1,6 @@
 # KLYX — External cost audit and zero-budget policy
 
-Audit date: 2026-09-28
+Audit date: 2026-09-29
 
 ## Invariant
 
@@ -29,23 +29,23 @@ otherwise
 
 The existing `assistant-capability-router` already routes KLYX information, payment/refund explanations, language/account support and other deterministic capabilities without the LLM. Sensitive payment, KYC, eligibility, settlement and refund decisions remain forbidden to the LLM.
 
-OpenAI is now additionally blocked by the external cost governor even when `OPENAI_API_KEY` exists. If paid AI is enabled in a future certified mode, the default model is `gpt-5.6-luna`, conversation/context size is bounded and `max_output_tokens` is bounded.
+OpenAI is blocked by the external cost governor even when `OPENAI_API_KEY` exists. The normal LLM path, photo vision and the admin health probe all pass through the OpenAI cost decision before a network call. If paid AI is enabled in a future certified mode, the default model is `gpt-6-luna`, conversation/context size is bounded and `max_output_tokens` is bounded.
 
 ## Provider matrix
 
 | Provider | Current KLYX state / observed usage | Free allowance / current public pricing | Calls actually needed | Calls to remove / avoid | Free fallback, cache, batching | Replaceable? | Internal threshold before paid |
 |---|---|---|---|---|---|---|---|
-| OpenAI | No billing amount can be proven from repository data. External calls are now blocked in `zero_budget`. | GPT-5.6 Luna: $0.20/M input, $0.02/M cached input, $1.20/M output. Terra: $2/M input, $0.20/M cached, $12/M output. Sol: $4/M input, $0.40/M cached, $20/M output. | Only ambiguous conversational/reasoning cases that deterministic KLYX engines cannot answer. | Deterministic FAQ, payment/refund/KYC explanations, routing, account/language operations, repeated full-history prompts. | Local deterministic router first; bounded context; future prompt caching; Luna as future low-cost default. | Yes. LLM provider abstraction already exists. | **EUR/USD 0 now.** Paid mode stays uncertified. Future first budget should be a small hard cap (for example $5/month) only after durable metering exists. |
-| Supabase | Connected production project is healthy. Last 24h audit showed ~25k edge-log events; the once-per-minute financial worker was the largest repeated DB request source. | Free: 2 projects, 500 MB DB/project, 50k MAU, 1 GB storage, 5 GB egress, 500k Edge Function invocations, 2M Realtime messages, 200 peak Realtime connections. Free-plan overage leads to restriction rather than automatic paid overage. | Auth, canonical DB, RLS, storage, durable workflows, ledger and internal engine state. | High-frequency polling when no LIVE finance or pending work exists; duplicate profile/account reads; unnecessary broad selects. | DB indexes/RPCs, cache read models, batching, event-driven jobs. Zero-budget financial heavy scan reduced to 15-minute recovery cadence while LIVE is off. | Technically yes, strategically expensive to replace now. | Alert at 70% of any free quota; optimize at 80%; consider paid only when sustained >85% or production availability requirements justify it. |
-| Stripe | TEST remains authoritative for development. Financial LIVE remains separately blocked. Current TEST use costs EUR 0. | No setup/monthly fee on standard payments. Belgium standard EEA cards: 1.5% + EUR 0.25; premium EEA 2.8% + EUR 0.25; UK 2.5% + EUR 0.25; international 3.15% + EUR 0.25; Bancontact EUR 0.35. | Real payment/refund/transfer only after LIVE certification. TEST objects for development/certification. | Polling Stripe when a signed webhook/internal state already proves the answer; duplicate create calls. | TEST mode, local fake adapters, idempotency, webhook-driven updates, canonical ledger. | Payment processor is replaceable behind adapters, but not cheaply once LIVE. | EUR 0 until real launch. Cost governor never authorizes LIVE; existing financial activation gate remains the authority. |
-| Sumsub | External paid verification must not run in zero-budget mode. Sandbox is the only externally allowed mode. | Basic: $1.35/successful verification with $149 minimum monthly commitment. Compliance: $1.85 with $299 minimum. Public trial: 14 days / 50 checks. | Only KYC/KYB when economic/activity eligibility requires it. | Rechecking already-valid identity; creating applicants before KYC is actually required. | Local fake adapter/fixtures for development; Sumsub sandbox; cache verified KLYX economic identity until expiry/recheck policy. | Yes, through identity-provider adapter, but migration/compliance cost is material. | Do not enter paid mode until KYC is required for real economic activity and monthly revenue can justify the minimum commitment. |
-| Twilio Verify | Production Verify is blocked by zero-budget policy. Only explicit `KLYX_TWILIO_MODE=trial` is allowed. Existing route already has resend cooldown/lockout. | Verify: $0.05 per successful verification plus channel fees. Trial requires no card and only verified trial numbers are usable. | Phone ownership proof only when product/security policy genuinely requires it. | SMS for ordinary notifications, repeated OTP sends, phone verification before it is needed. | Supabase/email auth where adequate; trial numbers for development; existing 60s resend cooldown; in-app notification for non-auth messages. | Yes. | EUR 0 now. Paid only when phone verification becomes a proven requirement; add durable per-country spend metering before production SMS. |
-| Resend | **Observed account usage:** 1/100 daily and 14/3000 monthly at audit time. | Free: 3,000 emails/month, 100/day, 3 domains, 10,000 automation runs. Pro: $20/month for 50k, then optional paid overage. | Transactional email that cannot be replaced by in-app state; critical operational alerts while free quota remains. | Duplicates/retries already covered by idempotency registry; avoid email for high-frequency internal telemetry. | `transactional_email_deliveries` idempotency + usage registry; KLYX hard cap now 5/min, 50/day, 1,500/month; after cap use in-app/outbox/log fallback. | Yes. | Review at 1,200/month; hard stop 1,500/month. Pay only if sustained legitimate demand exceeds this and email is essential. |
-| Tolgee | Runtime architecture already uses committed/static locale catalogs rather than requiring Tolgee per user request. | Free: 500 keys, 3 seats, no card. | Translation authoring/sync, not normal production requests. | Any runtime translation request for already-known UI text. | Ship committed locale catalog; browser/server cache static translations; batch translation changes. | Yes; can self-host or use another localization workflow. | Review at 450 keys. Paid cloud only if >500 keys and Tolgee collaboration remains worth the cost; otherwise self-host/static workflow. |
-| Cloudflare Turnstile | Used as anti-bot verification; zero-cost provider policy allows it. | Free: up to 20 widgets, unlimited challenges/verification requests, 10 hostnames/widget, 7-day analytics. | Signup/login/abuse-sensitive public actions as needed. | Do not challenge trusted internal/server traffic or every harmless read request. | Verification result/session throttling where security permits; application rate limiting remains fallback. | Yes. | Review at 18/20 widgets or when enterprise-only bot features become necessary. No paid threshold based on request volume. |
-| elmah.io | Connected account usage could not be read through the current connector. Runtime delivery is now disabled in zero-budget mode. | No permanent free plan. 21-day free trial. Small Business public price currently $26/month for 10k messages/month. | Optional secondary production error export only. | Routine logs, successful requests, heartbeats when free internal/Vercel telemetry already covers them. | Vercel runtime logs + KLYX internal operational telemetry; sample/batch noncritical logs. | Yes, highly replaceable. | EUR 0 now. Do not pay until free observability is demonstrably insufficient. |
-| Vercel | Production traffic observed over 7 days is very low; `/api/ops/financial-runtime-tick` was the dominant application route in runtime logs. | Hobby $0; includes 1M Edge Requests/month and 100 GB Fast Data Transfer/month. Hobby cannot buy overage and is paused at free-tier limits. Pro starts at $20/month. | Web/API hosting, deploys, server functions. | Minute-level heavy financial scans while LIVE is off; unnecessary dynamic rendering/functions for cacheable content. | CDN/cache static responses; zero-budget idle financial tick; batching. | Yes, but migration cost exists. | Alert at 70%, optimize at 80%, paid hosting only when commercial/availability requirements or sustained usage require it. |
-| GitHub | Repository is public. Standard GitHub-hosted Actions therefore have zero minute charge. | Public repositories: standard GitHub-hosted Actions are free. GitHub Free private allowance: 2,000 min/month and 500 MB artifact storage. Larger runners are always billable. | Source control, PR checks, required Playwright certification, releases. | Duplicate CI matrices on unchanged code; unnecessarily long artifact retention; larger runners/Codespaces unless explicitly required. | Path filters, dependency cache, artifact retention limits, reusable workflows, public standard runners. | Yes, but repo/CI migration cost is high. | Stay on public standard runners. Paid runners/Codespaces require explicit separate budget approval. |
+| OpenAI | Exact account spend is not exposed to KLYX. External runtime calls are blocked in `zero_budget`. | API model requests have no usable free model tier. GPT-6 Luna Standard: $0.10/M input, $0.01/M cached input, $0.125/M cache writes, $0.50/M output. Batch/Flex are 50% of Standard. | Only ambiguous conversational/reasoning or vision cases that deterministic KLYX engines cannot answer. | Deterministic FAQ, payment/refund/KYC explanations, routing, account/language operations, duplicate health probes, repeated full-history prompts. | Local deterministic router first; bounded context/output; stable-prefix prompt caching; Batch/Flex only for offline work. | Yes. LLM provider abstraction already exists. | **EUR/USD 0 now.** No paid OpenAI call until durable spend authority is certified. |
+| Supabase | Connected production project `supabase-amber-ferry` is ACTIVE_HEALTHY. Exact billing plan is not exposed by the connector used for this audit. | Free public plan: $0, 2 active projects, 500 MB DB/project, 50k MAU, 5 GB egress + 5 GB cached egress, 1 GB storage, 500k Edge Function invocations, 2M Realtime messages, 200 peak connections. | Auth, canonical DB, RLS, storage, durable workflows, ledger and internal engine state. | High-frequency polling when no LIVE finance or pending work exists; duplicate profile/account reads; broad selects. | DB indexes/RPCs, cache read models, batching, event-driven jobs. Zero-budget financial heavy scan reduced to 15-minute recovery cadence while LIVE is off. | Technically yes, strategically expensive to replace now. | Alert at 70% of any free quota; optimize at 80%; consider paid only when sustained >85% or production availability requirements justify it. |
+| Stripe | TEST remains the development/certification rail. Financial LIVE remains separately blocked; no LIVE mutation is introduced by this policy. | Standard Belgium pricing has no setup/monthly fee; standard EEA cards are 1.5% + EUR 0.25 and Bancontact is EUR 0.35 per successful payment. Other cards/currency conversion cost more. | Real payment/refund/transfer only after LIVE certification. TEST objects for development/certification. | Polling when signed webhook/internal state already proves the answer; duplicate create calls. | TEST mode, local fake adapters, idempotency, webhook-driven updates, canonical ledger. | Replaceable behind adapters, but costly after LIVE launch. | EUR 0 until real launch. Cost governor never authorizes LIVE; the existing financial activation gate remains authoritative. |
+| Sumsub | Production paid verification is blocked in zero-budget mode. Only explicit sandbox mode is externally allowed. | Basic: $1.35/successful verification with $149 minimum monthly commitment. Compliance: $1.85 with $299 minimum. Trial/sandbox may be used for evaluation subject to account terms. | KYC/KYB only when economic/activity eligibility actually requires it. | Rechecking a still-valid identity; creating applicants before KYC is required. | Local fake adapter/fixtures for dev; sandbox; cache verified KLYX economic identity until expiry/recheck policy. | Yes, through identity-provider adapter. | Do not enter paid mode until real KYC demand and revenue justify the monthly minimum. |
+| Twilio Verify | Production Verify is blocked by zero-budget policy. Only explicit `KLYX_TWILIO_MODE=trial` is allowed. | $0.05 per successful verification plus channel fees; SMS attempts also carry telecom/channel cost. Free trial is available. | Phone ownership proof only when policy genuinely requires it. | SMS notifications, repeated OTP sends, verification before it is needed. | Supabase/email auth where adequate; trial numbers for dev; resend cooldown; in-app notifications for non-auth messages. | Yes. | EUR 0 now. Paid only when phone verification is a proven requirement and durable country/channel spend metering exists. |
+| Resend | Connected account observed on 2026-09-29: 1/100 daily, 15/3000 monthly; 1 domain of 3. | Free: $0, 3,000 emails/month, 100/day, 3 domains, 10,000 automation runs. Pro: $20/month for 50k; paid plans can enable overage. | Transactional email not replaceable by in-app state; critical operational notifications while inside the free envelope. | Duplicates, repeated notifications, high-frequency internal telemetry. | Existing idempotency/delivery registry; KLYX cap 5/min, 50/day, 1,500/month; then in-app/outbox/log fallback. | Yes. | Warn at 75%; review at 1,200/month; hard stop 1,500/month in zero-budget mode. |
+| Tolgee | Runtime uses committed/static locale catalogs; no runtime Tolgee dependency is needed. | Free: EUR 0, 500 keys, 3 seats, 10k MT credits. | Translation authoring/sync, not normal product requests. | Runtime translation calls for already-known UI text. | Commit locale catalogs; cache static translations; batch authoring changes. | Yes; self-host/static alternatives exist. | Review around 450 keys or 2/3 seats; never upgrade automatically. |
+| Cloudflare Turnstile | Kept enabled as the zero-cost anti-bot provider. | Free: 20 widgets, unlimited challenges/verification requests, 10 hostnames/widget, 7-day analytics. | Signup/login/abuse-sensitive public actions. | Trusted internal/server traffic and harmless reads. | Session/rate-limit logic where secure; KLYX durable API rate limiting remains fallback. | Yes. | Review at 18/20 widgets; no paid threshold based on request volume. |
+| elmah.io | Connected KLYX organization reports plan label `Starter`; exact invoice amount is not exposed by the connector. Runtime export is disabled in zero-budget mode. | Current public lowest paid plan is Small Business at $26/month for 10k messages/month; public pricing does not show a permanent free production tier. | Optional secondary error export only. | Routine logs, success events and heartbeats already visible in free internal/platform logs. | Vercel/runtime logs + KLYX internal operational telemetry; sample/batch only if re-enabled later. | Yes, highly replaceable. | Runtime spend target is EUR 0. Existing subscription billing must be checked/cancelled separately if `Starter` is billable. |
+| Vercel | KLYX project is connected. Exact current account plan/invoice is not exposed by the available connector. | Hobby is $0 but explicitly personal/non-commercial. Pro is the business plan and can incur usage beyond included credits. | Production web/API hosting and deployments. | Minute-level heavy recovery scans while LIVE is off; unnecessary dynamic functions/rendering. | Local `next build`/`next start` for EUR 0 development/testing; CDN/cache static content; batched jobs. | Yes, with migration cost. | **Do not claim commercial production is EUR 0 via Hobby.** Any paid/business hosting plan requires explicit approved budget/spend management. |
+| GitHub | KLYX repository is public. | Standard GitHub-hosted runners are free for public repositories. GitHub Free includes 500 MB artifact storage for private-plan quota accounting; larger runners are always billable. | Source control, PR checks, required Playwright/security certification, releases. | Duplicate matrices, long artifact retention, larger runners/Codespaces without need. | Path filters, dependency cache, short artifact retention, reusable workflows, standard public runners. | Yes, but migration cost is high. | Stay on public standard runners. Configure metered-product budgets with hard stop; paid runners/Codespaces need separate approval. |
 
 ## Runtime cost governor
 
@@ -53,9 +53,9 @@ The governor is intentionally separate from financial/payment authority.
 
 ```text
 provider call
-→ determine zero-budget provider policy
-→ check provider mode
-→ check conservative free quota where KLYX can prove usage
+→ zero-budget provider policy
+→ provider mode check
+→ conservative free quota where usage can be proven
 → allow free call
    OR local fallback
    OR fail closed
@@ -65,12 +65,13 @@ provider call
 ### Current zero-budget circuits
 
 ```text
-OpenAI paid       → OPEN → local deterministic fallback
-Sumsub production → OPEN → fail closed; sandbox only
-Twilio production → OPEN → fail closed; trial only
-elmah.io           → OPEN → internal/Vercel logs
-Stripe LIVE        → NEVER authorized by cost governor; TEST only here
-Resend             → CLOSED only below KLYX free-quota envelope
+OpenAI text/vision/health → OPEN → local deterministic fallback / no external probe
+Sumsub production         → OPEN → fail closed; sandbox only
+Twilio production         → OPEN → fail closed; trial only
+elmah.io                   → OPEN → internal/platform logs
+Stripe LIVE                → NEVER authorized by cost governor; TEST only here
+Resend                     → CLOSED only below KLYX free-quota envelope
+Tolgee runtime             → OPEN → committed catalogs
 ```
 
 A noncritical provider is automatically degraded/disabled when its KLYX quota is exhausted. A critical identity or financial dependency fails closed rather than silently changing truth or authorization semantics.
@@ -82,9 +83,10 @@ Provider free quota is deliberately not consumed to 100%.
 ```text
 vendor: 100/day, 3000/month
 KLYX:     50/day, 1500/month, 5/minute
+warning: 75%
 ```
 
-This leaves a large concurrency/operational safety margin and prevents normal KLYX application traffic from reaching a paid overage threshold.
+If quota state cannot be proven from `transactional_email_deliveries`, sending fails safe to `skipped` rather than risking external spend.
 
 ## Polling reduction
 
@@ -98,9 +100,7 @@ KLYX_LIVE_PAYMENTS_ENABLED != true
 
 the route performs authorization every minute but executes the expensive reconciliation/monitoring scan only every 15 minutes.
 
-This preserves automation while reducing repeated Supabase reads and server work by roughly an order of magnitude during the current non-LIVE phase.
-
-## Cost alerts
+## Cost alerts and circuit behavior
 
 Cost decisions emit a structured server warning once per provider/reason per server instance:
 
@@ -108,9 +108,9 @@ Cost decisions emit a structured server warning once per provider/reason per ser
 KLYX_EXTERNAL_COST_ALERT
 ```
 
-Reasons distinguish quota exhaustion, uncertified paid mode and provider-specific circuit breakers. Resend additionally writes delivery failures/skips through the existing transactional email warning path.
+Vendor-side billing/spend controls must remain enabled where available. Application guards complement vendor billing controls; they do not replace them.
 
-Vendor-side billing/spend alerts must remain enabled where available. KLYX application guards complement vendor billing controls; they do not replace them.
+For the current zero-budget phase, the money budget for every metered paid provider is effectively **0**. The safe mechanism is therefore a pre-network deny rather than an estimated in-process monetary counter.
 
 ## Rules before any paid mode
 
@@ -129,4 +129,4 @@ Before changing that invariant, KLYX needs a separate certification proving:
 9. no provider can authorize Stripe LIVE;
 10. restart/retry/replay cannot double-reserve spend.
 
-Until then, `guarded_paid` returns `KLYX_EXTERNAL_PAID_MODE_NOT_CERTIFIED`.
+Until then, `guarded_paid` remains fully disabled.
