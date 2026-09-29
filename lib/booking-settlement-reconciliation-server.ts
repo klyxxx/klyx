@@ -141,6 +141,33 @@ function mismatch(condition: boolean, code: string): void {
   }
 }
 
+async function managedSingleRefundState(
+  bookingId: string
+): Promise<
+  | null
+  | {
+      active: boolean;
+      review: boolean;
+      succeeded: number;
+    }
+> {
+  const { data, error } = await supabaseAdmin
+    .from("platform_held_booking_refunds")
+    .select("state")
+    .eq("booking_id", bookingId);
+
+  if (error) throw new Error(error.message);
+  if (!data || data.length === 0) return null;
+
+  return {
+    active: data.some((row) =>
+      ["ready", "reversal_required", "refunding"].includes(row.state)
+    ),
+    review: data.some((row) => row.state === "review_required"),
+    succeeded: data.filter((row) => row.state === "succeeded").length,
+  };
+}
+
 async function loadContext(bookingId: string): Promise<RecoveryContext | null> {
   const [{ data: settlementData, error: settlementError }, { data: bookingData, error: bookingError }] =
     await Promise.all([
@@ -873,6 +900,73 @@ export async function reconcilePlatformHeldBookingSettlement(input: {
     );
 
     let { settlement, booking } = context;
+
+    const childRefundState = await managedSingleRefundState(input.bookingId);
+    if (childRefundState) {
+      if (childRefundState.review) {
+        await audit({
+          runId,
+          bookingId: input.bookingId,
+          source: input.source,
+          action: "child_refund_review_preserved",
+          outcome: "human_review",
+          beforeState: settlement.state,
+          afterState: settlement.state,
+          reasonCode: "single_refund_child_review_required",
+        });
+
+        return {
+          status: "human_review",
+          reasonCode: "single_refund_child_review_required",
+        };
+      }
+
+      if (childRefundState.active) {
+        await audit({
+          runId,
+          bookingId: input.bookingId,
+          source: input.source,
+          action: "child_refund_authority_preserved",
+          outcome: "no_action",
+          beforeState: settlement.state,
+          afterState: settlement.state,
+          reasonCode: "single_refund_child_in_progress",
+          details: { succeededPlans: childRefundState.succeeded },
+        });
+
+        return {
+          status: "refund_pending",
+          reasonCode: "single_refund_child_in_progress",
+        };
+      }
+
+      await audit({
+        runId,
+        bookingId: input.bookingId,
+        source: input.source,
+        action: "child_refund_authority_observed",
+        outcome: "no_action",
+        beforeState: settlement.state,
+        afterState: settlement.state,
+        reasonCode:
+          settlement.state === "refunded"
+            ? "single_refund_child_terminal"
+            : "single_refund_child_partial_succeeded",
+        details: { succeededPlans: childRefundState.succeeded },
+      });
+
+      if (settlement.state === "refunded") {
+        return {
+          status: "refunded",
+          refundId: booking.stripe_refund_id,
+        };
+      }
+
+      return {
+        status: "no_action",
+        reasonCode: "single_refund_child_partial_succeeded",
+      };
+    }
 
     if (settlement.state === "pending_payment") {
       await audit({

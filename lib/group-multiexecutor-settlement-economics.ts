@@ -253,9 +253,9 @@ export type GroupPartialRefundAllocationRequest = {
   grossRefundCents: number;
 };
 
-export function calculateCumulativeGroupRefundDelta(input: {
-  memberGrossAmountCents: number;
-  memberPlatformFeeCents: number;
+export function calculateCumulativeRefundDelta(input: {
+  grossAmountCents: number;
+  platformFeeCents: number;
   priorGrossRefundCents: number;
   priorPlatformFeeRefundCents: number;
   priorProviderRefundCents: number;
@@ -269,38 +269,37 @@ export function calculateCumulativeGroupRefundDelta(input: {
   cumulativeProviderRefundCents: number;
 } {
   for (const [value, code, allowZero] of [
-    [input.memberGrossAmountCents, "KLYX_GROUP_HELD_MEMBER_GROSS_INVALID", false],
-    [input.memberPlatformFeeCents, "KLYX_GROUP_HELD_MEMBER_FEE_INVALID", true],
-    [input.priorGrossRefundCents, "KLYX_GROUP_HELD_PRIOR_REFUND_GROSS_INVALID", true],
-    [input.priorPlatformFeeRefundCents, "KLYX_GROUP_HELD_PRIOR_REFUND_FEE_INVALID", true],
-    [input.priorProviderRefundCents, "KLYX_GROUP_HELD_PRIOR_REFUND_PROVIDER_INVALID", true],
-    [input.requestedGrossRefundCents, "KLYX_GROUP_HELD_REFUND_MEMBER_GROSS_INVALID", false],
+    [input.grossAmountCents, "KLYX_REFUND_GROSS_INVALID", false],
+    [input.platformFeeCents, "KLYX_REFUND_FEE_INVALID", true],
+    [input.priorGrossRefundCents, "KLYX_REFUND_PRIOR_GROSS_INVALID", true],
+    [input.priorPlatformFeeRefundCents, "KLYX_REFUND_PRIOR_FEE_INVALID", true],
+    [input.priorProviderRefundCents, "KLYX_REFUND_PRIOR_PROVIDER_INVALID", true],
+    [input.requestedGrossRefundCents, "KLYX_REFUND_REQUEST_GROSS_INVALID", false],
   ] as const) {
     assertCents(value, code, allowZero);
   }
 
   if (
-    input.memberPlatformFeeCents > input.memberGrossAmountCents ||
+    input.platformFeeCents > input.grossAmountCents ||
     input.priorPlatformFeeRefundCents + input.priorProviderRefundCents !==
       input.priorGrossRefundCents
   ) {
-    throw new Error("KLYX_GROUP_HELD_REFUND_PRIOR_ACCOUNTING_MISMATCH");
+    throw new Error("KLYX_REFUND_PRIOR_ACCOUNTING_MISMATCH");
   }
 
   const cumulativeGrossRefundCents =
     input.priorGrossRefundCents + input.requestedGrossRefundCents;
 
-  if (cumulativeGrossRefundCents > input.memberGrossAmountCents) {
-    throw new Error("KLYX_GROUP_HELD_REFUND_MEMBER_EXCEEDS_GROSS");
+  if (cumulativeGrossRefundCents > input.grossAmountCents) {
+    throw new Error("KLYX_REFUND_EXCEEDS_GROSS");
   }
 
-  const gross = BigInt(input.memberGrossAmountCents);
-  const fee = BigInt(input.memberPlatformFeeCents);
+  const gross = BigInt(input.grossAmountCents);
+  const fee = BigInt(input.platformFeeCents);
   const cumulativeGross = BigInt(cumulativeGrossRefundCents);
 
-  // Cumulative nearest-cent proportional allocation. Computing a cumulative
-  // target and then taking the delta prevents penny drift across many partial
-  // refunds. A full refund always returns the exact frozen KLYX commission.
+  // Canonical cumulative nearest-cent allocation. Taking a cumulative target
+  // then the delta prevents penny drift across repeated partial refunds.
   const cumulativePlatformFeeRefundCents = Number(
     (fee * cumulativeGross + gross / BigInt(2)) / gross
   );
@@ -318,7 +317,7 @@ export function calculateCumulativeGroupRefundDelta(input: {
     platformFeeRefundCents + providerRefundCents !==
       input.requestedGrossRefundCents
   ) {
-    throw new Error("KLYX_GROUP_HELD_REFUND_DELTA_ACCOUNTING_MISMATCH");
+    throw new Error("KLYX_REFUND_DELTA_ACCOUNTING_MISMATCH");
   }
 
   return {
@@ -329,4 +328,51 @@ export function calculateCumulativeGroupRefundDelta(input: {
     cumulativePlatformFeeRefundCents,
     cumulativeProviderRefundCents,
   };
+}
+
+export function calculateCumulativeGroupRefundDelta(input: {
+  memberGrossAmountCents: number;
+  memberPlatformFeeCents: number;
+  priorGrossRefundCents: number;
+  priorPlatformFeeRefundCents: number;
+  priorProviderRefundCents: number;
+  requestedGrossRefundCents: number;
+}) {
+  try {
+    return calculateCumulativeRefundDelta({
+      grossAmountCents: input.memberGrossAmountCents,
+      platformFeeCents: input.memberPlatformFeeCents,
+      priorGrossRefundCents: input.priorGrossRefundCents,
+      priorPlatformFeeRefundCents: input.priorPlatformFeeRefundCents,
+      priorProviderRefundCents: input.priorProviderRefundCents,
+      requestedGrossRefundCents: input.requestedGrossRefundCents,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+
+    const mapped: Record<string, string> = {
+      KLYX_REFUND_GROSS_INVALID: "KLYX_GROUP_HELD_MEMBER_GROSS_INVALID",
+      KLYX_REFUND_FEE_INVALID: "KLYX_GROUP_HELD_MEMBER_FEE_INVALID",
+      KLYX_REFUND_PRIOR_GROSS_INVALID:
+        "KLYX_GROUP_HELD_PRIOR_REFUND_GROSS_INVALID",
+      KLYX_REFUND_PRIOR_FEE_INVALID:
+        "KLYX_GROUP_HELD_PRIOR_REFUND_FEE_INVALID",
+      KLYX_REFUND_PRIOR_PROVIDER_INVALID:
+        "KLYX_GROUP_HELD_PRIOR_REFUND_PROVIDER_INVALID",
+      KLYX_REFUND_REQUEST_GROSS_INVALID:
+        "KLYX_GROUP_HELD_REFUND_MEMBER_GROSS_INVALID",
+      KLYX_REFUND_PRIOR_ACCOUNTING_MISMATCH:
+        "KLYX_GROUP_HELD_REFUND_PRIOR_ACCOUNTING_MISMATCH",
+      KLYX_REFUND_EXCEEDS_GROSS:
+        "KLYX_GROUP_HELD_REFUND_MEMBER_EXCEEDS_GROSS",
+      KLYX_REFUND_DELTA_ACCOUNTING_MISMATCH:
+        "KLYX_GROUP_HELD_REFUND_DELTA_ACCOUNTING_MISMATCH",
+    };
+
+    if (mapped[message]) {
+      throw new Error(mapped[message]);
+    }
+
+    throw error;
+  }
 }
