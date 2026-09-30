@@ -211,10 +211,11 @@ export function createKlyxLlmProvider():
   const apiKey =
     process.env.OPENAI_API_KEY?.trim();
 
-  if (
-    !apiKey ||
-    !isKlyxExternalProviderSpendAllowed("openai")
-  ) {
+  if (!apiKey) {
+    return fallback;
+  }
+
+  if (!isKlyxExternalProviderSpendAllowed("openai")) {
     return fallback;
   }
 
