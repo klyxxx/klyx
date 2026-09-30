@@ -10,7 +10,6 @@ permissions:
 
 jobs:
   bump-next:
-    if: ${{ !startsWith(github.event.head_commit.message, 'chore(security): bump Next.js to 16.3.6') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -32,7 +31,7 @@ jobs:
       - name: Verify patched dependency tree
         run: |
           npm audit --audit-level=high
-          npm test -- --run tests/integration/dr-offsite-backup-workflow-contract.test.ts
+          npx vitest run tests/integration/dr-offsite-backup-workflow-contract.test.ts
 
       - name: Commit lockfile update
         shell: bash
