@@ -18,8 +18,12 @@ describe("KLYX Full Restore transient retry controller", () => {
   });
 
   it("is bounded and refuses stale main", () => {
+    expect(workflow).toContain("id: guard");
+    expect(workflow).toContain('echo "eligible=false" >> "$GITHUB_OUTPUT"');
+    expect(workflow).toContain('echo "eligible=true" >> "$GITHUB_OUTPUT"');
     expect(workflow).toContain('if [ "$FAILED_RUN_ATTEMPT" -ge 3 ]');
     expect(workflow).toContain("retry budget exhausted");
+    expect(workflow).toContain("steps.guard.outputs.eligible == 'true'");
     expect(workflow).toContain("main advanced before retry; refusing stale rerun");
     expect(workflow).toContain("git/ref/heads/main");
   });
@@ -30,6 +34,12 @@ describe("KLYX Full Restore transient retry controller", () => {
     expect(workflow).toContain("Failure is not classified as transient; refusing automatic rerun.");
     expect(workflow).toContain("steps.classify.outputs.transient == 'true'");
     expect(workflow).toContain("/rerun");
+  });
+
+  it("rechecks the retry ceiling immediately before mutation", () => {
+    const matches = workflow.match(/FAILED_RUN_ATTEMPT" -ge 3/g) ?? [];
+    expect(matches.length).toBeGreaterThanOrEqual(2);
+    expect(workflow).toContain("retry budget exhausted before rerun; refusing");
   });
 
   it("cannot mutate production or activate payments", () => {
