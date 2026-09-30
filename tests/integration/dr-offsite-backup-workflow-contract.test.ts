@@ -44,6 +44,20 @@ describe("KLYX automated offsite DR backup contract", () => {
     expect(workflow).not.toContain("stripe");
   });
 
+  it("retries only bounded transient Supabase/pooler read failures", () => {
+    expect(workflow).toContain(
+      "Capture production logical database snapshot with bounded transient retry"
+    );
+    expect(workflow).toContain("run_dump_with_retry");
+    expect(workflow).toContain("delays=(0 5 20 60 120)");
+    expect(workflow).toContain("server closed the connection unexpectedly");
+    expect(workflow).toContain("non-transient database error");
+    expect(workflow).toContain("exhausted bounded transient retries");
+    expect(workflow).toContain('rm -f -- "$output"');
+    expect(workflow).toContain("--role-only");
+    expect(workflow).toContain("--data-only --use-copy");
+  });
+
   it("uses KLYXDR02 public-key encryption without private recovery authority", () => {
     expect(workflow).toContain("KLYX_DR_PUBLIC_KEY_PEM");
     expect(workflow).toContain("scripts/encrypt-klyx-dr-envelope.mjs");
