@@ -5,6 +5,9 @@ import {
   createHmac,
   timingSafeEqual,
 } from "crypto";
+import {
+  assertKlyxExternalProviderSpendAllowed,
+} from "@/lib/providers/cost-control";
 
 const BASE_URL = "https://api.sumsub.com";
 const SUMSUB_TIMEOUT_MS = 15_000;
@@ -37,6 +40,8 @@ export async function sumsubRequest<T>(params: {
   path: string;
   body?: unknown;
 }): Promise<T> {
+  assertKlyxExternalProviderSpendAllowed("sumsub");
+
   const appToken = requiredEnv("SUMSUB_APP_TOKEN");
   const secretKey = requiredEnv("SUMSUB_SECRET_KEY");
   const method = params.method.toUpperCase();

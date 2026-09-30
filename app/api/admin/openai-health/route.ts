@@ -7,6 +7,9 @@ import {
 } from "@/lib/admin-auth";
 import { secureApiErrorResponse } from "@/lib/api-error";
 import {
+  getKlyxExternalCostDecision,
+} from "@/lib/providers/cost-control";
+import {
   logServerError,
   logServerWarning,
 } from "@/lib/server-log";
@@ -129,6 +132,28 @@ export async function GET() {
         .KLYX_OPENAI_MODEL
         ?.trim() ||
       "gpt-5-mini";
+
+    const costDecision =
+      getKlyxExternalCostDecision("openai");
+
+    if (!costDecision.allowed) {
+      return NextResponse.json(
+        {
+          ready: false,
+          configured: Boolean(apiKey),
+          model,
+          apiStatus: null,
+          costMode: costDecision.mode,
+          errorType: "cost_guard",
+          errorCode: costDecision.reason,
+          errorMessage:
+            "Diagnostic OpenAI externe désactivé par le garde de coût KLYX.",
+        },
+        {
+          status: 200,
+        }
+      );
+    }
 
     if (!apiKey) {
       return NextResponse.json(

@@ -6,6 +6,9 @@ import {
   API_RATE_LIMIT_POLICIES,
   consumeApiRateLimit,
 } from "@/lib/api-rate-limit";
+import {
+  isKlyxExternalProviderSpendAllowed,
+} from "@/lib/providers/cost-control";
 
 import {
   getKlyxLlmProvider,
@@ -68,6 +71,7 @@ export async function withoutKlyxLlmShadow<T>(
 
 function isShadowEnabled(): boolean {
   return (
+    isKlyxExternalProviderSpendAllowed("openai") &&
     process.env.KLYX_LLM_SHADOW_ENABLED
       ?.trim()
       .toLowerCase() === "true"

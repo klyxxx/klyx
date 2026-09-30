@@ -1,5 +1,8 @@
 import "server-only";
 
+import {
+  isKlyxExternalProviderSpendAllowed,
+} from "@/lib/providers/cost-control";
 import type {
   KlyxBrainIntent,
   KlyxLlmProvider,
@@ -208,7 +211,10 @@ export function createKlyxLlmProvider():
   const apiKey =
     process.env.OPENAI_API_KEY?.trim();
 
-  if (!apiKey) {
+  if (
+    !apiKey ||
+    !isKlyxExternalProviderSpendAllowed("openai")
+  ) {
     return fallback;
   }
 
