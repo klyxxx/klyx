@@ -165,17 +165,65 @@ jobs:
           test -s "$KLYX_OFFSITE_STORAGE_ROOT/storage-manifest.json"
           test -s "$KLYX_OFFSITE_STORAGE_ROOT/state-manifest.json"
 
-      - name: Capture production logical database snapshot
+      - name: Capture production logical database snapshot with bounded transient retry
         shell: bash
         run: |
           set -euo pipefail
 
-          supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" -f "$KLYX_OFFSITE_DB_ROOT/roles.sql" --role-only
-          supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" -f "$KLYX_OFFSITE_DB_ROOT/public-schema.sql" --schema public,klyx_private
-          supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" -f "$KLYX_OFFSITE_DB_ROOT/public-data.sql" --schema public --data-only --use-copy
-          supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" -f "$KLYX_OFFSITE_DB_ROOT/auth-data.sql" --schema auth --data-only --use-copy
-          supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" -f "$KLYX_OFFSITE_DB_ROOT/migration-history-schema.sql" --schema supabase_migrations
-          supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" -f "$KLYX_OFFSITE_DB_ROOT/migration-history-data.sql" --schema supabase_migrations --data-only --use-copy
+          transient_pattern='server closed the connection unexpectedly|could not connect|connection (reset|refused|timed out)|timeout|temporary failure|network is unreachable|unexpected eof|eof detected|tls handshake timeout|57P0[123]|0800[0136]|53300|too many connections|remaining connection slots are reserved'
+          delays=(0 5 20 60 120)
+
+          run_dump_with_retry() {
+            local label="$1"
+            local output="$2"
+            shift 2
+            local log="${RUNNER_TEMP}/klyx-offsite-${label}.log"
+
+            for index in "${!delays[@]}"; do
+              local delay="${delays[$index]}"
+              if [ "$delay" -gt 0 ]; then
+                jitter=$((RANDOM % 7))
+                sleep "$((delay + jitter))"
+              fi
+
+              rm -f -- "$output" "$log"
+              if supabase db dump \
+                --db-url "$KLYX_DR_SOURCE_DB_URL" \
+                -f "$output" \
+                "$@" >"$log" 2>&1; then
+                cat "$log"
+                rm -f -- "$log"
+                test -s "$output"
+                echo "${label}: PASS"
+                return 0
+              fi
+
+              cat "$log" >&2
+              rm -f -- "$output"
+
+              if ! grep -Eqi "$transient_pattern" "$log"; then
+                echo "::error::${label} failed with a non-transient database error."
+                rm -f -- "$log"
+                return 1
+              fi
+
+              if [ "$index" -eq "$((${#delays[@]} - 1))" ]; then
+                echo "::error::${label} exhausted bounded transient retries."
+                rm -f -- "$log"
+                return 1
+              fi
+
+              echo "::warning::${label} hit a transient Supabase/pooler failure; retrying with bounded backoff."
+              rm -f -- "$log"
+            done
+          }
+
+          run_dump_with_retry roles "$KLYX_OFFSITE_DB_ROOT/roles.sql" --role-only
+          run_dump_with_retry public-schema "$KLYX_OFFSITE_DB_ROOT/public-schema.sql" --schema public,klyx_private
+          run_dump_with_retry public-data "$KLYX_OFFSITE_DB_ROOT/public-data.sql" --schema public --data-only --use-copy
+          run_dump_with_retry auth-data "$KLYX_OFFSITE_DB_ROOT/auth-data.sql" --schema auth --data-only --use-copy
+          run_dump_with_retry migration-history-schema "$KLYX_OFFSITE_DB_ROOT/migration-history-schema.sql" --schema supabase_migrations
+          run_dump_with_retry migration-history-data "$KLYX_OFFSITE_DB_ROOT/migration-history-data.sql" --schema supabase_migrations --data-only --use-copy
 
           for file in \
             roles.sql \
