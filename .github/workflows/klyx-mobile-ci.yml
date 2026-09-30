@@ -21,10 +21,19 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: klyx-mobile-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  EXPO_PUBLIC_KLYX_API_BASE_URL: https://example.invalid
+  EXPO_PUBLIC_SUPABASE_URL: https://example.supabase.co
+  EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_only
+
 jobs:
   mobile-client:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -36,29 +45,29 @@ jobs:
         working-directory: mobile
         run: npm install --no-audit --no-fund
 
+      - name: Validate dependency health
+        working-directory: mobile
+        run: npm run doctor
+
       - name: Typecheck mobile
         working-directory: mobile
         run: npm run typecheck
 
       - name: Validate Expo public config
         working-directory: mobile
-        env:
-          EXPO_PUBLIC_KLYX_API_BASE_URL: https://example.invalid
-          EXPO_PUBLIC_SUPABASE_URL: https://example.supabase.co
-          EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_only
         run: npx expo config --type public
+
+      - name: Export mobile JavaScript bundle
+        working-directory: mobile
+        run: npm run export
 
       - name: Validate Android native generation
         working-directory: mobile
-        env:
-          EXPO_PUBLIC_KLYX_API_BASE_URL: https://example.invalid
-          EXPO_PUBLIC_SUPABASE_URL: https://example.supabase.co
-          EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_only
         run: npx expo prebuild --platform android --no-install --clean
 
   mobile-ios:
     runs-on: macos-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -72,10 +81,6 @@ jobs:
 
       - name: Validate iOS native generation
         working-directory: mobile
-        env:
-          EXPO_PUBLIC_KLYX_API_BASE_URL: https://example.invalid
-          EXPO_PUBLIC_SUPABASE_URL: https://example.supabase.co
-          EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_only
         run: npx expo prebuild --platform ios --no-install --clean
 
   mobile-boundary:
