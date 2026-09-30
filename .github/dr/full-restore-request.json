@@ -1,9 +1,9 @@
 {
   "format": "KLYX_FULL_RESTORE_REQUEST",
   "version": 1,
-  "requestId": "dr-full-restore-20260930-0cf1a9a3-github",
-  "baseMainSha": "0cf1a9a3a70cc760e1165016373a536c3ce4b69a",
+  "requestId": "dr-full-restore-20260930-e46fdd0f-github",
+  "baseMainSha": "e46fdd0ffa84046d95f05fec72860f08b92cb867",
   "confirmProductionRead": true,
   "reason": "Run an exact-main isolated full restore and automated encrypted offsite backup entirely through GitHub Actions; production remains read-only and Stripe LIVE remains disabled.",
-  "requestedAt": "2026-09-30T15:50:00Z"
+  "requestedAt": "2026-09-30T20:40:00Z"
 }
