@@ -27,8 +27,8 @@ jobs:
       - name: Install locked dependencies
         run: npm ci --ignore-scripts
 
-      - name: Generate safe lockfile only
-        run: npm audit fix --package-lock-only
+      - name: Update only vulnerable dependency families in lockfile
+        run: npm update --package-lock-only vitest brace-expansion fast-uri
 
       - name: Verify no high dependency vulnerability remains
         run: npm audit --audit-level=high
