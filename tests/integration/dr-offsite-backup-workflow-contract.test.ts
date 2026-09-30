@@ -13,7 +13,7 @@ const dispatcher = fs.readFileSync(
   "utf8"
 );
 const publicKey = fs.readFileSync(
-  path.join(root, "config/dr/klyx-dr-recovery-public.pem"),
+  path.join(root, "config/dr/klyx-dr-recovery-public.pub"),
   "utf8"
 );
 
@@ -56,7 +56,7 @@ describe("KLYX automated offsite DR handoff contract", () => {
   it("uses a committed public key and never exposes private recovery authority", () => {
     expect(publicKey).toContain("-----BEGIN PUBLIC KEY-----");
     expect(publicKey).toContain("-----END PUBLIC KEY-----");
-    expect(workflow).toContain("config/dr/klyx-dr-recovery-public.pem");
+    expect(workflow).toContain("config/dr/klyx-dr-recovery-public.pub");
     expect(workflow).toContain("scripts/encrypt-klyx-dr-envelope.mjs");
     expect(workflow).not.toContain("KLYX_DR_PRIVATE_KEY");
     expect(workflow).not.toContain("BEGIN PRIVATE KEY");

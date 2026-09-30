@@ -36,7 +36,7 @@ jobs:
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       KLYX_DR_SOURCE_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       KLYX_DR_SOURCE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      KLYX_DR_PUBLIC_KEY_PATH: ${{ github.workspace }}/config/dr/klyx-dr-recovery-public.pem
+      KLYX_DR_PUBLIC_KEY_PATH: ${{ github.workspace }}/config/dr/klyx-dr-recovery-public.pub
       SUPABASE_TELEMETRY_DISABLED: "1"
 
     steps:
