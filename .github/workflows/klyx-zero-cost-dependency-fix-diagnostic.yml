@@ -8,15 +8,17 @@ on:
       - ".github/workflows/klyx-zero-cost-dependency-fix-diagnostic.yml"
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  generate-safe-lock:
+  finalize-safe-lock:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - name: Checkout exact branch head
         uses: actions/checkout@v4
+        with:
+          ref: feature/zero-cost-control-plane
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -38,10 +40,13 @@ jobs:
       - name: Verify no high dependency vulnerability remains
         run: npm audit --audit-level=high
 
-      - name: Upload corrected lockfile
-        uses: actions/upload-artifact@v4
-        with:
-          name: zero-cost-safe-package-lock-${{ github.run_id }}
-          path: package-lock.json
-          if-no-files-found: error
-          retention-days: 1
+      - name: Commit safe lockfile and remove temporary diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git rm .github/workflows/klyx-zero-cost-dependency-fix-diagnostic.yml
+          git commit -m "chore: refresh secure dependency lock"
+          git push origin HEAD:feature/zero-cost-control-plane
