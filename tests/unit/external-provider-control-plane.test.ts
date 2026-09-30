@@ -58,11 +58,12 @@ function sourceFiles(root: string): string[] {
 }
 
 function clientSources(): Array<{ file: string; source: string }> {
-  const roots = ["app", "components", "lib"].map((name) =>
+  const webRoots = ["app", "components", "lib"].map((name) =>
     path.join(process.cwd(), name)
   );
+  const mobileRoot = path.join(process.cwd(), "mobile");
 
-  return roots
+  const webClients = webRoots
     .flatMap(sourceFiles)
     .map((file) => ({
       file,
@@ -71,6 +72,13 @@ function clientSources(): Array<{ file: string; source: string }> {
     .filter(({ source }) =>
       /^\s*["']use client["'];?/m.test(source)
     );
+
+  const mobileClients = sourceFiles(mobileRoot).map((file) => ({
+    file,
+    source: fs.readFileSync(file, "utf8"),
+  }));
+
+  return [...webClients, ...mobileClients];
 }
 
 describe("external provider control plane", () => {
@@ -84,6 +92,7 @@ describe("external provider control plane", () => {
     for (const provider of Object.values(KLYX_PROVIDER_CATALOG)) {
       for (const secret of provider.secretEnv) {
         expect(secret.startsWith("NEXT_PUBLIC_")).toBe(false);
+        expect(secret.startsWith("EXPO_PUBLIC_")).toBe(false);
         expect(provider.publicEnv).not.toContain(secret);
       }
     }
@@ -119,7 +128,7 @@ describe("external provider control plane", () => {
     );
   });
 
-  it("does not expose provider secrets or server provider APIs from client modules", () => {
+  it("does not expose provider secrets or server provider APIs from web or mobile client modules", () => {
     const violations: string[] = [];
 
     for (const { file, source } of clientSources()) {
@@ -152,5 +161,14 @@ describe("external provider control plane", () => {
     expect(
       KLYX_PROVIDER_CATALOG.cloudflare_turnstile.clientPolicy
     ).toBe("public_token_only");
+  });
+
+  it("declares the mobile Supabase credentials as public-only configuration", () => {
+    expect(KLYX_PROVIDER_CATALOG.supabase.publicEnv).toContain(
+      "EXPO_PUBLIC_SUPABASE_URL"
+    );
+    expect(KLYX_PROVIDER_CATALOG.supabase.publicEnv).toContain(
+      "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY"
+    );
   });
 });
