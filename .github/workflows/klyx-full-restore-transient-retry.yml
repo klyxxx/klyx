@@ -32,9 +32,12 @@ jobs:
 
     steps:
       - name: Refuse stale main or exhausted retry budget
+        id: guard
         shell: bash
         run: |
           set -euo pipefail
+
+          echo "eligible=false" >> "$GITHUB_OUTPUT"
 
           if ! [[ "$FAILED_HEAD_SHA" =~ ^[a-f0-9]{40}$ ]]; then
             echo "::error::Invalid failed workflow head SHA."
@@ -54,8 +57,11 @@ jobs:
             exit 0
           fi
 
+          echo "eligible=true" >> "$GITHUB_OUTPUT"
+
       - name: Prove failure is transient
         id: classify
+        if: steps.guard.outputs.eligible == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -79,10 +85,17 @@ jobs:
           rm -f -- "$logs_zip" "$logs_txt"
 
       - name: Rerun failed exact-SHA Full Restore
-        if: steps.classify.outputs.transient == 'true'
+        if: >-
+          steps.guard.outputs.eligible == 'true' &&
+          steps.classify.outputs.transient == 'true'
         shell: bash
         run: |
           set -euo pipefail
+
+          if [ "$FAILED_RUN_ATTEMPT" -ge 3 ]; then
+            echo "Full Restore retry budget exhausted before rerun; refusing."
+            exit 0
+          fi
 
           current_main="$(gh api "/repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha' | tr '[:upper:]' '[:lower:]')"
           failed_sha="$(printf '%s' "$FAILED_HEAD_SHA" | tr '[:upper:]' '[:lower:]')"
