@@ -49,16 +49,7 @@ jobs:
           ref: ${{ env.KLYX_TARGET_SHA }}
           persist-credentials: false
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install locked dependencies
-        run: npm ci
-
-      - name: Refuse stale or unsafe offsite backup
+      - name: Preflight exact SHA and external backup authority
         shell: bash
         run: |
           set -euo pipefail
@@ -74,6 +65,7 @@ jobs:
             exit 1
           fi
 
+          missing=()
           for name in \
             SUPABASE_DB_URL \
             KLYX_DR_SOURCE_SUPABASE_URL \
@@ -83,10 +75,28 @@ jobs:
             KLYX_DR_DROPBOX_APP_SECRET \
             KLYX_DR_DROPBOX_REFRESH_TOKEN; do
             if [ -z "${!name:-}" ]; then
-              echo "::error::Missing required secret: ${name}"
-              exit 1
+              missing+=("$name")
             fi
           done
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf '::error::Missing required GitHub Actions secret: %s\n' "${missing[@]}"
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Prepare safe offsite workspace
+        shell: bash
+        run: |
+          set -euo pipefail
 
           effective_db_url="$(node <<'NODE'
           const raw = process.env.SUPABASE_DB_URL ?? "";
@@ -165,17 +175,71 @@ jobs:
           test -s "$KLYX_OFFSITE_STORAGE_ROOT/storage-manifest.json"
           test -s "$KLYX_OFFSITE_STORAGE_ROOT/state-manifest.json"
 
-      - name: Capture production logical database snapshot
+      - name: Capture production logical database snapshot with bounded retry
         shell: bash
         run: |
           set -euo pipefail
 
-          supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" -f "$KLYX_OFFSITE_DB_ROOT/roles.sql" --role-only
-          supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" -f "$KLYX_OFFSITE_DB_ROOT/public-schema.sql" --schema public,klyx_private
-          supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" -f "$KLYX_OFFSITE_DB_ROOT/public-data.sql" --schema public --data-only --use-copy
-          supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" -f "$KLYX_OFFSITE_DB_ROOT/auth-data.sql" --schema auth --data-only --use-copy
-          supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" -f "$KLYX_OFFSITE_DB_ROOT/migration-history-schema.sql" --schema supabase_migrations
-          supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" -f "$KLYX_OFFSITE_DB_ROOT/migration-history-data.sql" --schema supabase_migrations --data-only --use-copy
+          dump_with_retry() {
+            local label="$1"
+            local output="$2"
+            shift 2
+            local attempt=1
+            local max_attempts=4
+            local delays=(5 15 30)
+
+            while true; do
+              rm -f -- "$output"
+              echo "${label}: attempt ${attempt}/${max_attempts}"
+
+              if "$@" -f "$output" && test -s "$output"; then
+                echo "${label}: PASS"
+                return 0
+              fi
+
+              rm -f -- "$output"
+
+              if [ "$attempt" -ge "$max_attempts" ]; then
+                echo "::error::${label} failed after ${max_attempts} attempts."
+                return 1
+              fi
+
+              delay="${delays[$((attempt - 1))]}"
+              echo "${label}: transient failure; retrying in ${delay}s"
+              sleep "$delay"
+              attempt=$((attempt + 1))
+            done
+          }
+
+          dump_with_retry \
+            "roles backup" \
+            "$KLYX_OFFSITE_DB_ROOT/roles.sql" \
+            supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" --role-only
+
+          dump_with_retry \
+            "public schema backup" \
+            "$KLYX_OFFSITE_DB_ROOT/public-schema.sql" \
+            supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" --schema public,klyx_private
+
+          dump_with_retry \
+            "public data backup" \
+            "$KLYX_OFFSITE_DB_ROOT/public-data.sql" \
+            supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" --schema public --data-only --use-copy
+
+          dump_with_retry \
+            "auth data backup" \
+            "$KLYX_OFFSITE_DB_ROOT/auth-data.sql" \
+            supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" --schema auth --data-only --use-copy
+
+          dump_with_retry \
+            "migration history schema backup" \
+            "$KLYX_OFFSITE_DB_ROOT/migration-history-schema.sql" \
+            supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" --schema supabase_migrations
+
+          dump_with_retry \
+            "migration history data backup" \
+            "$KLYX_OFFSITE_DB_ROOT/migration-history-data.sql" \
+            supabase db dump --db-url "$KLYX_DR_SOURCE_DB_URL" --schema supabase_migrations --data-only --use-copy
 
           for file in \
             roles.sql \
@@ -192,6 +256,12 @@ jobs:
         run: |
           set -euo pipefail
 
+          checkout_sha="$(git rev-parse HEAD)"
+          if [ "$checkout_sha" != "$KLYX_TARGET_SHA" ]; then
+            echo "::error::Checkout SHA drifted before archive creation."
+            exit 1
+          fi
+
           cat > "$KLYX_OFFSITE_WORK_ROOT/backup-manifest.json" <<EOF
           {
             "format": "KLYX_DR_AUTOMATED_OFFSITE_SNAPSHOT",
@@ -202,6 +272,14 @@ jobs:
             "productionWrite": false
           }
           EOF
+
+          node - "$KLYX_TARGET_SHA" "$KLYX_OFFSITE_WORK_ROOT/backup-manifest.json" <<'NODE'
+          const fs = require("node:fs");
+          const expected = process.argv[2];
+          const manifest = JSON.parse(fs.readFileSync(process.argv[3], "utf8"));
+          if (manifest.gitCommit !== expected) process.exit(2);
+          if (manifest.productionWrite !== false) process.exit(3);
+          NODE
 
           plain_archive="$KLYX_OFFSITE_WORK_ROOT/klyx-dr-plain.tar.gz"
           tar -czf "$plain_archive" \
@@ -217,6 +295,12 @@ jobs:
 
           if [ "$(head -c 8 "$encrypted_archive")" != "KLYXDR02" ]; then
             echo "::error::Encrypted archive is not KLYXDR02."
+            exit 1
+          fi
+
+          archive_name="$(basename "$encrypted_archive")"
+          if [[ "$archive_name" != *"-${short_sha}.klyxdr" ]]; then
+            echo "::error::Encrypted archive name is not bound to the expected SHA."
             exit 1
           fi
 
