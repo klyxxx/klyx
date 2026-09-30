@@ -1,4 +1,4 @@
-const { withProjectBuildGradle } = require("@expo/config-plugins");
+const { withProjectBuildGradle } = require("expo/config-plugins");
 
 const SUMSUB_REPOSITORY = "https://maven.sumsub.com/repository/maven-public/";
 
