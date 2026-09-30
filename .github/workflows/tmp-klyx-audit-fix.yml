@@ -28,8 +28,13 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Refresh dependency lockfile within declared ranges
-        run: npm update --package-lock-only --ignore-scripts
+      - name: Use current npm 11 remediation client
+        run: |
+          npm install --global npm@11
+          npm --version
+
+      - name: Apply audit-safe lockfile remediation
+        run: npm audit fix --package-lock-only --ignore-scripts
 
       - name: Verify no high or critical vulnerabilities remain
         run: npm audit --audit-level=high
