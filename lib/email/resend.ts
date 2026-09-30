@@ -3,6 +3,9 @@ import "server-only";
 import { logServerWarning } from "@/lib/server-log";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
+  isKlyxExternalProviderSpendAllowed,
+} from "@/lib/providers/cost-control";
+import {
   sendResendEmail,
   type KlyxEmailDeliveryResult,
 } from "@/lib/email/resend-core";
@@ -40,6 +43,10 @@ function failedResult(): KlyxEmailDeliveryResult {
 }
 
 function resendApiKey(): string | null {
+  if (!isKlyxExternalProviderSpendAllowed("resend")) {
+    return null;
+  }
+
   return process.env.RESEND_API_KEY?.trim() || null;
 }
 

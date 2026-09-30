@@ -3,6 +3,8 @@
 // server routes. KLYX intentionally avoids a runtime `server-only` dependency
 // here so the repository's Vitest contracts can inspect the module directly.
 
+import { isKlyxExternalProviderSpendAllowed } from "@/lib/providers/cost-control";
+
 export type PhotoVisualEvidence = {
   visualSummary: string;
   serviceHints: string[];
@@ -138,6 +140,7 @@ function cleanEvidence(value: unknown): PhotoVisualEvidence | null {
 
 export function isPhotoVisionEnabled(): boolean {
   return (
+    isKlyxExternalProviderSpendAllowed("openai") &&
     process.env.KLYX_VISION_ENABLED === "1" &&
     Boolean(process.env.OPENAI_API_KEY?.trim())
   );

@@ -5,6 +5,10 @@ import type {
   KlyxProviderControlPlaneRegistration,
   KlyxProviderFallbackPolicy,
 } from "./control-plane-contracts";
+import {
+  getKlyxCostControlPolicyOverrides,
+  type KlyxCostEnvironment,
+} from "./cost-control";
 
 const DEFAULT_HEALTH_POLICY = {
   degradedAfterConsecutiveFailures: 2,
@@ -97,5 +101,13 @@ export function createKlyxProviderControlPlaneRegistry(
         ),
       };
     }
+  );
+}
+
+export function createKlyxCostAwareProviderControlPlaneRegistry(
+  env: KlyxCostEnvironment = process.env
+): KlyxProviderControlPlaneRegistration[] {
+  return createKlyxProviderControlPlaneRegistry(
+    getKlyxCostControlPolicyOverrides(env)
   );
 }

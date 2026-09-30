@@ -41,29 +41,50 @@ Exigences de réponse :
 Niveau KLYX : chaque phrase doit être utile, élégante et immédiatement compréhensible.
 `.trim();
 
-function fallbackReply(
+export function deterministicKlyxReply(
   message: string
-): string {
-  const normalized =
-    message.toLowerCase();
+): string | null {
+  const normalized = message
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
 
   if (
-    normalized.includes("bonjour") ||
-    normalized.includes("salut") ||
-    normalized.includes("bonsoir")
+    /^(bonjour|salut|bonsoir|hello|hi)\b/.test(normalized)
   ) {
     return "Bonjour. Dis-moi simplement ce que tu veux organiser et KLYX te guide jusqu’à la prochaine action utile.";
   }
 
   if (
-    normalized.includes("prix") ||
-    normalized.includes("combien") ||
-    normalized.includes("budget")
+    /\b(prix|combien|budget|tarif|cout|coute)\b/.test(normalized)
   ) {
     return "Je peux t’aider à cadrer le budget. Indique d’abord le service, la ville et le moment souhaité.";
   }
 
-  return "J’ai compris. Indique le service, la ville et le moment souhaité pour que KLYX puisse avancer précisément.";
+  if (
+    /\b(reserver|reservation|prestataire|service|menage|babysitting|demenagement|bricolage)\b/.test(normalized)
+  ) {
+    return "Indique le service à organiser, la ville et le moment souhaité. KLYX complétera ensuite la demande avant toute confirmation.";
+  }
+
+  if (
+    /\b(comment fonctionne klyx|que fait klyx|c est quoi klyx|qu est ce que klyx)\b/.test(normalized)
+  ) {
+    return "KLYX organise les services du quotidien : il comprend le besoin, prépare la demande, recherche les options et demande confirmation avant toute réservation ou paiement.";
+  }
+
+  return null;
+}
+
+function fallbackReply(
+  message: string
+): string {
+  return (
+    deterministicKlyxReply(message) ??
+    "J’ai compris. Indique le service, la ville et le moment souhaité pour que KLYX puisse avancer précisément."
+  );
 }
 
 function normalizedMemorySummary(
@@ -113,6 +134,16 @@ export async function generateKlyxAiReply(
       mode: "fallback",
       text:
         "Dis-moi simplement ce que tu veux organiser.",
+    };
+  }
+
+  const deterministicReply =
+    deterministicKlyxReply(message);
+
+  if (deterministicReply) {
+    return {
+      mode: "fallback",
+      text: deterministicReply,
     };
   }
 
