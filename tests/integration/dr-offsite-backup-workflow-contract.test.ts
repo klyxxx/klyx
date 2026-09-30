@@ -44,6 +44,30 @@ describe("KLYX automated offsite DR backup contract", () => {
     expect(workflow).not.toContain("stripe");
   });
 
+  it("fails early when external recovery authority is not provisioned", () => {
+    expect(workflow).toContain("Preflight exact SHA and external backup authority");
+    expect(workflow).toContain("Missing required GitHub Actions secret");
+    expect(workflow.indexOf("Preflight exact SHA and external backup authority")).toBeLessThan(
+      workflow.indexOf("Install locked dependencies")
+    );
+  });
+
+  it("retries transient Supabase dump failures without accepting partial files", () => {
+    expect(workflow).toContain("Capture production logical database snapshot with bounded retry");
+    expect(workflow).toContain("dump_with_retry()");
+    expect(workflow).toContain("local max_attempts=4");
+    expect(workflow).toContain("local delays=(5 15 30)");
+    expect(workflow).toContain('rm -f -- "$output"');
+    expect(workflow).toContain("failed after ${max_attempts} attempts");
+  });
+
+  it("binds the encrypted archive to the exact certified SHA", () => {
+    expect(workflow).toContain('checkout_sha="$(git rev-parse HEAD)"');
+    expect(workflow).toContain("Checkout SHA drifted before archive creation.");
+    expect(workflow).toContain('"gitCommit": "${KLYX_TARGET_SHA}"');
+    expect(workflow).toContain("Encrypted archive name is not bound to the expected SHA.");
+  });
+
   it("uses KLYXDR02 public-key encryption without private recovery authority", () => {
     expect(workflow).toContain("KLYX_DR_PUBLIC_KEY_PEM");
     expect(workflow).toContain("scripts/encrypt-klyx-dr-envelope.mjs");
