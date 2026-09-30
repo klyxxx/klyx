@@ -1,0 +1,42 @@
+name: KLYX Zero Cost Dependency Fix Diagnostic
+
+on:
+  push:
+    branches:
+      - feature/zero-cost-control-plane
+    paths:
+      - ".github/workflows/klyx-zero-cost-dependency-fix-diagnostic.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  generate-safe-lock:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Generate safe lockfile only
+        run: npm audit fix --package-lock-only
+
+      - name: Verify no high dependency vulnerability remains
+        run: npm audit --audit-level=high
+
+      - name: Upload corrected lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: zero-cost-safe-package-lock-${{ github.run_id }}
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 1
