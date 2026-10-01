@@ -26,6 +26,10 @@ import {
 } from "./push";
 import { supabase } from "./supabase";
 
+type SignUpResult = {
+  requiresEmailConfirmation: boolean;
+};
+
 type SessionContextValue = {
   session: Session | null;
   bootstrap: MobileBootstrap | null;
@@ -33,6 +37,7 @@ type SessionContextValue = {
   loading: boolean;
   error: string | null;
   signIn(email: string, password: string): Promise<void>;
+  signUp(email: string, password: string): Promise<SignUpResult>;
   signOut(): Promise<void>;
   selectProfile(profileId: string): Promise<void>;
   refreshBootstrap(): Promise<void>;
@@ -138,6 +143,15 @@ export function KlyxSessionProvider({ children }: PropsWithChildren) {
           password,
         });
         if (signInError) throw signInError;
+      },
+      async signUp(email, password) {
+        setError(null);
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+        });
+        if (signUpError) throw signUpError;
+        return { requiresEmailConfirmation: !data.session };
       },
       async signOut() {
         try {

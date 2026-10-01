@@ -28,11 +28,13 @@ import {
 } from "./src/data";
 import { launchKlyxIdentityVerification } from "./src/sumsub";
 import { KlyxSessionProvider, useKlyxSession } from "./src/session";
+import { PhoneSettingsCard } from "./src/phone-settings";
 import { supabase } from "./src/supabase";
 import { t } from "./src/i18n";
 
 type Locale = "fr" | "en" | "nl" | "de";
 type Tab = "assistant" | "activity" | "notifications" | "account";
+type AuthMode = "login" | "signup";
 
 type ChatMessage = {
   id: string;
@@ -70,17 +72,27 @@ function ActionButton({
 }
 
 function LoginScreen() {
-  const { signIn } = useKlyxSession();
+  const { signIn, signUp } = useKlyxSession();
+  const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   async function submit() {
     setBusy(true);
     setError(null);
+    setInfo(null);
     try {
-      await signIn(email, password);
+      if (mode === "signup") {
+        const result = await signUp(email, password);
+        if (result.requiresEmailConfirmation) {
+          setInfo("Compte créé. Vérifie ton e-mail puis reconnecte-toi dans KLYX.");
+        }
+      } else {
+        await signIn(email, password);
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Connexion impossible.");
     } finally {
@@ -104,7 +116,7 @@ function LoginScreen() {
         />
         <TextInput
           autoCapitalize="none"
-          autoComplete="password"
+          autoComplete={mode === "signup" ? "new-password" : "password"}
           onChangeText={setPassword}
           placeholder="Mot de passe"
           secureTextEntry
@@ -112,10 +124,26 @@ function LoginScreen() {
           value={password}
         />
         {error ? <Text style={styles.error}>{error}</Text> : null}
+        {info ? <Text style={styles.info}>{info}</Text> : null}
         <ActionButton
-          disabled={busy || !email.trim() || !password}
-          label={busy ? "Connexion…" : "Se connecter"}
+          disabled={busy || !email.trim() || password.length < 6}
+          label={
+            busy
+              ? "Patiente…"
+              : mode === "signup"
+                ? "Créer mon compte"
+                : "Se connecter"
+          }
           onPress={() => void submit()}
+        />
+        <ActionButton
+          label={mode === "login" ? "Créer un compte" : "J’ai déjà un compte"}
+          onPress={() => {
+            setMode((current) => (current === "login" ? "signup" : "login"));
+            setError(null);
+            setInfo(null);
+          }}
+          secondary
         />
       </View>
     </View>
@@ -432,6 +460,8 @@ function AccountScreen({ locale, setLocale }: { locale: Locale; setLocale(locale
         </Pressable>
       ))}
 
+      {selectedProfile ? <PhoneSettingsCard profileId={selectedProfile.id} /> : null}
+
       <Text style={styles.label}>Langue · Tolgee</Text>
       <View style={styles.rowWrap}>
         {(["fr", "en", "nl", "de"] as Locale[]).map((item) => (
@@ -565,6 +595,7 @@ const styles = StyleSheet.create({
   unreadCard: { borderWidth: 2, borderColor: "#1f2328" },
   cardTitle: { fontSize: 16, fontWeight: "700" },
   muted: { color: "#6f737b" },
+  info: { color: "#166534" },
   error: { color: "#b42318" },
   input: { borderWidth: 1, borderColor: "#c8cbd0", borderRadius: 14, minHeight: 48, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "white", fontSize: 16 },
   composer: { padding: 12, gap: 8, backgroundColor: "white", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: "#dedfe2" },

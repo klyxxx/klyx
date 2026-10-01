@@ -34,8 +34,15 @@ export type MobileBootstrap = {
   };
 };
 
+export type MobilePhoneStatus = {
+  phoneNumber: string | null;
+  verified: boolean;
+  verifiedAt: string | null;
+  visibility: string;
+};
+
 type CoreRequestOptions = {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
 };
 
@@ -173,5 +180,41 @@ export function unregisterPushInstallation(installationId: string) {
   return coreRequest<{ ok: true }>("/api/mobile/push/installation", {
     method: "DELETE",
     body: { installationId },
+  });
+}
+
+export function getPhoneStatus() {
+  return coreRequest<MobilePhoneStatus>("/api/profile/phone");
+}
+
+export function savePhoneNumber(phoneNumber: string) {
+  return coreRequest<MobilePhoneStatus & { saved: true }>("/api/profile/phone", {
+    method: "PUT",
+    body: { phoneNumber },
+  });
+}
+
+export function sendPhoneOtp() {
+  return coreRequest<{
+    sent: boolean;
+    verified: boolean;
+    alreadyVerified?: boolean;
+    maskedPhone?: string;
+    retryAfter?: number;
+  }>("/api/profile/phone/otp/send", {
+    method: "POST",
+    body: {},
+  });
+}
+
+export function verifyPhoneOtp(code: string) {
+  return coreRequest<{
+    verified: boolean;
+    alreadyVerified?: boolean;
+    verifiedAt?: string;
+    phoneNumber?: string;
+  }>("/api/profile/phone/otp/verify", {
+    method: "POST",
+    body: { code },
   });
 }
