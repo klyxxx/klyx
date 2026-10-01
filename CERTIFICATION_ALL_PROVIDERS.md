@@ -43,3 +43,7 @@ No report may infer Supabase outage recovery from source code alone.
 - The WAL probe performs zero canonical Supabase mutations and zero financial mutations.
 - Ambiguous side effects are never blindly replayed.
 - Financial truth remains `KLYX Ledger = Settlement truth = Stripe truth`.
+
+## Re-certification trigger
+
+- 2026-10-01: documentation-only trigger to re-run provider/WAL certification after the GitHub-connected cloud configuration was refreshed. No runtime behavior changed.
