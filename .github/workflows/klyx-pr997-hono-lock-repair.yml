@@ -1,0 +1,75 @@
+name: KLYX PR997 Hono Lock Repair
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/klyx-pr997-hono-lock-repair.yml"
+      - "package-lock.json"
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  repair-hono-lock:
+    if: >-
+      github.event.pull_request.number == 997 &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.head.ref == 'feat/chatgpt-klyx-plugin-foundation'
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 1
+
+      - name: Repair only Hono advisory lock entry
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const file = 'package-lock.json';
+          let source = fs.readFileSync(file, 'utf8');
+
+          const oldBlock = `    "node_modules/hono": {
+                "version": "4.13.5",
+                "resolved": "https://registry.npmjs.org/hono/-/hono-4.13.5.tgz",
+                "integrity": "sha512-O6+/eCYRkzzzy0rPWwKLiGBR1nFuUPZynnwjxN1MBA62NNqbT0wQEzQyK2gSO5yDIDB336sXQleAhOHrzlYyKw==",`;
+          const newBlock = `    "node_modules/hono": {
+                "version": "4.13.7",
+                "resolved": "https://registry.npmjs.org/hono/-/hono-4.13.7.tgz",
+                "integrity": "sha512-c8/gF9ac8Y78/agExVocyLevgR+JlpNB444Py0FSX8pJoPdYUfUzRcXtYEYGwt6l19qIlVZPN5Mfsw9jFShmQQ==",`;
+
+          if (source.includes(oldBlock)) {
+            source = source.replace(oldBlock, newBlock);
+            fs.writeFileSync(file, source);
+            console.log('Updated Hono lock entry 4.13.5 -> 4.13.7.');
+          } else if (source.includes(newBlock)) {
+            console.log('Hono lock entry already repaired.');
+          } else {
+            throw new Error('Expected canonical Hono lock entry not found; refusing broad lock mutation.');
+          }
+          NODE
+
+      - name: Verify clean install
+        run: npm ci --ignore-scripts
+
+      - name: Verify production dependency audit
+        run: npm audit --omit=dev --audit-level=moderate
+
+      - name: Commit exact lock repair when needed
+        shell: bash
+        run: |
+          if git diff --quiet -- package-lock.json; then
+            echo "No lockfile change required."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "fix(deps): patch transitive Hono advisory"
+          git push origin "HEAD:${{ github.event.pull_request.head.ref }}"
