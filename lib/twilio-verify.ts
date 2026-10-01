@@ -3,6 +3,9 @@ import "server-only";
 import {
   fetchWithProviderRecovery,
 } from "@/lib/provider-http-recovery";
+import {
+  assertKlyxExternalProviderSpendAllowed,
+} from "@/lib/providers/cost-control";
 
 // KLYX_TWILIO_VERIFY_12_69
 
@@ -73,6 +76,8 @@ async function parseResponse(
 export async function sendPhoneOtp(
   phoneNumber: string
 ) {
+  assertKlyxExternalProviderSpendAllowed("twilio");
+
   const serviceSid =
     requiredEnv("TWILIO_VERIFY_SERVICE_SID");
 
@@ -113,6 +118,8 @@ export async function verifyPhoneOtp(
   phoneNumber: string,
   code: string
 ) {
+  assertKlyxExternalProviderSpendAllowed("twilio");
+
   const serviceSid =
     requiredEnv("TWILIO_VERIFY_SERVICE_SID");
 

@@ -1,3 +1,7 @@
+import {
+  isKlyxExternalProviderSpendAllowed,
+} from "@/lib/providers/cost-control";
+
 const ELMAH_IO_API_ORIGIN = "https://api.elmah.io";
 export const KLYX_ELMAH_IO_LOG_ID =
   "bac0ae51-d911-4ab5-8263-60a1e96b58ec";
@@ -48,7 +52,10 @@ type KlyxUnhandledRequestErrorReport = {
 };
 
 function productionApiKey(): string | null {
-  if (process.env.VERCEL_ENV !== "production") {
+  if (
+    process.env.VERCEL_ENV !== "production" ||
+    !isKlyxExternalProviderSpendAllowed("elmah_io")
+  ) {
     return null;
   }
 

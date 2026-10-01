@@ -1,9 +1,9 @@
 {
   "format": "KLYX_FULL_RESTORE_REQUEST",
   "version": 1,
-  "requestId": "dr-full-restore-20260926-3fb313af-final",
-  "baseMainSha": "3fb313af5417630e2bab1d47b4c9966415461d5b",
+  "requestId": "dr-full-restore-20260930-6f5a0299-connector",
+  "baseMainSha": "6f5a02997153cc6d2a931c6d424048ccb884089b",
   "confirmProductionRead": true,
-  "reason": "Run the final exact-main isolated full restore after durable orchestration integration; required for same-SHA disaster-recovery certification while Stripe LIVE remains disabled.",
-  "requestedAt": "2026-09-26T17:25:00Z"
+  "reason": "Run exact-main isolated full restore, encrypted GitHub connector handoff, independent Dropbox backup and Google Drive key escrow without local manual intervention; production remains read-only and Stripe LIVE remains disabled.",
+  "requestedAt": "2026-09-30T21:25:00Z"
 }

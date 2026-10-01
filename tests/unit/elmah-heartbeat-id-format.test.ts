@@ -6,6 +6,13 @@ const originalEnv = {
   VERCEL_ENV: process.env.VERCEL_ENV,
   ELMAH_IO_API_KEY: process.env.ELMAH_IO_API_KEY,
   ELMAH_IO_HEARTBEAT_ID: process.env.ELMAH_IO_HEARTBEAT_ID,
+  KLYX_EXTERNAL_COST_MODE: process.env.KLYX_EXTERNAL_COST_MODE,
+  KLYX_PROVIDER_ELMAH_IO_ENABLED:
+    process.env.KLYX_PROVIDER_ELMAH_IO_ENABLED,
+  KLYX_PROVIDER_ELMAH_IO_SPEND_CAP_CONFIRMED:
+    process.env.KLYX_PROVIDER_ELMAH_IO_SPEND_CAP_CONFIRMED,
+  KLYX_PROVIDER_ELMAH_IO_MONTHLY_BUDGET_MINOR:
+    process.env.KLYX_PROVIDER_ELMAH_IO_MONTHLY_BUDGET_MINOR,
 };
 
 function restoreEnv(name: keyof typeof originalEnv): void {
@@ -22,12 +29,20 @@ function configureProductionHeartbeat(heartbeatId: string): void {
   process.env.VERCEL_ENV = "production";
   process.env.ELMAH_IO_API_KEY = "test-api-key";
   process.env.ELMAH_IO_HEARTBEAT_ID = heartbeatId;
+  process.env.KLYX_EXTERNAL_COST_MODE = "guarded";
+  process.env.KLYX_PROVIDER_ELMAH_IO_ENABLED = "1";
+  process.env.KLYX_PROVIDER_ELMAH_IO_SPEND_CAP_CONFIRMED = "1";
+  process.env.KLYX_PROVIDER_ELMAH_IO_MONTHLY_BUDGET_MINOR = "1";
 }
 
 afterEach(() => {
   restoreEnv("VERCEL_ENV");
   restoreEnv("ELMAH_IO_API_KEY");
   restoreEnv("ELMAH_IO_HEARTBEAT_ID");
+  restoreEnv("KLYX_EXTERNAL_COST_MODE");
+  restoreEnv("KLYX_PROVIDER_ELMAH_IO_ENABLED");
+  restoreEnv("KLYX_PROVIDER_ELMAH_IO_SPEND_CAP_CONFIRMED");
+  restoreEnv("KLYX_PROVIDER_ELMAH_IO_MONTHLY_BUDGET_MINOR");
 });
 
 describe("elmah.io heartbeat id validation", () => {

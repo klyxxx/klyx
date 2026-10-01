@@ -1,0 +1,375 @@
+name: KLYX Connector Disaster Recovery Certification
+
+on:
+  issues:
+    types:
+      - opened
+
+permissions:
+  contents: read
+  actions: read
+  statuses: write
+  issues: write
+
+concurrency:
+  group: klyx-connector-dr-certification-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  certify:
+    name: Certify exact-main connector offsite recovery
+    if: >-
+      github.event.issue.user.login == github.repository_owner &&
+      startsWith(github.event.issue.title, '[KLYX-DR-CONNECTOR-CERT]')
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+
+    env:
+      GH_TOKEN: ${{ github.token }}
+      KLYX_CONNECTOR_ATTESTATION_JSON: ${{ github.event.issue.body }}
+
+    steps:
+      - name: Validate connector attestation
+        id: attestation
+        shell: bash
+        run: |
+          set -euo pipefail
+          attestation_file="${RUNNER_TEMP}/connector-attestation.json"
+          printf '%s' "$KLYX_CONNECTOR_ATTESTATION_JSON" > "$attestation_file"
+          chmod 600 "$attestation_file"
+
+          node - "$attestation_file" "$GITHUB_OUTPUT" <<'NODE'
+          const fs = require("node:fs");
+          const path = process.argv[2];
+          const output = process.argv[3];
+          const raw = fs.readFileSync(path, "utf8");
+          let a;
+          try {
+            a = JSON.parse(raw);
+          } catch {
+            throw new Error("Connector attestation is not valid JSON.");
+          }
+
+          const allowed = new Set([
+            "format", "version", "targetSha", "fullRestoreRunId", "handoffRunId",
+            "archiveSha256", "dropbox", "keyEscrow", "createdUtc",
+            "productionWrite", "plaintextRetained", "privateRecoveryKeyInGitHub"
+          ]);
+          for (const key of Object.keys(a)) {
+            if (!allowed.has(key)) throw new Error(`Unexpected attestation field: ${key}`);
+          }
+
+          if (a.format !== "KLYX_DR_CONNECTOR_ATTESTATION" || a.version !== 1) {
+            throw new Error("Unsupported connector attestation format/version.");
+          }
+          if (!/^[a-f0-9]{40}$/.test(String(a.targetSha ?? "").toLowerCase())) {
+            throw new Error("targetSha is invalid.");
+          }
+          if (!Number.isInteger(a.fullRestoreRunId) || a.fullRestoreRunId <= 0) {
+            throw new Error("fullRestoreRunId is invalid.");
+          }
+          if (!Number.isInteger(a.handoffRunId) || a.handoffRunId <= 0) {
+            throw new Error("handoffRunId is invalid.");
+          }
+          if (!/^[a-f0-9]{64}$/.test(String(a.archiveSha256 ?? "").toLowerCase())) {
+            throw new Error("archiveSha256 is invalid.");
+          }
+          if (a.productionWrite !== false || a.plaintextRetained !== false || a.privateRecoveryKeyInGitHub !== false) {
+            throw new Error("Unsafe connector attestation flags.");
+          }
+
+          const d = a.dropbox ?? {};
+          if (
+            typeof d.fileId !== "string" || d.fileId.length < 3 ||
+            typeof d.path !== "string" || !d.path.startsWith("/") ||
+            d.uploadVerified !== true || d.contentHashVerified !== true
+          ) {
+            throw new Error("Dropbox offsite evidence is incomplete.");
+          }
+
+          const k = a.keyEscrow ?? {};
+          if (
+            k.provider !== "google_drive" ||
+            typeof k.fileId !== "string" || k.fileId.length < 3 ||
+            typeof k.path !== "string" || !k.path.startsWith("/Google Drive/") ||
+            k.verified !== true || k.keyPairSelfTestVerified !== true
+          ) {
+            throw new Error("Independent recovery-key escrow evidence is incomplete.");
+          }
+
+          const created = Date.parse(String(a.createdUtc ?? ""));
+          if (!Number.isFinite(created)) throw new Error("createdUtc is invalid.");
+          const age = Date.now() - created;
+          if (age < -5 * 60 * 1000 || age > 24 * 60 * 60 * 1000) {
+            throw new Error("Connector attestation must be no older than 24 hours.");
+          }
+
+          fs.appendFileSync(output, `target_sha=${String(a.targetSha).toLowerCase()}\n`);
+          fs.appendFileSync(output, `full_restore_run_id=${a.fullRestoreRunId}\n`);
+          fs.appendFileSync(output, `handoff_run_id=${a.handoffRunId}\n`);
+          fs.appendFileSync(output, `archive_sha=${String(a.archiveSha256).toLowerCase()}\n`);
+          fs.appendFileSync(output, `dropbox_file_id=${d.fileId}\n`);
+          fs.appendFileSync(output, `dropbox_path=${d.path}\n`);
+          fs.appendFileSync(output, `key_escrow_file_id=${k.fileId}\n`);
+          fs.appendFileSync(output, `key_escrow_path=${k.path}\n`);
+          NODE
+
+      - name: Refuse stale main
+        shell: bash
+        env:
+          TARGET_SHA: ${{ steps.attestation.outputs.target_sha }}
+        run: |
+          set -euo pipefail
+          current_main="$(gh api "/repos/${GITHUB_REPOSITORY}/commits/main" --jq '.sha' | tr '[:upper:]' '[:lower:]')"
+          if [ "$current_main" != "$TARGET_SHA" ]; then
+            echo "::error::Connector certification refuses stale main."
+            exit 1
+          fi
+
+      - name: Publish pending DR certification status
+        shell: bash
+        env:
+          TARGET_SHA: ${{ steps.attestation.outputs.target_sha }}
+        run: |
+          set -euo pipefail
+          payload="$(jq -n \
+            --arg state "pending" \
+            --arg context "KLYX Connector DR Certification" \
+            --arg description "Validating exact-main cloud restore, encrypted offsite handoff and external escrow" \
+            --arg target_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            '{state:$state,context:$context,description:$description,target_url:$target_url}')"
+          gh api --method POST "/repos/${GITHUB_REPOSITORY}/statuses/${TARGET_SHA}" --input - <<<"$payload" >/dev/null
+
+      - name: Checkout exact certification commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ steps.attestation.outputs.target_sha }}
+          persist-credentials: false
+
+      - name: Verify exact-main full cloud restore
+        shell: bash
+        env:
+          TARGET_SHA: ${{ steps.attestation.outputs.target_sha }}
+          FULL_RESTORE_RUN_ID: ${{ steps.attestation.outputs.full_restore_run_id }}
+        run: |
+          set -euo pipefail
+          run_json="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${FULL_RESTORE_RUN_ID}")"
+          name="$(jq -r '.name // ""' <<<"$run_json")"
+          status="$(jq -r '.status // ""' <<<"$run_json")"
+          conclusion="$(jq -r '.conclusion // ""' <<<"$run_json")"
+          event="$(jq -r '.event // ""' <<<"$run_json")"
+          head_sha="$(jq -r '.head_sha // ""' <<<"$run_json")"
+          head_branch="$(jq -r '.head_branch // ""' <<<"$run_json")"
+          updated_at="$(jq -r '.updated_at // ""' <<<"$run_json")"
+
+          if [ "$name" != "KLYX Supabase Full Restore Drill" ] || \
+             [ "$status" != "completed" ] || \
+             [ "$conclusion" != "success" ] || \
+             [ "$event" != "workflow_dispatch" ] || \
+             [ "$head_sha" != "$TARGET_SHA" ] || \
+             [ "$head_branch" != "main" ]; then
+            echo "::error::Full restore run does not certify this exact main SHA."
+            exit 1
+          fi
+
+          node - "$updated_at" <<'NODE'
+          const t = Date.parse(process.argv[2] ?? "");
+          if (!Number.isFinite(t)) process.exit(2);
+          const age = Date.now() - t;
+          if (age < -5 * 60 * 1000 || age > 24 * 60 * 60 * 1000) process.exit(3);
+          NODE
+
+          artifacts="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${FULL_RESTORE_RUN_ID}/artifacts?per_page=100")"
+          artifact_id="$(jq -r --arg expected "klyx-supabase-full-restore-proof-${FULL_RESTORE_RUN_ID}" '.artifacts[] | select(.name == $expected and .expired == false) | .id' <<<"$artifacts" | head -n1)"
+          test -n "$artifact_id"
+
+          proof_root="${RUNNER_TEMP}/full-restore-proof"
+          mkdir -p "$proof_root"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" > "$proof_root/proof.zip"
+          unzip -q "$proof_root/proof.zip" -d "$proof_root/unpacked"
+          proof_file="$proof_root/unpacked/proof.txt"
+          test -s "$proof_file"
+          grep -Fx "commit=${TARGET_SHA}" "$proof_file" >/dev/null
+          grep -Fx "run=${FULL_RESTORE_RUN_ID}" "$proof_file" >/dev/null
+          grep -Fx "all_public_table_row_counts_match=true" "$proof_file" >/dev/null
+          grep -Fx "auth_database_verified=true" "$proof_file" >/dev/null
+          grep -Fx "auth_service_verified=true" "$proof_file" >/dev/null
+          grep -Fx "storage_binary_sha256_verified=true" "$proof_file" >/dev/null
+          grep -Fx "storage_service_verified=true" "$proof_file" >/dev/null
+          grep -Fx "production_write=false" "$proof_file" >/dev/null
+
+      - name: Verify encrypted exact-SHA handoff artifact
+        shell: bash
+        env:
+          TARGET_SHA: ${{ steps.attestation.outputs.target_sha }}
+          HANDOFF_RUN_ID: ${{ steps.attestation.outputs.handoff_run_id }}
+          EXPECTED_ARCHIVE_SHA: ${{ steps.attestation.outputs.archive_sha }}
+        run: |
+          set -euo pipefail
+          run_json="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${HANDOFF_RUN_ID}")"
+          name="$(jq -r '.name // ""' <<<"$run_json")"
+          status="$(jq -r '.status // ""' <<<"$run_json")"
+          conclusion="$(jq -r '.conclusion // ""' <<<"$run_json")"
+          head_sha="$(jq -r '.head_sha // ""' <<<"$run_json")"
+
+          if [ "$name" != "KLYX DR Offsite Backup" ] || \
+             [ "$status" != "completed" ] || \
+             [ "$conclusion" != "success" ] || \
+             [ "$head_sha" != "$TARGET_SHA" ]; then
+            echo "::error::Encrypted handoff run does not certify this exact SHA."
+            exit 1
+          fi
+
+          artifacts="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${HANDOFF_RUN_ID}/artifacts?per_page=100")"
+          artifact_id="$(jq -r --arg expected "klyx-dr-connector-handoff-${HANDOFF_RUN_ID}" '.artifacts[] | select(.name == $expected and .expired == false) | .id' <<<"$artifacts" | head -n1)"
+          test -n "$artifact_id"
+
+          handoff_root="${RUNNER_TEMP}/connector-handoff"
+          mkdir -p "$handoff_root"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" > "$handoff_root/handoff.zip"
+          unzip -q "$handoff_root/handoff.zip" -d "$handoff_root/unpacked"
+
+          proof_file="$(find "$handoff_root/unpacked" -type f -name proof.json | head -n1)"
+          archive_file="$(find "$handoff_root/unpacked" -type f -name '*.klyxdr' | head -n1)"
+          test -s "$proof_file"
+          test -s "$archive_file"
+
+          actual_sha="$(sha256sum "$archive_file" | awk '{print tolower($1)}')"
+          if [ "$actual_sha" != "$EXPECTED_ARCHIVE_SHA" ]; then
+            echo "::error::Encrypted handoff archive SHA256 mismatch."
+            exit 1
+          fi
+          if [ "$(head -c 8 "$archive_file")" != "KLYXDR02" ]; then
+            echo "::error::Encrypted handoff is not KLYXDR02."
+            exit 1
+          fi
+
+          node - "$proof_file" "$TARGET_SHA" "$EXPECTED_ARCHIVE_SHA" <<'NODE'
+          const fs = require("node:fs");
+          const proof = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+          if (proof.format !== "KLYX_DR_CONNECTOR_HANDOFF_PROOF") process.exit(2);
+          if (proof.version !== 1) process.exit(3);
+          if (proof.gitCommit !== process.argv[3]) process.exit(4);
+          if (proof.archiveSha256 !== process.argv[4]) process.exit(5);
+          if (proof.encryptionFormat !== "KLYXDR02") process.exit(6);
+          if (proof.providerTarget !== "dropbox") process.exit(7);
+          if (proof.handoffRequired !== true) process.exit(8);
+          if (proof.productionWrite !== false) process.exit(9);
+          if (proof.plaintextUploaded !== false) process.exit(10);
+          if (proof.privateRecoveryKeyPresent !== false) process.exit(11);
+          NODE
+
+      - name: Verify exact-main source backup
+        shell: bash
+        env:
+          TARGET_SHA: ${{ steps.attestation.outputs.target_sha }}
+        run: |
+          set -euo pipefail
+          runs="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${TARGET_SHA}&status=success&per_page=100")"
+          source_run_id="$(jq -r '.workflow_runs[] | select(.name == "KLYX Source Backup" and .conclusion == "success") | .id' <<<"$runs" | head -n1)"
+          test -n "$source_run_id"
+
+          source_run="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${source_run_id}")"
+          source_head="$(jq -r '.head_sha // ""' <<<"$source_run")"
+          source_updated="$(jq -r '.updated_at // ""' <<<"$source_run")"
+          [ "$source_head" = "$TARGET_SHA" ]
+
+          node - "$source_updated" <<'NODE'
+          const t = Date.parse(process.argv[2] ?? "");
+          if (!Number.isFinite(t)) process.exit(2);
+          const age = Date.now() - t;
+          if (age < -5 * 60 * 1000 || age > 24 * 60 * 60 * 1000) process.exit(3);
+          NODE
+
+          artifacts="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${source_run_id}/artifacts?per_page=100")"
+          artifact_id="$(jq -r --arg expected "klyx-source-backup-${source_run_id}" '.artifacts[] | select(.name == $expected and .expired == false) | .id' <<<"$artifacts" | head -n1)"
+          test -n "$artifact_id"
+
+          backup_root="${RUNNER_TEMP}/source-backup"
+          mkdir -p "$backup_root"
+          gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" > "$backup_root/artifact.zip"
+          unzip -q "$backup_root/artifact.zip" -d "$backup_root/unpacked"
+          mapfile -t archives < <(find "$backup_root/unpacked" -maxdepth 2 -type f -name '*.zip')
+          [ "${#archives[@]}" -eq 1 ]
+          pwsh -NoProfile -File ./scripts/check-klyx-backup.ps1 -ArchivePath "${archives[0]}" -ExpectedCommit "$TARGET_SHA"
+          echo "KLYX_DR_SOURCE_BACKUP_RUN_ID=$source_run_id" >> "$GITHUB_ENV"
+
+      - name: Create sanitized connector DR certification proof
+        shell: bash
+        env:
+          TARGET_SHA: ${{ steps.attestation.outputs.target_sha }}
+          FULL_RESTORE_RUN_ID: ${{ steps.attestation.outputs.full_restore_run_id }}
+          HANDOFF_RUN_ID: ${{ steps.attestation.outputs.handoff_run_id }}
+          ARCHIVE_SHA: ${{ steps.attestation.outputs.archive_sha }}
+          DROPBOX_FILE_ID: ${{ steps.attestation.outputs.dropbox_file_id }}
+          DROPBOX_PATH: ${{ steps.attestation.outputs.dropbox_path }}
+          KEY_ESCROW_FILE_ID: ${{ steps.attestation.outputs.key_escrow_file_id }}
+          KEY_ESCROW_PATH: ${{ steps.attestation.outputs.key_escrow_path }}
+        run: |
+          set -euo pipefail
+          mkdir -p dr-connector-certification-proof
+          cat > dr-connector-certification-proof/proof.txt <<EOF
+          commit=${TARGET_SHA}
+          run=${GITHUB_RUN_ID}
+          issue=${{ github.event.issue.number }}
+          overall=certified
+          source_backup_run=${KLYX_DR_SOURCE_BACKUP_RUN_ID}
+          full_restore_run=${FULL_RESTORE_RUN_ID}
+          handoff_run=${HANDOFF_RUN_ID}
+          encrypted_archive_sha256=${ARCHIVE_SHA}
+          offsite_provider=dropbox
+          offsite_upload_verified=true
+          offsite_content_hash_verified=true
+          key_escrow_provider=google_drive
+          key_escrow_verified=true
+          key_pair_self_test_verified=true
+          production_write=false
+          plaintext_retained=false
+          private_recovery_key_in_github=false
+          EOF
+
+          jq -n \
+            --arg dropboxFileId "$DROPBOX_FILE_ID" \
+            --arg dropboxPath "$DROPBOX_PATH" \
+            --arg keyEscrowFileId "$KEY_ESCROW_FILE_ID" \
+            --arg keyEscrowPath "$KEY_ESCROW_PATH" \
+            '{dropboxFileId:$dropboxFileId,dropboxPath:$dropboxPath,keyEscrowFileId:$keyEscrowFileId,keyEscrowPath:$keyEscrowPath}' \
+            > dr-connector-certification-proof/external-evidence.json
+
+      - name: Upload sanitized connector DR certification proof
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: klyx-connector-disaster-recovery-certification-${{ github.run_id }}
+          path: dr-connector-certification-proof/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish certified DR status
+        shell: bash
+        env:
+          TARGET_SHA: ${{ steps.attestation.outputs.target_sha }}
+        run: |
+          set -euo pipefail
+          payload="$(jq -n \
+            --arg state "success" \
+            --arg context "KLYX Connector DR Certification" \
+            --arg description "Exact-main source + full restore + encrypted Dropbox offsite + external key escrow certified" \
+            --arg target_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            '{state:$state,context:$context,description:$description,target_url:$target_url}')"
+          gh api --method POST "/repos/${GITHUB_REPOSITORY}/statuses/${TARGET_SHA}" --input - <<<"$payload" >/dev/null
+          gh issue comment "${{ github.event.issue.number }}" --body "KLYX connector DR certification: **CERTIFIED** for \`${TARGET_SHA}\`. Stripe LIVE was not touched."
+
+      - name: Publish failed DR status
+        if: failure() && steps.attestation.outputs.target_sha != ''
+        shell: bash
+        env:
+          TARGET_SHA: ${{ steps.attestation.outputs.target_sha }}
+        run: |
+          set +e
+          payload="$(jq -n \
+            --arg state "failure" \
+            --arg context "KLYX Connector DR Certification" \
+            --arg description "Connector DR certification blocked; no LIVE activation performed" \
+            --arg target_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            '{state:$state,context:$context,description:$description,target_url:$target_url}')"
+          gh api --method POST "/repos/${GITHUB_REPOSITORY}/statuses/${TARGET_SHA}" --input - <<<"$payload" >/dev/null

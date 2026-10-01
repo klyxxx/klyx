@@ -15,6 +15,9 @@ import {
 import {
   parseOpenAiStructuredResult,
 } from "./openai-structured";
+import {
+  assertKlyxExternalProviderSpendAllowed,
+} from "@/lib/providers/cost-control";
 
 const OPENAI_RESPONSES_URL =
   "https://api.openai.com/v1/responses";
@@ -323,6 +326,10 @@ export class OpenAiKlyxLlmProvider
   async generate(
     request: KlyxLlmRequest,
   ): Promise<KlyxLlmResponse> {
+    // Defense in depth: direct construction of this low-level transport must
+    // never bypass the central external-cost gate.
+    assertKlyxExternalProviderSpendAllowed("openai");
+
     const apiKey =
       getApiKey();
 

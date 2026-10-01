@@ -10,6 +10,9 @@ import {
   fetchWithProviderRecovery,
   type ProviderReplaySafety,
 } from "@/lib/provider-http-recovery";
+import {
+  assertKlyxExternalProviderSpendAllowed,
+} from "@/lib/providers/cost-control";
 
 const BASE_URL = "https://api.sumsub.com";
 
@@ -42,6 +45,8 @@ export async function sumsubRequest<T>(params: {
   body?: unknown;
   replaySafety?: ProviderReplaySafety;
 }): Promise<T> {
+  assertKlyxExternalProviderSpendAllowed("sumsub");
+
   const appToken = requiredEnv("SUMSUB_APP_TOKEN");
   const secretKey = requiredEnv("SUMSUB_SECRET_KEY");
   const method = params.method.toUpperCase();
