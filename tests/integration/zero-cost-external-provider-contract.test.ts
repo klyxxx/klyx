@@ -68,23 +68,24 @@ describe("KLYX zero-cost external provider contract", () => {
     );
   });
 
-  it("blocks Sumsub and Twilio before their external fetch calls", () => {
+  it("blocks Sumsub and Twilio before their recovery-aware external transport calls", () => {
     const sumsub = read("lib/sumsub.ts");
     const twilio = read("lib/twilio-verify.ts");
+    const sumsubGuard = 'assertKlyxExternalProviderSpendAllowed("sumsub")';
+    const twilioGuard = 'assertKlyxExternalProviderSpendAllowed("twilio")';
+    const recoveryTransport = "await fetchWithProviderRecovery(";
 
-    expect(sumsub).toContain(
-      'assertKlyxExternalProviderSpendAllowed("sumsub")'
+    expect(sumsub).toContain(sumsubGuard);
+    expect(sumsub).toContain(recoveryTransport);
+    expect(sumsub.indexOf(sumsubGuard)).toBeLessThan(
+      sumsub.indexOf(recoveryTransport)
     );
-    expect(
-      sumsub.indexOf('assertKlyxExternalProviderSpendAllowed("sumsub")')
-    ).toBeLessThan(sumsub.indexOf("await fetch("));
 
-    expect(twilio).toContain(
-      'assertKlyxExternalProviderSpendAllowed("twilio")'
+    expect(twilio).toContain(twilioGuard);
+    expect(twilio).toContain(recoveryTransport);
+    expect(twilio.indexOf(twilioGuard)).toBeLessThan(
+      twilio.indexOf(recoveryTransport)
     );
-    expect(
-      twilio.indexOf('assertKlyxExternalProviderSpendAllowed("twilio")')
-    ).toBeLessThan(twilio.indexOf("await fetch("));
   });
 
   it("degrades Resend and elmah.io without external calls when spend is disabled", () => {
