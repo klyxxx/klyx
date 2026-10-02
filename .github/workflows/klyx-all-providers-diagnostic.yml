@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   diagnose:
-    name: Capture repository and recovery test failures
+    name: Capture repository, recovery and dependency audit failures
     runs-on: ubuntu-22.04
     timeout-minutes: 25
     steps:
@@ -73,6 +73,16 @@ jobs:
             tests/integration/mobile-client-boundary-contract.test.ts \
             2>&1 | tee reports/certification/recovery-tests.log
 
+      - name: Production dependency audit diagnostic
+        id: audit
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p reports/certification
+          npm audit --omit=dev --audit-level=moderate --json \
+            2>&1 | tee reports/certification/npm-audit-production.json
+
       - name: Upload diagnostic logs
         if: always()
         uses: actions/upload-artifact@v4
@@ -81,6 +91,7 @@ jobs:
           path: |
             reports/certification/repo-tests.log
             reports/certification/recovery-tests.log
+            reports/certification/npm-audit-production.json
           if-no-files-found: error
           retention-days: 7
 
@@ -91,3 +102,4 @@ jobs:
           set -euo pipefail
           test "${{ steps.repo_tests.outcome }}" = "success"
           test "${{ steps.recovery.outcome }}" = "success"
+          test "${{ steps.audit.outcome }}" = "success"
