@@ -9,6 +9,10 @@ afterEach(() => {
 
 describe("KLYX Sumsub provider recovery", () => {
   it("recovers automatically from transient Sumsub network failures for replay-safe token reads/writes", async () => {
+    vi.stubEnv("KLYX_EXTERNAL_COST_MODE", "guarded");
+    vi.stubEnv("KLYX_PROVIDER_SUMSUB_ENABLED", "1");
+    vi.stubEnv("KLYX_PROVIDER_SUMSUB_SPEND_CAP_CONFIRMED", "1");
+    vi.stubEnv("KLYX_PROVIDER_SUMSUB_MONTHLY_BUDGET_MINOR", "100");
     vi.stubEnv("SUMSUB_APP_TOKEN", "test-app-token");
     vi.stubEnv("SUMSUB_SECRET_KEY", "test-secret-key");
 
