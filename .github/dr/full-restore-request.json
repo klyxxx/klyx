@@ -1,9 +1,9 @@
 {
   "format": "KLYX_FULL_RESTORE_REQUEST",
   "version": 1,
-  "requestId": "dr-full-restore-20261002-d13cc271-git-only-r1",
-  "baseMainSha": "d13cc271a709533b257bbf4fa78fec63d5fc360a",
+  "requestId": "dr-full-restore-20260930-6f5a0299-connector",
+  "baseMainSha": "6f5a02997153cc6d2a931c6d424048ccb884089b",
   "confirmProductionRead": true,
-  "reason": "Run exact-main isolated full restore, encrypted GitHub offsite backup, independent connector handoff and external key escrow without local manual intervention; production remains read-only and Stripe LIVE remains disabled.",
-  "requestedAt": "2026-10-02T12:48:14Z"
+  "reason": "Run exact-main isolated full restore, encrypted GitHub connector handoff, independent Dropbox backup and Google Drive key escrow without local manual intervention; production remains read-only and Stripe LIVE remains disabled.",
+  "requestedAt": "2026-09-30T21:25:00Z"
 }

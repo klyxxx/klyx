@@ -1,0 +1,355 @@
+name: KLYX All Providers Certification
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: "Immutable commit SHA to certify"
+        required: false
+        default: ""
+        type: string
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: klyx-all-providers-${{ github.repository }}-${{ github.event_name == 'push' && 'main' || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  certify:
+    name: Providers + recovery + Web Android iOS
+    runs-on: ubuntu-22.04
+    timeout-minutes: 80
+
+    env:
+      KLYX_CERT_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      KLYX_CERT_REF: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref_name }}
+
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      KLYX_PRODUCTION_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      KLYX_STRIPE_TEST_SECRET_KEY: ${{ secrets.KLYX_STRIPE_TEST_SECRET_KEY }}
+      KLYX_STRIPE_TEST_PUBLISHABLE_KEY: ${{ secrets.KLYX_STRIPE_TEST_PUBLISHABLE_KEY }}
+      STRIPE_SECRET_KEY: ${{ secrets.KLYX_STRIPE_TEST_SECRET_KEY }}
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.KLYX_STRIPE_TEST_PUBLISHABLE_KEY }}
+      KLYX_STRIPE_MODE: "test"
+      KLYX_LIVE_PAYMENTS_ENABLED: "false"
+
+      TWILIO_ACCOUNT_SID: ${{ secrets.TWILIO_ACCOUNT_SID }}
+      TWILIO_AUTH_TOKEN: ${{ secrets.TWILIO_AUTH_TOKEN }}
+      TWILIO_API_KEY_SID: ${{ secrets.TWILIO_API_KEY_SID }}
+      TWILIO_API_KEY_SECRET: ${{ secrets.TWILIO_API_KEY_SECRET }}
+      TWILIO_VERIFY_SERVICE_SID: ${{ secrets.TWILIO_VERIFY_SERVICE_SID }}
+
+      SUMSUB_APP_TOKEN: ${{ secrets.SUMSUB_APP_TOKEN }}
+      SUMSUB_SECRET_KEY: ${{ secrets.SUMSUB_SECRET_KEY }}
+      SUMSUB_LEVEL_NAME: ${{ secrets.SUMSUB_LEVEL_NAME }}
+      SUMSUB_WEBHOOK_SECRET: ${{ secrets.SUMSUB_WEBHOOK_SECRET }}
+
+      TOLGEE_API_KEY: ${{ secrets.TOLGEE_API_KEY }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      ELMAH_IO_API_KEY: ${{ secrets.ELMAH_IO_API_KEY }}
+
+      KLYX_INDEPENDENT_WAL_URL: ${{ secrets.KLYX_INDEPENDENT_WAL_URL }}
+      KLYX_INDEPENDENT_WAL_HMAC_SECRET: ${{ secrets.KLYX_INDEPENDENT_WAL_HMAC_SECRET }}
+      KLYX_INDEPENDENT_WAL_ENCRYPTION_KEY: ${{ secrets.KLYX_INDEPENDENT_WAL_ENCRYPTION_KEY }}
+      KLYX_INDEPENDENT_WAL_KEY_ID: ${{ secrets.KLYX_INDEPENDENT_WAL_KEY_ID }}
+      KLYX_INDEPENDENT_WAL_REQUIRED: "true"
+
+      NEXT_PUBLIC_APP_URL: "http://127.0.0.1:3100"
+
+    steps:
+      - name: Validate requested certification SHA
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha != '' }}
+        shell: bash
+        env:
+          KLYX_EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$KLYX_EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Invalid expected certification SHA."
+            exit 1
+          fi
+          if [ "$KLYX_CERT_SHA" != "$KLYX_EXPECTED_SHA" ]; then
+            echo "::error::Certification SHA mismatch: expected $KLYX_EXPECTED_SHA, resolved $KLYX_CERT_SHA."
+            exit 1
+          fi
+
+      - name: Checkout exact certification SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.KLYX_CERT_SHA }}
+
+      - name: Verify exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          if [ "$actual" != "$KLYX_CERT_SHA" ]; then
+            echo "::error::Checkout SHA mismatch: expected $KLYX_CERT_SHA, got $actual."
+            exit 1
+          fi
+
+      - name: Refuse Stripe LIVE
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${KLYX_STRIPE_TEST_SECRET_KEY:-}" in
+            sk_test_*) ;;
+            *) echo "::error::All-provider certification requires Stripe sk_test_* only."; exit 1 ;;
+          esac
+          case "${KLYX_STRIPE_TEST_PUBLISHABLE_KEY:-}" in
+            pk_test_*) ;;
+            *) echo "::error::All-provider certification requires Stripe pk_test_* only."; exit 1 ;;
+          esac
+          if [ "$KLYX_STRIPE_MODE" != "test" ] || [ "$KLYX_LIVE_PAYMENTS_ENABLED" != "false" ]; then
+            echo "::error::Stripe LIVE is forbidden."
+            exit 1
+          fi
+
+      - name: Dispatch exact-SHA engine, Stripe TEST and mobile certifications
+        id: dispatch_exact
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --method POST \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/klyx-complete-engine-certification.yml/dispatches" \
+            -f ref="$KLYX_CERT_REF" \
+            -f "inputs[expected_sha]=$KLYX_CERT_SHA" \
+            -f "inputs[confirm_isolated_e2e]=true"
+
+          gh api --method POST \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/klyx-economic-chain-real-conditions.yml/dispatches" \
+            -f ref="$KLYX_CERT_REF" \
+            -f "inputs[expected_sha]=$KLYX_CERT_SHA" \
+            -f "inputs[confirm_stripe_test_network]=true"
+
+          gh api --method POST \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/klyx-mobile-ci.yml/dispatches" \
+            -f ref="$KLYX_CERT_REF"
+
+      - name: Scan repository for secrets
+        shell: pwsh
+        run: ./scripts/check-klyx-public-repo-secrets.ps1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Dedicated provider recovery certification
+        id: recovery
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx vitest run \
+            tests/integration/all-providers-recovery-certification.test.ts \
+            tests/unit/provider-http-recovery.test.ts \
+            tests/integration/all-provider-recovery-contract.test.ts \
+            tests/integration/supabase-outage-recovery.test.ts \
+            tests/unit/independent-write-ahead.test.ts \
+            tests/unit/independent-wal-client.test.ts \
+            tests/integration/independent-wal-recovery-contract.test.ts \
+            tests/integration/durable-jobs-retry-dlq-contract.test.ts \
+            tests/unit/sumsub-provider-recovery.test.ts \
+            tests/integration/mobile-resume-contract.test.ts \
+            tests/unit/resilience-engine.test.ts \
+            tests/unit/resilience-engine-fail-closed.test.ts \
+            tests/integration/zero-cost-brain-contract.test.ts \
+            tests/unit/sumsub-webhook-hardening.test.ts \
+            tests/unit/resend-email.test.ts \
+            tests/unit/email-delivery-idempotency.test.ts \
+            tests/integration/auth-turnstile-contract.test.ts \
+            tests/integration/security-headers-csp-contract.test.ts \
+            tests/integration/economic-settlement-eligibility-contract.test.ts \
+            tests/integration/settlement-recovery-reconciliation-contract.test.ts \
+            tests/integration/mobile-client-boundary-contract.test.ts
+          npm run certify:autonomous:offline
+
+      - name: Complete repository tests
+        id: repo_tests
+        continue-on-error: true
+        run: npm test
+
+      - name: TypeScript
+        id: typescript
+        continue-on-error: true
+        run: npx tsc --noEmit --pretty false
+
+      - name: Production build
+        id: build
+        continue-on-error: true
+        run: npm run build
+
+      - name: Web Android iOS browser certification
+        id: platforms
+        continue-on-error: true
+        env:
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: "120000"
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/certification
+          npx playwright install --with-deps chromium webkit
+          npx playwright test --config=playwright.providers.config.ts
+
+      - name: Read-only real provider probes
+        id: network
+        continue-on-error: true
+        run: node scripts/certification/klyx-all-providers-network.mjs
+
+      - name: Independent Cloudflare WAL proof
+        id: independent_wal
+        continue-on-error: true
+        run: node scripts/certification/klyx-independent-wal-network.mjs
+
+      - name: Await exact-SHA Complete Engine certification
+        id: exact_engine
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 150); do
+            row="$(gh api --method GET \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/klyx-complete-engine-certification.yml/runs" \
+              -f event=workflow_dispatch -f branch="$KLYX_CERT_REF" -F per_page=20 \
+              --jq ".workflow_runs[] | select(.head_sha == \"$KLYX_CERT_SHA\") | [.id,.status,.conclusion] | @tsv" \
+              | head -n 1)"
+            if [ -n "$row" ]; then
+              status="$(printf '%s' "$row" | cut -f2)"
+              conclusion="$(printf '%s' "$row" | cut -f3)"
+              echo "Complete Engine: $status / $conclusion"
+              if [ "$status" = "completed" ]; then
+                [ "$conclusion" = "success" ] && exit 0
+                exit 1
+              fi
+            fi
+            sleep 10
+          done
+          echo "::error::Timed out waiting for exact-SHA Complete Engine certification."
+          exit 1
+
+      - name: Await exact-SHA Economic Chain Stripe TEST certification
+        id: exact_stripe
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 150); do
+            row="$(gh api --method GET \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/klyx-economic-chain-real-conditions.yml/runs" \
+              -f event=workflow_dispatch -f branch="$KLYX_CERT_REF" -F per_page=20 \
+              --jq ".workflow_runs[] | select(.head_sha == \"$KLYX_CERT_SHA\") | [.id,.status,.conclusion] | @tsv" \
+              | head -n 1)"
+            if [ -n "$row" ]; then
+              status="$(printf '%s' "$row" | cut -f2)"
+              conclusion="$(printf '%s' "$row" | cut -f3)"
+              echo "Economic Chain: $status / $conclusion"
+              if [ "$status" = "completed" ]; then
+                [ "$conclusion" = "success" ] && exit 0
+                exit 1
+              fi
+            fi
+            sleep 10
+          done
+          echo "::error::Timed out waiting for exact-SHA Economic Chain certification."
+          exit 1
+
+      - name: Await exact-SHA Mobile Android iOS certification
+        id: exact_mobile
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 150); do
+            row="$(gh api --method GET \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/klyx-mobile-ci.yml/runs" \
+              -f event=workflow_dispatch -f branch="$KLYX_CERT_REF" -F per_page=20 \
+              --jq ".workflow_runs[] | select(.head_sha == \"$KLYX_CERT_SHA\") | [.id,.status,.conclusion] | @tsv" \
+              | head -n 1)"
+            if [ -n "$row" ]; then
+              status="$(printf '%s' "$row" | cut -f2)"
+              conclusion="$(printf '%s' "$row" | cut -f3)"
+              echo "Mobile Android+iOS: $status / $conclusion"
+              if [ "$status" = "completed" ]; then
+                [ "$conclusion" = "success" ] && exit 0
+                exit 1
+              fi
+            fi
+            sleep 10
+          done
+          echo "::error::Timed out waiting for exact-SHA Mobile Android+iOS certification."
+          exit 1
+
+      - name: Produce final PASS FAIL report
+        id: final_report
+        if: always()
+        continue-on-error: true
+        env:
+          KLYX_RECOVERY_OUTCOME: ${{ steps.recovery.outcome }}
+          KLYX_REPO_TESTS_OUTCOME: ${{ steps.repo_tests.outcome }}
+          KLYX_TYPESCRIPT_OUTCOME: ${{ steps.typescript.outcome }}
+          KLYX_BUILD_OUTCOME: ${{ steps.build.outcome }}
+          KLYX_PLATFORMS_OUTCOME: ${{ steps.platforms.outcome }}
+          KLYX_INDEPENDENT_WAL_OUTCOME: ${{ steps.independent_wal.outcome }}
+          KLYX_EXACT_ENGINE_OUTCOME: ${{ steps.exact_engine.outcome }}
+          KLYX_EXACT_STRIPE_OUTCOME: ${{ steps.exact_stripe.outcome }}
+          KLYX_EXACT_MOBILE_OUTCOME: ${{ steps.exact_mobile.outcome }}
+        run: node scripts/certification/klyx-all-providers-final-report.mjs
+
+      - name: Upload certification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: klyx-all-providers-certification-${{ github.run_id }}
+          path: |
+            reports/certification/all-providers-network.json
+            reports/certification/independent-wal-network.json
+            reports/certification/all-platforms-playwright.json
+            reports/certification/all-providers-final.json
+            reports/certification/all-providers-final.md
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Publish certification summary
+        if: always()
+        shell: bash
+        run: |
+          if [ -f reports/certification/all-providers-final.md ]; then
+            cat reports/certification/all-providers-final.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Enforce certification verdict
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.final_report.outcome }}" != "success" ]; then
+            echo "::error::KLYX all-provider certification report contains one or more FAIL results."
+            exit 1
+          fi

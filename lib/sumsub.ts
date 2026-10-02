@@ -5,12 +5,16 @@ import {
   createHmac,
   timingSafeEqual,
 } from "crypto";
+
+import {
+  fetchWithProviderRecovery,
+  type ProviderReplaySafety,
+} from "@/lib/provider-http-recovery";
 import {
   assertKlyxExternalProviderSpendAllowed,
 } from "@/lib/providers/cost-control";
 
 const BASE_URL = "https://api.sumsub.com";
-const SUMSUB_TIMEOUT_MS = 15_000;
 
 function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();
@@ -39,6 +43,7 @@ export async function sumsubRequest<T>(params: {
   method: "GET" | "POST";
   path: string;
   body?: unknown;
+  replaySafety?: ProviderReplaySafety;
 }): Promise<T> {
   assertKlyxExternalProviderSpendAllowed("sumsub");
 
@@ -63,9 +68,11 @@ export async function sumsubRequest<T>(params: {
     )
     .digest("hex");
 
-  // Do not automatically retry provider mutations here. A timeout can leave
-  // external state unknown; KLYX must fail closed and reconcile explicitly.
-  const response = await fetch(
+  const replaySafety =
+    params.replaySafety ??
+    (method === "GET" ? "safe" : "ambiguous");
+
+  const response = await fetchWithProviderRecovery(
     `${BASE_URL}${params.path}`,
     {
       method,
@@ -79,7 +86,13 @@ export async function sumsubRequest<T>(params: {
       },
       body:
         method === "POST" ? body : undefined,
-      signal: AbortSignal.timeout(SUMSUB_TIMEOUT_MS),
+    },
+    {
+      provider: "sumsub",
+      operation: params.path,
+      replaySafety,
+      timeoutMs: 8_000,
+      maxAttempts: 3,
     }
   );
 
@@ -130,6 +143,8 @@ export async function createSumsubSdkToken(params: {
     };
   }
 
+  // Repeating token issuance is non-financial and does not mutate KLYX
+  // eligibility truth. Multiple short-lived tokens are acceptable recovery.
   return sumsubRequest<{
     token: string;
     userId?: string;
@@ -137,6 +152,7 @@ export async function createSumsubSdkToken(params: {
     method: "POST",
     path: "/resources/accessTokens/sdk",
     body,
+    replaySafety: "safe",
   });
 }
 

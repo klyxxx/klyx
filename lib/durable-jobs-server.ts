@@ -1,5 +1,9 @@
 import "server-only";
 
+import {
+  acknowledgeIndependentWalJob,
+  persistIndependentWalJob,
+} from "@/lib/independent-wal-client";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export type KlyxDurableJobScope = {
@@ -116,32 +120,42 @@ function normalizeScope(scope: KlyxDurableJobScope) {
   };
 }
 
-export async function enqueueKlyxDurableJob(
+function normalizeEnqueueInput(
   input: EnqueueKlyxDurableJobInput
-): Promise<EnqueueKlyxDurableJobResult> {
+): EnqueueKlyxDurableJobInput {
   const jobType = input.jobType.trim().toLowerCase();
   const idempotencyKey = input.idempotencyKey.trim();
 
   if (!jobType) {
     throw new Error("KLYX_DURABLE_JOB_TYPE_REQUIRED");
   }
-
   if (!idempotencyKey) {
     throw new Error("KLYX_DURABLE_JOB_IDEMPOTENCY_KEY_REQUIRED");
   }
 
+  return { ...input, jobType, idempotencyKey };
+}
+
+/**
+ * Recovery-only canonical enqueue. This bypasses the independent WAL so the
+ * WAL callback cannot recurse. Normal callers must use enqueueKlyxDurableJob.
+ */
+export async function enqueueKlyxDurableJobDirect(
+  input: EnqueueKlyxDurableJobInput
+): Promise<EnqueueKlyxDurableJobResult> {
+  const normalized = normalizeEnqueueInput(input);
   const { data, error } = await supabaseAdmin.rpc(
     "klyx_enqueue_durable_job",
     {
-      p_job_type: jobType,
-      p_idempotency_key: idempotencyKey,
-      p_payload: input.payload ?? {},
-      ...normalizeScope(input),
-      p_priority: input.priority ?? 100,
-      p_available_at: optionalText(input.availableAt),
-      p_max_attempts: input.maxAttempts ?? 5,
-      p_backoff_base_seconds: input.backoffBaseSeconds ?? 30,
-      p_backoff_max_seconds: input.backoffMaxSeconds ?? 3600,
+      p_job_type: normalized.jobType,
+      p_idempotency_key: normalized.idempotencyKey,
+      p_payload: normalized.payload ?? {},
+      ...normalizeScope(normalized),
+      p_priority: normalized.priority ?? 100,
+      p_available_at: optionalText(normalized.availableAt),
+      p_max_attempts: normalized.maxAttempts ?? 5,
+      p_backoff_base_seconds: normalized.backoffBaseSeconds ?? 30,
+      p_backoff_max_seconds: normalized.backoffMaxSeconds ?? 3600,
     }
   );
 
@@ -150,7 +164,6 @@ export async function enqueueKlyxDurableJob(
   }
 
   const row = firstRow<EnqueueRow>(data);
-
   if (
     !row.job_id ||
     !row.job_status ||
@@ -168,6 +181,30 @@ export async function enqueueKlyxDurableJob(
     operationId: row.operation_id,
     correlationId: row.correlation_id,
   };
+}
+
+export async function enqueueKlyxDurableJob(
+  input: EnqueueKlyxDurableJobInput
+): Promise<EnqueueKlyxDurableJobResult> {
+  const normalized = normalizeEnqueueInput(input);
+
+  // The independent WAL is write-ahead ingress only. Supabase remains the
+  // sole execution queue and idempotency authority. If Supabase is down after
+  // this write, the Durable Object alarm replays the same idempotency key.
+  const wal = await persistIndependentWalJob(normalized);
+  const result = await enqueueKlyxDurableJobDirect(normalized);
+
+  if (wal) {
+    // A failed acknowledgement is safe: the WAL may replay later, but the
+    // canonical Supabase enqueue is idempotent and cannot create a duplicate.
+    try {
+      await acknowledgeIndependentWalJob(wal);
+    } catch (error) {
+      console.error("KLYX independent WAL acknowledge failed", error);
+    }
+  }
+
+  return result;
 }
 
 export async function claimKlyxDurableJobs(input: {
