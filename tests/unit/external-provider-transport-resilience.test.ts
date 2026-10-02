@@ -11,31 +11,28 @@ function read(relativePath: string): string {
 }
 
 describe("external provider transport resilience", () => {
-  it("bounds Sumsub network calls without blind mutation retries", () => {
+  it("bounds Sumsub calls through the shared recovery primitive without blind mutation replay", () => {
     const source = read("lib/sumsub.ts");
 
-    expect(source).toContain("const SUMSUB_TIMEOUT_MS = 15_000");
+    expect(source).toContain("fetchWithProviderRecovery");
+    expect(source).toContain('provider: "sumsub"');
+    expect(source).toContain("timeoutMs: 8_000");
     expect(source).toContain(
-      "signal: AbortSignal.timeout(SUMSUB_TIMEOUT_MS)"
+      '(method === "GET" ? "safe" : "ambiguous")'
     );
-    expect(source).toContain(
-      "KLYX must fail closed and reconcile explicitly"
-    );
+    expect(source).toContain('replaySafety: "safe"');
   });
 
-  it("bounds both Twilio Verify calls without blind OTP retries", () => {
+  it("fails closed for ambiguous Twilio OTP send and retries only replay-safe checks", () => {
     const source = read("lib/twilio-verify.ts");
 
-    expect(source).toContain(
-      "const TWILIO_VERIFY_TIMEOUT_MS = 15_000"
-    );
-    expect(
-      source.match(
-        /signal: AbortSignal\.timeout\(TWILIO_VERIFY_TIMEOUT_MS\)/g
-      )?.length
-    ).toBe(2);
-    expect(source).toContain(
-      "KLYX keeps verification fail-closed"
-    );
+    expect(source).toContain("fetchWithProviderRecovery");
+    expect(source).toContain('operation: "start_verification"');
+    expect(source).toContain('replaySafety: "ambiguous"');
+    expect(source).toContain("maxAttempts: 1");
+    expect(source).toContain('operation: "check_verification"');
+    expect(source).toContain('replaySafety: "safe"');
+    expect(source).toContain("maxAttempts: 3");
+    expect(source.match(/timeoutMs: 8_000/g)?.length).toBe(2);
   });
 });

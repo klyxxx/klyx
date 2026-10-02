@@ -64,6 +64,10 @@
     "typescript": "^5",
     "vitest": "^4.1.10"
   },
+  "overrides": {
+    "ip-address": "10.7.2",
+    "undici": "7.30.0"
+  },
   "engines": {
     "node": "22.x"
   }

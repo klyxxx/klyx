@@ -1,12 +1,13 @@
 import "server-only";
 
 import {
+  fetchWithProviderRecovery,
+} from "@/lib/provider-http-recovery";
+import {
   assertKlyxExternalProviderSpendAllowed,
 } from "@/lib/providers/cost-control";
 
 // KLYX_TWILIO_VERIFY_12_69
-
-const TWILIO_VERIFY_TIMEOUT_MS = 15_000;
 
 type TwilioResponse = {
   status?: string;
@@ -85,9 +86,9 @@ export async function sendPhoneOtp(
     Channel: "sms",
   });
 
-  // Do not retry this POST automatically after a timeout: the provider may
-  // already have created the challenge. KLYX keeps verification fail-closed.
-  const response = await fetch(
+  // Starting a verification can send an SMS. A timeout is therefore
+  // ambiguous: never replay it blindly and risk duplicate messages.
+  const response = await fetchWithProviderRecovery(
     "https://verify.twilio.com/v2/Services/" +
       encodeURIComponent(serviceSid) +
       "/Verifications",
@@ -100,7 +101,13 @@ export async function sendPhoneOtp(
           "application/x-www-form-urlencoded",
       },
       body: body.toString(),
-      signal: AbortSignal.timeout(TWILIO_VERIFY_TIMEOUT_MS),
+    },
+    {
+      provider: "twilio",
+      operation: "start_verification",
+      replaySafety: "ambiguous",
+      timeoutMs: 8_000,
+      maxAttempts: 1,
     }
   );
 
@@ -121,7 +128,9 @@ export async function verifyPhoneOtp(
     Code: code,
   });
 
-  const response = await fetch(
+  // Verification checks do not create the SMS side effect, so transient
+  // provider/network failures may be retried automatically.
+  const response = await fetchWithProviderRecovery(
     "https://verify.twilio.com/v2/Services/" +
       encodeURIComponent(serviceSid) +
       "/VerificationCheck",
@@ -134,7 +143,13 @@ export async function verifyPhoneOtp(
           "application/x-www-form-urlencoded",
       },
       body: body.toString(),
-      signal: AbortSignal.timeout(TWILIO_VERIFY_TIMEOUT_MS),
+    },
+    {
+      provider: "twilio",
+      operation: "check_verification",
+      replaySafety: "safe",
+      timeoutMs: 8_000,
+      maxAttempts: 3,
     }
   );
 
