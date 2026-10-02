@@ -1,0 +1,93 @@
+name: KLYX All Providers Diagnostic
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: klyx-all-providers-diagnostic-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    name: Capture repository and recovery test failures
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Repository tests with diagnostic log
+        id: repo_tests
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p reports/certification
+          npm test 2>&1 | tee reports/certification/repo-tests.log
+
+      - name: Provider recovery tests with diagnostic log
+        id: recovery
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p reports/certification
+          npx vitest run \
+            tests/integration/all-providers-recovery-certification.test.ts \
+            tests/unit/provider-http-recovery.test.ts \
+            tests/integration/all-provider-recovery-contract.test.ts \
+            tests/integration/supabase-outage-recovery.test.ts \
+            tests/unit/independent-write-ahead.test.ts \
+            tests/unit/independent-wal-client.test.ts \
+            tests/integration/independent-wal-recovery-contract.test.ts \
+            tests/integration/durable-jobs-retry-dlq-contract.test.ts \
+            tests/unit/sumsub-provider-recovery.test.ts \
+            tests/integration/mobile-resume-contract.test.ts \
+            tests/unit/resilience-engine.test.ts \
+            tests/unit/resilience-engine-fail-closed.test.ts \
+            tests/integration/zero-cost-brain-contract.test.ts \
+            tests/unit/sumsub-webhook-hardening.test.ts \
+            tests/unit/resend-email.test.ts \
+            tests/unit/email-delivery-idempotency.test.ts \
+            tests/integration/auth-turnstile-contract.test.ts \
+            tests/integration/security-headers-csp-contract.test.ts \
+            tests/integration/economic-settlement-eligibility-contract.test.ts \
+            tests/integration/settlement-recovery-reconciliation-contract.test.ts \
+            tests/integration/mobile-client-boundary-contract.test.ts \
+            2>&1 | tee reports/certification/recovery-tests.log
+
+      - name: Upload diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: klyx-all-providers-diagnostic-${{ github.run_id }}
+          path: |
+            reports/certification/repo-tests.log
+            reports/certification/recovery-tests.log
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Preserve fail-closed verdict
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ steps.repo_tests.outcome }}" = "success"
+          test "${{ steps.recovery.outcome }}" = "success"
