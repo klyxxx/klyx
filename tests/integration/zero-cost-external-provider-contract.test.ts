@@ -143,4 +143,13 @@ describe("KLYX zero-cost external provider contract", () => {
     expect(guard).toContain("process.exit(1)");
   });
 
+  it("keeps the real OpenAI smoke test paid-opt-in and on Luna", () => {
+    const smoke = read("scripts/run-step-13-58-openai-smoke.ps1");
+
+    expect(smoke).toContain("KLYX_OPENAI_SMOKE_APPROVED");
+    expect(smoke).toContain("KLYX_EXTERNAL_COST_MODE");
+    expect(smoke).toContain('"gpt-6-luna"');
+    expect(smoke).toContain("max_output_tokens");
+  });
+
 });
