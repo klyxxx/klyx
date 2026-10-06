@@ -122,4 +122,25 @@ describe("KLYX zero-cost external provider contract", () => {
     expect(costControl).toContain('secret.startsWith("sk_test_")');
     expect(costControl).toContain('publishable.startsWith("pk_test_")');
   });
+  it("uses the lowest-cost OpenAI model by default and caps total generated tokens", () => {
+    const provider = read("lib/brain/llm/openai-provider.ts");
+
+    expect(provider).toContain('"gpt-6-luna"');
+    expect(provider).toContain("max_output_tokens: getMaxOutputTokens()");
+    expect(provider).toContain("DEFAULT_MAX_OUTPUT_TOKENS");
+    expect(provider).toContain("MAX_MAX_OUTPUT_TOKENS");
+  });
+
+  it("blocks Tolgee cloud pushes unless billing is explicitly approved", () => {
+    const packageJson = JSON.parse(read("package.json"));
+    const guard = read("scripts/guard-tolgee-billing.mjs");
+
+    expect(packageJson.scripts["i18n:tolgee:push"]).toContain(
+      "guard-tolgee-billing.mjs"
+    );
+    expect(guard).toContain("KLYX_TOLGEE_BILLING_APPROVED");
+    expect(guard).toContain("KLYX_EXTERNAL_COST_MODE");
+    expect(guard).toContain("process.exit(1)");
+  });
+
 });
