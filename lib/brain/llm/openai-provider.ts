@@ -23,13 +23,19 @@ const OPENAI_RESPONSES_URL =
   "https://api.openai.com/v1/responses";
 
 const DEFAULT_MODEL =
-  "gpt-5.6-terra";
+  "gpt-6-luna";
 
 const DEFAULT_TIMEOUT_MS =
   15_000;
 
 const MAX_TIMEOUT_MS =
   30_000;
+
+const DEFAULT_MAX_OUTPUT_TOKENS =
+  1_600;
+
+const MAX_MAX_OUTPUT_TOKENS =
+  2_000;
 
 type OpenAiResponsePayload = {
   id?: string;
@@ -85,6 +91,16 @@ function getTimeoutMs(): number {
     Math.floor(raw),
     MAX_TIMEOUT_MS,
   );
+}
+
+function getMaxOutputTokens(): number {
+  const raw = Number(process.env.KLYX_OPENAI_MAX_OUTPUT_TOKENS);
+
+  if (!Number.isFinite(raw) || raw < 16) {
+    return DEFAULT_MAX_OUTPUT_TOKENS;
+  }
+
+  return Math.min(Math.floor(raw), MAX_MAX_OUTPUT_TOKENS);
 }
 
 function trimOutput(
@@ -176,6 +192,8 @@ function buildRequestBody(
 ) {
   return {
     model,
+
+    max_output_tokens: getMaxOutputTokens(),
 
     reasoning: {
       effort: "low",
