@@ -68,6 +68,31 @@ foreach (
     }
 }
 
+
+$costMode =
+    $env:KLYX_EXTERNAL_COST_MODE
+
+$smokeApproved =
+    $env:KLYX_OPENAI_SMOKE_APPROVED
+
+if (
+    $costMode -ne "guarded" -or
+    $smokeApproved -ne "1"
+) {
+    Write-Host ""
+    Write-Host "======================================"
+    Write-Host "KLYX 13.58 OPENAI SMOKE SKIPPED"
+    Write-Host "======================================"
+    Write-Host "Paid external call requires:"
+    Write-Host "KLYX_EXTERNAL_COST_MODE=guarded"
+    Write-Host "KLYX_OPENAI_SMOKE_APPROVED=1"
+    Write-Host "Real API call : NON"
+    Write-Host "External cost : ZERO"
+    Write-Host "======================================"
+
+    exit 0
+}
+
 if (
     [string]::IsNullOrWhiteSpace(
         $env:OPENAI_API_KEY
@@ -91,7 +116,7 @@ $model =
             $env:KLYX_OPENAI_MODEL
         )
     ) {
-        "gpt-5.6-terra"
+        "gpt-6-luna"
     }
     else {
         $env:KLYX_OPENAI_MODEL
@@ -123,6 +148,9 @@ $body =
     @{
         model =
             $model
+
+        max_output_tokens =
+            1600
 
         reasoning =
             @{
