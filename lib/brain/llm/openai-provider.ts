@@ -15,12 +15,18 @@ import {
 import {
   parseOpenAiStructuredResult,
 } from "./openai-structured";
+import {
+  assertKlyxExternalProviderSpendAllowed,
+} from "@/lib/providers/cost-control";
+import {
+  executeKlyxRuntimeProviderCall,
+} from "@/lib/providers/runtime-cost-governor";
 
 const OPENAI_RESPONSES_URL =
   "https://api.openai.com/v1/responses";
 
 const DEFAULT_MODEL =
-  "gpt-5.6-terra";
+  "gpt-6-luna";
 
 const DEFAULT_TIMEOUT_MS =
   15_000;
@@ -165,6 +171,71 @@ function extractOutputText(
   }
 
   return pieces.join("\n");
+}
+
+function estimateOpenAiCostMinor(
+  request: KlyxLlmRequest,
+  model: string,
+): number {
+  const inputRate =
+    model === "gpt-6-luna"
+      ? 0.1
+      : model === "gpt-5.6-luna"
+        ? 0.2
+        : model === "gpt-5.6-terra"
+          ? 2
+          : 2;
+  const outputRate =
+    model === "gpt-6-luna"
+      ? 0.5
+      : model === "gpt-5.6-luna"
+        ? 1.2
+        : model === "gpt-5.6-terra"
+          ? 12
+          : 12;
+
+  const inputCharacters =
+    serializeMessages(request).length +
+    serializeContext(request).length +
+    2000;
+  const inputTokens = Math.ceil(inputCharacters / 4);
+  const outputTokens = Math.ceil(
+    (request.maxOutputCharacters ?? 2200) / 4
+  );
+  const estimatedUsd =
+    (inputTokens / 1_000_000) * inputRate +
+    (outputTokens / 1_000_000) * outputRate;
+
+  return Math.max(1, Math.ceil(estimatedUsd * 100));
+}
+
+function actualOpenAiCostMinor(
+  payload: OpenAiResponsePayload,
+  model: string,
+): { minor: number; currency: string } {
+  const inputTokens = payload.usage?.input_tokens;
+  const outputTokens = payload.usage?.output_tokens;
+
+  if (
+    !Number.isFinite(inputTokens) ||
+    !Number.isFinite(outputTokens)
+  ) {
+    return { minor: 1, currency: "USD" };
+  }
+
+  const inputRate =
+    model === "gpt-6-luna" ? 0.1 : 2;
+  const outputRate =
+    model === "gpt-6-luna" ? 0.5 : 12;
+
+  const usd =
+    ((inputTokens ?? 0) / 1_000_000) * inputRate +
+    ((outputTokens ?? 0) / 1_000_000) * outputRate;
+
+  return {
+    minor: Math.max(1, Math.ceil(usd * 100)),
+    currency: "USD",
+  };
 }
 
 function buildRequestBody(
@@ -323,6 +394,10 @@ export class OpenAiKlyxLlmProvider
   async generate(
     request: KlyxLlmRequest,
   ): Promise<KlyxLlmResponse> {
+    // Defense in depth: direct construction of this low-level transport must
+    // never bypass the central external-cost gate.
+    assertKlyxExternalProviderSpendAllowed("openai");
+
     const apiKey =
       getApiKey();
 
@@ -365,51 +440,75 @@ export class OpenAiKlyxLlmProvider
       );
 
     try {
-      const response =
-        await fetch(
-          OPENAI_RESPONSES_URL,
-          {
-            method:
-              "POST",
-
-            headers: {
-              Authorization:
-                `Bearer ${apiKey}`,
-
-              "Content-Type":
-                "application/json",
-            },
-
-            body:
-              JSON.stringify(
-                buildRequestBody(
-                  request,
-                  model,
-                ),
-              ),
-
-            signal:
-              controller.signal,
-
-            cache:
-              "no-store",
-          },
-        );
-
-      if (!response.ok) {
-        const errorBody =
-          await response.text();
-
-        throw new Error(
-          `OpenAI Responses API failed (${response.status}): ${errorBody.slice(
-            0,
-            500,
-          )}`,
-        );
-      }
-
       const payload =
-        await response.json() as OpenAiResponsePayload;
+        await executeKlyxRuntimeProviderCall({
+          provider: "openai",
+          capability: "text_generation",
+          operation: "generate",
+          kind: "read",
+          retrySafety: "read_only",
+          estimatedCostMinor:
+            estimateOpenAiCostMinor(
+              request,
+              model,
+            ),
+          costCurrency: "USD",
+          payload: null,
+          adapter: {
+            provider: "openai",
+            capabilities: ["text_generation"],
+            async execute({ signal }) {
+              const response =
+                await fetch(
+                  OPENAI_RESPONSES_URL,
+                  {
+                    method:
+                      "POST",
+
+                    headers: {
+                      Authorization:
+                        `Bearer ${apiKey}`,
+
+                      "Content-Type":
+                        "application/json",
+                    },
+
+                    body:
+                      JSON.stringify(
+                        buildRequestBody(
+                          request,
+                          model,
+                        ),
+                      ),
+
+                    signal,
+
+                    cache:
+                      "no-store",
+                  },
+                );
+
+              if (!response.ok) {
+                const errorBody =
+                  await response.text();
+
+                throw new Error(
+                  `OpenAI Responses API failed (${response.status}): ${errorBody.slice(
+                    0,
+                    500,
+                  )}`,
+                );
+              }
+
+              return await response.json() as OpenAiResponsePayload;
+            },
+          },
+          actualCost: (value) =>
+            actualOpenAiCostMinor(
+              value,
+              model,
+            ),
+        });
 
       const rawOutput =
         extractOutputText(
